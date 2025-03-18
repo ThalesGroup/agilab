@@ -22,7 +22,7 @@ see ../README.md
 
 Execution
 ---------
-cd src/fwk/lab
+cd src/fwk/gui
 uv run streamlit run src/agi_lab/AGILab.py
 
 

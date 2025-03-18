@@ -34,7 +34,7 @@ jobs:
 
     - name: Remove all existing distribution directories
       run: |
-        rm -rf src/fwk/env/dist src/fwk/core/dist src/fwk/lab/dist dist
+        rm -rf src/fwk/env/dist src/fwk/core/dist src/fwk/gui/dist dist
 
     - name: Update version in pyproject.toml
       env:
@@ -46,7 +46,7 @@ jobs:
 
     - name: Build and upload subpackages
       run: |
-        SUBDIRS=("src/fwk/env" "src/fwk/core" "src/fwk/lab")
+        SUBDIRS=("src/fwk/env" "src/fwk/core" "src/fwk/gui")
         for dir in "${SUBDIRS[@]}"; do
           echo "Building package in $dir"
           pushd "$dir"
@@ -66,11 +66,11 @@ jobs:
         name: agi-core-distributions
         path: src/fwk/core/dist/
 
-    - name: Upload agi-lab package
+    - name: Upload agi-gui package
       uses: actions/upload-artifact@v4
       with:
-        name: agi-lab-distributions
-        path: src/fwk/lab/dist/
+        name: agi-gui-distributions
+        path: src/fwk/gui/dist/
 
     - name: Build and upload main package (agilab)
       run: uv build

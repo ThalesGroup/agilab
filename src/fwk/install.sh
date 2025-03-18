@@ -41,7 +41,7 @@ main() {
   uv pip install -e .
   popd
 
-  pushd lab
+  pushd gui
   uv sync
   popd
 

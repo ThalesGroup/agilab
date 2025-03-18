@@ -374,7 +374,7 @@ class AgiEnv:
         self.scheduler_ip = envars.get("AGI_SCHEDULER_IP", "127.0.0.1")
         if not self.is_valid_ip(self.scheduler_ip):
             raise ValueError(f"Invalid scheduler IP address: {self.scheduler_ip}")
-        AGI_LAB_DIR = envars.get("AGI_LAB_DIR", str(self.agi_root / "fwk/lab"))
+        AGI_LAB_DIR = envars.get("AGI_LAB_DIR", str(self.agi_root / "fwk/gui"))
         self.AGI_LAB_ABS = Path(AGI_LAB_DIR)
         self.help_path = Path(
             envars.get("AGI_HELP_DIR", str(self.agi_root / "docs/html"))
@@ -394,7 +394,7 @@ class AgiEnv:
 
     def init_envars_app(self, envars):
         #self.dataframes_path = self.AGILAB_SHARE_ABS / self.target / "dataframes"
-        AGI_LAB_ABS = Path(envars.get("AGI_LAB_DIR", self.agi_root / "fwk/lab"))
+        AGI_LAB_ABS = Path(envars.get("AGI_LAB_DIR", self.agi_root / "fwk/gui"))
         self.AGI_LAB_ABS = AGI_LAB_ABS
         self.AGI_SRC_ABS = AGI_LAB_ABS / "src"
         AGILAB_LOG_ABS = Path(envars.get("AGI_LOG_DIR", self.home_abs / "log"))

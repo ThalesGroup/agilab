@@ -59,7 +59,7 @@ RESOURCE_PATH = env.deployed_resources_abs
 if "datadir" not in st.session_state:
     st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
 if "help_path" not in st.session_state:
-    st.session_state.help_path = env.AGI_LAB_ABS / "src/lab/help"
+    st.session_state.help_path = env.AGI_LAB_ABS / "src/gui/help"
 
 st.session_state["env"] = env
 default_df = "export.csv"
@@ -148,7 +148,7 @@ def open_docs(env, html_file="index.html", anchor=""):
 
     _DOCS_ALREADY_OPENED = True
 
-    # Build the path to the local file, e.g. lab.html
+    # Build the path to the local file, e.g. gui.html
     docs_path = env.AGILAB_VIEWS_ABS.parent / "docs" / "build" / html_file
 
     # Check if the base file exists (ignoring the anchor part)
@@ -157,7 +157,7 @@ def open_docs(env, html_file="index.html", anchor=""):
         return
 
     # Construct a file:// URL with an optional anchor
-    # e.g. file://${PROJECT_ROOT}/docs/build/lab.html#project-editor
+    # e.g. file://${PROJECT_ROOT}/docs/build/gui.html#project-editor
     docs_url = f"file://{docs_path}"
     if anchor:
         # Ensure that anchor starts with '#'
@@ -700,7 +700,7 @@ def run_agi(code, env, path="."):
 
 def run_lab(query, snippet, copilot):
     """
-    Run lab code.
+    Run gui code.
 
     Args:
         query: The query data.
@@ -898,7 +898,7 @@ def update_views(project, views):
     st.session_state["project"] = project
     st.session_state.preview_tree = False
 
-    pages_root = Path(os.getcwd()) / "src/lab/pages"
+    pages_root = Path(os.getcwd()) / "src/gui/pages"
     existing_pages = set(os.listdir(pages_root))
 
     expected_pages = set()

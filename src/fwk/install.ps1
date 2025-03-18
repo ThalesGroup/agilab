@@ -43,7 +43,7 @@ function Main {
     uv pip install -e .
     Pop-Location
 
-    Push-Location "lab"
+    Push-Location "gui"
     uv sync
     Pop-Location
 

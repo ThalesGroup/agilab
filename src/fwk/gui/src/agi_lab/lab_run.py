@@ -8,8 +8,8 @@ def check_environment():
     # Check if current directory is acceptable:
     cwd = Path.cwd()
     # For example, accept if the cwd contains 'pyproject.toml'
-    if not (cwd / "pyproject.toml").exists() and "agilab/src/fwk/lab" not in str(cwd):
-        print("Error: Please run this command from a directory that contains your agilab project (e.g. the project root or agilab/src/fwk/lab).")
+    if not (cwd / "pyproject.toml").exists() and "agilab/src/fwk/gui" not in str(cwd):
+        print("Error: Please run this command from a directory that contains your agilab project (e.g. the project root or agilab/src/fwk/gui).")
         sys.exit(1)
 
     # Check if the package is installed (optional):

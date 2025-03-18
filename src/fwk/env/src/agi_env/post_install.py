@@ -42,4 +42,4 @@ def resolve_packages_path_in_toml(dir_path):
 
 if __name__ == '__main__':
     resolve_packages_path_in_toml("../core")
-    resolve_packages_path_in_toml("../lab")
+    resolve_packages_path_in_toml("../gui")

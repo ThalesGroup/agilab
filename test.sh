@@ -4,7 +4,7 @@ set -e
 home=$(pwd)
 
 # List of component to build
-SUBDIRS=("src/fwk/env" "src/fwk/core" "src/fwk/lab")
+SUBDIRS=("src/fwk/env" "src/fwk/core" "src/fwk/gui")
 rm -fr test
 mkdir test
 

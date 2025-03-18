@@ -58,7 +58,7 @@ with open(pre_prompt_file) as f:
     pre_prompt = json.load(f)
 
 # Initialize session state variables if not present
-st.session_state.setdefault("help_path", env.AGI_LAB_ABS / "src/lab/help")
+st.session_state.setdefault("help_path", env.AGI_LAB_ABS / "src/gui/help")
 st.session_state.setdefault("projects", env.projects)
 
 st.session_state.setdefault("snippet_file", env.AGILAB_LOG_ABS / "lab_snippet.py")
@@ -553,7 +553,7 @@ def on_import_notebook(key, module_dir, steps_file, index_page):
 
 def on_lab_change(new_index_page):
     """
-    Callback function to handle lab changes.
+    Callback function to handle gui changes.
     """
 
     # del dataframe selection

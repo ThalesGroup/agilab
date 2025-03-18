@@ -11,7 +11,7 @@ else
     echo -e "${RED}Please install agilab before running it!${NC}"
 fi
 AgiPROJECT="$AgiROOT/agi"
-AgiLAB="$AgiPROJECT/fwk/lab"
+AgiLAB="$AgiPROJECT/fwk/gui"
 AgiEDIT="$AgiLAB/src/agi_lab/AGILab.py"
 
 echo "Running 'uv run streamlit run "$AgiEDIT"' from '$AgiLAB'"

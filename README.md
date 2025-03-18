@@ -14,7 +14,7 @@ AGILAB project purpose is to explore AI for engineering. It is designed to help 
 
 ```bash
     mkdir agi-workspace && cd agi-workspace
-    uv init && uv add agi-env agi-core agi-lab agilab 
+    uv init && uv add agi-env agi-core agi-gui agilab 
 ````
 
 ## Install AGILAB for contributors
