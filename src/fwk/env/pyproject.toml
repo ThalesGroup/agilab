@@ -7,7 +7,6 @@ readme = "README.md"
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
 ]
-license = { text = "BSD 3-Clause License" }
 dependencies = [
     "humanize",
     "pathspec",
