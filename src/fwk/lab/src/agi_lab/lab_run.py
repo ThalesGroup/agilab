@@ -5,8 +5,6 @@ import streamlit.web.cli as stcli
 
 def check_environment():
 
-    check_environment()
-
     # Check if current directory is acceptable:
     cwd = Path.cwd()
     # For example, accept if the cwd contains 'pyproject.toml'
@@ -22,6 +20,9 @@ def check_environment():
         sys.exit(1)
 
 def main():
+
+    check_environment()
+
     parser = argparse.ArgumentParser(
         description="Run AGILAB application with custom options."
     )
