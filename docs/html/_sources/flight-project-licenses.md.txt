@@ -1,0 +1,20 @@
+# Flight-project Licenses
+| Package Name | License |
+---------------|----------
+| Brotli | MIT LICENSE |
+| Cython | APACHE SOFTWARE LICENSE |
+| geographiclib | MIT LICENSE |
+| geopy | MIT LICENSE |
+| inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2 OR LATER (LGPLV2+) |
+| multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2 OR LATER (LGPLV2+) |
+| numpy | BSD LICENSE |
+| parso | MIT LICENSE |
+| psutil | BSD LICENSE |
+| py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2 OR LATER (LGPLV2+) |
+| pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2 OR LATER (LGPLV2+) |
+| pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
+| pyppmd | GNU LESSER GENERAL PUBLIC LICENSE V2 OR LATER (LGPLV2+) |
+| python-dotenv | BSD LICENSE |
+| pyzstd | BSD LICENSE |
+| setuptools | MIT LICENSE |
+| texttable | MIT LICENSE |

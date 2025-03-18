@@ -1,0 +1,21 @@
+[args]
+param1 = 0
+param2 = "some text"
+param3 = 3.14
+param4 = true
+
+[views]
+view_module = []
+
+[cluster]
+verbose = true
+cython = false
+cluster_enabled = false
+rapids = false
+pool = false
+
+[cluster.workers]
+"127.0.0.1" = 1
+
+[cluster.scheduler]
+"127.0.0.1" = 1

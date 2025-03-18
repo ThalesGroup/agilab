@@ -1,0 +1,16 @@
+
+[args]
+param1 = 1234
+param2 = "some text"
+
+[cluster]
+workers_enable = true
+scheduler_enable = false
+pool = false
+cython = true
+rapids = false
+verbose = true
+workers_enabled = false
+
+[cluster.workers]
+"127.0.0.1" = 1

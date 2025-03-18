@@ -1,0 +1,37 @@
+[project]
+name = "agi-env"
+version = "0.1.0"
+description = "AGI Env"
+authors = [
+    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
+]
+license = { text = "BSD 3-Clause License" }
+requires-python = "==3.12.*"
+readme = "README.md"
+
+dependencies = [
+    "humanize",
+    "pathspec",
+    "pydantic",
+    "python-dotenv",
+    "setuptools",
+    "toml",
+]
+
+[dependency-groups]
+dev = ["agi-env", "black", "pytest", "licensecheck"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.uv.sources]
+agi-env = { workspace = true }
+
+[tool.mypy]
+mypy_path = ["stubs"]
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pyment]
+source_dir = "src"
+format = "google"

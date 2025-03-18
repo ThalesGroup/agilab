@@ -1,0 +1,39 @@
+[project]
+name = "agi-core"
+version = "0.1.0"
+description = "AGI Core"
+requires-python = "==3.12.*"
+readme = "README.md"
+dependencies = [ "dask[distributed]", "paramiko", "scp", "scikit-learn", "parso", "cython", "setuptools", "msgpack", "numba", "py7zr", "agi-env", "python-dotenv",]
+[[project.authors]]
+name = "Jean-Pierre Morard"
+email = "focus@thalesgroup.com"
+
+[dependency-groups]
+dev = [ "agi-core", "black", "pytest", "licensecheck",]
+[[dependency-groups.rapids]]
+package = "cuspatial-cu12"
+markers = "platform_system == \"Linux\""
+
+[project.license]
+text = "BSD 3-Clause License"
+
+[project.optional-dependencies]
+agi-worker = []
+agent-worker = []
+dag-worker = []
+data-worker = [ "polars",]
+managers = [ "jupyter", "mypy", "numba", "pydantic", "requests", "wheel", "polars",]
+workers = []
+
+[tool.uv]
+default-groups = [ "dev",]
+
+[tool.mypy]
+mypy_path = [ "stubs",]
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pyment]
+source_dir = "src"
+format = "google"

@@ -1,0 +1,57 @@
+[project]
+name = "agilab"
+version = "0.1.0"
+description = "AGILAB a datascience IDE for engineering to explore AI"
+readme = "README.md"
+requires-python = "==3.12.*"
+authors = [
+    {name = "Jean-Pierre Morard", email = "focusl@thalesgroup.com"}
+]
+license = {text = "BSD-3-Clause"}
+urls = { "Homepage" = "https://github.com/ThalesGroup/agilab" }
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux"
+]
+keywords = [
+    "jupyter mlflow paramiko asyncio dask rapids streamlit distributed cython cluster dataframe dataset loadbalancing genai copilot agi pycharm datascience"
+]
+dependencies = [
+    "build>=1.2.2.post1",
+    "pip>=25.0.1",
+    "setuptools>=76.0.0",
+    "twine>=6.1.0",
+    "wheel>=0.45.1",
+]
+
+[dependency-groups]
+dev = ["black", "pytest", "licensecheck"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.uv.sources]
+agilab = { workspace = true }
+
+[tool.uv.workspace]
+members = ["test"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["apps", "apps.*", "views", "views.*"]
+exclude = ["fwk", "fwk.*"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.mypy]
+mypy_path = ["stubs"]
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pyment]
+source_dir = "src"
+format = "google"

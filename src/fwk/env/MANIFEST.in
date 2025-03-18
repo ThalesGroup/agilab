@@ -1,0 +1,5 @@
+# Include top-level files
+include README.md
+include LICENSE
+include pyproject.toml
+include MANIFEST.in

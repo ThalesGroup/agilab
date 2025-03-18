@@ -1,0 +1,11 @@
+.DS_Store
+.venv/
+dist/
+build/
+/**/__pycache__/
+pdm.lock
+.pdm-*
+src/*-info/
+src/*_worker_*/
+.mypy_cache/
+__pypackages__/
