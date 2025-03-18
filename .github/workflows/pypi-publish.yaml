@@ -46,11 +46,11 @@ jobs:
           echo "Building package in $dir"
           pushd "$dir"
           uv build
-          twine upload --repository-url https://test.pypi.org/legacy/ dist/* --verbose
+          twine upload --repository-url https://pypi.org/ dist/* --verbose
           popd
         done
 
     - name: Build and upload main package
       run: |
         uv build
-        twine upload --repository-url https://test.pypi.org/legacy/ dist/* --verbose
+        twine upload --repository-url https://pypi.org/ dist/* --verbose
