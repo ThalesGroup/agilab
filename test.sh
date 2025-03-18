@@ -22,5 +22,5 @@ pushd test
 uv init
 uv sync --upgrade
 uv add *.whl
-uv run streamlit run ../src/fwk/lab/src/agi_lab/AGILAB.py
+uv run agilab
 popd > /dev/null

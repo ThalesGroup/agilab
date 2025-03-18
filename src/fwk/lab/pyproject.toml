@@ -19,6 +19,9 @@ text = "BSD 3-Clause License"
 [tool.uv]
 default-groups = [ "dev",]
 
+[project.scripts]
+agilab = "agi_lab.lab_run:main"
+
 [tool.mypy]
 mypy_path = [ "stubs",]
 disallow_untyped_defs = false
@@ -27,9 +30,6 @@ ignore_missing_imports = true
 [tool.pyment]
 source_dir = "src"
 format = "google"
-
-[project.scripts]
-agilab = "agi_lab.AGILAB:main"
 
 [build-system]
 requires = ["setuptools", "wheel"]

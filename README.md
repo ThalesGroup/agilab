@@ -9,24 +9,37 @@
 
 AGILAB project purpose is to explore AI for engineering. It is designed to help engineers quickly experiment with AI-driven methods.
 
+
+## Install and run AGILAB for endusers
+
+```bash
+    mkdir agi-workspace && cd agi-workspace
+    uv init && uv add agi-env agi-core agi-lab agilab 
+    uv run agilab
+
+````
+
 ## Install AGILAB for contributors
 
 #### Linux and MacOS
 
 ```bash
-    unzip agilab-main.zip
-    cd agilab-main/src
-    ./install.sh --openai-api-key
-"your-api-key" --install-path "your-install-dir"
+    
+    git clone https://github.com/ThalesGroup/agilab.git
+    cd agilab
+    git checkout main
+    ./install.sh --openai-api-key "your-api-key" --install-path "your-install-dir"
+    then open agilab/src project preferably with Pycharm
  ```
 
 #### Windows
 
 ```powershell
+    go with your browser to https://github.com/ThalesGroup/agilab and download agilab-main.zip 
     unzip agilab-main.zip
     cd agilab-main/agi
-    powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key
-"your-api-key" --install-path "your-install-dir"
+    powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key "your-api-key" --install-path "your-install-dir"
+    then open agilab/src project preferably with Pycharm
  ```
 
 #### Execution
