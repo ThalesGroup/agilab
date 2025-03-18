@@ -16,7 +16,7 @@ classifiers = [
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
-]]
+]
 
 keywords = [
     "jupyter", "mlflow", "paramiko", "asyncio", "dask", "rapids",
