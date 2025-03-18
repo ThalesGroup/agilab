@@ -19,7 +19,7 @@ import streamlit as st
 # ===========================
 from pathlib import Path
 import sys
-import importlib.util
+import importlib
 import toml
 from agi_lab.pagelib import list_views, get_about_content, render_logo, select_project
 
