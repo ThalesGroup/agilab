@@ -30,7 +30,7 @@ jobs:
     - name: Install dependencies
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install uv
+        python3 -m pip install uv twine
 
     - name: Remove all existing distribution directories
       run: |
@@ -80,3 +80,24 @@ jobs:
       with:
         name: agilab-distributions
         path: dist/
+
+    # -------------------
+    # ✅ Publish to PyPI
+    # -------------------
+    - name: Verify package files before upload
+      run: twine check src/fwk/env/dist/* src/fwk/core/dist/* src/fwk/gui/dist/* dist/*
+
+    - name: Publish subpackages to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        twine upload src/fwk/env/dist/*
+        twine upload src/fwk/core/dist/*
+        twine upload src/fwk/gui/dist/*
+
+    - name: Publish main package (agilab) to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: twine upload dist/*

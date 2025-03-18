@@ -63,8 +63,8 @@ class AgiEnv:
         self.with_lab = with_lab
         self.verbose = verbose
         self.is_managed_pc = getpass.getuser().startswith("T0")
-        self.agi_root = AgiEnv.locate_agi_installation() / "agi"
-        self.agi_resources = Path("resources/.agilab")
+        self.agi_root = AgiEnv.locate_agi_installation() / "src"
+        self.agi_resources = Path("src/agi_env/resources/.agilab")
         self.agi_env_path = self.agi_root / "fwk/env"
         self.home_abs = Path.home() / "MyApp" if self.is_managed_pc else Path.home()
 

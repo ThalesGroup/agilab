@@ -8,9 +8,9 @@
 #   ... (license text continues) ...
 
 import time
-from agi_lab.pagelib import env  # CAUTION: Place it at the first line to avoid other pagelib import instabilities
+from agi_gui.pagelib import env  # CAUTION: Place it at the first line to avoid other pagelib import instabilities
 import streamlit as st
-from agi_lab.pagelib import get_about_content, render_logo
+from agi_gui.pagelib import get_about_content, render_logo
 
 # Set page configuration and render logo
 st.set_page_config(layout="wide", menu_items=get_about_content())
@@ -35,7 +35,7 @@ import pandas as pd
 import pydantic
 
 # Project Libraries:
-from agi_lab.pagelib import (
+from agi_gui.pagelib import (
     load_df,
     save_csv,
     init_custom_ui,

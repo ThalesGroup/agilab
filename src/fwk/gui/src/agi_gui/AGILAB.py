@@ -22,7 +22,7 @@ import argparse
 
 # -------------------- Import Statements -------------------- #
 # (Include any other necessary imports from your original code)
-from agi_lab.pagelib import env, get_about_content, render_logo, open_docs, RESOURCE_PATH, get_base64_of_image
+from agi_gui.pagelib import env, get_about_content, render_logo, open_docs, RESOURCE_PATH, get_base64_of_image
 
 # -------------------- Import Statements -------------------- #
 import ast
@@ -299,7 +299,7 @@ import streamlit as st
 import importlib
 
 # -------------------- Import Statements -------------------- #
-from agi_lab.pagelib import (
+from agi_gui.pagelib import (
     env,
     get_about_content,
     render_logo,
