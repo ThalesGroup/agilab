@@ -1,23 +1,21 @@
 [project]
 name = "agilab"
-version = "0.1.0"
 description = "AGILAB a datascience IDE for engineering to explore AI"
-readme = "README.md"
+version = "0.1.0"
 requires-python = "==3.12.*"
+readme = "README.md"
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
 ]
-license = { text = "BSD-3-Clause" }
-
-[project.urls]
-Homepage = "https://github.com/ThalesGroup/agilab"
-
 classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: BSD License",
-    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
-    "Operating System :: POSIX :: Linux"
+    "Operating System :: POSIX :: Linux",
 ]
 
 keywords = [

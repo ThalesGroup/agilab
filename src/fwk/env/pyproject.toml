@@ -15,8 +15,15 @@ classifiers = [
     "License :: OSI Approved :: BSD License",
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
-    "Operating System :: POSIX :: Linux"
+    "Operating System :: POSIX :: Linux",
 ]]
+
+keywords = [
+    "jupyter", "mlflow", "paramiko", "asyncio", "dask", "rapids",
+    "streamlit", "distributed", "cython", "cluster", "dataframe",
+    "dataset", "loadbalancing", "genai", "copilot", "agi",
+    "pycharm", "datascience"
+]
 
 [dependency-groups]
 dev = [
