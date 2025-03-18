@@ -32,8 +32,9 @@ jobs:
         python3 -m pip install --upgrade pip
         python3 -m pip install uv
 
-    - name: Remove the main dist directory
-      run: rm -rf dist
+    - name: Remove all existing distribution directories
+      run: |
+        rm -rf src/fwk/env/dist src/fwk/core/dist src/fwk/lab/dist dist
 
     - name: Update version in pyproject.toml
       env:
@@ -43,25 +44,39 @@ jobs:
         echo "Setting version: $VERSION"
         sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
 
-    - name: Build subpackages
+    - name: Build and upload subpackages
       run: |
         SUBDIRS=("src/fwk/env" "src/fwk/core" "src/fwk/lab")
-        mkdir -p dist  # Ensure main dist exists
         for dir in "${SUBDIRS[@]}"; do
           echo "Building package in $dir"
           pushd "$dir"
           uv build
-          mv dist/* ../../dist/  # Move built files to main dist
           popd
         done
 
-    - name: Build main package
-      run: |
-        uv build
-        mv dist/* dist/  # Ensure all packages are in the root dist/
-
-    - name: Store the distribution packages
+    - name: Upload agi-env package
       uses: actions/upload-artifact@v4
       with:
-        name: python-package-distributions
+        name: agi-env-distributions
+        path: src/fwk/env/dist/
+
+    - name: Upload agi-core package
+      uses: actions/upload-artifact@v4
+      with:
+        name: agi-core-distributions
+        path: src/fwk/core/dist/
+
+    - name: Upload agi-lab package
+      uses: actions/upload-artifact@v4
+      with:
+        name: agi-lab-distributions
+        path: src/fwk/lab/dist/
+
+    - name: Build and upload main package (agilab)
+      run: uv build
+
+    - name: Upload agilab package
+      uses: actions/upload-artifact@v4
+      with:
+        name: agilab-distributions
         path: dist/
