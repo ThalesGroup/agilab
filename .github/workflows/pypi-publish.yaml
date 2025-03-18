@@ -1,4 +1,5 @@
 name: Upload release to PyPI
+
 on:
   workflow_dispatch:
     inputs:
@@ -9,15 +10,18 @@ on:
   push:
     tags:
       - 'v*.*.*'
+
 jobs:
   pypi-publish:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -26,7 +30,7 @@ jobs:
     - name: Install dependencies
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install uv twine
+        python3 -m pip install uv
 
     - name: Remove the main dist directory
       run: rm -rf dist
@@ -39,18 +43,25 @@ jobs:
         echo "Setting version: $VERSION"
         sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
 
-    - name: Build and upload subpackages
+    - name: Build subpackages
       run: |
         SUBDIRS=("src/fwk/env" "src/fwk/core" "src/fwk/lab")
+        mkdir -p dist  # Ensure main dist exists
         for dir in "${SUBDIRS[@]}"; do
           echo "Building package in $dir"
           pushd "$dir"
           uv build
-          twine upload --repository-url https://test.pypi.org/legacy/ dist/* --verbose
+          mv dist/* ../../dist/  # Move built files to main dist
           popd
         done
 
-    - name: Build and upload main package
+    - name: Build main package
       run: |
         uv build
-        twine upload --repository-url https://test.pypi.org/legacy/ dist/* --verbose
+        mv dist/* dist/  # Ensure all packages are in the root dist/
+
+    - name: Store the distribution packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
