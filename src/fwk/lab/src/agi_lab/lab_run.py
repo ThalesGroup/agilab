@@ -3,6 +3,23 @@ import sys
 from pathlib import Path
 import streamlit.web.cli as stcli
 
+def check_environment():
+
+    check_environment()
+
+    # Check if current directory is acceptable:
+    cwd = Path.cwd()
+    # For example, accept if the cwd contains 'pyproject.toml'
+    if not (cwd / "pyproject.toml").exists() and "agilab/src/fwk/lab" not in str(cwd):
+        print("Error: Please run this command from a directory that contains your agilab project (e.g. the project root or agilab/src/fwk/lab).")
+        sys.exit(1)
+
+    # Check if the package is installed (optional):
+    try:
+        import agi_lab  # or any module from your package
+    except ImportError:
+        print("Error: The agilab package is not installed in this environment.")
+        sys.exit(1)
 
 def main():
     parser = argparse.ArgumentParser(
