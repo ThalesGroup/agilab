@@ -14,10 +14,25 @@ def resolve_packages_path_in_toml(dir_path):
     agi_env = Path(__file__).parent.parent.parent
     agi_core = agi_env.parent / "core"
 
-    if "path" in content["tool"]["uv"]["sources"]["agi-env"]:
-        content["tool"]["uv"]["sources"]["agi-env"]["path"] = str(agi_env)
-    if "path" in content["tool"]["uv"]["sources"]["agi-core"]:
-        content["tool"]["uv"]["sources"]["agi-core"]["path"] = str(agi_core)
+    # Safely retrieve the agi-env dict
+    agi_env_dict = (
+        content.get("tool", {})
+        .get("uv", {})
+        .get("sources", {})
+        .get("agi-env")
+    )
+    if isinstance(agi_env_dict, dict) and "path" in agi_env_dict:
+        agi_env_dict["path"] = str(agi_env)
+
+    # Safely retrieve the agi-core dict
+    agi_core_dict = (
+        content.get("tool", {})
+        .get("uv", {})
+        .get("sources", {})
+        .get("agi-core")
+    )
+    if isinstance(agi_core_dict, dict) and "path" in agi_core_dict:
+        agi_core_dict["path"] = str(agi_core)
 
     with pyproject_file.open("w") as f:
         toml.dump(content, f)

@@ -4,9 +4,9 @@ version = "0.1.0"
 description = "AGILAB a datascience IDE for engineering to explore AI"
 readme = "README.md"
 requires-python = "==3.12.*"
-authors = [
-    {name = "Jean-Pierre Morard", email = "focusl@thalesgroup.com"}
-]
+[[project.authors]]
+name = "Jean-Pierre Morard"
+email = "focus@thalesgroup.com"
 license = {text = "BSD-3-Clause"}
 urls = { "Homepage" = "https://github.com/ThalesGroup/agilab" }
 classifiers = [

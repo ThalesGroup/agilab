@@ -9,7 +9,6 @@ dependencies = [ "numpy", "geopy", "setuptools", "cython", "parso", "py7zr", "py
 name = "Jean-Pierre Morard"
 email = "focus@thalesgroup.com"
 
-
 [project.license]
 text = "Thales SIX GTS France SAS"
 

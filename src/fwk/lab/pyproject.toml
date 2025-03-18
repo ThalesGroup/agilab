@@ -40,3 +40,11 @@ include-package-data = true
 
 [tool.setuptools.package-data]
 agi_lab = ["resources/.agilab/*/*"]
+
+[tool.uv.sources.agi-env]
+path = "/home/pcm/agilab/src/fwk/env"
+editable = true
+
+[tool.uv.sources.agi-core]
+path = "/home/pcm/agilab/src/fwk/core"
+editable = true

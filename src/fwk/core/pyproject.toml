@@ -15,9 +15,6 @@ dev = [ "agi-core", "black", "pytest", "licensecheck",]
 package = "cuspatial-cu12"
 markers = "platform_system == \"Linux\""
 
-[project.license]
-text = "BSD 3-Clause License"
-
 [project.optional-dependencies]
 agi-worker = []
 agent-worker = []
@@ -37,3 +34,10 @@ ignore_missing_imports = true
 [tool.pyment]
 source_dir = "src"
 format = "google"
+
+[tool.uv.sources.agi-env]
+path = "/home/pcm/agilab/src/fwk/env"
+editable = true
+
+[tool.uv.sources.agi-core]
+workspace = true

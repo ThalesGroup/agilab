@@ -5,10 +5,9 @@ description = ""
 requires-python = "==3.12.*"
 readme = "README.md"
 dependencies = ["numpy", "geopy", "setuptools", "cython", "parso", "py7zr", "python-dotenv", ]
-[[project.authors]]
-name = "Jean-Pierre Morard"
-email = "focus@thalesgroup.com"
-
+authors = [
+    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
+]
 [dependency-groups]
 dev = ["black", "pytest", "licensecheck", "flight-project", ]
 

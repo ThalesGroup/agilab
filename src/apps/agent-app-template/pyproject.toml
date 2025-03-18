@@ -2,9 +2,9 @@
 name = "agent-app-project"
 version = "0.1.0"
 description = ""
-authors = [
-    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
-]
+[[project.authors]]
+name = "Jean-Pierre Morard"
+email = "focus@thalesgroup.com"
 license = { text = "Thales SIX GTS France SAS" }
 requires-python = "==3.12.*"
 readme = "README.md"

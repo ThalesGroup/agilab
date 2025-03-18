@@ -113,7 +113,7 @@ start_installation() {
     AGI_ROOT=$(realpath "$(dirname "${BASH_SOURCE[0]}")/..")
     AGI_PATH_FILE="$HOME/.local/share/agilab/.agi-path"
 
-    echo "Executing: agi/$0 from $AGI_ROOT to install in $AGI_PATH_FILE"
+    echo "Executing: src/$0 from $AGI_ROOT to install in $AGI_PATH_FILE"
 
     if [ -f "$AGI_PATH_FILE" ]; then
         content=$(cat "$AGI_PATH_FILE")
@@ -142,7 +142,7 @@ start_installation() {
         echo "$AGI_ROOT" > "$AGI_PATH_FILE"
     fi
 
-    AGI_PROJECT="$AGI_ROOT/agi"
+    AGI_PROJECT="$AGI_ROOT/src"
 
     # Define the directories and installation scripts using absolute paths
     framework_dir="$AGI_PROJECT/fwk"
