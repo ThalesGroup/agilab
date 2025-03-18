@@ -90,7 +90,7 @@ jobs:
     - name: Publish subpackages to PyPI
       env:
         TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
       run: |
         twine upload src/fwk/env/dist/*
         twine upload src/fwk/core/dist/*
@@ -99,5 +99,5 @@ jobs:
     - name: Publish main package (agilab) to PyPI
       env:
         TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
       run: twine upload dist/*
