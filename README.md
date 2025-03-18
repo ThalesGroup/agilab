@@ -43,7 +43,6 @@ AGILAB project purpose is to explore AI for engineering. It is designed to help 
 #### Execution
 
 ```bash
-cd agilab-main/src/fwk/lab
 uv run agilab
  ```
 
