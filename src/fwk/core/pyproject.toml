@@ -4,23 +4,34 @@ version = "0.1.0"
 description = "AGI Core"
 requires-python = "==3.12.*"
 readme = "README.md"
-# Define authors with only name and email
+
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
 ]
-# Uncomment and adjust if a license is required:
-# license = { text = "BSD 3-Clause License" }
+
+license = { text = "BSD 3-Clause License" }
+
 dependencies = [
     "dask[distributed]", "paramiko", "scp", "scikit-learn", "parso",
     "cython", "setuptools", "msgpack", "numba", "py7zr",
     "agi-env", "python-dotenv"
 ]
 
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux"
+]
+
+[project.urls]
+Homepage = "https://github.com/ThalesGroup/agilab"
+
 [dependency-groups]
 dev = [
     "agi-core", "black", "pytest", "licensecheck"
 ]
-# Use a list entry with inline marker for rapids group
 rapids = [
     "cuspatial-cu12; platform_system == 'Linux'"
 ]

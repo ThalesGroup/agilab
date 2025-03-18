@@ -4,16 +4,10 @@ version = "0.1.0"
 description = "AGI Env"
 requires-python = "==3.12.*"
 readme = "README.md"
-
-# ✅ Correct `authors` section
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
 ]
-
-# ✅ Correct `license` section
 license = { text = "BSD 3-Clause License" }
-
-# ✅ Correct `dependencies` section
 dependencies = [
     "humanize",
     "pathspec",
@@ -28,20 +22,17 @@ dev = [
     "agi-env", "black", "pytest", "licensecheck"
 ]
 
-# ✅ `uv` settings are correct
 [tool.uv]
 default-groups = ["dev"]
 
 [tool.uv.sources]
 agi-env = { workspace = true }
 
-# ✅ `mypy` settings are correct
 [tool.mypy]
 mypy_path = ["stubs"]
 disallow_untyped_defs = false
 ignore_missing_imports = true
 
-# ✅ `pyment` settings are correct
 [tool.pyment]
 source_dir = "src"
 format = "google"

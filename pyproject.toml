@@ -4,20 +4,14 @@ version = "0.1.0"
 description = "AGILAB a datascience IDE for engineering to explore AI"
 readme = "README.md"
 requires-python = "==3.12.*"
-
-# ✅ Correct `authors` section (only name & email)
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
 ]
-
-# ✅ Correct `license` section
 license = { text = "BSD-3-Clause" }
 
-# ✅ Correct `urls` section
 [project.urls]
 Homepage = "https://github.com/ThalesGroup/agilab"
 
-# ✅ Correct `classifiers` section
 classifiers = [
     "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: BSD License",
@@ -26,7 +20,6 @@ classifiers = [
     "Operating System :: POSIX :: Linux"
 ]
 
-# ✅ Correct `keywords` section
 keywords = [
     "jupyter", "mlflow", "paramiko", "asyncio", "dask", "rapids",
     "streamlit", "distributed", "cython", "cluster", "dataframe",
@@ -34,7 +27,6 @@ keywords = [
     "pycharm", "datascience"
 ]
 
-# ✅ Correct `dependencies` section
 dependencies = [
     "build>=1.2.2.post1",
     "pip>=25.0.1",

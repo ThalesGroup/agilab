@@ -4,21 +4,15 @@ version = "0.1.0"
 description = "AGI LAB"
 requires-python = "==3.12.*"
 readme = "README.md"
-
-# ✅ Correct `authors` section
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
 ]
-
-# ✅ Correct `license` section
 license = { text = "BSD 3-Clause License" }
 
-# ✅ Correct `keywords` section
 keywords = [
     "dask", "parallel", "distributed", "Cython", "processpool"
 ]
 
-# ✅ Correct `dependencies` section
 dependencies = [
     "agi-core", "astor", "fastparquet", "geojson", "humanize",
     "jupyter-ai[all]", "keras", "matplotlib", "mlflow", "numba",
@@ -33,23 +27,19 @@ dev = [
     "black", "pytest", "licensecheck"
 ]
 
-# ✅ `scripts` section is correct
 [project.scripts]
 agilab = "agi_lab.lab_run:main"
 
-# ✅ `build-system` section is correct
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
-# ✅ `setuptools` package settings are correct
 [tool.setuptools]
 include-package-data = true
 
 [tool.setuptools.package-data]
 agi_lab = ["resources/.agilab/*/*"]
 
-# ✅ `uv` settings are correctly defined
 [tool.uv]
 default-groups = ["dev"]
 
@@ -61,13 +51,11 @@ editable = true
 path = "/home/pcm/agilab/src/fwk/core"
 editable = true
 
-# ✅ `mypy` settings are correct
 [tool.mypy]
 mypy_path = ["stubs"]
 disallow_untyped_defs = false
 ignore_missing_imports = true
 
-# ✅ `pyment` settings are correct
 [tool.pyment]
 source_dir = "src"
 format = "google"
