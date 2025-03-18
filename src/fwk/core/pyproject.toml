@@ -1,21 +1,15 @@
 [project]
 name = "agi-core"
-version = "0.1.0"
 description = "AGI Core"
+version = "0.1.0"
 requires-python = "==3.12.*"
 readme = "README.md"
-
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
 ]
-
-dependencies = [
-    "dask[distributed]", "paramiko", "scp", "scikit-learn", "parso",
-    "cython", "setuptools", "msgpack", "numba", "py7zr",
-    "agi-env", "python-dotenv"
-]
-
 classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: BSD License",
@@ -23,31 +17,33 @@ classifiers = [
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux"
 ]
-
-[project.urls]
-Homepage = "https://github.com/ThalesGroup/agilab"
-Documentation = "https://docs.agilab.com"
-Repository = "https://github.com/ThalesGroup/agilab.git"
-Issues = "https://github.com/ThalesGroup/agilab/issues"
+dependencies = [ "dask[distributed]", "paramiko", "scp", "scikit-learn", "parso", "cython", "setuptools", "msgpack", "numba", "py7zr", "agi-env", "python-dotenv",]
 
 [dependency-groups]
-dev = [
-    "agi-core", "black", "pytest", "licensecheck"
-]
-rapids = [
-    "cuspatial-cu12; platform_system == 'Linux'"
-]
+dev = [ "agi-core", "black", "pytest", "licensecheck",]
+[[dependency-groups.rapids]]
+package = "cuspatial-cu12"
+markers = "platform_system == \"Linux\""
 
 [project.optional-dependencies]
 agi-worker = []
 agent-worker = []
 dag-worker = []
-data-worker = ["polars"]
-managers = ["jupyter", "mypy", "numba", "pydantic", "requests", "wheel", "polars"]
+data-worker = [ "polars",]
+managers = [ "jupyter", "mypy", "numba", "pydantic", "requests", "wheel", "polars",]
 workers = []
 
 [tool.uv]
-default-groups = ["dev"]
+default-groups = [ "dev",]
+
+[tool.mypy]
+mypy_path = [ "stubs",]
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pyment]
+source_dir = "src"
+format = "google"
 
 [tool.uv.sources.agi-env]
 path = "/home/pcm/agilab/src/fwk/env"
@@ -55,12 +51,3 @@ editable = true
 
 [tool.uv.sources.agi-core]
 workspace = true
-
-[tool.mypy]
-mypy_path = ["stubs"]
-disallow_untyped_defs = false
-ignore_missing_imports = true
-
-[tool.pyment]
-source_dir = "src"
-format = "google"

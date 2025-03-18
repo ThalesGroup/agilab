@@ -1,20 +1,22 @@
 [project]
 name = "agi-env"
-version = "0.1.0"
 description = "AGI Env"
+version = "0.1.0"
 requires-python = "==3.12.*"
 readme = "README.md"
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
 ]
-dependencies = [
-    "humanize",
-    "pathspec",
-    "pydantic",
-    "python-dotenv",
-    "setuptools",
-    "toml"
-]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux"
+]]
 
 [dependency-groups]
 dev = [
