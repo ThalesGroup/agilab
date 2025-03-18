@@ -46,7 +46,7 @@ AGILAB project purpose is to explore AI for engineering. It is designed to help 
 
 ```bash
 cd agilab-main/src/fwk/lab
-uv run python -m streamlit run src/agi_lab/AGILAB.py
+uv run agilab
  ```
 
 ## Documentation
