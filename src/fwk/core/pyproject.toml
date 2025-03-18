@@ -4,16 +4,12 @@ version = "0.1.0"
 description = "AGI Core"
 requires-python = "==3.12.*"
 readme = "README.md"
-
-# ✅ Correct `authors` section
+# Define authors with only name and email
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
 ]
-
-# ✅ If license is needed, uncomment the line below:
+# Uncomment and adjust if a license is required:
 # license = { text = "BSD 3-Clause License" }
-
-# ✅ Correct `dependencies` section
 dependencies = [
     "dask[distributed]", "paramiko", "scp", "scikit-learn", "parso",
     "cython", "setuptools", "msgpack", "numba", "py7zr",
@@ -24,73 +20,11 @@ dependencies = [
 dev = [
     "agi-core", "black", "pytest", "licensecheck"
 ]
-
-# ✅ Correct `rapids` dependency with `markers`
-[dependency-groups.rapids]
-package = "cuspatial-cu12"
-markers = "platform_system == \"Linux\""
-
-# ✅ Correct `optional-dependencies`
-[project.optional-dependencies]
-agi-worker = []
-agent-worker = []
-dag-worker = []
-data-worker = ["polars"]
-managers = ["jupyter", "mypy", "numba", "pydantic", "requests", "wheel", "polars"]
-workers = []
-
-# ✅ `uv` settings are correct
-[tool.uv]
-default-groups = ["dev"]
-
-[tool.uv.sources.agi-env]
-path = "/home/pcm/agilab/src/fwk/env"
-editable = true
-
-[tool.uv.sources.agi-core]
-workspace = true
-
-# ✅ `mypy` settings are correct
-[tool.mypy]
-mypy_path = ["stubs"]
-disallow_untyped_defs = false
-ignore_missing_imports = true
-
-# ✅ `pyment` settings are correct
-[tool.pyment]
-source_dir = "src"
-format = "google"
-[project]
-name = "agi-core"
-version = "0.1.0"
-description = "AGI Core"
-requires-python = "==3.12.*"
-readme = "README.md"
-
-# ✅ Correct `authors` section
-authors = [
-    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
-]
-
-# ✅ If license is needed, uncomment the line below:
-# license = { text = "BSD 3-Clause License" }
-
-# ✅ Correct `dependencies` section
-dependencies = [
-    "dask[distributed]", "paramiko", "scp", "scikit-learn", "parso",
-    "cython", "setuptools", "msgpack", "numba", "py7zr",
-    "agi-env", "python-dotenv"
-]
-
-[dependency-groups]
-dev = [
-    "agi-core", "black", "pytest", "licensecheck"
-]
+# Use a list entry with inline marker for rapids group
 rapids = [
     "cuspatial-cu12; platform_system == 'Linux'"
 ]
 
-# ✅ Correct `optional-dependencies`
 [project.optional-dependencies]
 agi-worker = []
 agent-worker = []
@@ -99,7 +33,6 @@ data-worker = ["polars"]
 managers = ["jupyter", "mypy", "numba", "pydantic", "requests", "wheel", "polars"]
 workers = []
 
-# ✅ `uv` settings are correct
 [tool.uv]
 default-groups = ["dev"]
 
@@ -110,13 +43,11 @@ editable = true
 [tool.uv.sources.agi-core]
 workspace = true
 
-# ✅ `mypy` settings are correct
 [tool.mypy]
 mypy_path = ["stubs"]
 disallow_untyped_defs = false
 ignore_missing_imports = true
 
-# ✅ `pyment` settings are correct
 [tool.pyment]
 source_dir = "src"
 format = "google"
