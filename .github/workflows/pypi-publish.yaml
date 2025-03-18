@@ -1,0 +1,56 @@
+name: Upload release to PyPI
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag for the release'
+        required: true
+
+  push:
+    tags:
+      - 'v*.*.*'
+jobs:
+  pypi-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Install dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        python3 -m pip install uv twine
+
+    - name: Remove the main dist directory
+      run: rm -rf dist
+
+    - name: Update version in pyproject.toml
+      env:
+        VERSION: ${{ github.event.inputs.version || github.ref_name }}
+      run: |
+        VERSION=${VERSION#v}
+        echo "Setting version: $VERSION"
+        sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+
+    - name: Build and upload subpackages
+      run: |
+        SUBDIRS=("src/fwk/env" "src/fwk/core" "src/fwk/lab")
+        for dir in "${SUBDIRS[@]}"; do
+          echo "Building package in $dir"
+          pushd "$dir"
+          uv build
+          twine upload --repository-url https://test.pypi.org/legacy/ dist/* --verbose
+          popd
+        done
+
+    - name: Build and upload main package
+      run: |
+        uv build
+        twine upload --repository-url https://test.pypi.org/legacy/ dist/* --verbose
