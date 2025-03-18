@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "AGI Core"
 requires-python = "==3.12.*"
 readme = "README.md"
+
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
 ]
@@ -15,15 +16,19 @@ dependencies = [
 ]
 
 classifiers = [
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: BSD License",
-    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux"
 ]
 
 [project.urls]
 Homepage = "https://github.com/ThalesGroup/agilab"
+Documentation = "https://docs.agilab.com"
+Repository = "https://github.com/ThalesGroup/agilab.git"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
 
 [dependency-groups]
 dev = [
