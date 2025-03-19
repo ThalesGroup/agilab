@@ -9,36 +9,32 @@
 # 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
 # 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or THALES SIX GTS France SAS, may be used to endorse or promote products derived from this software without specific prior written permission.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+# IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+# OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+# OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from pathlib import Path
-import streamlit as st
-import toml
-from pydantic import ValidationError
-import sys
-import socket
 import os
-from flight.flight import FlightArgs
+import sys
+import streamlit as st
+import tomli
+import tomli_w
+from pydantic import ValidationError
+import socket
 import datetime
+from flight.flight import FlightArgs
 
 
 def change_data_source():
     """
     Change the data source by deleting 'path' and 'files' keys from the session state if they exist.
-
-    Args:
-        None
-
-    Returns:
-        None
     """
-    if "path" in st.session_state:
-        del st.session_state.path
-    if "files" in st.session_state:
-        del st.session_state.files
+    st.session_state.pop("path", None)
+    st.session_state.pop("files", None)
 
 
-# Initialisation des paramètres par défaut
 def initialize_defaults(app_settings):
     """
     Initialize default parameters for the application settings.
@@ -47,10 +43,7 @@ def initialize_defaults(app_settings):
         app_settings (dict): A dictionary containing the application settings.
 
     Returns:
-        dict: A dictionary containing the updated default parameters for the application settings.
-
-    Raises:
-        None
+        dict: A dictionary containing the updated default parameters.
     """
     args_default = app_settings.get("args", {})
 
@@ -62,9 +55,7 @@ def initialize_defaults(app_settings):
             else f"https://admin:admin@{socket.gethostbyname(socket.gethostname())}:9200/"
         ),
         "files": (
-            "*"
-            if args_default.get("data_source", "file") == "file"
-            else "hawk.user-admin.1"
+            "*" if args_default.get("data_source", "file") == "file" else "hawk.user-admin.1"
         ),
         "nfile": 1,
         "nskip": 0,
@@ -82,11 +73,13 @@ def initialize_defaults(app_settings):
     return args_default
 
 
+# Get the app settings file from the environment stored in session state
 app_settings_file = st.session_state.env.app_settings_file
 
-# Chargement des paramètres
+# Load settings using tomli (reading in binary mode)
 if "is_args_from_ui" not in st.session_state:
-    app_settings = toml.load(app_settings_file)
+    with open(app_settings_file, "rb") as f:
+        app_settings = tomli.load(f)
     args_default = initialize_defaults(app_settings)
     st.session_state.app_settings = app_settings
 else:
@@ -97,10 +90,9 @@ else:
 result = st.session_state.env.check_args(FlightArgs, args_default)
 if result:
     st.warning("\n".join(result) + f"\nplease check {app_settings_file}")
-    if "is_args_from_ui" in st.session_state:
-        del st.session_state["is_args_from_ui"]
+    st.session_state.pop("is_args_from_ui", None)
 
-# Interface utilisateur Streamlit
+# Streamlit User Interface
 c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1.0, 1])
 
 with c1:
@@ -121,9 +113,7 @@ with c3:
     if st.session_state.data_source == "file":
         st.text_input(label="Files filter", value=args_default["files"], key="files")
     else:
-        st.text_input(
-            label="Select the pipeline", value=args_default["files"], key="files"
-        )
+        st.text_input(label="Select the pipeline", value=args_default["files"], key="files")
 
 with c4:
     st.number_input(
@@ -185,7 +175,7 @@ with c10:
         key="output_format",
     )
 
-# Collecte des arguments depuis l'interface utilisateur
+# Collect UI inputs into a dictionary
 args_from_ui = {
     "data_source": st.session_state.data_source,
     "path": (
@@ -209,12 +199,9 @@ if result:
 else:
     st.success("All params are valid !")
 
-    # Mise à jour des paramètres si validés
-    is_args_from_ui = args_from_ui != args_default
-
-    if is_args_from_ui:
+    # Update settings if UI inputs differ from defaults
+    if args_from_ui != args_default:
         st.session_state.is_args_from_ui = True
-        app_settings_file = st.session_state.env.app_settings_file
-        with open(app_settings_file, "w") as file:
+        with open(app_settings_file, "wb") as file:
             st.session_state.app_settings["args"] = args_from_ui
-            toml.dump(st.session_state.app_settings, file)
+            tomli_w.dump(st.session_state.app_settings, file)

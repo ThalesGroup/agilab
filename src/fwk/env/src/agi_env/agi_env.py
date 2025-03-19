@@ -64,7 +64,7 @@ class AgiEnv:
         self.verbose = verbose
         self.is_managed_pc = getpass.getuser().startswith("T0")
         self.agi_root = AgiEnv.locate_agi_installation() / "src"
-        self.agi_resources = Path("src/agi_env/resources/.agilab")
+        self.agi_resources = Path("resources/.agilab")
         self.agi_env_path = self.agi_root / "fwk/env"
         self.home_abs = Path.home() / "MyApp" if self.is_managed_pc else Path.home()
 
@@ -91,7 +91,7 @@ class AgiEnv:
         self.target_package = target_package_path.name
         self.target_worker = f"{self.target}_worker"
         self.worker_path = (
-                target_package_path.parent / self.target_worker / f"{self.target_worker}.py"
+            target_package_path.parent / self.target_worker / f"{self.target_worker}.py"
         )
         self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
 
@@ -243,16 +243,16 @@ class AgiEnv:
         return ""
 
     # ----------------------------------------------
-    # Other methods below (unchanged)
+    # Updated method using tomli instead of toml
     # ----------------------------------------------
-
     def mode2str(self, mode):
-        import toml
+        import tomli  # Use tomli for reading TOML files
 
         chars = ["p", "c", "d", "r"]
         reversed_chars = reversed(list(enumerate(chars)))
-        with open(self.app_path / "pyproject.toml", "r") as file:
-            pyproject_data = toml.load(file)
+        # Open in binary mode for tomli
+        with open(self.app_path / "pyproject.toml", "rb") as file:
+            pyproject_data = tomli.load(file)
 
         dependencies = pyproject_data.get("project", {}).get("dependencies", [])
         if len([dep for dep in dependencies if dep.lower().startswith("cu")]) > 0:
@@ -294,7 +294,6 @@ class AgiEnv:
             try:
                 if os.name == "nt":
                     import winreg
-
                     key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Environment")
                     value, _ = winreg.QueryValueEx(key, "AGI_ROOT")
                     winreg.CloseKey(key)
@@ -323,7 +322,7 @@ class AgiEnv:
         else:
             project_name = name.replace("_", "-") + "-project"
         module_path = (
-                self.apps_root / project_name / "src" / module_name / (module_name + ".py")
+            self.apps_root / project_name / "src" / module_name / (module_name + ".py")
         ).resolve()
         if self._check_module_path(module_path):
             return module_path
@@ -339,7 +338,7 @@ class AgiEnv:
 
         self.gitignore_file = self.app_path / ".gitignore"
         dest = self.deployed_resources_abs
-        shutil.copytree(self.AGI_LAB_ABS / self.agi_resources, dest, dirs_exist_ok=True)
+        shutil.copytree(self.AGI_GUI_ABS / self.agi_resources, dest, dirs_exist_ok=True)
 
     def _init_envars(self, env_path):
         envars = dotenv_values(dotenv_path=env_path, verbose=self.verbose)
@@ -374,8 +373,8 @@ class AgiEnv:
         self.scheduler_ip = envars.get("AGI_SCHEDULER_IP", "127.0.0.1")
         if not self.is_valid_ip(self.scheduler_ip):
             raise ValueError(f"Invalid scheduler IP address: {self.scheduler_ip}")
-        AGI_LAB_DIR = envars.get("AGI_LAB_DIR", str(self.agi_root / "fwk/gui"))
-        self.AGI_LAB_ABS = Path(AGI_LAB_DIR)
+        AGI_GUI_DIR = envars.get("AGI_GUI_DIR", str(self.agi_root / "fwk/gui"))
+        self.AGI_GUI_ABS = Path(AGI_GUI_DIR)
         self.help_path = Path(
             envars.get("AGI_HELP_DIR", str(self.agi_root / "docs/html"))
         ).absolute()
@@ -393,10 +392,9 @@ class AgiEnv:
         return False
 
     def init_envars_app(self, envars):
-        #self.dataframes_path = self.AGILAB_SHARE_ABS / self.target / "dataframes"
-        AGI_LAB_ABS = Path(envars.get("AGI_LAB_DIR", self.agi_root / "fwk/gui"))
-        self.AGI_LAB_ABS = AGI_LAB_ABS
-        self.AGI_SRC_ABS = AGI_LAB_ABS / "src"
+        AGI_GUI_ABS = Path(envars.get("AGI_GUI_DIR", self.agi_root / "fwk/gui"))
+        self.AGI_GUI_ABS = AGI_GUI_ABS
+        self.AGI_SRC_ABS = AGI_GUI_ABS / "src"
         AGILAB_LOG_ABS = Path(envars.get("AGI_LOG_DIR", self.home_abs / "log"))
         if not AGILAB_LOG_ABS.exists():
             AGILAB_LOG_ABS.mkdir(parents=True)
@@ -416,7 +414,7 @@ class AgiEnv:
             envars.get("AGI_VIEWS_DIR", self.agi_root / "views")
         )
         self.AGILAB_VIEWS_REL = Path(envars.get("AGI_VIEWS_DIR", "agi/views"))
-        self.AGILAB_DATA_NROW = int(envars.get("AGI_LAB_NROW", 1000))
+        self.AGILAB_DATA_NROW = int(envars.get("AGI_GUI_NROW", 1000))
         self.copilot_file = self.AGI_SRC_ABS / "agi/agi_copilot.py"
 
     def _init_resources(self, resources_path):
@@ -442,7 +440,6 @@ class AgiEnv:
         self.wenv_rel = self.WORKER_VENV_REL / self.target_worker
         self.wenv_abs = self.home_abs / self.wenv_rel
         self.wenv_target_worker = self.wenv_abs
-        # self.wenv_abs.mkdir(parents=True, exist_ok=True)
         distribution_tree = self.wenv_abs / "distribution_tree.json"
         self.cyprepro = self.core_root / "src/agi_core/workers/agi_worker/cyprepro.py"
         self.post_install_script = self.wenv_abs / "src" / self.target_worker / "post_install.py"
@@ -480,9 +477,8 @@ class AgiEnv:
         try:
             validated_args = target_args_class.parse_obj(target_args)
             validation_errors = None
-        except Exception as e:  # Typically a ValidationError from pydantic
+        except Exception as e:
             import humanize
-
             validation_errors = self.humanize_validation_errors(e)
         return validation_errors
 
@@ -502,36 +498,17 @@ class AgiEnv:
 
     @staticmethod
     def _build_env(venv=None):
-        """Helper: Build a copy of the environment, applying virtual env settings if given."""
         proc_env = os.environ.copy()
         if venv is not None:
             venv_path = Path(venv) / ".venv"
             proc_env["VIRTUAL_ENV"] = str(venv_path)
-            # On Windows use "Scripts", otherwise "bin"
             bin_path = "Scripts" if os.name == "nt" else "bin"
             venv_bin = venv_path / bin_path
-            # Prepend the venv's bin directory to PATH
             proc_env["PATH"] = str(venv_bin) + os.pathsep + proc_env.get("PATH", "")
         return proc_env
 
     @staticmethod
     def _run_subprocess(cmd, cwd=".", venv=None, timeout=None, merge_stderr=False):
-        """
-        Helper: Run a subprocess command.
-
-        Args:
-            cmd (str): Command to run.
-            cwd (str): Working directory.
-            venv (str, optional): If provided, applies virtual environment settings.
-            timeout (int, optional): Maximum time to wait.
-            merge_stderr (bool): If True, merge stderr into stdout.
-
-        Returns:
-            tuple: (stdout, stderr, returncode)
-
-        Raises:
-            RuntimeError: If a timeout occurs.
-        """
         proc_env = AgiEnv._build_env(venv)
         popen_args = {
             "shell": True,
@@ -552,12 +529,10 @@ class AgiEnv:
             ) from err
         return stdout, stderr, proc.returncode
 
-    # Example custom exception (assumed defined elsewhere)
     class JumpToMain(Exception):
         pass
 
     def run_agi_sync(self, code, log_callback=None, venv: Path = None, type=None):
-        # Determine snippet name from code as before
         pattern = r"await\s+(?:Agi\.)?([^\(]+)\("
         matches = re.findall(pattern, code)
         if not matches:
@@ -566,32 +541,19 @@ class AgiEnv:
             else:
                 print("Could not determine snippet name from code.")
             return ""
-
         snippet_file = os.path.join(self.runenv, f"{matches[0]}-{self.target}.py")
         with open(snippet_file, "w") as file:
             file.write(code)
-
-        # Build the command you want to run, similar to run_agi
         cmd = f"uv run python {snippet_file}"
-
-        # Run the async function in a blocking way
         result = asyncio.run(AgiEnv.run_agi_bg(cmd, venv=venv))
-
-        # Optionally update the log callback with the final result
         if log_callback:
             log_callback(result)
         return result
 
     @staticmethod
     async def run_agi_bg(cmd, cwd=".", venv=None, timeout=None, merge_stderr=True):
-        """
-        Asynchronously execute a command.
-        """
-        # Build the environment variables using your helper
         proc_env = AgiEnv._build_env(venv)
-        proc_env["PYTHONUNBUFFERED"] = "1"  # Force unbuffered output
-
-        # Start the subprocess asynchronously, capturing stdout and stderr.
+        proc_env["PYTHONUNBUFFERED"] = "1"
         proc = await asyncio.create_subprocess_shell(
             cmd,
             cwd=os.path.abspath(cwd),
@@ -607,45 +569,24 @@ class AgiEnv:
             raise RuntimeError(
                 f"Timeout expired for command: {cmd}\nfrom: {cwd}\nOutput:\n{stdout.decode()}\nErrors:\n{stderr.decode() if stderr else ''}"
             ) from err
-
         if proc.returncode:
             proc.kill()
             stdout, stderr = await proc.communicate()
-        # Convert proc.returncode to string before concatenating.
         return stdout.decode(), stderr.decode()
 
     @staticmethod
     def run(cmd, venv=None, cwd=None, timeout=None, wait=True, log_callback=None):
-        """
-        Execute a command via subprocess. If a log_callback is provided,
-        the output will be streamed using that callback.
-
-        Args:
-            cmd (str): Command to execute.
-            venv (Path or str): Virtual environment directory.
-            cwd (str, optional): Working directory.
-            timeout (int, optional): Maximum wait time.
-            wait (bool): Whether to wait for the process to finish.
-            log_callback (callable, optional): Function that accepts a string for logging.
-
-        Returns:
-            str: The complete output if wait=True; otherwise an empty string.
-        """
         if not cwd:
             cwd = venv
-        # Build the environment for the subprocess.
         process_env = os.environ.copy()
         venv_path = Path(venv) / ".venv"
         process_env["VIRTUAL_ENV"] = str(venv_path)
         bin_dir = "Scripts" if os.name == "nt" else "bin"
         venv_bin = venv_path / bin_dir
         process_env["PATH"] = str(venv_bin) + os.pathsep + process_env.get("PATH", "")
-
-        # For POSIX systems, explicitly use bash.
         shell_executable = None
         if os.name != "nt":
             shell_executable = "/bin/bash"
-
         if wait:
             try:
                 process = subprocess.Popen(
@@ -657,7 +598,6 @@ class AgiEnv:
                     executable=shell_executable
                 )
                 output_lines = []
-                # Read and stream output line by line.
                 while True:
                     if process.stderr:
                         line = process.stderr.readline()
@@ -672,96 +612,58 @@ class AgiEnv:
                         break
                 process.wait(timeout=timeout)
                 return process.stdout.read() if process.stdout else ""
-
             except Exception as e:
                 raise RuntimeError(f"Command execution error: {e}") from e
         else:
-            # Non-blocking execution code omitted since spinner requires blocking.
             return ""
 
     @staticmethod
     def create_symlink(source: Path, dest: Path):
-        """
-        Create a symbolic link from source to dest.
-
-        Args:
-            source (Path): The source file or directory.
-            dest (Path): The destination path for the symlink.
-        """
         try:
-            # Resolve absolute paths
             source_resolved = source.resolve(strict=True)
         except FileNotFoundError as e:
             raise FileNotFoundError(
                 f"Error: Source path does not exist: {source}\n{e}"
             ) from e
-
-        # Check if destination already exists
         if dest.exists() or dest.is_symlink():
             if dest.is_symlink():
                 try:
                     existing_target = dest.resolve(strict=True)
                     if existing_target == source_resolved:
-                        print(
-                            f"Symlink already exists and is correct: {dest} -> {source_resolved}"
-                        )
+                        print(f"Symlink already exists and is correct: {dest} -> {source_resolved}")
                         return
                     else:
-                        print(
-                            f"Warning: Symlink at {dest} points to {existing_target}, expected {source_resolved}."
-                        )
-                        return  # Optionally, you can choose to update the symlink here
+                        print(f"Warning: Symlink at {dest} points to {existing_target}, expected {source_resolved}.")
+                        return
                 except RecursionError:
-                    raise RecursionError(
-                        f"Error: Detected a symlink loop while resolving existing symlink at {dest}."
-                    )
+                    raise RecursionError(f"Error: Detected a symlink loop while resolving existing symlink at {dest}.")
                 except FileNotFoundError:
                     print(f"Warning: Symlink at {dest} is broken.")
-                    return  # Optionally, you can choose to recreate the symlink here
+                    return
             else:
-                print(
-                    f"Warning: Destination already exists and is not a symlink: {dest}"
-                )
-                return  # Optionally, handle existing non-symlink destinations here
-
-        # Ensure the parent directory of destination exists
+                print(f"Warning: Destination already exists and is not a symlink: {dest}")
+                return
         try:
             dest.parent.mkdir(parents=True, exist_ok=True)
         except OSError as e:
-            raise OSError(
-                f"Error: Failed to create parent directories for {dest}: {e}"
-            ) from e
-
-        # Create the symbolic link
+            raise OSError(f"Error: Failed to create parent directories for {dest}: {e}") from e
         try:
             if os.name == "nt":
-                # Determine if the source is a directory
                 is_dir = source_resolved.is_dir()
-                # On Windows, os.symlink requires specifying target_is_directory
                 os.symlink(str(source_resolved), str(dest), target_is_directory=is_dir)
             else:
-                # On Unix-like systems, no need to specify target_is_directory
                 os.symlink(str(source_resolved), str(dest))
             print(f"Symlink created: {dest} -> {source_resolved}")
         except OSError as e:
             if os.name == "nt":
                 raise OSError(
-                    "Error: Failed to create symlink on Windows.\n"
-                    "Ensure you have the necessary permissions or Developer Mode is enabled."
+                    "Error: Failed to create symlink on Windows.\nEnsure you have the necessary permissions or Developer Mode is enabled."
                 ) from e
             else:
                 raise OSError(f"Error: Failed to create symlink: {e}") from e
 
     @staticmethod
     def normalize_path(path):
-        """
-
-        Args:
-          path:
-
-        Returns:
-
-        """
         return (
             str(PureWindowsPath(Path(path)))
             if os.name == "nt"

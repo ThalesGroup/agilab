@@ -12,7 +12,7 @@ else
 fi
 AgiPROJECT="$AgiROOT/agi"
 AgiLAB="$AgiPROJECT/fwk/gui"
-AgiEDIT="$AgiLAB/src/agi_lab/AGILab.py"
+AgiEDIT="$AgiLAB/src/agi_gui/AGILAB.py"
 
 echo "Running 'uv run streamlit run "$AgiEDIT"' from '$AgiLAB'"
 

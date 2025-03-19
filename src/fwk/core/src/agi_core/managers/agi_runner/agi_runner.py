@@ -48,7 +48,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 
 # Project Libraries:
-from agi_env.agi_env import AgiEnv
+from agi_env import AgiEnv
 from agi_core.managers.agi_manager import AgiManager
 from agi_core.workers.agi_worker import AgiWorker
 

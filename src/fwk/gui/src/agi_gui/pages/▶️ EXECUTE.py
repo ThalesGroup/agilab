@@ -3,7 +3,8 @@
 # Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
 # All rights reserved.
 #
-# Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+# Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
+# following conditions are met:
 #
 #   ... (license text continues) ...
 
@@ -30,7 +31,8 @@ from collections import defaultdict
 from pathlib import Path
 
 # Third-Party lightweight imports
-import toml
+import tomli         # For reading TOML files
+import tomli_w       # For writing TOML files
 import pandas as pd
 import pydantic
 
@@ -150,8 +152,10 @@ def filter_warning_messages(log: str) -> str:
 # ===========================
 @st.cache_data(ttl=300, show_spinner=False)
 def load_toml_file(file_path):
+    file_path = Path(file_path)
     if file_path.exists():
-        return toml.load(file_path)
+        with file_path.open("rb") as f:
+            return tomli.load(f)
     return {}
 
 @st.cache_data(show_spinner=False)
@@ -227,8 +231,8 @@ def render_generic_ui():
         existing_app_settings.setdefault("cluster", {})
         existing_app_settings["args"] = args_input
         st.session_state.app_settings = existing_app_settings
-        with open(app_settings_file, "w") as file:
-            toml.dump(existing_app_settings, file)
+        with open(app_settings_file, "wb") as file:
+            tomli_w.dump(existing_app_settings, file)
 
     if st.session_state.get("args_remove_arg"):
         st.session_state["args_remove_arg"] = False
@@ -240,7 +244,6 @@ def render_generic_ui():
 def render_cluster_settings_ui():
     cluster_params = st.session_state.app_settings["cluster"]
 
-    # Single checkbox to enable the entire cluster configuration.
     cluster_enabled = st.checkbox(
         "Enable Cluster",
         value=cluster_params.get("cluster_enabled", False),
@@ -314,8 +317,8 @@ def render_cluster_settings_ui():
     st.info(f"Run mode: {run_mode_label[st.session_state['mode']]}")
     st.session_state.app_settings["cluster"] = cluster_params
 
-    with open(env.app_settings_file, "w") as file:
-        toml.dump(st.session_state.app_settings, file)
+    with open(env.app_settings_file, "wb") as file:
+        tomli_w.dump(st.session_state.app_settings, file)
 
 def toggle_select_all():
     if st.session_state.check_all:
@@ -731,7 +734,6 @@ if __name__ == '__main__':
                         st.code(filtered_stderr)
                     st.code(filtered_stdout or "No logs available")
 
-                # Define run_log as the filtered stdout for further processing.
                 run_log = filtered_stdout
 
             if st.session_state.mode is None:

@@ -19,13 +19,17 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
-# Function to check the existence of an installation script
+usage() {
+  echo "Usage: $0 --openai-api-key <api-key> [--install-path <path>] [--cluster-credentials <user:password>]"
+  exit 1
+}
+
 check_script() {
     local script_path="$1"
     local script_name="$2"
 
     if [[ ! -f "$script_path" ]]; then
-        log "Error: $script_name installation script '$script_path' not found!"
+        log "${RED}Error: $script_name installation script '$script_path' not found!${NC}"
         exit 1
     fi
 
@@ -36,40 +40,28 @@ check_script() {
     fi
 }
 
-# Function to execute an installation script within its directory
 execute_installation() {
     local project_dir="$1"
     local install_script="$2"
     local project_name="$3"
 
     log "Starting installation of $project_name..."
-
-    pushd "$project_dir"
+    pushd "$project_dir" > /dev/null
     source "$(basename "$install_script")"
-    popd
-
+    popd > /dev/null
     log "Installation of $project_name completed."
-}
-
-# Function to display usage information
-usage() {
-  echo "Usage: $0 [--cluster-credential <user:password>] --openai-api-key <openai-api-key >"
-  exit 1
 }
 
 choose_python() {
     echo -e "${BLUE}Choosing Python version...${NC}"
-    echo
-
-    local available_python_versions
     available_python_versions=$(uv python list)
+
     python_array=()
     while IFS= read -r line; do
         python_array+=("$line")
     done <<< "$available_python_versions"
 
-
-    echo -e "${YELLOW}The Python versions highlighted in ${GREEN}green${YELLOW} are the recommended ones.${NC}"
+    echo -e "${YELLOW}Recommended versions are highlighted in ${GREEN}green${YELLOW}.${NC}"
     for idx in "${!python_array[@]}"; do
         if [[ "${python_array[$idx]}" == *"$PYTHON_VERSION"* ]]; then
             echo -e "${GREEN}$((idx + 1)) - ${python_array[$idx]}${NC}"
@@ -78,120 +70,83 @@ choose_python() {
         fi
     done
 
-    # Ask for user input to choose a Python version
     while true; do
-        read -rp "Enter the number of the Python version you want to use: " selection
+        read -rp "Select Python version: " selection
         if [[ $selection =~ ^[0-9]+$ ]] && (( selection >= 1 && selection <= ${#python_array[@]} )); then
             chosen_python=$(echo "${python_array[$((selection - 1))]}" | cut -d' ' -f1)
             break
         else
-            echo "Invalid selection. Please try again."
+            echo "Invalid selection. Try again."
         fi
     done
 
-    local installed_pythons
     installed_pythons=$(uv python list --only-installed | cut -d' ' -f1)
-    # Check if the chosen Python version is installed
     if echo "$installed_pythons" | grep -q "$chosen_python"; then
-        echo
-        echo -e "${GREEN}Python version ($chosen_python) is installed.${NC}"
-        echo
+        echo -e "${GREEN}Python ($chosen_python) is installed.${NC}"
     else
-        echo -e "${YELLOW}Installing $chosen_python in ~/.local/share/uv/python${NC}"
-        echo
+        echo -e "${YELLOW}Installing $chosen_python...${NC}"
         uv python install "$chosen_python"
-        echo -e "${GREEN}Python version ($chosen_python) is now installed.${NC}"
-        echo
+        echo -e "${GREEN}Python installed.${NC}"
     fi
 
-    # Extract version and pin it
     python_version=$(echo "$chosen_python" | cut -d '-' -f2)
     export PYTHON_VERSION=$python_version
 }
 
 start_installation() {
-    AGI_ROOT=$(realpath "$(dirname "${BASH_SOURCE[0]}")/..")
+    # Ensure the installation path is set (default: current directory `.`)
+    AGI_ROOT=$(realpath "${AGI_ROOT:-.}")
     AGI_PATH_FILE="$HOME/.local/share/agilab/.agi-path"
 
-    echo "Executing: src/$0 from $AGI_ROOT to install in $AGI_PATH_FILE"
+    log "Installing to: $AGI_ROOT (Stored in: $AGI_PATH_FILE)"
 
-    if [ -f "$AGI_PATH_FILE" ]; then
-        content=$(cat "$AGI_PATH_FILE")
-        if [ "$content" != "$AGI_ROOT" ]; then
-            echo "The installation path has changed since the last installation."
-            echo "Do you want to keep the new path \"$AGI_ROOT\" or keep the previous one \"$content\"?"
-            echo "[N]ew path / [O]ld path (default: new):"
-
-            read -r choice
-            case "$choice" in
-                [Oo]*)
-                    log "Keeping the previous path: $content"
-                    AGI_ROOT="$content"
-                    ;;
-                *)
-                    log "Using the new path: $AGI_ROOT"
-                    mkdir -p "$(dirname "$AGI_PATH_FILE")"
-                    echo "$AGI_ROOT" > "$AGI_PATH_FILE"
-                    ;;
-            esac
-        else
-          log "Installation path: \"$AGI_ROOT\"."
-        fi
-    else
-        mkdir -p "$(dirname "$AGI_PATH_FILE")"
-        echo "$AGI_ROOT" > "$AGI_PATH_FILE"
-    fi
+    # Store the chosen installation path
+    mkdir -p "$(dirname "$AGI_PATH_FILE")"
+    echo "$AGI_ROOT" > "$AGI_PATH_FILE"
 
     AGI_PROJECT="$AGI_ROOT/src"
-
-    # Define the directories and installation scripts using absolute paths
     framework_dir="$AGI_PROJECT/fwk"
     apps_dir="$AGI_PROJECT/apps"
     framework_script="$framework_dir/install.sh"
     apps_script="$apps_dir/install.sh"
 
-    # Check if the fwk installation script exists
     check_script "$framework_script" "Framework"
-
-    # Check if the apps installation script exists
     check_script "$apps_script" "Apps"
 
-
-    log "Starting installation of AGI_project..."
-
+    log "Installing AGI project..."
     choose_python
 
-    # Execute the installation scripts
     rm -fr "$HOME/wenv"
-        # Define the path for the Agi environment file
     AGI_env_file="$HOME/.agilab/.env"
+    echo execute_installation "$framework_dir" "$framework_script" "Framework"
+    execute_installation "$framework_dir" "$framework_script" "Framework"
 
-
-
-    execute_installation "$framework_dir" "$framework_script" "framework"
-
-    # Append OpenAI API Key to the Agi environment file
     grep -qxF "OPENAI_API_KEY=\"$openai_api_key\"" "$AGI_env_file" || echo "OPENAI_API_KEY=\"$openai_api_key\"" >> "$AGI_env_file"
     grep -qxF "AGI_CREDENTIALS=\"$cluster_username\"" "$AGI_env_file" || echo "AGI_CREDENTIALS=\"$cluster_username\"" >> "$AGI_env_file"
     grep -qxF "AGI_PYTHON_VERSION=\"$python_version\"" "$AGI_env_file" || echo "AGI_PYTHON_VERSION=\"$python_version\"" >> "$AGI_env_file"
 
-    execute_installation "$apps_dir" "$apps_script" "apps"
-
-
-    # Final Message
-    log "Installation of framework and apps complete!"
-
+    execute_installation "$apps_dir" "$apps_script" "Apps"
+    log "Installation complete!"
 }
 
-# Parse command line options
+# Default values
+AGI_ROOT="."
+openai_api_key=""
+cluster_username=""
+
+# Parse CLI arguments
 while [[ "$#" -gt 0 ]]; do
   case $1 in
-    --cluster-credentials)
-      cluster_username="$2"
+    --install-path)
+      AGI_ROOT="$2"
       shift 2
       ;;
     --openai-api-key)
       openai_api_key="$2"
+      shift 2
+      ;;
+    --cluster-credentials)
+      cluster_username="$2"
       shift 2
       ;;
     *)
@@ -201,7 +156,8 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-if [[ -z "${openai_api_key:-}" ]]; then
+# Ensure required arguments are set
+if [[ -z "$openai_api_key" ]]; then
     echo -e "${RED}Error: Missing mandatory parameter: --openai-api-key${NC}"
     usage
 fi

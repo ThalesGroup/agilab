@@ -30,7 +30,8 @@
     <orderEntry type="module" module-name="agent-app-template" />
     <orderEntry type="module" module-name="dag-app-template" />
     <orderEntry type="module" module-name="data-app-template" />
-    <orderEntry type="module" module-name="lab" />
+    <orderEntry type="module" module-name="gui" />
+    <orderEntry type="module" module-name="gui" />
   </component>
   <component name="PyDocumentationSettings">
     <option name="format" value="PLAIN" />

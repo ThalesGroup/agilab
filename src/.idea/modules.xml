@@ -3,13 +3,13 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/apps/agent-app-template/.idea/agent-app-template.iml" filepath="$PROJECT_DIR$/apps/agent-app-template/.idea/agent-app-template.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/agi.iml" filepath="$PROJECT_DIR$/.idea/agi.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/agi-oss.iml" filepath="$PROJECT_DIR$/.idea/agi-oss.iml" />
       <module fileurl="file://$PROJECT_DIR$/fwk/core/.idea/core.iml" filepath="$PROJECT_DIR$/fwk/core/.idea/core.iml" />
       <module fileurl="file://$PROJECT_DIR$/apps/dag-app-template/.idea/dag-app-template.iml" filepath="$PROJECT_DIR$/apps/dag-app-template/.idea/dag-app-template.iml" />
       <module fileurl="file://$PROJECT_DIR$/apps/data-app-template/.idea/data-app-template.iml" filepath="$PROJECT_DIR$/apps/data-app-template/.idea/data-app-template.iml" />
       <module fileurl="file://$PROJECT_DIR$/fwk/env/.idea/env.iml" filepath="$PROJECT_DIR$/fwk/env/.idea/env.iml" />
       <module fileurl="file://$PROJECT_DIR$/apps/flight-project/.idea/flight-project.iml" filepath="$PROJECT_DIR$/apps/flight-project/.idea/flight-project.iml" />
-      <module fileurl="file://$PROJECT_DIR$/fwk/lab/.idea/lab.iml" filepath="$PROJECT_DIR$/fwk/lab/.idea/lab.iml" />
+      <module fileurl="file://$PROJECT_DIR$/fwk/gui/.idea/gui.iml" filepath="$PROJECT_DIR$/fwk/gui/.idea/gui.iml" />
       <module fileurl="file://$PROJECT_DIR$/apps/my-code-project/.idea/my-code-project.iml" filepath="$PROJECT_DIR$/apps/my-code-project/.idea/my-code-project.iml" />
     </modules>
   </component>

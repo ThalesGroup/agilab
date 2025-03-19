@@ -1,11 +1,11 @@
 [project]
-name = "agi-lab"
-description = "AGI LAB"
+name = "agi-gui"
+description = "AGI GUI"
 version = "0.1.0"
 requires-python = "==3.12.*"
 readme = "README.md"
 authors = [
-    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
+    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
 ]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
@@ -17,43 +17,83 @@ classifiers = [
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
 ]
-
 keywords = [
-    "jupyter", "mlflow", "paramiko", "asyncio", "dask", "rapids",
-    "streamlit", "distributed", "cython", "cluster", "dataframe",
-    "dataset", "loadbalancing", "genai", "copilot", "agi",
-    "pycharm", "datascience"
+    "jupyter",
+    "mlflow",
+    "paramiko",
+    "asyncio",
+    "dask",
+    "rapids",
+    "streamlit",
+    "distributed",
+    "cython",
+    "cluster",
+    "dataframe",
+    "dataset",
+    "loadbalancing",
+    "genai",
+    "copilot",
+    "agi",
+    "pycharm",
+    "datascience",
 ]
-
 dependencies = [
-    "agi-core", "astor", "fastparquet", "geojson", "humanize",
-    "jupyter-ai[all]", "keras", "matplotlib", "mlflow", "numba",
-    "openai", "paramiko", "pathspec", "plotly", "polars", "py7zr",
-    "seaborn", "scp", "streamlit", "streamlit-modal",
-    "streamlit-pandas-profiling", "streamlit_code_editor",
-    "streamlit_extras", "ydata", "ydata-profiling"
-]
-
-[dependency-groups]
-dev = [
-    "black", "pytest", "licensecheck"
+    "agi-core",
+    "astor",
+    "fastparquet",
+    "geojson",
+    "humanize",
+    "jupyter-ai[all]",
+    "keras",
+    "matplotlib",
+    "mlflow",
+    "numba",
+    "openai",
+    "paramiko",
+    "pathspec",
+    "plotly",
+    "polars",
+    "py7zr",
+    "seaborn",
+    "scp",
+    "streamlit",
+    "streamlit-modal",
+    "streamlit-pandas-profiling",
+    "streamlit_code_editor",
+    "streamlit_extras",
+    "ydata",
+    "ydata-profiling",
 ]
 
 [project.scripts]
 agilab = "agi_lab.lab_run:main"
 
+[dependency-groups]
+dev = [
+    "black",
+    "pytest",
+    "licensecheck",
+]
+
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = [
+    "setuptools",
+    "wheel",
+]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 include-package-data = true
 
 [tool.setuptools.package-data]
-agi_lab = ["resources/.agilab/*/*"]
+agi_lab = [
+    "resources/.agilab/*/*",
+]
 
 [tool.uv]
-default-groups = ["dev"]
+default-groups = [
+    "dev",
+]
 
 [tool.uv.sources.agi-env]
 path = "/home/pcm/agilab/src/fwk/env"
@@ -64,7 +104,9 @@ path = "/home/pcm/agilab/src/fwk/core"
 editable = true
 
 [tool.mypy]
-mypy_path = ["stubs"]
+mypy_path = [
+    "stubs",
+]
 disallow_untyped_defs = false
 ignore_missing_imports = true
 

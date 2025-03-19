@@ -25,6 +25,15 @@ keywords = [
     "pycharm", "datascience"
 ]
 
+dependencies = [
+    "humanize",
+    "pathspec",
+    "pydantic",
+    "python-dotenv",
+    "setuptools",
+    "tomli_w",
+]
+
 [dependency-groups]
 dev = [
     "agi-env", "black", "pytest", "licensecheck"

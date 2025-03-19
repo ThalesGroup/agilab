@@ -35,7 +35,7 @@ AGILAB project purpose is to explore AI for engineering. It is designed to help 
 ```powershell
     go with your browser to https://github.com/ThalesGroup/agilab and download agilab-main.zip 
     unzip agilab-main.zip
-    cd agilab-main/agi
+    cd agilab-main
     powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key "your-api-key" --install-path "your-install-dir"
     then open agilab/src project preferably with Pycharm
  ```

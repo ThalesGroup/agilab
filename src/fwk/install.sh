@@ -5,8 +5,8 @@
 
 resolve_packages() {
   DIR_PATH=$(readlink -f "$1")
-  AGI_ENV="$(cat $HOME/.local/share/agilab/.agilab-path)/agi/fwk/env"
-  AGI_CORE="$(cat $HOME/.local/share/agilab/.agilab-path)/agi/fwk/core"
+  AGI_ENV="$(cat $HOME/.local/share/agilab/.agilab-path)/src/fwk/env"
+  AGI_CORE="$(cat $HOME/.local/share/agilab/.agilab-path)/src/fwk/core"
 
   pushd "$DIR_PATH"
 
@@ -30,17 +30,18 @@ main() {
   echo "Resolving env and core path inside tomls"
   echo "Installing env..."
   pushd env
-  uv sync
+  uv sync --dev
   uv run python3 src/agi_env/post_install.py
   uv pip install -e .
   popd
 
   echo "Installing core..."
   pushd core
-  uv sync --extra managers --group rapids
+  uv sync --extra managers --group rapids --dev
   uv pip install -e .
   popd
 
+  echo "Installing gui..."
   pushd gui
   uv sync
   popd

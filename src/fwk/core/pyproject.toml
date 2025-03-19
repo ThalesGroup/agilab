@@ -5,7 +5,7 @@ version = "0.1.0"
 requires-python = "==3.12.*"
 readme = "README.md"
 authors = [
-    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
+    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
 ]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
@@ -17,45 +17,89 @@ classifiers = [
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
 ]
-
 keywords = [
-    "jupyter", "mlflow", "paramiko", "asyncio", "dask", "rapids",
-    "streamlit", "distributed", "cython", "cluster", "dataframe",
-    "dataset", "loadbalancing", "genai", "copilot", "agi",
-    "pycharm", "datascience"
+    "jupyter",
+    "mlflow",
+    "paramiko",
+    "asyncio",
+    "dask",
+    "rapids",
+    "streamlit",
+    "distributed",
+    "cython",
+    "cluster",
+    "dataframe",
+    "dataset",
+    "loadbalancing",
+    "genai",
+    "copilot",
+    "agi",
+    "pycharm",
+    "datascience",
 ]
-
-dependencies = [ "dask[distributed]", "paramiko", "scp", "scikit-learn", "parso", "cython", "setuptools", "msgpack", "numba", "py7zr", "agi-env", "python-dotenv",]
-
-[dependency-groups]
-dev = [ "agi-core", "black", "pytest", "licensecheck",]
-[[dependency-groups.rapids]]
-package = "cuspatial-cu12"
-markers = "platform_system == \"Linux\""
+dependencies = [
+    "dask[distributed]",
+    "paramiko",
+    "scp",
+    "scikit-learn",
+    "parso",
+    "cython",
+    "setuptools",
+    "msgpack",
+    "numba",
+    "py7zr",
+    "agi-env",
+    "python-dotenv",
+]
 
 [project.optional-dependencies]
 agi-worker = []
 agent-worker = []
 dag-worker = []
-data-worker = [ "polars",]
-managers = [ "jupyter", "mypy", "numba", "pydantic", "requests", "wheel", "polars",]
+data-worker = [
+    "polars",
+]
+managers = [
+    "jupyter",
+    "mypy",
+    "numba",
+    "pydantic",
+    "requests",
+    "wheel",
+    "polars",
+]
 workers = []
 
+[dependency-groups]
+dev = [
+    "agi-core",
+    "black",
+    "pytest",
+    "licensecheck",
+]
+rapids = [
+    { package = "cuspatial-cu12", markers = "platform_system == \"Linux\"" },
+]
+
 [tool.uv]
-default-groups = [ "dev",]
-
-[tool.mypy]
-mypy_path = [ "stubs",]
-disallow_untyped_defs = false
-ignore_missing_imports = true
-
-[tool.pyment]
-source_dir = "src"
-format = "google"
+default-groups = [
+    "dev",
+]
 
 [tool.uv.sources.agi-env]
 path = "/home/pcm/agilab/src/fwk/env"
 editable = true
 
 [tool.uv.sources.agi-core]
-workspace = true
+path = "/home/pcm/agilab/src/fwk/core"
+
+[tool.mypy]
+mypy_path = [
+    "stubs",
+]
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pyment]
+source_dir = "src"
+format = "google"

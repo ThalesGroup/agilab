@@ -10,7 +10,7 @@ Sidebar
    .. tab-item:: Lab-Directory
 
       Select your module name.
-      The ``Lab_directory`` is defined as ``AGI_LAB_DIR / "your selected module"``,
+      The ``Lab_directory`` is defined as ``AGILAB_DIR / "your selected module"``,
       where ``AGIL_LAB_DIR`` is the variable from ``~/.env``.
       If it has not been set, the default value is:
       ``"~/agilab/framework/agi-gui"``

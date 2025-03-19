@@ -3,15 +3,21 @@
 # Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
 # All rights reserved.
 #
-# Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+# Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
+# following conditions are met:
 #
 # 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
 # 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
 # 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or THALES SIX GTS France SAS, may be used to endorse or promote products derived from this software without specific prior written permission.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+# IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+# OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+# OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from agi_gui.pagelib import env  # Ensure no Streamlit commands here
+from agi_gui.pagelib import env, render_logo
 import streamlit as st
 
 # ===========================
@@ -20,7 +26,9 @@ import streamlit as st
 from pathlib import Path
 import sys
 import importlib
-import toml
+# Use modern TOML libraries instead of toml
+import tomli         # For reading TOML files
+import tomli_w       # For writing TOML files
 from agi_gui.pagelib import list_views, get_about_content, render_logo, select_project
 
 # Set page configuration - Must be the first Streamlit command
@@ -29,7 +37,6 @@ st.set_page_config(
     menu_items=get_about_content()
 )
 
-
 def main():
     # Use query parameters to handle navigation
     """
@@ -37,9 +44,6 @@ def main():
 
     This function retrieves the current page from the query parameters and stores it in the session state.
     Based on the current page, it sets the page title accordingly and renders the appropriate content.
-
-    Returns:
-        None: This function does not return a value.
     """
     current_page = st.query_params.get("current_page", "main")
     st.session_state["current_page"] = current_page
@@ -68,9 +72,6 @@ def render_main_page():
     Render the main page of the application.
 
     This function retrieves the list of projects, sets the current project, loads the app settings, allows the user to select views, and updates the configuration file accordingly.
-
-    Returns:
-        None
     """
     projects = env.projects
     st.session_state["projects"] = projects
@@ -92,9 +93,10 @@ def render_main_page():
         st.write("No views found")
         return
 
-    # Load configuration
+    # Load configuration using tomli (read in binary mode)
     try:
-        config = toml.load(app_settings)
+        with open(app_settings, "rb") as f:
+            config = tomli.load(f)
     except Exception as e:
         st.error(f"Error loading configuration: {e}")
         return
@@ -117,8 +119,8 @@ def render_main_page():
     config["views"]["view_module"] = selected_views
 
     try:
-        with open(app_settings, "w") as file:
-            toml.dump(config, file)
+        with open(app_settings, "wb") as file:
+            tomli_w.dump(config, file)
     except Exception as e:
         st.error(f"Error updating configuration: {e}")
 
@@ -150,7 +152,6 @@ def render_view_page(view_path):
     :type view_path: Path
 
     :returns: None
-    :rtype: None
 
     :raises: None
     """

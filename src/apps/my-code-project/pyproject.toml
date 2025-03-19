@@ -4,13 +4,16 @@ version = "0.1.0"
 description = ""
 requires-python = "==3.12.*"
 readme = "README.md"
-dependencies = [ "setuptools", "cython", "parso", "py7zr", "python-dotenv",]
-[[project.authors]]
-name = "Jean-Pierre Morard"
-email = "focus@thalesgroup.com"
-
-[dependency-groups]
-dev = [ "black", "pytest", "licensecheck", "my-code-project",]
+dependencies = [
+    "setuptools",
+    "cython",
+    "parso",
+    "py7zr",
+    "python-dotenv",
+]
+authors = [
+    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
+]
 
 [project.license]
 text = "Thales SIX GTS France SAS"
@@ -19,14 +22,40 @@ text = "Thales SIX GTS France SAS"
 agi-worker = []
 agent-worker = []
 dag-worker = []
-data-worker = [ "polars",]
-workers = [ "agi-core[dag-worker]", "agi-core[agi-worker]",]
-managers = [ "agi-core[managers]",]
+data-worker = [
+    "polars",
+]
+workers = [
+    "agi-core[dag-worker]",
+    "agi-core[agi-worker]",
+]
+managers = [
+    "agi-core[managers]",
+]
+
+[dependency-groups]
+dev = [
+    "black",
+    "pytest",
+    "licensecheck",
+    "my-code-project",
+]
 
 [tool.uv]
-default-groups = [ "dev",]
+default-groups = [
+    "dev",
+]
+
+[tool.uv.sources.agi-core]
+path = "/home/pcm/agilab/src/fwk/core"
+editable = true
+
+[tool.uv.sources.flight-project]
+workspace = true
 
 [tool.mypy]
-mypy_path = [ "stubs",]
+mypy_path = [
+    "stubs",
+]
 disallow_untyped_defs = false
 ignore_missing_imports = true
