@@ -1,0 +1,57 @@
+# Core Licenses
+| Package Name | License |
+|--------------|---------|
+| Brotli | MIT LICENSE |
+| Cython | APACHE SOFTWARE LICENSE |
+| Jinja2 | BSD LICENSE |
+| MarkupSafe | BSD LICENSE |
+| PyNaCl | APACHE LICENSE 2.0 |
+| PyYAML | MIT LICENSE |
+| annotated-types | MIT LICENSE |
+| bcrypt | APACHE SOFTWARE LICENSE |
+| cffi | MIT LICENSE |
+| click | BSD LICENSE |
+| cloudpickle | BSD LICENSE |
+| cryptography | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| dask | BSD LICENSE |
+| distributed | BSD LICENSE |
+| env | BSD LICENSE |
+| fsspec | BSD LICENSE |
+| humanize | MIT License |
+| inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| joblib | BSD LICENSE |
+| llvmlite | BSD |
+| locket | BSD LICENSE |
+| msgpack | APACHE SOFTWARE LICENSE |
+| multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| numba | BSD LICENSE |
+| numpy | BSD LICENSE |
+| packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| paramiko | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
+| parso | MIT LICENSE |
+| partd | BSD |
+| pathspec | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
+| psutil | BSD LICENSE |
+| py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pycparser | BSD LICENSE |
+| pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
+| pydantic | MIT LICENSE |
+| pydantic_core | MIT LICENSE |
+| pyppmd | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| python-dotenv | BSD LICENSE |
+| pyzstd | BSD LICENSE |
+| scikit-learn | BSD LICENSE |
+| scipy | BSD LICENSE |
+| scp | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
+| setuptools | MIT LICENSE |
+| sortedcontainers | APACHE SOFTWARE LICENSE |
+| tblib | BSD LICENSE |
+| texttable | MIT LICENSE |
+| threadpoolctl | BSD LICENSE |
+| tomli_w | MIT LICENSE |
+| toolz | BSD LICENSE |
+| tornado | APACHE SOFTWARE LICENSE |
+| typing_extensions | PYTHON SOFTWARE FOUNDATION LICENSE |
+| urllib3 | MIT LICENSE |
+| zict | BSD LICENSE |

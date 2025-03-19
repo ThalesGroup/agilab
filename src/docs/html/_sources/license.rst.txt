@@ -1,0 +1,12 @@
+Licences
+========
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Licenses
+
+   gui-licenses.md
+   core-licenses.md
+   env-licenses.md
+   my-code-project-licenses.md
+   flight-project-licenses.md

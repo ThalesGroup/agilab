@@ -91,7 +91,7 @@ class AgiEnv:
         self.target_package = target_package_path.name
         self.target_worker = f"{self.target}_worker"
         self.worker_path = (
-            target_package_path.parent / self.target_worker / f"{self.target_worker}.py"
+                target_package_path.parent / self.target_worker / f"{self.target_worker}.py"
         )
         self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
 
@@ -322,7 +322,7 @@ class AgiEnv:
         else:
             project_name = name.replace("_", "-") + "-project"
         module_path = (
-            self.apps_root / project_name / "src" / module_name / (module_name + ".py")
+                self.apps_root / project_name / "src" / module_name / (module_name + ".py")
         ).resolve()
         if self._check_module_path(module_path):
             return module_path
@@ -507,28 +507,6 @@ class AgiEnv:
             proc_env["PATH"] = str(venv_bin) + os.pathsep + proc_env.get("PATH", "")
         return proc_env
 
-    @staticmethod
-    def _run_subprocess(cmd, cwd=".", venv=None, timeout=None, merge_stderr=False):
-        proc_env = AgiEnv._build_env(venv)
-        popen_args = {
-            "shell": True,
-            "cwd": os.path.abspath(cwd),
-            "env": proc_env,
-            "text": True,
-            "stdout": subprocess.PIPE,
-            "stderr": subprocess.STDOUT if merge_stderr else subprocess.PIPE,
-        }
-        proc = subprocess.Popen(cmd, **popen_args)
-        try:
-            stdout, stderr = proc.communicate(timeout=timeout)
-        except subprocess.TimeoutExpired as err:
-            proc.kill()
-            stdout, stderr = proc.communicate()
-            raise RuntimeError(
-                f"Timeout expired for command: {cmd}\nfrom: {cwd}\nOutput:\n{stdout}\nErrors:\n{stderr}"
-            ) from err
-        return stdout, stderr, proc.returncode
-
     class JumpToMain(Exception):
         pass
 
@@ -575,6 +553,78 @@ class AgiEnv:
         return stdout.decode(), stderr.decode()
 
     @staticmethod
+    async def run_async(cmd, venv=None, cwd=None, timeout=None, log_callback=None):
+        if not cwd:
+            cwd = venv
+        process_env = os.environ.copy()
+        venv_path = Path(venv) / ".venv"
+        process_env["VIRTUAL_ENV"] = str(venv_path)
+        bin_dir = "Scripts" if os.name == "nt" else "bin"
+        venv_bin = venv_path / bin_dir
+        process_env["PATH"] = str(venv_bin) + os.pathsep + process_env.get("PATH", "")
+        shell_executable = "/bin/bash" if os.name != "nt" else None
+
+        # If cmd is a list, join it for shell=True.
+        if isinstance(cmd, list):
+            cmd = " ".join(cmd)
+
+        process = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(cwd),
+            env=process_env,
+            executable=shell_executable
+        )
+
+        async def read_stream(stream, callback):
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                decoded_line = line.decode().rstrip()
+                callback(decoded_line)
+
+        # Start a task for reading stderr concurrently.
+        stderr_task = asyncio.create_task(
+            read_stream(process.stderr, log_callback if log_callback else print)
+        )
+
+    def run_doc(cmd, venv=None, cwd=None, timeout=None):
+        if not cwd:
+            cwd = venv
+        process_env = os.environ.copy()
+        venv_path = Path(venv) / ".venv"
+        process_env["VIRTUAL_ENV"] = str(venv_path)
+        bin_dir = "Scripts" if os.name == "nt" else "bin"
+        venv_bin = venv_path / bin_dir
+        process_env["PATH"] = str(venv_bin) + os.pathsep + process_env.get("PATH", "")
+        shell_executable = "/bin/bash" if os.name != "nt" else None
+        process = subprocess.Popen(
+            " ".join(cmd),
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=str(cwd),
+            env=process_env,
+            text=True,
+            executable=shell_executable,
+        )
+
+        try:
+            stdout_data, stderr_data = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            stdout_data, stderr_data = process.communicate()
+            raise RuntimeError("Command timed out")
+
+        # Optionally, log stderr after the fact
+        if stderr_data:
+            print(stderr_data.rstrip())
+
+        return stdout_data
+
+    @staticmethod
     def run(cmd, venv=None, cwd=None, timeout=None, wait=True, log_callback=None):
         if not cwd:
             cwd = venv
@@ -584,9 +634,8 @@ class AgiEnv:
         bin_dir = "Scripts" if os.name == "nt" else "bin"
         venv_bin = venv_path / bin_dir
         process_env["PATH"] = str(venv_bin) + os.pathsep + process_env.get("PATH", "")
-        shell_executable = None
-        if os.name != "nt":
-            shell_executable = "/bin/bash"
+        shell_executable = "/bin/bash" if os.name != "nt" else None
+
         if wait:
             try:
                 process = subprocess.Popen(
