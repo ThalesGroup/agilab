@@ -48,7 +48,7 @@ uv run agilab
 
 ## Documentation
 
-Documentation is available at [documentation site](https://thalesgroup.github.io/agilab/docs/html/index.html
+Documentation is available at [documentation site](https://thalesgroup.github.io/agilab)
 ).
 For additional guides and tutorials, consider checking our GitHub Pages.
 
