@@ -1,64 +1,64 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string]$AgiCredentials,
+    [string]$OpenaiApiKey,
 
     [Parameter(Mandatory = $true)]
-    [string]$OpenaiApiKey,
+    [string]$AgiCredentials,
+
+    [Parameter(Mandatory = $false)]
+    [string]$InstallPath = (Get-Location).Path,
 
     [Parameter(Mandatory = $false)]
     [string]$PythonPath = (Get-Command python).Source
 )
 
-function Execute-Installation
-{
+function Execute-Installation {
     param(
         [string]$ProjectDir,
         [string]$InstallScript,
         [string]$ProjectName
     )
 
-    Write-Host "Installation of $ProjectName..."
-
+    Write-Host "Installing $ProjectName..." -ForegroundColor Cyan
     Push-Location $ProjectDir
-
-    if (Test-Path "$InstallScript")
-    {
-        & "$InstallScript" -PythonPath $PythonPath
+    if (Test-Path $InstallScript) {
+        & $InstallScript -PythonPath $PythonPath
     }
-    else
-    {
+    else {
         Write-Host "Error: Script $InstallScript not found in $ProjectDir" -ForegroundColor Red
     }
-
     Pop-Location
 }
 
-# Define environment variables and paths
-$AgiDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
-Write-Host "Agi Dir: $AgiDir"
+# Use the provided install path, defaulting to the current directory
+$AgiDir = $InstallPath
+Write-Host "Installation Directory: $AgiDir" -ForegroundColor Cyan
+
+# Set environment variable 'Agi_ROOT'
 [System.Environment]::SetEnvironmentVariable('Agi_ROOT', $AgiDir, [System.EnvironmentVariableTarget]::User)
 
-$AgiRoot = Join-Path $AgiDir 'agig'
-$FrameworkDir = Join-Path $AgiRoot  'fwk'
-$AppsDir = Join-Path $AgiRoot 'apps'
+# Define project directories (aligned with the Bash script: AGI_PROJECT = "$AGI_ROOT/src")
+$AgiProject = Join-Path $AgiDir 'src'
+$FrameworkDir = Join-Path $AgiProject 'fwk'
+$AppsDir = Join-Path $AgiProject 'apps'
 $FrameworkScript = Join-Path $FrameworkDir 'install.ps1'
 $AppsScript = Join-Path $AppsDir 'install.ps1'
 
-$AgiEnvFile = Join-Path $AgiDir ".agi_resources/.env"
+Write-Host "Selected user: $AgiCredentials" -ForegroundColor Yellow
+Write-Host "OpenAI API Key: $OpenaiApiKey" -ForegroundColor Yellow
 
-Write-Host "Selected user: $AgiCredentials"
-Write-Host "OpenAI API Key: $OpenaiApiKey"
-
+# Execute installation scripts for framework and apps
 Execute-Installation -ProjectDir $FrameworkDir -InstallScript $FrameworkScript -ProjectName "fwk"
 Execute-Installation -ProjectDir $AppsDir -InstallScript $AppsScript -ProjectName "apps"
 
-# Install user paremeters
-$AgienvContent = "OPENAI_API_KEY=$openaiapiKey"
-$AgienvContent | Out-File -FilePath $AgiEnvFile -Encoding ASCII -Append
+# Update the environment file with user parameters
+$HomeDir = [Environment]::GetFolderPath("UserProfile")
+$AgiEnvFile = Join-Path $HomeDir ".agi_resources\.env"
+if (-not (Test-Path $AgiEnvFile)) {
+    New-Item -ItemType File -Path $AgiEnvFile -Force | Out-Null
+}
 
-$AgienvContent = "AGI_CREDENTIALS=$Agicredentials"
-$AgienvContent | Out-File -FilePath $AgiEnvFile -Encoding ASCII -Append
+"OPENAI_API_KEY=$OpenaiApiKey" | Out-File -FilePath $AgiEnvFile -Encoding ASCII -Append
+"AGI_CREDENTIALS=$AgiCredentials" | Out-File -FilePath $AgiEnvFile -Encoding ASCII -Append
 
-
-
-Write-Host "Installation of fwk and apps competed!" -ForegroundColor Green
+Write-Host "Installation of fwk and apps completed!" -ForegroundColor Green
