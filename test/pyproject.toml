@@ -7,10 +7,10 @@ requires-python = "==3.12.*"
 dependencies = [
     "agi-core",
     "agi-env",
-    "agi-lab",
+    "agi-gui",
 ]
 
 [tool.uv.sources]
 agi-core = { path = "agi_core-0.1.0-py3-none-any.whl" }
 agi-env = { path = "agi_env-0.1.0-py3-none-any.whl" }
-agi-lab = { path = "agi_lab-0.1.0-py3-none-any.whl" }
+agi-gui = { path = "agi_gui-0.1.0-py3-none-any.whl" }
