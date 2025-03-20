@@ -1,9 +1,9 @@
-AGI-LAB
+AGI-GUI
 =========
 
 | Version Status                                                                                 |
 |------------------------------------------------------------------------------------------------|
-| [![PyPI version](https://img.shields.io/pypi/v/agi-lab.svg)](https://pypi.org/project/agi-lab) |
+| [![PyPI version](https://img.shields.io/pypi/v/agi-gui.svg)](https://pypi.org/project/agi-gui) |
 
 Agi is a framework to accelerate python code by using Dask, Cython and Processing Pools. See
 documentation_ for more information.
@@ -23,7 +23,7 @@ see ../README.md
 Execution
 ---------
 cd src/fwk/gui
-uv run streamlit run src/agi_lab/AGILab.py
+uv run agilab
 
 
 support
