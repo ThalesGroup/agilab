@@ -3,6 +3,8 @@ set -e
 
 home=$(pwd)
 
+uv sync --upgrade
+
 # List of component to build
 SUBDIRS=("src/fwk/env" "src/fwk/core" "src/fwk/gui")
 rm -fr test

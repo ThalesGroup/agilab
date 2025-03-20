@@ -8,7 +8,7 @@ agipath = AgiEnv.locate_agi_installation()
 # Fixture to create the environment once for all test.
 @pytest.fixture
 def env():
-    default_module_file = agipath / Path("src/apps/my-code-project/src/my_code/my_code.py")
+    default_module_file = agipath / Path("apps/my-code-project/src/my_code/my_code.py")
     return AgiEnv(default_module_file, with_lab=True, verbose=1)
 
 
@@ -19,7 +19,7 @@ def test_envcreated(env):
 
 def test_projects_found(env):
     # Test that multiple projects are found.
-    apps_root = agipath / "src/apps/"
+    apps_root = agipath / "apps/"
     projects_found = env.get_projects(apps_root)
     nb_projects = len(projects_found)
     assert nb_projects > 1, f"Expected more than 1 project, but found {nb_projects}."

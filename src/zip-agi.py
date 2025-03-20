@@ -38,14 +38,6 @@ from pathlib import Path
 def read_gitignore(gitignore_path):
     """
     Read a .gitignore file and create a PathSpec object from its patterns.
-
-    :param gitignore_path: The path to the .gitignore file.
-    :type gitignore_path: str
-
-    :return: A PathSpec object containing the patterns from the .gitignore file.
-    :rtype: PathSpec
-
-    :raises FileNotFoundError: If the .gitignore file cannot be found.
     """
     with open(gitignore_path, "r") as f:
         patterns = f.read().splitlines()
@@ -55,18 +47,11 @@ def read_gitignore(gitignore_path):
 def should_include_file(filepath, spec):
     """
     Check if a file should be included based on a specified file matching criterion.
-
-    Args:
-        filepath (str): The path of the file to be checked.
-        spec (PathSpec): An object representing the file matching criterion.
-
-    Returns:
-        bool: True if the file should be included, False otherwise.
     """
     return not spec.match_file(filepath)
 
 
-def zip_directory(parent_dir, dir_path, zip_filepath, spec, verbose=False):
+def zip_directory(parent_dir, dir_path, zip_filepath, spec, no_top=False, verbose=False):
     """
     Zip a directory with filtering based on a specification.
 
@@ -75,42 +60,41 @@ def zip_directory(parent_dir, dir_path, zip_filepath, spec, verbose=False):
         dir_path (str): The directory to zip.
         zip_filepath (str): The output zip file path.
         spec (PathSpec): The file specification to filter which files to include in the zip.
+        no_top (bool): If True, do not include the top-level directory name in the archive.
+        verbose (bool): If True, print verbose output.
 
     Returns:
         None
 
     Note:
-        This function zips the contents of a directory while excluding files based on the spec.
-        It also skips the output zip file if it is found inside the directory to avoid self-inclusion.
+        If no_top is True, the zip archive will contain only the contents of the directory.
     """
-    # Construct the full target directory path from the parent and the directory to zip.
-    # If dir_path is absolute, os.path.join will simply return dir_path.
     target_dir = os.path.join(parent_dir, dir_path)
-    base_name = os.path.basename(dir_path)  # e.g. 'agig'
-
-    # Get the absolute path of the zip file to compare later.
+    base_name = os.path.basename(dir_path)
     output_zip_abs = os.path.abspath(zip_filepath)
 
     with zipfile.ZipFile(zip_filepath, "w", zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(target_dir):
-            # Make paths relative to `target_dir` to avoid extra nesting in the archive.
             relative_dir = os.path.relpath(root, target_dir)
-
-            # Skip .git directories.
             if relative_dir == ".git" or relative_dir.startswith(".git" + os.sep):
                 continue
-
             for filename in files:
                 file_path = os.path.join(root, filename)
-                # Skip adding the zip file itself if it resides in the directory.
                 if os.path.abspath(file_path) == output_zip_abs:
                     continue
 
-                # Construct the relative file path inside the zip archive.
-                if relative_dir == ".":
-                    relative_file_path = os.path.join(base_name, filename)
+                # Build the relative path inside the archive:
+                if no_top:
+                    # If we do not want the top directory, omit the base_name.
+                    if relative_dir == ".":
+                        relative_file_path = filename
+                    else:
+                        relative_file_path = os.path.join(relative_dir, filename)
                 else:
-                    relative_file_path = os.path.join(base_name, relative_dir, filename)
+                    if relative_dir == ".":
+                        relative_file_path = os.path.join(base_name, filename)
+                    else:
+                        relative_file_path = os.path.join(base_name, relative_dir, filename)
 
                 if should_include_file(relative_file_path, spec):
                     if verbose:
@@ -122,45 +106,40 @@ def zip_directory(parent_dir, dir_path, zip_filepath, spec, verbose=False):
 
 
 if __name__ == "__main__":
-    """
-    Zip a directory into a zip file.
-
-    Usage: zip-agi --dir2zip <dir> --zipfilepath <file>
-      --dir2zip: Path of the directory to zip (mandatory)
-      --zipfilepath: Path and name of the zip file to create (mandatory)
-    """
     parser = argparse.ArgumentParser(description="Zip a project directory.")
-
     parser.add_argument(
         "--dir2zip",
         type=Path,
         required=True,
         help="Path of the directory to zip"
     )
-
     parser.add_argument(
         "--zipfile",
         type=Path,
         required=True,
         help="Path and name of the zip file to create"
     )
-
     parser.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="Verbose output"
     )
-
+    parser.add_argument(
+        "--no-top",
+        action="store_true",
+        help="Do not include the top-level directory in the archive; include only its contents"
+    )
     args = parser.parse_args()
 
-    # Convert to absolute paths if not already
     project_dir = args.dir2zip.absolute()
     zip_file = args.zipfile.absolute()
     verbose = args.verbose
+    no_top = args.no_top
 
     if verbose:
         print("Directory to zip:", project_dir)
         print("Zip file will be:", zip_file)
+        print("No top-level directory:", no_top)
 
     parent_dir = project_dir.parent
     os.makedirs(zip_file.parent, exist_ok=True)
@@ -169,8 +148,6 @@ if __name__ == "__main__":
     if not gitignore_path.exists():
         print(f"No .gitignore file found at {gitignore_path}.")
     else:
-        # Generate the file matching specification from the .gitignore file.
         spec = read_gitignore(gitignore_path)
-        # Pass the directory name (or full path) as needed.
-        zip_directory(str(parent_dir), str(project_dir), str(zip_file), spec, verbose)
+        zip_directory(str(parent_dir), str(project_dir), str(zip_file), spec, no_top, verbose)
         print(f"Zipped {project_dir} into {zip_file}")

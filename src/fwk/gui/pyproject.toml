@@ -66,7 +66,7 @@ dependencies = [
 ]
 
 [project.scripts]
-agilab = "agi_lab.lab_run:main"
+agilab = "agi_gui.lab_run:main"
 
 [dependency-groups]
 dev = [
