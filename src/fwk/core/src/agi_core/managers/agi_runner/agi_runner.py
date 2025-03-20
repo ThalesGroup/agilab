@@ -345,20 +345,41 @@ class AGI:
 
     @staticmethod
     def _is_local(ip):
-        if not ip or ip in AGI._ip_local_cache:
+        """
+
+        Args:
+          ip:
+
+        Returns:
+
+        """
+        if (
+                not ip or ip in AGI._ip_local_cache
+        ):  # Check if IP is None, empty, or cached
             return True
 
         for _, addrs in psutil.net_if_addrs().items():
             for addr in addrs:
                 if addr.family == socket.AF_INET and ip == addr.address:
-                    AGI._ip_local_cache.add(ip)
+                    AGI._ip_local_cache.add(ip)  # Cache the local IP found
                     return True
 
         return False
 
     @staticmethod
     def get_default_local_ip():
+        """
+        Get the default local IP address of the machine.
+
+        Returns:
+            str: The default local IP address.
+
+        Raises:
+            Exception: If unable to determine the local IP address.
+        """
+        """ """
         try:
+            # Attempt to connect to a non-local address and capture the local endpoint's IP
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
                 s.connect(("8.8.8.8", 80))
                 return s.getsockname()[0]
@@ -370,11 +391,14 @@ class AGI:
         for _ in range(attempts):
             port = random.randint(start, end)
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                # set SO_REUSEADDR to avoid 'address already in use' issues during testing
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 try:
                     sock.bind(("localhost", port))
+                    # if binding succeeds, the port is free; close socket and return port
                     return port
                 except OSError:
+                    # port is already in use, try another
                     continue
         raise RuntimeError("No free port found in the specified range.")
 
@@ -432,6 +456,7 @@ class AGI:
             else:
                 # Import module directly
                 return importlib.import_module(module)
+
         except ModuleNotFoundError as e:
             module_to_install = (str(e).replace("No module named ", "").lower().replace("'", ""))
             app_path = AGI.env.app_path
@@ -615,6 +640,7 @@ class AGI:
         except PermissionError:
             pass
         except Exception as e:
+            # case where the process required sudo elevation as the process do not belongs to the current user
             print(e)
             raise Exception("AGI.kill internal error") from e
         if res and AGI._verbose > 1:
@@ -776,7 +802,7 @@ class AGI:
     @staticmethod
     def _initialize_installation():
         """Initialize installation flags and run type."""
-        AGI._run_type = AGI._run_types[(AGI._mode & AGI.DEPLOYEMENT_MASK) >> 5]
+        AGI._run_type = AGI._run_types[(AGI._mode & AGI.DEPLOYEMENT_MASK) >> 4]
         AGI._install_done_local = False
         AGI._install_done = False
         AGI._worker_init_error = False
