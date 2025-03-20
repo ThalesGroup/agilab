@@ -74,6 +74,30 @@ defaults = {
 }
 init_session_state(defaults)
 
+#####################################
+# Helper function for displaying logs
+#####################################
+def display_log(stdout, stderr):
+    """
+    Clean and display log messages.
+    If either stdout or stderr contains "warning:" (case-insensitive),
+    display the combined log using st.warning; if stderr contains other messages,
+    display them as errors. Otherwise, display stdout.
+    """
+    # Remove ANSI escape codes for clarity
+    clean_stdout = re.sub(r'\x1b\[[0-9;]*m', '', stdout or "")
+    clean_stderr = re.sub(r'\x1b\[[0-9;]*m', '', stderr or "")
+    # Combine both outputs for checking
+    combined = clean_stdout + "\n" + clean_stderr
+    if "warning:" in combined.lower():
+        st.warning("Warnings occurred during cluster installation:")
+        st.code(combined)
+    elif clean_stderr.strip():
+        st.error("Errors occurred during cluster installation:")
+        st.code(clean_stderr)
+    else:
+        st.code(clean_stdout or "No logs available")
+
 # ===========================
 # Utility and Helper Functions
 # ===========================
@@ -240,6 +264,9 @@ def render_generic_ui():
 
     if arg_valid and st.session_state.get("args_add_arg_button"):
         st.experimental_rerun()
+
+    if arg_valid:
+        st.session_state.app_settings["args"] = args_input
 
 def render_cluster_settings_ui():
     cluster_params = st.session_state.app_settings["cluster"]
@@ -545,21 +572,9 @@ if __name__ == '__main__':
                     venv=env.core_root
                 )
                 live_log_placeholder.empty()
-
-                clean_stdout = re.sub(r'\x1b\[[0-9;]*m', '', stdout or "")
-                clean_stderr = re.sub(r'\x1b\[[0-9;]*m', '', stderr or "")
-
-                # Filter warning messages from both stdout and stderr
-                filtered_stdout = filter_warning_messages(clean_stdout)
-                filtered_stderr = filter_warning_messages(clean_stderr)
-
-                with st.expander("Execution Log", expanded=True):
-                    if filtered_stderr:
-                        st.error("Errors occurred during cluster installation:")
-                        st.code(filtered_stderr)
-                    st.code(filtered_stdout or "No logs available")
-
-                if not filtered_stderr:
+                # Use display_log to show warnings or errors appropriately
+                display_log(stdout, stderr)
+                if not stderr:
                     st.success("Cluster installation completed.")
 
     # ------------------
@@ -622,20 +637,8 @@ if __name__ == '__main__':
                         venv=project_path
                     )
                 live_log_placeholder.empty()
-
-                clean_stdout = re.sub(r'\x1b\[[0-9;]*m', '', stdout or "")
-                clean_stderr = re.sub(r'\x1b\[[0-9;]*m', '', stderr or "")
-
-                # Filter warning messages from both outputs
-                filtered_stdout = filter_warning_messages(clean_stdout)
-                filtered_stderr = filter_warning_messages(clean_stderr)
-
-                if filtered_stderr:
-                    st.error("Errors occurred during the distribution build:")
-                    st.code(filtered_stderr)
-                st.code(filtered_stdout or "No logs available")
-
-                if not filtered_stderr:
+                display_log(stdout, stderr)
+                if not stderr:
                     st.success("Distribution built successfully.")
         with st.expander("Orchestration view:", expanded=False):
             if st.session_state.get("preview_tree"):
@@ -720,21 +723,8 @@ if __name__ == '__main__':
                     venv=project_path
                 )
                 live_log_placeholder.empty()
-
-                clean_stdout = re.sub(r'\x1b\[[0-9;]*m', '', stdout or "")
-                clean_stderr = re.sub(r'\x1b\[[0-9;]*m', '', stderr or "")
-
-                # Filter warning messages from both outputs
-                filtered_stdout = filter_warning_messages(clean_stdout)
-                filtered_stderr = filter_warning_messages(clean_stderr)
-
-                with st.expander("Execution Log", expanded=True):
-                    if filtered_stderr:
-                        st.error("Errors occurred during execution:")
-                        st.code(filtered_stderr)
-                    st.code(filtered_stdout or "No logs available")
-
-                run_log = filtered_stdout
+                display_log(stdout, stderr)
+                run_log = stdout
 
             if st.session_state.mode is None:
                 st.text("Benchmark result:")

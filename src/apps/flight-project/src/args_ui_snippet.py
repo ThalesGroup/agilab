@@ -24,7 +24,7 @@ import tomli_w
 from pydantic import ValidationError
 import socket
 import datetime
-from flight.flight import FlightArgs
+from flight import FlightArgs
 
 
 def change_data_source():
