@@ -1378,7 +1378,8 @@ class AGI:
     @staticmethod
     async def main(scheduler):
         cond_clean = True
-        if AGI._mode != AGI.INSTALL_MODE:
+        if AGI._mode == AGI.INSTALL_MODE:
+            # case install mode
             t = time.time()
 
             # clean local env
@@ -1410,7 +1411,6 @@ class AGI:
             # stop the cluster
             AGI._stop()
         else:
-            # case install mode
             res = AGI._run_local()
 
         for p in AGI._sys_path_to_clean:
