@@ -11,7 +11,7 @@ args = {
     'output_format': "parquet"
 }
 
-from agi_core.workers import AgiWorker
+from agi_core.workers.agi_worker import AgiWorker
 # AgiWorker.run flight command
 result = AgiWorker.run('flight', mode=0, verbose=3, args=args)
 print_emoticon(result)
