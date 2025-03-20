@@ -14,7 +14,7 @@ Do not use credentials to set your cluster but prefer secure keys see chapter <k
 
 ## Disclosure policy
 
-If you find a security issue please send an email at focus@thalesgroup.com with [SECURITY] in the tile 
+If you find a security issue please send an email at focus@thalesgroup.com with [SECURITY] in the subject 
 do not detail the issue in the email but rather use cryptobox to provide more details.
 If you don't have a cryptobox accès I will send you one:
 it will be send by Cryptobox <no-reply@cryptobox.com> 
