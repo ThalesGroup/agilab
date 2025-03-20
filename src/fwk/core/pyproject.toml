@@ -92,6 +92,7 @@ editable = true
 
 [tool.uv.sources.agi-core]
 path = "/home/pcm/agilab/src/fwk/core"
+editable = true
 
 [tool.mypy]
 mypy_path = [

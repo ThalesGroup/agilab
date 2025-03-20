@@ -24,13 +24,8 @@
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="core" />
     <orderEntry type="module" module-name="env" />
-    <orderEntry type="module" module-name="gui" />
     <orderEntry type="module" module-name="flight-project" />
     <orderEntry type="module" module-name="my-code-project" />
-    <orderEntry type="module" module-name="agent-app-template" />
-    <orderEntry type="module" module-name="dag-app-template" />
-    <orderEntry type="module" module-name="data-app-template" />
-    <orderEntry type="module" module-name="gui" />
     <orderEntry type="module" module-name="gui" />
   </component>
   <component name="PyDocumentationSettings">
