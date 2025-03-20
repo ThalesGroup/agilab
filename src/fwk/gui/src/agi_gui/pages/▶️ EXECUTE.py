@@ -507,6 +507,8 @@ def page():
     projects = env.projects
     st.session_state["projects"] = projects
     current_project = env.app
+    if "args_serialized" not in st.session_state:
+        st.session_state["args_serialized"] = ""
     if current_project not in projects:
         current_project = projects[0] if projects else None
         st.session_state["project"] = current_project
