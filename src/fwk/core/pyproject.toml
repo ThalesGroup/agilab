@@ -91,7 +91,6 @@ path = "/home/pcm/agilab/src/fwk/env"
 editable = true
 
 [tool.uv.sources.agi-core]
-workspace = true
 path = "/home/pcm/agilab/src/fwk/core"
 
 [tool.mypy]

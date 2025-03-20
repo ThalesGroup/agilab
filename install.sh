@@ -244,21 +244,22 @@ backup_agi_project() {
     echo -e "${BLUE}Step 6: Backing Up Existing AGI Project (if any)${NC}"
     echo -e "${BLUE}========================================${NC}"
     echo
+
     if [[ -d "$AGI_PROJECT_SRC" ]]; then
         if [[ -f "$AGI_PROJECT_SRC/zip-agi.py" ]]; then
             echo -e "${YELLOW}Existing AGI project found at $AGI_PROJECT_SRC and zip-agi.py exists.${NC}"
             backup_file="agilib-$(basename "$AGI_PROJECT_SRC")-$(date +%Y%m%d-%H%M%S).zip"
-
             echo -e "${YELLOW}Creating backup: $backup_file${NC}"
+
             if uv run --project "$AGI_PROJECT_SRC/fwk/core/managers" python "$AGI_PROJECT_SRC/zip-agi.py" --no-top --dir2zip "$AGI_PROJECT_SRC" --zipfile "$backup_file"; then
                 echo -e "${GREEN}Backup created successfully at $backup_file.${NC}"
-                # Only remove the project directory if it is not named "src"
-                if [[ "$(basename "$AGI_PROJECT_SRC")" != "src" ]]; then
+                # Ensure that the directory named "src" is never removed
+                if [[ "$(basename "$AGI_PROJECT_SRC")" == "src" ]]; then
+                    echo -e "${YELLOW}AGI project directory is 'src'; preserving it and not removing.${NC}"
+                else
                     echo -e "${YELLOW}Removing existing AGI project directory...${NC}"
                     rm -rf "$AGI_PROJECT_SRC"
                     echo -e "${GREEN}Existing AGI project directory removed.${NC}"
-                else
-                    echo -e "${YELLOW}AGI project directory is 'src'; not removing it.${NC}"
                 fi
             else
                 echo -e "${RED}ERROR: Backup failed at '$backup_file'.${NC}"
@@ -279,7 +280,7 @@ backup_agi_project() {
     echo
 }
 
-# Copy the AGI project files from the local 'agi' directory to the install path
+# Copy the AGI project files from the local 'src' directory to the install path
 copy_agi_project() {
     # Only run this step if AGI_INSTALL_PATH is set
     if [[ -z "$AGI_INSTALL_PATH" ]]; then

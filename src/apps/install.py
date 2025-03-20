@@ -51,7 +51,7 @@ def resolve_packages_path_in_toml(module):
         RuntimeError: If an error occurs during reading or writing the TOML file.
     """
     # Locate the AGI installation and construct the root path
-    agi_root = AgiEnv.locate_agi_installation() / "src"
+    agi_root = AgiEnv.locate_agi_installation()
     # Convert agi_root to POSIX string
     agi_root_str = agi_root.as_posix()
 

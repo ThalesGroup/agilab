@@ -55,7 +55,6 @@ from agi_core.workers.agi_worker import AgiWorker
 warnings.filterwarnings("ignore")
 workers_default = {socket.gethostbyname("localhost"): 1}
 
-
 class AGI:
     """
     Agi Class.
@@ -76,7 +75,21 @@ class AGI:
         - While debugging in a Jupyter cell, it's better to comment out `#%%time` to allow line numbers to display correctly.
     """
 
+    # Constants as class attributes
     TIMEOUT = 10
+    PYTHON_MODE = 1
+    CYTHON_MODE = 2
+    DASK_MODE = 4
+    RAPIDS_MODE = 16
+    INSTALL_MASK = 0b11 << DASK_MODE
+    INSTALL_MODE = 0b01 << DASK_MODE
+    UPDATE_MODE = 0b10 << DASK_MODE
+    SIMULATE_MODE = 0b11 << DASK_MODE
+    DEPLOYEMENT_MASK = 0b11 << DASK_MODE
+    RUN_MASK = 0b001111
+    RAPIDS_SET = 0b111111
+    RAPIDS_RESET = 0b110111
+
     _args: Optional[Dict[str, Any]] = None
     _dask_client: Optional[Client] = None
     _dask_scheduler: Optional[Any] = None
@@ -199,11 +212,11 @@ class AGI:
 
             AGI._run_types = ["run", "sync --upgrade", "sync", "simulate"]
             if AGI._mode:
-                if AGI._mode & 0b001111 not in range(0, 16):
+                if AGI._mode & AGI.RUN_MASK not in range(0, AGI.RAPIDS_MODE):
                     raise ValueError(f"mode {AGI._mode} not implemented")
             else:
-                # 16 first modes are "run" type, then there 16, 17 and 19
-                AGI._run_type = AGI._run_types[(AGI._mode & 0b110000) >> 4]
+                # 16 first modes are "run" type, then there 16, 17 and 18
+                AGI._run_type = AGI._run_types[(AGI._mode & AGI.DEPLOYEMENT_MASK) >> AGI.DASK_MODE]
             AGI._args = args
             AGI._verbose = verbose
             AGI.debug = True if verbose > 3 else False
@@ -244,7 +257,6 @@ class AGI:
 
             try:
                 return await AGI.main(scheduler)
-
             except Exception as err:
                 print(err)
                 if verbose > 1:
@@ -272,7 +284,7 @@ class AGI:
                     - "order": the rank order (an integer, 1 for fastest, etc.).
         """
         AGI._mode_auto = True
-        rapids_mode_mask = 0b11111 if rapids_enabled else 0b10111
+        rapids_mode_mask = AGI.RAPIDS_SET if rapids_enabled else AGI.RAPIDS_RESET
         runs = {}
 
         for m in mode_range:
@@ -333,41 +345,20 @@ class AGI:
 
     @staticmethod
     def _is_local(ip):
-        """
-
-        Args:
-          ip:
-
-        Returns:
-
-        """
-        if (
-                not ip or ip in AGI._ip_local_cache
-        ):  # Check if IP is None, empty, or cached
+        if not ip or ip in AGI._ip_local_cache:
             return True
 
         for _, addrs in psutil.net_if_addrs().items():
             for addr in addrs:
                 if addr.family == socket.AF_INET and ip == addr.address:
-                    AGI._ip_local_cache.add(ip)  # Cache the local IP found
+                    AGI._ip_local_cache.add(ip)
                     return True
 
         return False
 
     @staticmethod
     def get_default_local_ip():
-        """
-        Get the default local IP address of the machine.
-
-        Returns:
-            str: The default local IP address.
-
-        Raises:
-            Exception: If unable to determine the local IP address.
-        """
-        """ """
         try:
-            # Attempt to connect to a non-local address and capture the local endpoint's IP
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
                 s.connect(("8.8.8.8", 80))
                 return s.getsockname()[0]
@@ -379,14 +370,11 @@ class AGI:
         for _ in range(attempts):
             port = random.randint(start, end)
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                # set SO_REUSEADDR to avoid 'address already in use' issues during testing
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 try:
                     sock.bind(("localhost", port))
-                    # if binding succeeds, the port is free; close socket and return port
                     return port
                 except OSError:
-                    # port is already in use, try another
                     continue
         raise RuntimeError("No free port found in the specified range.")
 
@@ -431,7 +419,6 @@ class AGI:
           : the instance of the module
 
         """
-
         path = AgiEnv.normalize_path(path)
         if path not in sys.path:
             sys.path.insert(0, path)
@@ -445,7 +432,6 @@ class AGI:
             else:
                 # Import module directly
                 return importlib.import_module(module)
-
         except ModuleNotFoundError as e:
             module_to_install = (str(e).replace("No module named ", "").lower().replace("'", ""))
             app_path = AGI.env.app_path
@@ -629,7 +615,6 @@ class AGI:
         except PermissionError:
             pass
         except Exception as e:
-            # case where the process required sudo elevation as the process do not belongs to the current user
             print(e)
             raise Exception("AGI.kill internal error") from e
         if res and AGI._verbose > 1:
@@ -791,7 +776,7 @@ class AGI:
     @staticmethod
     def _initialize_installation():
         """Initialize installation flags and run type."""
-        AGI._run_type = AGI._run_types[(AGI._mode & 0b110000) >> 4]
+        AGI._run_type = AGI._run_types[(AGI._mode & AGI.DEPLOYEMENT_MASK) >> 5]
         AGI._install_done_local = False
         AGI._install_done = False
         AGI._worker_init_error = False
@@ -1033,7 +1018,7 @@ class AGI:
     @staticmethod
     async def install(
             module_name_or_path, scheduler: Optional[str] = None, workers: Optional[Dict[str, int]] = None,
-            modes_enabled=0b10111, verbose=1, **args
+            modes_enabled=RUN_MASK, verbose=1, **args
     ):
         """
         Update the cluster's virtual environment.
@@ -1061,16 +1046,16 @@ class AGI:
                 If `module_name_or_path` is invalid.
             ConnectionError:
         """
-
         AGI._run_type = "sync"
         await AGI.run(module_name_or_path, scheduler, workers,
-                      mode=0b10000 | modes_enabled, rapids_enabled=0b1000 & modes_enabled,
+                      mode=AGI.INSTALL_MODE | modes_enabled,
+                      rapids_enabled=AGI.INSTALL_MODE & modes_enabled,
                       verbose=verbose, **args)
 
     @staticmethod
     async def update(
             module_name_or_path, scheduler: Optional[str] = None, workers: Optional[Dict[str, int]] = None,
-            modes_enabled=0b0111, verbose=1, **args
+            modes_enabled=RUN_MASK, verbose=1, **args
     ):
         """
         install cluster virtual environment
@@ -1086,10 +1071,10 @@ class AGI:
         -------
 
         """
-
         AGI._run_type = "upgrade"
         await AGI.run(module_name_or_path, scheduler=scheduler, workers=workers,
-                      mode=0b010000 | modes_enabled, rapids_enabled=0b1000 & modes_enabled,
+                      mode=AGI.UPDATE_MODE | modes_enabled,
+                      rapids_enabled=AGI.UPDATE_MODE & modes_enabled,
                       verbose=verbose, **args)
 
     @staticmethod
@@ -1109,7 +1094,7 @@ class AGI:
         -------
         """
         AGI._run_type = "simulate"
-        return await AGI.run(module_name_or_path, scheduler, workers, verbose, mode=16, **args)
+        return await AGI.run(module_name_or_path, scheduler, workers, verbose, mode=AGI.INSTALL_MODE, **args)
 
     @staticmethod
     async def _start_scheduler(scheduler):
@@ -1117,7 +1102,7 @@ class AGI:
         start scheduler
         """
         env = AGI.env
-        if (AGI._mode_auto and AGI._mode == 4) or not AGI._mode_auto:
+        if (AGI._mode_auto and AGI._mode == AGI.DASK_MODE) or not AGI._mode_auto:
             if not scheduler:
                 print("AGI.run(..scheduler='scheduler ip address' is missing")
                 exit(1)
@@ -1211,7 +1196,7 @@ class AGI:
                 if AGI._worker_init_error:
                     raise FileNotFoundError(f"Please run AGI.install([{ip}])")
         await AGI._sync()
-        if not AGI._mode_auto or (AGI._mode < 6) or AGI._mode & 2:
+        if not AGI._mode_auto or (AGI._mode < 6) or AGI._mode & AGI.CYTHON_MODE:
             await AGI._build_cluster_libs()
 
     @staticmethod
@@ -1267,7 +1252,7 @@ class AGI:
         """
         env = AGI.env
         wenv = AgiEnv.normalize_path(str(env.wenv_abs))
-        is_cy = AGI._mode & 2
+        is_cy = AGI._mode & AGI.CYTHON_MODE
         packages = "agi_worker, "
         baseworker = env.base_worker_cls
         if baseworker.startswith("AgiAgent"):
@@ -1348,7 +1333,7 @@ class AGI:
 
         AGI._kill(current_pid=current_pid, force=True)
 
-        if AGI._mode & 2:
+        if AGI._mode & AGI.CYTHON_MODE:
             wenv_abs = env.wenv_abs
             cython_lib_path = Path(wenv_abs)
 
@@ -1367,8 +1352,7 @@ class AGI:
     @staticmethod
     async def main(scheduler):
         cond_clean = True
-        # Removed IPython background job manager initialization.
-        if AGI._mode > 16:
+        if AGI._mode != AGI.INSTALL_MODE:
             t = time.time()
 
             # clean local env
@@ -1385,11 +1369,11 @@ class AGI:
 
             res = time.time() - t
 
-        elif (AGI._mode & 0b110000) == 0b110000:
+        elif (AGI._mode & AGI.DEPLOYEMENT_MASK) == AGI.SIMULATE_MODE:
             # case simulate mode #0b11xxxx
             res = AGI._run_local()
 
-        elif AGI._mode & 4:  # case run
+        elif AGI._mode & AGI.DASK_MODE:  # case run
             # start the cluster
             await AGI._start(scheduler)
 
@@ -1400,6 +1384,7 @@ class AGI:
             # stop the cluster
             AGI._stop()
         else:
+            # case install mode
             res = AGI._run_local()
 
         for p in AGI._sys_path_to_clean:
@@ -1454,7 +1439,7 @@ class AGI:
 
         AGI._scale_cluster()
 
-        if AGI._mode == 16:
+        if AGI._mode == AGI.INSTALL_MODE:
             workers_tree
         AGI._dask_client.gather(
             [
