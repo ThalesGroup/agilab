@@ -1,6 +1,6 @@
 [args]
 data_source = "file"
-path = "~/data/flight"
+path = "/home/pcm/data/flight"
 files = "csv/*"
 nfile = 1
 nskip = 0
@@ -11,7 +11,10 @@ datemax = "2021-01-01"
 output_format = "csv"
 
 [views]
-view_module = [ "maps", "maps_3d",]
+view_module = [
+    "maps",
+    "maps_3d",
+]
 
 [cluster]
 verbose = false
