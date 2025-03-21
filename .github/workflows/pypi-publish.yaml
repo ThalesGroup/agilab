@@ -6,7 +6,6 @@ on:
       version:
         description: 'Version tag for the release'
         required: true
-
   push:
     tags:
       - 'v*.*.*'
@@ -19,85 +18,87 @@ jobs:
       id-token: write
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
 
-    - name: Install dependencies
-      run: |
-        python3 -m pip install --upgrade pip
-        python3 -m pip install uv twine
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install uv twine
 
-    - name: Remove all existing distribution directories
-      run: |
-        rm -rf src/fwk/env/dist src/fwk/core/dist src/fwk/gui/dist dist
+      - name: Remove all existing distribution directories
+        run: |
+          rm -rf src/fwk/env/dist src/fwk/core/dist src/fwk/gui/dist dist
 
-    - name: Update version in pyproject.toml
-      env:
-        VERSION: ${{ github.event.inputs.version || github.ref_name }}
-      run: |
-        VERSION=${VERSION#v}
-        echo "Setting version: $VERSION"
-        sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+      - name: Update version in pyproject.toml
+        env:
+          VERSION: ${{ github.event.inputs.version || github.ref_name }}
+        run: |
+          VERSION=${VERSION#v}
+          echo "Setting version: $VERSION"
+          sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
 
-    - name: Build and upload subpackages
-      run: |
-        SUBDIRS=("src/fwk/env" "src/fwk/core" "src/fwk/gui")
-        for dir in "${SUBDIRS[@]}"; do
-          echo "Building package in $dir"
-          pushd "$dir"
-          uv build
-          popd
-        done
+      - name: Build and upload subpackages
+        run: |
+          SUBDIRS=("src/fwk/env" "src/fwk/core" "src/fwk/gui")
+          for dir in "${SUBDIRS[@]}"; do
+            echo "Building package in $dir"
+            pushd "$dir"
+            uv build
+            popd
+          done
 
-    - name: Upload agi-env package
-      uses: actions/upload-artifact@v4
-      with:
-        name: agi-env-distributions
-        path: src/fwk/env/dist/
+      - name: Upload agi-env package
+        uses: actions/upload-artifact@v4
+        with:
+          name: agi-env-distributions
+          path: src/fwk/env/dist/
 
-    - name: Upload agi-core package
-      uses: actions/upload-artifact@v4
-      with:
-        name: agi-core-distributions
-        path: src/fwk/core/dist/
+      - name: Upload agi-core package
+        uses: actions/upload-artifact@v4
+        with:
+          name: agi-core-distributions
+          path: src/fwk/core/dist/
 
-    - name: Upload agi-gui package
-      uses: actions/upload-artifact@v4
-      with:
-        name: agi-gui-distributions
-        path: src/fwk/gui/dist/
+      - name: Upload agi-gui package
+        uses: actions/upload-artifact@v4
+        with:
+          name: agi-gui-distributions
+          path: src/fwk/gui/dist/
 
-    - name: Build and upload main package (agilab)
-      run: uv build
+      - name: Build and upload main package (agilab)
+        run: |
+          # Run build from src level with no-workspace option
+          uv no-workspace build
 
-    - name: Upload agilab package
-      uses: actions/upload-artifact@v4
-      with:
-        name: agilab-distributions
-        path: dist/
+      - name: Upload agilab package
+        uses: actions/upload-artifact@v4
+        with:
+          name: agilab-distributions
+          path: dist/
 
-    # -------------------
-    # ✅ Publish to PyPI
-    # -------------------
-    - name: Verify package files before upload
-      run: twine check src/fwk/env/dist/* src/fwk/core/dist/* src/fwk/gui/dist/* dist/*
+      # -------------------
+      # ✅ Publish to PyPI
+      # -------------------
+      - name: Verify package files before upload
+        run: twine check src/fwk/env/dist/* src/fwk/core/dist/* src/fwk/gui/dist/* dist/*
 
-    - name: Publish subpackages to PyPI
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-      run: |
-        twine upload src/fwk/env/dist/*
-        twine upload src/fwk/core/dist/*
-        twine upload src/fwk/gui/dist/*
+      - name: Publish subpackages to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
+        run: |
+          twine upload src/fwk/env/dist/*
+          twine upload src/fwk/core/dist/*
+          twine upload src/fwk/gui/dist/*
 
-    - name: Publish main package (agilab) to PyPI
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-      run: twine upload dist/*
+      - name: Publish main package (agilab) to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
+        run: twine upload dist/*
