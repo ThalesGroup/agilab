@@ -49,8 +49,8 @@ dev = ["black", "pytest", "licensecheck"]
 [tool.uv]
 default-groups = ["dev"]
 
-[tool.uv.sources]
-agilab = { workspace = true }
+#[tool.uv.sources]
+#agilab = { workspace = true }
 
 [tool.uv.workspace]
 members = ["test", "apps", "views"]
