@@ -1,6 +1,6 @@
 [project]
 name = "agent-app-project"
-version = "0.1.6"
+version = "0.1.7"
 description = ""
 [[project.authors]]
 name = "Jean-Pierre Morard"
