@@ -74,7 +74,7 @@ jobs:
       - name: Build and upload main package (agilab)
         run: |
           # Run build from src level with no-workspace option
-          uv no-workspace build
+          uv build
 
       - name: Upload agilab package
         uses: actions/upload-artifact@v4
