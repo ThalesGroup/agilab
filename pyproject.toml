@@ -53,7 +53,7 @@ default-groups = ["dev"]
 agilab = { workspace = true }
 
 [tool.uv.workspace]
-members = ["test", "src", "src/fwk"]
+members = ["test", "apps", "views"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
