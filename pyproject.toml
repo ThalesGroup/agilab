@@ -1,7 +1,7 @@
 [project]
 name = "agilab"
 description = "AGILAB a datascience IDE for engineering to explore AI"
-version = "0.1.0"
+version = "0.1.7"
 requires-python = "==3.12.*"
 readme = "README.md"
 authors = [
@@ -30,7 +30,6 @@ dependencies = [
     "build>=1.2.2.post1",
     "pip>=25.0.1",
     "setuptools>=76.0.0",
-    "sphinxcontrib-plantuml>=0.30",
     "twine>=6.1.0",
     "wheel>=0.45.1",
     "agi-core",
@@ -49,11 +48,11 @@ dev = ["black", "pytest", "licensecheck"]
 [tool.uv]
 default-groups = ["dev"]
 
-#[tool.uv.sources]
-#agilab = { workspace = true }
+[tool.uv.sources]
+agilab = { workspace = true }
 
 [tool.uv.workspace]
-members = ["test", "apps", "views"]
+members = ["test"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
