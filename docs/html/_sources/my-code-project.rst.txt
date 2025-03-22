@@ -1,0 +1,37 @@
+Example1: My-Code-Project
+===============
+
+
+manager: my_code
+-------
+.. image:: diagrams/packages_my_code.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+.. automodule:: my_code.my_code
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_my_code.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+worker: my_code_worker
+---------------
+.. image:: diagrams/packages_my_code_worker.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+.. automodule:: my_code_worker.my_code_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_my_code_worker.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
