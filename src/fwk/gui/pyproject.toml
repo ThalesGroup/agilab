@@ -1,7 +1,7 @@
 [project]
 name = "agi-gui"
 description = "AGI GUI"
-version = "0.1c"
+version = "0.1.10"
 requires-python = "==3.12.*"
 readme = "README.md"
 authors = [
@@ -85,12 +85,12 @@ requires = [
     "setuptools",
     "wheel",
 ]
-
 build-backend = "setuptools.build_meta"
 
-
 [tool.setuptools.data-files]
-agi_env = ["resources/*"]
+agi_env = [
+    "resources/*",
+]
 
 [tool.uv]
 default-groups = [
