@@ -68,10 +68,13 @@ echo -e "${GREEN}OpenAI API Key: $openai_api_key${NC}"
 
 # Check internet connectivity
 echo "Checking internet connectivity..."
-if ! curl -s --head --fail https://www.google.com; then
+if curl -s --head --fail https://www.google.com >/dev/null; then
+    echo -e "${GREEN}ok${NC}"
+else
     echo -e "${RED}No internet connection detected. Aborting.${NC}"
     exit 1
 fi
+
 
 # Ask to install system dependencies
 read -p "Install system dependencies? (y/N): " choice
@@ -105,7 +108,7 @@ backup_agi_project() {
     echo
 
     # Define the source directory and installation path variables
-
+    # Ensure SRC_DIR and AGI_INSTALL_PATH are defined in your environment or earlier in the script.
     if [[ -d "$AGI_INSTALL_PATH" && -f "$SRC_DIR/zip-agi.py" ]]; then
         echo -e "${YELLOW}Existing agilab project found at $AGI_INSTALL_PATH and zip-agi.py exists.${NC}"
         backup_file="../${AGI_INSTALL_PATH}_backup_$(date +%Y%m%d-%H%M%S).zip"
@@ -136,6 +139,7 @@ backup_agi_project() {
     fi
     echo
 }
+
 
 
 # Copy new project files from the source directory to the install path if needed
@@ -170,11 +174,13 @@ chmod +x "$framework_dir/install.sh" "$apps_dir/install.sh"
 
 echo "Installing Framework..."
 pushd "$framework_dir" > /dev/null
+echo ./install.sh "$apps_dir"
 ./install.sh "$framework_dir"
 popd > /dev/null
 
 echo "Installing Apps..."
 pushd "$apps_dir" > /dev/null
+echo ./install.sh "$apps_dir"
 ./install.sh "$apps_dir"
 popd > /dev/null
 

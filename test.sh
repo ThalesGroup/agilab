@@ -25,7 +25,7 @@ for dir in "${SUBDIRS[@]}"; do
 done
 
 pushd $home/../agi-pypi
-uv init
+uv init --bare
 uv add *.whl
 uv run agilab
 popd > /dev/null
