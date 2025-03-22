@@ -1,1 +1,0 @@
-# my_code_project example project
