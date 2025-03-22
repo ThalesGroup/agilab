@@ -59,6 +59,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#purpose"><strong>Purpose</strong></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#target-audience"><strong>Target Audience</strong></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#main-dependencies"><strong>Main Dependencies</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#technologies-selection-criteria"><strong>Technologies Selection Criteria</strong></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#example-aircraft-telecommunication">Example: Aircraft Telecommunication</a></li>
 </ul>
 </li>
@@ -438,24 +439,24 @@ is also enhancing productivity</p></li>
 </section>
 <section id="main-dependencies">
 <h2><strong>Main Dependencies</strong><a class="headerlink" href="#main-dependencies" title="Link to this heading"></a></h2>
-<blockquote>
-<div><p><a class="reference external" href="https://www.paramiko.org/">Paramiko</a>: Secure SSH connections for remote operations.
-<a class="reference external" href="https://docs.astral.sh/uv/">uv</a>: Advanced utilities to manage Python virtual environments.
-<a class="reference external" href="https://cython.org/">Cython</a>: Cython is an optimising static compiler for both the Python programming language</p>
-</div></blockquote>
-<dl class="simple">
-<dt>and the extended Cython programming language (based on Pyrex). It makes writing C extensions for Python as easy as Python itself.</dt><dd><p><a class="reference external" href="https://www.dask.org/">Dask</a>: Parallel computing for handling large datasets and computations.
-<a class="reference external" href="https://streamlit.io/">Streamlit</a>: Rapidly develop and deploy interactive applications.
-<a class="reference external" href="https://www.jetbrains.com/pycharm">Pycharm</a>: Assist you for advanced code development with AGI.
-<a class="reference external" href="https://chatgpt.com/#pricing">OpenAI</a>: Assist you for algorithm discovery and code generation.</p>
-</dd>
-<dt>The selection of these technologies have been done for Portability, Simplicity and Performances:</dt><dd><ul class="simple">
-<li><p>Portability: AGILab seamlessly run and share your environments across different systems without the overhead of full virtualization.</p></li>
-<li><p>Simplicity: AGILab manage dependencies and isolate project environments easily, reducing complexity and potential conflicts.</p></li>
-<li><p>Performance: AGILab provide runtime benchmark for combinaisons of Cython, Dask and Pool of Thread/Process execution modes</p></li>
+<ul class="simple">
+<li><p><a class="reference external" href="https://www.paramiko.org/">Paramiko</a>: Secure SSH connections for remote operations.</p></li>
+<li><p><a class="reference external" href="https://docs.astral.sh/uv/">uv</a>: Advanced utilities to manage Python virtual environments.</p></li>
+<li><p><a class="reference external" href="https://cython.org/">Cython</a>: Cython is an optimising static compiler for both the Python programming language and the extended Cython programming language (based on Pyrex). It makes writing C extensions for Python as easy as Python itself.</p></li>
+<li><p><a class="reference external" href="https://www.dask.org/">Dask</a>: Parallel computing for handling large datasets and computations.</p></li>
+<li><p><a class="reference external" href="https://streamlit.io/">Streamlit</a>: Rapidly develop and deploy interactive applications.</p></li>
+<li><p><a class="reference external" href="https://www.jetbrains.com/pycharm">Pycharm</a>: Assist you for advanced code development with AGI.</p></li>
+<li><p><a class="reference external" href="https://chatgpt.com/#pricing">OpenAI</a>: Assist you for algorithm discovery and code generation.</p></li>
 </ul>
-</dd>
-</dl>
+</section>
+<section id="technologies-selection-criteria">
+<h2><strong>Technologies Selection Criteria</strong><a class="headerlink" href="#technologies-selection-criteria" title="Link to this heading"></a></h2>
+<p>The selection of these technologies have been done for Portability, Simplicity and Performances:</p>
+<ul class="simple">
+<li><p><strong>Portability</strong>: AGILab seamlessly run and share your environments across different systems without the overhead of full virtualization.</p></li>
+<li><p><strong>Simplicity</strong>: AGILab manage dependencies and isolate project environments easily, reducing complexity and potential conflicts.</p></li>
+<li><p><strong>Performance</strong>: AGILab provide runtime benchmark for combinaisons of Cython, Dask and Pool of Thread/Process execution modes</p></li>
+</ul>
 </section>
 <section id="example-aircraft-telecommunication">
 <h2>Example: Aircraft Telecommunication<a class="headerlink" href="#example-aircraft-telecommunication" title="Link to this heading"></a></h2>

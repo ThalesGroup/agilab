@@ -35,19 +35,23 @@ AGILab is intended for professionals and domain experts, offering a tool that si
 
 **Main Dependencies**
 ------------------------
-    `Paramiko <https://www.paramiko.org/>`_: Secure SSH connections for remote operations.
-    `uv <https://docs.astral.sh/uv/>`_: Advanced utilities to manage Python virtual environments.
-    `Cython <https://cython.org/>`_: Cython is an optimising static compiler for both the Python programming language
-and the extended Cython programming language (based on Pyrex). It makes writing C extensions for Python as easy as Python itself.
-    `Dask <https://www.dask.org/>`_: Parallel computing for handling large datasets and computations.
-    `Streamlit <https://streamlit.io/>`_: Rapidly develop and deploy interactive applications.
-    `Pycharm <https://www.jetbrains.com/pycharm>`_: Assist you for advanced code development with AGI.
-    `OpenAI <https://chatgpt.com/#pricing>`_: Assist you for algorithm discovery and code generation.
+
+- `Paramiko <https://www.paramiko.org/>`_: Secure SSH connections for remote operations.
+- `uv <https://docs.astral.sh/uv/>`_: Advanced utilities to manage Python virtual environments.
+- `Cython <https://cython.org/>`_: Cython is an optimising static compiler for both the Python programming language and the extended Cython programming language (based on Pyrex). It makes writing C extensions for Python as easy as Python itself.
+- `Dask <https://www.dask.org/>`_: Parallel computing for handling large datasets and computations.
+- `Streamlit <https://streamlit.io/>`_: Rapidly develop and deploy interactive applications.
+- `Pycharm <https://www.jetbrains.com/pycharm>`_: Assist you for advanced code development with AGI.
+- `OpenAI <https://chatgpt.com/#pricing>`_: Assist you for algorithm discovery and code generation.
+
+**Technologies Selection Criteria**
+-----------------------------------
 
 The selection of these technologies have been done for Portability, Simplicity and Performances:
-   - Portability: AGILab seamlessly run and share your environments across different systems without the overhead of full virtualization.
-   - Simplicity: AGILab manage dependencies and isolate project environments easily, reducing complexity and potential conflicts.
-   - Performance: AGILab provide runtime benchmark for combinaisons of Cython, Dask and Pool of Thread/Process execution modes
+
+- **Portability**: AGILab seamlessly run and share your environments across different systems without the overhead of full virtualization.
+- **Simplicity**: AGILab manage dependencies and isolate project environments easily, reducing complexity and potential conflicts.
+- **Performance**: AGILab provide runtime benchmark for combinaisons of Cython, Dask and Pool of Thread/Process execution modes
 
 
 Example: Aircraft Telecommunication
