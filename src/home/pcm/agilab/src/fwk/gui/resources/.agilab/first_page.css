@@ -1,0 +1,73 @@
+/* assets/custom.css */
+
+/* Set the background color for the entire page */
+.reportview-container {
+    background-color: white;
+}
+
+/* Set the background color for the sidebar */
+.sidebar .sidebar-content {
+    background-color: white;
+}
+
+/* Header styling */
+.header {
+    background-color: #1E90FF;
+    padding: 40px 20px;
+    text-align: left;
+}
+
+.header h1 {
+    color: white;
+    font-family: 'Helvetica', sans-serif;
+    font-weight: bold;
+    font-size: 48px;
+    margin-bottom: 10px;
+}
+
+/* Footer styling */
+.footer {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    background-color: #1E90FF;
+    color: white;
+    text-align: center;
+    padding: 10px 0;
+    font-family: 'Helvetica', sans-serif;
+    font-size: 14px;
+}
+
+/* Hide Streamlit's default footer */
+footer {
+    visibility: hidden;
+}
+
+/* UVP highlighting style */
+.uvp-highlight {
+    background-color: #f0f8ff;
+    color: #333333;
+    padding: 20px;
+    border-left: 5px solid #1E90FF;
+    border-radius: 5px;
+    margin-top: 20px;
+    margin-bottom: 20px;
+    font-size: 18px;
+    line-height: 1.6;
+}
+
+.uvp-highlight ul {
+    list-style-type: disc;
+    margin-left: 20px;
+}
+
+.uvp-highlight strong {
+    color: #1E90FF;
+}
+
+/* Limit the main container width */
+.block-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
