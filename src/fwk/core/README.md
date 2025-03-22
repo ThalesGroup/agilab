@@ -1,29 +1,23 @@
 | [![PyPI version](https://img.shields.io/pypi/v/agi-core.svg)](https://pypi.org/project/agi-core) |
 
 
-AGI-CORE
-=========
+AGI-CORE Framework
+==================
 
-Agi is a framework to accelerate python code by using Dask, Cython and Processing Pools. See
-documentation_ for more information.
+agi-core [BSD license ](https://github.com/ThalesGroup/agi-core/blob/main/LICENSE) is an AI framework for engineering. 
+It is designed to develop AI solution.
+See [documentation](https://thalesgroup.github.io/agilab).
 
+### Install
 
-LICENSE
--------
+```bash
 
-New BSD. See `License File <https://github.com/ThalesGroup/agilab/blob/main/LICENSE>`__.
+mkdir agi-workspace && cd agi-workspace
+uv init && uv add agi-core
+```
 
+### Run
 
-Installation
--------
-pip install agi-core
-
-
-Execution
----------
-Documentation is available at [documentation site](https://thalesgroup.github.io/agilab)
-
-
-support
--------
-email: focus@thalesgroup.com
+```bash
+uv run agilab
+```
