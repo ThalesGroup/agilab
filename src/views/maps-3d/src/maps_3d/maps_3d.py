@@ -38,8 +38,6 @@ if "datadir" not in st.session_state:
     st.session_state["datadir"] = datadir
 if "project" not in st.session_state:
     st.session_state["project"] = env.target
-if "help_path" not in st.session_state:
-    st.session_state.help_path = env.AGILAB_ROOT_ABS / "src/agig/help"
 if "projects" not in st.session_state:
     st.session_state["projects"] = env.projects
 if "datadir" not in st.session_state:

@@ -23,8 +23,6 @@ st.title(":world_map: Cartography Visualisation")
 # Initialize session state
 if "datadir" not in st.session_state:
     st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
-if "help_path" not in st.session_state:
-    st.session_state.help_path = env.AGILAB_ROOT_ABS / "src/agig/help"
 
 var = ["discrete", "continuous", "lat", "long"]
 var_default = [0, None]
@@ -78,9 +76,6 @@ def page():
     """
     if "project" not in st.session_state:
         st.session_state["project"] = env.target
-
-    if "help_path" not in st.session_state:
-        st.session_state.help_path = env.AGILAB_ROOT_ABS / "src/agig/help"
 
     if "projects" not in st.session_state:
         st.session_state["projects"] = env.projects

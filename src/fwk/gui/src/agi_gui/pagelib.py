@@ -58,8 +58,6 @@ RESOURCE_PATH = env.deployed_resources_abs
 # Initialize session state
 if "datadir" not in st.session_state:
     st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
-if "help_path" not in st.session_state:
-    st.session_state.help_path = env.AGI_GUI_ABS / "src/gui/help"
 
 st.session_state["env"] = env
 default_df = "export.csv"
@@ -410,7 +408,7 @@ if "server_started" not in st.session_state:
 
     cmd = f"uv run mlflow ui --backend-store-uri file://{tracking_dir} --port {port}"
     try:
-        res = subproc(cmd, env.AGI_GUI_ABS)
+        res = subproc(cmd, env.gui_env)
         st.session_state.server_started = True
         st.session_state["mlflow_port"] = port
     except RuntimeError as e:

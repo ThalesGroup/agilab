@@ -60,6 +60,7 @@ dependencies = [
     "streamlit-pandas-profiling",
     "streamlit_code_editor",
     "streamlit_extras",
+    "tomli",
     "ydata",
     "ydata-profiling",
 ]
@@ -84,15 +85,12 @@ requires = [
     "setuptools",
     "wheel",
 ]
+
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-include-package-data = true
 
-[tool.setuptools.package-data]
-agi_lab = [
-    "resources/.agilab/*/*",
-]
+[tool.setuptools.data-files]
+agi_env = ["resources/*"]
 
 [tool.uv]
 default-groups = [

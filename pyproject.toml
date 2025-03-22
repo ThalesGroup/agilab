@@ -31,9 +31,9 @@ dependencies = [
     "setuptools>=76.0.0",
     "twine>=6.1.0",
     "wheel>=0.45.1",
+    "agi-env",
     "agi-core",
-    "agi-gui",
-    "agi-env"
+    "agi-gui"
 ]
 
 [project.urls]
@@ -47,11 +47,11 @@ dev = ["black", "pytest", "licensecheck"]
 [tool.uv]
 default-groups = ["dev"]
 
-[tool.uv.sources]
-agilab = { workspace = true }
+[tool.uv.sources.agilab]
+workspace = true
 
 [tool.uv.workspace]
-members = ["test"]
+members = ["test", "apps", "views", "fwk"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

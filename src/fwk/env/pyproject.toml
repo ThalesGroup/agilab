@@ -50,9 +50,6 @@ default-groups = ["dev"]
 [tool.uv.sources.agi-env]
 workspace = true
 
-[tool.setuptools]
-include-package-data = true
-
 [tool.setuptools.data-files]
 agi_env = ["resources/*"]
 

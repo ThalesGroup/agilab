@@ -340,7 +340,11 @@ class AgiEnv:
 
         self.gitignore_file = self.app_path / ".gitignore"
         dest = self.deployed_resources_abs
-        shutil.copytree(self.AGI_GUI_ABS / self.agi_resources, dest, dirs_exist_ok=True)
+        if AgiEnv.is_installed_file(__file__):
+            AGI_GUI_ABS = self.agi_root /  "agi_gui"
+        else:
+            AGI_GUI_ABS = self.agi_root / "fwk/gui/src/agi_cui"
+        shutil.copytree(AGI_GUI_ABS / self.agi_resources, dest, dirs_exist_ok=True)
 
     def _update_env_file(self, updates: dict):
         """
@@ -401,7 +405,6 @@ class AgiEnv:
         if AgiEnv.is_installed_file(__file__):
             self.core_src = self.agi_root
         else:
-            default = self.agi_root / "fwv/core"
             self.core_src = self.core_root / "src"
         self.core_root = self.core_src
 
@@ -425,13 +428,13 @@ class AgiEnv:
             raise ValueError(f"Invalid scheduler IP address: {self.scheduler_ip}")
         if AgiEnv.is_installed_file(__file__):
             self.AGI_SRC_ABS = self.agi_root
-            self.help_path = str(self.agi_root / "agi_gui/resources")
+            self.help_path = "https://thalesgroup.github.io/agilab"
+            self.gui_env = os.getcwd()
         else:
-            self.AGI_SRC_ABS = str(self.agi_root / "fwk/gui/src")
-            self.help_path = str(self.agi_root / "fwk/gui/src/agi_gui/resources")
+            self.gui_env = self.agi_root / "fwk/gui"
+            self.AGI_SRC_ABS = str(self.gui_env / "src")
+            self.help_path = str(self.agi_root / "../docs/html")
 
-        if not self.help_path.exists():
-            self.help_path.mkdir(parents=True, exist_ok=True)
         self.AGILAB_SHARE_ABS = Path(
             envars.get("AGI_SHARE_DIR", self.home_abs / "data")
         )
@@ -462,7 +465,8 @@ class AgiEnv:
         self.AGILAB_VIEWS_ABS = Path(
             envars.get("AGI_VIEWS_DIR", self.agi_root / "views")
         )
-        self.AGILAB_VIEWS_REL = Path(envars.get("AGI_VIEWS_DIR", "agi/views"))
+        self.AGILAB_VIEWS_REL = Path(envars.get("AGI_VIEWS_DIR", "agi/_"))
+
         self.AGILAB_DATA_NROW = int(envars.get("AGI_GUI_NROW", 1000))
         self.copilot_file = self.AGI_SRC_ABS / "agi/agi_copilot.py"
 
