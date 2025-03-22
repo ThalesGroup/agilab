@@ -102,7 +102,7 @@ SRC_DIR=$(realpath "$(pwd)/src")
 if [[ -d "$AGI_INSTALL_PATH" ]]; then
     backup_file="${AGI_INSTALL_PATH}_backup_$(date +%Y%m%d_%H%M%S).zip"
     echo "Backing up existing project to $backup_file"
-    zip -r "$backup_file" "$AGI_INSTALL_PATH"
+    zip -r "$backup_file" "../$AGI_INSTALL_PATH"
     # Only remove the install directory if it is not the source directory
     if [[ "$AGI_INSTALL_PATH" != "$SRC_DIR" ]]; then
         echo "Removing existing project directory interactively..."
