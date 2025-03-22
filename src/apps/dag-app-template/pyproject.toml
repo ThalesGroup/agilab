@@ -1,6 +1,6 @@
 [project]
 name = "dag-app-project"
-version = "0.1.7"
+version = "0.1.8"
 description = ""
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
