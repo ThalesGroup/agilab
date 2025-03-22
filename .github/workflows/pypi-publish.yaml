@@ -14,12 +14,14 @@ jobs:
   pypi-publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write       # Allow push to the repository
       id-token: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -42,7 +44,7 @@ jobs:
           # Strip leading 'v' if present
           VERSION=${VERSION#v}
           echo "Setting version: $VERSION"
-          # Define list of files to update
+          # List of pyproject.toml files to update
           FILES=("pyproject.toml" "src/fwk/env/pyproject.toml" "src/fwk/core/pyproject.toml" "src/fwk/gui/pyproject.toml")
           for file in "${FILES[@]}"; do
             if [ -f "$file" ]; then
@@ -52,6 +54,23 @@ jobs:
               echo "Warning: $file not found!"
             fi
           done
+
+      - name: Commit version changes
+        env:
+          VERSION: ${{ github.event.inputs.version || github.ref_name }}
+        run: |
+          # Configure git
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          # Stage changed files
+          git add pyproject.toml src/fwk/env/pyproject.toml src/fwk/core/pyproject.toml src/fwk/gui/pyproject.toml
+          # Check if there is anything to commit
+          if ! git diff --cached --quiet; then
+            git commit -m "Bump version to ${VERSION#v}"
+            git push
+          else
+            echo "No changes to commit."
+          fi
 
       - name: Build and upload subpackages
         run: |
@@ -83,7 +102,7 @@ jobs:
 
       - name: Build and upload main package (agilab)
         run: |
-          # Run build from src level with no-workspace option
+          # Run build from repository root with no workspace option
           uv build
 
       - name: Upload agilab package
