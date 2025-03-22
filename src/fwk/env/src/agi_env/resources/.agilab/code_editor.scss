@@ -1,0 +1,9 @@
+font-weight: 600;
+&.streamlit_code-editor .ace-streamlit-dark.ace_editor {
+  background-color: #111827;
+  color: rgb(255, 255, 255);
+}
+&.streamlit_code-editor .ace-streamlit-light.ace_editor {
+        background-color: #eeeeee;
+        color: rgb(0, 0, 0);
+}

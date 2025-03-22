@@ -1,0 +1,11 @@
+[[flight]]
+D = "PosixPath('~/export/flight/export.csv')"
+Q = "add smoothing of col long with savgol\n"
+C = "from scipy.signal import savgol_filter\n\n# Apply Savitzky-Golay filter to the 'long' column\ndf['long_smoothed'] = savgol_filter(df['long'], window_length=5, polyorder=2)\n"
+M = "\n\nMake sure to adjust the `window_length` and `polyorder` parameters according to your specific needs and the characteristics of your data. The `window_length` should be an odd integer, and `polyorder` should be less than `window_length`."
+
+[[flight]]
+D = "PosixPath('~/export/flight/export.csv')"
+Q = "add smoothing of col lat with savgol\n"
+C = "from scipy.signal import savgol_filter\n\n# Apply Savitzky-Golay filter to smooth the 'lat' column\ndf['lat_smoothed'] = savgol_filter(df['lat'], window_length=5, polyorder=2)\n"
+M = "\n\n### Key Parameters:\n- `window_length`: The length of the filter window (i.e., the number of coefficients). It must be a positive odd integer. Adjust this based on your data.\n- `polyorder`: The order of the polynomial used to fit the samples. It must be less than `window_length`.\n\nAdjust `window_length` and `polyorder` according to your specific data characteristics to achieve the desired level of smoothing."
