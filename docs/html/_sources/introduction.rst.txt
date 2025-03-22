@@ -67,6 +67,7 @@ Today, a single algorithm is rarely enough to solve complex problems. Instead, a
 This scenario requires reuse across organizations, infrastructure, and operating systems. While many consider virtualization and containerization (e.g., Docker) as the solution, AGILab offers an alternative.
 
 AGILab is designed for modern development needs—reducing overhead, promoting collaboration, and simplifying the deployment pipeline without compromising on power or flexibility.
+
 - **Needs Model of Models**
 
 Since Artificial General Intelligence (AGI) has not yet been achieved with a single algorithm, a "model of models" is necessary. For instance, in aircraft telecom, this approach is illustrated as follows:
