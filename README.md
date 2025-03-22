@@ -1,62 +1,24 @@
-# AGILAB Open Source Project
+<div style="position: relative; margin-bottom: 1em;">
+  <!-- Code block with an id -->
+  <pre id="code-block" style="background-color: #f8f8f8; padding: 10px; border: 1px solid #ddd; overflow: auto;">
 
 | Version Status                                                                               |
 |----------------------------------------------------------------------------------------------|
 | [![PyPI version](https://img.shields.io/pypi/v/agilab.svg)](https://pypi.org/project/agilab) |
 
-
-## Get started
+# AGILAB Open Source Project
 
 AGILAB project purpose is to explore AI for engineering. It is designed to help engineers quickly experiment with AI-driven methods.
 
-
-## Install AGILAB for endusers
-
-```bash
-    mkdir agi-workspace && cd agi-workspace
-    uv init && uv add agilab 
-````
-
-## Install AGILAB for contributors
-
-#### Linux and MacOS
+### Install
 
 ```bash
-    
-    git clone https://github.com/ThalesGroup/agilab.git
-    cd agilab
-    git checkout main
-    ./install.sh --openai-api-key "your-api-key" --install-path "your-install-dir"
-    then open agilab/src project preferably with Pycharm
- ```
+mkdir agi-workspace && cd agi-workspace
+uv init && uv add agilab 
+```
 
-#### Windows
-
-```powershell
-    go with your browser to https://github.com/ThalesGroup/agilab and download agilab-main.zip 
-    unzip agilab-main.zip
-    cd agilab-main
-    powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key "your-api-key" --install-path "your-install-dir"
-    then open agilab/src project preferably with Pycharm
- ```
-
-#### Execution
+### Run
 
 ```bash
-uv run agilab
- ```
-
-## Documentation
-
-Documentation is available at [documentation site](https://thalesgroup.github.io/agilab)
-).
-For additional guides and tutorials, consider checking our GitHub Pages.
-
-## Contributing
-
-If you are interested in contributing to the AGILAB project, start by reading the [Contributing guide](/CONTRIBUTING.md).
-
-## License
-
-This project is distributed under the New BSD License.
-See the [License File](agi/LICENSE) for full details.
+uv run nagilab 
+```
