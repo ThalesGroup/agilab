@@ -66,7 +66,7 @@ def should_include_file(filepath, spec):
     return not spec.match_file(filepath)
 
 
-def zip_directory(parent_dir, dir_path, zip_filepath, spec, verbose=False):
+def zip_directory(parent_dir, dir_path, zip_filepath, spec, no_top=False, verbose=False):
     """
     Zip a directory with filtering based on a specification.
 
@@ -75,6 +75,8 @@ def zip_directory(parent_dir, dir_path, zip_filepath, spec, verbose=False):
         dir_path (str): The directory to zip.
         zip_filepath (str): The output zip file path.
         spec (PathSpec): The file specification to filter which files to include in the zip.
+        no_top (bool): If True, do not include the top-level directory in the archive.
+        verbose (bool): If True, print verbose output.
 
     Returns:
         None
@@ -84,7 +86,6 @@ def zip_directory(parent_dir, dir_path, zip_filepath, spec, verbose=False):
         It also skips the output zip file if it is found inside the directory to avoid self-inclusion.
     """
     # Construct the full target directory path from the parent and the directory to zip.
-    # If dir_path is absolute, os.path.join will simply return dir_path.
     target_dir = os.path.join(parent_dir, dir_path)
     base_name = os.path.basename(dir_path)  # e.g. 'agig'
 
@@ -107,10 +108,18 @@ def zip_directory(parent_dir, dir_path, zip_filepath, spec, verbose=False):
                     continue
 
                 # Construct the relative file path inside the zip archive.
-                if relative_dir == ".":
-                    relative_file_path = os.path.join(base_name, filename)
+                if no_top:
+                    # Without the top-level directory, use the relative path from target_dir.
+                    if relative_dir == ".":
+                        relative_file_path = filename
+                    else:
+                        relative_file_path = os.path.join(relative_dir, filename)
                 else:
-                    relative_file_path = os.path.join(base_name, relative_dir, filename)
+                    # Include the top-level directory in the archive.
+                    if relative_dir == ".":
+                        relative_file_path = os.path.join(base_name, filename)
+                    else:
+                        relative_file_path = os.path.join(base_name, relative_dir, filename)
 
                 if should_include_file(relative_file_path, spec):
                     if verbose:
@@ -125,9 +134,10 @@ if __name__ == "__main__":
     """
     Zip a directory into a zip file.
 
-    Usage: zip-agi --dir2zip <dir> --zipfilepath <file>
+    Usage: zip-agi --dir2zip <dir> --zipfile <file> [--no-top] [--verbose|-v]
       --dir2zip: Path of the directory to zip (mandatory)
-      --zipfilepath: Path and name of the zip file to create (mandatory)
+      --zipfile: Path and name of the zip file to create (mandatory)
+      --no-top: Do not include the top-level directory in the zip archive.
     """
     parser = argparse.ArgumentParser(description="Zip a project directory.")
 
@@ -151,16 +161,24 @@ if __name__ == "__main__":
         help="Verbose output"
     )
 
+    parser.add_argument(
+        "--no-top",
+        action="store_true",
+        help="Do not include the top-level directory in the zip archive."
+    )
+
     args = parser.parse_args()
 
     # Convert to absolute paths if not already
     project_dir = args.dir2zip.absolute()
     zip_file = args.zipfile.absolute()
     verbose = args.verbose
+    no_top = args.no_top
 
     if verbose:
         print("Directory to zip:", project_dir)
         print("Zip file will be:", zip_file)
+        print("No top directory:" , no_top)
 
     parent_dir = project_dir.parent
     os.makedirs(zip_file.parent, exist_ok=True)
@@ -171,6 +189,6 @@ if __name__ == "__main__":
     else:
         # Generate the file matching specification from the .gitignore file.
         spec = read_gitignore(gitignore_path)
-        # Pass the directory name (or full path) as needed.
-        zip_directory(str(parent_dir), str(project_dir), str(zip_file), spec, verbose)
+        # Pass the no_top flag to the zip_directory function.
+        zip_directory(str(parent_dir), str(project_dir), str(zip_file), spec, no_top, verbose)
         print(f"Zipped {project_dir} into {zip_file}")

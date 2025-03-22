@@ -258,7 +258,7 @@ backup_agi_project() {
                     echo -e "${YELLOW}AGI project directory is 'src'; preserving it and not removing.${NC}"
                 else
                     echo -e "${YELLOW}Removing existing AGI project directory...${NC}"
-                    rm -rf "$AGI_PROJECT_SRC"
+                    rm -ri "$AGI_PROJECT_SRC"
                     echo -e "${GREEN}Existing AGI project directory removed.${NC}"
                 fi
             else
@@ -450,12 +450,6 @@ main() {
     # Start installation of framework and apps
     start_installation
 
-    echo -e "${GREEN}Starting AGILAB from $AGI_INSTALL_PATH${NC}"
-    "$AGI_INSTALL_PATH/agilab.sh" --openai-api-key "$openai_api_key" || {
-        echo -e "${RED}Error: Failed to start AGILAB.${NC}"
-        exit 1
-    }
-    echo -e "${GREEN}AGILAB started successfully.${NC}"
 }
 
 main

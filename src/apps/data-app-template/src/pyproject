@@ -29,6 +29,9 @@ default-groups = ["dev"]
 agi-core = { path = "core", editable = true }
 data-app-project = { workspace = true }
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.mypy]
 mypy_path = ["stubs"]
 disallow_untyped_defs = false
