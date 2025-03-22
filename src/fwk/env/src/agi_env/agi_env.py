@@ -86,7 +86,7 @@ class AgiEnv:
         self._init_projects()
         self.app = self.app_path.name
         self.setup_app = self.app_path / "setup"
-        self.setup_core = self.core_root / "src/agi_core/workers/agi_worker/setup"
+        self.setup_core = self.core_src / "agi_core/workers/agi_worker/setup"
         target_package_path = self.module_path.parent
         self.target_package = target_package_path.name
         self.target_worker = f"{self.target}_worker"
@@ -398,11 +398,13 @@ class AgiEnv:
         else:
             self.password = None
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.12.9")
-        AGI_CORE_DIR = envars.get("AGI_CORE_DIR", str(self.agi_root / "fwk/core"))
-        self.core_root = Path(AGI_CORE_DIR)
-        if not self.core_root.exists():
-            self.core_root = self.home_abs
-        self.core_src = self.core_root
+        if AgiEnv.is_installed_file(__file__):
+            self.core_src = self.agi_root
+        else:
+            default = self.agi_root / "fwv/core"
+            self.core_src = self.core_root / "src"
+        self.core_root = self.core_src
+
         self.workers_root = self.core_src / "agi_core/workers"
         self.manager_root = self.core_src / "agi_core/managers/"
         path = str(self.core_src)
@@ -421,11 +423,13 @@ class AgiEnv:
         self.scheduler_ip = envars.get("AGI_SCHEDULER_IP", "127.0.0.1")
         if not self.is_valid_ip(self.scheduler_ip):
             raise ValueError(f"Invalid scheduler IP address: {self.scheduler_ip}")
-        AGI_GUI_DIR = envars.get("AGI_GUI_DIR", str(self.agi_root / "fwk/gui"))
-        self.AGI_GUI_ABS = Path(AGI_GUI_DIR)
-        self.help_path = Path(
-            envars.get("AGI_HELP_DIR", str(self.agi_root / "docs/html"))
-        ).absolute()
+        if AgiEnv.is_installed_file(__file__):
+            self.AGI_SRC_ABS = self.agi_root
+            self.help_path = str(self.agi_root / "agi_gui/resources")
+        else:
+            self.AGI_SRC_ABS = str(self.agi_root / "fwk/gui/src")
+            self.help_path = str(self.agi_root / "fwk/gui/src/agi_gui/resources")
+
         if not self.help_path.exists():
             self.help_path.mkdir(parents=True, exist_ok=True)
         self.AGILAB_SHARE_ABS = Path(
@@ -440,9 +444,6 @@ class AgiEnv:
         return False
 
     def init_envars_app(self, envars):
-        AGI_GUI_ABS = Path(envars.get("AGI_GUI_DIR", self.agi_root / "fwk/gui"))
-        self.AGI_GUI_ABS = AGI_GUI_ABS
-        self.AGI_SRC_ABS = AGI_GUI_ABS / "src"
         AGILAB_LOG_ABS = Path(envars.get("AGI_LOG_DIR", self.home_abs / "log"))
         if not AGILAB_LOG_ABS.exists():
             AGILAB_LOG_ABS.mkdir(parents=True)
@@ -489,7 +490,7 @@ class AgiEnv:
         self.wenv_abs = self.home_abs / self.wenv_rel
         self.wenv_target_worker = self.wenv_abs
         distribution_tree = self.wenv_abs / "distribution_tree.json"
-        self.cyprepro = self.core_root / "src/agi_core/workers/agi_worker/cyprepro.py"
+        self.cyprepro = self.core_src / "agi_core/workers/agi_worker/cyprepro.py"
         self.post_install_script = self.wenv_abs / "src" / self.target_worker / "post_install.py"
         if distribution_tree.exists():
             distribution_tree.unlink()
