@@ -1,0 +1,29 @@
+#!/bin/bash
+set -e
+
+home=$(pwd)
+
+
+# List of component to build
+SUBDIRS=("src/fwk/env" "src/fwk/core" "src/fwk/gui")
+
+for dir in "${SUBDIRS[@]}"; do
+  pushd "$dir" > /dev/null
+  rm -rf dist
+  uv build --wheel
+  echo mv dist/*.whl $home/test
+  mv dist/*.whl $home/test
+  popd > /dev/null
+done
+
+# Install all wheels from the test directory
+pushd test
+popd
+uv build --wheel
+echo mv dist/*.whl $home/test
+
+pushd test
+uv sync --upgrade
+uv add *.whl
+uv run agilab
+popd > /dev/null

@@ -1,0 +1,67 @@
+[project]
+name = "agi-env"
+description = "AGI Env"
+version = "0.1.6"
+requires-python = "==3.12.*"
+readme = "README.md"
+authors = [
+    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
+]
+
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+]
+
+keywords = [
+    "jupyter", "mlflow", "paramiko", "asyncio", "dask", "rapids",
+    "streamlit", "distributed", "cython", "cluster", "dataframe",
+    "dataset", "loadbalancing", "genai", "copilot", "agi",
+    "pycharm", "datascience"
+]
+
+dependencies = [
+    "humanize",
+    "pathspec",
+    "pydantic",
+    "python-dotenv",
+    "setuptools",
+    "tomli_w",
+]
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/fwk/env"
+Tracker = "https://github.com/ThalesGroup/agilab/issue"
+
+[dependency-groups]
+dev = [
+    "agi-env", "black", "pytest", "licensecheck"
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.uv.sources.agi-env]
+workspace = true
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.data-files]
+agi_env = ["resources/*"]
+
+[tool.mypy]
+mypy_path = ["stubs"]
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pyment]
+source_dir = "src"
+format = "google"

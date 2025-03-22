@@ -1,0 +1,120 @@
+[project]
+name = "agi-gui"
+description = "AGI GUI"
+version = "0.1.6"
+requires-python = "==3.12.*"
+readme = "README.md"
+authors = [
+    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+]
+keywords = [
+    "jupyter",
+    "mlflow",
+    "paramiko",
+    "asyncio",
+    "dask",
+    "rapids",
+    "streamlit",
+    "distributed",
+    "cython",
+    "cluster",
+    "dataframe",
+    "dataset",
+    "loadbalancing",
+    "genai",
+    "copilot",
+    "agi",
+    "pycharm",
+    "datascience",
+]
+dependencies = [
+    "agi-core",
+    "astor",
+    "fastparquet",
+    "geojson",
+    "humanize",
+    "jupyter-ai[all]",
+    "keras",
+    "matplotlib",
+    "mlflow",
+    "numba",
+    "openai",
+    "paramiko",
+    "pathspec",
+    "plotly",
+    "polars",
+    "py7zr",
+    "seaborn",
+    "scp",
+    "streamlit",
+    "streamlit-modal",
+    "streamlit-pandas-profiling",
+    "streamlit_code_editor",
+    "streamlit_extras",
+    "ydata",
+    "ydata-profiling",
+]
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/fwk/gui"
+Tracker = "https://github.com/ThalesGroup/agilab/issue"
+
+[project.scripts]
+agilab = "agi_gui.lab_run:main"
+
+[dependency-groups]
+dev = [
+    "black",
+    "pytest",
+    "licensecheck",
+]
+
+[build-system]
+requires = [
+    "setuptools",
+    "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+agi_lab = [
+    "resources/.agilab/*/*",
+]
+
+[tool.uv]
+default-groups = [
+    "dev",
+]
+
+[tool.uv.sources.agi-env]
+path = "/home/pcm/agilab/src/fwk/env"
+editable = true
+
+[tool.uv.sources.agi-core]
+path = "/home/pcm/agilab/src/fwk/core"
+editable = true
+
+[tool.mypy]
+mypy_path = [
+    "stubs",
+]
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pyment]
+source_dir = "src"
+format = "google"

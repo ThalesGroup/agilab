@@ -1,0 +1,57 @@
+# Core Licenses
+| Package Name | License |
+---------------|----------
+| Brotli | MIT LICENSE |
+| Cython | APACHE SOFTWARE LICENSE |
+| Jinja2 | BSD LICENSE |
+| MarkupSafe | BSD LICENSE |
+| PyNaCl | APACHE LICENSE 2.0 |
+| PyYAML | MIT LICENSE |
+| annotated-types | MIT LICENSE |
+| bcrypt | APACHE SOFTWARE LICENSE |
+| cffi | MIT LICENSE |
+| click | BSD LICENSE |
+| cloudpickle | BSD LICENSE |
+| cryptography | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| dask | BSD LICENSE |
+| distributed | BSD LICENSE |
+| env | BSD LICENSE |
+| fsspec | BSD LICENSE |
+| humanize | MIT License |
+| inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2 OR LATER (LGPLV2+) |
+| joblib | BSD LICENSE |
+| llvmlite | BSD |
+| locket | BSD LICENSE |
+| msgpack | APACHE SOFTWARE LICENSE |
+| multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2 OR LATER (LGPLV2+) |
+| numba | BSD LICENSE |
+| numpy | BSD LICENSE |
+| packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| paramiko | GNU LIBRARY OR LESSER GENERAL PUBLIC LICENSE (LGPL) |
+| parso | MIT LICENSE |
+| partd | BSD |
+| pathspec | MOZILLA PUBLIC LICENSE 2.0 (MPL 2.0) |
+| psutil | BSD LICENSE |
+| py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2 OR LATER (LGPLV2+) |
+| pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2 OR LATER (LGPLV2+) |
+| pycparser | BSD LICENSE |
+| pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
+| pydantic | MIT LICENSE |
+| pydantic_core | MIT LICENSE |
+| pyppmd | GNU LESSER GENERAL PUBLIC LICENSE V2 OR LATER (LGPLV2+) |
+| python-dotenv | BSD LICENSE |
+| pyzstd | BSD LICENSE |
+| scikit-learn | BSD LICENSE |
+| scipy | BSD LICENSE |
+| scp | GNU LIBRARY OR LESSER GENERAL PUBLIC LICENSE (LGPL) |
+| setuptools | MIT LICENSE |
+| sortedcontainers | APACHE SOFTWARE LICENSE |
+| tblib | BSD LICENSE |
+| texttable | MIT LICENSE |
+| threadpoolctl | BSD LICENSE |
+| toml | MIT LICENSE |
+| toolz | BSD LICENSE |
+| tornado | APACHE SOFTWARE LICENSE |
+| typing_extensions | PYTHON SOFTWARE FOUNDATION LICENSE |
+| urllib3 | MIT LICENSE |
+| zict | BSD LICENSE |

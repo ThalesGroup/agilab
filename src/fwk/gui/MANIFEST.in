@@ -1,0 +1,8 @@
+# Include top-level files
+include README.md
+include LICENSE
+include pyproject.toml
+include MANIFEST.in
+
+# Recursively include everything in your resources directory (if needed)
+recursive-include resources/.agilab *

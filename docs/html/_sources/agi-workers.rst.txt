@@ -1,0 +1,103 @@
+agi_core.workers API
+=====================
+
+
+Workers Reference
+-------
+
+agi_core.workers.agi-worker
+~~~~~~~~~~~~
+
+.. image:: diagrams/packages_agi_core.workers.agi_worker.png
+   :width: 400
+   :alt: Packages diagram for agi_core.workers.agi_worker
+   :align: center
+
+----
+
+.. image:: diagrams/classes_agi_core.workers.agi_worker.png
+   :width: 400
+   :alt: Classes diagram for agi_core.workers.agi_worker
+   :align: center
+
+----
+
+.. automodule:: agi_core.workers.agi_worker.agi_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----
+
+agi_core.workers.agent-worker
+~~~~~~~~~~~~
+
+.. image:: diagrams/packages_agi_core.workers.agent_worker.png
+   :width: 400
+   :alt: Packages diagram for agi_core.workers.agent_worker
+   :align: center
+
+----
+
+.. image:: diagrams/classes_agi_core.workers.agent_worker.png
+   :width: 400
+   :alt: Classes diagram for agi_core.workers.agent_worker
+   :align: center
+
+----
+
+.. automodule:: agi-core.workers.agent_worker.agent_worker.agent_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----
+
+agi_core.workers.dag-worker
+~~~~~~~~~~
+
+.. image:: diagrams/packages_agi_core.workers.dag_worker.png
+   :width: 400
+   :alt: Packages diagram for agi_core.workers.dag_worker
+   :align: center
+
+----
+
+.. image:: diagrams/classes_agi_core.workers.dag_worker.png
+   :width: 400
+   :alt: Classes diagram for agi_core.workers.dag_worker
+   :align: center
+
+----
+
+.. automodule:: agi_core.workers.dag_worker.dag_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----
+
+
+agi_core.workers.data-worker
+~~~~~~~~~~~
+
+.. image:: diagrams/packages_agi_core.workers.data_worker.png
+   :width: 400
+   :alt: Packages diagram for agi_core.workers.data_workers
+   :align: center
+
+----
+
+.. image:: diagrams/classes_agi_core.workers.data_worker.png
+   :width: 400
+   :alt: Classes diagram for agi_core.workers.data_worker
+   :align: center
+
+----
+
+.. automodule:: agi_core.workers.data_worker.data_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----

@@ -1,0 +1,2 @@
+.. include:: agi-core-license.txt
+   :code: text
