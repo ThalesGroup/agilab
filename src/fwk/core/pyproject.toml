@@ -1,10 +1,9 @@
 [project]
 name = "agi-core"
-description = "AGI Core"
+description = "agi-core a framework for AGI"
 version = "0.1.8"
 requires-python = "==3.12.*"
 readme = "README.md"
-description = "agi-core a framework for AGI"
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
 ]
