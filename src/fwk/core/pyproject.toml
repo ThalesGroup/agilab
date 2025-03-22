@@ -4,6 +4,7 @@ description = "AGI Core"
 version = "0.1.7"
 requires-python = "==3.12.*"
 readme = "README.md"
+description = "agi-core a framework for AGI"
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
 ]
