@@ -131,3 +131,14 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: twine upload dist/*
+
+      - name: Trigger static pages workflow
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Triggering static content deployment..."
+          curl -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            https://api.github.com/repos/ThalesGroup/agilab/actions/workflows/static.yml/dispatches \
+            -d '{"ref": "main"}'
