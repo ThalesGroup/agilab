@@ -35,13 +35,23 @@ jobs:
         run: |
           rm -rf src/fwk/env/dist src/fwk/core/dist src/fwk/gui/dist dist
 
-      - name: Update version in pyproject.toml
+      - name: Update version in pyproject.toml files
         env:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
+          # Strip leading 'v' if present
           VERSION=${VERSION#v}
           echo "Setting version: $VERSION"
-          sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+          # Define list of files to update
+          FILES=("pyproject.toml" "src/fwk/env/pyproject.toml" "src/fwk/core/pyproject.toml" "src/fwk/gui/pyproject.toml")
+          for file in "${FILES[@]}"; do
+            if [ -f "$file" ]; then
+              echo "Updating version in $file"
+              sed -i "s/^version = .*/version = \"$VERSION\"/" "$file"
+            else
+              echo "Warning: $file not found!"
+            fi
+          done
 
       - name: Build and upload subpackages
         run: |
