@@ -112,7 +112,6 @@ else
     exit 1
 fi
 
-
 # Ask to install system dependencies
 #!/bin/bash
 
@@ -207,43 +206,42 @@ mkdir -p "$HOME/.local/share/agilab"
 echo "$SRC_DIR" > "$HOME/.local/share/agilab/.agi-path"
 echo -e "${GREEN}Installation root path has been exported as AGIROOT.${NC}"
 
-backup_agi_project() {
-    echo -e "${BLUE}=================================================${NC}"
-    echo -e "${BLUE}Step 6: Backing Up agi Project sources (If Any) ${NC}"
-    echo -e "${BLUE}=================================================${NC}"
+echo -e "${BLUE}=================================================${NC}"
+echo -e "${BLUE}Backing Up Project sources (If Any) ${NC}"
+echo -e "${BLUE}=================================================${NC}"
+echo
+
+# Define the source directory and installation path variables
+if [[ -d "$AGI_INSTALL_PATH" && -f "$EXISTING_PROJECT_SRC/zip-agi.py" ]]; then
+    echo -e "${YELLOW}Existing agilab project found at $AGI_INSTALL_PATH and zip-agi.py exists.${NC}"
+    backup_file="${AGI_INSTALL_PATH}_backup_$(date +%Y%m%d-%H%M%S).zip"
+    echo -e "${YELLOW}Creating backup: $backup_file${NC}"
     echo
 
-    # Define the source directory and installation path variables
-    if [[ -d "$AGI_INSTALL_PATH" && -f "$EXISTING_PROJECT_SRC/zip-agi.py" ]]; then
-        echo -e "${YELLOW}Existing agilab project found at $AGI_INSTALL_PATH and zip-agi.py exists.${NC}"
-        backup_file="${AGI_INSTALL_PATH}_backup_$(date +%Y%m%d-%H%M%S).zip"
-        echo -e "${YELLOW}Creating backup: $backup_file${NC}"
-        echo
-
-        if uv run --project "$AGI_INSTALL_PATH/fwk/core/managers" python "$AGI_INSTALL_PATH/zip-agi.py" --dir2zip "$AGI_INSTALL_PATH" --zipfile "$backup_file"; then
-            echo -e "${GREEN}Backup created successfully at $backup_file.${NC}"
+    if uv run --project "$AGI_INSTALL_PATH/fwk/core/managers" python "$AGI_INSTALL_PATH/zip-agi.py" --dir2zip "$AGI_INSTALL_PATH" --zipfile "$backup_file"; then
+        echo -e "${GREEN}Backup created successfully at $backup_file.${NC}"
+        echo -e "${YELLOW}Removing existing agilab project at '$AGI_INSTALL_PATH' ...${NC}"
+        rm -ri "$AGI_INSTALL_PATH"
+        echo -e "${GREEN}Existing agilab project directory removed.${NC}"
+    else
+        echo -e "${RED}ERROR: Backup failed at '$backup_file'.${NC}"
+        echo -e "${YELLOW}Switching to fallback backup strategy...${NC}"
+        # Fallback: create a zip archive of the installation directory
+        if zip -r "$backup_file" "$AGI_INSTALL_PATH"; then
+            echo -e "${YELLOW}Fallback backup created at '$backup_file'.${NC}"
             echo -e "${YELLOW}Removing existing agilab project at '$AGI_INSTALL_PATH' ...${NC}"
             rm -ri "$AGI_INSTALL_PATH"
             echo -e "${GREEN}Existing agilab project directory removed.${NC}"
         else
-            echo -e "${RED}ERROR: Backup failed at '$backup_file'.${NC}"
-            echo -e "${YELLOW}Switching to fallback backup strategy...${NC}"
-            # Fallback: create a zip archive of the installation directory
-            if zip -r "$backup_file" "$AGI_INSTALL_PATH"; then
-                echo -e "${YELLOW}Fallback backup created at '$backup_file'.${NC}"
-                echo -e "${YELLOW}Removing existing agilab project at '$AGI_INSTALL_PATH' ...${NC}"
-                rm -ri "$AGI_INSTALL_PATH"
-                echo -e "${GREEN}Existing agilab project directory removed.${NC}"
-            else
-                echo -e "${RED}Failed to create backup using fallback strategy.${NC}"
-                exit 1
-            fi
+            echo -e "${RED}Failed to create backup using fallback strategy.${NC}"
+            exit 1
         fi
-    else
-        echo -e "${YELLOW}No existing agilab project found or zip-agi.py does not exist. Skipping backup.${NC}"
     fi
-    echo
-}
+else
+    echo -e "${YELLOW}No existing agilab project found or zip-agi.py does not exist. Skipping backup.${NC}"
+fi
+echo
+
 
 # Copy new project files from the source directory to the install path if needed
 if [[ "$AGI_INSTALL_PATH" != "$EXISTING_PROJECT" ]]; then
