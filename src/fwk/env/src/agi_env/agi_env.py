@@ -52,10 +52,11 @@ class AgiEnv:
     AgiEnv manages paths and environment variables within the agiFramework.
     """
 
-    def __init__(self, module, with_lab=False, verbose=False):
+    def __init__(self, module, with_lab=True, verbose=False):
         """
         Initialize the AgiEnv instance.
         """
+
         if not module:
             print("no module specified")
             exit(1)
@@ -376,11 +377,12 @@ class AgiEnv:
 
     def set_agi_credentials(self, credentials: str):
         """Set the AGI_CREDENTIALS environment variable."""
-        self.credantials = credentials  # maintain internal state
+        self.AGI_CREDENTIALS = credentials  # maintain internal state
         self.set_env_var("AGI_CREDENTIALS", credentials)
 
     def set_openai_api_key(self, api_key: str):
         """Set the OPENAI_API_KEY environment variable."""
+        self.OPENAI_API_KEY
         self.set_env_var("OPENAI_API_KEY", api_key)
 
     @staticmethod
@@ -447,6 +449,8 @@ class AgiEnv:
         return False
 
     def init_envars_app(self, envars):
+        self.AGI_CREDENTIALS = envars.get("AGI_CREDENTIALS", None)
+        self.OPENAI_API_KEY = envars.get("OPENAI_API_KEY", None)
         AGILAB_LOG_ABS = Path(envars.get("AGI_LOG_DIR", self.home_abs / "log"))
         if not AGILAB_LOG_ABS.exists():
             AGILAB_LOG_ABS.mkdir(parents=True)
