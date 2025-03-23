@@ -786,7 +786,6 @@ class AGI:
         AGI._log_verbose(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1", level=1)
         AGI._install_env_local(app_path, wenv_rel, options)
         core_root = env.core_root
-        os.remove(env.setup_app)
         cmd = f"uv run --project {core_root} python setup bdist_egg -d \"{wenv_abs}\""
         if AGI._verbose > 2:
             print(cmd, "\ncwd", os.getcwd(), "\nvenv", wenv_abs, "\ncwd", core_root)
