@@ -786,6 +786,7 @@ class AGI:
         AGI._log_verbose(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1", level=1)
         AGI._install_env_local(app_path, wenv_rel, options)
         core_root = env.core_root
+        os.remove(env.setup_app)
         cmd = f"uv run --project {core_root} python setup bdist_egg -d \"{wenv_abs}\""
         if AGI._verbose > 2:
             print(cmd, "\ncwd", os.getcwd(), "\nvenv", wenv_abs, "\ncwd", core_root)
@@ -959,7 +960,7 @@ class AGI:
         # manager install
         #################
         app_path = env.app_path
-        cmd = f"uv {AGI._run_type} {options['manager']} --extra managers"
+        cmd = f"uv {AGI._run_type} {options['manager']} --extra managers --directory {env.agi_root}"
         AGI._log_verbose(f"Executing locally: \n{cmd} \nvenv {app_path}", level=2)
         result = AgiEnv.run(cmd, venv=app_path)
         AGI._handle_command_result(result)
@@ -972,7 +973,7 @@ class AGI:
         shutil.copyfile(toml_local, env.home_abs / toml_remote)
 
         option = options["worker"]
-        cmd = f"uv {AGI._run_type} --project {env.wenv_abs} {options['worker']} --extra workers"
+        cmd = f"uv {AGI._run_type} --project {env.wenv_abs} {options['worker']} --extra workers --directory {env.wenv_abs}"
         AGI._log_verbose(f"Executing locally: \n{cmd} \nfrom {env.wenv_abs}", level=2)
         result = AgiEnv.run(cmd, env.wenv_abs)
         AGI._handle_command_result(result)
@@ -1286,13 +1287,13 @@ class AGI:
         elif baseworker.startswith("AgiData"):
             packages += "data_worker"
 
-        src_root = env.app_path
+        app_path = env.app_path
 
         shutil.copy(env.setup_core, env.setup_app)
-        cmd = f"uv run --project {src_root} python setup bdist_egg --packages \"{packages}\" -d \"{wenv}\""
+        cmd = f"uv run --project {app_path} python setup bdist_egg --packages \"{packages}\" -d \"{wenv}\""
         if AGI._verbose > 2:
-            print(cmd, "\ncwd", os.getcwd(), "\nfrom", src_root)
-        res = AgiEnv.run(cmd, src_root)
+            print(cmd, "\ncwd", os.getcwd(), "\nfrom", app_path)
+        res = AgiEnv.run(cmd, app_path)
         if AGI._verbose > 1 and res and len(res) > 0:
             print(res)
         wenv_path = Path(wenv)
