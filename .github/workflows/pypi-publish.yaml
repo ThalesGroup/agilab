@@ -114,7 +114,7 @@ jobs:
           path: dist/
 
       - name: Verify package files before upload
-        run: twine check src/fwk/env/dist/* src/fwk/core/dist/* src/fwk/gui/dist/* agi-pypi/dist/*
+        run: twine check src/fwk/env/dist/* src/fwk/core/dist/* src/fwk/gui/dist/* dist/*
 
       - name: Publish subpackages to PyPI
         env:
