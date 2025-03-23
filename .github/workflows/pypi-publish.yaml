@@ -111,7 +111,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: agilab-distributions
-          path: agi-pypi/dist/
+          path: dist/
 
       - name: Verify package files before upload
         run: twine check src/fwk/env/dist/* src/fwk/core/dist/* src/fwk/gui/dist/* agi-pypi/dist/*
