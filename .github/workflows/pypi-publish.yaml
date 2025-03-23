@@ -129,7 +129,7 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-        run: twine upload agi-pypi/dist/*
+        run: twine upload dist/*
 
       - name: Trigger static pages workflow
         env:
