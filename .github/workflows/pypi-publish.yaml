@@ -79,6 +79,11 @@ jobs:
             echo "Building package in $dir"
             pushd "$dir" > /dev/null
             rm -rf dist
+            if [[ "$dir" == "src/fwk/gui" ]]; then
+              # Build GUI as sdist (.tar.gz)
+              uv build --sdist
+            else
+              # Build env and core as wheels
               uv build --wheel
             fi
             popd > /dev/null
