@@ -960,7 +960,7 @@ class AGI:
         # manager install
         #################
         app_path = env.app_path
-        cmd = f"uv {AGI._run_type} {options['manager']} --extra managers --directory {env.agi_root}"
+        cmd = f"uv {AGI._run_type} {options['manager']} --extra managers --project {app_path} --directory {env.agi_root}"
         AGI._log_verbose(f"Executing locally: \n{cmd} \nvenv {app_path}", level=2)
         result = AgiEnv.run(cmd, venv=app_path)
         AGI._handle_command_result(result)
