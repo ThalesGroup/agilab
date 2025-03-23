@@ -144,7 +144,7 @@ backup_agi_project() {
 }
 
 # Copy new project files from the source directory to the install path if needed
-if [[ "$AGI_INSTALL_PATH" != "$EXISTING_PROJECT_SRC" ]]; then
+if [[ "$AGI_INSTALL_PATH" != "$EXISTING_PROJECT" ]]; then
     if [[ -d "$EXISTING_PROJECT_SRC" ]]; then
         mkdir -p "$AGI_INSTALL_PATH"
         rsync -a "$EXISTING_PROJECT"/ "$AGI_INSTALL_PATH"/
