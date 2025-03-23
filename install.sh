@@ -203,7 +203,7 @@ EXISTING_PROJECT=$(realpath "$(pwd)")
 EXISTING_PROJECT_SRC="$EXISTING_PROJECT/src"
 
 mkdir -p "$HOME/.local/share/agilab"
-echo "$SRC_DIR" > "$HOME/.local/share/agilab/.agi-path"
+echo "$EXISTING_PROJECT_SRC" > "$HOME/.local/share/agilab/.agi-path"
 echo -e "${GREEN}Installation root path has been exported as AGIROOT.${NC}"
 
 echo -e "${BLUE}=================================================${NC}"
@@ -212,7 +212,7 @@ echo -e "${BLUE}=================================================${NC}"
 echo
 
 # Define the source directory and installation path variables
-if [[ -d "$AGI_INSTALL_PATH" && -f "$EXISTING_PROJECT_SRC/zip-agi.py" ]]; then
+if [[ -d "$AGI_INSTALL_PATH" && -f "$EXISTING_PROJECT/zip-agi.py" ]]; then
     echo -e "${YELLOW}Existing agilab project found at $AGI_INSTALL_PATH and zip-agi.py exists.${NC}"
     backup_file="${AGI_INSTALL_PATH}_backup_$(date +%Y%m%d-%H%M%S).zip"
     echo -e "${YELLOW}Creating backup: $backup_file${NC}"
