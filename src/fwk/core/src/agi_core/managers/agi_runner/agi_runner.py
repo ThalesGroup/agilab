@@ -775,7 +775,8 @@ class AGI:
         wenv_rel = env.wenv_rel
         wenv_abs = env.wenv_abs
         extras = "--dev -p " + env.python_version
-        extras += " --group rapids" if AGI._rapids_install else ""
+        extras += " --group rapids" if AGI._rapids_install \
+            else ""
         options = {"manager": extras, "worker": extras}
         if isinstance(env.base_worker_cls, str):
             options["worker"] += " --extra " + " --extra ".join(AGI.install_worker_group)
