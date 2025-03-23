@@ -37,7 +37,7 @@ jobs:
         run: |
           rm -rf src/fwk/env/dist src/fwk/core/dist src/fwk/gui/dist dist
 
-      - name: Update version in pyproject.toml files
+      - name: Update version in pyproject.py.py.toml files
         env:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
