@@ -98,11 +98,11 @@ default-groups = [
 ]
 
 [tool.uv.sources.agi-env]
-path = "src/fwk/env"
+path = "../env"
 editable = true
 
 [tool.uv.sources.agi-core]
-path = "src/fwk/core"
+path = "../core"
 editable = true
 
 [tool.mypy]
