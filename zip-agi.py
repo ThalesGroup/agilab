@@ -1,133 +1,40 @@
-#!/usr/bin/env python3
-# BSD 3-Clause License
-#
-# Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
-# All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without modification,
-# are permitted provided that the following conditions are met:
-#
-# 1. Redistributions of source code must retain the above copyright notice, this
-#    list of conditions and the following disclaimer.
-# 2. Redistributions in binary form must reproduce the above copyright notice, this
-#    list of conditions and the following disclaimer in the documentation and/or other
-#    materials provided with the distribution.
-# 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or
-#    THALES SIX GTS France SAS, may be used to endorse or promote products derived from
-#    this software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
-# OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
-# SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
-# TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
-# BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
-# DAMAGE.
+for root, dirs, files in os.walk(target_dir):
+    # Make paths relative to `target_dir`
+    relative_dir = os.path.relpath(root, target_dir)
 
-import os
-import zipfile
-from pathspec import PathSpec
-from pathspec.patterns import GitWildMatchPattern
-import argparse
-from pathlib import Path
+    # Skip .git directories.
+    if relative_dir == ".git" or relative_dir.startswith(".git" + os.sep):
+        continue
 
+    # Check if this directory has its own .gitignore; if so, use it.
+    local_gitignore = os.path.join(root, ".gitignore")
+    if os.path.exists(local_gitignore):
+        local_spec = read_gitignore(local_gitignore)
+        # You might want to merge it with the parent spec if desired.
+    else:
+        # Fall back to the spec from the top-level .gitignore (if it exists)
+        local_spec = spec
 
-def read_gitignore(gitignore_path):
-    """
-    Read a .gitignore file and create a PathSpec object from its patterns.
+    for filename in files:
+        file_path = os.path.join(root, filename)
+        # Skip adding the zip file itself if it resides in the directory.
+        if os.path.abspath(file_path) == output_zip_abs:
+            continue
 
-    :param gitignore_path: The path to the .gitignore file.
-    :type gitignore_path: str
+        # Compute the file path relative to the project directory
+        rel_file = os.path.relpath(file_path, start=project_dir)
+        if no_top:
+            relative_file_path = rel_file
+        else:
+            relative_file_path = os.path.join(os.path.basename(project_dir), rel_file)
 
-    :return: A PathSpec object containing the patterns from the .gitignore file.
-    :rtype: PathSpec
-
-    :raises FileNotFoundError: If the .gitignore file cannot be found.
-    """
-    with open(gitignore_path, "r") as f:
-        patterns = f.read().splitlines()
-    return PathSpec.from_lines(GitWildMatchPattern, patterns)
-
-
-def should_include_file(filepath, spec):
-    """
-    Check if a file should be included based on a specified file matching criterion.
-
-    Args:
-        filepath (str): The path of the file to be checked.
-        spec (PathSpec): An object representing the file matching criterion.
-
-    Returns:
-        bool: True if the file should be included, False otherwise.
-    """
-    return not spec.match_file(filepath)
-
-
-def zip_directory(parent_dir, dir_path, zip_filepath, spec, no_top=False, verbose=False):
-    """
-    Zip a directory with filtering based on a specification.
-
-    Args:
-        parent_dir (str): The parent directory containing the directory to zip.
-        dir_path (str): The directory to zip.
-        zip_filepath (str): The output zip file path.
-        spec (PathSpec): The file specification to filter which files to include in the zip.
-        no_top (bool): If True, do not include the top-level directory in the archive.
-        verbose (bool): If True, print verbose output.
-
-    Returns:
-        None
-
-    Note:
-        This function zips the contents of a directory while excluding files based on the spec.
-        It also skips the output zip file if it is found inside the directory to avoid self-inclusion.
-    """
-    # Construct the full target directory path from the parent and the directory to zip.
-    target_dir = os.path.join(parent_dir, dir_path)
-    base_name = os.path.basename(dir_path)  # e.g. 'agig'
-
-    # Get the absolute path of the zip file to compare later.
-    output_zip_abs = os.path.abspath(zip_filepath)
-
-    with zipfile.ZipFile(zip_filepath, "w", zipfile.ZIP_DEFLATED) as zipf:
-        for root, dirs, files in os.walk(target_dir):
-            # Make paths relative to `target_dir` to avoid extra nesting in the archive.
-            relative_dir = os.path.relpath(root, target_dir)
-
-            # Skip .git directories.
-            if relative_dir == ".git" or relative_dir.startswith(".git" + os.sep):
-                continue
-
-            for filename in files:
-                file_path = os.path.join(root, filename)
-                # Skip adding the zip file itself if it resides in the directory.
-                if os.path.abspath(file_path) == output_zip_abs:
-                    continue
-
-                # Construct the relative file path inside the zip archive.
-                if no_top:
-                    # Without the top-level directory, use the relative path from target_dir.
-                    if relative_dir == ".":
-                        relative_file_path = filename
-                    else:
-                        relative_file_path = os.path.join(relative_dir, filename)
-                else:
-                    # Include the top-level directory in the archive.
-                    if relative_dir == ".":
-                        relative_file_path = os.path.join(base_name, filename)
-                    else:
-                        relative_file_path = os.path.join(base_name, relative_dir, filename)
-
-                if should_include_file(relative_file_path, spec):
-                    if verbose:
-                        print(f"Adding {relative_file_path} to zipfile")
-                    zipf.write(file_path, relative_file_path)
-                else:
-                    if verbose:
-                        print(f"Excluded by .gitignore: {relative_file_path}")
+        if should_include_file(relative_file_path, local_spec):
+            if verbose:
+                print(f"Adding {relative_file_path} to zipfile")
+            zipf.write(file_path, relative_file_path)
+        else:
+            if verbose:
+                print(f"Excluded by .gitignore: {relative_file_path}")
 
 
 if __name__ == "__main__":

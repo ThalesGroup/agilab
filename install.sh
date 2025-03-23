@@ -216,7 +216,8 @@ if [[ -d "$AGI_INSTALL_PATH" && -f "$EXISTING_PROJECT/zip-agi.py" ]]; then
     echo -e "${YELLOW}Existing agilab project found at $AGI_INSTALL_PATH and zip-agi.py exists.${NC}"
     backup_file="${AGI_INSTALL_PATH}_backup_$(date +%Y%m%d-%H%M%S).zip"
     echo -e "${YELLOW}Creating backup: $backup_file${NC}"
-    echo
+
+    echo uv run --project "$AGI_INSTALL_PATH/fwk/core/managers" python "$AGI_INSTALL_PATH/zip-agi.py" --dir2zip "$AGI_INSTALL_PATH" --zipfile "$backup_file"
 
     if uv run --project "$AGI_INSTALL_PATH/fwk/core/managers" python "$AGI_INSTALL_PATH/zip-agi.py" --dir2zip "$AGI_INSTALL_PATH" --zipfile "$backup_file"; then
         echo -e "${GREEN}Backup created successfully at $backup_file.${NC}"

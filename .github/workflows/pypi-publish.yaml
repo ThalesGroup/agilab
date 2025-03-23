@@ -14,7 +14,7 @@ jobs:
   pypi-publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write       # Allow push to the repository
+      contents: write       # Allows push to the repository
       id-token: write
 
     steps:
@@ -35,9 +35,9 @@ jobs:
 
       - name: Remove all existing distribution directories
         run: |
-          rm -rf src/fwk/env/dist src/fwk/core/dist src/fwk/gui/dist dist
+          rm -rf src/fwk/env/dist src/fwk/core/dist src/fwk/gui/dist dist agi-pypi
 
-      - name: Update version in pyproject.py.py.toml files
+      - name: Update version in pyproject.toml files
         env:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
@@ -64,7 +64,7 @@ jobs:
           git config user.email "actions@github.com"
           # Stage changed files
           git add pyproject.toml src/fwk/env/pyproject.toml src/fwk/core/pyproject.toml src/fwk/gui/pyproject.toml
-          # Check if there is anything to commit
+          # Commit if there are any changes
           if ! git diff --cached --quiet; then
             git commit -m "Bump version to ${VERSION#v}"
             git push
@@ -72,14 +72,21 @@ jobs:
             echo "No changes to commit."
           fi
 
-      - name: Build and upload subpackages
+      - name: Build subpackages
         run: |
           SUBDIRS=("src/fwk/env" "src/fwk/core" "src/fwk/gui")
           for dir in "${SUBDIRS[@]}"; do
             echo "Building package in $dir"
-            pushd "$dir"
-            uv build
-            popd
+            pushd "$dir" > /dev/null
+            rm -rf dist
+            if [[ "$dir" == "src/fwk/gui" ]]; then
+              # Build GUI as sdist (.tar.gz)
+              uv build --sdist
+            else
+              # Build env and core as wheels
+              uv build --wheel
+            fi
+            popd > /dev/null
           done
 
       - name: Upload agi-env package
@@ -100,22 +107,27 @@ jobs:
           name: agi-gui-distributions
           path: src/fwk/gui/dist/
 
-      - name: Build and upload main package (agilab)
+      - name: Build combined main package (agilab)
         run: |
-          # Run build from repository root with no workspace option
+          # Create a fresh directory for the combined package build
+          rm -rf agi-pypi
+          mkdir agi-pypi
+          pushd agi-pypi > /dev/null
+          uv init --bare
+          # Add all subpackage distributions (wheels from env and core; sdist from gui)
+          uv add ../src/fwk/env/dist/* ../src/fwk/core/dist/* ../src/fwk/gui/dist/*
+          # Build the main (agilab) package which now aggregates the three subpackages
           uv build
+          popd > /dev/null
 
       - name: Upload agilab package
         uses: actions/upload-artifact@v4
         with:
           name: agilab-distributions
-          path: dist/
+          path: agi-pypi/dist/
 
-      # -------------------
-      # ✅ Publish to PyPI
-      # -------------------
       - name: Verify package files before upload
-        run: twine check src/fwk/env/dist/* src/fwk/core/dist/* src/fwk/gui/dist/* dist/*
+        run: twine check src/fwk/env/dist/* src/fwk/core/dist/* src/fwk/gui/dist/* agi-pypi/dist/*
 
       - name: Publish subpackages to PyPI
         env:
@@ -130,7 +142,7 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-        run: twine upload dist/*
+        run: twine upload agi-pypi/dist/*
 
       - name: Trigger static pages workflow
         env:
