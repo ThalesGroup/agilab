@@ -14,17 +14,16 @@ def dummy_function(x):
 def test_convert_functions_to_names():
     # Create a sample nested structure containing functions and other types.
     sample_structure = {
-        'list_with_funcs': [
+        'list_with_funcs': [lambda x: x, dummy_function],
         'tuple_with_funcs': (
             sum,  # Built-in sum should be converted to "sum"
-            max  # Built-in max should be converted to "max"
+            max   # Built-in max should be converted to "max"
         ),
         'simple_values': {
             'a_string': 'hello',
             'a_number': 123
         }
     }
-
     # Use the method to convert functions to names.
     converted = AgiManager.convert_functions_to_names(sample_structure)
 
