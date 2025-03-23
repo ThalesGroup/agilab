@@ -343,7 +343,7 @@ class AgiEnv:
         if AgiEnv.is_installed_file(__file__):
             AGI_GUI_ABS = self.agi_root /  "agi_gui"
         else:
-            AGI_GUI_ABS = self.agi_root / "fwk/gui/src/agi_cui"
+            AGI_GUI_ABS = self.agi_root / "fwk/gui/src/agi_gui"
         shutil.copytree(AGI_GUI_ABS / self.agi_resources, dest, dirs_exist_ok=True)
 
     def _update_env_file(self, updates: dict):
@@ -468,7 +468,7 @@ class AgiEnv:
         self.AGILAB_VIEWS_REL = Path(envars.get("AGI_VIEWS_DIR", "agi/_"))
 
         self.AGILAB_DATA_NROW = int(envars.get("AGI_GUI_NROW", 1000))
-        self.copilot_file = self.AGI_SRC_ABS / "agi/agi_copilot.py"
+        self.copilot_file = Path(self.AGI_SRC_ABS) / "agi/agi_copilot.py"
 
     def _init_resources(self, resources_path):
         self.deployed_resources_abs = self.home_abs / self.agi_resources.name
