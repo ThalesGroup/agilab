@@ -850,8 +850,8 @@ class AGI:
 
         Args:
             ip (str): The IP address of the remote node.
-            toml_local (Path): Path to the local pyproject.toml.
-            toml_remote (Path): Path to the remote pyproject.toml.
+            toml_local (Path): Path to the local pyproject.py.py.toml.
+            toml_remote (Path): Path to the remote pyproject.py.py.toml.
             option (str): Additional installation options.
         """
         cmd = "python3 -m ensurepip"
