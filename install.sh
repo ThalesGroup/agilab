@@ -283,7 +283,7 @@ popd > /dev/null
 echo "Installing Apps..."
 pushd "$apps_dir" > /dev/null
 echo ./install.sh "$apps_dir"
-#./install.sh "$apps_dir"
+./install.sh "$apps_dir"
 popd > /dev/null
 
 echo -e "${GREEN}Installation complete!${NC}"
