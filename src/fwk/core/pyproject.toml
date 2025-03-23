@@ -91,11 +91,11 @@ default-groups = [
 ]
 
 [tool.uv.sources.agi-env]
-path = "/home/pcm/agilab/src/fwk/env"
+path = "../env"
 editable = true
 
 [tool.uv.sources.agi-core]
-path = "/home/pcm/agilab/src/fwk/core"
+path = "."
 editable = true
 
 [tool.mypy]

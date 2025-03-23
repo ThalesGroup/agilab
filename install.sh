@@ -59,7 +59,7 @@ fi
 
 # Default installation path if not provided
 if [[ -z "$AGI_INSTALL_PATH" ]]; then
-    AGI_INSTALL_PATH=$(realpath "$(pwd)/src")
+    AGI_INSTALL_PATH=$(realpath ".")
 fi
 
 echo -e "${GREEN}Installation path: $AGI_INSTALL_PATH${NC}"
@@ -81,6 +81,8 @@ read -p "Install system dependencies? (y/N): " choice
 if [[ "$choice" =~ ^[Yy]$ ]]; then
     if command -v apt >/dev/null 2>&1; then
         sudo apt update && sudo apt install -y build-essential curl wget unzip
+        sudo snap install astral-uv --classic
+        source $HOME/.local/bin/env
     elif command -v brew >/dev/null 2>&1; then
         brew update && brew install curl wget unzip
     else
@@ -99,7 +101,9 @@ export LC_ALL=en_US.UTF-8
 export LANG=en_US.UTF-8
 
 # Determine the absolute path of the source directory
-SRC_DIR=$(realpath "$(pwd)/src")
+EXISTING_PROJECT=$(realpath "$(pwd)")
+EXISTING_PROJECT_SRC="$EXISTING_PROJECT/src"
+
 
 backup_agi_project() {
     echo -e "${BLUE}=================================================${NC}"
@@ -108,17 +112,16 @@ backup_agi_project() {
     echo
 
     # Define the source directory and installation path variables
-    # Ensure SRC_DIR and AGI_INSTALL_PATH are defined in your environment or earlier in the script.
-    if [[ -d "$AGI_INSTALL_PATH" && -f "$SRC_DIR/zip-agi.py" ]]; then
+    if [[ -d "$AGI_INSTALL_PATH" && -f "$EXISTING_PROJECT_SRC/zip-agi.py" ]]; then
         echo -e "${YELLOW}Existing agilab project found at $AGI_INSTALL_PATH and zip-agi.py exists.${NC}"
-        backup_file="../${AGI_INSTALL_PATH}_backup_$(date +%Y%m%d-%H%M%S).zip"
+        backup_file="${AGI_INSTALL_PATH}_backup_$(date +%Y%m%d-%H%M%S).zip"
         echo -e "${YELLOW}Creating backup: $backup_file${NC}"
         echo
 
         if uv run --project "$AGI_INSTALL_PATH/fwk/core/managers" python "$AGI_INSTALL_PATH/zip-agi.py" --dir2zip "$AGI_INSTALL_PATH" --zipfile "$backup_file"; then
             echo -e "${GREEN}Backup created successfully at $backup_file.${NC}"
-            echo -e "${YELLOW}Removing existing agilab project directory...${NC}"
-            rm -ri "$AGI_INSTALL_PATH"
+            echo -e "${YELLOW}Removing existing agilab project at '$AGI_INSTALL_PATH' ...${NC}"
+            echo rm -ri "$AGI_INSTALL_PATH"
             echo -e "${GREEN}Existing agilab project directory removed.${NC}"
         else
             echo -e "${RED}ERROR: Backup failed at '$backup_file'.${NC}"
@@ -126,8 +129,8 @@ backup_agi_project() {
             # Fallback: create a zip archive of the installation directory
             if zip -r "$backup_file" "$AGI_INSTALL_PATH"; then
                 echo -e "${YELLOW}Fallback backup created at '$backup_file'.${NC}"
-                echo -e "${YELLOW}Removing existing agilab project directory...${NC}"
-                rm -ri "$AGI_INSTALL_PATH"
+                echo -e "${YELLOW}Removing existing agilab project at '$AGI_INSTALL_PATH' ...${NC}"
+                echo rm -ri "$AGI_INSTALL_PATH"
                 echo -e "${GREEN}Existing agilab project directory removed.${NC}"
             else
                 echo -e "${RED}Failed to create backup using fallback strategy.${NC}"
@@ -140,13 +143,11 @@ backup_agi_project() {
     echo
 }
 
-
-
 # Copy new project files from the source directory to the install path if needed
-if [[ "$AGI_INSTALL_PATH" != "$SRC_DIR" ]]; then
-    if [[ -d "$SRC_DIR" ]]; then
+if [[ "$AGI_INSTALL_PATH" != "$EXISTING_PROJECT_SRC" ]]; then
+    if [[ -d "$EXISTING_PROJECT_SRC" ]]; then
         mkdir -p "$AGI_INSTALL_PATH"
-        rsync -a --delete "$SRC_DIR"/ "$AGI_INSTALL_PATH"/
+        rsync -a "$EXISTING_PROJECT"/ "$AGI_INSTALL_PATH"/
     else
         echo -e "${RED}Source directory 'src' not found. Exiting.${NC}"
         exit 1
@@ -166,8 +167,8 @@ mkdir -p "$(dirname "$ENV_FILE")"
 echo -e "${GREEN}Environment updated in $ENV_FILE${NC}"
 
 # Install Framework and Apps
-framework_dir="$AGI_INSTALL_PATH/fwk"
-apps_dir="$AGI_INSTALL_PATH/apps"
+framework_dir="$AGI_INSTALL_PATH/src/fwk"
+apps_dir="$AGI_INSTALL_PATH/src/apps"
 
 # Ensure install scripts are executable
 chmod +x "$framework_dir/install.sh" "$apps_dir/install.sh"
