@@ -51,7 +51,7 @@ default-groups = ["dev"]
 workspace = true
 
 [tool.uv.workspace]
-members = ["test", "apps", "views", "fwk", "src"]
+members = ["test", "apps", "views", "fwk", "src", "src/fwk/agi-pypi"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
