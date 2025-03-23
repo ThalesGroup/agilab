@@ -41,13 +41,13 @@ project_root = AgiEnv(module).apps_root
 
 def resolve_packages_path_in_toml(module):
     """
-    Updates the 'agi-core' package path in the pyproject.toml.toml file for a given module.
+    Updates the 'agi-core' package path in the pyproject.toml file for a given module.
 
     Args:
         module (str): The module name (using underscore as separator).
 
     Raises:
-        FileNotFoundError: If the pyproject.toml.toml file cannot be found.
+        FileNotFoundError: If the pyproject.toml file cannot be found.
         RuntimeError: If an error occurs during reading or writing the TOML file.
     """
     # Locate the AGI installation and construct the root path
@@ -58,10 +58,10 @@ def resolve_packages_path_in_toml(module):
     # Build the module path based on naming conventions (underscores to hyphens)
     module_dirname = f"apps/{module.replace('_', '-')}-project"
     module_path = Path(agi_root_str) / module_dirname
-    pyproject_file = module_path / "pyproject.toml.toml"
+    pyproject_file = module_path / "pyproject.toml"
 
     if not pyproject_file.exists():
-        raise FileNotFoundError(f"pyproject.toml.toml not found in {module_path}")
+        raise FileNotFoundError(f"pyproject.toml not found in {module_path}")
 
     try:
         with pyproject_file.open("rb") as f:
@@ -96,7 +96,7 @@ def resolve_packages_path_in_toml(module):
 
 async def main():
     """
-    Main asynchronous function to resolve paths in pyproject.toml.toml and install a module using AGI.
+    Main asynchronous function to resolve paths in pyproject.toml and install a module using AGI.
     """
     try:
         resolve_packages_path_in_toml(module)
