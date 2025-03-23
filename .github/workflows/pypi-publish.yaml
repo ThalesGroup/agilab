@@ -78,7 +78,7 @@ jobs:
           for dir in "${SUBDIRS[@]}"; do
             echo "Building package in $dir"
             pushd "$dir" > /dev/null
-            rm -rf dist)
+            rm -rf dist
               uv build --wheel
             fi
             popd > /dev/null
