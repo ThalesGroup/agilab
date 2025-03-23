@@ -405,7 +405,7 @@ class AgiEnv:
         if AgiEnv.is_installed_file(__file__):
             self.core_src = self.agi_root
         else:
-            self.core_src = self.core_root / "src"
+            self.core_src = self.agi_root / "fwk/core/src"
         self.core_root = self.core_src
 
         self.workers_root = self.core_src / "agi_core/workers"
