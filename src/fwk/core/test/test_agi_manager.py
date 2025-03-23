@@ -15,7 +15,7 @@ def test_convert_functions_to_names():
     # Create a sample nested structure containing functions and other types.
     sample_structure = {
         'list_with_funcs': [
-      suff   'tuple_with_funcs': (
+        'tuple_with_funcs': (
             sum,  # Built-in sum should be converted to "sum"
             max  # Built-in max should be converted to "max"
         ),
