@@ -105,15 +105,7 @@ jobs:
       - name: Build combined main package (agilab)
         run: |
           # Create a fresh directory for the combined package build
-          rm -rf agi-pypi
-          mkdir agi-pypi
-          pushd agi-pypi > /dev/null
-          uv init --bare
-          # Add all subpackage distributions (wheels from env, core and gui)
-          uv add ../src/fwk/env/dist/* ../src/fwk/core/dist/* ../src/fwk/gui/dist/*
-          # Build the main (agilab) package which aggregates the subpackages
           uv build --sdist
-          popd > /dev/null
 
       - name: Upload agilab package
         uses: actions/upload-artifact@v4
