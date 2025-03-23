@@ -1246,7 +1246,7 @@ def handle_project_selection():
     ) = tabs
 
     with tab_venv:
-        app_venv_file = env.app_path / "pyproject.py.py.toml"
+        app_venv_file = env.app_path / "pyproject.toml"
         if app_venv_file.exists():
             app_venv = app_venv_file.read_text()
             if "-cu12" in app_venv:

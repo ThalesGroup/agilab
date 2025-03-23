@@ -23,7 +23,7 @@ popd > /dev/null
 
 echo "Installing gui..."
 pushd gui > /dev/null
-uv sync --directory $(realpath "$1/gui")
+uv sync --dev --directory $(realpath "$1/gui")
 popd > /dev/null
 
 echo "Checking installation..."

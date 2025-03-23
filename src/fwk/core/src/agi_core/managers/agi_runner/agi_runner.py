@@ -774,7 +774,7 @@ class AGI:
         app_path = env.app_path
         wenv_rel = env.wenv_rel
         wenv_abs = env.wenv_abs
-        extras = " -p " + env.python_version
+        extras = "--dev -p " + env.python_version
         extras += " --group rapids" if AGI._rapids_install else ""
         options = {"manager": extras, "worker": extras}
         if isinstance(env.base_worker_cls, str):
@@ -850,8 +850,8 @@ class AGI:
 
         Args:
             ip (str): The IP address of the remote node.
-            toml_local (Path): Path to the local pyproject.py.py.toml.
-            toml_remote (Path): Path to the remote pyproject.py.py.toml.
+            toml_local (Path): Path to the local pyproject.toml.
+            toml_remote (Path): Path to the remote pyproject.toml.
             option (str): Additional installation options.
         """
         cmd = "python3 -m ensurepip"
