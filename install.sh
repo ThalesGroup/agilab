@@ -77,19 +77,81 @@ fi
 
 
 # Ask to install system dependencies
+#!/bin/bash
+
+# Define colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Helper function to check if a command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Ask to install system dependencies
 read -p "Install system dependencies? (y/N): " choice
 if [[ "$choice" =~ ^[Yy]$ ]]; then
     if command -v apt >/dev/null 2>&1; then
-        sudo apt update && sudo apt install -y build-essential curl wget unzip
+        echo -e "${BLUE}Detected apt package manager (Linux).${NC}"
+        sudo apt update
+        # Original packages plus extra ones from the missing functionality
+        sudo apt install -y build-essential curl wget unzip \
+            software-properties-common libssl-dev zlib1g-dev libncurses-dev \
+            libbz2-dev libreadline-dev libsqlite3-dev libxml2-dev libxmlsec1-dev \
+            liblzma-dev llvm xz-utils tk-dev p7zip-full libffi-dev libgdbm-dev \
+            libnss3-dev libgdbm-compat-dev graphviz pandoc inkscape tree
+        # Original code uv installation via snap and environment sourcing
         sudo snap install astral-uv --classic
-        source $HOME/.local/bin/env
-    elif command -v brew >/dev/null 2>&1; then
+        source "$HOME/.local/bin/env"
+        # Additional check: if uv is still missing, install it via the official script
+        if ! command_exists uv; then
+            echo -e "${GREEN}Installing uv...${NC}"
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+        fi
+
+    elif command_exists dnf; then
+        echo -e "${BLUE}Detected dnf package manager (Linux).${NC}"
+        sudo dnf groupinstall -y "Development Tools"
+        sudo dnf install -y wget curl unzip openssl-devel zlib-devel ncurses-devel \
+            bzip2-devel readline-devel sqlite-devel libxml2-devel libxmlsec1-devel xz-devel \
+            graphviz pandoc inkscape tree llvm xz tk-devel p7zip libffi-devel gdbm-devel nss-devel
+        if ! command_exists uv; then
+            echo -e "${GREEN}Installing uv...${NC}"
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+        fi
+
+    elif command_exists yum; then
+        echo -e "${BLUE}Detected yum package manager (Linux).${NC}"
+        sudo yum groupinstall -y "Development Tools"
+        sudo yum install -y wget curl unzip openssl-devel zlib-devel ncurses-devel \
+            bzip2-devel readline-devel sqlite-devel libxml2-devel libxmlsec1-devel xz-devel \
+            graphviz pandoc inkscape tree llvm xz tk-devel p7zip-full libffi-dev libgdbm-dev nss-devel
+        if ! command_exists uv; then
+            echo -e "${GREEN}Installing uv...${NC}"
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+        fi
+
+    elif command_exists brew >/dev/null 2>&1; then
+        echo -e "${BLUE}Detected Homebrew (macOS).${NC}"
         brew update && brew install curl wget unzip
+        # Additional packages from missing functionality
+        brew install tree inkscape openssl readline sqlite libxml2 libxmlsec1 xz llvm p7zip
+        # Update, upgrade, and clean up Homebrew
+        brew update && brew upgrade && brew cleanup
+        if ! command_exists uv; then
+            echo -e "${GREEN}Installing uv...${NC}"
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+        fi
+
     else
         echo -e "${RED}No supported package manager found. Please install dependencies manually.${NC}"
         exit 1
     fi
 fi
+
 
 # Set locale to en_US.UTF-8 if not present
 if ! locale -a | grep -qi "en_US.utf8"; then
@@ -241,7 +303,7 @@ echo -e "${GREEN}Installation complete!${NC}"
 #
 ## ====================================================
 ## Command-line Options Parsing
-## ====================================================
+## ====================================================-delete
 ## Initialize with default values
 #cluster_credentials="agi"
 #openai_api_key=""
