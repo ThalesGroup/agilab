@@ -15,8 +15,8 @@ pushd "$home/../agi-pypi" > /dev/null
 popd > /dev/null
 
 # Build the main project (if needed) as a wheel and move it
-uv build --wheel
-mv dist/*.whl "$home/../agi-pypi"
+uv build --sdidst
+mv dist/*.tar.gz "$home/../agi-pypi"
 
 # Loop through each subdirectory and build accordingly
 for dir in "${SUBDIRS[@]}"; do
@@ -25,9 +25,9 @@ for dir in "${SUBDIRS[@]}"; do
 
   if [[ "$dir" == "src/fwk/gui" ]]; then
     # Build source distribution for GUI
-    uv build --sdist
+    uv build --wheel
     # Move the resulting .tar.gz (sdist) to the agi-pypi directory
-    mv dist/*.tar.gz "$home/../agi-pypi"
+    mv dist/*.whl "$home/../agi-pypi"
   else
     # Build wheel for env and core
     uv build --wheel
