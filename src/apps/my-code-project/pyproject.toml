@@ -47,7 +47,7 @@ default-groups = [
 ]
 
 [tool.uv.sources.agi-core]
-path = "/home/pcm/agilab/src/fwk/core"
+path = "fwk/core"
 editable = true
 
 [tool.uv.sources.flight-project]

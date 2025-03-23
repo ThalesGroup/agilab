@@ -39,61 +39,6 @@ print('install module:', module)
 project_root = AgiEnv(module).apps_root
 
 
-def resolve_packages_path_in_toml(module):
-    """
-    Updates the 'agi-core' package path in the pyproject.toml.toml file for a given module.
-
-    Args:
-        module (str): The module name (using underscore as separator).
-
-    Raises:
-        FileNotFoundError: If the pyproject.toml.toml file cannot be found.
-        RuntimeError: If an error occurs during reading or writing the TOML file.
-    """
-    # Locate the AGI installation and construct the root path
-    agi_root = AgiEnv.locate_agi_installation()
-    # Convert agi_root to POSIX string
-    agi_root_str = agi_root.as_posix()
-
-    # Build the module path based on naming conventions (underscores to hyphens)
-    module_dirname = f"apps/{module.replace('_', '-')}-project"
-    module_path = Path(agi_root_str) / module_dirname
-    pyproject_file = module_path / "pyproject.toml.toml"
-
-    if not pyproject_file.exists():
-        raise FileNotFoundError(f"pyproject.toml.toml not found in {module_path}")
-
-    try:
-        with pyproject_file.open("rb") as f:
-            content = tomli.load(f)
-    except Exception as e:
-        raise RuntimeError(f"Error loading TOML from {pyproject_file}: {e}")
-
-    # On non-Windows, ensure agi_root_str ends with a slash
-    if os.name != "nt" and not agi_root_str.endswith("/"):
-        agi_root_str += "/"
-
-    # Compute the agi-core path
-    agi_core = f"{agi_root_str}fwk/core"
-
-    # Safely retrieve (or create) the nested structure for tool/uv/sources
-    sources = content.setdefault("tool", {}).setdefault("uv", {}).setdefault("sources", {})
-
-    # Update the 'agi-core' entry if it exists and is a dict
-    if isinstance(sources.get("agi-core"), dict) and "path" in sources["agi-core"]:
-        sources["agi-core"]["path"] = agi_core
-    else:
-        print(f"Warning: 'agi-core' entry not found or invalid in {pyproject_file}; skipping update.")
-
-    try:
-        with pyproject_file.open("wb") as f:
-            tomli_w.dump(content, f)
-    except Exception as e:
-        raise RuntimeError(f"Error writing updated TOML to {pyproject_file}: {e}")
-
-    print("Updated", pyproject_file)
-
-
 async def main():
     """
     Main asynchronous function to resolve paths in pyproject.toml.toml and install a module using AGI.
