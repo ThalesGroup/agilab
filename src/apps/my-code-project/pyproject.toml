@@ -57,7 +57,7 @@ workspace = true
 include-package-data = true
 
 [tool.setuptools.data-files]
-my_code = ["*"]
+my_code = ["src/*"]
 
 [tool.mypy]
 mypy_path = [
