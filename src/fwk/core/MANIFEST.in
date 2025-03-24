@@ -4,3 +4,4 @@ include SECURITY.md
 include LICENSE
 include pyproject.toml
 include MANIFEST.in
+include setup
