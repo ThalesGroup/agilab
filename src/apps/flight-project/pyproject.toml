@@ -55,6 +55,9 @@ editable = true
 [tool.uv.sources.flight-project]
 workspace = true
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.mypy]
 mypy_path = [
     "stubs",

@@ -32,6 +32,9 @@ data-app-project = { workspace = true }
 [tool.setuptools]
 include-package-data = true
 
+[tool.setuptools.data-files]
+flight = ["*"]
+
 [tool.mypy]
 mypy_path = ["stubs"]
 disallow_untyped_defs = false

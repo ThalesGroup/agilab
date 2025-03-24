@@ -60,6 +60,12 @@ exclude = ["fwk", "fwk.*"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.data-files]
+agi_env = [
+    "src/apps/*/*/*",
+]
 
 [tool.mypy]
 mypy_path = ["stubs"]

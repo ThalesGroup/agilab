@@ -29,6 +29,11 @@ default-groups = ["dev"]
 agi-core = { path = "core", editable = true }
 agent-app-project = { workspace = true }
 
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.data-files]
+agent_app = ["*"]
 
 [tool.mypy]
 mypy_path = ["stubs"]

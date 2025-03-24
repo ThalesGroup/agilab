@@ -4,5 +4,8 @@ include SECURITY.md
 include LICENSE
 include pyproject.toml
 include MANIFEST.in
-include run_test.py
-
+include test.sh
+include zip-agi.py
+include install.sh
+include install.ps1
+include cryptobox.png
