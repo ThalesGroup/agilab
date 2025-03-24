@@ -411,14 +411,9 @@
 <h1>Project Files Structure<a class="headerlink" href="#project-files-structure" title="Link to this heading"></a></h1>
 <p>This is the Agilab project files tree:</p>
 <div class="code text highlight-default notranslate"><div class="highlight"><pre><span></span>.
-├── agilab.egg-info
-│   ├── dependency_links.txt
-│   ├── PKG-INFO
-│   ├── requires.txt
-│   ├── SOURCES.txt
-│   └── top_level.txt
 ├── apps
 │   ├── agent-app-template
+│   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   └── src
@@ -428,6 +423,7 @@
 │   │       ├── args_ui_snippet.py
 │   │       └── pre_prompt.json
 │   ├── dag-app-template
+│   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   └── src
@@ -437,6 +433,7 @@
 │   │       ├── dag_app_worker
 │   │       └── pre_prompt.json
 │   ├── data-app-template
+│   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   └── src
@@ -446,11 +443,11 @@
 │   │       ├── data_app_worker
 │   │       └── pre_prompt.json
 │   ├── flight-project
+│   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── run_test.sh
 │   │   ├── src
-│   │   │   ├── agi_core
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
 │   │   │   ├── flight
@@ -469,16 +466,15 @@
 │   ├── install.sh
 │   ├── my-code-project
 │   │   ├── install.py
+│   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── scripts
 │   │   │   └── post_install.py
 │   │   ├── src
-│   │   │   ├── agi_core
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
 │   │   │   ├── my_code
-│   │   │   ├── my_code_project.egg-info
 │   │   │   ├── my_code_worker
 │   │   │   └── pre_prompt.json
 │   │   └── test
@@ -488,7 +484,6 @@
 │   └── README.md
 ├── fwk
 │   ├── core
-│   │   ├── dist
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
@@ -497,7 +492,6 @@
 │   │   ├── setup
 │   │   ├── src
 │   │   │   ├── agi_core
-│   │   │   ├── agi_core.egg-info
 │   │   │   └── __init__.py
 │   │   └── test
 │   │       ├── __init__.py
@@ -507,7 +501,6 @@
 │   │       ├── test_dag_worker.py
 │   │       └── test_data_worker.py
 │   ├── env
-│   │   ├── dist
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
@@ -516,29 +509,28 @@
 │   │   ├── setup
 │   │   ├── src
 │   │   │   ├── agi_env
-│   │   │   ├── agi_env.egg-info
 │   │   │   └── __init__.py
+│   │   ├── test
+│   │   │   ├── clean_csv.py
+│   │   │   ├── __init__.py
+│   │   │   └── test_agi_env.py
+│   │   └── uv.lock
+│   ├── gui
+│   │   ├── LICENSE
+│   │   ├── MANIFEST.in
+│   │   ├── pyproject.toml
+│   │   ├── README.md
+│   │   ├── resources
+│   │   │   └── __init__.py
+│   │   ├── src
+│   │   │   └── agi_gui
 │   │   └── test
-│   │       ├── clean_csv.py
 │   │       ├── __init__.py
-│   │       └── test_agi_env.py
-│   └── gui
-│       ├── dist
-│       ├── LICENSE
-│       ├── MANIFEST.in
-│       ├── pyproject.toml
-│       ├── README.md
-│       ├── resources
-│       │   └── __init__.py
-│       ├── src
-│       │   ├── agi_gui
-│       │   └── agi_gui.egg-info
-│       └── test
-│           ├── __init__.py
-│           └── test-streamlit.sh
-├── src
-│   └── docs
-│       └── html
+│   │       └── test-streamlit.sh
+│   ├── install.ps1
+│   ├── install.sh
+│   └── run-all-test.py
+├── pyproject.toml
 └── views
     ├── maps
     │   └── src
@@ -549,7 +541,7 @@
     ├── pyproject.toml
     └── README.md
 
-59 directories, 79 files
+46 directories, 84 files
 </pre></div>
 </div>
 </section>
