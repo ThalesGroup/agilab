@@ -20,6 +20,7 @@
       <excludeFolder url="file://$MODULE_DIR$/wenv/flight_worker/build" />
       <excludeFolder url="file://$MODULE_DIR$/wenv/my_code_worker/.venv" />
       <excludeFolder url="file://$MODULE_DIR$/wenv/my_code_worker/build" />
+      <excludeFolder url="file://$MODULE_DIR$/agilab.egg-info" />
     </content>
     <orderEntry type="jdk" jdkName="uv (src)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />

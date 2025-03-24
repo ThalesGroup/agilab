@@ -129,9 +129,12 @@ def run(command, cwd=None):
 _DOCS_ALREADY_OPENED = False
 
 
+import webbrowser
+
 def open_docs(env, html_file="index.html", anchor=""):
     """
     Opens the local Sphinx docs in a new browser tab.
+    If the local documentation file is not found, it opens the online docs.
 
     Args:
         env: An environment object that helps locate the docs directory.
@@ -149,21 +152,27 @@ def open_docs(env, html_file="index.html", anchor=""):
     # Build the path to the local file, e.g. gui.html
     docs_path = env.AGILAB_VIEWS_ABS.parent / "docs" / "build" / html_file
 
-    # Check if the base file exists (ignoring the anchor part)
+    # Check if the local documentation file exists
     if not docs_path.exists():
-        print(f"Documentation file not found: {docs_path}")
+        print(f"Documentation file not found: {docs_path}. Opening online docs instead.")
+        online_url = "https://thalesgroup.github.io/agilab/"
+        if anchor:
+            # Ensure the anchor starts with '#'
+            if not anchor.startswith("#"):
+                anchor = "#" + anchor
+            online_url += anchor
+        webbrowser.open_new_tab(online_url)
         return
 
     # Construct a file:// URL with an optional anchor
-    # e.g. file://${PROJECT_ROOT}/docs/build/gui.html#project-editor
     docs_url = f"file://{docs_path}"
     if anchor:
-        # Ensure that anchor starts with '#'
         if not anchor.startswith("#"):
             anchor = "#" + anchor
         docs_url += anchor
 
     webbrowser.open_new_tab(docs_url)
+
 
 
 def get_base64_of_image(image_path):

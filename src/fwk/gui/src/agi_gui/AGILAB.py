@@ -115,7 +115,7 @@ def page():
     """
     display_landing_page()
     cols = st.columns(2)
-    help_file = Path(st.session_state["env"].help_path) / "index.html"
+    help_file = Path(st.session_state["env"].) / "index.html"
     if cols[0].button("Read Documentation", type="tertiary", use_container_width=True):
         open_docs(st.session_state["env"], help_file, "project-editor")
     if cols[1].button("Get Started", type="tertiary", use_container_width=True):
