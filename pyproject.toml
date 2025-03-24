@@ -1,7 +1,7 @@
 [project]
 name = "agilab"
 description = "AGILAB a datascience IDE for engineering to explore AI"
-version = "0.1.13"
+version = "0.1.14"
 requires-python = "==3.12.*"
 readme = "README.md"
 authors = [
