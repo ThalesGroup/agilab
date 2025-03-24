@@ -51,7 +51,7 @@ default-groups = ["dev"]
 workspace = true
 
 [tool.setuptools.data-files]
-agi_env = ["*"]
+agi_env = ["resources/*"]
 
 [tool.mypy]
 mypy_path = ["stubs"]
