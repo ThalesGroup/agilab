@@ -4,6 +4,7 @@ include SECURITY.md
 include LICENSE
 include pyproject.toml
 include MANIFEST.in
+include run_test.py
 
 # Recursively include everything in your resources directory (if needed)
-recursive-include src/my-code *
+recursive-include src *
