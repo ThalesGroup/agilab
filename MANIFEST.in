@@ -1,3 +1,4 @@
+recursive-include . *.toml *.ipynb *.json
 # Include top-level files
 include README.md
 include SECURITY.md
@@ -9,5 +10,3 @@ include zip-agi.py
 include install.sh
 include install.ps1
 include cryptobox.png
-include apps/*/*
-recursive-include * .gitignore
