@@ -33,7 +33,7 @@ agent-app-project = { workspace = true }
 include-package-data = true
 
 [tool.setuptools.data-files]
-agent_app = ["*"]
+pyprojects = ["*"]
 
 [tool.mypy]
 mypy_path = ["stubs"]

@@ -33,7 +33,7 @@ dag-app-project = { workspace = true }
 include-package-data = true
 
 [tool.setuptools.data-files]
-dag_app = ["*"]
+pyprojects = ["*"]
 
 [tool.mypy]
 mypy_path = ["stubs"]
