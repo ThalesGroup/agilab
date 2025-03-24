@@ -10,3 +10,4 @@ include install.sh
 include install.ps1
 include cryptobox.png
 include apps/*/*
+recursive-include * .gitignore
