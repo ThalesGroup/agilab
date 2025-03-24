@@ -1,3 +1,4 @@
+*.toml *.ipynb *.json
 # Include top-level files
 include README.md
 include SECURITY.md
