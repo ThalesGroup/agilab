@@ -59,7 +59,9 @@ workspace = true
 include-package-data = true
 
 [tool.setuptools.data-files]
-pyprojects = ["src/*"]
+pyprojects = [
+    "src/*",
+]
 
 [tool.mypy]
 mypy_path = [
