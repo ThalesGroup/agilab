@@ -9,3 +9,4 @@ include zip-agi.py
 include install.sh
 include install.ps1
 include cryptobox.png
+include apps/*/*
