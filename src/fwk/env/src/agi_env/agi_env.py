@@ -650,7 +650,7 @@ class AgiEnv:
 
         # Now that target is defined, we can use it for further assignments.
         self._init_projects()
-        if self.dev_root:
+        if not self.dev_root:
             AgiEnv.clone_project(self.apps_root, self.app, Path(self.AGI_APPS_DIR) / self.app)
 
         if not self.projects:
