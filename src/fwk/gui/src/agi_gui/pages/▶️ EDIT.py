@@ -217,44 +217,6 @@ def process_files(root, files, app_path, rename_map, spec):
             st.warning(f"Error processing file '{file}': {e}")
 
 
-# -------------------- Rename Map Creator -------------------- #
-
-
-def create_rename_map(target_project, dest_project):
-    """
-    Create a mapping of old names to new names for renaming during project cloning.
-    """
-
-    def capitalize(name):
-        """
-        Capitalize each word in a given string separated by underscores.
-
-        Args:
-            name (str): A string containing words separated by underscores.
-
-        Returns:
-            str: The input string with each word capitalized.
-        """
-        return "".join(part.capitalize() for part in name.split("_"))
-
-    target_package = target_project[:-8].replace("-template", "")
-    target_module = target_package.replace("-", "_")
-    target_class = capitalize(target_module)
-
-    dest_package = dest_project[:-8]
-    dest_module = dest_package.replace("-", "_")
-    dest_class = capitalize(dest_module)
-
-    return {
-        target_project: dest_project,
-        target_package: dest_package,
-        target_module: dest_module,
-        target_class + "Worker": dest_class + "Worker",
-        target_class + "Args": dest_class + "Args",
-        target_class: dest_class,
-    }
-
-
 def replace_content(content, rename_map):
     """
     Replace occurrences of old names with new names in the content using exact word matching.
@@ -1191,7 +1153,7 @@ def handle_project_creation():
         elif (env.apps_root / clone_dest).exists():
             st.warning(f"Project '{clone_dest}' already exists.")
         else:
-            env.clone_project(st.session_state["clone_src"], env.apps_root / clone_dest)
+            env.clone_project(env.apps_root, st.session_state["clone_src"], env.apps_root / clone_dest)
             project_path = env.apps_root / clone_dest
             if project_path.exists():
                 st.success(f"Project '{clone_dest}' successfully created.")
@@ -1228,7 +1190,7 @@ def handle_project_rename():
             st.warning(f"Project '{clone_dest}' already exists.")
         else:
             src_project = env.app
-            clone_project(src_project, clone_dest)
+            clone_project(env.apps_root, src_project, clone_dest)
             project_path = env.apps_root / clone_dest
             if project_path.exists():
                 st.success(f"Project '{clone_dest}' successfully created.")

@@ -86,10 +86,10 @@ class AgiEnv:
         # Now that target is defined, we can use it for further assignments.
         self._init_projects()
         if self.dev_root:
-            AgiEnv.clone_project(self.app, AGI_DEFAULT_APPS_DIR / self.app)
+            AgiEnv.clone_project(self.apps_root, self.app, Path(self.AGI_DEFAULT_APPS_DIR) / self.app)
         self.app = self.app_path.name
         self.setup_app = self.app_path / "setup"
-        self.setup_core = self.core_src / "agi_core/workers/agi_worker/setup"
+        self.setup_core = self.core_src / "fwk/agi-core/src/agi_core/workers/agi_worker/setup"
         target_package_path = self.module_path.parent
         self.target_package = target_package_path.name
         self.target_worker = f"{self.target}_worker"
@@ -277,7 +277,7 @@ class AgiEnv:
     @staticmethod
     def locate_agi_installation():
         if not AgiEnv.is_dev(__file__):
-            AgiEnv.dev_root = Path(__file__).parent.parent
+            AgiEnv.dev_root = (lambda p: Path(*p.parts[:p.parts.index("src")+1]))(Path(__file__).resolve())
             return AgiEnv.dev_root
         where_is_agi = Path.home() / ".local/share/agilab/.agi-path"
         if where_is_agi.exists():
@@ -408,6 +408,42 @@ class AgiEnv:
             return Path(*p.parts[:index])
         return p
 
+    # -------------------- Rename Map Creator -------------------- #
+
+    def create_rename_map(target_project, dest_project):
+        """
+        Create a mapping of old names to new names for renaming during project cloning.
+        """
+
+        def capitalize(name):
+            """
+            Capitalize each word in a given string separated by underscores.
+
+            Args:
+                name (str): A string containing words separated by underscores.
+
+            Returns:
+                str: The input string with each word capitalized.
+            """
+            return "".join(part.capitalize() for part in name.split("_"))
+
+        target_package = target_project[:-8].replace("-template", "")
+        target_module = target_package.replace("-", "_")
+        target_class = capitalize(target_module)
+
+        dest_package = Path(*dest_project.resolve().parts[:-8])
+        dest_module = str(dest_package).replace("-", "_")
+        dest_class = capitalize(dest_module)
+
+        return {
+            target_project: dest_project,
+            target_package: dest_package,
+            target_module: dest_module,
+            target_class + "Worker": dest_class + "Worker",
+            target_class + "Args": dest_class + "Args",
+            target_class: dest_class,
+        }
+
     def clone_directory(source_dir, dest_dir, rename_map, spec, source_root):
         """
         Recursively clone directories and files from source to destination,
@@ -521,7 +557,7 @@ class AgiEnv:
                 except Exception as e:
                     print(f"WARNING: Failed to clone symlink '{item}': {e}")
 
-    def clone_project(target_project:str, dest_project:Path):
+    def clone_project(apps_root, target_project:str, dest_project:Path):
         """
         Clone a project by recursively copying files and directories, applying renaming.
         For the .venv directory, create a symbolic link instead of copying if it's not ignored.
@@ -533,8 +569,9 @@ class AgiEnv:
         from pathspec import PathSpec
         import astor
 
-        rename_map = create_rename_map(target_project, dest_project)
-        source_root = env.apps_root / target_project
+        rename_map = AgiEnv.create_rename_map(target_project, dest_project)
+        source_root = apps_root / target_project
+        dest_root = dest_project.parent
 
         # Check if source project exists
         if not source_root.exists():
@@ -579,12 +616,13 @@ class AgiEnv:
             self.password = None
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.12.9")
         if AgiEnv.dev_root:
-            self.core_src = self.agi_root / "fwk/core/src"
-            AGI_DEFAULT_APPS_DIR = str(self.get_venv_root() / "apps")
-            os.makedirs(AGI_DEFAULT_APPS_DIR, exist_ok=True)
-        else:
-            AGI_DEFAULT_APPS_DIR = str(self.agi_root / "apps")
+            self.AGI_DEFAULT_APPS_DIR = str(self.agi_root / "apps")
             self.core_src = self.agi_root
+        else:
+            self.core_src = self.agi_root / "fwk/core/src"
+            self.AGI_DEFAULT_APPS_DIR = str(self.get_venv_root() / "apps")
+            os.makedirs(self.AGI_DEFAULT_APPS_DIR, exist_ok=True)
+
         self.core_root = self.core_src
 
         self.workers_root = self.core_src / "agi_core/workers"
@@ -593,8 +631,8 @@ class AgiEnv:
         if path not in sys.path:
             sys.path.insert(0, path)
 
-        AGI_APPS_ABS = envars.get("AGI_APPS_DIR", AGI_DEFAULT_APPS_DIR)
-        self.AGI_APPS_ABS = Path(AGI_APPS_ABS)
+        self.AGI_APPS_ABS = envars.get("AGI_APPS_DIR", self.AGI_DEFAULT_APPS_DIR)
+        self.AGI_APPS_ABS = Path(self.AGI_APPS_ABS)
         self.apps_root = self.AGI_APPS_ABS
         if AgiEnv.dev_root:
             self.projects = self.get_projects(self.dev_root / "apps")
@@ -691,6 +729,7 @@ class AgiEnv:
             if self.target == project[:-8].replace("-", "_"):
                 self.app_path = self.apps_root / project
                 self.project_index = idx
+                self.app = project
                 break
 
     def get_projects(self, path):
