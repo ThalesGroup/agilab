@@ -604,7 +604,7 @@ class AgiEnv:
             self.password = None
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.12.9")
         if AgiEnv.dev_root:
-            self.AGI_DEFAULT_APPS_DIR = str(self.agi_root / "apps")
+            self.AGI_APPS_DIR = str(self.agi_root / "apps")
             self.core_src = self.agi_root
         else:
             self.core_src = self.agi_root / "fwk/core/src"
@@ -651,7 +651,7 @@ class AgiEnv:
         # Now that target is defined, we can use it for further assignments.
         self._init_projects()
         if self.dev_root:
-            AgiEnv.clone_project(self.apps_root, self.app, Path(self.AGI_DEFAULT_APPS_DIR) / self.app)
+            AgiEnv.clone_project(self.apps_root, self.app, Path(self.AGI_APPS_DIR) / self.app)
 
         if not self.projects:
             raise FileNotFoundError(
