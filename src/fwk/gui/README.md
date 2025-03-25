@@ -1,30 +1,6 @@
-AGI-GUI
-=========
+[![PyPI version](https://img.shields.io/pypi/v/agi-gui.svg)](https://pypi.org/project/agi-gui) [![PyPI downloads](https://img.shields.io/pypi/dm/agi-gui.svg)](https://pypi.org/project/agi-gui/) [![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
-| Version Status                                                                                 |
-|------------------------------------------------------------------------------------------------|
-| [![PyPI version](https://img.shields.io/pypi/v/agi-gui.svg)](https://pypi.org/project/agi-gui) |
+# AGI-GUI Engine
+=================
 
-Agi is a framework to accelerate python code by using Dask, Cython and Processing Pools. See
-documentation_ for more information.
-
-
-LICENSE
--------
-
-New BSD. See `License File <https://github.com/ThalesGroup/agilab/blob/main/LICENSE>`__.
-
-
-Installation
--------
-pip install agilab
-
-
-Execution
----------
-uv run agilab
-
-
-support
--------
-email: focus@thalesgroup.com
+agi-gui is a GUI engine required for the agilab framework distributed under the BSD License. See the [documentation](https://thalesgroup.github.io/agilab).

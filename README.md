@@ -1,4 +1,4 @@
-[![PyPI version](https://img.shields.io/pypi/v/agilab.svg)](https://pypi.org/project/agilab)
+[![PyPI version](https://img.shields.io/pypi/v/agilab.svg)](https://pypi.org/project/agilab) [![PyPI downloads](https://img.shields.io/pypi/dm/agilab.svg)](https://pypi.org/project/agilab/) [![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
 # AGILAB Open Source Project
 
