@@ -267,8 +267,15 @@ class AgiEnv:
     @staticmethod
     def locate_agi_installation():
         if not AgiEnv.is_dev(__file__):
-            AgiEnv.dev_root = (lambda p: Path(*p.parts[:p.parts.index("src")+1]))(Path(__file__).resolve())
+            current_path = Path(__file__)
+            path_parts = current_path.parts
+            if "src" in path_parts:
+                src_index = path_parts.index("site-packages")
+                AgiEnv.dev_root = Path(*path_parts[:src_index + 1])
+            else:
+                raise RuntimeError("'src' directory not found in the current path.")
             return AgiEnv.dev_root
+
         where_is_agi = Path.home() / ".local/share/agilab/.agi-path"
         if where_is_agi.exists():
             try:
@@ -379,14 +386,12 @@ class AgiEnv:
 
     @staticmethod
     def is_dev(file_path):
-        # Convert both paths to their absolute (and normalized) forms.
         file_abs = os.path.abspath(file_path)
         prefix_abs = os.path.abspath(sys.prefix)
-        # Check if file_abs starts with prefix_abs.
-        if file_abs.startswith(prefix_abs):
-            return True
-        else:
+        # If the file is located in site-packages, treat it as non-dev.
+        if "site-packages" in file_abs:
             return False
+        return file_abs.startswith(prefix_abs)
 
     def get_venv_root(self):
         p = Path(sys.prefix).resolve()
