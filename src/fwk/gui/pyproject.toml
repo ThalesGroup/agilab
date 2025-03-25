@@ -85,11 +85,12 @@ requires = [
     "setuptools",
     "wheel",
 ]
+
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.data-files]
-agi_env = [
-    "resources/*",
+agi_gui = [
+    "src/resources/*",
 ]
 
 [tool.uv]

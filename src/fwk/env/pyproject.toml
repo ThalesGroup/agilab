@@ -51,9 +51,12 @@ default-groups = ["dev"]
 [tool.uv.sources.agi-env]
 workspace = true
 
-[tool.setuptools.data-files]
-agi_env = ["resources/*"]
+build-backend = "setuptools.build_meta"
 
+[tool.setuptools.data-files]
+agi_env = [
+    "src/resources/*",
+]
 [tool.mypy]
 mypy_path = ["stubs"]
 disallow_untyped_defs = false
