@@ -32,6 +32,7 @@ dependencies = [
     "python-dotenv",
     "setuptools",
     "tomli_w",
+    "astor",
 ]
 
 [project.urls]

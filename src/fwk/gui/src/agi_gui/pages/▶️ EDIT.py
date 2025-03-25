@@ -39,7 +39,6 @@ from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 from streamlit_modal import Modal
 from code_editor import code_editor
-import astor
 
 render_logo("Edit your Project")
 
@@ -381,37 +380,7 @@ def clone_project(target_project, dest_project):
         target_project (str): Name of the target project.
         dest_project (str): Name of the destination project.
     """
-    rename_map = create_rename_map(target_project, dest_project)
-    source_root = env.apps_root / target_project
-    dest_root = env.apps_root / dest_project
-
-    # Check if source project exists
-    if not source_root.exists():
-        st.error(f"Source project '{target_project}' does not exist.")
-        return
-
-    # Check if destination project already exists
-    if dest_root.exists():
-        st.error(f"Destination project '{dest_project}' already exists.")
-        return
-
-    gitignore_path = source_root / ".gitignore"
-
-    if not gitignore_path.exists():
-        st.error(f"No .gitignore file found at '{gitignore_path}'.")
-        return
-
-    spec = read_gitignore(gitignore_path)
-
-    # Create the destination directory
-    try:
-        dest_root.mkdir(parents=True, exist_ok=False)
-    except Exception as e:
-        st.error(f"Failed to create destination directory '{dest_root}': {e}")
-        return
-
-    # Start recursive cloning
-    clone_directory(source_root, dest_root, rename_map, spec, source_root)
+    res = env.clone_preject(target_project, dest_project)
 
     # After cloning, update the session state
     st.session_state["projects"] = env.projects
@@ -421,6 +390,7 @@ def clone_project(target_project, dest_project):
     # Change the app to the new project
     env.change_app(dest_project, with_lab=True)
 
+    return res
 
 import ast
 import astor
@@ -712,135 +682,6 @@ class ContentRenamer(ast.NodeTransformer):
                         break
         self.generic_visit(node)
         return node
-
-
-def clone_directory(source_dir, dest_dir, rename_map, spec, source_root):
-    """
-    Recursively clone directories and files from source to destination,
-    applying renaming and respecting .gitignore patterns.
-    Creates a symbolic link for the .venv directory if it's not ignored.
-
-    Args:
-        source_dir (Path): Source directory path.
-        dest_dir (Path): Destination directory path.
-        rename_map (dict): Mapping of old relative paths to new relative paths.
-        spec (PathSpec): Compiled PathSpec object to filter files/directories.
-        source_root (Path): The root directory of the source project.
-    """
-    for item in source_dir.iterdir():
-        try:
-            relative_path = item.relative_to(source_root).as_posix()
-        except ValueError as ve:
-            st.warning(
-                f"Item '{item}' is not under the source root '{source_root}'. Skipping."
-            )
-            continue
-
-        st.write(f"Processing item: **{relative_path}**")
-
-        if spec.match_file(relative_path):
-            st.info(f"Skipping ignored item: {relative_path}")
-            continue
-
-        # Apply renaming for the entire relative path
-        new_relative_path = relative_path
-        for old, new in sorted(
-                rename_map.items(), key=lambda x: len(x[0]), reverse=True
-        ):
-            new_relative_path = new_relative_path.replace(old, new)
-
-        if relative_path != new_relative_path:
-            st.success(f"Renaming '{relative_path}' to '{new_relative_path}'")
-        else:
-            st.info(f"No renaming needed for: {relative_path}")
-
-        # Log the old and new paths
-        st.write(f"Old Path: {item}")
-        st.write(f"New Path: {dest_dir / Path(new_relative_path)}")
-
-        # **Fixed Line**: Removed .relative_to(source_root)
-        dest_item = dest_dir / Path(new_relative_path)
-
-        # Handle the .venv directory specially
-        if item.is_dir() and item.name == ".venv":
-            handle_venv_directory(item, dest_item)
-            continue  # Skip further processing for .venv
-
-        if item.is_dir():
-            try:
-                dest_item.mkdir(parents=True, exist_ok=True)
-                st.info(f"Created directory: {dest_item}")
-            except Exception as e:
-                st.warning(f"Failed to create directory '{dest_item}': {e}")
-                continue  # Skip cloning this directory
-
-            # Recursive call for subdirectories
-            clone_directory(item, dest_dir, rename_map, spec, source_root)
-
-        elif item.is_file():
-            # Apply renaming based on rename_map
-            dest_file = dest_item
-
-            if dest_file.exists():
-                st.warning(f"Destination file '{dest_file}' already exists. Skipping.")
-                continue
-
-            try:
-                if dest_file.suffix in [".7z", ".zip"]:
-                    shutil.copy2(item, dest_file)
-                    st.info(f"Copied archive file: {dest_file}")
-                elif dest_file.suffix == ".py":
-                    # Handle Python files with AST-based renaming
-                    content = item.read_text(encoding="utf-8")
-                    try:
-                        parsed_ast = ast.parse(content)
-                        renamer = ContentRenamer(rename_map)
-                        updated_ast = renamer.visit(parsed_ast)
-                        ast.fix_missing_locations(updated_ast)
-                        updated_content = astor.to_source(updated_ast)
-                        dest_file.write_text(updated_content, encoding="utf-8")
-                        st.info(f"Cloned and renamed Python file: {dest_file}")
-                    except SyntaxError as se:
-                        st.warning(
-                            f"Syntax error while parsing '{item}': {se}. Skipping content renaming."
-                        )
-                        # Optionally, copy the file without renaming content
-                        shutil.copy2(item, dest_file)
-                        st.info(
-                            f"Copied Python file without content renaming: {dest_file}"
-                        )
-                elif dest_file.suffix in [
-                    ".toml",
-                    ".md",
-                    ".txt",
-                    ".json",
-                    ".yaml",
-                    ".yml",
-                ]:
-                    # Handle other text-based files with string replacement
-                    content = item.read_text(encoding="utf-8")
-                    updated_content = content
-                    for old, new in rename_map.items():
-                        if old in updated_content:
-                            st.write(f"Renaming '{old}' to '{new}' in {dest_file.name}")
-                            updated_content = updated_content.replace(old, new)
-                    dest_file.write_text(updated_content, encoding="utf-8")
-                    st.info(f"Cloned and renamed text file: {dest_file}")
-                else:
-                    # For binary or unsupported file types, copy without modification
-                    shutil.copy2(item, dest_file)
-                    st.info(f"Copied file without modification: {dest_file}")
-            except Exception as e:
-                st.warning(f"Error processing file '{item}': {e}")
-
-        elif item.is_symlink():
-            # Handle symbolic links if necessary
-            target = os.readlink(item)
-            try:
-                os.symlink(target, dest_item, target_is_directory=item.is_dir())
-                st.info(f"Cloned symlink: {dest_item} -> {target}")
-            except Exception as e:
-                st.warning(f"Failed to clone symlink '{item}': {e}")
 
 
 # -------------------- Handling .venv Directory -------------------- #
@@ -1350,7 +1191,7 @@ def handle_project_creation():
         elif (env.apps_root / clone_dest).exists():
             st.warning(f"Project '{clone_dest}' already exists.")
         else:
-            clone_project(st.session_state["clone_src"], clone_dest)
+            env.clone_project(st.session_state["clone_src"], env.apps_root / clone_dest)
             project_path = env.apps_root / clone_dest
             if project_path.exists():
                 st.success(f"Project '{clone_dest}' successfully created.")

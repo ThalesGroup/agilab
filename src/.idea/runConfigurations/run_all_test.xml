@@ -9,12 +9,12 @@
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="SDK_NAME" value="uv (core)" />
-    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/fwk" />
+    <option name="WORKING_DIRECTORY" value="$ProjectFileDir$/fwk" />
     <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/fwk/run-all-test.py" />
+    <option name="SCRIPT_NAME" value="$ProjectFileDir$/fwk/run-all-test.py" />
     <option name="PARAMETERS" value="" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />

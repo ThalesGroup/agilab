@@ -39,7 +39,6 @@ import sys
 from pathlib import Path, PureWindowsPath, PurePosixPath
 from dotenv import dotenv_values
 
-
 class JumpToMain(Exception):
     """
     Custom exception to jump back to the main execution flow.
@@ -61,6 +60,7 @@ class AgiEnv:
             print("no module specified")
             exit(1)
 
+        AgiEnv.dev_root = None
         self.with_lab = with_lab
         self.verbose = verbose
         self.is_managed_pc = getpass.getuser().startswith("T0")
@@ -85,6 +85,8 @@ class AgiEnv:
 
         # Now that target is defined, we can use it for further assignments.
         self._init_projects()
+        if self.dev_root:
+            AgiEnv.clone_project(self.app, AGI_DEFAULT_APPS_DIR / self.app)
         self.app = self.app_path.name
         self.setup_app = self.app_path / "setup"
         self.setup_core = self.core_src / "agi_core/workers/agi_worker/setup"
@@ -274,8 +276,9 @@ class AgiEnv:
 
     @staticmethod
     def locate_agi_installation():
-        if AgiEnv.is_installed_file(__file__):
-            return Path(__file__).parent.parent
+        if not AgiEnv.is_dev(__file__):
+            AgiEnv.dev_root = Path(__file__).parent.parent
+            return AgiEnv.dev_root
         where_is_agi = Path.home() / ".local/share/agilab/.agi-path"
         if where_is_agi.exists():
             try:
@@ -341,10 +344,11 @@ class AgiEnv:
 
         self.gitignore_file = self.app_path / ".gitignore"
         dest = self.deployed_resources_abs
-        if AgiEnv.is_installed_file(__file__):
-            AGI_GUI_ABS = self.agi_root /  "agi_gui"
-        else:
+        if AgiEnv.dev_root:
             AGI_GUI_ABS = self.agi_root / "fwk/gui/src/agi_gui"
+        else:
+            AGI_GUI_ABS = self.agi_root /  "agi_gui"
+
         shutil.copytree(AGI_GUI_ABS / self.agi_resources, dest, dirs_exist_ok=True)
 
     def _update_env_file(self, updates: dict):
@@ -386,12 +390,182 @@ class AgiEnv:
         self.set_env_var("OPENAI_API_KEY", api_key)
 
     @staticmethod
-    def is_installed_file(file_path):
+    def is_dev(file_path):
         # Convert both paths to their absolute (and normalized) forms.
         file_abs = os.path.abspath(file_path)
         prefix_abs = os.path.abspath(sys.prefix)
         # Check if file_abs starts with prefix_abs.
-        return file_abs.startswith(prefix_abs)
+        if file_abs.startswith(prefix_abs):
+            return True
+        else:
+            return False
+
+    def get_venv_root(self):
+        p = Path(sys.prefix).resolve()
+        # If .venv exists in the path parts, slice the path up to it
+        if ".venv" in p.parts:
+            index = p.parts.index(".venv")
+            return Path(*p.parts[:index])
+        return p
+
+    def clone_directory(source_dir, dest_dir, rename_map, spec, source_root):
+        """
+        Recursively clone directories and files from source to destination,
+        applying renaming and respecting .gitignore patterns.
+        Creates a symbolic link for the .venv directory if it's not ignored.
+
+        Args:
+            source_dir (Path): Source directory path.
+            dest_dir (Path): Destination directory path.
+            rename_map (dict): Mapping of old relative paths to new relative paths.
+            spec (PathSpec): Compiled PathSpec object to filter files/directories.
+            source_root (Path): The root directory of the source project.
+        """
+        for item in source_dir.iterdir():
+            try:
+                relative_path = item.relative_to(source_root).as_posix()
+            except ValueError:
+                print(f"WARNING: Item '{item}' is not under the source root '{source_root}'. Skipping.")
+                continue
+
+            print(f"Processing item: **{relative_path}**")
+
+            if spec.match_file(relative_path):
+                print(f"INFO: Skipping ignored item: {relative_path}")
+                continue
+
+            # Apply renaming for the entire relative path
+            new_relative_path = relative_path
+            for old, new in sorted(rename_map.items(), key=lambda x: len(x[0]), reverse=True):
+                new_relative_path = new_relative_path.replace(old, new)
+
+            if relative_path != new_relative_path:
+                print(f"SUCCESS: Renaming '{relative_path}' to '{new_relative_path}'")
+            else:
+                print(f"INFO: No renaming needed for: {relative_path}")
+
+            # Log the old and new paths
+            print(f"Old Path: {item}")
+            print(f"New Path: {dest_dir / Path(new_relative_path)}")
+
+            # **Fixed Line**: Removed .relative_to(source_root)
+            dest_item = dest_dir / Path(new_relative_path)
+
+            # Handle the .venv directory specially
+            if item.is_dir() and item.name == ".venv":
+                handle_venv_directory(item, dest_item)
+                continue  # Skip further processing for .venv
+
+            if item.is_dir():
+                try:
+                    dest_item.mkdir(parents=True, exist_ok=True)
+                    print(f"INFO: Created directory: {dest_item}")
+                except Exception as e:
+                    print(f"WARNING: Failed to create directory '{dest_item}': {e}")
+                    continue  # Skip cloning this directory
+
+                # Recursive call for subdirectories
+                clone_directory(item, dest_dir, rename_map, spec, source_root)
+
+            elif item.is_file():
+                # Apply renaming based on rename_map
+                dest_file = dest_item
+
+                if dest_file.exists():
+                    print(f"WARNING: Destination file '{dest_file}' already exists. Skipping.")
+                    continue
+
+                try:
+                    if dest_file.suffix in [".7z", ".zip"]:
+                        shutil.copy2(item, dest_file)
+                        print(f"INFO: Copied archive file: {dest_file}")
+                    elif dest_file.suffix == ".py":
+                        # Handle Python files with AST-based renaming
+                        content = item.read_text(encoding="utf-8")
+                        try:
+                            parsed_ast = ast.parse(content)
+                            renamer = ContentRenamer(rename_map)
+                            updated_ast = renamer.visit(parsed_ast)
+                            ast.fix_missing_locations(updated_ast)
+                            updated_content = astor.to_source(updated_ast)
+                            dest_file.write_text(updated_content, encoding="utf-8")
+                            print(f"INFO: Cloned and renamed Python file: {dest_file}")
+                        except SyntaxError as se:
+                            print(f"WARNING: Syntax error while parsing '{item}': {se}. Skipping content renaming.")
+                            # Optionally, copy the file without renaming content
+                            shutil.copy2(item, dest_file)
+                            print(f"INFO: Copied Python file without content renaming: {dest_file}")
+                    elif dest_file.suffix in [".toml", ".md", ".txt", ".json", ".yaml", ".yml"]:
+                        # Handle other text-based files with string replacement
+                        content = item.read_text(encoding="utf-8")
+                        updated_content = content
+                        for old, new in rename_map.items():
+                            if old in updated_content:
+                                print(f"Renaming '{old}' to '{new}' in {dest_file.name}")
+                                updated_content = updated_content.replace(old, new)
+                        dest_file.write_text(updated_content, encoding="utf-8")
+                        print(f"INFO: Cloned and renamed text file: {dest_file}")
+                    else:
+                        # For binary or unsupported file types, copy without modification
+                        shutil.copy2(item, dest_file)
+                        print(f"INFO: Copied file without modification: {dest_file}")
+                except Exception as e:
+                    print(f"WARNING: Error processing file '{item}': {e}")
+
+            elif item.is_symlink():
+                # Handle symbolic links if necessary
+                target = os.readlink(item)
+                try:
+                    os.symlink(target, dest_item, target_is_directory=item.is_dir())
+                    print(f"INFO: Cloned symlink: {dest_item} -> {target}")
+                except Exception as e:
+                    print(f"WARNING: Failed to clone symlink '{item}': {e}")
+
+    def clone_project(target_project:str, dest_project:Path):
+        """
+        Clone a project by recursively copying files and directories, applying renaming.
+        For the .venv directory, create a symbolic link instead of copying if it's not ignored.
+
+        Args:
+            target_project (str): Name of the target project.
+            dest_project (str): Name of the destination project.
+        """
+        from pathspec import PathSpec
+        import astor
+
+        rename_map = create_rename_map(target_project, dest_project)
+        source_root = env.apps_root / target_project
+
+        # Check if source project exists
+        if not source_root.exists():
+            print(f"Source project '{target_project}' does not exist.")
+            return
+
+        # Check if destination project already exists
+        if dest_root.exists():
+            print(f"Destination project '{dest_project}' already exists.")
+            return
+
+        gitignore_path = source_root / ".gitignore"
+
+        if not gitignore_path.exists():
+            print(f"No .gitignore file found at '{gitignore_path}'.")
+            return
+
+        spec = read_gitignore(gitignore_path)
+
+        # Create the destination directory
+        try:
+            dest_root.mkdir(parents=True, exist_ok=False)
+        except Exception as e:
+            print(f"Failed to create destination directory '{dest_root}': {e}")
+            return
+
+        # Start recursive cloning
+        AgiEnv.clone_directory(source_root, dest_root, rename_map, spec, source_root)
+
+        # Change the app to the new project
+        env.change_app(dest_project, with_lab=True)
 
     def _init_envars(self, env_path):
         envars = dotenv_values(dotenv_path=env_path, verbose=self.verbose)
@@ -404,10 +578,13 @@ class AgiEnv:
         else:
             self.password = None
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.12.9")
-        if AgiEnv.is_installed_file(__file__):
-            self.core_src = self.agi_root
-        else:
+        if AgiEnv.dev_root:
             self.core_src = self.agi_root / "fwk/core/src"
+            AGI_DEFAULT_APPS_DIR = str(self.get_venv_root() / "apps")
+            os.makedirs(AGI_DEFAULT_APPS_DIR, exist_ok=True)
+        else:
+            AGI_DEFAULT_APPS_DIR = str(self.agi_root / "apps")
+            self.core_src = self.agi_root
         self.core_root = self.core_src
 
         self.workers_root = self.core_src / "agi_core/workers"
@@ -415,11 +592,15 @@ class AgiEnv:
         path = str(self.core_src)
         if path not in sys.path:
             sys.path.insert(0, path)
-        AGI_DEFAULT_APPS_DIR = str(self.agi_root / "apps")
+
         AGI_APPS_ABS = envars.get("AGI_APPS_DIR", AGI_DEFAULT_APPS_DIR)
         self.AGI_APPS_ABS = Path(AGI_APPS_ABS)
         self.apps_root = self.AGI_APPS_ABS
-        self.projects = self.get_projects(self.apps_root)
+        if AgiEnv.dev_root:
+            self.projects = self.get_projects(self.dev_root / "apps")
+        else:
+            self.projects = self.get_projects(self.apps_root)
+
         if not self.projects:
             raise FileNotFoundError(
                 f"Could not find any target project app source in {self.apps_root}. Verify that AGI_APPS_DIR is correctly set in the .env file."
@@ -428,14 +609,15 @@ class AgiEnv:
         self.scheduler_ip = envars.get("AGI_SCHEDULER_IP", "127.0.0.1")
         if not self.is_valid_ip(self.scheduler_ip):
             raise ValueError(f"Invalid scheduler IP address: {self.scheduler_ip}")
-        if AgiEnv.is_installed_file(__file__):
-            self.AGI_SRC_ABS = self.agi_root
-            self.help_path = "https://thalesgroup.github.io/agilab"
-            self.gui_env = os.getcwd()
-        else:
+
+        if AgiEnv.dev_root:
             self.gui_env = self.agi_root / "fwk/gui"
             self.AGI_SRC_ABS = str(self.gui_env / "src")
             self.help_path = str(self.agi_root / "../docs/html")
+        else:
+            self.AGI_SRC_ABS = self.agi_root
+            self.help_path = "https://thalesgroup.github.io/agilab"
+            self.gui_env = os.getcwd()
 
         self.AGILAB_SHARE_ABS = Path(
             envars.get("AGI_SHARE_DIR", self.home_abs / "data")
