@@ -51,8 +51,6 @@ default-groups = ["dev"]
 [tool.uv.sources.agi-env]
 workspace = true
 
-build-backend = "setuptools.build_meta"
-
 [tool.setuptools.data-files]
 agi_env = [
     "src/resources/*",

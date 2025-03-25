@@ -86,8 +86,6 @@ requires = [
     "wheel",
 ]
 
-build-backend = "setuptools.build_meta"
-
 [tool.setuptools.data-files]
 agi_gui = [
     "src/resources/*",
