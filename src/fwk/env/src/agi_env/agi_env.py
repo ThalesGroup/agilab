@@ -59,6 +59,8 @@ class AgiEnv:
         if not module:
             print("no module specified")
             exit(1)
+        else:
+            self.module = module
 
         AgiEnv.dev_root = None
         self.with_lab = with_lab
@@ -75,18 +77,6 @@ class AgiEnv:
         # Initialize environment variables
         self._init_envars(self.deployed_resources_abs / ".env")
 
-        # Determine module path and set target.
-        if isinstance(module, Path):
-            self.module_path = module.expanduser().resolve()
-        else:
-            self.module_path = self._determine_module_path(module)
-        self.target = self.module_path.stem  # Define self.target here
-        self.dataframes_path = self.AGILAB_SHARE_ABS / self.target / "dataframes"
-
-        # Now that target is defined, we can use it for further assignments.
-        self._init_projects()
-        if self.dev_root:
-            AgiEnv.clone_project(self.apps_root, self.app, Path(self.AGI_DEFAULT_APPS_DIR) / self.app)
         self.app = self.app_path.name
         self.setup_app = self.app_path / "setup"
         self.setup_core = self.core_src / "fwk/core/src/agi_core/workers/agi_worker/setup"
@@ -639,14 +629,12 @@ class AgiEnv:
         else:
             self.projects = self.get_projects(self.apps_root)
 
-        if not self.projects:
-            raise FileNotFoundError(
-                f"Could not find any target project app source in {self.apps_root}. Verify that AGI_APPS_DIR is correctly set in the .env file."
-            )
-        self.WORKER_VENV_REL = Path(envars.get("WORKER_VENV_DIR", "wenv"))
-        self.scheduler_ip = envars.get("AGI_SCHEDULER_IP", "127.0.0.1")
-        if not self.is_valid_ip(self.scheduler_ip):
-            raise ValueError(f"Invalid scheduler IP address: {self.scheduler_ip}")
+        # Determine module path and set target.
+        if isinstance(self.module, Path):
+            self.module_path = self.module.expanduser().resolve()
+        else:
+            self.module_path = self._determine_module_path(self.module)
+        self.target = self.module_path.stem  # Define self.target here
 
         if AgiEnv.dev_root:
             self.gui_env = self.agi_root / "fwk/gui"
@@ -660,6 +648,22 @@ class AgiEnv:
         self.AGILAB_SHARE_ABS = Path(
             envars.get("AGI_SHARE_DIR", self.home_abs / "data")
         )
+
+        self.dataframes_path = self.AGILAB_SHARE_ABS / self.target / "dataframes"
+
+        # Now that target is defined, we can use it for further assignments.
+        self._init_projects()
+        if self.dev_root:
+            AgiEnv.clone_project(self.apps_root, self.app, Path(self.AGI_DEFAULT_APPS_DIR) / self.app)
+
+        if not self.projects:
+            raise FileNotFoundError(
+                f"Could not find any target project app source in {self.apps_root}. Verify that AGI_APPS_DIR is correctly set in the .env file."
+            )
+        self.WORKER_VENV_REL = Path(envars.get("WORKER_VENV_DIR", "wenv"))
+        self.scheduler_ip = envars.get("AGI_SCHEDULER_IP", "127.0.0.1")
+        if not self.is_valid_ip(self.scheduler_ip):
+            raise ValueError(f"Invalid scheduler IP address: {self.scheduler_ip}")
 
     def is_valid_ip(self, ip: str) -> bool:
         pattern = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
