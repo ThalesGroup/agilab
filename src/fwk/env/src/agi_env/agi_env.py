@@ -608,8 +608,8 @@ class AgiEnv:
             self.core_src = self.agi_root
         else:
             self.core_src = self.agi_root / "fwk/core/src"
-            self.AGI_DEFAULT_APPS_DIR = str(self.get_venv_root() / "apps")
-            os.makedirs(self.AGI_DEFAULT_APPS_DIR, exist_ok=True)
+            self.AGI_APPS_DIR = str(self.get_venv_root() / "apps")
+            os.makedirs(self.AGI_APPS_DIR, exist_ok=True)
 
         self.core_root = self.core_src
 
@@ -619,9 +619,8 @@ class AgiEnv:
         if path not in sys.path:
             sys.path.insert(0, path)
 
-        self.AGI_APPS_ABS = envars.get("AGI_APPS_DIR", self.AGI_DEFAULT_APPS_DIR)
-        self.AGI_APPS_ABS = Path(self.AGI_APPS_ABS)
-        self.apps_root = self.AGI_APPS_ABS
+        self.AGI_APPS_DIR = Path(self.AGI_APPS_DIR)
+        self.apps_root = self.AGI_APPS_DIR
         if AgiEnv.dev_root:
             self.projects = self.get_projects(self.dev_root / "apps")
         else:
