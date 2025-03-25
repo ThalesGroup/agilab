@@ -5,4 +5,4 @@ include pyproject.toml
 include MANIFEST.in
 
 # Recursively include everything in your resources directory (if needed)
-recursive-include src/agi_gui/resources *
+recursive-include resources *
