@@ -303,8 +303,7 @@ class AgiEnv:
     def _check_module_path(self, module: Path):
         module = module.expanduser()
         if not module.exists():
-            print(f"Module source '{module}' does not exist")
-            sys.exit(1)
+            print(f"Warning Module source '{module}' does not exist")
         return module
 
     def _determine_module_path(self, project_or_module_name):
@@ -320,8 +319,7 @@ class AgiEnv:
         module_path = (
                 self.apps_root / project_name / "src" / module_name / (module_name + ".py")
         ).resolve()
-        if self._check_module_path(module_path):
-            return module_path
+        return module_path
 
     def _init_apps(self):
         app_settings_file = self.app_src_path / "app_settings.toml"
