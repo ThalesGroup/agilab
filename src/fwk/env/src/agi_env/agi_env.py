@@ -89,7 +89,7 @@ class AgiEnv:
             AgiEnv.clone_project(self.apps_root, self.app, Path(self.AGI_DEFAULT_APPS_DIR) / self.app)
         self.app = self.app_path.name
         self.setup_app = self.app_path / "setup"
-        self.setup_core = self.core_src / "fwk/agi-core/src/agi_core/workers/agi_worker/setup"
+        self.setup_core = self.core_src / "fwk/core/src/agi_core/workers/agi_worker/setup"
         target_package_path = self.module_path.parent
         self.target_package = target_package_path.name
         self.target_worker = f"{self.target}_worker"
