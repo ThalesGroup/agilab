@@ -76,7 +76,7 @@ def create_symlink_for_module(env, pck: str) -> None:
     dir_pck = pck.replace('.', os.sep)
     root_pck = pck.split(".")[0].split("_")[1]
     src = env.AGI_GUI_ABS.parent / root_pck / "src" / dir_pck
-    dest = Path("src") / dir_pck
+    dest = Path(dir_pck)
     link_to_clean = []
 
     try:
