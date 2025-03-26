@@ -49,6 +49,7 @@ dependencies = [
     "py7zr",
     "agi-env",
     "python-dotenv",
+    "IPython",
 ]
 
 [project.urls]
