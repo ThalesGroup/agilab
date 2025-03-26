@@ -31,7 +31,7 @@ jobs:
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install uv twine
+          python3 -m pip install uv twine pytest
 
       # Run tests before proceeding
       - name: Run tests
