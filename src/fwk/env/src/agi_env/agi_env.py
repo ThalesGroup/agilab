@@ -612,10 +612,10 @@ class AgiEnv:
             self.password = None
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.12.9")
         if AgiEnv.dev_root:
-            self.AGI_APPS_DIR = str(self.agi_root / "apps")
+            self.apps_root = self.agi_root / "apps"
         else:
-            self.AGI_APPS_DIR = str(self.get_venv_root() / "apps")
-            os.makedirs(self.AGI_APPS_DIR, exist_ok=True)
+            self.apps_root = self.get_venv_root() / "apps"
+            os.makedirs(self.apps_root, exist_ok=True)
 
         self.core_src = self.agi_root / "fwk/core/src"
         self.core_root = self.core_src.parent
@@ -626,8 +626,6 @@ class AgiEnv:
         if path not in sys.path:
             sys.path.insert(0, path)
 
-        self.AGI_APPS_DIR = Path(self.AGI_APPS_DIR)
-        self.apps_root = self.AGI_APPS_DIR
         if AgiEnv.dev_root:
             self.projects = self.get_projects(self.dev_root / "apps")
         else:
@@ -658,11 +656,11 @@ class AgiEnv:
         # Now that target is defined, we can use it for further assignments.
         self._init_projects()
         if not self.dev_root:
-            AgiEnv.clone_project(self.apps_root, self.app, Path(self.AGI_APPS_DIR) / self.app)
+            AgiEnv.clone_project(self.apps_root, self.app, self.apps_root / self.app)
 
         if not self.projects:
             raise FileNotFoundError(
-                f"Could not find any target project app source in {self.apps_root}. Verify that AGI_APPS_DIR is correctly set in the .env file."
+                f"Could not find any target project app in {self.apps_root}."
             )
         self.WORKER_VENV_REL = Path(envars.get("WORKER_VENV_DIR", "wenv"))
         self.scheduler_ip = envars.get("AGI_SCHEDULER_IP", "127.0.0.1")
