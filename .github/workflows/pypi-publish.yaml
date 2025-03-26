@@ -1,4 +1,4 @@
-name: pypi-publish
+name: CI/CD Pipeline
 
 on:
   workflow_dispatch:
@@ -36,7 +36,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     permissions:
-      contents: write       # Allows push to the repository
+      contents: write
       id-token: write
     steps:
       - name: Checkout repository
@@ -89,16 +89,29 @@ jobs:
             echo "No changes to commit."
           fi
 
-      - name: Build subpackages
+      - name: Build env package
         run: |
-          SUBDIRS=("src/fwk/env" "src/fwk/core" "src/fwk/gui")
-          for dir in "${SUBDIRS[@]}"; do
-            echo "Building package in $dir"
-            pushd "$dir" > /dev/null
-            rm -rf dist
-            uv build --wheel
-            popd > /dev/null
-          done
+          echo "Building env package"
+          pushd src/fwk/env > /dev/null
+          rm -rf dist
+          uv build --wheel --dev
+          popd > /dev/null
+
+      - name: Build core package
+        run: |
+          echo "Building core package"
+          pushd src/fwk/core > /dev/null
+          rm -rf dist
+          uv build --wheel --dev --extra workers --extra managers --group rapids
+          popd > /dev/null
+
+      - name: Build gui package
+        run: |
+          echo "Building gui package"
+          pushd src/fwk/gui > /dev/null
+          rm -rf dist
+          uv build --wheel --dev --group rapids
+          popd > /dev/null
 
       - name: Upload agi-env package
         uses: actions/upload-artifact@v4
@@ -153,5 +166,5 @@ jobs:
           curl -X POST \
             -H "Accept: application/vnd.github.v3+json" \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
-            https://api.github.com/repos/ThalesGroup/agilab/actions/workflows/static.yml/dispatches \
+            https://github.com/jpmorard/agilab/actions/workflows/static.yml/dispatches \
             -d '{"ref": "main"}'
