@@ -50,7 +50,7 @@ def initialize_defaults(app_settings):
     defaults = {
         "data_source": "file",
         "path": (
-            "~/data/flight"
+            "data/flight"
             if args_default.get("data_source", "file") == "file"
             else f"https://admin:admin@{socket.gethostbyname(socket.gethostname())}:9200/"
         ),
