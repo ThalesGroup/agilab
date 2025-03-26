@@ -269,8 +269,11 @@ class AgiEnv:
         if not AgiEnv.is_dev(__file__):
             current_path = Path(__file__)
             path_parts = current_path.parts
-            if "src" in path_parts:
+            if "site-packages" in path_parts:
                 src_index = path_parts.index("site-packages")
+                AgiEnv.dev_root = Path(*path_parts[:src_index + 1])
+            elif "src" in path_parts:
+                src_index = path_parts.index("src")
                 AgiEnv.dev_root = Path(*path_parts[:src_index + 1])
             else:
                 raise RuntimeError("'src' directory not found in the current path.")
