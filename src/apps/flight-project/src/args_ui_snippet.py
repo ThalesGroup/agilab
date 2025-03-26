@@ -1,21 +1,3 @@
-# BSD 3-Clause License
-#
-# Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
-# All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-#
-# 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-# 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
-# 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or THALES SIX GTS France SAS, may be used to endorse or promote products derived from this software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
-# IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
-# OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
-# OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 import os
 import sys
 import streamlit as st
@@ -24,8 +6,8 @@ import tomli_w
 from pydantic import ValidationError
 import socket
 import datetime
+from pathlib import Path
 from flight import FlightArgs
-
 
 def change_data_source():
     """
@@ -33,7 +15,6 @@ def change_data_source():
     """
     st.session_state.pop("path", None)
     st.session_state.pop("files", None)
-
 
 def initialize_defaults(app_settings):
     """
@@ -50,7 +31,7 @@ def initialize_defaults(app_settings):
     defaults = {
         "data_source": "file",
         "path": (
-            "~/data/flight"
+            "data/flight"
             if args_default.get("data_source", "file") == "file"
             else f"https://admin:admin@{socket.gethostbyname(socket.gethostname())}:9200/"
         ),
@@ -175,14 +156,20 @@ with c10:
         key="output_format",
     )
 
-# Collect UI inputs into a dictionary
+# Collect UI inputs into a dictionary and validate the path
+if st.session_state.data_source == "file":
+    # Expand the user path
+    directory = Path(st.session_state.path).expanduser()
+    if not directory.is_dir():
+        st.error(f"The provided path '{directory}' is not a valid directory.")
+        st.stop()
+    validated_path = directory.as_posix()
+else:
+    validated_path = st.session_state.path
+
 args_from_ui = {
     "data_source": st.session_state.data_source,
-    "path": (
-        Path(st.session_state.path).expanduser().as_posix()
-        if st.session_state.data_source == "file"
-        else st.session_state.path
-    ),
+    "path": validated_path,
     "files": st.session_state.files,
     "nfile": st.session_state.nfile,
     "nskip": st.session_state.nskip,
@@ -193,7 +180,7 @@ args_from_ui = {
     "output_format": st.session_state.output_format,
 }
 
-result = st.session_state.env.check_args(FlightArgs, args_default)
+result = st.session_state.env.check_args(FlightArgs, args_from_ui)
 if result:
     st.warning("\n".join(result))
 else:
