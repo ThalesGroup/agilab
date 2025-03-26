@@ -30,7 +30,8 @@ jobs:
           python3 -m pip install uv twine pytest
 
       - name: Run tests
-        run:           echo "Building core package"
+        run: |
+          echo "Building core package for testing"
           pushd src/fwk/core > /dev/null
           rm -rf dist
           uv sync --dev --extra workers --extra managers --group rapids
@@ -108,7 +109,7 @@ jobs:
           echo "Building core package"
           pushd src/fwk/core > /dev/null
           rm -rf dist
-          uv build --wheel 
+          uv build --wheel
           popd > /dev/null
 
       - name: Build gui package
