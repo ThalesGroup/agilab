@@ -33,6 +33,13 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install uv twine
 
+      # Run tests before proceeding
+      - name: Run tests
+        run: |
+          python3 fwk/run-all-test.py
+        # Optionally, you can use "if: ${{ always() }}" and then check the exit code,
+        # but by default if this step fails the job will stop.
+
       - name: Remove all existing distribution directories
         run: |
           rm -rf src/fwk/env/dist src/fwk/core/dist src/fwk/gui/dist dist agi-pypi
@@ -85,38 +92,45 @@ jobs:
           done
 
       - name: Upload agi-env package
+        if: ${{ success() }}
         uses: actions/upload-artifact@v4
         with:
           name: agi-env-distributions
           path: src/fwk/env/dist/
 
       - name: Upload agi-core package
+        if: ${{ success() }}
         uses: actions/upload-artifact@v4
         with:
           name: agi-core-distributions
           path: src/fwk/core/dist/
 
       - name: Upload agi-gui package
+        if: ${{ success() }}
         uses: actions/upload-artifact@v4
         with:
           name: agi-gui-distributions
           path: src/fwk/gui/dist/
 
       - name: Build combined main package (agilab)
+        if: ${{ success() }}
         run: |
           # Create a fresh directory for the combined package build
           uv build --sdist
 
       - name: Upload agilab package
+        if: ${{ success() }}
         uses: actions/upload-artifact@v4
         with:
           name: agilab-distributions
           path: dist/
 
       - name: Verify package files before upload
+        if: ${{ success() }}
         run: twine check src/fwk/env/dist/* src/fwk/core/dist/* src/fwk/gui/dist/* dist/*
 
       - name: Publish subpackages to PyPI
+        if: ${{ success() }}
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
@@ -126,12 +140,14 @@ jobs:
           twine upload src/fwk/gui/dist/*
 
       - name: Publish main package (agilab) to PyPI
+        if: ${{ success() }}
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: twine upload dist/*
 
       - name: Trigger static pages workflow
+        if: ${{ success() }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
