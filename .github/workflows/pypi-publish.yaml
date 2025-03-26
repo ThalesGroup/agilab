@@ -30,7 +30,13 @@ jobs:
           python3 -m pip install uv twine pytest
 
       - name: Run tests
-        run: python3 src/fwk/run-all-test.py
+        run:           echo "Building core package"
+          pushd src/fwk/core > /dev/null
+          rm -rf dist
+          uv sync --dev --extra workers --extra managers --group rapids
+          uv pip install -e .
+          uv run --project src/fwk/core src/fwk/run-all-test.py
+          popd > /dev/null
 
   pypi-publish:
     needs: test
