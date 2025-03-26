@@ -610,12 +610,8 @@ class AgiEnv:
         else:
             self.password = None
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.12.9")
-        if AgiEnv.dev_root:
-            self.apps_root = self.agi_root / "apps"
-        else:
-            self.apps_root = self.get_venv_root() / "apps"
-            os.makedirs(self.apps_root, exist_ok=True)
-
+        self.apps_root = self.agi_root / "apps"
+        os.makedirs(self.apps_root, exist_ok=True)
         self.core_src = self.agi_root / "fwk/core/src"
         self.core_root = self.core_src.parent
 
@@ -654,7 +650,7 @@ class AgiEnv:
 
         # Now that target is defined, we can use it for further assignments.
         self._init_projects()
-        if not self.dev_root:
+        if not (self.apps_root / "my-code-project").exists():
             AgiEnv.clone_project(self.apps_root, self.app, self.apps_root / self.app)
 
         if not self.projects:
