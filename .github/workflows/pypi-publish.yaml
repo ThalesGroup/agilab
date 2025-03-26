@@ -36,7 +36,7 @@ jobs:
       # Run tests before proceeding
       - name: Run tests
         run: |
-          python3 fwk/run-all-test.py
+          python3 src/fwk/run-all-test.py
         # Optionally, you can use "if: ${{ always() }}" and then check the exit code,
         # but by default if this step fails the job will stop.
 
