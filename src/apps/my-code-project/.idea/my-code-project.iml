@@ -8,7 +8,7 @@
       <excludeFolder url="file://$MODULE_DIR$/build" />
       <excludeFolder url="file://$MODULE_DIR$/src/my_code_project.egg-info" />
     </content>
-    <orderEntry type="jdk" jdkName="uv (my-code-worker)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="uv (my-code-project)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>
