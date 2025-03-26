@@ -100,8 +100,6 @@ jobs:
           echo "Building env package"
           pushd src/fwk/env > /dev/null
           rm -rf dist
-          uv sync --dev
-          uv pip install -e .
           uv build --wheel --dev
           popd > /dev/null
 
@@ -110,8 +108,6 @@ jobs:
           echo "Building core package"
           pushd src/fwk/core > /dev/null
           rm -rf dist
-          uv sync --dev --extra workers --extra managers --group rapids
-          uv pip install -e .
           uv build --wheel 
           popd > /dev/null
 
