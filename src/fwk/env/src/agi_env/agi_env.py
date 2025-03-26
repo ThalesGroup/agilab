@@ -651,7 +651,9 @@ class AgiEnv:
         # Now that target is defined, we can use it for further assignments.
         self._init_projects()
         if not (self.apps_root / "my-code-project").exists():
-            AgiEnv.clone_project(self.apps_root, self.app, self.apps_root / self.app)
+            AgiEnv.clone_project(self.apps_root, "my-code-project, self.apps_root / self.app)
+        if not (self.apps_root / "flight").exists():
+            AgiEnv.clone_project(self.apps_root, "flight", self.apps_root / self.app)
 
         if not self.projects:
             raise FileNotFoundError(
