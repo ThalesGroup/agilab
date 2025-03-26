@@ -116,7 +116,6 @@ jobs:
           echo "Building gui package"
           pushd src/fwk/gui > /dev/null
           rm -rf dist
-          uv sync --dev --group rapids
           uv build --wheel
           popd > /dev/null
 
