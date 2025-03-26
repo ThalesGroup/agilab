@@ -60,7 +60,9 @@ include-package-data = true
 
 [tool.setuptools.data-files]
 pyprojects = [
-    "src/*",
+    "src/*.ipynb",
+    "src/*.json",
+    "src/*.toml",
 ]
 
 [tool.mypy]

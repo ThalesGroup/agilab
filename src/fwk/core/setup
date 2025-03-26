@@ -72,14 +72,11 @@ def find_sys_prefix(base_dir: str) -> str:
         return sys.prefix
 
 
-def create_symlinks_for_module(env, pck: str) -> None:
+def create_symlink_for_module(env, pck: str) -> None:
     dir_pck = pck.replace('.', os.sep)
     root_pck = pck.split(".")[0].split("_")[1]
-    dir_pck = Path(dir_pck).parts[0]
     src = env.agi_root / 'fwk' / root_pck / "src" / dir_pck
-    # Instead of linking the entire path, use only the first part (root directory)
-    dest = Path("src") / dir_pck  # Only use the first part as the destination
-
+    dest = Path("src") / dir_pck
     link_to_clean = []
 
     try:
@@ -109,7 +106,6 @@ def create_symlinks_for_module(env, pck: str) -> None:
     else:
         logging.debug(f"Link already exists for {dest}")
     return link_to_clean
-
 
 # --- End custom command ---
 
@@ -154,7 +150,7 @@ def main() -> None:
         logging.info(f"Cython extension configured for {worker_module}_cy")
     else:
         os.chdir(env.app_path)
-        links_created = create_symlinks_for_module(env, custom_modules)
+        links_created = [link for module in custom_modules for link in create_symlink_for_module(env, module)]
 
     discovered_pck = find_packages(where="src", exclude=[target_module, f"{target_module}.*"])
     all_packages = list(set(discovered_pck + custom_modules))

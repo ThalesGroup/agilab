@@ -79,7 +79,7 @@ class AgiEnv:
 
         self.app = self.app_path.name
         self.setup_app = self.app_path / "setup"
-        self.setup_core = self.core_src / "fwk/core/src/agi_core/workers/agi_worker/setup"
+        self.setup_core = self.core_src / "agi_core/workers/agi_worker/setup"
         target_package_path = self.module_path.parent
         self.target_package = target_package_path.name
         self.target_worker = f"{self.target}_worker"
@@ -613,13 +613,12 @@ class AgiEnv:
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.12.9")
         if AgiEnv.dev_root:
             self.AGI_APPS_DIR = str(self.agi_root / "apps")
-            self.core_src = self.agi_root
         else:
-            self.core_src = self.agi_root / "fwk/core/src"
             self.AGI_APPS_DIR = str(self.get_venv_root() / "apps")
             os.makedirs(self.AGI_APPS_DIR, exist_ok=True)
 
-        self.core_root = self.core_src
+        self.core_src = self.agi_root / "fwk/core/src"
+        self.core_root = self.core_src.parent
 
         self.workers_root = self.core_src / "agi_core/workers"
         self.manager_root = self.core_src / "agi_core/managers/"
