@@ -100,7 +100,7 @@ jobs:
           echo "Building env package"
           pushd src/fwk/env > /dev/null
           rm -rf dist
-          uv build --wheel --dev
+          uv build --wheel
           popd > /dev/null
 
       - name: Build core package
