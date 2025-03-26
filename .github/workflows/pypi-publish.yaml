@@ -1,4 +1,4 @@
-name: Upload release to PyPI
+name: CI/CD Pipeline
 
 on:
   workflow_dispatch:
@@ -11,12 +11,8 @@ on:
       - 'v*.*.*'
 
 jobs:
-  pypi-publish:
+  test:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write       # Allows push to the repository
-      id-token: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,12 +29,30 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install uv twine pytest
 
-      # Run tests before proceeding
       - name: Run tests
+        run: python3 src/fwk/run-all-test.py
+
+  pypi-publish:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # Allows push to the repository
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
         run: |
-          python3 src/fwk/run-all-test.py
-        # Optionally, you can use "if: ${{ always() }}" and then check the exit code,
-        # but by default if this step fails the job will stop.
+          python3 -m pip install --upgrade pip
+          python3 -m pip install uv twine
 
       - name: Remove all existing distribution directories
         run: |
@@ -51,7 +65,6 @@ jobs:
           # Strip leading 'v' if present
           VERSION=${VERSION#v}
           echo "Setting version: $VERSION"
-          # List of pyproject.toml files to update
           FILES=("pyproject.toml" "src/fwk/env/pyproject.toml" "src/fwk/core/pyproject.toml" "src/fwk/gui/pyproject.toml")
           for file in "${FILES[@]}"; do
             if [ -f "$file" ]; then
@@ -66,12 +79,9 @@ jobs:
         env:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
-          # Configure git
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          # Stage changed files
           git add pyproject.toml src/fwk/env/pyproject.toml src/fwk/core/pyproject.toml src/fwk/gui/pyproject.toml
-          # Commit if there are any changes
           if ! git diff --cached --quiet; then
             git commit -m "Bump version to ${VERSION#v}"
             git push
@@ -81,56 +91,46 @@ jobs:
 
       - name: Build subpackages
         run: |
-          # Define the subdirectories with full path
           SUBDIRS=("src/fwk/env" "src/fwk/core" "src/fwk/gui")
           for dir in "${SUBDIRS[@]}"; do
             echo "Building package in $dir"
             pushd "$dir" > /dev/null
-            rm -rf dist  # clean previous builds
+            rm -rf dist
             uv build --wheel
             popd > /dev/null
           done
 
       - name: Upload agi-env package
-        if: ${{ success() }}
         uses: actions/upload-artifact@v4
         with:
           name: agi-env-distributions
           path: src/fwk/env/dist/
 
       - name: Upload agi-core package
-        if: ${{ success() }}
         uses: actions/upload-artifact@v4
         with:
           name: agi-core-distributions
           path: src/fwk/core/dist/
 
       - name: Upload agi-gui package
-        if: ${{ success() }}
         uses: actions/upload-artifact@v4
         with:
           name: agi-gui-distributions
           path: src/fwk/gui/dist/
 
       - name: Build combined main package (agilab)
-        if: ${{ success() }}
-        run: |
-          # Create a fresh directory for the combined package build
-          uv build --sdist
+        run: uv build --sdist
 
       - name: Upload agilab package
-        if: ${{ success() }}
         uses: actions/upload-artifact@v4
         with:
           name: agilab-distributions
           path: dist/
 
       - name: Verify package files before upload
-        if: ${{ success() }}
         run: twine check src/fwk/env/dist/* src/fwk/core/dist/* src/fwk/gui/dist/* dist/*
 
       - name: Publish subpackages to PyPI
-        if: ${{ success() }}
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
@@ -140,14 +140,12 @@ jobs:
           twine upload src/fwk/gui/dist/*
 
       - name: Publish main package (agilab) to PyPI
-        if: ${{ success() }}
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: twine upload dist/*
 
       - name: Trigger static pages workflow
-        if: ${{ success() }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
