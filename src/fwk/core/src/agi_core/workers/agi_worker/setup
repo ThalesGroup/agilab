@@ -78,7 +78,6 @@ def create_symlinks_for_module(env, pck: str) -> None:
     dir_pck = Path(dir_pck).parts[0]
     src = env.agi_root / 'fwk' / root_pck / "src" / dir_pck
     # Instead of linking the entire path, use only the first part (root directory)
-
     dest = Path("src") / dir_pck  # Only use the first part as the destination
 
 
