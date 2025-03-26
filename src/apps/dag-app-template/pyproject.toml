@@ -9,7 +9,7 @@ license = { text = "Thales SIX GTS France SAS" }
 requires-python = "==3.12.*"
 readme = "README.md"
 
-dependencies = ["setuptools", "cython", "parso", "py7zr", "python-dotenv", ]
+dependencies = ["setuptools", "cython", "parso", "py7zr", "python-dotenv",  "ipython"]
 
 [dependency-groups]
 dev = ["black", "pytest", "licensecheck", "dag-app-project"]
@@ -33,7 +33,11 @@ dag-app-project = { workspace = true }
 include-package-data = true
 
 [tool.setuptools.data-files]
-pyprojects = ["src/*"]
+pyprojects = [
+    "src/*.ipynb",
+    "src/*.json",
+    "src/*.toml",
+]
 
 [tool.mypy]
 mypy_path = ["stubs"]

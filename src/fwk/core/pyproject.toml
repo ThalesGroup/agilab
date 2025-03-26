@@ -71,7 +71,6 @@ managers = [
     "requests",
     "wheel",
     "polars",
-    "IPython",
 ]
 workers = []
 

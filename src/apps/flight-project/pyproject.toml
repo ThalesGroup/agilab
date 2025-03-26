@@ -41,6 +41,7 @@ dev = [
     "pytest",
     "licensecheck",
     "flight-project",
+    "ipython",
 ]
 
 [tool.uv]

@@ -39,6 +39,7 @@ dev = [
     "pytest",
     "licensecheck",
     "my-code-project",
+    "ipython",
 ]
 
 [tool.uv]
@@ -58,7 +59,9 @@ include-package-data = true
 
 [tool.setuptools.data-files]
 my_code = [
-    "src/*",
+    "src/*.ipynb",
+    "src/*.json",
+    "src/*.toml",
 ]
 
 [tool.mypy]

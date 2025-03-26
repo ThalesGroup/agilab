@@ -1124,7 +1124,7 @@ class AGI:
         -------
         """
         AGI._run_type = "simulate"
-        return await AGI.run(module_name_or_path, scheduler, workers, verbose, mode=AGI.INSTALL_MODE, **args)
+        return await AGI.run(module_name_or_path, scheduler, workers, verbose, mode=AGI.SIMULATE_MODE, **args)
 
     @staticmethod
     async def _start_scheduler(scheduler):
@@ -1382,7 +1382,12 @@ class AGI:
     @staticmethod
     async def main(scheduler):
         cond_clean = True
-        if AGI._mode >= AGI.INSTALL_MODE:
+
+        if (AGI._mode & AGI.DEPLOYEMENT_MASK) == AGI.SIMULATE_MODE:
+            # case simulate mode #0b11xxxx
+            res = AGI._run_local()
+
+        elif AGI._mode >= AGI.INSTALL_MODE:
             # case install modes
             t = time.time()
 
