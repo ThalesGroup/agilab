@@ -74,10 +74,16 @@ def display_landing_page(resources_path: Path):
       </div>
     </div>
     <div class="uvp-highlight">
-      <strong>AGILAB</strong>: Revolutionizing Data Science Experimentation with Zero Integration Hassles. As a comprehensive framework built on 50KLOC of pure Python and powered by Gen AI and ML, AGILAB scales effortlessly—from embedded systems to the cloud—empowering seamless collaboration on data insights and predictive modeling.
+      <strong>AGILAB</strong>:
+    <ul>
+      Revolutionizing Data Science Experimentation with Zero Integration Hassles. As a comprehensive framework built on 50KLOC of pure Python and powered by Gen AI and ML, AGILAB scales effortlessly—from embedded systems to the cloud—empowering seamless collaboration on data insights and predictive modeling.
+    </ul>
     </div>
     <div class="uvp-highlight">
-      <strong>Founding Concept:</strong> AGILAB outlines a method for scaling into a project’s execution environment without the need for virtualization or containerization (such as Docker). The approach involves encapsulating an app's logic into two components: a worker (which is scalable and free from dependency constraints) and a manager (which is easily integrable due to minimal dependency requirements). This design enables seamless integration within a single app, contributing to the move toward Artificial General Intelligence (AGI).
+      <strong>Founding Concept:</strong>
+    <ul>
+      AGILAB outlines a method for scaling into a project’s execution environment without the need for virtualization or containerization (such as Docker). The approach involves encapsulating an app's logic into two components: a worker (which is scalable and free from dependency constraints) and a manager (which is easily integrable due to minimal dependency requirements). This design enables seamless integration within a single app, contributing to the move toward Artificial General Intelligence (AGI).
+    </ul>      
     </div>
       <strong>Key Features:</strong>
     <ul>

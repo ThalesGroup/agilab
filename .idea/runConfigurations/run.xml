@@ -1,11 +1,11 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="run" type="ShConfigurationType">
-    <option name="SCRIPT_TEXT" value="agilab" />
+    <option name="SCRIPT_TEXT" value="uv run agilab --install-type 1 --apps-dir &quot;../../apps&quot;" />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
     <option name="SCRIPT_PATH" value="" />
     <option name="SCRIPT_OPTIONS" value="" />
     <option name="INDEPENDENT_SCRIPT_WORKING_DIRECTORY" value="true" />
-    <option name="SCRIPT_WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="SCRIPT_WORKING_DIRECTORY" value="$PROJECT_DIR$/src/fwk/gui" />
     <option name="INDEPENDENT_INTERPRETER_PATH" value="true" />
     <option name="INTERPRETER_PATH" value="/bin/bash" />
     <option name="INTERPRETER_OPTIONS" value="" />
