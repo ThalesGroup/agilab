@@ -45,10 +45,10 @@ def main():
         "--openai-api-key", type=str, help="OpenAI API key", default=None
     )
     parser.add_argument(
-        "--apps-dir", type=str, help="Directory for apps", default=None
+        "--apps-dir", type=str, help="Directory for apps", default="apps"
     )
     parser.add_argument(
-        "--install-type", type=str, help="Install type", default=None
+        "--install-type", type=str, help="Install type", default=0
     )
     # Parse known arguments; extra arguments are captured in `unknown`
     args, unknown = parser.parse_known_args()
