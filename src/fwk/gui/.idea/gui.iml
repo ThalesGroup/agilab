@@ -9,7 +9,7 @@
       <excludeFolder url="file://$MODULE_DIR$/dist" />
       <excludeFolder url="file://$MODULE_DIR$/src/agi_gui.egg-info" />
     </content>
-    <orderEntry type="jdk" jdkName="uv (gui)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="uv (agi-gui)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>

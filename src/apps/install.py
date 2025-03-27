@@ -22,6 +22,7 @@ import asyncio
 from pathlib import Path
 import tomli
 import tomli_w
+import argparse
 
 core_src = str(Path(__file__).parent.parent / 'fwk/core/src')
 sys.path.insert(0, core_src)
@@ -36,10 +37,8 @@ else:
     raise ValueError("Please provide the module name as the first argument.")
 
 print('install module:', module)
-project_root = AgiEnv(module).apps_root
 
-
-def resolve_packages_path_in_toml(module):
+def resolve_packages_path_in_toml(module, args=None):
     """
     Updates the 'agi-core' package path in the pyproject.toml file for a given module.
 
@@ -56,8 +55,7 @@ def resolve_packages_path_in_toml(module):
     agi_root_str = agi_root.as_posix()
 
     # Build the module path based on naming conventions (underscores to hyphens)
-    module_dirname = f"apps/{module.replace('_', '-')}-project"
-    module_path = Path(agi_root_str) / module_dirname
+    module_path = Path(args.apps_dir) / (module.replace('_', '-') + "-project")
     pyproject_file = module_path / "pyproject.toml"
 
     if not pyproject_file.exists():
@@ -99,11 +97,34 @@ async def main():
     Main asynchronous function to resolve paths in pyproject.toml and install a module using AGI.
     """
     try:
-        resolve_packages_path_in_toml(module)
+        parser = argparse.ArgumentParser(
+            description="Run AGILAB application with custom options."
+        )
+
+        parser.add_argument("module", type=str, help="Module name")
+
+        parser.add_argument(
+            "--apps-dir", type=str, help="Directory for apps", required=True
+        )
+        parser.add_argument(
+            "--install-type", type=str, help="Install type", required=True
+        )
+        args, unknown = parser.parse_known_args()
+
+        env = AgiEnv(module, apps_dir=args.apps_dir, install_type=args.install_type)
+        resolve_packages_path_in_toml(module, args)
+
     except Exception as e:
         raise Exception("Failed to resolve env and core path in toml") from e
 
-    await AGI.install(module, scheduler="127.0.0.1", verbose=3, modes_enabled= AGI.DASK_MODE | AGI.CYTHON_MODE)
+    await AGI.install(
+        args.module,
+        env=env,
+        type=args.install_type,
+        scheduler="127.0.0.1",
+        verbose=3,
+        modes_enabled=AGI.DASK_MODE | AGI.CYTHON_MODE
+    )
 
 if __name__ == '__main__':
     asyncio.run(main())

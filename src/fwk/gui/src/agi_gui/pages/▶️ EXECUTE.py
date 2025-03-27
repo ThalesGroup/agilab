@@ -9,7 +9,6 @@
 #   ... (license text continues) ...
 
 import time
-from agi_gui.pagelib import env  # CAUTION: Place it at the first line to avoid other pagelib import instabilities
 import streamlit as st
 from agi_gui.pagelib import get_about_content, render_logo
 
@@ -57,22 +56,6 @@ def init_session_state(defaults: dict):
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
 
-# Define defaults for session state keys.
-defaults = {
-    "profile_report_file": env.AGILAB_EXPORT_ABS / "profile_report.html",
-    "preview_tree": False,
-    "data_source": "file",
-    "scheduler_ipport": {socket.gethostbyname("localhost"): 8786},
-    "workers": {"127.0.0.1": 1},
-    "learn": {0, None, None, None, 1},
-    "args_input": {},
-    "loaded_df": None,
-    "df_cols": [],
-    "selected_cols": [],
-    "check_all": True,
-    "export_tab_previous_project": None,
-}
-init_session_state(defaults)
 
 #####################################
 # Helper function for displaying logs
@@ -502,6 +485,27 @@ def workload_barchart(workers, workers_chunks, partition_key, weights_key, weigh
 # Main Application UI
 # ===========================
 def page():
+    global env
+    env = st.session_state["env"]
+
+    # Define defaults for session state keys.
+    defaults = {
+        "profile_report_file": env.AGILAB_EXPORT_ABS / "profile_report.html",
+        "preview_tree": False,
+        "data_source": "file",
+        "scheduler_ipport": {socket.gethostbyname("localhost"): 8786},
+        "workers": {"127.0.0.1": 1},
+        "learn": {0, None, None, None, 1},
+        "args_input": {},
+        "loaded_df": None,
+        "df_cols": [],
+        "selected_cols": [],
+        "check_all": True,
+        "export_tab_previous_project": None,
+    }
+
+    init_session_state(defaults)
+
     export_abs = env.AGILAB_EXPORT_ABS
     initialize_app_settings()
     projects = env.projects
@@ -514,7 +518,7 @@ def page():
         st.session_state["project"] = current_project
     project = select_project(projects, current_project)
     module = env.target
-    project_path = env.apps_root / project
+    project_path = env.apps_dir / project
     export_abs_module = env.AGILAB_EXPORT_ABS / module
     export_abs_module.mkdir(parents=True, exist_ok=True)
     pyproject_file = env.app_path / "pyproject.toml"

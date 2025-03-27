@@ -17,7 +17,6 @@
 # OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from agi_gui.pagelib import env, render_logo
 import streamlit as st
 
 # ===========================
@@ -44,66 +43,13 @@ from agi_gui.pagelib import (
     get_info_bar,
     get_about_content,
     get_css_text,
-    default_df,
     export_df,
     scan_dir,
     on_df_change,
+    render_logo
 )
 
 from agi_env import AgiEnv
-
-# Set page configuration
-st.set_page_config(
-    layout="wide",
-    menu_items=get_about_content(),
-)
-
-steps_file_name = "lab_steps.toml"
-default_df = "export.csv"
-st.session_state.setdefault("steps_file_name", steps_file_name)
-
-# load preprompt
-pre_prompt_file = env.app_src_path / "pre_prompt.json"
-with open(pre_prompt_file) as f:
-    pre_prompt = json.load(f)
-
-# Initialize session state variables if not present
-st.session_state.setdefault("help_path", env.agi_root / "src/fwk/gui/help")
-st.session_state.setdefault("projects", env.projects)
-st.session_state.setdefault("snippet_file", env.AGILAB_LOG_ABS / "lab_snippet.py")
-st.session_state.setdefault("server_started", False)
-st.session_state.setdefault("mlflow_port", 5000)
-
-# Load custom components and styles
-custom_buttons = get_custom_buttons()
-info_bar = get_info_bar()
-css_text = get_css_text()
-css_style = {"style": {"borderRadius": "0px 0px 8px 8px"}}
-
-df_dir_def = env.AGILAB_EXPORT_ABS / env.target
-
-st.session_state.setdefault("steps_file", env.app_src_path / steps_file_name)
-st.session_state.setdefault(
-    "df_file_out", df_dir_def / ("lab_" + default_df.replace(".csv", "_out.csv"))
-)
-st.session_state.setdefault("df_file", df_dir_def / default_df)
-df_file = Path(st.session_state["df_file"]) if st.session_state["df_file"] else None
-if df_file:
-    render_logo("Experiment on DATA")
-else:
-    render_logo("Experiment on APPS")
-
-# Set session defaults
-session_defaults = {
-    "response_dict": {"type": "", "text": ""},
-    "apps_abs": env.apps_root,
-    "page_broken": False,
-    "step_checked": False,
-    "virgin_page": True,
-}
-for key, default in session_defaults.items():
-    st.session_state.setdefault(key, default)
-
 
 class JumpToMain(Exception):
     """
@@ -362,7 +308,7 @@ def on_nb_change(module, query, file_step_path, project, notebook_file, env):
     Handle the notebook action.
     """
     save_step(module, query[1:5], query[0], query[-1], file_step_path)
-    project_path = env.apps_root / project
+    project_path = env.apps_dir / project
     if notebook_file.exists():
         cmd = f"uv run jupyter notebook {notebook_file}"
         output = run_agi(cmd, venv=project_path, wait=True)
@@ -438,6 +384,7 @@ def sidebar_controls():
     """
     Create sidebar controls for selecting modules and DataFrames.
     """
+    global defaut_df
     Agi_export_abs = Path(env.AGILAB_EXPORT_ABS)
     modules = st.session_state.get("modules", scan_dir(Agi_export_abs))
     st.session_state["lab_dir"] = st.sidebar.selectbox(
@@ -521,7 +468,10 @@ def mlflow_controls():
 
 
 def page():
-    st.session_state["lab_prompt"] = pre_prompt
+    global df_file
+    # load preprompt
+    with open(env.app_src_path / "pre_prompt.json") as f:
+        st.session_state["lab_prompt"] = json.load(f)
     sidebar_controls()
     lab_dir = st.session_state["lab_dir"]
     index_page = st.session_state.get("index_page", lab_dir)
@@ -645,7 +595,56 @@ def load_df_cached(path: Path, nrows=50, with_index=True):
     return load_df(path, nrows, with_index)
 
 def main():
+    global env, default_df, df_file
+    env = st.session_state["env"]
+
     try:
+        # Set page configuration
+        st.set_page_config(
+            layout="wide",
+            menu_items=get_about_content(),
+        )
+
+        steps_file_name = "lab_steps.toml"
+        default_df = "export.csv"
+        st.session_state.setdefault("steps_file_name", steps_file_name)
+
+        # Initialize session state variables if not present
+        st.session_state.setdefault("help_path", env.agi_root / "src/fwk/gui/help")
+        st.session_state.setdefault("projects", env.projects)
+        st.session_state.setdefault("snippet_file", env.AGILAB_LOG_ABS / "lab_snippet.py")
+        st.session_state.setdefault("server_started", False)
+        st.session_state.setdefault("mlflow_port", 5000)
+
+        # Load custom components and styles
+        custom_buttons = get_custom_buttons()
+        info_bar = get_info_bar()
+        css_text = get_css_text()
+        css_style = {"style": {"borderRadius": "0px 0px 8px 8px"}}
+
+        df_dir_def = env.AGILAB_EXPORT_ABS / env.target
+
+        st.session_state.setdefault("steps_file", env.app_src_path / steps_file_name)
+        st.session_state.setdefault(
+            "df_file_out", df_dir_def / ("lab_" + default_df.replace(".csv", "_out.csv"))
+        )
+        st.session_state.setdefault("df_file", df_dir_def / default_df)
+        df_file = Path(st.session_state["df_file"]) if st.session_state["df_file"] else None
+        if df_file:
+            render_logo("Experiment on DATA")
+        else:
+            render_logo("Experiment on APPS")
+
+        # Set session defaults
+        session_defaults = {
+            "response_dict": {"type": "", "text": ""},
+            "apps_abs": env.apps_dir,
+            "page_broken": False,
+            "step_checked": False,
+            "virgin_page": True,
+        }
+        for key, default in session_defaults.items():
+            st.session_state.setdefault(key, default)
         page()
     except Exception as e:
         st.error(f"An error occurred: {e}")

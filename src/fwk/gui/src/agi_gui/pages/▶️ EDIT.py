@@ -24,7 +24,7 @@ import ctypes
 from ctypes import wintypes
 
 import streamlit as st
-from agi_gui.pagelib import env, get_about_content, render_logo
+from agi_gui.pagelib import get_about_content, render_logo
 from agi_gui.pagelib import (
     get_classes_name,
     get_fcts_and_attrs_name,
@@ -33,7 +33,7 @@ from agi_gui.pagelib import (
     on_project_change,
     select_project,
     open_docs,
-    RESOURCE_PATH,
+    render_logo
 )
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
@@ -272,6 +272,7 @@ def handle_export_project():
     """
     Handle the export of a project to a zip file.
     """
+    global env
     input_dir = env.app_path
     output_zip = (env.export_apps / env.app).with_suffix(".zip")
     gitignore_path = input_dir / ".gitignore"
@@ -306,9 +307,10 @@ def import_project(project_zip, ignore=False):
     Args:
         ignore (bool, optional): Whether to clean the project after import. Defaults to False.
     """
+    global env
     zip_path = env.export_apps / project_zip
     project_name = Path(project_zip).stem
-    target_dir = env.apps_root / project_name
+    target_dir = env.apps_dir / project_name
     with zipfile.ZipFile(zip_path, "r") as zip_ref:
         zip_ref.extractall(target_dir)
     if ignore:
@@ -342,6 +344,7 @@ def clone_project(target_project, dest_project):
         target_project (str): Name of the target project.
         dest_project (str): Name of the destination project.
     """
+    global env
     res = env.clone_preject(target_project, dest_project)
 
     # After cloning, update the session state
@@ -350,7 +353,7 @@ def clone_project(target_project, dest_project):
     st.session_state["project"] = dest_project  # Set the new project as current
 
     # Change the app to the new project
-    env.change_app(dest_project, with_lab=True)
+    env.change_app(dest_project, mode=True)
 
     return res
 
@@ -1150,11 +1153,11 @@ def handle_project_creation():
     if cols[2].button("Create", type="primary", use_container_width=True):
         if not clone_dest:
             st.error("Project name must not be empty.")
-        elif (env.apps_root / clone_dest).exists():
+        elif (env.apps_dir / clone_dest).exists():
             st.warning(f"Project '{clone_dest}' already exists.")
         else:
-            env.clone_project(env.apps_root, st.session_state["clone_src"], env.apps_root / clone_dest)
-            project_path = env.apps_root / clone_dest
+            env.clone_project(env.apps_dir, st.session_state["clone_src"], env.apps_dir / clone_dest)
+            project_path = env.apps_dir / clone_dest
             if project_path.exists():
                 st.success(f"Project '{clone_dest}' successfully created.")
                 on_project_change(clone_dest)  # Trigger rerun to apply the change
@@ -1186,12 +1189,12 @@ def handle_project_rename():
     if cols[2].button("Rename", type="primary", use_container_width=True):
         if not clone_dest:
             st.error("Project name must not be empty.")
-        elif (env.apps_root / clone_dest).exists():
+        elif (env.apps_dir / clone_dest).exists():
             st.warning(f"Project '{clone_dest}' already exists.")
         else:
             src_project = env.app
-            clone_project(env.apps_root, src_project, clone_dest)
-            project_path = env.apps_root / clone_dest
+            clone_project(env.apps_dir, src_project, clone_dest)
+            project_path = env.apps_dir / clone_dest
             if project_path.exists():
                 st.success(f"Project '{clone_dest}' successfully created.")
                 on_project_change(clone_dest)
@@ -1276,7 +1279,7 @@ def handle_project_import():
             help="This will remove all the .gitignore file from the project.",
         )
 
-        path = env.apps_root / selected_archive
+        path = env.apps_dir / selected_archive
         overwrite_modal = Modal("Import project", key="import-modal", max_width=450)
         cols = st.sidebar.columns(3)
         if cols[2].button("Import", type="primary", use_container_width=True):
@@ -1306,7 +1309,7 @@ def handle_project_import():
                     overwrite_modal.close()
 
         if st.session_state.get("project_imported"):
-            project_path = env.apps_root / import_target
+            project_path = env.apps_dir / import_target
             if project_path.exists():
                 st.success(f"Project '{import_target}' successfully imported.")
                 on_project_change(import_target)
@@ -1325,7 +1328,9 @@ def page():
     """
     Main function to render the Streamlit page.
     """
-    global CUSTOM_BUTTONS, INFO_BAR, CSS_TEXT, comp_props, ace_props
+    global CUSTOM_BUTTONS, INFO_BAR, CSS_TEXT, comp_props, ace_props, env
+
+    env = st.session_state["env"]
 
     # Check if we need to switch the sidebar tab to "Select"
     if st.session_state.get("switch_to_select", False):
@@ -1336,11 +1341,11 @@ def page():
     # Load .agi_resources
 
     try:
-        with open(RESOURCE_PATH / "custom_buttons.json") as f:
+        with open(env.resource_path / "custom_buttons.json") as f:
             CUSTOM_BUTTONS = json.load(f)
-        with open(RESOURCE_PATH / "info_bar.json") as f:
+        with open(env.resource_path / "info_bar.json") as f:
             INFO_BAR = json.load(f)
-        with open(RESOURCE_PATH / "code_editor.scss") as f:
+        with open(env.resource_path / "code_editor.scss") as f:
             CSS_TEXT = f.read()
     except FileNotFoundError as e:
         st.error(f"Resource file not found: {e}")

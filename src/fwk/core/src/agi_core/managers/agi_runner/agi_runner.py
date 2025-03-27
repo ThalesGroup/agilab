@@ -147,6 +147,7 @@ class AGI:
     @staticmethod
     async def run(
             target: str,
+            env: AgiEnv,  # some_default_value must be defined
             scheduler: Optional[str] = None,
             workers: Optional[Dict[str, int]] = None,
             verbose: int = 0,
@@ -179,7 +180,6 @@ class AGI:
             ValueError: If `mode` is invalid.
             RuntimeError: If the target module fails to load.
         """
-        env = AgiEnv(target, verbose=verbose)
         AGI.env = env
 
         if not workers:
@@ -225,8 +225,8 @@ class AGI:
             AGI.workers = workers
             AGI._run_time = {}
 
-            AGI._capacity_data_file = env.deployed_resources_abs / "balancer_df.csv"
-            AGI._capacity_model_file = env.deployed_resources_abs / "balancer_model.pkl"
+            AGI._capacity_data_file = env.resource_path / "balancer_df.csv"
+            AGI._capacity_model_file = env.resource_path / "balancer_model.pkl"
             path = Path(AGI._capacity_model_file)
 
             if path.is_file():
@@ -1047,7 +1047,7 @@ class AGI:
 
     @staticmethod
     async def install(
-            module_name_or_path, scheduler: Optional[str] = None, workers: Optional[Dict[str, int]] = None,
+            module_name, env, scheduler: Optional[str] = None, workers: Optional[Dict[str, int]] = None,
             modes_enabled=RUN_MASK, verbose=1, **args
     ):
         """
@@ -1077,14 +1077,17 @@ class AGI:
             ConnectionError:
         """
         AGI._run_type = "sync"
-        await AGI.run(module_name_or_path, scheduler, workers,
+        await AGI.run(module_name,
+                      scehuler=scheduler,
+                      worker=workers,
+                      env=env,
                       mode=(AGI.INSTALL_MODE | modes_enabled) & AGI.DASK_RESET,
                       rapids_enabled=AGI.INSTALL_MODE & modes_enabled,
                       verbose=verbose, **args)
 
     @staticmethod
     async def update(
-            module_name_or_path, scheduler: Optional[str] = None, workers: Optional[Dict[str, int]] = None,
+            module_name, module_path, scheduler: Optional[str] = None, workers: Optional[Dict[str, int]] = None,
             modes_enabled=RUN_MASK, verbose=1, **args
     ):
         """

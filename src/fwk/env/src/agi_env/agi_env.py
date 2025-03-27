@@ -50,35 +50,52 @@ class AgiEnv:
     """
     AgiEnv manages paths and environment variables within the agiFramework.
     """
+    install_type = None
 
-    def __init__(self, module, with_lab=True, verbose=False):
+    def __init__(self, module=None, apps_dir=None, install_type=0, verbose=False):
         """
         Initialize the AgiEnv instance.
         """
 
-        if not module:
-            print("no module specified")
-            exit(1)
-        else:
-            self.module = module
 
-        AgiEnv.dev_root = None
-        self.with_lab = with_lab
         self.verbose = verbose
         self.is_managed_pc = getpass.getuser().startswith("T0")
-        self.agi_root = AgiEnv.locate_agi_installation()
+        self.agi_root = AgiEnv.locate_agi_installation(install_type)
         self.agi_resources = Path("resources/.agilab")
-        self.agi_env_path = Path(__file__).parent
         self.home_abs = Path.home() / "MyApp" if self.is_managed_pc else Path.home()
 
+        self.resource_path = self.home_abs / self.agi_resources.name
+        self.envars = dotenv_values(dotenv_path=self.resource_path / ".env",
+                                    verbose=self.verbose)
+        envars = self.envars
+        if module:
+            self.module = module
+        else:
+            self.module = envars.get("AGI_INSTALL_TYPE", "my-code")
+
+        if apps_dir:
+            AgiEnv.apps_dir = Path(apps_dir)
+        else:
+            AgiEnv.apps_dir = Path(envars.get("APPS_DIR", self._determine_apps_dir(module)))
+
+        if install_type:
+            self.install_type = install_type
+        else:
+            self.install_type = int(envars.get("AGI_INSTALL_TYPE", 0))
+
         # Initialize .agilab resources
-        self._init_resources(self.agi_env_path / self.agi_resources)
+        self._init_resources(AgiEnv.agi_root / "fwk/env/src/agi_env" / self.agi_resources)
 
         # Initialize environment variables
-        self._init_envars(self.deployed_resources_abs / ".env")
+        self._init_envars()
 
-        self.app = self.app_path.name
-        self.setup_app = self.app_path / "setup"
+        if isinstance(module, Path):
+            self.app = self.module.name
+        else:
+            self.app = module.replace("_","-") + "-project"
+
+        self.app_path = self.apps_dir / self.app
+        self.setup_app =  self.app_path / "setup"
         self.setup_core = self.core_src / "agi_core/workers/agi_worker/setup"
         target_package_path = self.module_path.parent
         self.target_package = target_package_path.name
@@ -115,7 +132,7 @@ class AgiEnv:
         self._init_worker_env()
 
         # Initialize projects and LAB if required
-        if with_lab:
+        if AgiEnv.install_type != 3:
             self.init_envars_app(self.envars)
             self._init_apps()
 
@@ -265,18 +282,31 @@ class AgiEnv:
         return mode_int
 
     @staticmethod
-    def locate_agi_installation():
-        if not AgiEnv.is_dev(__file__):
-            current_path = Path(__file__)
-            path_parts = current_path.parts
-            src_index = path_parts.index(".venv")
-            AgiEnv.dev_root = Path(*path_parts[:src_index + 1])
-        elif "src" in path_parts:
-            src_index = path_parts.index("src")
-            AgiEnv.dev_root = Path(*path_parts[:src_index + 1])
-        else:
-            raise RuntimeError("'src' directory not found in the current path.")
-        return AgiEnv.dev_root
+    def locate_agi_installation(install_type=install_type):
+        current_path = Path(__file__)
+        path_parts = current_path.parts
+        dev = "src"
+        venv= ".venv"
+        enduser = "site-packages"
+
+        if install_type == 0:
+            index = path_parts.index(enduser)
+            AgiEnv.agi_root = Path(*path_parts[:index + 1])
+            index = path_parts.index(venv)
+            AgiEnv.agi_venv = Path(*path_parts[:index + 1])
+            #AgiEnv.apps_dir = AgiEnv.agi_venv.parent / "apps"
+            AgiEnv.gui_root = AgiEnv.agi_root / "gui"
+            AgiEnv.AGI_SRC_ABS = AgiEnv.agi_root
+            AgiEnv.help_path = "https://thalesgroup.github.io/agilab"
+        else :
+            index = path_parts.index(dev)
+            AgiEnv.agi_root = Path(*path_parts[:index + 1])
+            AgiEnv.agi_venv = AgiEnv.get_venv_root()
+            #AgiEnv.apps_dir = AgiEnv.agi_venv / "fwk/apps"
+            AgiEnv.gui_root = AgiEnv.agi_root / "fwk/gui"
+            AgiEnv.AGI_SRC_ABS = str(AgiEnv.gui_root / "src")
+            AgiEnv.help_path = str(AgiEnv.agi_root / "../docs/html")
+        return AgiEnv.agi_root
 
         where_is_agi = Path.home() / ".local/share/agilab/.agi-path"
         if where_is_agi.exists():
@@ -326,9 +356,14 @@ class AgiEnv:
         else:
             project_name = name.replace("_", "-") + "-project"
         module_path = (
-                self.apps_root / project_name / "src" / module_name / (module_name + ".py")
+                self.apps_dir / project_name / "src" / module_name / (module_name + ".py")
         ).resolve()
         return module_path
+
+    def _determine_apps_dir(self, module_path):
+        path_str = str(module_path)
+        index = path_str.index("-project")
+        return Path(path_str[:index]).parent
 
     def _init_apps(self):
         app_settings_file = self.app_src_path / "app_settings.toml"
@@ -340,20 +375,16 @@ class AgiEnv:
         self.args_ui_snippet = args_ui_snippet
 
         self.gitignore_file = self.app_path / ".gitignore"
-        dest = self.deployed_resources_abs
-        if AgiEnv.dev_root:
-            AGI_GUI_ABS = self.agi_root / "fwk/gui/src/agi_gui"
-        else:
-            AGI_GUI_ABS = self.agi_root /  "agi_gui"
+        dest = self.resource_path
 
-        shutil.copytree(AGI_GUI_ABS / self.agi_resources, dest, dirs_exist_ok=True)
+        shutil.copytree(self.gui_root / "src/agi_gui"/ self.agi_resources, dest, dirs_exist_ok=True)
 
     def _update_env_file(self, updates: dict):
         """
         Updates the .agilab/.env file with the key/value pairs from updates.
         Reads the current file (if any), updates the keys, and writes back all key/value pairs.
         """
-        env_file = self.deployed_resources_abs / ".env"
+        env_file = self.resource_path / ".env"
         env_data = {}
         if env_file.exists():
             with env_file.open("r") as f:
@@ -383,19 +414,21 @@ class AgiEnv:
 
     def set_openai_api_key(self, api_key: str):
         """Set the OPENAI_API_KEY environment variable."""
-        self.OPENAI_API_KEY
+        self.OPENAI_API_KEY = api_key
         self.set_env_var("OPENAI_API_KEY", api_key)
 
-    @staticmethod
-    def is_dev(file_path):
-        file_abs = os.path.abspath(file_path)
-        prefix_abs = os.path.abspath(sys.prefix)
-        # If the file is located in site-packages, treat it as non-dev.
-        if "site-packages" in file_abs:
-            return False
-        return file_abs.startswith(prefix_abs)
+    def set_install_type(self, install_type: int):
+        self.install_type = install_type
+        self.set_env_var("INSTALL_TYPE", install_type)
 
-    def get_venv_root(self):
+    def set_apps_dir(self, apps_dir: Path):
+        self.apps_dir =apps_dir
+        self.set_env_var("APPS_DIR", apps_dir)
+
+
+
+    @staticmethod
+    def get_venv_root():
         p = Path(sys.prefix).resolve()
         # If .venv exists in the path parts, slice the path up to it
         if ".venv" in p.parts:
@@ -552,7 +585,7 @@ class AgiEnv:
                 except Exception as e:
                     print(f"WARNING: Failed to clone symlink '{item}': {e}")
 
-    def clone_project(apps_root, target_project:str, dest_project:Path):
+    def clone_project(apps_dir, target_project:str, dest_project:Path):
         """
         Clone a project by recursively copying files and directories, applying renaming.
         For the .venv directory, create a symbolic link instead of copying if it's not ignored.
@@ -565,7 +598,7 @@ class AgiEnv:
         import astor
 
         rename_map = AgiEnv.create_rename_map(target_project, dest_project)
-        source_root = apps_root / target_project
+        source_root = apps_dir / target_project
         dest_root = dest_project.parent
 
         # Check if source project exists
@@ -597,11 +630,10 @@ class AgiEnv:
         AgiEnv.clone_directory(source_root, dest_root, rename_map, spec, source_root)
 
         # Change the app to the new project
-        env.change_app(dest_project, with_lab=True)
+        env.change_app(dest_project, mode=True)
 
-    def _init_envars(self, env_path):
-        envars = dotenv_values(dotenv_path=env_path, verbose=self.verbose)
-        self.envars = envars
+    def _init_envars(self):
+        envars = self.envars
         self.credantials = envars.get("AGI_CREDENTIALS", getpass.getuser())
         credantials = self.credantials.split(":")
         self.user = credantials[0]
@@ -610,9 +642,9 @@ class AgiEnv:
         else:
             self.password = None
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.12.9")
-        self.apps_root = self.agi_root / "apps"
-        os.makedirs(self.apps_root, exist_ok=True)
-        self.core_src = self.agi_root / "fwk/core/src"
+
+        os.makedirs(AgiEnv.apps_dir, exist_ok=True)
+        self.core_src = AgiEnv.agi_root / "fwk/core/src"
         self.core_root = self.core_src.parent
 
         self.workers_root = self.core_src / "agi_core/workers"
@@ -620,11 +652,7 @@ class AgiEnv:
         path = str(self.core_src)
         if path not in sys.path:
             sys.path.insert(0, path)
-
-        if AgiEnv.dev_root:
-            self.projects = self.get_projects(self.dev_root / "apps")
-        else:
-            self.projects = self.get_projects(self.apps_root)
+        self.projects = self.get_projects(AgiEnv.apps_dir)
 
         # Determine module path and set target.
         if isinstance(self.module, Path):
@@ -632,15 +660,6 @@ class AgiEnv:
         else:
             self.module_path = self._determine_module_path(self.module)
         self.target = self.module_path.stem  # Define self.target here
-
-        if AgiEnv.dev_root:
-            self.gui_env = self.agi_root / "fwk/gui"
-            self.AGI_SRC_ABS = str(self.gui_env / "src")
-            self.help_path = str(self.agi_root / "../docs/html")
-        else:
-            self.AGI_SRC_ABS = self.agi_root
-            self.help_path = "https://thalesgroup.github.io/agilab"
-            self.gui_env = os.getcwd()
 
         self.AGILAB_SHARE_ABS = Path(
             envars.get("AGI_SHARE_DIR", self.home_abs / "data")
@@ -650,14 +669,16 @@ class AgiEnv:
 
         # Now that target is defined, we can use it for further assignments.
         self._init_projects()
-        if not (self.apps_root / "my-code-project").exists():
-            AgiEnv.clone_project(self.apps_root, "my-code-project", self.apps_root / self.app)
-        if not (self.apps_root / "flight").exists():
-            AgiEnv.clone_project(self.apps_root, "flight", self.apps_root / self.app)
+        apps_src = AgiEnv.agi_root  / "apps"
+        for app in ["my-code-project", "flight"]:
+            app_dest = AgiEnv.apps_dir / app
+            if not app_dest.exists():
+                AgiEnv.clone_project( apps_src / app, app, app_dest)
+            self.projects.append(app)
 
         if not self.projects:
             raise FileNotFoundError(
-                f"Could not find any target project app in {self.apps_root}."
+                f"Could not find any target project app in {apps_src}."
             )
         self.WORKER_VENV_REL = Path(envars.get("WORKER_VENV_DIR", "wenv"))
         self.scheduler_ip = envars.get("AGI_SCHEDULER_IP", "127.0.0.1")
@@ -690,7 +711,7 @@ class AgiEnv:
             envars.get("AGI_MLFLOW_DIR", self.home_abs / ".mlflow")
         )
         self.AGILAB_VIEWS_ABS = Path(
-            envars.get("AGI_VIEWS_DIR", self.agi_root / "views")
+            envars.get("AGI_VIEWS_DIR", AgiEnv.agi_root / "views")
         )
         self.AGILAB_VIEWS_REL = Path(envars.get("AGI_VIEWS_DIR", "agi/_"))
 
@@ -698,9 +719,8 @@ class AgiEnv:
         self.copilot_file = Path(self.AGI_SRC_ABS) / "agi/agi_copilot.py"
 
     def _init_resources(self, resources_path):
-        self.deployed_resources_abs = self.home_abs / self.agi_resources.name
         src_env_path = resources_path / ".env"
-        dest_env_file = self.deployed_resources_abs / ".env"
+        dest_env_file = self.resource_path / ".env"
         if not src_env_path.exists():
             raise RuntimeError(f"Installation issue: {src_env_path} is missing!")
         if not dest_env_file.exists():
@@ -710,7 +730,7 @@ class AgiEnv:
             for file in files:
                 src_file = Path(root) / file
                 relative_path = src_file.relative_to(resources_path)
-                dest_file = self.deployed_resources_abs / relative_path
+                dest_file = self.resource_path / relative_path
                 dest_file.parent.mkdir(parents=True, exist_ok=True)
                 if not dest_file.exists():
                     os.makedirs(dest_env_file.parent, exist_ok=True)
@@ -730,12 +750,12 @@ class AgiEnv:
     def _init_projects(self):
         for idx, project in enumerate(self.projects):
             if self.target == project[:-8].replace("-", "_"):
-                self.app_path = self.apps_root / project
+                self.app_path = AgiEnv.apps_dir / project
                 self.project_index = idx
                 self.app = project
                 break
 
-    def get_projects(self, path):
+    def get_projects(self, path:Path):
         return [p.name for p in path.glob("*project")]
 
 
@@ -743,7 +763,7 @@ class AgiEnv:
         pattern = "-project"
         modules = [
             re.sub(f"^{pattern}|{pattern}$", "", project).replace("-", "_")
-            for project in self.get_projects(self.apps_root)
+            for project in self.get_projects(AgiEnv.apps_dir)
         ]
         return modules
 
@@ -751,9 +771,9 @@ class AgiEnv:
     def scheduler_ip_address(self):
         return self.scheduler_ip
 
-    def change_app(self, module_path, with_lab=False):
+    def change_app(self, module_path, mode=False):
         if module_path != self.module_path:
-            self.__init__(module_path, with_lab=with_lab, verbose=self.verbose)
+            self.__init__(module_path, mode=mode, verbose=self.verbose)
 
     def check_args(self, target_args_class, target_args):
         try:

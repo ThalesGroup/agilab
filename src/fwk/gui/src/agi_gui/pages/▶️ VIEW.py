@@ -17,7 +17,6 @@
 # OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from agi_gui.pagelib import env, render_logo
 import streamlit as st
 
 # ===========================
@@ -45,6 +44,8 @@ def main():
     This function retrieves the current page from the query parameters and stores it in the session state.
     Based on the current page, it sets the page title accordingly and renders the appropriate content.
     """
+    global env
+    env = st.session_state["env"]
     current_page = st.query_params.get("current_page", "main")
     st.session_state["current_page"] = current_page
 
@@ -73,6 +74,7 @@ def render_main_page():
 
     This function retrieves the list of projects, sets the current project, loads the app settings, allows the user to select views, and updates the configuration file accordingly.
     """
+    global env
     projects = env.projects
     st.session_state["projects"] = projects
 
@@ -86,7 +88,7 @@ def render_main_page():
     project = select_project(projects, current_project)
 
     # Define paths
-    app_settings = Path(env.apps_root) / project / "src" / "app_settings.toml"
+    app_settings = Path(env.apps_dir) / project / "src" / "app_settings.toml"
     all_views = [Path(view) for view in list_views(env.AGILAB_VIEWS_ABS)]
 
     if not all_views:

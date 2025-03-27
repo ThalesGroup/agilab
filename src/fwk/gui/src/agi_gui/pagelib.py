@@ -31,38 +31,25 @@ import webbrowser
 
 from sqlalchemy import false
 
-project_root = Path(__file__).parent.parent.parent.parent.parent
-
-for proj in [
-    "*project",
-    "fwk/core",
-    "fwk/env",
-]:
-    for src in project_root.rglob(f"{proj}/src"):
-        path = str(src)
-        if not src.exists():
-            print(path, "does not exist")
-            exit(1)
-        elif path not in sys.path:
-            print(f"Adding {path} to sys.path")
-            sys.path.insert(0, path)
+# project_root = Path(__file__).parent.parent.parent.parent.parent
+#
+# for proj in [
+#     "*project",
+#     "fwk/core",
+#     "fwk/env",
+# ]:
+#     for src in project_root.rglob(f"{proj}/src"):
+#         path = str(src)
+#         if not src.exists():
+#             print(path, "does not exist")
+#             exit(1)
+#         elif path not in sys.path:
+#             print(f"Adding {path} to sys.path")
+#             sys.path.insert(0, path)
 
 from agi_env import AgiEnv
 
-# fault tolerance for column naming
-treshold = 1
-snippet_run_error = "fail to run your python snippet"
-env = AgiEnv("flight", with_lab=True, verbose=True)
-# Global resource path
-RESOURCE_PATH = env.deployed_resources_abs
-# Initialize session state
-if "datadir" not in st.session_state:
-    st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
-
-st.session_state["env"] = env
-default_df = "export.csv"
-st.session_state["rapids_default"] = True
-st.session_state["env"] = env
+env=None
 
 # Apply the custom CSS
 custom_css = (
@@ -131,7 +118,7 @@ _DOCS_ALREADY_OPENED = False
 
 import webbrowser
 
-def open_docs(env, html_file="index.html", anchor=""):
+def open_docs(html_file="index.html", anchor=""):
     """
     Opens the local Sphinx docs in a new browser tab.
     If the local documentation file is not found, it opens the online docs.
@@ -141,7 +128,7 @@ def open_docs(env, html_file="index.html", anchor=""):
         html_file (str): Which HTML file within the docs/build/ folder to open (default 'index.html').
         anchor (str, optional): Optional hash anchor (e.g. '#project-editor').
     """
-    global _DOCS_ALREADY_OPENED
+    global _DOCS_ALREADY_OPENED, env
 
     if _DOCS_ALREADY_OPENED:
         print("Documentation is already opened in this session.")
@@ -193,11 +180,18 @@ def get_base64_of_image(image_path):
         st.error(f"Error loading {file_path}: {e}")
         return ""
 
+@st.cache_data
+def get_css_text():
+    global env
+    with open(env.resource_path / "code_editor.scss") as file:
+        return file.read()
 
 @st.cache_resource
 def render_logo(edit_text):
     # Load and encode the logos
-    logo_path = RESOURCE_PATH / "agi_logo.png"  # Replace with your second logo filename
+    global env
+    env = st.session_state["env"]
+    logo_path = env.resource_path / "agi_logo.png"  # Replace with your second logo filename
     logo_base64 = get_base64_of_image(logo_path)
 
     # Check that both logos loaded correctly
@@ -267,6 +261,7 @@ def get_projects_zip():
     Returns:
         list: A list of zip file names for projects found in the env export_apps directory.
     """
+    global env
     return [p.name for p in env.export_apps.glob("*.zip")]
 
 
@@ -277,7 +272,8 @@ def get_templates():
     Returns:
         list: A list of template names (strings).
     """
-    return [p.stem for p in env.apps_root.glob("*template")]
+    global env
+    return [p.stem for p in env.apps_dir.glob("*template")]
 
 
 def get_about_content():
@@ -313,10 +309,8 @@ def init_custom_ui(args_ui_snippet):
         None
 
     Session State Modifiers:
-        - 'env': The state of the env variable.
         - 'toggle_custom': The state of the custom toggle based on UI snippet size.
     """
-    st.session_state["env"] = env
     if "toggle_custom" not in st.session_state:
         st.session_state["toggle_custom"] = args_ui_snippet.stat().st_size > 0
     return
@@ -328,6 +322,7 @@ def on_project_change(project, switch_to_select=True):
 
     This function is optimized for speed and efficiency by minimizing attribute lookups, using tuples for fixed key collections, and leveraging 'del' for key removal.
     """
+    global env
     # Define the keys to clear as a tuple for immutability and minor performance gains
     keys_to_clear = (
         "is_args_from_ui",
@@ -363,8 +358,9 @@ def on_project_change(project, switch_to_select=True):
         del session_state[key]
 
     try:
+
         # Change the app/project
-        env.change_app(project, with_lab=True)
+        env.change_app(project, mode=True)
         module = env.target
 
         # Update session state with new module and data directory paths
@@ -405,24 +401,6 @@ def get_random_port():
     return random.randint(8800, 9900)
 
 
-# Launch MLflow server if not already started
-if "server_started" not in st.session_state:
-    tracking_dir = str(env.AGILAB_MLFLOW_ABS)
-
-    os.makedirs(tracking_dir, exist_ok=True)
-
-    port = get_random_port()
-    while is_port_in_use(port):
-        port = get_random_port()
-
-    cmd = f"uv run mlflow ui --backend-store-uri file://{tracking_dir} --port {port}"
-    try:
-        res = subproc(cmd, env.gui_env)
-        st.session_state.server_started = True
-        st.session_state["mlflow_port"] = port
-    except RuntimeError as e:
-        st.error(f"Failed to start the server: {e}")
-
 
 @st.cache_data
 def find_files(directory, ext=".csv"):
@@ -456,7 +434,8 @@ def get_custom_buttons():
     Notes:
         This function uses Streamlit's caching mechanism to avoid reloading the data each time it is called.
     """
-    with open(RESOURCE_PATH / "custom_buttons.json") as file:
+    global env
+    with open(env.resource_path / "custom_buttons.json") as file:
         return json.load(file)
 
 
@@ -472,23 +451,9 @@ def get_info_bar():
 
     :raise FileNotFoundError: If the 'info_bar.json' file cannot be found.
     """
-    with open(RESOURCE_PATH / "info_bar.json") as file:
+    global env
+    with open(env.resource_path / "info_bar.json") as file:
         return json.load(file)
-
-
-@st.cache_data
-def get_css_text():
-    """
-    Retrieve and return the CSS text from the 'code_editor.scss' file.
-
-    Returns:
-        str: The CSS text from the file.
-
-    Note:
-        This function is cached using Streamlit's caching mechanism to improve performance.
-    """
-    with open(RESOURCE_PATH / "code_editor.scss") as file:
-        return file.read()
 
 
 def export_df():
@@ -678,7 +643,7 @@ def get_class_methods(src_path: Path, class_name: str) -> List[str]:
     return method_names
 
 
-def run_agi(code, env, path="."):
+def run_agi(code, path="."):
     """
     Run code in the core environment.
 
@@ -688,6 +653,7 @@ def run_agi(code, env, path="."):
         id_core (int): Core identifier.
         path (str): The working directory.
     """
+    global env
     # Regular expression pattern to match the string between "await" and "("
     pattern = r"await\s+(?:Agi\.)?([^\(]+)\("
 
@@ -1044,6 +1010,7 @@ def sidebar_views():
     Create sidebar controls for selecting modules and DataFrames.
     """
     # Set module and paths
+    global env
     Agi_export_abs = Path(env.AGILAB_EXPORT_ABS)
     modules = st.session_state.get(
         "modules", scan_dir(Agi_export_abs)
@@ -1121,3 +1088,41 @@ def on_df_change(module_dir, index_page, df_file, steps_file=None):
         load_last_step(module_dir, steps_file, index_page)
     st.session_state.pop(index_page, None)
     st.session_state.page_broken = True
+
+
+def main():
+    global env
+    # fault tolerance for column naming
+    treshold = 1
+    snippet_run_error = "fail to run your python snippet"
+    env = st.session_state["env"]
+    # Global resource path
+
+    # Initialize session state
+    if "datadir" not in st.session_state:
+        st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
+
+    st.session_state["env"] = env
+    st.session_state["rapids_default"] = True
+    st.session_state["env"] = env
+
+    # Launch MLflow server if not already started
+    if "server_started" not in st.session_state:
+        tracking_dir = str(env.AGILAB_MLFLOW_ABS)
+
+        os.makedirs(tracking_dir, exist_ok=True)
+
+        port = get_random_port()
+        while is_port_in_use(port):
+            port = get_random_port()
+
+        cmd = f"uv run mlflow ui --backend-store-uri file://{tracking_dir} --port {port}"
+        try:
+            res = subproc(cmd, env.gui_env)
+            st.session_state.server_started = True
+            st.session_state["mlflow_port"] = port
+        except RuntimeError as e:
+            st.error(f"Failed to start the server: {e}")
+
+if __name__ == "__main__":
+    main()

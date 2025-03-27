@@ -22,7 +22,7 @@ import argparse
 
 # -------------------- Import Statements -------------------- #
 # (Include any other necessary imports from your original code)
-from agi_gui.pagelib import env, get_about_content, render_logo, open_docs, RESOURCE_PATH, get_base64_of_image
+from agi_gui.pagelib import get_about_content, render_logo, open_docs, get_base64_of_image
 
 # -------------------- Additional Imports -------------------- #
 import ast
@@ -56,21 +56,12 @@ def load_file_content(file_path: Path) -> str:
         return ""
 
 
-def add_custom_css():
-    """
-    Loads and injects external CSS into the Streamlit app.
-    """
-    css_path = RESOURCE_PATH / "first_page.css"
-    css_content = load_file_content(css_path)
-    if css_content:
-        st.markdown(f"<style>{css_content}</style>", unsafe_allow_html=True)
 
-
-def display_landing_page():
+def display_landing_page(resources_path: Path):
     """
     Loads and displays the landing page Markdown content.
     """
-    img_data = get_base64_of_image(RESOURCE_PATH / "agi_logo.png")
+    img_data = get_base64_of_image(resources_path / "agi_logo.png")
     img_src = f"data:image/png;base64,{img_data}"
     md_content = f"""
     <div style="background-color: #333333; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 800px; margin: 20px auto;">
@@ -83,12 +74,12 @@ def display_landing_page():
       </div>
     </div>
     <div class="uvp-highlight">
-      <strong>Founding Concept:</strong> AGILAB outlines a method for scaling into a project’s execution environment without the need for virtualization or containerization (such as Docker). The approach involves encapsulating an app's logic into two components: a worker (which is scalable and free from dependency constraints) and a manager (which is easily integrable due to minimal dependency requirements). This design enables seamless integration within a single app, contributing to the move toward Artificial General Intelligence (AGI).
-    </div>
-    <div class="uvp-highlight">
       <strong>AGILAB</strong>: Revolutionizing Data Science Experimentation with Zero Integration Hassles. As a comprehensive framework built on 50KLOC of pure Python and powered by Gen AI and ML, AGILAB scales effortlessly—from embedded systems to the cloud—empowering seamless collaboration on data insights and predictive modeling.
     </div>
-    <p><strong>Key Features:</strong></p>
+    <div class="uvp-highlight">
+      <strong>Founding Concept:</strong> AGILAB outlines a method for scaling into a project’s execution environment without the need for virtualization or containerization (such as Docker). The approach involves encapsulating an app's logic into two components: a worker (which is scalable and free from dependency constraints) and a manager (which is easily integrable due to minimal dependency requirements). This design enables seamless integration within a single app, contributing to the move toward Artificial General Intelligence (AGI).
+    </div>
+      <strong>Key Features:</strong>
     <ul>
       <li><strong>Strong AI Enabler</strong>: Algos Integrations.</li>
       <li><strong>Engineering AI Enabler</strong>: Feature Engineering.</li>
@@ -109,11 +100,11 @@ def display_landing_page():
     st.markdown(md_content, unsafe_allow_html=True)
 
 
-def page():
+def page(env):
     """
     Display the landing page for AGILAB.
     """
-    display_landing_page()
+    display_landing_page(env.resource_path)
     cols = st.columns(2)
     help_file = Path(st.session_state["env"].help_path) / "index.html"
     if cols[0].button("Read Documentation", type="tertiary", use_container_width=True):
@@ -136,8 +127,7 @@ def page():
 def main():
 
     from agi_env.agi_env import AgiEnv
-    env = AgiEnv("flight", with_lab=True, verbose=True)
-    # Global resource path
+
 
     # --- Command-Line Argument Parsing ---
     parser = argparse.ArgumentParser(
@@ -155,7 +145,24 @@ def main():
         help="OpenAI API key (mandatory)",
         default=None
     )
+    parser.add_argument(
+        "--apps-dir",
+        type=str,
+        help="Where you store your apps (default is ./)",
+        default="./"
+    )
+    parser.add_argument(
+        "--install-type",
+        type=str,
+        help="0:enduser(default), 1:dev",
+        default=0
+    )
+
     args, unknown = parser.parse_known_args()
+
+    env = AgiEnv("flight", apps_dir=args.apps_dir, install_type=args.install_type, verbose=1)
+    st.session_state["env"] = env
+    # Global resource path
 
     # --- Retrieve OpenAI API Key ---
     openai_api_key = env.OPENAI_API_KEY if env.OPENAI_API_KEY else args.openai_api_key
@@ -186,9 +193,10 @@ def main():
 
 
     # -------------------- Setup AgiEnv -------------------- #
-    env.set_openai_api_key(openai_api_key)
-    env.set_agi_credentials(cluster_credentials)
-
+    env.set_env_var("OPENAI_API_KEY", openai_api_key)
+    env.set_env_var("CLUSTER_CREDENTIALS", cluster_credentials)
+    env.set_env_var("INSTALL_TYPE", args.install_type)
+    env.set_env_var("APPS_DIR", args.apps_dir)
     # -------------------- Navigation and Page Rendering -------------------- #
     try:
         if "current_page" not in st.session_state:
@@ -196,7 +204,7 @@ def main():
 
         if st.session_state.current_page == "AGILAB":
             st.session_state.current_page = None
-            page()
+            page(env)
         elif st.session_state.current_page == "▶️ EDIT":
             st.session_state.current_page = None
             page_module = importlib.import_module("pages.▶️ EDIT")
@@ -216,5 +224,5 @@ if __name__ == "__main__":
         menu_items=get_about_content(),  # Adjust if necessary
         layout="wide"
     )
-    add_custom_css()
+
     main()

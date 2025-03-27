@@ -8,14 +8,14 @@
       <env name="PYTHONUNBUFFERED" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
-    <option name="SDK_NAME" value="uv (core)" />
+    <option name="SDK_NAME" value="uv (agi-core)" />
     <option name="WORKING_DIRECTORY" value="$ProjectFileDir$" />
     <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="$ProjectFileDir$/apps/install.py" />
-    <option name="PARAMETERS" value="$Prompt$" />
+    <option name="PARAMETERS" value="$Prompt$ --apps-dir apps --install-type 1" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />

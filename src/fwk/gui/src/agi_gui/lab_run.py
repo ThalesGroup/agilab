@@ -33,7 +33,6 @@ def check_environment():
         sys.exit(1)
 
 def main():
-
     check_environment()
 
     parser = argparse.ArgumentParser(
@@ -44,6 +43,12 @@ def main():
     )
     parser.add_argument(
         "--openai-api-key", type=str, help="OpenAI API key", default=None
+    )
+    parser.add_argument(
+        "--apps-dir", type=str, help="Directory for apps", default=None
+    )
+    parser.add_argument(
+        "--install-type", type=str, help="Install type", default=None
     )
     # Parse known arguments; extra arguments are captured in `unknown`
     args, unknown = parser.parse_known_args()
@@ -60,6 +65,10 @@ def main():
         custom_args.extend(["--cluster-credentials", args.cluster_credentials])
     if args.openai_api_key is not None:
         custom_args.extend(["--openai-api-key", args.openai_api_key])
+    if args.apps_dir is not None:
+        custom_args.extend(["--apps-dir", args.apps_dir])
+    if args.install_type is not None:
+        custom_args.extend(["--install-type", args.install_type])
     if unknown:
         custom_args.extend(unknown)
 
@@ -70,6 +79,7 @@ def main():
 
     sys.argv = new_argv
     sys.exit(stcli.main())
+
 
 
 if __name__ == "__main__":
