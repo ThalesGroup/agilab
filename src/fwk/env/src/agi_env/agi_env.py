@@ -78,13 +78,15 @@ class AgiEnv:
         else:
             AgiEnv.apps_dir = Path(envars.get("APPS_DIR", self._determine_apps_dir(module)))
 
-        if install_type:
+        if install_type == 0:
             self.install_type = install_type
+            resource_path = AgiEnv.agi_root / "agi_env" / self.agi_resources
         else:
             self.install_type = int(envars.get("AGI_INSTALL_TYPE", 0))
+            resource_path = AgiEnv.agi_root / "fwk/env/src/agi_env" / self.agi_resources
 
         # Initialize .agilab resources
-        self._init_resources(AgiEnv.agi_root / "agi_env" / self.agi_resources)
+        self._init_resources(resource_path)
 
         # Initialize environment variables
         self._init_envars()
