@@ -24,4 +24,4 @@ for subdir in "${SUBDIRS[@]}"; do
   popd > /dev/null
 done
 
-uv run agilab --install-type 1 --apps-dir "../../apps"
+  uv run agilab --install-type 1 --apps-dir "../../apps"

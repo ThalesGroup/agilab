@@ -57,7 +57,7 @@ class AgiEnv:
         Initialize the AgiEnv instance.
         """
 
-
+        self.install_type = int(install_type)
         self.verbose = verbose
         self.is_managed_pc = getpass.getuser().startswith("T0")
         self.agi_root = AgiEnv.locate_agi_installation(install_type)
@@ -78,7 +78,7 @@ class AgiEnv:
         else:
             AgiEnv.apps_dir = Path(envars.get("APPS_DIR", self._determine_apps_dir(module)))
 
-        if install_type == 0:
+        if self.install_type == 0:
             self.install_type = install_type
             resource_path = AgiEnv.agi_root / "agi_env" / self.agi_resources
         else:
