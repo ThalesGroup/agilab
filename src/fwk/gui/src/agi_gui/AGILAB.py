@@ -160,7 +160,7 @@ def main():
     parser.add_argument(
         "--install-type",
         type=str,
-        help="0:enduser(default), 1:dev",
+        help="0:enduser(default)\n1:dev",
         default=0
     )
 
