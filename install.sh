@@ -282,8 +282,8 @@ popd > /dev/null
 
 echo "Installing Apps..."
 pushd "$apps_dir" > /dev/null
-echo ./install.sh "$apps_dir"
-./install.sh "$apps_dir"
+echo ./install.sh "--apps-dir $apps_dir" "--install-type 1"
+./install.sh "$apps_dir" "1"
 popd > /dev/null
 
 echo -e "${GREEN}Installation complete!${NC}"

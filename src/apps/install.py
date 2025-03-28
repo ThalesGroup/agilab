@@ -120,7 +120,7 @@ async def main():
     await AGI.install(
         args.module,
         env=env,
-        type=args.install_type,
+        type=int(args.install_type),
         scheduler="127.0.0.1",
         verbose=3,
         modes_enabled=AGI.DASK_MODE | AGI.CYTHON_MODE

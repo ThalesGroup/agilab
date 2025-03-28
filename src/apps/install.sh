@@ -47,7 +47,7 @@ main() {
 
   for app in "${apps[@]}"; do
       echo "Installing $app..."
-      if eval "$APP_INSTALL $app"; then
+      if eval "$APP_INSTALL $app --apps-dir '.' --install-type '1'"; then
           echo "✓ '$app' successfully installed."
       else
           echo "✗ '$app' installation failed."

@@ -58,8 +58,8 @@ class AgiEnv:
         """
         Initialize the AgiEnv instance.
         """
-
-        self.install_type = int(install_type)
+        if install_type:
+            install_type = (install_type)
         self.verbose = verbose
         self.is_managed_pc = getpass.getuser().startswith("T0")
         self.agi_root = AgiEnv.locate_agi_installation(install_type)
@@ -71,16 +71,18 @@ class AgiEnv:
                                     verbose=self.verbose)
         envars = self.envars
         if module:
-            self.module = module
-        else:
-            self.module = envars.get("AGI_INSTALL_TYPE", "my-code")
+            if isinstance(module, str):
+                self.module = module
+            else:
+                self.module = module.parent.name
+                apps_dir = self._determine_apps_dir(module)
 
         if apps_dir:
             AgiEnv.apps_dir = Path(apps_dir)
         else:
-            AgiEnv.apps_dir = Path(envars.get("APPS_DIR", self._determine_apps_dir(module)))
+            AgiEnv.apps_dir = Path(envars.get("APPS_DIR", None))
 
-        if self.install_type == 0:
+        if install_type == 0:
             self.install_type = install_type
             resource_path = AgiEnv.agi_root / "agi_env" / self.agi_resources
         else:
@@ -470,7 +472,7 @@ class AgiEnv:
 
         # Check if Developer Mode is enabled or if the process has admin rights
         if not has_admin_rights():
-            st.warning(
+            print(
                 "Creating symbolic links on Windows requires administrative privileges or Developer Mode enabled."
             )
             return
@@ -479,10 +481,10 @@ class AgiEnv:
 
         success = CreateSymbolicLink(str(dest), str(source), flags)
         if success:
-            st.info(f"Created symbolic link for .venv: {dest} -> {source}")
+            print(f"Created symbolic link for .venv: {dest} -> {source}")
         else:
             error_code = ctypes.GetLastError()
-            st.warning(
+            print(
                 f"Failed to create symbolic link for .venv. Error code: {error_code}"
             )
 
@@ -502,7 +504,7 @@ class AgiEnv:
             else:
                 # For Unix-like systems
                 os.symlink(source_venv, dest_venv, target_is_directory=True)
-                st.info(f"Created symbolic link for .venv: {dest_venv} -> {source_venv}")
+                prin(f"Created symbolic link for .venv: {dest_venv} -> {source_venv}")
         except OSError as e:
             print(f"Failed to create symbolic link for .venv: {e}")
 
