@@ -720,7 +720,7 @@ from agi_env import AgiEnv
 
 async def main():
     env = AgiEnv(install_type={env.install_type})
-    res = await AGI.run('{module}', mode={st.session_state.mode}, 
+    res = await AGI.run('{module}', env, mode={st.session_state.mode}, 
     scheduler={scheduler}, workers={workers}, 
     verbose={cluster_params.get('verbose', 2)}, {st.session_state.args_serialized})
     print(res)
