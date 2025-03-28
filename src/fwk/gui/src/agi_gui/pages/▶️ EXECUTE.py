@@ -560,6 +560,7 @@ def page():
             cmd = f"""
 import asyncio
 from agi_core.managers.agi_runner import AGI
+from agi_env import AgiEnv
 
 async def main():
     env = AgiEnv('flight', install_type={env.install_type})
