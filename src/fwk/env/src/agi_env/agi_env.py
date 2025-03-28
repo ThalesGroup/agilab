@@ -466,14 +466,15 @@ class AgiEnv:
         dest_class = capitalize(dest_module)
 
         return {
-            target_project: dest_project,
-            target_package: dest_package,
+            target_project: str(dest_project),
+            target_package: str(dest_package),
             target_module: dest_module,
             target_class + "Worker": dest_class + "Worker",
             target_class + "Args": dest_class + "Args",
             target_class: dest_class,
         }
 
+    @staticmethod
     def clone_directory(source_dir, dest_dir, rename_map, spec, source_root):
         """
         Recursively clone directories and files from source to destination,
@@ -484,7 +485,8 @@ class AgiEnv:
             source_dir (Path): Source directory path.
             dest_dir (Path): Destination directory path.
             rename_map (dict): Mapping of old relative paths to new relative paths.
-            spec (PathSpec): Compiled PathSpec object to filter files/directories.
+            spec (PathSpec or None): Compiled PathSpec object to filter files/directories.
+                                      If None, no files will be ignored.
             source_root (Path): The root directory of the source project.
         """
         for item in source_dir.iterdir():
@@ -496,11 +498,12 @@ class AgiEnv:
 
             print(f"Processing item: **{relative_path}**")
 
-            if spec.match_file(relative_path):
+            # If a spec exists, check if this file/directory should be ignored.
+            if spec is not None and spec.match_file(relative_path):
                 print(f"INFO: Skipping ignored item: {relative_path}")
                 continue
 
-            # Apply renaming for the entire relative path
+            # Apply renaming for the entire relative path.
             new_relative_path = relative_path
             for old, new in sorted(rename_map.items(), key=lambda x: len(x[0]), reverse=True):
                 new_relative_path = new_relative_path.replace(old, new)
@@ -510,17 +513,16 @@ class AgiEnv:
             else:
                 print(f"INFO: No renaming needed for: {relative_path}")
 
-            # Log the old and new paths
             print(f"Old Path: {item}")
             print(f"New Path: {dest_dir / Path(new_relative_path)}")
 
-            # **Fixed Line**: Removed .relative_to(source_root)
+            # Note: Instead of using .relative_to(source_root) here, we use the computed renamed path.
             dest_item = dest_dir / Path(new_relative_path)
 
-            # Handle the .venv directory specially
+            # Special handling for the .venv directory.
             if item.is_dir() and item.name == ".venv":
                 handle_venv_directory(item, dest_item)
-                continue  # Skip further processing for .venv
+                continue
 
             if item.is_dir():
                 try:
@@ -528,13 +530,13 @@ class AgiEnv:
                     print(f"INFO: Created directory: {dest_item}")
                 except Exception as e:
                     print(f"WARNING: Failed to create directory '{dest_item}': {e}")
-                    continue  # Skip cloning this directory
+                    continue
 
-                # Recursive call for subdirectories
-                clone_directory(item, dest_dir, rename_map, spec, source_root)
+                # Recursive call: use dest_item as the new destination for the subdirectory.
+                AgiEnv.clone_directory(item, dest_item, rename_map, spec, source_root)
 
             elif item.is_file():
-                # Apply renaming based on rename_map
+                # For files, use dest_item as the destination file.
                 dest_file = dest_item
 
                 if dest_file.exists():
@@ -546,7 +548,7 @@ class AgiEnv:
                         shutil.copy2(item, dest_file)
                         print(f"INFO: Copied archive file: {dest_file}")
                     elif dest_file.suffix == ".py":
-                        # Handle Python files with AST-based renaming
+                        # Handle Python files with AST-based renaming.
                         content = item.read_text(encoding="utf-8")
                         try:
                             parsed_ast = ast.parse(content)
@@ -558,11 +560,11 @@ class AgiEnv:
                             print(f"INFO: Cloned and renamed Python file: {dest_file}")
                         except SyntaxError as se:
                             print(f"WARNING: Syntax error while parsing '{item}': {se}. Skipping content renaming.")
-                            # Optionally, copy the file without renaming content
+                            # Optionally, copy the file without renaming content.
                             shutil.copy2(item, dest_file)
                             print(f"INFO: Copied Python file without content renaming: {dest_file}")
                     elif dest_file.suffix in [".toml", ".md", ".txt", ".json", ".yaml", ".yml"]:
-                        # Handle other text-based files with string replacement
+                        # Handle other text-based files with string replacement.
                         content = item.read_text(encoding="utf-8")
                         updated_content = content
                         for old, new in rename_map.items():
@@ -572,14 +574,14 @@ class AgiEnv:
                         dest_file.write_text(updated_content, encoding="utf-8")
                         print(f"INFO: Cloned and renamed text file: {dest_file}")
                     else:
-                        # For binary or unsupported file types, copy without modification
+                        # For binary or unsupported file types, copy without modification.
                         shutil.copy2(item, dest_file)
                         print(f"INFO: Copied file without modification: {dest_file}")
                 except Exception as e:
                     print(f"WARNING: Error processing file '{item}': {e}")
 
             elif item.is_symlink():
-                # Handle symbolic links if necessary
+                # Handle symbolic links if necessary.
                 target = os.readlink(item)
                 try:
                     os.symlink(target, dest_item, target_is_directory=item.is_dir())
@@ -587,7 +589,8 @@ class AgiEnv:
                 except Exception as e:
                     print(f"WARNING: Failed to clone symlink '{item}': {e}")
 
-    def clone_project(apps_dir, target_project:str, dest_project:Path):
+
+    def clone_project(self, apps_dir, target_project:str, dest_project:Path):
         """
         Clone a project by recursively copying files and directories, applying renaming.
         For the .venv directory, create a symbolic link instead of copying if it's not ignored.
@@ -609,21 +612,16 @@ class AgiEnv:
             return
 
         # Check if destination project already exists
-        if dest_root.exists():
+        if dest_project.exists():
             print(f"Destination project '{dest_project}' already exists.")
             return
 
         gitignore_path = source_root / ".gitignore"
-
-        if not gitignore_path.exists():
-            print(f"No .gitignore file found at '{gitignore_path}'.")
-            return
-
-        spec = read_gitignore(gitignore_path)
+        spec = read_gitignore(gitignore_path) if gitignore_path.exists() else None
 
         # Create the destination directory
         try:
-            dest_root.mkdir(parents=True, exist_ok=False)
+            dest_root.mkdir(parents=True, exist_ok=True)
         except Exception as e:
             print(f"Failed to create destination directory '{dest_root}': {e}")
             return
@@ -632,7 +630,7 @@ class AgiEnv:
         AgiEnv.clone_directory(source_root, dest_root, rename_map, spec, source_root)
 
         # Change the app to the new project
-        env.change_app(dest_project, mode=True)
+        AgiEnv.change_app(dest_project, mode=True)
 
     def _init_envars(self):
         envars = self.envars
@@ -646,7 +644,10 @@ class AgiEnv:
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.12.9")
 
         os.makedirs(AgiEnv.apps_dir, exist_ok=True)
-        self.core_src = AgiEnv.agi_root / "fwk/core/src"
+        if self.install_type == 0:
+            self.core_src = AgiEnv.agi_root
+        else:
+            self.core_src = AgiEnv.agi_root / "fwk/core/src"
         self.core_root = self.core_src.parent
 
         self.workers_root = self.core_src / "agi_core/workers"
@@ -675,7 +676,7 @@ class AgiEnv:
         for app in ["my-code-project", "flight"]:
             app_dest = AgiEnv.apps_dir / app
             if not app_dest.exists():
-                AgiEnv.clone_project( apps_src / app, app, app_dest)
+                self.clone_project(self, apps_src, app, app_dest.absolute())
             self.projects.append(app)
 
         if not self.projects:

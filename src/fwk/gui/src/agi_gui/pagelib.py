@@ -1090,19 +1090,19 @@ def on_df_change(module_dir, index_page, df_file, steps_file=None):
     st.session_state.page_broken = True
 
 
-def main():
+def start(current_env):
     global env
+
+    env = current_env
     # fault tolerance for column naming
     treshold = 1
     snippet_run_error = "fail to run your python snippet"
-    env = st.session_state["env"]
     # Global resource path
 
     # Initialize session state
     if "datadir" not in st.session_state:
         st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
 
-    st.session_state["env"] = env
     st.session_state["rapids_default"] = True
     st.session_state["env"] = env
 
@@ -1125,4 +1125,4 @@ def main():
             st.error(f"Failed to start the server: {e}")
 
 if __name__ == "__main__":
-    main()
+    start(current_env)
