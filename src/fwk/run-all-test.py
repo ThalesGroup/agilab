@@ -17,6 +17,8 @@ def main():
     cmd = [
         sys.executable, "-m", "pytest",
         "--rootdir", str(repo_root),
+        "--cov=agi_core",  # measure coverage for your package
+        "--cov-report=xml",
         "--import-mode=importlib",
         "--local-badge-output-dir",
         str(repo_root.parent.parent / "docs/html/badges"),
