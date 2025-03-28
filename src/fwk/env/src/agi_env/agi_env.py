@@ -38,6 +38,8 @@ import shutil
 import sys
 from pathlib import Path, PureWindowsPath, PurePosixPath
 from dotenv import dotenv_values
+from pathspec import PathSpec
+from pathspec.patterns import GitWildMatchPattern
 
 class JumpToMain(Exception):
     """
@@ -52,7 +54,7 @@ class AgiEnv:
     """
     install_type = None
 
-    def __init__(self, module=None, apps_dir=None, install_type=0, verbose=False):
+    def __init__(self, module=None, apps_dir=None, install_type=None, verbose=False):
         """
         Initialize the AgiEnv instance.
         """
@@ -82,7 +84,8 @@ class AgiEnv:
             self.install_type = install_type
             resource_path = AgiEnv.agi_root / "agi_env" / self.agi_resources
         else:
-            self.install_type = int(envars.get("AGI_INSTALL_TYPE", 0))
+            if not install_type:
+                self.install_type = int(envars.get("AGI_INSTALL_TYPE", 0))
             resource_path = AgiEnv.agi_root / "fwk/env/src/agi_env" / self.agi_resources
 
         # Initialize .agilab resources
@@ -438,6 +441,71 @@ class AgiEnv:
             return Path(*p.parts[:index])
         return p
 
+    def has_admin_rights():
+        """
+        Check if the current process has administrative rights on Windows.
+
+        Returns:
+            bool: True if admin, False otherwise.
+        """
+        try:
+            return ctypes.windll.shell32.IsUserAnAdmin()
+        except:
+            return False
+
+    def create_symlink_windows(source: Path, dest: Path):
+        """
+        Create a symbolic link on Windows, handling permissions and types.
+
+        Args:
+            source (Path): Source directory path.
+            dest (Path): Destination symlink path.
+        """
+        # Define necessary Windows API functions and constants
+        CreateSymbolicLink = ctypes.windll.kernel32.CreateSymbolicLinkW
+        CreateSymbolicLink.restype = wintypes.BOOL
+        CreateSymbolicLink.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
+
+        SYMBOLIC_LINK_FLAG_DIRECTORY = 0x1
+
+        # Check if Developer Mode is enabled or if the process has admin rights
+        if not has_admin_rights():
+            st.warning(
+                "Creating symbolic links on Windows requires administrative privileges or Developer Mode enabled."
+            )
+            return
+
+        flags = SYMBOLIC_LINK_FLAG_DIRECTORY
+
+        success = CreateSymbolicLink(str(dest), str(source), flags)
+        if success:
+            st.info(f"Created symbolic link for .venv: {dest} -> {source}")
+        else:
+            error_code = ctypes.GetLastError()
+            st.warning(
+                f"Failed to create symbolic link for .venv. Error code: {error_code}"
+            )
+
+    # -------------------- Handling .venv Directory -------------------- #
+
+    def handle_venv_directory(source_venv: Path, dest_venv: Path):
+        """
+        Create a symbolic link for the .venv directory instead of copying it.
+
+        Args:
+            source_venv (Path): Source .venv directory path.
+            dest_venv (Path): Destination .venv symbolic link path.
+        """
+        try:
+            if os.name == "nt":
+                create_symlink_windows(source_venv, dest_venv)
+            else:
+                # For Unix-like systems
+                os.symlink(source_venv, dest_venv, target_is_directory=True)
+                st.info(f"Created symbolic link for .venv: {dest_venv} -> {source_venv}")
+        except OSError as e:
+            print(f"Failed to create symbolic link for .venv: {e}")
+
     # -------------------- Rename Map Creator -------------------- #
 
     def create_rename_map(target_project, dest_project):
@@ -521,7 +589,7 @@ class AgiEnv:
 
             # Special handling for the .venv directory.
             if item.is_dir() and item.name == ".venv":
-                handle_venv_directory(item, dest_item)
+                AgiEnv.handle_venv_directory(item, dest_item)
                 continue
 
             if item.is_dir():
@@ -589,6 +657,20 @@ class AgiEnv:
                 except Exception as e:
                     print(f"WARNING: Failed to clone symlink '{item}': {e}")
 
+    @staticmethod
+    def read_gitignore(gitignore_path):
+        """
+        Read patterns from a .gitignore file and compile them into a PathSpec.
+
+        Args:
+            gitignore_path (Path): Path to the .gitignore file.
+
+        Returns:
+            PathSpec: Compiled PathSpec object.
+        """
+        with open(gitignore_path, "r") as f:
+            patterns = f.read().splitlines()
+        return PathSpec.from_lines(GitWildMatchPattern, patterns)
 
     def clone_project(self, apps_dir, target_project:str, dest_project:Path):
         """
@@ -617,7 +699,7 @@ class AgiEnv:
             return
 
         gitignore_path = source_root / ".gitignore"
-        spec = read_gitignore(gitignore_path) if gitignore_path.exists() else None
+        spec = AgiEnv.read_gitignore(gitignore_path) if gitignore_path.exists() else None
 
         # Create the destination directory
         try:
@@ -627,10 +709,10 @@ class AgiEnv:
             return
 
         # Start recursive cloning
-        AgiEnv.clone_directory(source_root, dest_root, rename_map, spec, source_root)
+        self.clone_directory(source_root, dest_root, rename_map, spec, source_root)
 
         # Change the app to the new project
-        AgiEnv.change_app(dest_project, mode=True)
+        self.change_app(dest_project, self.install_type)
 
     def _init_envars(self):
         envars = self.envars
@@ -676,7 +758,7 @@ class AgiEnv:
         for app in ["my-code-project", "flight"]:
             app_dest = AgiEnv.apps_dir / app
             if not app_dest.exists():
-                self.clone_project(self, apps_src, app, app_dest.absolute())
+                self.clone_project(apps_src, app, app_dest)
             self.projects.append(app)
 
         if not self.projects:
@@ -774,9 +856,9 @@ class AgiEnv:
     def scheduler_ip_address(self):
         return self.scheduler_ip
 
-    def change_app(self, module_path, mode=False):
+    def change_app(self, module_path, install_type):
         if module_path != self.module_path:
-            self.__init__(module_path, mode=mode, verbose=self.verbose)
+            self.__init__(module_path, install_type=install_type, verbose=self.verbose)
 
     def check_args(self, target_args_class, target_args):
         try:

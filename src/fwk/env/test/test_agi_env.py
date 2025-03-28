@@ -9,7 +9,7 @@ agipath = AgiEnv.locate_agi_installation(install_type=1)
 @pytest.fixture
 def env():
     default_module_file = agipath / Path("apps/my-code-project/src/my_code/my_code.py")
-    return AgiEnv(default_module_file, apps_dir="apps", install_type=1, verbose=1)
+    return AgiEnv(default_module_file, apps_dir= agipath / "apps", install_type=1, verbose=1)
 
 
 def test_envcreated(env):
