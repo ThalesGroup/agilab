@@ -698,3 +698,11 @@ class AgiWorker(abc.ABC):
         AgiWorker._insts[worker_id].works(workers_tree, workers_tree_info)
 
         return
+
+    @staticmethod
+    def normalize_path(path):
+        return (
+            str(PureWindowsPath(Path(path)))
+            if os.name == "nt"
+            else str(PurePosixPath(Path(path)))
+        )

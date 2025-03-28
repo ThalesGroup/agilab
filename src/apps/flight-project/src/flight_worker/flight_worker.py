@@ -92,7 +92,7 @@ class FlightWorker(AgiDataWorker):
             print(f"from: {__file__}\n", end="")
 
         if os.name == "nt" and not getpass.getuser().startswith("T0"):
-            net_path = AgiEnv.normalize_path("//127.0.0.1" + self.args["path"][6:])
+            net_path = AgiWorker.normalize_path("//127.0.0.1" + self.args["path"][6:])
             try:
                 # Your NFS account in order to mount it as net drive on Windows
                 cmd = f"net use 'Z:' '{net_path}' /user:nsbl 2633"
@@ -103,7 +103,7 @@ class FlightWorker(AgiDataWorker):
 
         # Path to database on symlink Path.home()/data(symlink)
         self.home_rel = Path(self.args["path"])
-        path = AgiEnv.normalize_path(self.home_rel.expanduser())
+        path = AgiWorker.normalize_path(self.home_rel.expanduser())
         self.data_out = os.path.join(path, "dataframes")
 
         if os.name != "nt":
@@ -177,7 +177,7 @@ class FlightWorker(AgiDataWorker):
                     "\\", "/"
                 )
             else:
-                file = AgiEnv.normalize_path(os.path.expanduser(prefix + file))
+                file = AgiWorker.normalize_path(os.path.expanduser(prefix + file))
 
             if not Path(file).is_file():
                 raise FileNotFoundError(f"FlightWorker.work_pool({file})\n")
