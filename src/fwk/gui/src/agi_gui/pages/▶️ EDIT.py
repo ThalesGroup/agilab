@@ -36,7 +36,6 @@ from agi_gui.pagelib import (
     render_logo
 )
 from pathspec import PathSpec
-from pathspec.patterns import GitWildMatchPattern
 from streamlit_modal import Modal
 from code_editor import code_editor
 
@@ -159,27 +158,7 @@ class SourceExtractor(ast.NodeTransformer):
         return node
 
 
-# -------------------- Gitignore Reader -------------------- #
-
-
-@st.cache_data
-def read_gitignore(gitignore_path):
-    """
-    Read patterns from a .gitignore file and compile them into a PathSpec.
-
-    Args:
-        gitignore_path (Path): Path to the .gitignore file.
-
-    Returns:
-        PathSpec: Compiled PathSpec object.
-    """
-    with open(gitignore_path, "r") as f:
-        patterns = f.read().splitlines()
-    return PathSpec.from_lines(GitWildMatchPattern, patterns)
-
-
 # -------------------- File Processor -------------------- #
-
 
 def process_files(root, files, app_path, rename_map, spec):
     """
@@ -647,74 +626,6 @@ class ContentRenamer(ast.NodeTransformer):
                         break
         self.generic_visit(node)
         return node
-
-
-# -------------------- Handling .venv Directory -------------------- #
-def handle_venv_directory(source_venv: Path, dest_venv: Path):
-    """
-    Create a symbolic link for the .venv directory instead of copying it.
-
-    Args:
-        source_venv (Path): Source .venv directory path.
-        dest_venv (Path): Destination .venv symbolic link path.
-    """
-    try:
-        if platform.system() == "Windows":
-            create_symlink_windows(source_venv, dest_venv)
-        else:
-            # For Unix-like systems
-            os.symlink(source_venv, dest_venv, target_is_directory=True)
-            st.info(f"Created symbolic link for .venv: {dest_venv} -> {source_venv}")
-    except OSError as e:
-        st.warning(f"Failed to create symbolic link for .venv: {e}")
-
-
-def create_symlink_windows(source: Path, dest: Path):
-    """
-    Create a symbolic link on Windows, handling permissions and types.
-
-    Args:
-        source (Path): Source directory path.
-        dest (Path): Destination symlink path.
-    """
-    # Define necessary Windows API functions and constants
-    CreateSymbolicLink = ctypes.windll.kernel32.CreateSymbolicLinkW
-    CreateSymbolicLink.restype = wintypes.BOOL
-    CreateSymbolicLink.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
-
-    SYMBOLIC_LINK_FLAG_DIRECTORY = 0x1
-
-    # Check if Developer Mode is enabled or if the process has admin rights
-    if not has_admin_rights():
-        st.warning(
-            "Creating symbolic links on Windows requires administrative privileges or Developer Mode enabled."
-        )
-        return
-
-    flags = SYMBOLIC_LINK_FLAG_DIRECTORY
-
-    success = CreateSymbolicLink(str(dest), str(source), flags)
-    if success:
-        st.info(f"Created symbolic link for .venv: {dest} -> {source}")
-    else:
-        error_code = ctypes.GetLastError()
-        st.warning(
-            f"Failed to create symbolic link for .venv. Error code: {error_code}"
-        )
-
-
-def has_admin_rights():
-    """
-    Check if the current process has administrative rights on Windows.
-
-    Returns:
-        bool: True if admin, False otherwise.
-    """
-    try:
-        return ctypes.windll.shell32.IsUserAnAdmin()
-    except:
-        return False
-
 
 # -------------------- Code Editor Display -------------------- #
 
