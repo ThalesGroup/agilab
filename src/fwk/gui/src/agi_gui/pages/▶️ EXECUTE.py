@@ -558,7 +558,8 @@ import asyncio
 from agi_core.managers.agi_runner import AGI
 
 async def main():
-    res = await AGI.install('{module}', modes_enabled={st.session_state.mode},
+    env = AgiEnv('flight', {env.install_type})
+    res = await AGI.install('{module}', env, modes_enabled={st.session_state.mode},
     verbose={cluster_params.get('verbose', 2)}, 
     scheduler={scheduler}, workers={workers})
     print(res)
