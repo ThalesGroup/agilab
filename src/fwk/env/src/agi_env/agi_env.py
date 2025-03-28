@@ -53,6 +53,7 @@ class AgiEnv:
     AgiEnv manages paths and environment variables within the agiFramework.
     """
     install_type = None
+    apps_dir = None
 
     def __init__(self, module=None, apps_dir=None, install_type=None, verbose=False):
         """
