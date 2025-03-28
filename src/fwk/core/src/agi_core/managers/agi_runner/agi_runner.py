@@ -1111,7 +1111,7 @@ class AGI:
 
     @staticmethod
     async def distribute(
-            module_name_or_path, scheduler=None, workers=None, verbose=0, **args
+            module_name_or_path, env, scheduler=None, workers=None, verbose=0, **args
     ):
         """
         check the distribution with a dry run
@@ -1126,7 +1126,7 @@ class AGI:
         -------
         """
         AGI._run_type = "simulate"
-        return await AGI.run(module_name_or_path, scheduler, workers, verbose, mode=AGI.SIMULATE_MODE, **args)
+        return await AGI.run(module_name_or_path, env, scheduler, workers, verbose, mode=AGI.SIMULATE_MODE, **args)
 
     @staticmethod
     async def _start_scheduler(scheduler):

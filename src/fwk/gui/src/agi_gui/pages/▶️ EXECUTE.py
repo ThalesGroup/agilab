@@ -626,9 +626,11 @@ if __name__ == '__main__':
             cmd = f"""
 import asyncio
 from agi_core.managers.agi_runner import AGI
+from agi_env import AgiEnv
 
 async def main():
-    res = await AGI.distribute('{module}', verbose={cluster_params.get('verbose', 2)}, 
+    env = AgiEnv(install_type={env.install_type})
+    res = await AGI.distribute('{module}', env, verbose={cluster_params.get('verbose', 2)}, 
     scheduler={scheduler}, workers={workers}, {st.session_state.args_serialized})
     print(res)
     return res
@@ -714,8 +716,10 @@ if __name__ == '__main__':
             cmd = f"""
 import asyncio
 from agi_core.managers.agi_runner import AGI
+from agi_env import AgiEnv
 
 async def main():
+    env = AgiEnv(install_type={env.install_type})
     res = await AGI.run('{module}', mode={st.session_state.mode}, 
     scheduler={scheduler}, workers={workers}, 
     verbose={cluster_params.get('verbose', 2)}, {st.session_state.args_serialized})
