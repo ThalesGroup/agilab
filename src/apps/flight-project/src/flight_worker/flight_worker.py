@@ -27,7 +27,7 @@ import time
 
 from numpy.linalg import norm  # Imported norm
 from agi_core.workers.data_worker import AgiDataWorker
-from agi_env import AgiEnv
+from agi_core.workers.agi_worker import AgiWorker
 
 warnings.filterwarnings("ignore")
 

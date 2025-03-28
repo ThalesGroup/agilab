@@ -96,10 +96,10 @@ class AgiEnv:
         # Initialize environment variables
         self._init_envars()
 
-        if isinstance(module, Path):
-            self.app = self.module.name
-        else:
+        if isinstance(module, str):
             self.app = module.replace("_","-") + "-project"
+        elif isinstance(module, Path):
+            self.app = module.name
 
         self.app_path = self.apps_dir / self.app
         self.setup_app =  self.app_path / "setup"
