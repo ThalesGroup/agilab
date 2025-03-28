@@ -19,7 +19,7 @@ def main():
         "--rootdir", str(repo_root),
         "--import-mode=importlib",
         "--local-badge-output-dir",
-        str(repo_root.parent.parent / "docs/badges"),
+        str(repo_root.parent.parent / "docs/html/badges"),
     ] + [str(f) for f in test_files]
 
     print("Running pytest with command:")
