@@ -10,7 +10,7 @@
 
 import time
 import streamlit as st
-from agi_gui.pagelib import get_about_content, render_logo
+from agi_gui.pagelib import activate, get_about_content, render_logo
 
 # Set page configuration and render logo
 st.set_page_config(layout="wide", menu_items=get_about_content())
@@ -37,6 +37,7 @@ import pydantic
 
 # Project Libraries:
 from agi_gui.pagelib import (
+    activate,
     load_df,
     save_csv,
     init_custom_ui,
@@ -486,7 +487,11 @@ def workload_barchart(workers, workers_chunks, partition_key, weights_key, weigh
 # ===========================
 def page():
     global env
-    env = st.session_state["env"]
+    env = AgiEnv("flight",
+                 apps_dir=st.session_state["apps_dir"],
+                 install_type=st.session_state["install_type"] ,
+                 verbose=1)
+    activate(env)
 
     # Define defaults for session state keys.
     defaults = {
@@ -558,7 +563,7 @@ import asyncio
 from agi_core.managers.agi_runner import AGI
 
 async def main():
-    env = AgiEnv('flight', {env.install_type})
+    env = AgiEnv('flight', install_type={env.install_type})
     res = await AGI.install('{module}', env, modes_enabled={st.session_state.mode},
     verbose={cluster_params.get('verbose', 2)}, 
     scheduler={scheduler}, workers={workers})

@@ -28,7 +28,9 @@ import importlib
 # Use modern TOML libraries instead of toml
 import tomli         # For reading TOML files
 import tomli_w       # For writing TOML files
-from agi_gui.pagelib import list_views, get_about_content, render_logo, select_project
+from agi_gui.pagelib import activate, list_views, get_about_content, render_logo, select_project
+
+from agi_env import AgiEnv
 
 # Set page configuration - Must be the first Streamlit command
 st.set_page_config(
@@ -45,7 +47,11 @@ def main():
     Based on the current page, it sets the page title accordingly and renders the appropriate content.
     """
     global env
-    env = st.session_state["env"]
+    env = AgiEnv("flight",
+                 apps_dir=st.session_state["apps_dir"],
+                 install_type=st.session_state["install_type"] ,
+                 verbose=1)
+    activate(env)
     current_page = st.query_params.get("current_page", "main")
     st.session_state["current_page"] = current_page
 

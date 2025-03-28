@@ -22,7 +22,7 @@ import argparse
 
 # -------------------- Import Statements -------------------- #
 # (Include any other necessary imports from your original code)
-from agi_gui.pagelib import start, get_about_content, render_logo, open_docs, get_base64_of_image
+from agi_gui.pagelib import activate, get_about_content, render_logo, open_docs, get_base64_of_image
 
 # -------------------- Additional Imports -------------------- #
 import ast
@@ -170,10 +170,10 @@ def main():
     )
 
     args, unknown = parser.parse_known_args()
-
+    st.session_state["apps_dir"] = args.apps_dir
+    st.session_state["install_type"] = args.install_type
     env = AgiEnv("flight", apps_dir=args.apps_dir, install_type=args.install_type, verbose=1)
-    start(env)
-    st.session_state["env"] = env
+    activate(env)
     # Global resource path
 
     # --- Retrieve OpenAI API Key ---

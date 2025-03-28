@@ -1090,7 +1090,7 @@ def on_df_change(module_dir, index_page, df_file, steps_file=None):
     st.session_state.page_broken = True
 
 
-def start(current_env):
+def activate(current_env):
     global env
 
     env = current_env

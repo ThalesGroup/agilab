@@ -76,6 +76,8 @@ class AgiEnv:
             else:
                 self.module = module.parent.name
                 apps_dir = self._determine_apps_dir(module)
+        else:
+            self.module = "my-code"
 
         if apps_dir:
             AgiEnv.apps_dir = Path(apps_dir)
@@ -87,7 +89,7 @@ class AgiEnv:
             resource_path = AgiEnv.agi_root / "agi_env" / self.agi_resources
         else:
             if not install_type:
-                self.install_type = int(envars.get("AGI_INSTALL_TYPE", 0))
+                self.install_type = int(envars.get("INSTALL_TYPE", 0))
             resource_path = AgiEnv.agi_root / "fwk/env/src/agi_env" / self.agi_resources
 
         # Initialize .agilab resources
@@ -100,15 +102,15 @@ class AgiEnv:
             self.app = module.replace("_","-") + "-project"
         elif isinstance(module, Path):
             self.app = module.name
+        else:
+            self.app = self.module + "-project"
 
         self.app_path = self.apps_dir / self.app
         self.setup_app =  self.app_path / "setup"
         self.setup_core = self.core_src / "agi_core/workers/agi_worker/setup"
-        target_package_path = self.module_path.parent
-        self.target_package = target_package_path.name
-        self.target_worker = f"{self.target}_worker"
+        self.target_worker = f"{self.module}_worker"
         self.worker_path = (
-                target_package_path.parent / self.target_worker / f"{self.target_worker}.py"
+                self.app_path / "src" / self.target_worker / f"{self.target_worker}.py"
         )
         self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
 

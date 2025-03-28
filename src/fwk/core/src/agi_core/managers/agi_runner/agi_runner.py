@@ -247,7 +247,7 @@ class AGI:
                 sys.path.insert(0, base_worker_dir)
             AGI._target_module = AGI._load_module(
                 AGI._target,
-                env.target_package,
+                env.module,
                 path=env.app_src_path,
             )
             if not AGI._target_module:

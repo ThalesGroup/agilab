@@ -36,6 +36,7 @@ import tomli_w      # For writing TOML files
 
 # Project Libraries:
 from agi_gui.pagelib import (
+    activate,
     find_files,
     run_lab,
     load_df,
@@ -596,7 +597,11 @@ def load_df_cached(path: Path, nrows=50, with_index=True):
 
 def main():
     global env, default_df, df_file
-    env = st.session_state["env"]
+    env = AgiEnv("flight",
+                 apps_dir=st.session_state["apps_dir"],
+                 install_type=st.session_state["install_type"] ,
+                 verbose=1)
+    activate(env)
 
     try:
         # Set page configuration
