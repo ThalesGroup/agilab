@@ -623,8 +623,8 @@
             <span class="n">AGI</span><span class="o">.</span><span class="n">workers</span> <span class="o">=</span> <span class="n">workers</span>
             <span class="n">AGI</span><span class="o">.</span><span class="n">_run_time</span> <span class="o">=</span> <span class="p">{}</span>
 
-            <span class="n">AGI</span><span class="o">.</span><span class="n">_capacity_data_file</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">deployed_resources_abs</span> <span class="o">/</span> <span class="s2">&quot;balancer_df.csv&quot;</span>
-            <span class="n">AGI</span><span class="o">.</span><span class="n">_capacity_model_file</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">deployed_resources_abs</span> <span class="o">/</span> <span class="s2">&quot;balancer_model.pkl&quot;</span>
+            <span class="n">AGI</span><span class="o">.</span><span class="n">_capacity_data_file</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">resources_path</span> <span class="o">/</span> <span class="s2">&quot;balancer_df.csv&quot;</span>
+            <span class="n">AGI</span><span class="o">.</span><span class="n">_capacity_model_file</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">resources_path</span> <span class="o">/</span> <span class="s2">&quot;balancer_model.pkl&quot;</span>
             <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_capacity_model_file</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>

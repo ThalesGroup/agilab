@@ -485,7 +485,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_init_resources</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">agi_env_path</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span><span class="p">)</span>
 
         <span class="c1"># Initialize environment variables</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_init_envars</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">deployed_resources_abs</span> <span class="o">/</span> <span class="s2">&quot;.env&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_init_envars</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">resources_path</span> <span class="o">/</span> <span class="s2">&quot;.env&quot;</span><span class="p">)</span>
 
         <span class="c1"># Determine module path and set target.</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">Path</span><span class="p">):</span>
@@ -775,7 +775,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">args_ui_snippet</span> <span class="o">=</span> <span class="n">args_ui_snippet</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">gitignore_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_path</span> <span class="o">/</span> <span class="s2">&quot;.gitignore&quot;</span>
-        <span class="n">dest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">deployed_resources_abs</span>
+        <span class="n">dest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">resources_path</span>
         <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">AGI_GUI_ABS</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span><span class="p">,</span> <span class="n">dest</span><span class="p">,</span> <span class="n">dirs_exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_init_envars</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_path</span><span class="p">):</span>
@@ -862,9 +862,9 @@
 
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_init_resources</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">resources_path</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">deployed_resources_abs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span><span class="o">.</span><span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">resources_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span><span class="o">.</span><span class="n">name</span>
         <span class="n">src_env_path</span> <span class="o">=</span> <span class="n">resources_path</span> <span class="o">/</span> <span class="s2">&quot;.env&quot;</span>
-        <span class="n">dest_env_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">deployed_resources_abs</span> <span class="o">/</span> <span class="s2">&quot;.env&quot;</span>
+        <span class="n">dest_env_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">resources_path</span> <span class="o">/</span> <span class="s2">&quot;.env&quot;</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">src_env_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Installation issue: </span><span class="si">{</span><span class="n">src_env_path</span><span class="si">}</span><span class="s2"> is missing!&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">dest_env_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
@@ -874,7 +874,7 @@
             <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
                 <span class="n">src_file</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">root</span><span class="p">)</span> <span class="o">/</span> <span class="n">file</span>
                 <span class="n">relative_path</span> <span class="o">=</span> <span class="n">src_file</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">resources_path</span><span class="p">)</span>
-                <span class="n">dest_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">deployed_resources_abs</span> <span class="o">/</span> <span class="n">relative_path</span>
+                <span class="n">dest_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">resources_path</span> <span class="o">/</span> <span class="n">relative_path</span>
                 <span class="n">dest_file</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">dest_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
                     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">dest_env_file</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
