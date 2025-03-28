@@ -12,16 +12,20 @@ mkdir "$home/../agi-pypi"
 
 # Build the main project as a sdist and move it
 rm -rf dist
-uv --directory $home build --sdist
+uv build --sdist
 mv dist/*.gz "$home/../agi-pypi"
 
 # Loop through each subdirectory and build accordingly
 for subdir in "${SUBDIRS[@]}"; do
   pushd "src/$subdir" > /dev/null
   rm -rf dist  # clean previous builds
-  uv --directory $home build --wheel
+  uv build --wheel
   mv dist/*.whl "$home/../agi-pypi"
   popd > /dev/null
 done
 
-uv run agilab --install-type 1 --apps-dir "../../apps"
+pushd "$home/../agi-pypi"
+uv init --bare
+uv add *.whl *.gz
+uv run agilab --install-type 1 --apps-dir "apps"
+popd

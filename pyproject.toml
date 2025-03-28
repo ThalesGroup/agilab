@@ -31,9 +31,9 @@ dependencies = [
     "setuptools>=76.0.0",
     "twine>=6.1.0",
     "wheel>=0.45.1",
-    "agi-env @ fwk/env",
-    "agi-core @ fwk/core",
-    "agi-gui @ fwk/gui",
+    "agi-env",
+    "agi-core",
+    "agi-gui",
 ]
 
 [project.urls]
@@ -49,6 +49,15 @@ default-groups = ["dev"]
 
 [tool.uv.sources.agilab]
 workspace = true
+[tool.uv.sources.agi-env]
+path = "/home/jpm/agilab/src/fwk/env"
+[tool.uv.sources.agi-core]
+path = "/home/jpm/agilab/src/fwk/core"
+[tool.uv.sources.agi-gui]
+path = "/home/jpm/agilab/src/fwk/gui"
+
+
+
 
 [tool.uv.workspace]
 members = ["test", "apps", "views", "fwk", "src", "src/fwk/agi-pypi"]
