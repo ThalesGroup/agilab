@@ -17,7 +17,9 @@ def main():
     cmd = [
         sys.executable, "-m", "pytest",
         "--rootdir", str(repo_root),
-        "--import-mode=importlib"
+        "--import-mode=importlib",
+        "--local-badge-output-dir",
+        str(repo_root.parent.parent / "docs/badges"),
     ] + [str(f) for f in test_files]
 
     print("Running pytest with command:")
