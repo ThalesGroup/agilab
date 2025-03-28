@@ -1118,7 +1118,7 @@ def start(current_env):
 
         cmd = f"uv run mlflow ui --backend-store-uri file://{tracking_dir} --port {port}"
         try:
-            res = subproc(cmd, env.gui_env)
+            res = subproc(cmd, env.gui_root)
             st.session_state.server_started = True
             st.session_state["mlflow_port"] = port
         except RuntimeError as e:
