@@ -1,7 +1,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agi-gui.svg)](https://pypi.org/project/agi-gui) 
 [![PyPI downloads](https://img.shields.io/pypi/dm/agi-gui.svg)](https://pypi.org/project/agi-gui/) 
 [![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
-[![PyTest](https://thalesgroup.github.io/agilab/badges/tests.svg)](https://thalesgroup.github.io/agilab/badges/tests.svg)
+[![PyTest](https://thalesgroup.github.io/agilab/badges/tests.svg)](https://thalesgroup.github.io/agilab/badges/tests)
 
 # AGI-GUI Engine
 =================

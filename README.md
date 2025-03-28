@@ -2,8 +2,8 @@
 [![PyPI downloads](https://img.shields.io/pypi/dm/agilab.svg)](https://pypi.org/project/agilab/)
 [![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
 [![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
-[![PyTest](https://thalesgroup.github.io/agilab/badges/tests.svg)](https://thalesgroup.github.io/agilab/badges/tests.svg)
-[![PyTest](https://thalesgroup.github.io/agilab/badges/coverage.svg)](https://thalesgroup.github.io/agilab/badges/coverage.svg)
+[![PyTest](https://thalesgroup.github.io/agilab/badges/tests.svg)](https://thalesgroup.github.io/agilab/badges/tests)
+[![PyTest](https://thalesgroup.github.io/agilab/badges/coverage.svg)](https://thalesgroup.github.io/agilab/badges/coverage)
 
 # AGILAB Open Source Project
 
