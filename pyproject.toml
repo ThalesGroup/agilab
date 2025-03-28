@@ -31,9 +31,9 @@ dependencies = [
     "setuptools>=76.0.0",
     "twine>=6.1.0",
     "wheel>=0.45.1",
-    "agi-env",
-    "agi-core",
-    "agi-gui",
+    "agi-env @ fwk/env",
+    "agi-core @ fwk/core",
+    "agi-gui @ fwk/gui",
 ]
 
 [project.urls]
