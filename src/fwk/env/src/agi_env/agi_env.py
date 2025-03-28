@@ -77,7 +77,7 @@ class AgiEnv:
                 self.module = module.parent.name
                 apps_dir = self._determine_apps_dir(module)
         else:
-            self.module = "my-code"
+            self.module = "my_code"
 
         if apps_dir:
             AgiEnv.apps_dir = Path(apps_dir)
@@ -103,7 +103,7 @@ class AgiEnv:
         elif isinstance(module, Path):
             self.app = module.name
         else:
-            self.app = self.module + "-project"
+            self.app = self.module.replace("_","-") + "-project"
 
         self.app_path = self.apps_dir / self.app
         self.setup_app =  self.app_path / "setup"

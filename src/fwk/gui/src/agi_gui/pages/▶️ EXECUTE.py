@@ -487,8 +487,7 @@ def workload_barchart(workers, workers_chunks, partition_key, weights_key, weigh
 # ===========================
 def page():
     global env
-    env = AgiEnv("flight",
-                 apps_dir=st.session_state["apps_dir"],
+    env = AgiEnv(apps_dir=st.session_state["apps_dir"],
                  install_type=st.session_state["install_type"] ,
                  verbose=1)
     activate(env)

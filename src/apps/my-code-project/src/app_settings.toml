@@ -13,9 +13,3 @@ cython = false
 cluster_enabled = false
 rapids = false
 pool = false
-
-[cluster.workers]
-"127.0.0.1" = 1
-
-[cluster.scheduler]
-"127.0.0.1" = 1
