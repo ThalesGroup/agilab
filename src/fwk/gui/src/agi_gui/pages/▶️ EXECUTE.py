@@ -563,7 +563,7 @@ from agi_core.managers.agi_runner import AGI
 from agi_env import AgiEnv
 
 async def main():
-    env = AgiEnv('flight', install_type={env.install_type})
+    env = AgiEnv(install_type={env.install_type})
     res = await AGI.install('{module}', env, modes_enabled={st.session_state.mode},
     verbose={cluster_params.get('verbose', 2)}, 
     scheduler={scheduler}, workers={workers})

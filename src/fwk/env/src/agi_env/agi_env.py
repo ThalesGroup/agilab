@@ -99,11 +99,12 @@ class AgiEnv:
         self._init_envars()
 
         if isinstance(module, str):
-            self.app = module.replace("_","-") + "-project"
+            app = module
         elif isinstance(module, Path):
-            self.app = module.name
+            app = module.stem
         else:
-            self.app = self.module.replace("_","-") + "-project"
+            app = self.module
+        self.app = app.replace("_", "-") + "-project"
 
         self.app_path = self.apps_dir / self.app
         self.setup_app =  self.app_path / "setup"
