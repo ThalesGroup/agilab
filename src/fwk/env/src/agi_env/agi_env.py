@@ -757,7 +757,7 @@ class AgiEnv:
         # Now that target is defined, we can use it for further assignments.
         self._init_projects()
         apps_src = AgiEnv.agi_root  / "apps"
-        for app in ["my-code-project", "flight"]:
+        for app in ["my-code-project", "flight-project"]:
             app_dest = AgiEnv.apps_dir / app
             if not app_dest.exists():
                 self.clone_project(apps_src, app, app_dest)
