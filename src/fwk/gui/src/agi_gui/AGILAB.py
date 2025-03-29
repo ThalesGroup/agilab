@@ -222,7 +222,7 @@ def main():
             page_module = importlib.import_module("pages.▶️ EDIT")
             page_module.main()
         else:
-            page()
+            page(env)
     except Exception as e:
         st.error(f"An error occurred: {e}")
         import traceback

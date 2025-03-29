@@ -332,7 +332,7 @@ def clone_project(target_project, dest_project):
     st.session_state["project"] = dest_project  # Set the new project as current
 
     # Change the app to the new project
-    env.change_active_app(dest_project, mode=True)
+    env.change_active_app(dest_project, env.install_type)
 
     return res
 

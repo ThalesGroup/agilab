@@ -820,7 +820,8 @@ class AgiEnv:
             app_dest = AgiEnv.apps_dir / app
             if not app_dest.exists():
                 self.clone_project(apps_src, app, app_dest)
-            self.projects.append(app)
+            if not app in self.projects:
+                self.projects.append(app)
 
         if not self.projects:
             raise FileNotFoundError(
