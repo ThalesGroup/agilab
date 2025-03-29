@@ -196,7 +196,7 @@ class AGI:
         if mode is None or isinstance(mode, list):
             mode_range = range(8) if mode is None else sorted(mode)
             return await AGI._run_all_modes(
-                target, scheduler, workers, verbose, mode_range, rapids_enabled, **args
+                target, env, scheduler, workers, verbose, mode_range, rapids_enabled, **args
             )
         else:
             if isinstance(mode, str):
@@ -266,6 +266,7 @@ class AGI:
     @staticmethod
     async def _run_all_modes(
             target,
+            env,
             scheduler=None,
             workers=None,
             verbose=0,
@@ -295,6 +296,7 @@ class AGI:
             # Run the target with the current mode.
             run = await AGI.run(
                 target,
+                env,
                 scheduler=scheduler,
                 workers=workers,
                 verbose=verbose,

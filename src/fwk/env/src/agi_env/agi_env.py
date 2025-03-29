@@ -116,10 +116,13 @@ class AgiEnv:
         # check validity of active_app and set module
         if active_app:
             if isinstance(active_app, str):
-                if active_app.endswith('-project') and (apps_dir / active_app).exists():
+                if not active_app.endswith('-project'):
+                    active_app = active_app.replace('_', '-') + '-project'
+                app_path = apps_dir / active_app
+                if app_path.exists():
                     self.app = active_app
                 else:
-                    print("path or name is not valid for an agi app:/n", active_app)
+                    print("path is not valid for an agi app:/n", app_path)
                     exit(1)
                 module = active_app.replace("-project", "").replace("-", "_")
             else:
