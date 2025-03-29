@@ -54,13 +54,22 @@ class AgiEnv:
     """
     install_type = None
     apps_dir = None
+    app = None
+    module = None
 
-    def __init__(self, install_type=None, apps_dir=None, active_app=None, active_module=None, verbose=False):
+    def __init__(self, install_type: int = None, apps_dir: Path=None, active_app: Path|str =None, active_module: Path =None, verbose: int =0):
         """
-        Initialize the AgiEnv instance.
+        Initialize the AgiEnv instance
+
+        parameters:
+        - install_type: 0: end-user, 1: dev, 2: api
+        - apps_dir: path to apps directory
+        - active_app: name or path of the active app
+        - active_module: path of the active module
+        - verbose: verbosity level
         """
         if install_type:
-            install_type = (install_type)
+            install_type = int(install_type)
         self.verbose = verbose
         self.is_managed_pc = getpass.getuser().startswith("T0")
         self.agi_root = AgiEnv.locate_agi_installation(install_type)
@@ -71,31 +80,59 @@ class AgiEnv:
         self.envars = dotenv_values(dotenv_path=self.resource_path / ".env",
                                     verbose=self.verbose)
         envars = self.envars
-        if active_app:
-            if isinstance(active_app, str):
-                self.module = active_app.replace("-project", "").replace("-", "_")
-            else:
-                self.module = active_app.stem
-            apps_dir = self._determine_apps_dir(active_app)
-            self.app = active_app
-        else:
-            self.module = "my_code"
 
+        # check validity of active_module if any and set the apps_dir
         if active_module:
             if isinstance(active_module, Path):
                 self.module = active_module.stem
                 appsdir = self._determine_apps_dir(active_module)
                 if apps_dir:
-                    print("warning apps_dir will be determiner from active_module path")
+                    print("warning apps_dir will be determine from active_module path")
                 apps_dir = appsdir
+                app = apps_dir.name
+                if active_app:
+                    print("app will be determined from active_module path")
+                active_app = app
             else:
                 print("active_module must be of type 'Path'")
                 exit(1)
 
-        if apps_dir:
-            AgiEnv.apps_dir = apps_dir
+        # if apps_dir is not provided or can't be guess from modul_path then take from envars
+        if not apps_dir:
+            apps_dir = Path(envars.get("APPS_DIR", None))
+
+        # check validity of apps_dir if any
+        try:
+            if apps_dir.exists():
+                self.apps_dir = apps_dir
+
+        except FileNotFoundError:
+            print("app_dir not found:/n", apps_dir)
+            exit(1)
+
+        if not active_app:
+            active_app = Path(envars.get("APP_DEFAULT", None))
+
+        # check validity of active_app and set module
+        if active_app:
+            if isinstance(active_app, str):
+                if active_app.endswith('-project') and (apps_dir / active_app).exists():
+                    self.app = active_app
+                else:
+                    print("path or name is not valid for an agi app:/n", active_app)
+                    exit(1)
+                module = active_app.replace("-project", "").replace("-", "_")
+            else:
+                apps_dir = self._determine_apps_dir(active_app)
+                module = apps_dir.name.replace("-project", "").replace("-", "_")
         else:
-            AgiEnv.apps_dir = Path(envars.get("APPS_DIR", None))
+            module = "my_code"
+
+        if not self.module:
+            self.module = module
+
+        AgiEnv.apps_dir = apps_dir
+
 
         if install_type == 0:
             self.install_type = install_type
@@ -110,14 +147,6 @@ class AgiEnv:
 
         # Initialize environment variables
         self._init_envars()
-
-        if isinstance(module, str):
-            app = module
-        elif isinstance(module, Path):
-            app = module.stem
-        else:
-            app = self.module
-        self.app = app.replace("_", "-") + "-project"
 
         self.app_path = self.apps_dir / self.app
         self.setup_app =  self.app_path / "setup"
