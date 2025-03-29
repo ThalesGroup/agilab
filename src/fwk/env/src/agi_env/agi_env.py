@@ -96,6 +96,8 @@ class AgiEnv:
             else:
                 print("active_module must be of type 'Path'")
                 exit(1)
+        else:
+            self.module = None
 
         # if apps_dir is not provided or can't be guess from modul_path then take from envars
         if not apps_dir:
@@ -111,18 +113,19 @@ class AgiEnv:
             exit(1)
 
         if not active_app:
-            active_app = Path(envars.get("APP_DEFAULT", 'my-code-project'))
+            active_app = envars.get("APP_DEFAULT", 'my-code-project')
 
         # check validity of active_app and set module
         if active_app:
             if isinstance(active_app, str):
+                active_app = active_app.replace('_', '-')
                 if not active_app.endswith('-project'):
-                    active_app = active_app.replace('_', '-') + '-project'
+                    active_app = active_app + '-project'
                 app_path = apps_dir / active_app
                 if app_path.exists():
                     self.app = active_app
                 else:
-                    print("path is not valid for an agi app:/n", app_path)
+                    print("path is not valid for an agi app:\n", app_path)
                     exit(1)
                 module = active_app.replace("-project", "").replace("-", "_")
             else:

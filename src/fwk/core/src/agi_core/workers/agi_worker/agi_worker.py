@@ -37,7 +37,7 @@ import traceback
 # External Libraries:
 from contextlib import redirect_stdout
 from distutils.sysconfig import get_python_lib
-from pathlib import Path
+from pathlib import Path, PureWindowsPath, PurePosixPath
 from zipfile import ZipFile
 import psutil
 import parso
