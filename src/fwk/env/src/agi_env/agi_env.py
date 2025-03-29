@@ -111,7 +111,7 @@ class AgiEnv:
             exit(1)
 
         if not active_app:
-            active_app = Path(envars.get("APP_DEFAULT", None))
+            active_app = Path(envars.get("APP_DEFAULT", 'my-code-project'))
 
         # check validity of active_app and set module
         if active_app:
@@ -143,6 +143,8 @@ class AgiEnv:
         else:
             if not install_type:
                 self.install_type = int(envars.get("INSTALL_TYPE", 0))
+            else:
+                self.install_type = install_type
             resource_path = AgiEnv.agi_root / "fwk/env/src/agi_env" / self.agi_resources
 
         # Initialize .agilab resources
@@ -558,7 +560,7 @@ class AgiEnv:
             else:
                 # For Unix-like systems
                 os.symlink(source_venv, dest_venv, target_is_directory=True)
-                prin(f"Created symbolic link for .venv: {dest_venv} -> {source_venv}")
+                print(f"Created symbolic link for .venv: {dest_venv} -> {source_venv}")
         except OSError as e:
             print(f"Failed to create symbolic link for .venv: {e}")
 
