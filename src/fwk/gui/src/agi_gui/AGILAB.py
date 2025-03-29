@@ -188,7 +188,7 @@ def main():
         print("Found OpenAI API key; skipping prompt.")
 
     # --- Retrieve Cluster Credentials ---
-    cluster_credentials = env.AGI_CREDENTIALS if env.AGI_CREDENTIALS else args.cluster_credentials
+    cluster_credentials = env.CLUSTER_CREDENTIALS if env.CLUSTER_CREDENTIALS else args.cluster_credentials
     if cluster_credentials is None:
         # Prompt only if no cluster credentials exist.
         cluster_enabled = input("Is cluster available? [N/y]: ").strip().lower() or "n"

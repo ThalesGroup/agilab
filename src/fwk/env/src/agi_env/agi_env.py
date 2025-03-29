@@ -470,10 +470,10 @@ class AgiEnv:
         os.environ[key] = value
         self._update_env_file({key: value})
 
-    def set_agi_credentials(self, credentials: str):
+    def set_cluster_credentials(self, credentials: str):
         """Set the AGI_CREDENTIALS environment variable."""
-        self.AGI_CREDENTIALS = credentials  # maintain internal state
-        self.set_env_var("AGI_CREDENTIALS", credentials)
+        self.CLUSTER_CREDENTIALS = credentials  # maintain internal state
+        self.set_env_var("CLUSTER_CREDENTIALS", credentials)
 
     def set_openai_api_key(self, api_key: str):
         """Set the OPENAI_API_KEY environment variable."""
@@ -774,7 +774,7 @@ class AgiEnv:
 
     def _init_envars(self):
         envars = self.envars
-        self.credantials = envars.get("AGI_CREDENTIALS", getpass.getuser())
+        self.credantials = envars.get("CLUSTER_CREDENTIALS", getpass.getuser())
         credantials = self.credantials.split(":")
         self.user = credantials[0]
         if len(credantials) > 1:
@@ -836,7 +836,7 @@ class AgiEnv:
         return False
 
     def init_envars_app(self, envars):
-        self.AGI_CREDENTIALS = envars.get("AGI_CREDENTIALS", None)
+        self.CLUSTER_CREDENTIALS = envars.get("CLUSTER_CREDENTIALS", None)
         self.OPENAI_API_KEY = envars.get("OPENAI_API_KEY", None)
         AGILAB_LOG_ABS = Path(envars.get("AGI_LOG_DIR", self.home_abs / "log"))
         if not AGILAB_LOG_ABS.exists():
