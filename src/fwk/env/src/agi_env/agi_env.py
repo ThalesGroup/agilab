@@ -359,7 +359,7 @@ class AgiEnv:
             AgiEnv.agi_venv = Path(*path_parts[:index + 1])
             #AgiEnv.apps_dir = AgiEnv.agi_venv.parent / "apps"
             AgiEnv.gui_root = AgiEnv.agi_root / "gui"
-            AgiEnv.AGI_SRC_ABS = AgiEnv.agi_root
+            AgiEnv.AGI_GUI_DIR = AgiEnv.agi_root
             AgiEnv.help_path = "https://thalesgroup.github.io/agilab"
         else :
             index = path_parts.index(dev)
@@ -367,7 +367,7 @@ class AgiEnv:
             AgiEnv.agi_venv = AgiEnv.get_venv_root()
             #AgiEnv.apps_dir = AgiEnv.agi_venv / "fwk/apps"
             AgiEnv.gui_root = AgiEnv.agi_root / "fwk/gui"
-            AgiEnv.AGI_SRC_ABS = str(AgiEnv.gui_root / "src")
+            AgiEnv.AGI_GUI_DIR = str(AgiEnv.gui_root / "src")
             AgiEnv.help_path = str(AgiEnv.agi_root / "../docs/html")
         return AgiEnv.agi_root
 
@@ -859,7 +859,7 @@ class AgiEnv:
         self.AGILAB_VIEWS_REL = Path(envars.get("AGI_VIEWS_DIR", "agi/_"))
 
         self.AGILAB_DATA_NROW = int(envars.get("AGI_GUI_NROW", 1000))
-        self.copilot_file = Path(self.AGI_SRC_ABS) / "agi/agi_copilot.py"
+        self.copilot_file = Path(self.AGI_GUI_DIR) / "agi/agi_copilot.py"
 
     def _init_resources(self, resources_path):
         src_env_path = resources_path / ".env"
