@@ -126,7 +126,7 @@ def main() -> None:
 
     target_package = ext_path.stem.replace("_worker", "")
     target_module = target_package.replace("-", "_")
-    env = AgiEnv(target_package, install_type=1)
+    env = AgiEnv(default_module=target_module, install_type=1)
 
     target_worker = env.workers_packages_prefix + env.target_worker
     custom_modules += [env.base_worker_module]

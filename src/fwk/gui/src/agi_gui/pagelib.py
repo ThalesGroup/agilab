@@ -360,7 +360,7 @@ def on_project_change(project, switch_to_select=True):
     try:
 
         # Change the app/project
-        env.change_app(project, mode=True)
+        env.change_active_app(project, mode=True)
         module = env.target
 
         # Update session state with new module and data directory paths

@@ -101,7 +101,7 @@ async def main():
             description="Run AGILAB application with custom options."
         )
 
-        parser.add_argument("module", type=str, help="Module name")
+        parser.add_argument("app", type=str, help="Module name")
 
         parser.add_argument(
             "--apps-dir", type=str, help="Directory for apps", required=True
@@ -111,14 +111,14 @@ async def main():
         )
         args, unknown = parser.parse_known_args()
 
-        env = AgiEnv(module, apps_dir=args.apps_dir, install_type=args.install_type)
+        env = AgiEnv(active_app=args.app, install_type=args.install_type)
         resolve_packages_path_in_toml(module, args)
 
     except Exception as e:
         raise Exception("Failed to resolve env and core path in toml") from e
 
     await AGI.install(
-        args.module,
+        args.app.replace("-project", ""),
         env=env,
         type=int(args.install_type),
         scheduler="127.0.0.1",

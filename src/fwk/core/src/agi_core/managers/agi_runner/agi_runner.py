@@ -179,7 +179,7 @@ class AGI:
             ValueError: If `mode` is invalid.
             RuntimeError: If the target module fails to load.
         """
-        AGI.env = env
+        AGI.env = env.active(target)
 
         if not workers:
             workers = workers_default

@@ -55,7 +55,7 @@ class AgiEnv:
     install_type = None
     apps_dir = None
 
-    def __init__(self, module=None, apps_dir=None, install_type=None, verbose=False):
+    def __init__(self, install_type=None, apps_dir=None, active_app=None, active_module=None, verbose=False):
         """
         Initialize the AgiEnv instance.
         """
@@ -71,17 +71,29 @@ class AgiEnv:
         self.envars = dotenv_values(dotenv_path=self.resource_path / ".env",
                                     verbose=self.verbose)
         envars = self.envars
-        if module:
-            if isinstance(module, str):
-                self.module = module
-            else:
-                self.module = module.parent.name
-                apps_dir = self._determine_apps_dir(module)
+        if active_app:
+            if isinstance(active_app, str):
+                self.module = active_app.replace("-project", "").replace("-", "_")
+            else
+                print("default_apps must be of type 'str'")
+                exit(1)
+            apps_dir = self._determine_apps_dir(active_app)
         else:
             self.module = "my_code"
 
+        if active_module:
+            if isinstance(active_module, Path):
+                self.module = active_module.stem
+                appsdir = self._determine_apps_dir(active_module)
+                if apps_dir:
+                    print("warning apps_dir will be determiner from active_module path")
+                apps_dir = appsdir
+            else:
+                print("active_module must be of type 'Path'")
+                exit(1)
+
         if apps_dir:
-            AgiEnv.apps_dir = Path(apps_dir)
+            AgiEnv.apps_dir = apps_dir
         else:
             AgiEnv.apps_dir = Path(envars.get("APPS_DIR", None))
 
@@ -156,6 +168,11 @@ class AgiEnv:
             self.export_local_bin = 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
         else:
             self.export_local_bin = 'export PATH="$HOME/.local/bin:$PATH";'
+
+
+    def active(self, target):
+        if self.module != target:
+            self.change_active_app(target + '-project')
 
     # ----------------------------------------------
     # Base class parsing methods (integrated)
@@ -719,7 +736,7 @@ class AgiEnv:
         self.clone_directory(source_root, dest_root, rename_map, spec, source_root)
 
         # Change the app to the new project
-        self.change_app(dest_project, self.install_type)
+        self.change_active_app(dest_project, self.install_type)
 
     def _init_envars(self):
         envars = self.envars
@@ -863,9 +880,13 @@ class AgiEnv:
     def scheduler_ip_address(self):
         return self.scheduler_ip
 
-    def change_app(self, module_path, install_type):
+    def change_active_module(self, module_path, install_type):
         if module_path != self.module_path:
-            self.__init__(module_path, install_type=install_type, verbose=self.verbose)
+            self.__init__(active_module=module_path, install_type=install_type, verbose=self.verbose)
+
+    def change_active_app(self, app, install_type):
+        if app != self.app:
+            self.__init__(active_app=app, install_type=install_type, verbose=self.verbose)
 
     def check_args(self, target_args_class, target_args):
         try:
