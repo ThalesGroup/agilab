@@ -179,7 +179,8 @@ class AGI:
             ValueError: If `mode` is invalid.
             RuntimeError: If the target module fails to load.
         """
-        AGI.env = env.active(target)
+        AGI.env = env
+        env.active(target)
 
         if not workers:
             workers = workers_default
@@ -1378,7 +1379,7 @@ class AGI:
             else:
                 AGI._build_worker_lib(is_local=True)
         cmd = (f'uv run --project {env.wenv_abs} python -c "from agi_core.workers.agi_worker import AgiWorker;'
-               f'print(AgiWorker.run(\'{AGI._target}\', {AGI.workers}, {AGI._mode}, {AGI._verbose}, {AgiManager.args}))"')
+               f'print(AgiWorker.run(\'{AGI.env.app}\', {AGI.workers}, {AGI._mode}, {AGI._verbose}, {AgiManager.args}))"')
         res = AgiEnv.run(cmd, env.wenv_abs)
         AGI._handle_command_result(res)
         return res

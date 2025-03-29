@@ -303,9 +303,10 @@ class AgiWorker(abc.ABC):
         # raise
 
     @staticmethod
-    def run(module, workers={"127.0.0.1": 1}, mode=0, verbose=3, args=None):
+    def run(app, workers={"127.0.0.1": 1}, mode=0, verbose=3, args=None):
 
-        env = AgiEnv(default_module=module)
+        env = AgiEnv(active_app=app)
+        module = env.module
 
         if mode & 2:
             wenv_abs = env.wenv_abs
