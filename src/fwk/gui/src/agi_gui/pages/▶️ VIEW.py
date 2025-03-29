@@ -47,9 +47,8 @@ def main():
     Based on the current page, it sets the page title accordingly and renders the appropriate content.
     """
     global env
-    env = AgiEnv(active_app="flight-project",
-                 apps_dir=st.session_state["apps_dir"],
-                 install_type=st.session_state["install_type"] ,
+    env = AgiEnv(active_app="flight",
+                 install_type=1,
                  verbose=1)
     activate(env)
     current_page = st.query_params.get("current_page", "main")

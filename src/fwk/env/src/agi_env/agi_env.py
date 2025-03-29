@@ -202,9 +202,9 @@ class AgiEnv:
             self.export_local_bin = 'export PATH="$HOME/.local/bin:$PATH";'
 
 
-    def active(self, target):
+    def active(self, target, install_type):
         if self.module != target:
-            self.change_active_app(target + '-project')
+            self.change_active_app(target + '-project', install_type)
 
     # ----------------------------------------------
     # Base class parsing methods (integrated)

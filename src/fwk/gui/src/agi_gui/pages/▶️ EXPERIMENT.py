@@ -597,9 +597,8 @@ def load_df_cached(path: Path, nrows=50, with_index=True):
 
 def main():
     global env, default_df, df_file
-    env = AgiEnv("flight",
-                 apps_dir=st.session_state["apps_dir"],
-                 install_type=st.session_state["install_type"] ,
+    env = AgiEnv(active_app="flight",
+                 install_type=1,
                  verbose=1)
     activate(env)
 

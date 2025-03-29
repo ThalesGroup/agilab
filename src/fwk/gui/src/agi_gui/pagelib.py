@@ -1123,6 +1123,3 @@ def activate(current_env):
             st.session_state["mlflow_port"] = port
         except RuntimeError as e:
             st.error(f"Failed to start the server: {e}")
-
-if __name__ == "__main__":
-    start(current_env)

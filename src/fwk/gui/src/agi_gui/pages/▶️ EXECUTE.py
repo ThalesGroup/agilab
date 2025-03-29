@@ -137,6 +137,7 @@ def parse_and_validate_workers(workers_input):
     return workers or {"127.0.0.1": 1}
 
 def initialize_app_settings():
+    global env
     if "app_settings" not in st.session_state:
         st.session_state.app_settings = load_toml_file(env.app_settings_file)
     st.session_state.app_settings.setdefault("args", {})
@@ -487,10 +488,9 @@ def workload_barchart(workers, workers_chunks, partition_key, weights_key, weigh
 # ===========================
 def page():
     global env
-    env = AgiEnv(apps_dir=st.session_state["apps_dir"],
-                 install_type=st.session_state["install_type"] ,
+    env = AgiEnv(active_app="flight",
+                 install_type=1,
                  verbose=1)
-    activate(env)
 
     # Define defaults for session state keys.
     defaults = {

@@ -180,7 +180,7 @@ class AGI:
             RuntimeError: If the target module fails to load.
         """
         AGI.env = env
-        env.active(target)
+        env.active(target, env.install_type)
 
         if not workers:
             workers = workers_default

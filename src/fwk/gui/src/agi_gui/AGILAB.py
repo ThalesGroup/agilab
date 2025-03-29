@@ -172,7 +172,7 @@ def main():
     args, unknown = parser.parse_known_args()
     st.session_state["apps_dir"] = args.apps_dir
     st.session_state["install_type"] = args.install_type
-    env = AgiEnv(default_app="flight-project", apps_dir=args.apps_dir, install_type=args.install_type, verbose=1)
+    env = AgiEnv(active_app="flight-project", apps_dir=Path(args.apps_dir), install_type=args.install_type, verbose=1)
     activate(env)
     # Global resource path
 
