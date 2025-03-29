@@ -1,6 +1,6 @@
 [args]
 data_source = "file"
-path = "/home/jpm/data/flight"
+path ="~/data/flight"
 files = "csv/*"
 nfile = 1
 nskip = 0

@@ -442,7 +442,7 @@ def page():
 
     if "df_file" in st.session_state and st.session_state["df_file"]:
         df_file_abs = Path(st.session_state.datadir) / st.session_state.df_file
-        df_file_abs = "/home/pcm/export/flight_sim/export.csv"
+        df_file_abs = "~/export/flight_sim/export.csv"
         st.session_state["loaded_df"] = load_df(df_file_abs, with_index=False)
 
     # Create a button styled link to open geojson.io with Streamlit-like customization

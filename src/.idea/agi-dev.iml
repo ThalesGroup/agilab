@@ -21,6 +21,17 @@
       <excludeFolder url="file://$MODULE_DIR$/wenv/my_code_worker/.venv" />
       <excludeFolder url="file://$MODULE_DIR$/wenv/my_code_worker/build" />
       <excludeFolder url="file://$MODULE_DIR$/agilab.egg-info" />
+      <excludeFolder url="file://$MODULE_DIR$/apps/flight-project/build" />
+      <excludeFolder url="file://$MODULE_DIR$/apps/flight-project/dist" />
+      <excludeFolder url="file://$MODULE_DIR$/apps/my-code-project/build" />
+      <excludeFolder url="file://$MODULE_DIR$/apps/my-code-project/dist" />
+      <excludeFolder url="file://$MODULE_DIR$/build" />
+      <excludeFolder url="file://$MODULE_DIR$/dist" />
+      <excludeFolder url="file://$MODULE_DIR$/fwk/core/build" />
+      <excludeFolder url="file://$MODULE_DIR$/fwk/core/dist" />
+      <excludeFolder url="file://$MODULE_DIR$/fwk/env/build" />
+      <excludeFolder url="file://$MODULE_DIR$/fwk/env/dist" />
+      <excludePattern pattern=".venv" />
     </content>
     <orderEntry type="jdk" jdkName="uv (src)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />

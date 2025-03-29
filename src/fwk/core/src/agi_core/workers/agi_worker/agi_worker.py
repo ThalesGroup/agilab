@@ -357,7 +357,7 @@ class AgiWorker(abc.ABC):
             print(traceback.format_exc())
             exit(1)
 
-        if mode == 16:
+        if mode == 48:
             return workers_tree
 
         t = time.time()

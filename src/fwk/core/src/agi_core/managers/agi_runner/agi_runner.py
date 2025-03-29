@@ -1377,6 +1377,8 @@ class AGI:
                 lib_path = AgiEnv.normalize_path(cython_libs[0])
             else:
                 AGI._build_worker_lib(is_local=True)
+        # do distribut
+
         cmd = (f'uv run --project {env.wenv_abs} python -c "from agi_core.workers.agi_worker import AgiWorker;'
                f'print(AgiWorker.run(\'{AGI.env.app}\', {AGI.workers}, {AGI._mode}, {AGI._verbose}, {AgiManager.args}))"')
         res = AgiEnv.run(cmd, env.wenv_abs)
