@@ -74,10 +74,10 @@ class AgiEnv:
         if active_app:
             if isinstance(active_app, str):
                 self.module = active_app.replace("-project", "").replace("-", "_")
-            else
-                print("default_apps must be of type 'str'")
-                exit(1)
+            else:
+                self.module = active_app.stem
             apps_dir = self._determine_apps_dir(active_app)
+            self.app = active_app
         else:
             self.module = "my_code"
 
