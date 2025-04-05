@@ -1,0 +1,12 @@
+# Include top-level files
+include README.md
+include SECURITY.md
+include LICENSE
+include pyproject.toml
+include MANIFEST.in
+include run_test.py
+include src/app_settings.toml
+include src/lab_steps.ipynb
+include src/lab_steps.toml
+include src/pre_prompt.json
+

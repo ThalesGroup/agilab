@@ -1,0 +1,326 @@
+# Gui Licenses
+| Package Name | License |
+|--------------|---------|
+| absl-py | APACHE SOFTWARE LICENSE |
+| ai21 | Apache License 2.0 |
+| ai21-tokenizer | Apache License 2.0 |
+| aiohappyeyeballs | PYTHON SOFTWARE FOUNDATION LICENSE |
+| aiohttp | APACHE SOFTWARE LICENSE |
+| aiolimiter | MIT LICENSE |
+| aiosignal | APACHE SOFTWARE LICENSE |
+| alembic | MIT LICENSE |
+| altair | BSD LICENSE |
+| annotated-types | MIT LICENSE |
+| anthropic | MIT LICENSE |
+| anyio | MIT LICENSE |
+| argon2-cffi | MIT LICENSE |
+| argon2-cffi-bindings | MIT LICENSE |
+| arrow | APACHE SOFTWARE LICENSE |
+| arxiv | MIT LICENSE |
+| astor | BSD LICENSE |
+| asttokens | APACHE 2.0 |
+| attrs | MIT LICENSE |
+| bce-python-sdk | APACHE LICENSE 2.0 |
+| bcrypt | APACHE SOFTWARE LICENSE |
+| beautifulsoup4 | MIT LICENSE |
+| bleach | APACHE SOFTWARE LICENSE |
+| blinker | MIT LICENSE |
+| boto3 | APACHE SOFTWARE LICENSE |
+| botocore | APACHE SOFTWARE LICENSE |
+| brotli | MIT LICENSE |
+| cachetools | MIT LICENSE |
+| certifi | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
+| cffi | MIT LICENSE |
+| charset-normalizer | MIT LICENSE |
+| click | BSD LICENSE |
+| cloudpickle | BSD LICENSE |
+| cohere | MIT LICENSE |
+| comm | BSD LICENSE |
+| contourpy | BSD LICENSE |
+| core | GNU GPL |
+| cramjam | MIT |
+| cryptography | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| cycler | BSD LICENSE |
+| cython | APACHE SOFTWARE LICENSE |
+| dacite | MIT LICENSE |
+| dask | BSD LICENSE |
+| databricks-sdk | APACHE SOFTWARE LICENSE |
+| dataclasses-json | MIT LICENSE |
+| decorator | BSD LICENSE |
+| deepmerge | MIT LICENSE |
+| defusedxml | PYTHON SOFTWARE FOUNDATION LICENSE |
+| deprecated | MIT LICENSE |
+| deprecation | APACHE SOFTWARE LICENSE |
+| dill | BSD LICENSE |
+| diskcache | APACHE SOFTWARE LICENSE |
+| distributed | BSD LICENSE |
+| distro | APACHE SOFTWARE LICENSE |
+| docker | APACHE SOFTWARE LICENSE |
+| entrypoints | MIT LICENSE |
+| env | BSD LICENSE |
+| eval-type-backport | MIT LICENSE |
+| executing | MIT LICENSE |
+| faiss-cpu | MIT LICENSE |
+| faker | MIT LICENSE |
+| fastapi | MIT LICENSE |
+| fastavro | MIT LICENSE |
+| fastjsonschema | BSD LICENSE |
+| fastparquet | APACHE SOFTWARE LICENSE |
+| favicon | MIT LICENSE |
+| feedparser | BSD LICENSE |
+| filelock | THE UNLICENSE _UNLICENSE_ |
+| filetype | MIT LICENSE |
+| flask | BSD LICENSE |
+| fonttools | MIT LICENSE |
+| fqdn | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
+| frozenlist | APACHE SOFTWARE LICENSE |
+| fsspec | BSD LICENSE |
+| future | MIT LICENSE |
+| geojson | BSD LICENSE |
+| gitdb | BSD LICENSE |
+| gitpython | BSD LICENSE |
+| google-ai-generativelanguage | APACHE SOFTWARE LICENSE |
+| google-api-core | APACHE SOFTWARE LICENSE |
+| google-auth | APACHE SOFTWARE LICENSE |
+| googleapis-common-protos | APACHE SOFTWARE LICENSE |
+| gpt4all | MIT LICENSE |
+| graphene | MIT |
+| graphql-core | MIT LICENSE |
+| graphql-relay | MIT LICENSE |
+| greenlet | MIT LICENSE |
+| grpcio | APACHE SOFTWARE LICENSE |
+| grpcio-status | APACHE SOFTWARE LICENSE |
+| gunicorn | MIT LICENSE |
+| h11 | MIT LICENSE |
+| h5py | BSD LICENSE |
+| htbuilder | APACHE SOFTWARE LICENSE |
+| htmlmin | BSD LICENSE |
+| httpcore | BSD LICENSE |
+| httpx | BSD LICENSE |
+| httpx-sse | MIT |
+| huggingface-hub | APACHE SOFTWARE LICENSE |
+| humanize | MIT License |
+| idna | BSD LICENSE |
+| imagehash | 2-CLAUSE BSD LICENSE |
+| importlib-metadata | APACHE SOFTWARE LICENSE |
+| inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| ipython | BSD LICENSE |
+| ipython-pygments-lexers | BSD LICENSE |
+| ipywidgets | BSD LICENSE |
+| isoduration | ISC LICENSE _ISCL_ |
+| itsdangerous | BSD LICENSE |
+| jedi | MIT LICENSE |
+| jinja2 | BSD LICENSE |
+| jiter | MIT LICENSE |
+| jmespath | MIT LICENSE |
+| joblib | BSD LICENSE |
+| jsonpatch | BSD LICENSE |
+| jsonpath-ng | APACHE SOFTWARE LICENSE |
+| jsonpointer | BSD LICENSE |
+| jsonschema | MIT LICENSE |
+| jsonschema-specifications | MIT LICENSE |
+| jupyter-ai | BSD LICENSE |
+| jupyter-ai-magics | BSD LICENSE |
+| jupyter-client | BSD LICENSE |
+| jupyter-core | BSD LICENSE |
+| jupyter-events | BSD LICENSE |
+| jupyter-server | BSD LICENSE |
+| jupyter-server-terminals | BSD LICENSE |
+| jupyterlab-pygments | BSD LICENSE |
+| jupyterlab-widgets | BSD LICENSE |
+| keras | APACHE LICENSE 2.0 |
+| kiwisolver | BSD LICENSE |
+| langchain | MIT |
+| langchain-anthropic | MIT |
+| langchain-aws | MIT LICENSE |
+| langchain-cohere | MIT LICENSE |
+| langchain-community | MIT |
+| langchain-core | MIT |
+| langchain-google-genai | MIT LICENSE |
+| langchain-mistralai | MIT |
+| langchain-nvidia-ai-endpoints | MIT LICENSE |
+| langchain-ollama | MIT |
+| langchain-openai | MIT |
+| langchain-text-splitters | MIT |
+| langsmith | MIT LICENSE |
+| llvmlite | BSD |
+| locket | BSD LICENSE |
+| lxml | BSD LICENSE |
+| mako | MIT LICENSE |
+| markdown | BSD LICENSE |
+| markdown-it-py | MIT LICENSE |
+| markdownlit | Apache License 2.0 |
+| markupsafe | BSD LICENSE |
+| marshmallow | MIT LICENSE |
+| matplotlib | PYTHON SOFTWARE FOUNDATION LICENSE |
+| matplotlib-inline | BSD LICENSE |
+| mdurl | MIT LICENSE |
+| mistune | BSD LICENSE |
+| ml-dtypes | APACHE SOFTWARE LICENSE |
+| mlflow | APACHE SOFTWARE LICENSE |
+| mlflow-skinny | APACHE SOFTWARE LICENSE |
+| msgpack | APACHE SOFTWARE LICENSE |
+| multidict | APACHE SOFTWARE LICENSE |
+| multimethod | APACHE SOFTWARE LICENSE |
+| multiprocess | BSD LICENSE |
+| multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| mypy-extensions | MIT LICENSE |
+| namex | Apache License 2.0 |
+| narwhals | MIT LICENSE |
+| nbclient | BSD LICENSE |
+| nbconvert | BSD LICENSE |
+| nbformat | BSD LICENSE |
+| networkx | BSD LICENSE |
+| numba | BSD LICENSE |
+| numpy | BSD LICENSE |
+| ollama | MIT LICENSE |
+| openai | APACHE SOFTWARE LICENSE |
+| opentelemetry-api | APACHE SOFTWARE LICENSE |
+| opentelemetry-sdk | APACHE SOFTWARE LICENSE |
+| opentelemetry-semantic-conventions | APACHE SOFTWARE LICENSE |
+| optree | APACHE SOFTWARE LICENSE |
+| orjson | APACHE SOFTWARE LICENSE;; MIT LICENSE |
+| overrides | APACHE LICENSE_ VERSION 2.0 |
+| packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| pandas | BSD LICENSE |
+| pandas-profiling | MIT LICENSE |
+| pandocfilters | BSD LICENSE |
+| paramiko | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
+| parso | MIT LICENSE |
+| partd | BSD |
+| pathspec | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
+| patsy | BSD LICENSE |
+| pexpect | ISC LICENSE _ISCL_ |
+| phik | MIT LICENSE |
+| pillow | CMU LICENSE _MIT-CMU_ |
+| platformdirs | MIT LICENSE |
+| plotly | MIT LICENSE |
+| ply | BSD |
+| polars | MIT LICENSE |
+| prometheus-client | APACHE SOFTWARE LICENSE |
+| prompt-toolkit | BSD LICENSE |
+| propcache | APACHE SOFTWARE LICENSE |
+| proto-plus | APACHE SOFTWARE LICENSE |
+| protobuf | 3-CLAUSE BSD LICENSE |
+| psutil | BSD LICENSE |
+| ptyprocess | ISC LICENSE _ISCL_ |
+| pure-eval | MIT LICENSE |
+| puremagic | MIT LICENSE |
+| py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pyarrow | APACHE SOFTWARE LICENSE |
+| pyasn1 | BSD LICENSE |
+| pyasn1-modules | BSD LICENSE |
+| pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pycparser | BSD LICENSE |
+| pycryptodome | BSD LICENSE;; PUBLIC DOMAIN |
+| pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
+| pydantic | MIT LICENSE |
+| pydantic-core | MIT LICENSE |
+| pydantic-settings | MIT LICENSE |
+| pydeck | APACHE LICENSE 2.0 |
+| pygments | BSD LICENSE |
+| pymdown-extensions | MIT LICENSE |
+| pynacl | APACHE LICENSE 2.0 |
+| pyparsing | MIT LICENSE |
+| pypdf | BSD LICENSE |
+| pyppmd | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| python-dotenv | BSD LICENSE |
+| python-json-logger | BSD LICENSE |
+| pytz | MIT LICENSE |
+| pywavelets | MIT LICENSE |
+| pyyaml | MIT LICENSE |
+| pyzmq | BSD LICENSE |
+| pyzstd | BSD LICENSE |
+| qianfan | APACHE SOFTWARE LICENSE |
+| referencing | MIT License |
+| regex | APACHE SOFTWARE LICENSE |
+| requests | APACHE SOFTWARE LICENSE |
+| requests-toolbelt | APACHE SOFTWARE LICENSE |
+| rfc3339-validator | MIT LICENSE |
+| rfc3986-validator | MIT LICENSE |
+| rich | MIT LICENSE |
+| rpds-py | MIT |
+| rsa | APACHE SOFTWARE LICENSE |
+| s3transfer | APACHE SOFTWARE LICENSE |
+| scikit-learn | BSD LICENSE |
+| scipy | BSD LICENSE |
+| scp | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
+| seaborn | BSD LICENSE |
+| send2trash | BSD LICENSE |
+| sentencepiece | APACHE SOFTWARE LICENSE |
+| setuptools | MIT LICENSE |
+| sgmllib3k | BSD LICENSE |
+| shellingham | ISC LICENSE _ISCL_ |
+| six | MIT LICENSE |
+| smmap | BSD LICENSE |
+| sniffio | APACHE SOFTWARE LICENSE;; MIT LICENSE |
+| sortedcontainers | APACHE SOFTWARE LICENSE |
+| soupsieve | MIT LICENSE |
+| sqlalchemy | MIT LICENSE |
+| sqlparse | BSD LICENSE |
+| st-annotated-text | APACHE SOFTWARE LICENSE |
+| st-theme | MIT LICENSE |
+| stack-data | MIT LICENSE |
+| starlette | BSD LICENSE |
+| statsmodels | BSD LICENSE |
+| streamlit | APACHE SOFTWARE LICENSE |
+| streamlit-avatar |  |
+| streamlit-camera-input-live | MIT License |
+| streamlit-card | MIT LICENSE |
+| streamlit-code-editor | MIT License |
+| streamlit-embedcode | MIT License |
+| streamlit-extras | APACHE SOFTWARE LICENSE |
+| streamlit-faker | Apache License 2.0 |
+| streamlit-image-coordinates | MIT LICENSE |
+| streamlit-keyup | MIT License |
+| streamlit-modal | BSD |
+| streamlit-pandas-profiling | MIT |
+| streamlit-toggle-switch | MIT License |
+| streamlit-vertical-slider | MIT License |
+| tabulate | MIT LICENSE |
+| tblib | BSD-2-CLAUSE |
+| tenacity | APACHE SOFTWARE LICENSE |
+| terminado | BSD LICENSE |
+| texttable | MIT LICENSE |
+| threadpoolctl | BSD LICENSE |
+| tiktoken | MIT LICENSE |
+| tinycss2 | BSD LICENSE |
+| together | APACHE SOFTWARE LICENSE |
+| tokenizers | APACHE SOFTWARE LICENSE |
+| toml | MIT LICENSE |
+| tomli | MIT LICENSE |
+| tomli-w | MIT LICENSE |
+| toolz | BSD LICENSE |
+| tornado | APACHE SOFTWARE LICENSE |
+| tqdm | MIT LICENSE;; MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
+| traitlets | BSD LICENSE |
+| typeguard | MIT LICENSE |
+| typer | MIT LICENSE |
+| types-python-dateutil | APACHE SOFTWARE LICENSE |
+| types-pyyaml | APACHE-2.0 |
+| types-requests | APACHE SOFTWARE LICENSE |
+| typing-extensions | PSF-2.0 |
+| typing-inspect | MIT LICENSE |
+| typing-inspection | MIT LICENSE |
+| tzdata | APACHE SOFTWARE LICENSE |
+| uri-template | MIT LICENSE |
+| urllib3 | MIT LICENSE |
+| uvicorn | BSD LICENSE |
+| validators | MIT LICENSE |
+| visions | BSD LICENSE |
+| watchdog | APACHE SOFTWARE LICENSE |
+| wcwidth | MIT LICENSE |
+| webcolors | BSD LICENSE |
+| webencodings | BSD LICENSE |
+| websocket-client | APACHE SOFTWARE LICENSE |
+| werkzeug | BSD LICENSE |
+| widgetsnbextension | BSD LICENSE |
+| wordcloud | MIT LICENSE |
+| wrapt | BSD LICENSE |
+| yarl | APACHE SOFTWARE LICENSE |
+| ydata | MIT LICENSE |
+| ydata-profiling | MIT LICENSE |
+| zict | BSD LICENSE |
+| zipp | MIT LICENSE |
+| zstandard | BSD LICENSE |

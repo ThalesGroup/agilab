@@ -1,0 +1,45 @@
+[project]
+name = "data-app-project"
+version = "0.1.8"
+description = ""
+[[project.authors]]
+name = "Jean-Pierre Morard"
+email = "focus@thalesgroup.com"
+license = { text = "Thales SIX GTS France SAS" }
+requires-python = "==3.12.*"
+readme = "README.md"
+
+dependencies = ["setuptools", "cython", "parso", "py7zr", "python-dotenv", "ipython==8.34.0"]
+
+[dependency-groups]
+dev = ["black", "pytest", "licensecheck", "data-app-project"]
+
+[project.optional-dependencies]
+agi-worker = []
+agent-worker = []
+dag-worker = []
+data-worker = [ "polars",]
+workers = ["agi-core[data-worker]", "agi-core[agi-worker]"]
+managers = ["agi-core[managers]"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.uv.sources]
+agi-core = { path = "core", editable = true }
+data-app-project = { workspace = true }
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.data-files]
+pyprojects = [
+    "src/*.ipynb",
+    "src/*.json",
+    "src/*.toml",
+]
+
+[tool.mypy]
+mypy_path = ["stubs"]
+disallow_untyped_defs = false
+ignore_missing_imports = true

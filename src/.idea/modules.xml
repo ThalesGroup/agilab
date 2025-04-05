@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/agi-dev.iml" filepath="$PROJECT_DIR$/.idea/agi-dev.iml" />
+      <module fileurl="file://$PROJECT_DIR$/fwk/core/.idea/core.iml" filepath="$PROJECT_DIR$/fwk/core/.idea/core.iml" />
+      <module fileurl="file://$PROJECT_DIR$/fwk/env/.idea/env.iml" filepath="$PROJECT_DIR$/fwk/env/.idea/env.iml" />
+      <module fileurl="file://$PROJECT_DIR$/apps/flight-project/.idea/flight-project.iml" filepath="$PROJECT_DIR$/apps/flight-project/.idea/flight-project.iml" />
+      <module fileurl="file://$USER_HOME$/wenv/flight_worker/.idea/flight_worker.iml" filepath="$USER_HOME$/wenv/flight_worker/.idea/flight_worker.iml" />
+      <module fileurl="file://$PROJECT_DIR$/fwk/gui/.idea/gui.iml" filepath="$PROJECT_DIR$/fwk/gui/.idea/gui.iml" />
+      <module fileurl="file://$PROJECT_DIR$/apps/my-code-project/.idea/my-code-project.iml" filepath="$PROJECT_DIR$/apps/my-code-project/.idea/my-code-project.iml" />
+      <module fileurl="file://$USER_HOME$/wenv/my_code_worker/.idea/my_code_worker.iml" filepath="$USER_HOME$/wenv/my_code_worker/.idea/my_code_worker.iml" />
+    </modules>
+  </component>
+</project>

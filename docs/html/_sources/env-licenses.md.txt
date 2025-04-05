@@ -1,0 +1,14 @@
+# Env Licenses
+| Package Name | License |
+|--------------|---------|
+| annotated-types | MIT LICENSE |
+| astor | BSD LICENSE |
+| humanize | MIT License |
+| pathspec | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
+| pydantic | MIT LICENSE |
+| pydantic-core | MIT LICENSE |
+| python-dotenv | BSD LICENSE |
+| setuptools | MIT LICENSE |
+| tomli-w | MIT LICENSE |
+| typing-extensions | PSF-2.0 |
+| typing-inspection | MIT LICENSE |

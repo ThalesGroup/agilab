@@ -1,0 +1,13 @@
+<changelist name="Uncommitted_changes_before_Update_at_3_24_25,_7_36 AM_[Changes]" date="1742801785646" recycled="false" toDelete="true">
+  <option name="PATH" value="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_24_25,_7_36 AM_[Changes]/shelved.patch" />
+  <option name="DESCRIPTION" value="Uncommitted changes before Update at 3/24/25, 7:36 AM [Changes]" />
+  <binary>
+    <option name="BEFORE_PATH" value="src/apps/flight-project/src/agi_env" />
+  </binary>
+  <binary>
+    <option name="BEFORE_PATH" value="src/apps/flight-project/src/agi_core/workers/agi_worker" />
+  </binary>
+  <binary>
+    <option name="BEFORE_PATH" value="src/apps/flight-project/src/agi_core/workers/data_worker" />
+  </binary>
+</changelist>

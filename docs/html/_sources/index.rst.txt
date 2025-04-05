@@ -1,0 +1,29 @@
+AGILab Documentation
+=====================
+
+Welcome to the framework documentation. Below are the main sections:
+
+.. toctree::
+   :maxdepth: 2
+
+   quick-start
+   introduction
+   introduction2
+   introduction3
+   features
+   cluster
+   agilab
+   view
+   framework-api
+   my-code-project
+   flight-project
+   directory-structure
+   troubleshouting
+   license
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`

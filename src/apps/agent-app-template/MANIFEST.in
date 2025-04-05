@@ -1,0 +1,8 @@
+recursive-include . *.toml *.ipynb *.json
+# Include top-level files
+include README.md
+include SECURITY.md
+include LICENSE
+include pyproject.toml
+include MANIFEST.in
+include run_test.py
