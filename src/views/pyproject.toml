@@ -1,0 +1,20 @@
+[project]
+name = "views"
+version = "0.1.8"
+description = "Default template for PDM package"
+authors = [
+    { name = "", email = "" },
+]
+dependencies = []
+requires-python = "==3.12.*"
+readme = "README.md"
+license = { text = "MIT" }
+
+[tool.mypy]
+mypy_path = ["stubs"]
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pyment]
+source_dir = "src"
+format = "google"

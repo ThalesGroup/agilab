@@ -1,0 +1,184 @@
+name: pypi-publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag for the release'
+        required: true
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install uv twine pytest
+
+      - name: Run tests
+        run: |
+          echo "Building core package for testing"
+          pushd src/fwk/core > /dev/null
+          rm -rf dist
+          uv sync --dev --extra workers --extra managers --group rapids
+          uv pip install -e .
+          # uv run ../run-all-test.py
+          popd > /dev/null
+
+  pypi-publish:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install uv twine
+
+      - name: Remove all existing distribution directories
+        run: |
+          rm -rf src/fwk/env/dist src/fwk/core/dist src/fwk/gui/dist dist agi-pypi
+
+      - name: Update version in pyproject.toml files
+        env:
+          VERSION: ${{ github.event.inputs.version || github.ref_name }}
+        run: |
+          # Strip leading 'v' if present
+          VERSION=${VERSION#v}
+          echo "Setting version: $VERSION"
+          FILES=("pyproject.toml" "src/fwk/env/pyproject.toml" "src/fwk/core/pyproject.toml" "src/fwk/gui/pyproject.toml")
+          for file in "${FILES[@]}"; do
+            if [ -f "$file" ]; then
+              echo "Updating version in $file"
+              # Remove the dynamic versioning line if present
+              sed -i '/dynamic *= *\["version"\]/d' "$file"
+              # If a version line exists, update it; otherwise, insert it after the [project] header.
+              if grep -q '^version *= *".*"' "$file"; then
+                sed -i "s/^version *= *.*/version = \"$VERSION\"/" "$file"
+              else
+                sed -i "/^\[project\]/a version = \"$VERSION\"" "$file"
+              fi
+            else
+              echo "Warning: $file not found!"
+            fi
+          done
+
+      - name: Commit version changes
+        env:
+          VERSION: ${{ github.event.inputs.version || github.ref_name }}
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add pyproject.toml src/fwk/env/pyproject.toml src/fwk/core/pyproject.toml src/fwk/gui/pyproject.toml
+          if ! git diff --cached --quiet; then
+            git commit -m "Bump version to ${VERSION#v}"
+            git push
+          else
+            echo "No changes to commit."
+          fi
+
+      - name: Build env package
+        run: |
+          echo "Building env package"
+          pushd src/fwk/env > /dev/null
+          rm -rf dist
+          uv build --wheel
+          popd > /dev/null
+
+      - name: Build core package
+        run: |
+          echo "Building core package"
+          pushd src/fwk/core > /dev/null
+          rm -rf dist
+          uv build --wheel
+          popd > /dev/null
+
+      - name: Build gui package
+        run: |
+          echo "Building gui package"
+          pushd src/fwk/gui > /dev/null
+          rm -rf dist
+          uv build --wheel
+          popd > /dev/null
+
+      - name: Upload agi-env package
+        uses: actions/upload-artifact@v4
+        with:
+          name: agi-env-distributions
+          path: src/fwk/env/dist/
+
+      - name: Upload agi-core package
+        uses: actions/upload-artifact@v4
+        with:
+          name: agi-core-distributions
+          path: src/fwk/core/dist/
+
+      - name: Upload agi-gui package
+        uses: actions/upload-artifact@v4
+        with:
+          name: agi-gui-distributions
+          path: src/fwk/gui/dist/
+
+      - name: Build combined main package (agilab)
+        run: uv build --sdist
+
+      - name: Upload agilab package
+        uses: actions/upload-artifact@v4
+        with:
+          name: agilab-distributions
+          path: dist/
+
+      - name: Verify package files before upload
+        run: twine check src/fwk/env/dist/* src/fwk/core/dist/* src/fwk/gui/dist/* dist/*
+
+      - name: Publish subpackages to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
+        run: |
+          twine upload src/fwk/env/dist/*
+          twine upload src/fwk/core/dist/*
+          twine upload src/fwk/gui/dist/*
+
+      - name: Publish main package (agilab) to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
+        run: twine upload dist/*
+
+      - name: Trigger static pages workflow
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Triggering static content deployment..."
+          curl -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            https://github.com/jpmorard/agilab/actions/workflows/doc-publish.yml/dispatches \
+            -d '{"ref": "main"}'

@@ -1,0 +1,23 @@
+[args]
+data_source = "file"
+path = "/home/jpm/data/flight"
+files = "*"
+nfile = 1
+nskip = 0
+nread = 0
+sampling_rate = 1.0
+datemin = "2020-01-01"
+datemax = "2021-01-01"
+output_format = "csv"
+
+[views]
+view_module = [
+    "maps",
+]
+
+[cluster]
+verbose = true
+cython = false
+cluster_enabled = false
+rapids = false
+pool = false

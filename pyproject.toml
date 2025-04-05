@@ -1,0 +1,99 @@
+[project]
+version = "0.0.4"
+name = "agilab"
+description = "AGILAB a datascience IDE for engineering to explore AI"
+requires-python = "==3.12.*"
+readme = "README.md"
+authors = [
+    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
+]
+
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+]
+
+keywords = [
+    "jupyter", "mlflow", "paramiko", "asyncio", "dask", "rapids",
+    "streamlit", "distributed", "cython", "cluster", "dataframe",
+    "dataset", "loadbalancing", "genai", "copilot", "agi",
+    "pycharm", "datascience"
+]
+
+dependencies = [
+    "build>=1.2.2.post1",
+    "pip>=25.0.1",
+    "setuptools>=76.0.0",
+    "twine>=6.1.0",
+    "wheel>=0.45.1",
+    "agi-env",
+    "agi-core",
+    "agi-gui",
+]
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab"
+Tracker = "https://github.com/ThalesGroup/agilab/issue"
+
+
+
+[dependency-groups]
+dev = ["black", "pytest", "licensecheck", "pytest-local-badge"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.uv.sources.agilab]
+workspace = true
+
+[tool.uv.sources.agi-env]
+path = "/home/jpm/agilab/src/fwk/env"
+
+[tool.uv.sources.agi-core]
+path = "/home/jpm/agilab/src/fwk/core"
+
+[tool.uv.sources.agi-gui]
+path = "/home/jpm/agilab/src/fwk/gui"
+
+[tool.uv.workspace]
+members = ["apps", "views"]
+
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+version_file = "_version.py"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+include = [
+  "apps",
+  "apps.*",
+  "views",
+  "views.*"
+]
+exclude = [
+    "fwk",
+    "fwk.*",
+    ".idea",
+    ".idea.*",
+
+]
+
+[tool.mypy]
+mypy_path = ["stubs"]
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pyment]
+source_dir = "src"
+format = "google"

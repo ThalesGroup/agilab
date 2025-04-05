@@ -1,0 +1,35 @@
+agi_env API
+===========
+
+This is a module share between core/agi-core and gui/agilab to set all the path required by both
+
+Usage Example
+-------------
+
+Instanciation
+^^^^^^^^^^^^
+
+.. literalinclude:: log/AgiEnv.instanciation.py
+   :language: python
+
+
+Reference
+----------
+
+agi_env
+~~~~~~~~
+
+.. image:: diagrams/packages_agi_env.png
+   :width: 400
+   :alt: Packages diagram for agi-env
+   :align: center
+
+.. automodule:: agi_env.agi_env
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_agi_env.png
+   :width: 400
+   :alt: Classes diagram for agi_env
+   :align: center

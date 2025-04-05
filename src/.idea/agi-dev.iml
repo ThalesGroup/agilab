@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="PYTHON_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/apps/agent-app-template/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/apps/agent-app-template/test" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/apps/dag-app-template/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/apps/dag-app-template/test" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/apps/data-app-template/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/apps/data-app-template/test" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/apps/flight-project/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/apps/flight-project/test" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/apps/my-code-project/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/apps/my-code-project/test" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/fwk/core/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/fwk/core/test" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/fwk/env/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/fwk/env/test" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/wenv/flight_worker/.venv" />
+      <excludeFolder url="file://$MODULE_DIR$/wenv/flight_worker/build" />
+      <excludeFolder url="file://$MODULE_DIR$/wenv/my_code_worker/.venv" />
+      <excludeFolder url="file://$MODULE_DIR$/wenv/my_code_worker/build" />
+      <excludeFolder url="file://$MODULE_DIR$/agilab.egg-info" />
+      <excludeFolder url="file://$MODULE_DIR$/apps/flight-project/build" />
+      <excludeFolder url="file://$MODULE_DIR$/apps/flight-project/dist" />
+      <excludeFolder url="file://$MODULE_DIR$/apps/my-code-project/build" />
+      <excludeFolder url="file://$MODULE_DIR$/apps/my-code-project/dist" />
+      <excludeFolder url="file://$MODULE_DIR$/build" />
+      <excludeFolder url="file://$MODULE_DIR$/dist" />
+      <excludeFolder url="file://$MODULE_DIR$/fwk/core/build" />
+      <excludeFolder url="file://$MODULE_DIR$/fwk/core/dist" />
+      <excludeFolder url="file://$MODULE_DIR$/fwk/env/build" />
+      <excludeFolder url="file://$MODULE_DIR$/fwk/env/dist" />
+      <excludePattern pattern=".venv" />
+    </content>
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module" module-name="core" />
+    <orderEntry type="module" module-name="env" />
+    <orderEntry type="module" module-name="flight-project" />
+    <orderEntry type="module" module-name="my-code-project" />
+    <orderEntry type="module" module-name="gui" />
+    <orderEntry type="module" module-name="flight_worker" />
+    <orderEntry type="module" module-name="my_code_worker" />
+  </component>
+  <component name="PyDocumentationSettings">
+    <option name="format" value="PLAIN" />
+    <option name="myDocStringFormat" value="Plain" />
+  </component>
+  <component name="TestRunnerService">
+    <option name="PROJECT_TEST_RUNNER" value="py.test" />
+  </component>
+</module>

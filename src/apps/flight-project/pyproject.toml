@@ -1,0 +1,74 @@
+[project]
+name = "flight-project"
+version = "0.1.8"
+description = ""
+requires-python = "==3.12.*"
+readme = "README.md"
+dependencies = [
+    "numpy",
+    "geopy",
+    "setuptools",
+    "cython",
+    "parso",
+    "py7zr",
+    "python-dotenv",
+]
+authors = [
+    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
+]
+
+[project.license]
+text = "Thales SIX GTS France SAS"
+
+[project.optional-dependencies]
+agi-worker = []
+agent-worker = []
+dag-worker = []
+data-worker = [
+    "polars",
+]
+workers = [
+    "agi-core[agi-worker]",
+    "agi-core[data-worker]",
+]
+managers = [
+    "agi-core[managers]",
+]
+
+[dependency-groups]
+dev = [
+    "black",
+    "pytest",
+    "licensecheck",
+    "flight-project",
+    "ipython==8.34.0",
+]
+
+[tool.uv]
+default-groups = [
+    "dev",
+]
+
+[tool.uv.sources.agi-core]
+path = "/home/pcm/PycharmProjects/agilab/src/fwk/core"
+editable = true
+
+[tool.uv.sources.flight-project]
+workspace = true
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.data-files]
+pyprojects = [
+    "src/*.ipynb",
+    "src/*.json",
+    "src/*.toml",
+]
+
+[tool.mypy]
+mypy_path = [
+    "stubs",
+]
+disallow_untyped_defs = false
+ignore_missing_imports = true
