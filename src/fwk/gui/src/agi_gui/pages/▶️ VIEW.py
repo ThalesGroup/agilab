@@ -47,7 +47,7 @@ def main():
     Based on the current page, it sets the page title accordingly and renders the appropriate content.
     """
     global env
-    env = AgiEnv(verbose=1)
+    env = st.session_state['env']
     current_page = st.query_params.get("current_page", "main")
     st.session_state["current_page"] = current_page
 

@@ -482,7 +482,7 @@ def workload_barchart(workers, workers_chunks, partition_key, weights_key, weigh
 # ===========================
 def page():
     global env
-    env = AgiEnv(verbose=1)
+    env = st.session_state['env']
 
     # Set page configuration and render logo
     st.set_page_config(layout="wide", menu_items=get_about_content())
