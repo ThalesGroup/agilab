@@ -78,6 +78,7 @@ dev = [
     "black",
     "pytest",
     "licensecheck",
+    "ipython==8.34.0",
 ]
 
 [build-system]

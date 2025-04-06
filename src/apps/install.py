@@ -110,7 +110,7 @@ async def main():
             "--install-type", type=str, help="Install type", required=True
         )
         args, unknown = parser.parse_known_args()
-        print(args.apps_dir)
+        #print(args.apps_dir)
         env = AgiEnv(active_app=args.app, apps_dir=args.apps_dir, install_type=int(args.install_type))
         resolve_packages_path_in_toml(module, args)
 

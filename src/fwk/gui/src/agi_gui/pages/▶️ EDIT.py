@@ -33,7 +33,8 @@ from agi_gui.pagelib import (
     on_project_change,
     select_project,
     open_docs,
-    render_logo
+    render_logo,
+    activate_mlflow
 )
 from pathspec import PathSpec
 from streamlit_modal import Modal
@@ -1246,6 +1247,9 @@ def page():
     env = st.session_state['env']
 
     render_logo("Edit your Project", env)
+
+    if "server_started" not in st.session_state:
+        activate_mlflow(env)
 
     # Check if we need to switch the sidebar tab to "Select"
     if st.session_state.get("switch_to_select", False):
