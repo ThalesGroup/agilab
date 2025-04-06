@@ -11,7 +11,7 @@
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-
+from agi_gui.pagelib import env # do not move or change this line
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from datetime import datetime
 import streamlit as st
@@ -22,6 +22,7 @@ import argparse
 # -------------------- Import Statements -------------------- #
 # (Include any other necessary imports from your original code)
 from agi_gui.pagelib import get_about_content, open_docs, get_base64_of_image
+from agi_env import AgiEnv
 
 
 #-------------------- Helper Functions -------------------- #
@@ -114,8 +115,6 @@ def page(env):
 
 def main():
 
-    from agi_env.agi_env import AgiEnv
-
     st.set_page_config(
         menu_items=get_about_content(),  # Adjust if necessary
         layout="wide"
@@ -155,6 +154,7 @@ def main():
     st.session_state["apps_dir"] = args.apps_dir
     st.session_state["install_type"] = args.install_type
     env = AgiEnv(apps_dir=Path(args.apps_dir), install_type=args.install_type, verbose=1)
+    st.session_state['env'] = env
 
     # Global resource path
 

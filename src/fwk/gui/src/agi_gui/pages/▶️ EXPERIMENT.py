@@ -470,6 +470,9 @@ def mlflow_controls():
 
 def page():
     global df_file
+
+    env = st.session_state['env']
+
     # load preprompt
     with open(env.app_src_path / "pre_prompt.json") as f:
         st.session_state["lab_prompt"] = json.load(f)

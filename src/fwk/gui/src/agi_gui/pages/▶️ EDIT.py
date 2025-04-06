@@ -1243,7 +1243,7 @@ def page():
     """
     global CUSTOM_BUTTONS, INFO_BAR, CSS_TEXT, comp_props, ace_props, env
 
-    env = AgiEnv(verbose=1)
+    env = st.session_state['env']
 
     render_logo("Edit your Project", env)
 
