@@ -1,7 +1,7 @@
 [project]
 name = "flight-project"
 version = "0.1.8"
-description = ""
+description = "flight-project is an example of data project"
 requires-python = "==3.12.*"
 readme = "README.md"
 dependencies = [
@@ -43,6 +43,8 @@ dev = [
     "flight-project",
     "ipython==8.34.0",
 ]
+rapids = ["cuspatial-cu12; platform_system == 'Linux'", ]
+
 
 [tool.uv]
 default-groups = [

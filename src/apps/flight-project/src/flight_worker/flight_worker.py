@@ -3,13 +3,7 @@
 # cython:infer_types True
 # cython:boundscheck False
 # cython:cdivision True
-"""
-Package flight_worker
 
-    flight_worker: module examples
-    Auteur: Jean-Pierre Morard
-    Copyright: Thales SIX GTS France SAS
-"""
 import getpass
 import glob
 import io
