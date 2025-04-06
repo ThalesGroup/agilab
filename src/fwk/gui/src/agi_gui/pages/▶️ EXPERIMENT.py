@@ -601,9 +601,7 @@ def load_df_cached(path: Path, nrows=50, with_index=True):
 
 def main():
     global env, default_df, df_file
-    env = AgiEnv(verbose=1)
-    if "server_started" not in st.session_state:
-        activate_mlflow(env)
+    env = st.session_state['env']
 
     try:
         # Set page configuration
@@ -641,6 +639,9 @@ def main():
             render_logo("Experiment on DATA")
         else:
             render_logo("Experiment on APPS")
+
+        if "server_started" not in st.session_state:
+            activate_mlflow(env)
 
         # Set session defaults
         session_defaults = {

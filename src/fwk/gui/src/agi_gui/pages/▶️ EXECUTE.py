@@ -10,7 +10,7 @@
 
 import time
 import streamlit as st
-from agi_gui.pagelib import get_about_content, render_logo
+from agi_gui.pagelib import get_about_content, render_logo, activate_mlflow
 
 # ===========================
 # Standard Imports (lightweight)
@@ -66,16 +66,23 @@ def display_log(stdout, stderr):
     # Remove ANSI escape codes for clarity
     clean_stdout = re.sub(r'\x1b\[[0-9;]*m', '', stdout or "")
     clean_stderr = re.sub(r'\x1b\[[0-9;]*m', '', stderr or "")
+
+    # Normalize newlines by splitting and rejoining with a single newline.
+    clean_stdout = "\n".join(line for line in clean_stdout.splitlines() if line.strip() != "")
+    clean_stderr = "\n".join(line for line in clean_stderr.splitlines() if line.strip() != "")
+
     # Combine both outputs for checking
-    combined = clean_stdout + "\n" + clean_stderr
+    combined = "\n".join([clean_stdout, clean_stderr]).strip()
+
     if "warning:" in combined.lower():
         st.warning("Warnings occurred during cluster installation:")
         st.code(combined)
-    elif clean_stderr.strip():
+    elif clean_stderr:
         st.error("Errors occurred during cluster installation:")
         st.code(clean_stderr)
     else:
         st.code(clean_stdout or "No logs available")
+
 
 # ===========================
 # Utility and Helper Functions
@@ -487,6 +494,9 @@ def page():
     # Set page configuration and render logo
     st.set_page_config(layout="wide", menu_items=get_about_content())
     render_logo("Execute your Application", env)
+
+    if "server_started" not in st.session_state:
+        activate_mlflow(env)
 
     # Define defaults for session state keys.
     defaults = {

@@ -21,7 +21,7 @@ import argparse
 
 # -------------------- Import Statements -------------------- #
 # (Include any other necessary imports from your original code)
-from agi_gui.pagelib import get_about_content, open_docs, get_base64_of_image
+from agi_gui.pagelib import get_about_content, open_docs, get_base64_of_image, activate_mlflow
 from agi_env import AgiEnv
 
 
@@ -155,6 +155,9 @@ def main():
     st.session_state["install_type"] = args.install_type
     env = AgiEnv(apps_dir=Path(args.apps_dir), install_type=args.install_type, verbose=1)
     st.session_state['env'] = env
+
+    if "server_started" not in st.session_state:
+        activate_mlflow(env)
 
     # Global resource path
 

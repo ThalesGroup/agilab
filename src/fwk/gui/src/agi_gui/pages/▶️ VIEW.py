@@ -48,6 +48,7 @@ def main():
     """
     global env
     env = st.session_state['env']
+
     current_page = st.query_params.get("current_page", "main")
     st.session_state["current_page"] = current_page
 
@@ -61,6 +62,9 @@ def main():
 
     # Use Streamlit's title or header for dynamic titles
     render_logo(page_title, env)
+
+    if "server_started" not in st.session_state:
+        activate_mlflow(env)
 
     if st.session_state["current_page"] == "main":
         render_main_page()
