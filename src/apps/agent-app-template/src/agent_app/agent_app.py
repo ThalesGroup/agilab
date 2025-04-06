@@ -1,11 +1,3 @@
-# BSD 3-Clause License
-#
-# [License text omitted for brevity]
-#
-"""
-Auteur: yourself
-"""
-
 import os
 import sys
 import warnings
