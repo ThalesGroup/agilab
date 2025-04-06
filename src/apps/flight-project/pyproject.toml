@@ -43,8 +43,9 @@ dev = [
     "flight-project",
     "ipython==8.34.0",
 ]
-rapids = ["cuspatial-cu12; platform_system == 'Linux'", ]
-
+rapids = [
+    "cuspatial-cu12; platform_system == 'Linux'",
+]
 
 [tool.uv]
 default-groups = [
