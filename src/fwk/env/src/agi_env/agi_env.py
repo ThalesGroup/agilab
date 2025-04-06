@@ -1381,7 +1381,7 @@ class AgiEnv:
                 output_lines = []
                 while True:
                     if process.stderr:
-                        line = process.stderr.readline()
+                        line = process.stderr.readline().rstrip()
                         if line:
                             if log_callback:
                                 log_callback(line)
