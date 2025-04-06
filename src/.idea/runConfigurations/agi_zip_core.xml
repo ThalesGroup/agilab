@@ -8,14 +8,14 @@
       <env name="PYTHONUNBUFFERED" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
-    <option name="SDK_NAME" value="uv (agi-core)" />
+    <option name="SDK_NAME" value="uv (core)" />
     <option name="WORKING_DIRECTORY" value="$ProjectFileDir$/.." />
     <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="$ProjectFileDir$/zip-agi.py" />
-    <option name="PARAMETERS" value="--dir2zip agi --zipfile agi.zip" />
+    <option name="SCRIPT_NAME" value="$ProjectFileDir$/../zip-agi.py" />
+    <option name="PARAMETERS" value="--dir2zip src --zipfile src.zip" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />
