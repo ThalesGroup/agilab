@@ -1,0 +1,2 @@
+recursive-include src/agilab/apps *.json *.toml *.ipynb
+
