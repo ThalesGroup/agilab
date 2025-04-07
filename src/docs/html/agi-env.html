@@ -1,0 +1,1128 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>agi_env API &mdash; AGILab 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+      <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css" />
+
+  
+    <link rel="canonical" href="https://thalesgroup.github.io/agilab/agi-env.html" />
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=8d563738"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="agi_core.managers API" href="agi-managers.html" />
+    <link rel="prev" title="Framework API" href="framework-api.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            AGILab
+              <img src="_static/agi_logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="quick-start.html">Quick-Start</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="quick-start.html#license">LICENSE</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick-start.html#install-agilab">Install Agilab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick-start.html#support">Support</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#purpose"><strong>Purpose</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#target-audience"><strong>Target Audience</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#main-dependencies"><strong>Main Dependencies</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#technologies-selection-criteria"><strong>Technologies Selection Criteria</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#example-aircraft-telecommunication">Example: Aircraft Telecommunication</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="features.html">Features</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="features.html#agi-core">agi-core</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.html#agilab">agilab</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cluster.html">Cluster</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="cluster-help.html">Cluster Help</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="cluster-help.html#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="cluster-help.html#principle">Principle</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#generate-the-keys">Generate the keys</a><ul class="simple">
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#loading-the-private-key-in-ssh-agent">Loading the private key in SSH Agent</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#load-the-private-key">Load the private key</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verify-the-key-addition">Verify the key Addition</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#copy-the-public-key-to-the-server">Copy the public key to the server</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#sshd-service">SSHD Service</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#check-the-configuration">Check the configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#restart-the-sshd-service">Restart the SSHD service</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#check-the-service-status">Check the service status:</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#permissions">Permissions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#on-windows">On Windows</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#on-linux">On Linux</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#useful-links">Useful links</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="agilab.html">AGILab</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="edit_help.html">▶️ EDIT</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="edit_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="edit_help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l3"><a class="reference internal" href="edit_help.html#support">Support</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="execute_help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="execute_help.html#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="execute_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="execute_help.html#main-content-area">Main Content Area</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="experiment_help.html">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="experiment_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="experiment_help.html#main-content-area">Main Content Area</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="views_help.html">▶️ VIEW</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="views_help.html#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="views_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="views_help.html#main-content-area">Main Content Area</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="reference internal" href="framework-api.html">Framework API</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">agi_env API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#usage-example">Usage Example</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#instanciation">Instanciation</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#reference">Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#agi_env.agi_env.JumpToMain"><code class="docutils literal notranslate"><span class="pre">JumpToMain</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="agi-managers.html">agi_core.managers API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agi-managers.html#usage-example">Usage Example</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-managers.html#installation">Installation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-managers.html#update">Update</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-managers.html#distribute">Distribute</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-managers.html#run">Run</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="agi-managers.html#reference">Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-managers.html#agi_core.managers.agi_manager.agi_manager.AgiManager"><code class="docutils literal notranslate"><span class="pre">AgiManager</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="agi-workers.html">agi_core.workers API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agi-workers.html#workers-reference">Workers Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-agi-worker">agi_core.workers.agi-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-agent-worker">agi_core.workers.agent-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-dag-worker">agi_core.workers.dag-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-data-worker">agi_core.workers.data-worker</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="my-code-project.html">Example1: My-Code-Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="my-code-project.html#manager-my-code">manager: my_code</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCode"><code class="docutils literal notranslate"><span class="pre">MyCode</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCode.__init__"><code class="docutils literal notranslate"><span class="pre">MyCode.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCode.args"><code class="docutils literal notranslate"><span class="pre">MyCode.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCode.build_distribution"><code class="docutils literal notranslate"><span class="pre">MyCode.build_distribution()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCode.convert_functions_to_names"><code class="docutils literal notranslate"><span class="pre">MyCode.convert_functions_to_names()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCode.do_distrib"><code class="docutils literal notranslate"><span class="pre">MyCode.do_distrib()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCode.onerror"><code class="docutils literal notranslate"><span class="pre">MyCode.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCode.verbose"><code class="docutils literal notranslate"><span class="pre">MyCode.verbose</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.__init__"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.construct"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.copy"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.dict"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.dict()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.from_orm"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.from_orm()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.json"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_computed_fields"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_computed_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_config"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_config</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_construct"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_copy"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_dump"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_dump()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_dump_json"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_dump_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_extra"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_extra</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_fields"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_fields_set"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_fields_set</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_json_schema"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_json_schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_parametrized_name"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_parametrized_name()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_post_init"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_post_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_rebuild"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_rebuild()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_validate"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_validate()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_validate_json"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_validate_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_validate_strings"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_validate_strings()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.mycode_param1"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.mycode_param1</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.parse_file"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.parse_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.parse_obj"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.parse_obj()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.parse_raw"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.parse_raw()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.schema"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.schema_json"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.schema_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.update_forward_refs"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.update_forward_refs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.validate"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.validate()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="my-code-project.html#worker-my-code-worker">worker: my_code_worker</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.algo_A"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.algo_A()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.algo_B"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.algo_B()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.algo_C"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.algo_C()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.algo_X"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.algo_X()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.algo_Y"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.algo_Y()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.algo_Z"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.algo_Z()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.build"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.build()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.dask_home</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.do_works"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_mono_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_multi_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.is_managed_pc</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.join"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.logs"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.mode"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.new"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.new()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.normalize_path"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.normalize_path()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.onerror"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.run"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.share_path"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.start"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.stop"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.t0"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.t0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.topological_sort"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.topological_sort()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.verbose"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.worker"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.worker_id"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.worker_id</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.works"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.works()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="flight-project.html">Example2: Flight-Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#manager-flight">manager: flight</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight.Flight"><code class="docutils literal notranslate"><span class="pre">Flight</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.__init__"><code class="docutils literal notranslate"><span class="pre">Flight.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.args"><code class="docutils literal notranslate"><span class="pre">Flight.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.build_distribution"><code class="docutils literal notranslate"><span class="pre">Flight.build_distribution()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.convert_functions_to_names"><code class="docutils literal notranslate"><span class="pre">Flight.convert_functions_to_names()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.data_out"><code class="docutils literal notranslate"><span class="pre">Flight.data_out</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.do_distrib"><code class="docutils literal notranslate"><span class="pre">Flight.do_distrib()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.extract_plane_from_file_name"><code class="docutils literal notranslate"><span class="pre">Flight.extract_plane_from_file_name()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_data_from_files"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_files()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_data_from_hawk"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_hawk()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_partition_by_planes"><code class="docutils literal notranslate"><span class="pre">Flight.get_partition_by_planes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.ivq_logs"><code class="docutils literal notranslate"><span class="pre">Flight.ivq_logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.onerror"><code class="docutils literal notranslate"><span class="pre">Flight.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.verbose"><code class="docutils literal notranslate"><span class="pre">Flight.verbose</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs"><code class="docutils literal notranslate"><span class="pre">FlightArgs</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.__init__"><code class="docutils literal notranslate"><span class="pre">FlightArgs.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.check_date"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_date()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.check_date_order"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_date_order()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.check_valid_regex"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_valid_regex()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.construct"><code class="docutils literal notranslate"><span class="pre">FlightArgs.construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.copy"><code class="docutils literal notranslate"><span class="pre">FlightArgs.copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.data_source"><code class="docutils literal notranslate"><span class="pre">FlightArgs.data_source</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.datemax"><code class="docutils literal notranslate"><span class="pre">FlightArgs.datemax</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.datemin"><code class="docutils literal notranslate"><span class="pre">FlightArgs.datemin</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.dict"><code class="docutils literal notranslate"><span class="pre">FlightArgs.dict()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.files"><code class="docutils literal notranslate"><span class="pre">FlightArgs.files</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.from_orm"><code class="docutils literal notranslate"><span class="pre">FlightArgs.from_orm()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_computed_fields"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_computed_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_config"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_config</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_construct"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_copy"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_dump"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_dump()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_dump_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_dump_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_extra"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_extra</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_fields"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_fields_set"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_fields_set</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_json_schema"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_json_schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_parametrized_name"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_parametrized_name()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_post_init"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_post_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_rebuild"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_rebuild()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_validate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_validate_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_validate_strings"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate_strings()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.nfile"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nfile</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.nread"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nread</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.nskip"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nskip</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.output_format"><code class="docutils literal notranslate"><span class="pre">FlightArgs.output_format</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.parse_file"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.parse_obj"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_obj()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.parse_raw"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_raw()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.path"><code class="docutils literal notranslate"><span class="pre">FlightArgs.path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.sampling_rate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.sampling_rate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.schema"><code class="docutils literal notranslate"><span class="pre">FlightArgs.schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.schema_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.schema_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.update_forward_refs"><code class="docutils literal notranslate"><span class="pre">FlightArgs.update_forward_refs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.validate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.validate()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#worker-flight-worker">worker: flight_worker</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker"><code class="docutils literal notranslate"><span class="pre">FlightWorker</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.build"><code class="docutils literal notranslate"><span class="pre">FlightWorker.build()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.calculate_speed"><code class="docutils literal notranslate"><span class="pre">FlightWorker.calculate_speed()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">FlightWorker.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">FlightWorker.dask_home</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.do_works"><code class="docutils literal notranslate"><span class="pre">FlightWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_mono_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_multi_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">FlightWorker.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">FlightWorker.is_managed_pc</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.join"><code class="docutils literal notranslate"><span class="pre">FlightWorker.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.logs"><code class="docutils literal notranslate"><span class="pre">FlightWorker.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.mode"><code class="docutils literal notranslate"><span class="pre">FlightWorker.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.new"><code class="docutils literal notranslate"><span class="pre">FlightWorker.new()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.normalize_path"><code class="docutils literal notranslate"><span class="pre">FlightWorker.normalize_path()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.onerror"><code class="docutils literal notranslate"><span class="pre">FlightWorker.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.pool_init"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.pool_vars"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_vars</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.preprocess_df"><code class="docutils literal notranslate"><span class="pre">FlightWorker.preprocess_df()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.run"><code class="docutils literal notranslate"><span class="pre">FlightWorker.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.share_path"><code class="docutils literal notranslate"><span class="pre">FlightWorker.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.start"><code class="docutils literal notranslate"><span class="pre">FlightWorker.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.stop"><code class="docutils literal notranslate"><span class="pre">FlightWorker.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.t0"><code class="docutils literal notranslate"><span class="pre">FlightWorker.t0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.verbose"><code class="docutils literal notranslate"><span class="pre">FlightWorker.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.work_done"><code class="docutils literal notranslate"><span class="pre">FlightWorker.work_done()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.work_init"><code class="docutils literal notranslate"><span class="pre">FlightWorker.work_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.work_pool"><code class="docutils literal notranslate"><span class="pre">FlightWorker.work_pool()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.worker"><code class="docutils literal notranslate"><span class="pre">FlightWorker.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.worker_id"><code class="docutils literal notranslate"><span class="pre">FlightWorker.worker_id</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.works"><code class="docutils literal notranslate"><span class="pre">FlightWorker.works()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="directory-structure.html">Project Files Structure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshouting.html">Troubleshooting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#a-prerequisite">A - Prerequisite:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#b-list-of-available-scripts">B- List of Available Scripts:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshouting.html#known-bugs">Known Bugs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#uv-sync-failed">&lt;UV&gt; Sync Failed</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#dask-debug-issue">&lt;DASK&gt; Debug Issue</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#pycharm-run-debug-configuration-is-broken">&lt;PYCHARM&gt; Run/Debug Configuration is Broken</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">Licences</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="gui-licenses.html">Gui Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="core-licenses.html">Core Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="env-licenses.html">Env Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="my-code-project-licenses.html">My-code-project Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">AGILab</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="framework-api.html">Framework API</a></li>
+      <li class="breadcrumb-item active">agi_env API</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/agi-env.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="agi-env-api">
+<h1>agi_env API<a class="headerlink" href="#agi-env-api" title="Link to this heading"></a></h1>
+<p>This is a module share between core/agi-core and gui/agilab to set all the path required by both</p>
+<section id="usage-example">
+<h2>Usage Example<a class="headerlink" href="#usage-example" title="Link to this heading"></a></h2>
+<section id="instanciation">
+<h3>Instanciation<a class="headerlink" href="#instanciation" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span>
+
+<span class="n">env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="s1">&#39;my-code&#39;</span><span class="p">)</span>
+
+<span class="c1"># or</span>
+<span class="n">path_to_my_code</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;../../agi/apps/my-code-project/src/my_code/my_code.py&quot;</span><span class="p">)</span>
+<span class="n">env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">path_to_my_code</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="reference">
+<h2>Reference<a class="headerlink" href="#reference" title="Link to this heading"></a></h2>
+<a class="reference internal image-reference" href="_images/packages_agi_env.png"><img alt="Packages diagram for agi-env" class="align-center" src="_images/packages_agi_env.png" style="width: 400px;" />
+</a>
+<dl class="py class" id="module-agi_env.agi_env">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agi_env.agi_env.</span></span><span class="sig-name descname"><span class="pre">AgiEnv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">install_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">apps_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active_app</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active_module</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>AgiEnv manages paths and environment variables within the agiFramework.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ContentRenamer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rename_map</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">NodeTransformer</span></code></p>
+<p>A class that renames identifiers in an abstract syntax tree (AST).</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.rename_map">
+<span class="sig-name descname"><span class="pre">rename_map</span></span><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.rename_map" title="Link to this definition"></a></dt>
+<dd><p>A mapping of old identifiers to new identifiers.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rename_map</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.__init__" title="Link to this definition"></a></dt>
+<dd><p>Initialize the ContentRenamer with the rename_map.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>rename_map</strong> (<em>dict</em>) – Mapping of old names to new names.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.generic_visit">
+<span class="sig-name descname"><span class="pre">generic_visit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.generic_visit" title="Link to this definition"></a></dt>
+<dd><p>Called if no explicit visitor function exists for a node.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit">
+<span class="sig-name descname"><span class="pre">visit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit" title="Link to this definition"></a></dt>
+<dd><p>Visit a node.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_AnnAssign">
+<span class="sig-name descname"><span class="pre">visit_AnnAssign</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_AnnAssign"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_AnnAssign" title="Link to this definition"></a></dt>
+<dd><p>Visit and process an AnnAssign node in an abstract syntax tree.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>self</strong> – The AST visitor object.</p></li>
+<li><p><strong>node</strong> – The AnnAssign node to be visited.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The visited AnnAssign node.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>AnnAssign</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_Assign">
+<span class="sig-name descname"><span class="pre">visit_Assign</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_Assign"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_Assign" title="Link to this definition"></a></dt>
+<dd><p>Visit and process an assignment node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>self</strong> – The instance of the visitor class.</p></li>
+<li><p><strong>node</strong> – The assignment node to be visited.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The visited assignment node.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ast.Node</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_Attribute">
+<span class="sig-name descname"><span class="pre">visit_Attribute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_Attribute"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_Attribute" title="Link to this definition"></a></dt>
+<dd><p>Visit and potentially rename an attribute in a node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>node</strong> – A node representing an attribute.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The visited node with potential attribute renamed.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>node</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>None.</strong> – </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_ClassDef">
+<span class="sig-name descname"><span class="pre">visit_ClassDef</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_ClassDef"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_ClassDef" title="Link to this definition"></a></dt>
+<dd><p>Visit and potentially rename a ClassDef node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>node</strong> (<em>ast.ClassDef</em>) – The ClassDef node to visit.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The potentially modified ClassDef node.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ast.ClassDef</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_Constant">
+<span class="sig-name descname"><span class="pre">visit_Constant</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_Constant" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_For">
+<span class="sig-name descname"><span class="pre">visit_For</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_For"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_For" title="Link to this definition"></a></dt>
+<dd><p>Visit and potentially rename the target variable in a For loop node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>node</strong> (<em>ast.For</em>) – The For loop node to visit.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The modified For loop node.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ast.For</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function may modify the target variable in the For loop node if it exists in the rename map.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_FunctionDef">
+<span class="sig-name descname"><span class="pre">visit_FunctionDef</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_FunctionDef"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_FunctionDef" title="Link to this definition"></a></dt>
+<dd><p>Rename a function node based on a provided mapping.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>node</strong> (<em>ast.FunctionDef</em>) – The function node to be processed.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The function node with potential name change.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ast.FunctionDef</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_Global">
+<span class="sig-name descname"><span class="pre">visit_Global</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_Global"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_Global" title="Link to this definition"></a></dt>
+<dd><p>Visit and potentially rename global variables in the AST node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>self</strong> – The instance of the class that contains the renaming logic.</p></li>
+<li><p><strong>node</strong> – The AST node to visit and potentially rename global variables.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The modified AST node with global variable names potentially renamed.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>AST node</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_Import">
+<span class="sig-name descname"><span class="pre">visit_Import</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_Import"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_Import" title="Link to this definition"></a></dt>
+<dd><p>Rename imported modules in ‘import module’ statements.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>node</strong> (<em>ast.Import</em>) – The import node.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_ImportFrom">
+<span class="sig-name descname"><span class="pre">visit_ImportFrom</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_ImportFrom"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_ImportFrom" title="Link to this definition"></a></dt>
+<dd><p>Rename modules and imported names in ‘from module import name’ statements.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>node</strong> (<em>ast.ImportFrom</em>) – The import from node.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_Name">
+<span class="sig-name descname"><span class="pre">visit_Name</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_Name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_Name" title="Link to this definition"></a></dt>
+<dd><p>Visit and potentially rename a Name node in the abstract syntax tree.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>self</strong> – The current object instance.</p></li>
+<li><p><strong>node</strong> – The Name node in the abstract syntax tree.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The modified Name node after potential renaming.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ast.Node</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function modifies the Name node in place.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_arg">
+<span class="sig-name descname"><span class="pre">visit_arg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_arg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_arg" title="Link to this definition"></a></dt>
+<dd><p>Visit and potentially rename an argument node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>self</strong> – The instance of the class.</p></li>
+<li><p><strong>node</strong> – The argument node to visit and possibly rename.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The modified argument node.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ast.AST</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Modifies the argument node in place if its name is found in the rename map.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None.</strong> – </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_nonlocal">
+<span class="sig-name descname"><span class="pre">visit_nonlocal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_nonlocal"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_nonlocal" title="Link to this definition"></a></dt>
+<dd><p>Visit and potentially rename nonlocal variables in the AST node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>self</strong> – An instance of the class containing the visit_nonlocal method.</p></li>
+<li><p><strong>node</strong> – The AST node to visit and potentially modify.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The modified AST node after visiting and potentially renaming nonlocal variables.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ast.AST</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.JumpToMain">
+<em class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">JumpToMain</span></span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.JumpToMain"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.JumpToMain" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.JumpToMain.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_env.agi_env.AgiEnv.JumpToMain.__init__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.JumpToMain.add_note">
+<span class="sig-name descname"><span class="pre">add_note</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#agi_env.agi_env.AgiEnv.JumpToMain.add_note" title="Link to this definition"></a></dt>
+<dd><p>Exception.add_note(note) –
+add a note to the exception</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.JumpToMain.args">
+<span class="sig-name descname"><span class="pre">args</span></span><a class="headerlink" href="#agi_env.agi_env.AgiEnv.JumpToMain.args" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.JumpToMain.with_traceback">
+<span class="sig-name descname"><span class="pre">with_traceback</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#agi_env.agi_env.AgiEnv.JumpToMain.with_traceback" title="Link to this definition"></a></dt>
+<dd><p>Exception.with_traceback(tb) –
+set self.__traceback__ to tb and return self.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">install_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">apps_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active_app</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active_module</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.__init__" title="Link to this definition"></a></dt>
+<dd><p>Initialize the AgiEnv instance</p>
+<p>parameters:
+- install_type: 0: end-user, 1: dev, 2: api
+- apps_dir: path to apps directory
+- active_app: name or path of the active app
+- active_module: path of the active module
+- verbose: verbosity level</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.active">
+<span class="sig-name descname"><span class="pre">active</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">install_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.active"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.active" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.app">
+<span class="sig-name descname"><span class="pre">app</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.app" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.apps_dir">
+<span class="sig-name descname"><span class="pre">apps_dir</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.apps_dir" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ast">
+<span class="sig-name descname"><span class="pre">ast</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;module</span> <span class="pre">'ast'</span> <span class="pre">from</span> <span class="pre">'/home/pcm/.local/share/uv/python/cpython-3.12.9-linux-x86_64-gnu/lib/python3.12/ast.py'&gt;</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ast" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.astor">
+<span class="sig-name descname"><span class="pre">astor</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;module</span> <span class="pre">'astor'</span> <span class="pre">from</span> <span class="pre">'/home/pcm/PycharmProjects/agil/.venv/lib/python3.12/site-packages/astor/__init__.py'&gt;</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.astor" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.change_active_app">
+<span class="sig-name descname"><span class="pre">change_active_app</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">install_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.change_active_app"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.change_active_app" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.change_active_module">
+<span class="sig-name descname"><span class="pre">change_active_module</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">module_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">install_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.change_active_module"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.change_active_module" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.check_args">
+<span class="sig-name descname"><span class="pre">check_args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_args_class</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.check_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.check_args" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.clone_directory">
+<span class="sig-name descname"><span class="pre">clone_directory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dest_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rename_map</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spec</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">source_root</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.clone_directory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.clone_directory" title="Link to this definition"></a></dt>
+<dd><p>Recursively clone directories and files from source to destination,
+applying renaming and respecting .gitignore patterns.
+Creates a symbolic link for the .venv directory if it’s not ignored.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>source_dir</strong> (<em>Path</em>) – Source directory path.</p></li>
+<li><p><strong>dest_dir</strong> (<em>Path</em>) – Destination directory path.</p></li>
+<li><p><strong>rename_map</strong> (<em>dict</em>) – Mapping of old relative paths to new relative paths.</p></li>
+<li><p><strong>spec</strong> (<em>PathSpec</em>) – Compiled PathSpec object to filter files/directories.</p></li>
+<li><p><strong>source_root</strong> (<em>Path</em>) – The root directory of the source project.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.clone_project">
+<span class="sig-name descname"><span class="pre">clone_project</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_project</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dest_project</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.clone_project"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.clone_project" title="Link to this definition"></a></dt>
+<dd><p>Clone a project by recursively copying files and directories, applying renaming.
+For the .venv directory, create a symbolic link instead of copying if it’s not ignored.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>target_project</strong> (<em>str</em>) – Name of the target project.</p></li>
+<li><p><strong>dest_project</strong> (<em>str</em>) – Name of the destination project.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.create_rename_map">
+<span class="sig-name descname"><span class="pre">create_rename_map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_project</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dest_project</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.create_rename_map"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.create_rename_map" title="Link to this definition"></a></dt>
+<dd><p>Create a mapping of old names to new names for renaming during project cloning.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.create_symlink">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">create_symlink</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dest</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.create_symlink"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.create_symlink" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.create_symlink_windows">
+<span class="sig-name descname"><span class="pre">create_symlink_windows</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dest</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.create_symlink_windows"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.create_symlink_windows" title="Link to this definition"></a></dt>
+<dd><p>Create a symbolic link on Windows, handling permissions and types.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>source</strong> (<em>Path</em>) – Source directory path.</p></li>
+<li><p><strong>dest</strong> (<em>Path</em>) – Destination symlink path.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.extract_base_info">
+<span class="sig-name descname"><span class="pre">extract_base_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">import_mapping</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.extract_base_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.extract_base_info" title="Link to this definition"></a></dt>
+<dd><p>Extracts the base class name and attempts to determine the module name from the import mapping.
+:returns: (base_class_name, module_name)
+:rtype: Tuple[str, Optional[str]]</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.get_base_classes">
+<span class="sig-name descname"><span class="pre">get_base_classes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">module_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">class_name</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.get_base_classes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.get_base_classes" title="Link to this definition"></a></dt>
+<dd><p>Parses the module at module_path and returns a list of tuples for the base classes
+of the specified class. Each tuple is (base_class_name, module_name).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.get_base_worker_cls">
+<span class="sig-name descname"><span class="pre">get_base_worker_cls</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">module_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">class_name</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.get_base_worker_cls"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.get_base_worker_cls" title="Link to this definition"></a></dt>
+<dd><p>Retrieves the first base class ending with ‘Worker’ from the specified module.
+Returns a tuple: (base_class_name, module_name)</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.get_full_attribute_name">
+<span class="sig-name descname"><span class="pre">get_full_attribute_name</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.get_full_attribute_name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.get_full_attribute_name" title="Link to this definition"></a></dt>
+<dd><p>Recursively retrieves the full dotted name from an attribute node.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.get_import_mapping">
+<span class="sig-name descname"><span class="pre">get_import_mapping</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.get_import_mapping"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.get_import_mapping" title="Link to this definition"></a></dt>
+<dd><p>Parses the source code and builds a mapping of imported names/aliases to module names.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.get_modules">
+<span class="sig-name descname"><span class="pre">get_modules</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.get_modules"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.get_modules" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.get_projects">
+<span class="sig-name descname"><span class="pre">get_projects</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.get_projects"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.get_projects" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.get_venv_root">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_venv_root</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.get_venv_root"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.get_venv_root" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.handle_venv_directory">
+<span class="sig-name descname"><span class="pre">handle_venv_directory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source_venv</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dest_venv</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.handle_venv_directory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.handle_venv_directory" title="Link to this definition"></a></dt>
+<dd><p>Create a symbolic link for the .venv directory instead of copying it.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>source_venv</strong> (<em>Path</em>) – Source .venv directory path.</p></li>
+<li><p><strong>dest_venv</strong> (<em>Path</em>) – Destination .venv symbolic link path.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.has_admin_rights">
+<span class="sig-name descname"><span class="pre">has_admin_rights</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.has_admin_rights"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.has_admin_rights" title="Link to this definition"></a></dt>
+<dd><p>Check if the current process has administrative rights on Windows.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>True if admin, False otherwise.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.humanize_validation_errors">
+<span class="sig-name descname"><span class="pre">humanize_validation_errors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">error</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.humanize_validation_errors"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.humanize_validation_errors" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.init_envars_app">
+<span class="sig-name descname"><span class="pre">init_envars_app</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">envars</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.init_envars_app"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.init_envars_app" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.install_type">
+<span class="sig-name descname"><span class="pre">install_type</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.install_type" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.is_valid_ip">
+<span class="sig-name descname"><span class="pre">is_valid_ip</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ip</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.is_valid_ip"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.is_valid_ip" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.locate_agi_installation">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">locate_agi_installation</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.locate_agi_installation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.locate_agi_installation" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.mode2int">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">mode2int</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.mode2int"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.mode2int" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.mode2str">
+<span class="sig-name descname"><span class="pre">mode2str</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.mode2str"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.mode2str" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.module">
+<span class="sig-name descname"><span class="pre">module</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.module" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.normalize_path">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">normalize_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.normalize_path"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.normalize_path" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.read_gitignore">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">read_gitignore</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gitignore_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.read_gitignore"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.read_gitignore" title="Link to this definition"></a></dt>
+<dd><p>Read patterns from a .gitignore file and compile them into a PathSpec.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>gitignore_path</strong> (<em>Path</em>) – Path to the .gitignore file.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Compiled PathSpec object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>PathSpec</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.run">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">venv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cwd</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wait</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.run"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.run" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.run_agi_bg">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run_agi_bg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cwd</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'.'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">venv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">merge_stderr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.run_agi_bg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.run_agi_bg" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.run_agi_sync">
+<span class="sig-name descname"><span class="pre">run_agi_sync</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">code</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">venv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.run_agi_sync"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.run_agi_sync" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.run_async">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run_async</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">venv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cwd</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.run_async"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.run_async" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.scheduler_ip_address">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">scheduler_ip_address</span></span><a class="headerlink" href="#agi_env.agi_env.AgiEnv.scheduler_ip_address" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.set_apps_dir">
+<span class="sig-name descname"><span class="pre">set_apps_dir</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">apps_dir</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.set_apps_dir"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.set_apps_dir" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.set_cluster_credentials">
+<span class="sig-name descname"><span class="pre">set_cluster_credentials</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">credentials</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.set_cluster_credentials"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.set_cluster_credentials" title="Link to this definition"></a></dt>
+<dd><p>Set the AGI_CREDENTIALS environment variable.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.set_env_var">
+<span class="sig-name descname"><span class="pre">set_env_var</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.set_env_var"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.set_env_var" title="Link to this definition"></a></dt>
+<dd><p>General setter: Updates the AgiEnv internal environment dictionary, the process environment,
+and persists the change in the .agilab/.env file.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.set_install_type">
+<span class="sig-name descname"><span class="pre">set_install_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">install_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.set_install_type"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.set_install_type" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.set_openai_api_key">
+<span class="sig-name descname"><span class="pre">set_openai_api_key</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">api_key</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.set_openai_api_key"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.set_openai_api_key" title="Link to this definition"></a></dt>
+<dd><p>Set the OPENAI_API_KEY environment variable.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="agi_env.agi_env.JumpToMain">
+<em class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agi_env.agi_env.</span></span><span class="sig-name descname"><span class="pre">JumpToMain</span></span><a class="reference internal" href="_modules/agi_env/agi_env.html#JumpToMain"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.JumpToMain" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
+<p>Custom exception to jump back to the main execution flow.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.JumpToMain.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_env.agi_env.JumpToMain.__init__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.JumpToMain.add_note">
+<span class="sig-name descname"><span class="pre">add_note</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#agi_env.agi_env.JumpToMain.add_note" title="Link to this definition"></a></dt>
+<dd><p>Exception.add_note(note) –
+add a note to the exception</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_env.agi_env.JumpToMain.args">
+<span class="sig-name descname"><span class="pre">args</span></span><a class="headerlink" href="#agi_env.agi_env.JumpToMain.args" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.JumpToMain.with_traceback">
+<span class="sig-name descname"><span class="pre">with_traceback</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#agi_env.agi_env.JumpToMain.with_traceback" title="Link to this definition"></a></dt>
+<dd><p>Exception.with_traceback(tb) –
+set self.__traceback__ to tb and return self.</p>
+</dd></dl>
+
+</dd></dl>
+
+<a class="reference internal image-reference" href="_images/classes_agi_env.png"><img alt="Classes diagram for agi_env" class="align-center" src="_images/classes_agi_env.png" style="width: 400px;" />
+</a>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="framework-api.html" class="btn btn-neutral float-left" title="Framework API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="agi-managers.html" class="btn btn-neutral float-right" title="agi_core.managers API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, THALES SIX GTS France SAS.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

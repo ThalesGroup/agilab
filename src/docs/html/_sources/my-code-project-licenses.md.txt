@@ -1,0 +1,17 @@
+# My-code-project Licenses
+| Package Name | License |
+|--------------|---------|
+| brotli | MIT LICENSE |
+| cython | APACHE SOFTWARE LICENSE |
+| inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| parso | MIT LICENSE |
+| psutil | BSD LICENSE |
+| py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
+| pyppmd | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| python-dotenv | BSD LICENSE |
+| pyzstd | BSD LICENSE |
+| setuptools | MIT LICENSE |
+| texttable | MIT LICENSE |
