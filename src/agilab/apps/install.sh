@@ -9,12 +9,12 @@ set -e
 #source "$HOME/.local/bin/env"
 source "$HOME/.local/share/agilab/.env"
 
-APP_INSTALL="uv run -p $AGI_PYTHON_VERSION --project ../fwk/core/managers python install.py"
+APP_INSTALL="uv run -p $AGI_PYTHON_VERSION -_project ../fwk/core/managers python install.py"
 
 # List only the apps that you want to install
 INCLUDED_APPS=(
-    "my-code-project"
-    "flight-project"
+    "my_code_project"
+    "flight_project"
 )
 
 # Colors
@@ -32,8 +32,8 @@ for dir in */; do
     if [ -d "$dir" ]; then
         dir_name=$(basename "$dir")
 
-        # Only add the directory if its name is in the INCLUDED_APPS list and it matches the pattern '-project'
-        if [[ " ${INCLUDED_APPS[*]} " == *" $dir_name "* ]] && [[ "$dir_name" =~ -project$ ]]; then
+        # Only add the directory if its name is in the INCLUDED_APPS list and it matches the pattern '_project'
+        if [[ " ${INCLUDED_APPS[*]} " == *" $dir_name "* ]] && [[ "$dir_name" =~ _project$ ]]; then
             apps+=("$dir_name")
         fi
     fi
