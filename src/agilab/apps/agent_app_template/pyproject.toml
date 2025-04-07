@@ -1,5 +1,5 @@
 [project]
-name = "agent-app-project"
+name = "agent-app_project"
 version = "0.1.8"
 description = ""
 [[project.authors]]
@@ -12,7 +12,7 @@ readme = "README.md"
 dependencies = ["setuptools", "cython", "parso", "py7zr", "python-dotenv", "ipython==8.34.0"]
 
 [dependency-groups]
-dev = ["black", "pytest", "licensecheck", "agent-app-project"]
+dev = ["black", "pytest", "licensecheck", "agent_app_project"]
 
 [project.optional-dependencies]
 agi-worker = []
@@ -27,7 +27,7 @@ default-groups = ["dev"]
 
 [tool.uv.sources]
 agi-core = { path = "core", editable = true }
-agent-app-project = { workspace = true }
+agent-app_project = { workspace = true }
 
 [tool.setuptools]
 include-package-data = true
