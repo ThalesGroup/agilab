@@ -75,7 +75,13 @@ include-package-data = true
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["agilab*", "apps*", "views*"]
-exclude = ["agilab.fwk*", ".idea*", "tests*"]
+exclude = [
+    "agilab.fwk*",
+    ".idea*",
+    "tests*",
+    "agilab.apps.flight_project.build*",
+    "agilab.apps.my_code_project.build*"
+]
 
 [tool.setuptools.package-data]
 agilab = ["*.json", "*.toml", "*.ipynb",]
