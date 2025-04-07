@@ -303,11 +303,11 @@ def import_project(project_zip, ignore=False):
 
 def normalize_project_name(dest):
     """
-    Ensure the new project name ends with '-project'.
+    Ensure the new project name ends with '_project'.
     """
     dest = dest.replace("_", "-")
     st.session_state.clone_dest = (
-        dest + "-project" if not dest.endswith("-project") else dest
+        dest + "_project" if not dest.endswith("_project") else dest
     )
 
 
@@ -1095,7 +1095,7 @@ def handle_project_rename():
         "New Project Name",
         key="clone_dest",
         on_change=lambda: normalize_project_name(st.session_state["clone_dest"]),
-        help="Enter the new name for your project. It will be suffixed with '-project' if not already present.",
+        help="Enter the new name for your project. It will be suffixed with '_project' if not already present.",
     )
 
     # Rename button
