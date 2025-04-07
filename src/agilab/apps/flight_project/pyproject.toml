@@ -1,7 +1,7 @@
 [project]
-name = "flight-project"
+name = "flight_project"
 version = "0.1.8"
-description = "flight-project is an example of data project"
+description = "flight_project is an example of data project"
 requires-python = "==3.12.*"
 readme = "README.md"
 dependencies = [
@@ -40,7 +40,7 @@ dev = [
     "black",
     "pytest",
     "licensecheck",
-    "flight-project",
+    "flight_project",
     "ipython==8.34.0",
 ]
 rapids = [
@@ -56,7 +56,7 @@ default-groups = [
 path = "/home/pcm/PycharmProjects/agilab/src/agilab/fwk/core"
 editable = true
 
-[tool.uv.sources.flight-project]
+[tool.uv.sources.flight_project]
 workspace = true
 
 [tool.setuptools]
