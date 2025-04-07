@@ -224,8 +224,8 @@ update_environment() {
 }
 
 install_framework_apps() {
-    framework_dir="$AGI_INSTALL_PATH/agilab/fwk"
-    apps_dir="$AGI_INSTALL_PATH/agilab/apps"
+    framework_dir="$AGI_INSTALL_PATH/src/agilab/fwk"
+    apps_dir="$AGI_INSTALL_PATH/src/agilab/apps"
 
     chmod +x "$framework_dir/install.sh" "$apps_dir/install.sh"
 
