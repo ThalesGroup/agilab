@@ -1,0 +1,950 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>agi_core.managers API &mdash; AGILab 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+      <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css" />
+
+  
+    <link rel="canonical" href="https://thalesgroup.github.io/agilab/agi-managers.html" />
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=8d563738"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="agi_core.workers API" href="agi-workers.html" />
+    <link rel="prev" title="agi_env API" href="agi-env.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            AGILab
+              <img src="_static/agi_logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="quick-start.html">Quick-Start</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="quick-start.html#license">LICENSE</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick-start.html#install-agilab">Install Agilab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick-start.html#support">Support</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#purpose"><strong>Purpose</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#target-audience"><strong>Target Audience</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#main-dependencies"><strong>Main Dependencies</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#technologies-selection-criteria"><strong>Technologies Selection Criteria</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#example-aircraft-telecommunication">Example: Aircraft Telecommunication</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="features.html">Features</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="features.html#agi-core">agi-core</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.html#agilab">agilab</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cluster.html">Cluster</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="cluster-help.html">Cluster Help</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="cluster-help.html#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="cluster-help.html#principle">Principle</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#generate-the-keys">Generate the keys</a><ul class="simple">
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#loading-the-private-key-in-ssh-agent">Loading the private key in SSH Agent</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#load-the-private-key">Load the private key</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verify-the-key-addition">Verify the key Addition</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#copy-the-public-key-to-the-server">Copy the public key to the server</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#sshd-service">SSHD Service</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#check-the-configuration">Check the configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#restart-the-sshd-service">Restart the SSHD service</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#check-the-service-status">Check the service status:</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#permissions">Permissions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#on-windows">On Windows</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#on-linux">On Linux</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#useful-links">Useful links</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="agilab.html">AGILab</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="edit_help.html">▶️ EDIT</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="edit_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="edit_help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l3"><a class="reference internal" href="edit_help.html#support">Support</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="execute_help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="execute_help.html#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="execute_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="execute_help.html#main-content-area">Main Content Area</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="experiment_help.html">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="experiment_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="experiment_help.html#main-content-area">Main Content Area</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="views_help.html">▶️ VIEW</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="views_help.html#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="views_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="views_help.html#main-content-area">Main Content Area</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="reference internal" href="framework-api.html">Framework API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="agi-env.html">agi_env API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agi-env.html#usage-example">Usage Example</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#instanciation">Instanciation</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="agi-env.html#reference">Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.JumpToMain"><code class="docutils literal notranslate"><span class="pre">JumpToMain</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">agi_core.managers API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#usage-example">Usage Example</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#installation">Installation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#update">Update</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#distribute">Distribute</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#run">Run</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#reference">Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#agi_core.managers.agi_runner.agi_runner.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#agi_core.managers.agi_manager.agi_manager.AgiManager"><code class="docutils literal notranslate"><span class="pre">AgiManager</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="agi-workers.html">agi_core.workers API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agi-workers.html#workers-reference">Workers Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-agi-worker">agi_core.workers.agi-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-agent-worker">agi_core.workers.agent-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-dag-worker">agi_core.workers.dag-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-data-worker">agi_core.workers.data-worker</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="my-code-project.html">Example1: My-Code-Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="my-code-project.html#manager-my-code">manager: my_code</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCode"><code class="docutils literal notranslate"><span class="pre">MyCode</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCode.__init__"><code class="docutils literal notranslate"><span class="pre">MyCode.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCode.args"><code class="docutils literal notranslate"><span class="pre">MyCode.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCode.build_distribution"><code class="docutils literal notranslate"><span class="pre">MyCode.build_distribution()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCode.convert_functions_to_names"><code class="docutils literal notranslate"><span class="pre">MyCode.convert_functions_to_names()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCode.do_distrib"><code class="docutils literal notranslate"><span class="pre">MyCode.do_distrib()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCode.onerror"><code class="docutils literal notranslate"><span class="pre">MyCode.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCode.verbose"><code class="docutils literal notranslate"><span class="pre">MyCode.verbose</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.__init__"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.construct"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.copy"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.dict"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.dict()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.from_orm"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.from_orm()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.json"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_computed_fields"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_computed_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_config"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_config</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_construct"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_copy"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_dump"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_dump()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_dump_json"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_dump_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_extra"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_extra</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_fields"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_fields_set"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_fields_set</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_json_schema"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_json_schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_parametrized_name"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_parametrized_name()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_post_init"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_post_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_rebuild"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_rebuild()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_validate"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_validate()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_validate_json"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_validate_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.model_validate_strings"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.model_validate_strings()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.mycode_param1"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.mycode_param1</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.parse_file"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.parse_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.parse_obj"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.parse_obj()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.parse_raw"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.parse_raw()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.schema"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.schema_json"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.schema_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.update_forward_refs"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.update_forward_refs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code.my_code.MyCodeArgs.validate"><code class="docutils literal notranslate"><span class="pre">MyCodeArgs.validate()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="my-code-project.html#worker-my-code-worker">worker: my_code_worker</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.algo_A"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.algo_A()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.algo_B"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.algo_B()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.algo_C"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.algo_C()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.algo_X"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.algo_X()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.algo_Y"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.algo_Y()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.algo_Z"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.algo_Z()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.build"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.build()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.dask_home</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.do_works"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_mono_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_multi_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.is_managed_pc</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.join"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.logs"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.mode"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.new"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.new()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.normalize_path"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.normalize_path()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.onerror"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.run"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.share_path"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.start"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.stop"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.t0"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.t0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.topological_sort"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.topological_sort()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.verbose"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.worker"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.worker_id"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.worker_id</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.works"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.works()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="flight-project.html">Example2: Flight-Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#manager-flight">manager: flight</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight.Flight"><code class="docutils literal notranslate"><span class="pre">Flight</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.__init__"><code class="docutils literal notranslate"><span class="pre">Flight.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.args"><code class="docutils literal notranslate"><span class="pre">Flight.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.build_distribution"><code class="docutils literal notranslate"><span class="pre">Flight.build_distribution()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.convert_functions_to_names"><code class="docutils literal notranslate"><span class="pre">Flight.convert_functions_to_names()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.data_out"><code class="docutils literal notranslate"><span class="pre">Flight.data_out</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.do_distrib"><code class="docutils literal notranslate"><span class="pre">Flight.do_distrib()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.extract_plane_from_file_name"><code class="docutils literal notranslate"><span class="pre">Flight.extract_plane_from_file_name()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_data_from_files"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_files()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_data_from_hawk"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_hawk()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_partition_by_planes"><code class="docutils literal notranslate"><span class="pre">Flight.get_partition_by_planes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.ivq_logs"><code class="docutils literal notranslate"><span class="pre">Flight.ivq_logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.onerror"><code class="docutils literal notranslate"><span class="pre">Flight.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.verbose"><code class="docutils literal notranslate"><span class="pre">Flight.verbose</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs"><code class="docutils literal notranslate"><span class="pre">FlightArgs</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.__init__"><code class="docutils literal notranslate"><span class="pre">FlightArgs.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.check_date"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_date()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.check_date_order"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_date_order()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.check_valid_regex"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_valid_regex()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.construct"><code class="docutils literal notranslate"><span class="pre">FlightArgs.construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.copy"><code class="docutils literal notranslate"><span class="pre">FlightArgs.copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.data_source"><code class="docutils literal notranslate"><span class="pre">FlightArgs.data_source</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.datemax"><code class="docutils literal notranslate"><span class="pre">FlightArgs.datemax</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.datemin"><code class="docutils literal notranslate"><span class="pre">FlightArgs.datemin</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.dict"><code class="docutils literal notranslate"><span class="pre">FlightArgs.dict()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.files"><code class="docutils literal notranslate"><span class="pre">FlightArgs.files</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.from_orm"><code class="docutils literal notranslate"><span class="pre">FlightArgs.from_orm()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_computed_fields"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_computed_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_config"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_config</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_construct"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_copy"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_dump"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_dump()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_dump_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_dump_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_extra"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_extra</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_fields"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_fields_set"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_fields_set</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_json_schema"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_json_schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_parametrized_name"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_parametrized_name()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_post_init"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_post_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_rebuild"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_rebuild()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_validate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_validate_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_validate_strings"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate_strings()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.nfile"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nfile</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.nread"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nread</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.nskip"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nskip</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.output_format"><code class="docutils literal notranslate"><span class="pre">FlightArgs.output_format</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.parse_file"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.parse_obj"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_obj()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.parse_raw"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_raw()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.path"><code class="docutils literal notranslate"><span class="pre">FlightArgs.path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.sampling_rate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.sampling_rate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.schema"><code class="docutils literal notranslate"><span class="pre">FlightArgs.schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.schema_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.schema_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.update_forward_refs"><code class="docutils literal notranslate"><span class="pre">FlightArgs.update_forward_refs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.validate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.validate()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#worker-flight-worker">worker: flight_worker</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker"><code class="docutils literal notranslate"><span class="pre">FlightWorker</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.build"><code class="docutils literal notranslate"><span class="pre">FlightWorker.build()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.calculate_speed"><code class="docutils literal notranslate"><span class="pre">FlightWorker.calculate_speed()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">FlightWorker.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">FlightWorker.dask_home</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.do_works"><code class="docutils literal notranslate"><span class="pre">FlightWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_mono_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_multi_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">FlightWorker.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">FlightWorker.is_managed_pc</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.join"><code class="docutils literal notranslate"><span class="pre">FlightWorker.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.logs"><code class="docutils literal notranslate"><span class="pre">FlightWorker.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.mode"><code class="docutils literal notranslate"><span class="pre">FlightWorker.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.new"><code class="docutils literal notranslate"><span class="pre">FlightWorker.new()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.normalize_path"><code class="docutils literal notranslate"><span class="pre">FlightWorker.normalize_path()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.onerror"><code class="docutils literal notranslate"><span class="pre">FlightWorker.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.pool_init"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.pool_vars"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_vars</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.preprocess_df"><code class="docutils literal notranslate"><span class="pre">FlightWorker.preprocess_df()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.run"><code class="docutils literal notranslate"><span class="pre">FlightWorker.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.share_path"><code class="docutils literal notranslate"><span class="pre">FlightWorker.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.start"><code class="docutils literal notranslate"><span class="pre">FlightWorker.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.stop"><code class="docutils literal notranslate"><span class="pre">FlightWorker.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.t0"><code class="docutils literal notranslate"><span class="pre">FlightWorker.t0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.verbose"><code class="docutils literal notranslate"><span class="pre">FlightWorker.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.work_done"><code class="docutils literal notranslate"><span class="pre">FlightWorker.work_done()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.work_init"><code class="docutils literal notranslate"><span class="pre">FlightWorker.work_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.work_pool"><code class="docutils literal notranslate"><span class="pre">FlightWorker.work_pool()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.worker"><code class="docutils literal notranslate"><span class="pre">FlightWorker.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.worker_id"><code class="docutils literal notranslate"><span class="pre">FlightWorker.worker_id</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.works"><code class="docutils literal notranslate"><span class="pre">FlightWorker.works()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="directory-structure.html">Project Files Structure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshouting.html">Troubleshooting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#a-prerequisite">A - Prerequisite:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#b-list-of-available-scripts">B- List of Available Scripts:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshouting.html#known-bugs">Known Bugs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#uv-sync-failed">&lt;UV&gt; Sync Failed</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#dask-debug-issue">&lt;DASK&gt; Debug Issue</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#pycharm-run-debug-configuration-is-broken">&lt;PYCHARM&gt; Run/Debug Configuration is Broken</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">Licences</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="gui-licenses.html">Gui Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="core-licenses.html">Core Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="env-licenses.html">Env Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="my-code-project-licenses.html">My-code-project Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">AGILab</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="framework-api.html">Framework API</a></li>
+      <li class="breadcrumb-item active">agi_core.managers API</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/agi-managers.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="agi-core-managers-api">
+<h1>agi_core.managers API<a class="headerlink" href="#agi-core-managers-api" title="Link to this heading"></a></h1>
+<section id="usage-example">
+<h2>Usage Example<a class="headerlink" href="#usage-example" title="Link to this heading"></a></h2>
+<section id="installation">
+<h3>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_core.managers.agi_runner</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGI</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span>
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">install_type</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">install</span><span class="p">(</span><span class="s1">&#39;my_code&#39;</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">modes_enabled</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                            <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> 
+                            <span class="n">scheduler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+            
+</pre></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="update">
+<h3>Update<a class="headerlink" href="#update" title="Link to this heading"></a></h3>
+</section>
+<hr class="docutils" />
+<section id="distribute">
+<h3>Distribute<a class="headerlink" href="#distribute" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_core.managers.agi_runner</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGI</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span>
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">install_type</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">distribute</span><span class="p">(</span><span class="s1">&#39;flight&#39;</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> 
+                                <span class="n">scheduler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_source</span><span class="o">=</span><span class="s2">&quot;file&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;/home/jpm/data/flight&quot;</span><span class="p">,</span> <span class="n">files</span><span class="o">=</span><span class="s2">&quot;*&quot;</span><span class="p">,</span> <span class="n">nfile</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">nskip</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">nread</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sampling_rate</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">datemin</span><span class="o">=</span><span class="s2">&quot;2020-01-01&quot;</span><span class="p">,</span> <span class="n">datemax</span><span class="o">=</span><span class="s2">&quot;2021-01-01&quot;</span><span class="p">,</span> <span class="n">output_format</span><span class="o">=</span><span class="s2">&quot;parquet&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+            
+</pre></div>
+</div>
+<hr class="docutils" />
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_core.managers.agi_runner</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGI</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span>
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">install_type</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">distribute</span><span class="p">(</span><span class="s1">&#39;my_code&#39;</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> 
+                                <span class="n">scheduler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_source</span><span class="o">=</span><span class="s2">&quot;file&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;/home/jpm/data/flight&quot;</span><span class="p">,</span> <span class="n">files</span><span class="o">=</span><span class="s2">&quot;*&quot;</span><span class="p">,</span> <span class="n">nfile</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">nskip</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">nread</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sampling_rate</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">datemin</span><span class="o">=</span><span class="s2">&quot;2020-01-01&quot;</span><span class="p">,</span> <span class="n">datemax</span><span class="o">=</span><span class="s2">&quot;2021-01-01&quot;</span><span class="p">,</span> <span class="n">output_format</span><span class="o">=</span><span class="s2">&quot;parquet&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+            
+</pre></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="run">
+<h3>Run<a class="headerlink" href="#run" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_core.managers.agi_runner</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGI</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span>
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">install_type</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s1">&#39;my_code&#39;</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> 
+                        <span class="n">scheduler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+                        <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">data_source</span><span class="o">=</span><span class="s2">&quot;file&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;/home/jpm/data/flight&quot;</span><span class="p">,</span> <span class="n">files</span><span class="o">=</span><span class="s2">&quot;*&quot;</span><span class="p">,</span> <span class="n">nfile</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">nskip</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">nread</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sampling_rate</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">datemin</span><span class="o">=</span><span class="s2">&quot;2020-01-01&quot;</span><span class="p">,</span> <span class="n">datemax</span><span class="o">=</span><span class="s2">&quot;2021-01-01&quot;</span><span class="p">,</span> <span class="n">output_format</span><span class="o">=</span><span class="s2">&quot;parquet&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+            
+</pre></div>
+</div>
+<hr class="docutils" />
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_core.managers.agi_runner</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGI</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span>
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">install_type</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s1">&#39;flight&#39;</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> 
+                        <span class="n">scheduler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+                        <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">data_source</span><span class="o">=</span><span class="s2">&quot;file&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;/home/jpm/data/flight&quot;</span><span class="p">,</span> <span class="n">files</span><span class="o">=</span><span class="s2">&quot;*&quot;</span><span class="p">,</span> <span class="n">nfile</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">nskip</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">nread</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sampling_rate</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">datemin</span><span class="o">=</span><span class="s2">&quot;2020-01-01&quot;</span><span class="p">,</span> <span class="n">datemax</span><span class="o">=</span><span class="s2">&quot;2021-01-01&quot;</span><span class="p">,</span> <span class="n">output_format</span><span class="o">=</span><span class="s2">&quot;parquet&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+            
+</pre></div>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="reference">
+<h2>Reference<a class="headerlink" href="#reference" title="Link to this heading"></a></h2>
+<a class="reference internal image-reference" href="_images/packages_agi_core.managers.agi_runner.png"><img alt="Packages diagram for agi_runner" class="align-center" src="_images/packages_agi_core.managers.agi_runner.png" style="width: 400px;" />
+</a>
+<hr class="docutils" />
+<a class="reference internal image-reference" href="_images/classes_agi_core.managers.agi_runner.png"><img alt="Classes diagram for agi_core.managers.agi_runner" class="align-center" src="_images/classes_agi_core.managers.agi_runner.png" style="width: 400px;" />
+</a>
+<hr class="docutils" />
+<dl class="py class" id="module-agi_core.managers.agi_runner.agi_runner">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agi_core.managers.agi_runner.agi_runner.</span></span><span class="sig-name descname"><span class="pre">AGI</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Agi Class.</p>
+<p>Agi (Speedy-Python-Dask) is a scalable fwk based on Cython, Dask, and a pool of processes that supports High-Performance Computing (HPC) with or without output data.
+It offers a command-line interface in Python and an optional LAB with Streamlit, featuring advanced capabilities like embedded ChatGPT and visualizations.</p>
+<p>Agi stands for Speedy-Python-Dask.</p>
+<dl class="simple">
+<dt><strong>To run on a cluster:</strong></dt><dd><ol class="arabic simple">
+<li><p>Create a Agi account on each host with SSH access.</p></li>
+<li><p>Copy your project’s <cite>pyproject.toml</cite> to each host.</p></li>
+<li><p>Run <cite>uv sync</cite> before using AGI.</p></li>
+<li><p>To run with output data, provide a shared directory accessible from all hosts. Use this directory in your Python target code as both input and output.</p></li>
+</ol>
+</dd>
+<dt><strong>Remarks:</strong></dt><dd><ul class="simple">
+<li><p>Interactive Matplotlib graphics are not supported by Jupyter Lab. Use Jupyter Notebook instead.</p></li>
+<li><p>While debugging in a Jupyter cell, it’s better to comment out <cite>#%%time</cite> to allow line numbers to display correctly.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.CYTHON_MODE">
+<span class="sig-name descname"><span class="pre">CYTHON_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.CYTHON_MODE" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.DASK_MODE">
+<span class="sig-name descname"><span class="pre">DASK_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">4</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.DASK_MODE" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.DASK_RESET">
+<span class="sig-name descname"><span class="pre">DASK_RESET</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">59</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.DASK_RESET" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.DEPLOYEMENT_MASK">
+<span class="sig-name descname"><span class="pre">DEPLOYEMENT_MASK</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">48</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.DEPLOYEMENT_MASK" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.INSTALL_MASK">
+<span class="sig-name descname"><span class="pre">INSTALL_MASK</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">48</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.INSTALL_MASK" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.INSTALL_MODE">
+<span class="sig-name descname"><span class="pre">INSTALL_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">16</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.INSTALL_MODE" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.PYTHON_MODE">
+<span class="sig-name descname"><span class="pre">PYTHON_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.PYTHON_MODE" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.RAPIDS_MODE">
+<span class="sig-name descname"><span class="pre">RAPIDS_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">16</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.RAPIDS_MODE" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.RAPIDS_RESET">
+<span class="sig-name descname"><span class="pre">RAPIDS_RESET</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">55</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.RAPIDS_RESET" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.RAPIDS_SET">
+<span class="sig-name descname"><span class="pre">RAPIDS_SET</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">63</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.RAPIDS_SET" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.RUN_MASK">
+<span class="sig-name descname"><span class="pre">RUN_MASK</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">15</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.RUN_MASK" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.SIMULATE_MODE">
+<span class="sig-name descname"><span class="pre">SIMULATE_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">48</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.SIMULATE_MODE" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.TIMEOUT">
+<span class="sig-name descname"><span class="pre">TIMEOUT</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.TIMEOUT" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.UPDATE_MODE">
+<span class="sig-name descname"><span class="pre">UPDATE_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">32</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.UPDATE_MODE" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.__init__" title="Link to this definition"></a></dt>
+<dd><p>Initialize a Agi object with a target and verbosity level.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>target</strong> (<em>str</em>) – The target for the env object.</p></li>
+<li><p><strong>verbose</strong> (<em>int</em>) – Verbosity level (0-3).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.best_mode">
+<span class="sig-name descname"><span class="pre">best_mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Dict</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><span class="pre">,</span> <code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.best_mode" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.debug">
+<span class="sig-name descname"><span class="pre">debug</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.debug" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.distribute">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">distribute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI.distribute"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.distribute" title="Link to this definition"></a></dt>
+<dd><p>check the distribution with a dry run
+:param package:
+:type package: any Agi target apps or project created by AGILAB
+:param list_ip:
+:type list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv synced
+:param verbose:
+:type verbose: verbosity [0-3]
+:param Returns:
+:param the distribution tree:
+:param ——-:</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.env">
+<span class="sig-name descname"><span class="pre">env</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv" title="agi_env.agi_env.AgiEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">AgiEnv</span></code></a><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.env" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.find_free_port">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">find_free_port</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attempts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI.find_free_port"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.find_free_port" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.get_default_local_ip">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_default_local_ip</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI.get_default_local_ip"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.get_default_local_ip" title="Link to this definition"></a></dt>
+<dd><p>Get the default local IP address of the machine.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The default local IP address.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>str</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>Exception</strong> – If unable to determine the local IP address.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.install">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">install</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">module_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modes_enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI.install"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.install" title="Link to this definition"></a></dt>
+<dd><p>Update the cluster’s virtual environment.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>module_name_or_path</strong> (<em>str</em>) – The name of the module to install or the path to the module.</p></li>
+<li><p><strong>list_ip</strong> (<em>List</em><em>[</em><em>str</em><em>]</em><em>, </em><em>optional</em>) – A list of IPv4 addresses with SSH access. Each IP should have Python,
+<cite>psutil</cite>, and <cite>pdm</cite> installed. Defaults to None.</p></li>
+<li><p><strong>modes_enabled</strong> (<em>int</em><em>, </em><em>optional</em>) – Bitmask indicating enabled modes. Defaults to <cite>0b0111</cite>.</p></li>
+<li><p><strong>verbose</strong> (<em>int</em><em>, </em><em>optional</em>) – Verbosity level (0-3). Higher numbers increase the verbosity of the output.
+Defaults to 1.</p></li>
+<li><p><strong>**args</strong> – Additional keyword arguments.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><cite>True</cite> if the installation was successful, <cite>False</cite> otherwise.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>ValueError</strong> – If <cite>module_name_or_path</cite> is invalid.</p></li>
+<li><p><strong>ConnectionError</strong> – </p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.main">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">scheduler</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI.main"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.main" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.make_chunks">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">make_chunks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nchunk2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">capacities</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">12</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI.make_chunks"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.make_chunks" title="Link to this definition"></a></dt>
+<dd><p>Partitions the nchunk2 weighted into n chuncks, in a smart way
+chunks and chunks_sizes must be left to None</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>nchunk2</strong> – list of number of chunks level 2</p></li>
+<li><p><strong>weights</strong> – the list of weight level2</p></li>
+<li><p><strong>capacities</strong> – the lnewist of workers capacity (Default value = None)</p></li>
+<li><p><strong>verbose</strong> – whether to display run detail or not (Default value = 0)</p></li>
+<li><p><strong>threshold</strong> – the number of nchunk2 max to run the optimal algo otherwise downgrade to suboptimal one (Default value = 12)</p></li>
+<li><p><strong>weights</strong> – list:</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>list of chunk per my_code_worker containing list of works per my_code_worker containing list of chunks level 1</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.run">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rapids_enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI.run"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.run" title="Link to this definition"></a></dt>
+<dd><p>Compiles the target module in Cython and runs it on the cluster.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code></span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>target</strong> (<em>str</em>) – The target Python module to run.</p></li>
+<li><p><strong>scheduler</strong> (<em>str</em><em>, </em><em>optional</em>) – IP and port address of the Dask scheduler. Defaults to ‘127.0.0.1:8786’.</p></li>
+<li><p><strong>workers</strong> (<em>dict</em><em>, </em><em>optional</em>) – Dictionary of worker IPs and their counts. Defaults to <cite>workers_default</cite>.</p></li>
+<li><p><strong>verbose</strong> (<em>int</em><em>, </em><em>optional</em>) – Verbosity level. Defaults to 0.</p></li>
+<li><p><strong>mode</strong> (<em>int</em><em> or </em><em>list</em><em>, </em><em>optional</em>) – <p>Mode(s) for execution. Defaults to None.
+- Bitmask <cite>0b—-</cite> (4 bits) where each bit enables/disables specific features:</p>
+<blockquote>
+<div><ul>
+<li><p><cite>1—</cite>: Rapids</p></li>
+<li><p><cite>-1–</cite>: Dask</p></li>
+<li><p><cite>–1-</cite>: Cython</p></li>
+<li><p><cite>—1</cite>: Pool</p></li>
+</ul>
+</div></blockquote>
+<ul>
+<li><p><cite>mode</cite> can also be a list of modes to chain for the run.</p></li>
+</ul>
+</p></li>
+<li><p><strong>rapids_enabled</strong> (<em>bool</em><em>, </em><em>optional</em>) – Flag to enable RAPIDS. Defaults to False.</p></li>
+<li><p><strong>**args</strong> (<em>Any</em>) – Additional keyword arguments.</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Result of the execution.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>Any</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ValueError</strong> – If <cite>mode</cite> is invalid.</p></li>
+<li><p><strong>RuntimeError</strong> – If the target module fails to load.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.update">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">update</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">module_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">module_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modes_enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI.update"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.update" title="Link to this definition"></a></dt>
+<dd><p>install cluster virtual environment
+:param package:
+:type package: any Agi target apps or project created with AGILAB
+:param list_ip:
+:type list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv synced
+:param mode_enabled:
+:type mode_enabled: this is typically a mode mask to know for example if cython or rapids are required
+:param force_update:
+:type force_update: make a Spud.update before the installation, default is True
+:param verbose:
+:type verbose: verbosity [0-3]</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.workers">
+<span class="sig-name descname"><span class="pre">workers</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">Dict</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><span class="pre">,</span> <code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code><span class="pre">]]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.workers" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.workers_tree">
+<span class="sig-name descname"><span class="pre">workers_tree</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.workers_tree" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.workers_tree_info">
+<span class="sig-name descname"><span class="pre">workers_tree_info</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.workers_tree_info" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<hr class="docutils" />
+<a class="reference internal image-reference" href="_images/packages_agi_core.managers.agi_manager.png"><img alt="Packages diagram for agi_core.managers.agi_manager" class="align-center" src="_images/packages_agi_core.managers.agi_manager.png" style="width: 400px;" />
+</a>
+<hr class="docutils" />
+<a class="reference internal image-reference" href="_images/classes_agi_core.managers.agi_manager.png"><img alt="Classes diagram for agi_core.managers.agi_manager" class="align-center" src="_images/classes_agi_core.managers.agi_manager.png" style="width: 400px;" />
+</a>
+<hr class="docutils" />
+<dl class="py class" id="module-agi_core.managers.agi_manager.agi_manager">
+<dt class="sig sig-object py" id="agi_core.managers.agi_manager.agi_manager.AgiManager">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agi_core.managers.agi_manager.agi_manager.</span></span><span class="sig-name descname"><span class="pre">AgiManager</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_manager/agi_manager.html#AgiManager"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_manager.agi_manager.AgiManager" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Class AgiManager for orchestration of jobs by the target.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.managers.agi_manager.agi_manager.AgiManager.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_manager/agi_manager.html#AgiManager.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_manager.agi_manager.AgiManager.__init__" title="Link to this definition"></a></dt>
+<dd><p>Initialize the AgiManager with input arguments.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>args</strong> – The input arguments for initializing the AgiManager.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_manager.agi_manager.AgiManager.args">
+<span class="sig-name descname"><span class="pre">args</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#agi_core.managers.agi_manager.agi_manager.AgiManager.args" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.managers.agi_manager.agi_manager.AgiManager.convert_functions_to_names">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">convert_functions_to_names</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_manager/agi_manager.html#AgiManager.convert_functions_to_names"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_manager.agi_manager.AgiManager.convert_functions_to_names" title="Link to this definition"></a></dt>
+<dd><p>Converts functions in a nested structure to their names.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.managers.agi_manager.agi_manager.AgiManager.do_distrib">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">do_distrib</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inst</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">agi_env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_manager/agi_manager.html#AgiManager.do_distrib"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_manager.agi_manager.AgiManager.do_distrib" title="Link to this definition"></a></dt>
+<dd><p>Build the distribution tree.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>inst</strong> – The instance for building the distribution tree.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.managers.agi_manager.agi_manager.AgiManager.onerror">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">onerror</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_manager/agi_manager.html#AgiManager.onerror"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_manager.agi_manager.AgiManager.onerror" title="Link to this definition"></a></dt>
+<dd><p>Error handler for <cite>shutil.rmtree</cite>.</p>
+<p>If the error is due to an access error (read-only file),
+it attempts to add write permission and then retries.</p>
+<p>If the error is for another reason, it re-raises the error.</p>
+<p>Usage: <cite>shutil.rmtree(path, onerror=onerror)</cite></p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>func</strong> (<em>function</em>) – The function that raised the error.</p></li>
+<li><p><strong>path</strong> (<em>str</em>) – The path name passed to the function.</p></li>
+<li><p><strong>exc_info</strong> (<em>tuple</em>) – The exception information returned by <cite>sys.exc_info()</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.managers.agi_manager.agi_manager.AgiManager.verbose">
+<span class="sig-name descname"><span class="pre">verbose</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.managers.agi_manager.agi_manager.AgiManager.verbose" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<hr class="docutils" />
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="agi-env.html" class="btn btn-neutral float-left" title="agi_env API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="agi-workers.html" class="btn btn-neutral float-right" title="agi_core.workers API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, THALES SIX GTS France SAS.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

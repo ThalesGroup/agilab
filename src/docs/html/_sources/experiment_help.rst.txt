@@ -1,0 +1,69 @@
+▶️ EXPERIMENT
+============
+
+.. toctree::
+   :hidden:
+
+Sidebar
+-------
+.. tab-set::
+   .. tab-item:: Lab-Directory
+
+      Select your module name.
+      The ``Lab_directory`` is defined as ``AGI_LAB_DIR / "your selected module"``,
+      where ``AGIL_LAB_DIR`` is the variable from ``~/.env``.
+      If it has not been set, the default value is:
+      ``"~/agilab/framework/agi-gui"``
+
+   .. tab-item:: Dataframe
+
+      The relative path of your dataframe.
+      The absolute path will be ``AGI_EXPORT_DIR / "your input dataframe relative path"``,
+      where ``AGI_EXPORT_DIR`` is the variable from ``~/.env``.
+      If it has not been set, the default value is:
+      ``"~/export"``
+
+   .. tab-item:: Import Notebook
+
+      Select the notebook file you want to import in the "Main Content Area".
+
+      This is an optional field in case you are not connected to the internet but want
+      to get some snippets to work with.
+
+   .. tab-item:: Open MLFlow UI
+
+      If you have explicitly asked in your query to log the run for MLFlow,
+      you can open the MLFlow UI to extend your experimentation.
+
+   .. tab-item:: Step-File
+
+      This is similar to a cell in a notebook.
+
+   .. tab-item:: Notebook-File
+
+      This is the name of the notebook file to export your experimentation.
+
+   .. tab-item:: Save DataFrame
+
+      This button will save your dataframe; otherwise, the result of your run will not be persistent.
+
+   .. tab-item:: Save Notebook
+
+      This button will save the export in the ``Notebook-File``.
+
+   .. tab-item:: Open Notebook
+
+      This will open a new tab with the ``Notebook-File`` in Jupyter Notebook.
+
+Main Content Area
+-----------------
+.. tab-set::
+
+   .. tab-item:: ASSISTANT
+
+      Enter your query to the online ChatGPT in natural language, and a Python snippet will be generated.
+      See also **EDIT/PRE-PROMPT** if you want to customize the pre-prompt for your application.
+
+   .. tab-item:: HISTORY
+
+      The history of queries for reuse purposes.

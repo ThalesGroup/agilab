@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="PYTHON_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module" module-name="flight-project" />
+    <orderEntry type="module" module-name="my-code-project" />
+    <orderEntry type="module" module-name="core" />
+    <orderEntry type="module" module-name="env" />
+    <orderEntry type="module" module-name="gui" />
+    <orderEntry type="module" module-name="flight_worker" />
+    <orderEntry type="module" module-name="my_code_worker" />
+  </component>
+</module>

@@ -1,0 +1,87 @@
+Features
+========
+
+AGI framework offers 2 user interfaces:
+
+ - `agi-core` an API interface to interface directly in your python program on a `dask cluster <https://openai.com>`_
+ - `agilab` a WEB interface that generate the agi-core API call in a snippet and offer `openai <https://openai.com>`_ code assitant.
+
+There is share components `agi-env` a share component to set the environment and `agi-gui` the Graphic User Interface engine
+
+agi-core
+--------
+
+- **Automated Virtual Environment Setup:**
+
+  - Automatically installs virtual environments for cluster nodes which are computers with multi-cores CPU, GPU and NPU.
+
+- **Flexible Application Run Modes:**
+
+  - **Process Management:**
+
+    - Single Process
+    - Multiple Processes
+
+  - **Language Support:**
+
+    - Pure Python (From python 3.12)
+    - Cython (Ahead of execution compilation)
+
+  - **Deployment Modes:**
+
+    - Single Node with MacOS, Windows (from W11) or Linux (Ubuntu from ubuntu 24.04)
+    - Cluster with heterogeneous os Modes
+
+- **Dynamic Node Capacity Calibration:**
+
+  - Automatically calibrates the capacity of each node to optimize performance.
+
+- **Static Load Balancing:**
+
+  - Distributes workloads evenly across nodes to ensure efficient resource utilization.
+
+- **Integrated Map-Reduce Mechanism:**
+
+  - Facilitates parallel data processing and aggregation.
+
+- **Optimized Run-Mode Selection:**
+
+  - Chooses the best run-mode from 8 available combinations, when rapids is enables it adds 8 more.
+
+
+agilab
+------
+
+- **agi-core API Generation:**
+
+  - Automatically generates APIs to streamline development processes.
+
+- **ChatGPT Coding Assistant:**
+
+  - Integrates with ChatGPT to offer real-time code suggestions and support.
+
+- **Embedded Dataframe Export:**
+
+  - Easily export dataframes cross project.
+
+- **5 Ways to Reuse Code:**
+
+  - **Framework Instantiation:**
+
+    - Inherit from agi-core ``Agi[Agent | Dag | Data]Worker`` classes.
+
+  - **Project Templates:**
+
+    - Clone existing code or create new project from templates.
+
+  - **Q&A Snippets History:**
+
+    - Utilize historical code snippets for quick integration.
+
+  - **Collaborative Coding:**
+
+    - Export / Import project to work together efficiently cross organisation.
+
+  - **Views Creation:**
+
+    - Share views seamlessly across multiple projects.

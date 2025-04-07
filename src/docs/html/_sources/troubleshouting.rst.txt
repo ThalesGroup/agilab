@@ -1,0 +1,126 @@
+Troubleshooting
+===============
+
+
+A - Prerequisite:
+-----------------
+
+Run agilab.sh to install and then try to run your xxx-project.
+Each Agilab API call should be set with verbose mode >= 3. In particular, when debugging with a Dask worker,
+it will create a file (~/xxx-project_trace.txt) that shows what happened in your AGI.build("xxx-project", ...) run.
+
+B- List of Available Scripts:
+------------------------------
+These scripts are provided to run regression tests with the PyCharm IDE,
+which best matches Agilab troubleshooting.
+
+├── agi_install_local@core<xxx>
+├── agi_run0core<log/AGI_installl_xxx.py>
+├── agi_run@flight<log/xxx.py>
+├── agi_run@my_code<log/xxx.py>
+├── agi_zip@core
+├── build_egg@flight<wenv/xxx_worker>
+├── build_egg@my_code<wenv/xxx_worker>
+├── build_lib@flight<wenv/xxx_worker>
+├── build_lib@my_code<wenv/xxx_worker>
+├── cython_pre_processing@core<xxx_worker.py>
+├── debug_python@core<script>
+├── lab_run@gui
+├── run_all_test
+├── test_agi_env@env
+├── test_agi_manager@core
+├── test_agi_runner@core
+├── test_agi_worker@core
+├── test_dag_worker@core
+├── test_data_worker@core
+├── test_flight_worker
+└── test_my_code_worker
+
+C - Exemple of Tests Sequence:
+----------------------
+- **1. agi_zip@core**
+  Tests the zip of the whole agi project directory with .gitignore filtration. A agi.zip file should created at the root dir of your project
+- **2. run_all_test**
+  This will lunch unitary test for both agi-env and agi-core components and display the pytest result
+- **3. cython_pre_processing@core** (if cyprepro.py error)
+  This will prompt for your worker source file <your_code_worker.py> to convert into a your_code_worker.pyx transformable into Cython compilable source code.
+  A file <your_code_worker.pyx> should appear in your wenv
+- **4. build_egg@your_code<wenv/your_code_worker>**
+  This will prompt for a worker module file <www_worker.py> to build in wenv the egg file for remote worker.
+  Creates a project egg file containing all the required files to compile the worker Cython library.
+- **5. build_lib@your_code<wenv/your_code_worker>**
+  This will prompt for the directory where you build your egg file in wenv to build your lib file for remote worker.
+  Creates a project lib file your_code_worker_cy.cpython-xxx-yyy-zzz.so containing the worker Cython library.
+- **6. agi_install_local@core<your_code>**
+  This will prompt for your module name <your_code> to be installed. This will install your code manager venv and your code worker wenv.
+- **7. agi_run@your_code<log/AGI.distribute-your_code.py>**
+  This will prompt for a file selection to select your AGI snippet <AGI.xxx.py> source code you want to run
+  If it does not work, you can restore from the agilab.zip before starting a new investigation.
+- **8. agi_run@your_code<log/AGI.run-your_code.py>**
+  This will prompt for a file selection to select your AGI snippet <AGI.xxx.py> source code you want to run
+  If it does not work, you can restore from the agilab.zip before starting a new investigation.
+
+
+
+
+Known Bugs
+==========
+
+<UV> Sync Failed
+----------------
+
+While running a script you see a "missing module" message but your module is correctly installed in your venv. And when
+you try to reinstall it his can lead to re-installation failures due to `circular dependencies` that prevent proper
+package version resolution. This may arrived because your `UV cache has been corrupted`.
+
+**Solution:**
+Clean the UV cache by executing the following command:
+
+.. code-block:: bash
+
+   uv cache clean
+
+
+<DASK> Debug Issue
+------------------
+
+While debugging Dask on Python 3.12, you might encounter the following error:
+
+.. code-block:: none
+
+   TypeError: _patch_asyncio.<locals>.run() got an unexpected keyword argument 'loop_factory'
+
+**Workaround:**
+Disable `python.console.asynio.repl` in the PyCharm registry.
+To do this, press `<Shift>+<Ctrl>+A` to open the action search window and then search for *registry*.
+
+.. image:: diagrams/pycharm_registry.png
+   :width: 400
+   :alt: PyCharm Registry
+   :align: center
+
+.. raw:: html
+
+   <br><br>
+
+
+<PYCHARM> Run/Debug Configuration is Broken
+-------------------------------------------
+
+For instance, select your "Run/Debug configuration" (e.g., `<gen-docstings>`) and then press [Run].
+The following message appears when you try to [debug] `<gen-docstings>`:
+
+   Argument for @NotNull parameter 'module' of com/intellij/openapi/roots/ModuleRootManager.getInstance must not be null
+
+.. image:: diagrams/pycharm_bug.png
+   :width: 400
+   :alt: PyCharm Bug
+   :align: center
+
+.. raw:: html
+
+   <br><br>
+
+**Solution:**
+Delete your "Run/Debug configuration" (named `<gen-docstings>` in this example) and create it again.
+This should resolve the issue.
