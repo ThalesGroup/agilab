@@ -557,14 +557,14 @@
             <span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">active_app</span><span class="p">:</span>
-            <span class="n">active_app</span> <span class="o">=</span> <span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;APP_DEFAULT&quot;</span><span class="p">,</span> <span class="s1">&#39;my-code-project&#39;</span><span class="p">)</span>
+            <span class="n">active_app</span> <span class="o">=</span> <span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;APP_DEFAULT&quot;</span><span class="p">,</span> <span class="s1">&#39;my_code_project&#39;</span><span class="p">)</span>
 
         <span class="c1"># check validity of active_app and set module</span>
         <span class="k">if</span> <span class="n">active_app</span><span class="p">:</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">active_app</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-                <span class="n">active_app</span> <span class="o">=</span> <span class="n">active_app</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">,</span> <span class="s1">&#39;-&#39;</span><span class="p">)</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="n">active_app</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;-project&#39;</span><span class="p">):</span>
-                    <span class="n">active_app</span> <span class="o">=</span> <span class="n">active_app</span> <span class="o">+</span> <span class="s1">&#39;-project&#39;</span>
+                <span class="n">active_app</span> <span class="o">=</span> <span class="n">active_app</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">active_app</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;_project&#39;</span><span class="p">):</span>
+                    <span class="n">active_app</span> <span class="o">=</span> <span class="n">active_app</span> <span class="o">+</span> <span class="s1">&#39;_project&#39;</span>
                 <span class="n">app_path</span> <span class="o">=</span> <span class="n">apps_dir</span> <span class="o">/</span> <span class="n">active_app</span>
                 <span class="k">if</span> <span class="n">app_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">app</span> <span class="o">=</span> <span class="n">active_app</span>
@@ -572,10 +572,10 @@
                     <span class="k">if</span> <span class="ow">not</span> <span class="n">apps_dir</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
                         <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">agi_root</span> <span class="o">/</span> <span class="s2">&quot;apps&quot;</span> <span class="p">,</span> <span class="n">apps_dir</span><span class="p">)</span>
 
-                <span class="n">module</span> <span class="o">=</span> <span class="n">active_app</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-project&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
+                <span class="n">module</span> <span class="o">=</span> <span class="n">active_app</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_project&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">apps_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_determine_apps_dir</span><span class="p">(</span><span class="n">active_app</span><span class="p">)</span>
-                <span class="n">module</span> <span class="o">=</span> <span class="n">apps_dir</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-project&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
+                <span class="n">module</span> <span class="o">=</span> <span class="n">apps_dir</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_project&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">module</span> <span class="o">=</span> <span class="s2">&quot;my_code&quot;</span>
 
@@ -648,7 +648,7 @@
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.active">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">active</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">install_type</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span> <span class="o">!=</span> <span class="n">target</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">change_active_app</span><span class="p">(</span><span class="n">target</span> <span class="o">+</span> <span class="s1">&#39;-project&#39;</span><span class="p">,</span> <span class="n">install_type</span><span class="p">)</span></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">change_active_app</span><span class="p">(</span><span class="n">target</span> <span class="o">+</span> <span class="s1">&#39;_project&#39;</span><span class="p">,</span> <span class="n">install_type</span><span class="p">)</span></div>
 
 
     <span class="c1"># ----------------------------------------------</span>
@@ -861,9 +861,9 @@
         <span class="n">module_name</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>  <span class="c1"># Moved this up</span>
         <span class="k">if</span> <span class="n">suffix</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;project&quot;</span><span class="p">):</span>
             <span class="n">name</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span> <span class="o">+</span> <span class="n">suffix</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
-            <span class="n">project_name</span> <span class="o">=</span> <span class="n">name</span> <span class="o">+</span> <span class="s2">&quot;-project&quot;</span>
+            <span class="n">project_name</span> <span class="o">=</span> <span class="n">name</span> <span class="o">+</span> <span class="s2">&quot;_project&quot;</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">project_name</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">,</span> <span class="s2">&quot;-&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;-project&quot;</span>
+            <span class="n">project_name</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">,</span> <span class="s2">&quot;-&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;_project&quot;</span>
         <span class="n">module_path</span> <span class="o">=</span> <span class="p">(</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">project_name</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span> <span class="o">/</span> <span class="n">module_name</span> <span class="o">/</span> <span class="p">(</span><span class="n">module_name</span> <span class="o">+</span> <span class="s2">&quot;.py&quot;</span><span class="p">)</span>
         <span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
@@ -871,7 +871,7 @@
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_determine_apps_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module_path</span><span class="p">):</span>
         <span class="n">path_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">module_path</span><span class="p">)</span>
-        <span class="n">index</span> <span class="o">=</span> <span class="n">path_str</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s2">&quot;-project&quot;</span><span class="p">)</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="n">path_str</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s2">&quot;_project&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="n">path_str</span><span class="p">[:</span><span class="n">index</span><span class="p">])</span><span class="o">.</span><span class="n">parent</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_init_apps</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -1746,7 +1746,7 @@
 <div class="viewcode-block" id="AgiEnv.get_modules">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.get_modules">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">get_modules</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="n">pattern</span> <span class="o">=</span> <span class="s2">&quot;-project&quot;</span>
+        <span class="n">pattern</span> <span class="o">=</span> <span class="s2">&quot;_project&quot;</span>
         <span class="n">modules</span> <span class="o">=</span> <span class="p">[</span>
             <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;^</span><span class="si">{</span><span class="n">pattern</span><span class="si">}</span><span class="s2">|</span><span class="si">{</span><span class="n">pattern</span><span class="si">}</span><span class="s2">$&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">project</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
             <span class="k">for</span> <span class="n">project</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_projects</span><span class="p">(</span><span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span><span class="p">)</span>

@@ -1,4 +1,4 @@
-# Flight-project Licenses
+# flight_project Licenses
 | Package Name | License |
 |--------------|---------|
 | brotli | MIT LICENSE |

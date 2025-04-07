@@ -465,7 +465,7 @@ class AGI:
         except ModuleNotFoundError as e:
             module_to_install = (str(e).replace("No module named ", "").lower().replace("'", ""))
             app_path = AGI.env.app_path
-            cmd = f"uv add {module_to_install.replace('_', '-')}"
+            cmd = f"uv add {module_to_install}"
             if AGI._verbose > 1:
                 print(f"{cmd} from {app_path}")
             AgiEnv.run(cmd, app_path)

@@ -40,7 +40,7 @@ dev = [
     "black",
     "pytest",
     "licensecheck",
-    "my-code_project",
+    "my_code_project",
     "ipython==8.34.0",
 ]
 
