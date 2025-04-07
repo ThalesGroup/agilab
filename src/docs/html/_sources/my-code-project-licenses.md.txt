@@ -1,4 +1,4 @@
-# My-code-project Licenses
+# my_code_project Licenses
 | Package Name | License |
 |--------------|---------|
 | brotli | MIT LICENSE |
