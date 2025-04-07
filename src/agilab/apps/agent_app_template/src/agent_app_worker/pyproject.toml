@@ -1,5 +1,5 @@
 [project]
-name = "agent-app-project"
+name = "agent-app_project"
 version = "0.1.8"
 description = ""
 requires-python = "==3.12.*"
@@ -9,7 +9,7 @@ authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
 ]
 [dependency-groups]
-dev = ["black", "pytest", "licensecheck", "flight-project", ]
+dev = ["black", "pytest", "licensecheck", "flight_project", ]
 
 [project.license]
 text = "Thales SIX GTS France SAS"
@@ -30,5 +30,5 @@ mypy_path = ["stubs", ]
 disallow_untyped_defs = false
 ignore_missing_imports = true
 
-[tool.uv.sources.flight-project]
+[tool.uv.sources.flight_project]
 workspace = true
