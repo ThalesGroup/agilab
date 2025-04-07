@@ -1,2 +1,2 @@
-recursive-include src/agilab/apps *.json *.toml *.ipynb
-
+include src/agilab/apps/*/src/*.*
+exclude src/agilab/apps/*/build/
