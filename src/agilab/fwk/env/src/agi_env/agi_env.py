@@ -140,14 +140,14 @@ class AgiEnv:
             exit(1)
 
         if not active_app:
-            active_app = envars.get("APP_DEFAULT", 'my-code-project')
+            active_app = envars.get("APP_DEFAULT", 'my_code_project')
 
         # check validity of active_app and set module
         if active_app:
             if isinstance(active_app, str):
                 active_app = active_app.replace('_', '-')
-                if not active_app.endswith('-project'):
-                    active_app = active_app + '-project'
+                if not active_app.endswith('_project'):
+                    active_app = active_app + '_project'
                 app_path = apps_dir / active_app
                 if app_path.exists():
                     self.app = active_app
@@ -155,10 +155,10 @@ class AgiEnv:
                     if not apps_dir.exists():
                         shutil.copytree(self.agi_root / "apps" , apps_dir)
 
-                module = active_app.replace("-project", "").replace("-", "_")
+                module = active_app.replace("_project", "").replace("-", "_")
             else:
                 apps_dir = self._determine_apps_dir(active_app)
-                module = apps_dir.name.replace("-project", "").replace("-", "_")
+                module = apps_dir.name.replace("_project", "").replace("-", "_")
         else:
             module = "my_code"
 
@@ -228,7 +228,7 @@ class AgiEnv:
 
     def active(self, target, install_type):
         if self.module != target:
-            self.change_active_app(target + '-project', install_type)
+            self.change_active_app(target + '_project', install_type)
 
     # ----------------------------------------------
     # Base class parsing methods (integrated)
@@ -416,9 +416,9 @@ class AgiEnv:
         module_name = name.replace("-", "_")  # Moved this up
         if suffix.startswith("project"):
             name = name.replace("-" + suffix, "")
-            project_name = name + "-project"
+            project_name = name + "_project"
         else:
-            project_name = name.replace("_", "-") + "-project"
+            project_name = name.replace("_", "-") + "_project"
         module_path = (
                 self.apps_dir / project_name / "src" / module_name / (module_name + ".py")
         ).resolve()
@@ -426,7 +426,7 @@ class AgiEnv:
 
     def _determine_apps_dir(self, module_path):
         path_str = str(module_path)
-        index = path_str.index("-project")
+        index = path_str.index("_project")
         return Path(path_str[:index]).parent
 
     def _init_apps(self):
@@ -1209,7 +1209,7 @@ class AgiEnv:
 
 
     def get_modules(self, target=None):
-        pattern = "-project"
+        pattern = "_project"
         modules = [
             re.sub(f"^{pattern}|{pattern}$", "", project).replace("-", "_")
             for project in self.get_projects(AgiEnv.apps_dir)
