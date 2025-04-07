@@ -22,7 +22,7 @@ mv dist/*.gz "$home/../agi-pypi"
 
 # Loop through each subdirectory and build accordingly
 for subdir in "${SUBDIRS[@]}"; do
-  pushd "src/$subdir" > /dev/null
+  pushd "src/agilab/$subdir" > /dev/null
   rm -rf dist  # clean previous builds
   rm -rf build
   uv build --wheel
