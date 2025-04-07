@@ -1,5 +1,5 @@
 [project]
-name = "flight-project"
+name = "flight_project"
 version = "0.1.8"
 description = ""
 requires-python = "==3.12.*"
@@ -18,5 +18,5 @@ agent-worker = []
 dag-worker = []
 data-worker = [ "polars",]
 
-[tool.uv.sources.flight-project]
+[tool.uv.sources.flight_project]
 workspace = true
