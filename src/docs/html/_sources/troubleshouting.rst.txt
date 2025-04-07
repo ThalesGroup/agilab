@@ -5,9 +5,9 @@ Troubleshooting
 A - Prerequisite:
 -----------------
 
-Run agilab.sh to install and then try to run your xxx-project.
+Run agilab.sh to install and then try to run your xxx_project.
 Each Agilab API call should be set with verbose mode >= 3. In particular, when debugging with a Dask worker,
-it will create a file (~/xxx-project_trace.txt) that shows what happened in your AGI.build("xxx-project", ...) run.
+it will create a file (~/xxx_project_trace.txt) that shows what happened in your AGI.build("xxx_project", ...) run.
 
 B- List of Available Scripts:
 ------------------------------

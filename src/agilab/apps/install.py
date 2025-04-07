@@ -55,7 +55,7 @@ def resolve_packages_path_in_toml(module, args=None):
     agi_root_str = agi_root.as_posix()
 
     # Build the module path based on naming conventions (underscores to hyphens)
-    module_path = Path(args.apps_dir) / (module.replace('_', '-') + "_project")
+    module_path = Path(args.apps_dir) / (module + "_project")
     pyproject_file = module_path / "pyproject.toml"
 
     if not pyproject_file.exists():

@@ -145,7 +145,7 @@ class AgiEnv:
         # check validity of active_app and set module
         if active_app:
             if isinstance(active_app, str):
-                active_app = active_app.replace('_', '-')
+                active_app = active_app
                 if not active_app.endswith('_project'):
                     active_app = active_app + '_project'
                 app_path = apps_dir / active_app
