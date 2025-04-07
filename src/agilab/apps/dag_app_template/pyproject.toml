@@ -1,5 +1,5 @@
 [project]
-name = "dag-app-project"
+name = "dag-app_project"
 version = "0.1.8"
 description = ""
 authors = [
@@ -12,7 +12,7 @@ readme = "README.md"
 dependencies = ["setuptools", "cython", "parso", "py7zr", "python-dotenv",  "ipython==8.34.0"]
 
 [dependency-groups]
-dev = ["black", "pytest", "licensecheck", "dag-app-project"]
+dev = ["black", "pytest", "licensecheck", "dag_app_project"]
 
 [project.optional-dependencies]
 agi-worker = []
@@ -27,7 +27,7 @@ default-groups = ["dev"]
 
 [tool.uv.sources]
 agi-core = { path = "core", editable = true }
-dag-app-project = { workspace = true }
+dag-app_project = { workspace = true }
 
 [tool.setuptools]
 include-package-data = true
