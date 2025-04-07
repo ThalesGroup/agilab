@@ -1,5 +1,5 @@
 [project]
-name = "my-code-project"
+name = "my_code_project"
 version = "0.1.8"
 description = ""
 requires-python = "==3.12.*"
@@ -40,7 +40,7 @@ dev = [
     "black",
     "pytest",
     "licensecheck",
-    "my-code-project",
+    "my-code_project",
     "ipython==8.34.0",
 ]
 
@@ -53,7 +53,7 @@ default-groups = [
 path = "/home/pcm/PycharmProjects/agilab/src/agilab/fwk/core"
 editable = true
 
-[tool.uv.sources.flight-project]
+[tool.uv.sources.flight_project]
 workspace = true
 
 [tool.setuptools]
