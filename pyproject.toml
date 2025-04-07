@@ -53,41 +53,28 @@ default-groups = ["dev"]
 workspace = true
 
 [tool.uv.sources.agi-env]
-path = "/home/jpm/agilab/src/fwk/env"
+path = "src/agilab/agi/fwk/env"
 
 [tool.uv.sources.agi-core]
-path = "/home/jpm/agilab/src/fwk/core"
+path = "src/agilab/agi/fwk/core"
 
 [tool.uv.sources.agi-gui]
-path = "/home/jpm/agilab/src/fwk/gui"
+path = "src/agilab/agi/fwk/gui"
 
 [tool.uv.workspace]
 members = ["apps", "views"]
 
 [build-system]
-requires = ["setuptools>=64", "setuptools-scm>=8"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
-
-[tool.setuptools_scm]
-version_file = "_version.py"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
-include = [
-  "apps",
-  "apps.*",
-  "views",
-  "views.*"
-]
-exclude = [
-    "fwk",
-    "fwk.*",
-    ".idea",
-    ".idea.*",
-
-]
+where = ["src"]
+include = ["agilab*", "apps*", "views*"]
+exclude = ["agilab.fwk*", ".idea*", "tests*"]
 
 [tool.mypy]
 mypy_path = ["stubs"]

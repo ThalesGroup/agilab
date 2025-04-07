@@ -84,13 +84,14 @@ class AgiEnv:
             install_type = int(envars.get("INSTALL_TYPE", 0))
         if install_type !=0 :
             self.agi_root = AgiEnv.locate_agi_installation()
+            self.agi_fwk_env_path = self.agi_root / "fwk/env"
         else:
             head, sep, _ = __file__.partition("site-packages")
             if not sep:
                 raise ValueError("site-packages not in", __file__)
-            self.agi_root = Path(head + sep)
+            self.agi_root = Path(head + sep) / "agilab"
+            self.agi_fwk_env_path = self.agi_root.parent
 
-        self.agi_fwk_env_path = self.agi_root / "fwk/env"
 
         # check validity of active_module if any and set the apps_dir
         if active_module:
@@ -113,7 +114,7 @@ class AgiEnv:
 
         if install_type == 0:
             self.install_type = install_type
-            resource_path = self.agi_root / "agi_env" / self.agi_resources
+            resource_path = self.agi_fwk_env_path / "agi_env" / self.agi_resources
         else:
             self.install_type = install_type
             resource_path = self.agi_root / "fwk/env/src/agi_env" / self.agi_resources

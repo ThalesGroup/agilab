@@ -162,7 +162,7 @@ choose_python_version() {
 backup_existing_project() {
     # Determine the absolute path of the source directory
     EXISTING_PROJECT=$(realpath "$(pwd)")
-    EXISTING_PROJECT_SRC="$EXISTING_PROJECT/src"
+    EXISTING_PROJECT_SRC="$EXISTING_PROJECT/agilab"
 
     mkdir -p "$HOME/.local/share/agilab"
     echo "$EXISTING_PROJECT_SRC" > "$HOME/.local/share/agilab/.agi-path"
@@ -198,12 +198,12 @@ backup_existing_project() {
 
 copy_project_files() {
     if [[ "$AGI_INSTALL_PATH" != "$(pwd)" ]]; then
-        if [[ -d "$(pwd)/src" ]]; then
+        if [[ -d "$(pwd)/agi" ]]; then
             echo -e "${BLUE}Copying project files to install directory...${NC}"
             mkdir -p "$AGI_INSTALL_PATH"
             rsync -a "$(pwd)/" "$AGI_INSTALL_PATH/"
         else
-            echo -e "${RED}Source directory 'src' not found. Exiting.${NC}"
+            echo -e "${RED}Source directory 'agi' not found. Exiting.${NC}"
             exit 1
         fi
     else
@@ -226,8 +226,8 @@ update_environment() {
 }
 
 install_framework_apps() {
-    framework_dir="$AGI_INSTALL_PATH/src/fwk"
-    apps_dir="$AGI_INSTALL_PATH/src/apps"
+    framework_dir="$AGI_INSTALL_PATH/agilab/fwk"
+    apps_dir="$AGI_INSTALL_PATH/agilab/apps"
 
     chmod +x "$framework_dir/install.sh" "$apps_dir/install.sh"
 
