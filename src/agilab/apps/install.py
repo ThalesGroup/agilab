@@ -32,7 +32,7 @@ from agi_env.agi_env import AgiEnv
 # Take the first argument from the command line as the module name
 if len(sys.argv) > 1:
     project = sys.argv[1]
-    module = project.replace("-project", "").replace('-', '_')
+    module = project.replace("_project", "").replace('-', '_')
 else:
     raise ValueError("Please provide the module name as the first argument.")
 
@@ -55,7 +55,7 @@ def resolve_packages_path_in_toml(module, args=None):
     agi_root_str = agi_root.as_posix()
 
     # Build the module path based on naming conventions (underscores to hyphens)
-    module_path = Path(args.apps_dir) / (module.replace('_', '-') + "-project")
+    module_path = Path(args.apps_dir) / (module.replace('_', '-') + "_project")
     pyproject_file = module_path / "pyproject.toml"
 
     if not pyproject_file.exists():
@@ -118,7 +118,7 @@ async def main():
         raise Exception("Failed to resolve env and core path in toml") from e
 
     await AGI.install(
-        args.app.replace("-project", ""),
+        args.app.replace("_project", ""),
         env=env,
         type=int(args.install_type),
         scheduler="127.0.0.1",
