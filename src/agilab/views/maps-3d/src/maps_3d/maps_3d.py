@@ -44,7 +44,7 @@ if "datadir" not in st.session_state:
     st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
 if "beamdir" not in st.session_state:
     st.session_state["beamdir"] = env.AGILAB_SHARE_ABS / env.target.replace(
-        "-project", ""
+        "_project", ""
     )
 if "coltype" not in st.session_state:
     st.session_state["coltype"] = var[0]
