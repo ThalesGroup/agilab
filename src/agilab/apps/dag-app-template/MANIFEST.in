@@ -1,2 +1,3 @@
 include *
-include src/*
+recursive-include src/ *
+
