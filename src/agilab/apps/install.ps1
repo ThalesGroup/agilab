@@ -13,8 +13,8 @@ $ErrorActionPreference = "Stop"
 
 # List only the apps that you want to install
 $INCLUDED_APPS = @(
-    "my-code-project",
-    "flight-project"
+    "my_code_project",
+    "flight_project"
 )
 
 function Main {
@@ -24,7 +24,7 @@ function Main {
     foreach ($app in $INCLUDED_APPS) {
         Write-Output "Installing $app..."
 
-        uv run -p $env:PYTHON_VERSION --project ../fwk/core/managers python install.py $app --apps-dir $AppsDir --install-type $InstallType
+        uv run -p $env:PYTHON_VERSION -_project ../fwk/core/managers python install.py $app --apps-dir $AppsDir --install-type $InstallType
         if ($LASTEXITCODE  -eq 0) {
             Write-Output "'$app' successfully installed."
         } else {
