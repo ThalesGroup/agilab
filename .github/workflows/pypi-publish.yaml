@@ -32,7 +32,7 @@ jobs:
       - name: Run tests
         run: |
           echo "Building core package for testing"
-          pushd src/fwk/core > /dev/null
+          pushd src/agilab/fwk/core > /dev/null
           rm -rf dist
           uv sync --dev --extra workers --extra managers --group rapids
           uv pip install -e .
@@ -63,7 +63,7 @@ jobs:
 
       - name: Remove all existing distribution directories
         run: |
-          rm -rf src/fwk/env/dist src/fwk/core/dist src/fwk/gui/dist dist agi-pypi
+          rm -rf src/agilab/fwk/env/dist src/agilab/fwk/core/dist src/agilab/fwk/gui/dist dist agi-pypi
 
       - name: Update version in pyproject.toml files
         env:
@@ -72,7 +72,7 @@ jobs:
           # Strip leading 'v' if present
           VERSION=${VERSION#v}
           echo "Setting version: $VERSION"
-          FILES=("pyproject.toml" "src/fwk/env/pyproject.toml" "src/fwk/core/pyproject.toml" "src/fwk/gui/pyproject.toml")
+          FILES=("pyproject.toml" "src/agilab/fwk/env/pyproject.toml" "src/agilab/fwk/core/pyproject.toml" "src/agilab/fwk/gui/pyproject.toml")
           for file in "${FILES[@]}"; do
             if [ -f "$file" ]; then
               echo "Updating version in $file"
@@ -95,7 +95,7 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add pyproject.toml src/fwk/env/pyproject.toml src/fwk/core/pyproject.toml src/fwk/gui/pyproject.toml
+          git add pyproject.toml src/agilab/fwk/env/pyproject.toml src/agilab/fwk/core/pyproject.toml src/agilab/fwk/gui/pyproject.toml
           if ! git diff --cached --quiet; then
             git commit -m "Bump version to ${VERSION#v}"
             git push
@@ -106,7 +106,7 @@ jobs:
       - name: Build env package
         run: |
           echo "Building env package"
-          pushd src/fwk/env > /dev/null
+          pushd src/agilab/fwk/env > /dev/null
           rm -rf dist
           uv build --wheel
           popd > /dev/null
@@ -114,7 +114,7 @@ jobs:
       - name: Build core package
         run: |
           echo "Building core package"
-          pushd src/fwk/core > /dev/null
+          pushd src/agilab/fwk/core > /dev/null
           rm -rf dist
           uv build --wheel
           popd > /dev/null
@@ -122,7 +122,7 @@ jobs:
       - name: Build gui package
         run: |
           echo "Building gui package"
-          pushd src/fwk/gui > /dev/null
+          pushd src/agilab/fwk/gui > /dev/null
           rm -rf dist
           uv build --wheel
           popd > /dev/null
@@ -137,13 +137,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: agi-core-distributions
-          path: src/fwk/core/dist/
+          path: src/agilab/fwk/core/dist/
 
       - name: Upload agi-gui package
         uses: actions/upload-artifact@v4
         with:
           name: agi-gui-distributions
-          path: src/fwk/gui/dist/
+          path: src/agilab/fwk/gui/dist/
 
       - name: Build combined main package (agilab)
         run: uv build --sdist
@@ -162,9 +162,9 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: |
-          twine upload src/fwk/env/dist/*
-          twine upload src/fwk/core/dist/*
-          twine upload src/fwk/gui/dist/*
+          twine upload src/agilab/fwk/env/dist/*
+          twine upload src/agilab/fwk/core/dist/*
+          twine upload src/agilab/fwk/gui/dist/*
 
       - name: Publish main package (agilab) to PyPI
         env:
