@@ -162,12 +162,10 @@ choose_python_version() {
 backup_existing_project() {
     # Determine the absolute path of the source directory
     EXISTING_PROJECT=$(realpath "$(pwd)")
-    EXISTING_PROJECT_SRC="$EXISTING_PROJECT/agilab"
+    EXISTING_PROJECT_SRC="$EXISTING_PROJECT/src/agilab"
 
     mkdir -p "$HOME/.local/share/agilab"
     echo "$EXISTING_PROJECT_SRC" > "$HOME/.local/share/agilab/.agi-path"
-    echo -e "${GREEN}Installation root path has been exported as AGIROOT.${NC}"
-
     echo 'uv run --project "$AGI_INSTALL_PATH/fwk/core/managers" python "$AGI_INSTALL_PATH/zip-agi.py" --dir2zip "$AGI_INSTALL_PATH" --zipfile "$backup_file"';
 
     # Backup existing project if a valid project directory exists
