@@ -206,7 +206,7 @@ class AgiEnv:
         if app_src not in sys.path:
             sys.path.insert(0, app_src)
         app_src_path.mkdir(parents=True, exist_ok=True)
-        self.app_src_path = app_src_path
+        self.app_src_path = self.agi_root / app_src_path
 
         # Initialize worker environment
         self._init_worker_env()
@@ -441,7 +441,7 @@ class AgiEnv:
         self.gitignore_file = self.app_path / ".gitignore"
         dest = self.resource_path
         if self.install_type == 0:
-            shutil.copytree(self.agi_root / "agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
+            shutil.copytree(self.agi_root.parent / "agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
         else:
             shutil.copytree(self.agi_root / "fwk/gui/src/agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
 
