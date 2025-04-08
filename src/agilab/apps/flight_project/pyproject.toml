@@ -44,7 +44,7 @@ dev = [
     "ipython==8.34.0",
 ]
 rapids = [
-    "cuspatial-cu12; platform_system == 'Linux'",
+    { package = "cuspatial-cu12", markers = "platform_system == \"Linux\"" },
 ]
 
 [tool.uv]
