@@ -28,4 +28,4 @@ uv sync -p $env:PYTHON_VERSION --dev --directory (Resolve-Path "$($args[0])\gui"
 Pop-Location
 
 Write-Host "Checking installation..." -ForegroundColor Green
-#uv run -p $env:PYTHON_VERSION --project "core\managers" python run-all-test.py
+uv run -p $env:PYTHON_VERSION --project "core\managers" python run-all-test.py
