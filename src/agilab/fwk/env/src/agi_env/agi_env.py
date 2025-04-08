@@ -82,8 +82,9 @@ class AgiEnv:
             install_type = int(install_type)
         else:
             install_type = int(envars.get("INSTALL_TYPE", 0))
+
         if install_type !=0 :
-            self.agi_root = AgiEnv.locate_agi_installation()
+            self.agi_root = AgiEnv.locate_agi_installation() / "agilab"
             self.agi_fwk_env_path = self.agi_root / "fwk/env"
         else:
             head, sep, _ = __file__.partition("site-packages")
