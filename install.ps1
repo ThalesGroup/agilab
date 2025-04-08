@@ -28,7 +28,6 @@ if ([Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdenti
     exit 1
 }
 
-
 # ================================
 # Global Variables and Paths
 # ================================
@@ -48,6 +47,25 @@ Write-Host "OpenAI API Key: $OpenaiApiKey" -ForegroundColor Yellow
 # ================================
 # Utility Functions
 # ================================
+
+function Check-VisualStudio {
+    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (Test-Path $vswhere) {
+        $vs2022 = & $vswhere -version 17.0 -latest -products * -property installationPath
+
+        if ($vs2022) {
+            Write-Host "Visual Studio 2022 is installed at: $vs2022" -ForegroundColor Green
+        } else {
+            Write-Host "Visual Studio 2022 is not found." -ForegroundColor Red
+            exit 1
+        }
+    } else {
+        Write-Host "vswhere.exe not found. Cannot determine VS installation." -ForegroundColor Red
+        Write-Host "Please ensure Visual Studio 2022 is installed before continuing." -ForegroundColor Green
+        exit 1
+    }
+
+}
 
 function Check-Internet {
     Write-Host "Checking internet connectivity..." -ForegroundColor Blue
@@ -87,7 +105,7 @@ function Choose-PytonVersion {
     $availablePythonVersions = uv python list | Where-Object { $_ -match $PYTHON_VERSION }
     if (-not $availablePythonVersions) {
         Write-Host "No matching Python versions found for '$PYTHON_VERSION'" -ForegroundColor Red
-        return
+        exit 1
     }
 
     $pythonArray = @()
@@ -222,7 +240,7 @@ function Install-FrameworkApps {
 
     Write-Host "Installing Apps..." -ForegroundColor Blue
     Push-Location $appsDir
-    & "./install.ps1" $appsDir "1"
+#    & "./install.ps1" $appsDir "1"
     Pop-Location
 }
 
@@ -232,7 +250,7 @@ function Write-EnvValues {
 
     if (-not (Test-Path $sharedEnv)) {
         Write-Host "Error: $sharedEnv does not exist." -ForegroundColor Red
-        return 1
+        exit 1
     }
 
     # Append the shared env file content to agilab env file
@@ -245,6 +263,7 @@ function Write-EnvValues {
 # Main Flow
 # ================================
 Check-Internet
+Check-VisualStudio
 Install-Dependencies
 Choose-PytonVersion
 Backup-AGIProject
