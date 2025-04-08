@@ -32,15 +32,20 @@ if ([Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdenti
 # Global Variables and Paths
 # ================================
 # AGI_INSTALL_PATH corresponds to $InstallPath.
-$AgiDir = $InstallPath
+$CurrentPath = (Get-Location).Path
+
+$LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
+New-Item -ItemType Directory -Force -Path $LocalDir | Out-Null
+$AgiPathFile = Join-Path $LocalDir ".agi-path"
+
 $PYTHON_VERSION = "3.12"
 
 # Define project directories (AGI_PROJECT_SRC is "$AgiDir\src")
-$AgiProject = Join-Path $AgiDir "src"
+$AgiProject = Join-Path $CurrentPath "src\agilab"
 $FrameworkDir = Join-Path $AgiProject "fwk"
 $AppsDir = Join-Path $AgiProject "apps"
 
-Write-Host "Installation Directory: $AgiDir" -ForegroundColor Cyan
+Write-Host "Installation Directory: $InstallPath" -ForegroundColor Cyan
 Write-Host "Selected user: $AgiCredentials" -ForegroundColor Yellow
 Write-Host "OpenAI API Key: $OpenaiApiKey" -ForegroundColor Yellow
 
@@ -148,31 +153,26 @@ function Choose-PytonVersion {
     $env:PYTHON_VERSION = ($chosenPython -split '-')[1]
 }
 
+
 function Backup-AGIProject {
-    $EXISTING_PROJECT = (Get-Location).Path
-    $EXISTING_PROJECT_SRC="$EXISTING_PROJECT/src"
-    [System.Environment]::SetEnvironmentVariable('AGI_ROOT', $EXISTING_PROJECT_SRC, [System.EnvironmentVariableTarget]::User)
-    $pathDir = Join-Path $env:LOCALAPPDATA "agilab"
-    New-Item -ItemType Directory -Force -Path $pathDir | Out-Null
-    $pathFile = Join-Path $pathDir ".agi-path"
-
-    "$EXISTING_PROJECT_SRC/" | Set-Content -Encoding UTF8 -Path $pathFile
-    Write-Host "Installation root path has been exported as AG_IROOT" -ForegroundColor Green
-    Write-Host ""
-
     Write-Host "Backing Up Existing AGI Project (if any)" -ForegroundColor Blue
     Write-Host ""
-    if (Test-Path $AgiProject) {
-        if (Test-Path (Join-Path $AgiProject "zip-agi.py")) {
+    if ($InstallPath -eq $CurrentPath)
+    {
+        Write-Host "AGI project directory is 'src'; Skipping Backup." -ForegroundColor Yellow
+        return
+    }
+    if (Test-Path $CurrentPath) {
+        if (Test-Path (Join-Path $CurrentPath "zip-agi.py")) {
             $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-            $backupFile = Join-Path $AgiDir ("agilib_{0}_{1}.zip" -f (Split-Path $AgiProject -Leaf), $timestamp)
+            $backupFile = Join-Path $LocalDir ("{0}_{1}.zip" -f (Split-Path $AgiProject -Leaf), $timestamp)
             Write-Host "Existing AGI project found at $AgiProject. Creating backup: $backupFile" -ForegroundColor Yellow
 
             try {
                 # Use Compress-Archive as a backup mechanism
                 Compress-Archive -Path $AgiProject\* -DestinationPath $backupFile -Force
                 Write-Host "Backup created successfully at $backupFile." -ForegroundColor Green
-                if ((Split-Path $AgiProject -Leaf) -ne "src") {
+                if ((Split-Path $AgiProject -Leaf) -ne "agilab") {
                     Remove-Item -Recurse -Force $AgiProject
                     Write-Host "Existing AGI project directory removed." -ForegroundColor Green
                 }
@@ -182,6 +182,7 @@ function Backup-AGIProject {
             }
             catch {
                 Write-Host "Error: Backup failed. Aborting installation." -ForegroundColor Red
+                Write-Host "Details: $($_.Exception.Message)" -ForegroundColor Red
                 Stop-Transcript
                 exit 1
             }
@@ -197,12 +198,11 @@ function Backup-AGIProject {
 }
 
 function Copy-ProjectFiles {
-    $currentDir = (Get-Location).Path
-    if ($InstallPath -ne $currentDir) {
-        if (Test-Path "$currentDir/src") {
+    if ($InstallPath -ne $CurrentPath) {
+        if (Test-Path "$CurrentPath/src") {
             Write-Host "Copying project files to install directory..." -ForegroundColor Blue
             New-Item -ItemType Directory -Force -Path $InstallPath | Out-Null
-            robocopy $currentDir $InstallPath /E /MIR /NFL /NDL /NJH /NJS | Out-Null
+            robocopy $CurrentPath $InstallPath /E /MIR /NFL /NDL /NJH /NJS | Out-Null
         } else {
             Write-Host "Source directory 'src' not found. Exiting." -ForegroundColor Red
             exit 1
@@ -210,11 +210,14 @@ function Copy-ProjectFiles {
     } else {
         Write-Host "Using current directory as install directory; no copy needed." -ForegroundColor Yellow
     }
+    "$InstallPath/src" | Set-Content -Encoding UTF8 -Path $AgiPathFile
+    [System.Environment]::SetEnvironmentVariable('AGI_ROOT', "$InstallPath/src", [System.EnvironmentVariableTarget]::User)
+    Write-Host "Installation root path has been exported as AGI_ROOT and written in $LocalDir" -ForegroundColor Green
+
 }
 
 function Update-Environment {
-    $envDir = Join-Path $env:LOCALAPPDATA "agilab"
-    $envFile = Join-Path $envDir ".env"
+    $envFile = Join-Path $LocalDir ".env"
 
     if (Test-Path $envFile) {
         Remove-Item $envFile
@@ -230,8 +233,8 @@ AGI_PYTHON_VERSION="$env:PYTHON_VERSION"
 }
 
 function Install-FrameworkApps {
-    $frameworkDir = Join-Path $InstallPath "src\fwk"
-    $appsDir = Join-Path $InstallPath "src\apps"
+    $frameworkDir = Join-Path $InstallPath "src\agilab\fwk"
+    $appsDir = Join-Path $InstallPath "src\agilab\apps"
 
     Write-Host "Installing Framework..." -ForegroundColor Blue
     Push-Location $frameworkDir
@@ -239,8 +242,9 @@ function Install-FrameworkApps {
     Pop-Location
 
     Write-Host "Installing Apps..." -ForegroundColor Blue
+    Write-Host "$appsDir" -ForegroundColor Yellow
     Push-Location $appsDir
-#    & "./install.ps1" $appsDir "1"
+    & "./install.ps1" $appsDir "1"
     Pop-Location
 }
 
