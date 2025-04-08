@@ -810,8 +810,10 @@ class AGI:
         core_root = env.core_root
         cmd = f"uv run --project {core_root} python setup bdist_egg -d \"{wenv_abs}\""
         if AGI._verbose > 2:
-            print(cmd, "\ncwd", os.getcwd(), "\nvenv", wenv_abs, "\ncwd", core_root)
-        res = AgiEnv.run(cmd, cwd=core_root, venv=wenv_abs)
+            # print(cmd, "\ncwd", os.getcwd(), "\nvenv", wenv_abs, "\ncwd", core_root)
+            print(cmd, "\ncwd", os.getcwd(), "\nvenv", wenv_abs, "\ncwd", wenv_abs)
+        # res = AgiEnv.run(cmd, cwd=core_root, venv=wenv_abs)
+        res = AgiEnv.run(cmd, cwd=wenv_abs, venv=wenv_abs)
         tasks = []
         for ip in node_ips:
             AGI._log_verbose(f"********   Starting {AGI._run_type} for Agi_worker in .venv on {ip}", level=1)
