@@ -8,12 +8,12 @@
       <env name="PYTHONUNBUFFERED" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
-    <option name="WORKING_DIRECTORY" value="$ProjectFileDir$/apps/my-code-project" />
+    <option name="WORKING_DIRECTORY" value="$ProjectFileDir$/apps/my_code_project" />
     <option name="IS_MODULE_SDK" value="true" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="$ProjectFileDir$/apps/my-code-project/test/test_my_code_worker.py" />
+    <option name="SCRIPT_NAME" value="$ProjectFileDir$/apps/my_code_project/test/test_my_code_worker.py" />
     <option name="PARAMETERS" value="" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />

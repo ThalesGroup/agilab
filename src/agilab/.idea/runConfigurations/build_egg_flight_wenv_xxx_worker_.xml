@@ -14,7 +14,7 @@
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/apps/flight-project/setup" />
+    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/apps/flight_project/setup" />
     <option name="PARAMETERS" value="bdist_egg --packages &quot;agi_worker, data_worker&quot; -d $FilePrompt$" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
