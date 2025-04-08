@@ -33,6 +33,8 @@ import time
 
 if os.name == "nt":
     import winreg
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 import re
 import shutil
 import sys
