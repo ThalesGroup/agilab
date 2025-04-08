@@ -36,6 +36,7 @@ usage() {
 
 PYTHON_VERSION="3.12"
 AGI_INSTALL_PATH="$(realpath '.')"
+CURRENT_PATH="$(realpath '.')"
 cluster_credentials=""
 openai_api_key=""
 
@@ -160,16 +161,10 @@ choose_python_version() {
 }
 
 backup_existing_project() {
-    # Determine the absolute path of the source directory
-    EXISTING_PROJECT=$(realpath "$(pwd)")
-    EXISTING_PROJECT_SRC="$EXISTING_PROJECT/src/agilab"
-
-    mkdir -p "$HOME/.local/share/agilab"
-    echo "$EXISTING_PROJECT_SRC" > "$HOME/.local/share/agilab/.agi-path"
     echo 'uv run --project "$AGI_INSTALL_PATH/fwk/core/managers" python "$AGI_INSTALL_PATH/zip-agi.py" --dir2zip "$AGI_INSTALL_PATH" --zipfile "$backup_file"';
-
     # Backup existing project if a valid project directory exists
-    if [[ -d "$AGI_INSTALL_PATH" && -f "$EXISTING_PROJECT/zip-agi.py" && "$AGI_INSTALL_PATH" != "$EXISTING_PROJECT" ]]; then
+
+    if [[ -d "$AGI_INSTALL_PATH" && -f "$AGI_INSTALL_PATH/zip-agi.py" && "$AGI_INSTALL_PATH" != "$CURRENT_PATH" ]]; then
         echo -e "${YELLOW}Existing project found at $AGI_INSTALL_PATH with zip-agi.py present.${NC}"
         backup_file="${AGI_INSTALL_PATH}_backup_$(date +%Y%m%d-%H%M%S).zip"
         echo -e "${YELLOW}Creating backup: $backup_file${NC}"
@@ -195,18 +190,22 @@ backup_existing_project() {
 }
 
 copy_project_files() {
-    if [[ "$AGI_INSTALL_PATH" != "$(pwd)" ]]; then
-        if [[ -d "$(pwd)/agi" ]]; then
+    if [[ "$AGI_INSTALL_PATH" != "$CURRENT_PATH" ]]; then
+        if [[ -d "$CURRENT_PATH/src" ]]; then
             echo -e "${BLUE}Copying project files to install directory...${NC}"
             mkdir -p "$AGI_INSTALL_PATH"
-            rsync -a "$(pwd)/" "$AGI_INSTALL_PATH/"
+            rsync -a "$CURRENT_PATH/" "$AGI_INSTALL_PATH/"
         else
-            echo -e "${RED}Source directory 'agi' not found. Exiting.${NC}"
+            echo -e "${RED}Source directory 'src' not found. Exiting.${NC}"
             exit 1
         fi
     else
         echo "Using current directory as install directory; no copy needed."
     fi
+    # Determine the absolute path of the source directory
+    mkdir -p "$HOME/.local/share/agilab"
+    echo "$AGI_INSTALL_PATH/src" > "$HOME/.local/share/agilab/.agi-path"
+
 }
 
 update_environment() {

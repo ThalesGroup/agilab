@@ -203,8 +203,6 @@ function Copy-ProjectFiles {
             Write-Host "Copying project files to install directory..." -ForegroundColor Blue
             New-Item -ItemType Directory -Force -Path $InstallPath | Out-Null
             robocopy $CurrentPath $InstallPath /E /MIR /NFL /NDL /NJH /NJS | Out-Null
-            "$InstallPath/" | Set-Content -Encoding UTF8 -Path $AgiPathFile
-            Write-Host "Installation root path has been exported as AGI_ROOT and written in $LocalDir" -ForegroundColor Green
         } else {
             Write-Host "Source directory 'src' not found. Exiting." -ForegroundColor Red
             exit 1
@@ -212,6 +210,9 @@ function Copy-ProjectFiles {
     } else {
         Write-Host "Using current directory as install directory; no copy needed." -ForegroundColor Yellow
     }
+    "$InstallPath/src" | Set-Content -Encoding UTF8 -Path $AgiPathFile
+    Write-Host "Installation root path has been exported as AGI_ROOT and written in $LocalDir" -ForegroundColor Green
+
 }
 
 function Update-Environment {
