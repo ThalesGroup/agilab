@@ -80,6 +80,7 @@ class AgiEnv:
         envars = self.envars
         if install_type:
             install_type = int(install_type)
+            self.set_env_var("install_type", install_type)
         else:
             install_type = int(envars.get("INSTALL_TYPE", 0))
         if install_type !=0 :
@@ -470,7 +471,7 @@ class AgiEnv:
         and persists the change in the .agilab/.env file.
         """
         self.envars[key] = value
-        os.environ[key] = value
+        os.environ[key] = str(value)
         self._update_env_file({key: value})
 
     def set_cluster_credentials(self, credentials: str):
