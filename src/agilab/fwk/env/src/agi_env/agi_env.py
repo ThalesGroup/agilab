@@ -140,7 +140,7 @@ class AgiEnv:
             exit(1)
 
         if not active_app:
-            active_app = envars.get("APP_DEFAULT", 'my_code_project')
+            active_app = envars.get("APP_DEFAULT", 'flight_project')
 
         # check validity of active_app and set module
         if active_app:
