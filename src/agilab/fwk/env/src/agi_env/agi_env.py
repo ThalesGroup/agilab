@@ -29,6 +29,8 @@ import os
 import subprocess
 import threading
 import queue
+import traceback
+
 import time
 
 if os.name == "nt":
@@ -1401,6 +1403,7 @@ class AgiEnv:
                 process.wait(timeout=timeout)
                 return process.stdout.read() if process.stdout else ""
             except Exception as e:
+                print(traceback.format_exc())
                 raise RuntimeError(f"Command execution error: {e}") from e
         else:
             return ""
