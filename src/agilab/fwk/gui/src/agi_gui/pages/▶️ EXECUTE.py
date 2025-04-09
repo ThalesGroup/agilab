@@ -571,8 +571,7 @@ async def main():
     env = AgiEnv(install_type={env.install_type})
     res = await AGI.install('{module}', env, modes_enabled={st.session_state.mode},
                             verbose={cluster_params.get('verbose', 2)}, 
-                            scheduler={scheduler}, workers={workers},
-                            {st.session_state.args_serialized})
+                            scheduler={scheduler}, workers={workers})
     print(res)
     return res
 
