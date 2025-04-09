@@ -53,13 +53,13 @@ default-groups = ["dev"]
 workspace = true
 
 [tool.uv.sources.agi-env]
-path = "src/agilab/agi/fwk/env"
+path = "src/agilab/fwk/env"
 
 [tool.uv.sources.agi-core]
-path = "src/agilab/agi/fwk/core"
+path = "src/agilab/fwk/core"
 
 [tool.uv.sources.agi-gui]
-path = "src/agilab/agi/fwk/gui"
+path = "src/agilab/fwk/gui"
 
 [tool.uv.workspace]
 members = ["apps", "views"]
