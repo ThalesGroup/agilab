@@ -210,8 +210,8 @@ function Copy-ProjectFiles {
     } else {
         Write-Host "Using current directory as install directory; no copy needed." -ForegroundColor Yellow
     }
-    "$InstallPath/src" | Set-Content -Encoding UTF8 -Path $AgiPathFile
-    [System.Environment]::SetEnvironmentVariable('AGI_ROOT', "$InstallPath/src", [System.EnvironmentVariableTarget]::User)
+    "$InstallPath/src/agilab" | Set-Content -Encoding UTF8 -Path $AgiPathFile
+    [System.Environment]::SetEnvironmentVariable('AGI_ROOT', "$InstallPath/src/agilab", [System.EnvironmentVariableTarget]::User)
     Write-Host "Installation root path has been exported as AGI_ROOT and written in $LocalDir" -ForegroundColor Green
 
 }
