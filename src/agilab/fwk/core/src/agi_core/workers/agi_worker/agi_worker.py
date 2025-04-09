@@ -305,7 +305,7 @@ class AgiWorker(abc.ABC):
     @staticmethod
     def run(app, workers={"127.0.0.1": 1}, mode=0, verbose=3, args=None):
 
-        env = AgiEnv(active_app=app)
+        env = AgiEnv(active_app=app, verbose=verbose)
         module = env.module
 
         if mode & 2:
@@ -339,6 +339,7 @@ class AgiWorker(abc.ABC):
             )
 
         except Exception as err:
+            print(traceback.format_exc())
             print(f"error: {err}")
             exit(1)
 
