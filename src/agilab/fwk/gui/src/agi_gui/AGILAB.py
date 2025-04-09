@@ -156,8 +156,9 @@ def main():
     env = AgiEnv(apps_dir=Path(args.apps_dir), install_type=args.install_type, verbose=1)
     st.session_state['env'] = env
 
-    if "server_started" not in st.session_state:
+    if not st.session_state.get("server_started"):
         activate_mlflow(env)
+        st.session_state["server_started"] = True
 
     # Global resource path
 
