@@ -755,7 +755,7 @@ if __name__ == '__main__':
                 display_log(stdout, stderr)
                 run_log = stdout
 
-            if st.session_state.mode is None:
+            if not st.session_state.get('mode'):
                 st.text("Benchmark result:")
                 try:
                     benchmark_str = run_log.split("\n")[-2:-1][0]
