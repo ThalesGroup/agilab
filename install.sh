@@ -109,8 +109,9 @@ install_dependencies() {
             libffi-devel gdbm-devel nss-devel
     elif command -v brew >/dev/null 2>&1; then
         echo -e "${BLUE}Detected Homebrew (macOS).${NC}"
+        brew upgrade
         brew install wget curl unzip openssl readline sqlite libxml2 xz
-        brew upgrade && brew cleanup
+        brew cleanup
     else
         echo -e "${RED}No supported package manager found. Please install dependencies manually.${NC}"
         exit 1
