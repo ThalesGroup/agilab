@@ -719,7 +719,7 @@ if __name__ == '__main__':
         mode = None
         if not st.checkbox("Benchmark all modes", value=False,
                            help="This will run the snippet for each available mode and return a table with each run’s duration"):
-            mode = st.session_state.get(mode)
+            mode = st.session_state.get(mode, 0)
 
         with st.expander("Run snippet", expanded=True):
             cluster_params = st.session_state.app_settings["cluster"]
