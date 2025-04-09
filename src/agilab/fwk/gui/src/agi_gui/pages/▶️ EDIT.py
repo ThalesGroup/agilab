@@ -1248,8 +1248,9 @@ def page():
 
     render_logo("Edit your Project", env)
 
-    if "server_started" not in st.session_state:
+    if not st.session_state.get("server_started"):
         activate_mlflow(env)
+        st.session_state["server_started"] = True
 
     # Check if we need to switch the sidebar tab to "Select"
     if st.session_state.get("switch_to_select", False):
