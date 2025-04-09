@@ -152,6 +152,7 @@ choose_python_version() {
     if ! echo "$installed_pythons" | grep -q "$chosen_python"; then
         echo -e "${YELLOW}Installing $chosen_python...${NC}"
         uv python install "$chosen_python"
+
         echo -e "${GREEN}Python version ($chosen_python) is now installed.${NC}"
     else
         echo -e "${GREEN}Python version ($chosen_python) is already installed.${NC}"
@@ -248,25 +249,39 @@ write_env_values() {
     return 1
   fi
 
-#  # Read the shared .env file line by line
-#  while IFS='=' read -r key value || [[ -n "$key" ]]; do
-#    # Skip empty lines and comments
-#    [[ -z "$key" || "$key" =~ ^# ]] && continue
-#
-#    # Check if the key exists in the agilab_env file
-#    if grep -q "^$key=" "$agilab_env"; then
-#      # If the value is different, update it
-#      current_value=$(grep "^$key=" "$agilab_env" | cut -d '=' -f2-)
-#      if [[ "$current_value" != "$value" ]]; then
-#        sed -i "s|^$key=.*|$key=$value|" "$agilab_env"
-#      fi
-#    else
-#      # Append the new key-value pair
-#      echo "$key=$value" >> "$agilab_env"
-#    fi
-#  done < "$shared_env"
+  # Read the shared .env file line by line
+  #!/bin/bash
 
-  cat "$shared_env" >> "$agilab_env"
+  # Detect platform and define sed command accordingly
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS
+    sed_cmd() {
+      sed -i '' "s|^$1=.*|$1=$2|" "$agilab_env"
+    }
+  else
+    # Linux and others
+    sed_cmd() {
+      sed -i "s|^$1=.*|$1=$2|" "$agilab_env"
+    }
+  fi
+
+  while IFS='=' read -r key value || [[ -n "$key" ]]; do
+    # Skip empty lines and comments
+    [[ -z "$key" || "$key" =~ ^# ]] && continue
+
+    # Check if the key exists in the agilab_env file
+    if grep -q "^$key=" "$agilab_env"; then
+      # If the value is different, update it
+      current_value=$(grep "^$key=" "$agilab_env" | cut -d '=' -f2-)
+      if [[ "$current_value" != "$value" ]]; then
+        sed_cmd "$key" "$value"
+      fi
+    else
+      # Append the new key-value pair
+      echo "$key=$value" >> "$agilab_env"
+    fi
+  done < "$shared_env"
+
   echo -e "${GREEN}.env file updated.${NC}"
 }
 
