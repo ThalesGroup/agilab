@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import subprocess
+import traceback
 import warnings
 from datetime import datetime as dt
 from pathlib import Path
@@ -230,6 +231,7 @@ class FlightWorker(AgiDataWorker):
                         f"FlightWorker.work_done - Saved dataframe for plane {plane} with shape {plane_df.shape} in {filename}"
                     )
             except Exception as e:
+                print(traceback.format_exc())
                 print(f"Error saving dataframe for plane {plane}: {e}")
 
     def stop(self):
