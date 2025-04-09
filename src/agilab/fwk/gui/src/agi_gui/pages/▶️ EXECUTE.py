@@ -547,7 +547,11 @@ def page():
     # Sidebar toggles for each page section
     show_install = st.sidebar.checkbox("INSTALL", value=False)
     show_distribute = st.sidebar.checkbox("DISTRIBUTE", value=False)
-    show_run = st.sidebar.checkbox("RUN", value=False)
+    if st.session_state.get("args_serialized") or show_distribute:
+        show_run = st.sidebar.checkbox("RUN", value=False)
+    else:
+        show_run = False
+
     show_export = st.sidebar.checkbox("EXPORT DATA", value=False)
 
     # ------------------
@@ -715,7 +719,7 @@ if __name__ == '__main__':
         mode = None
         if not st.checkbox("Benchmark all modes", value=False,
                            help="This will run the snippet for each available mode and return a table with each run’s duration"):
-            mode = st.session_state.mode
+            mode = st.session_state.get(mode)
 
         with st.expander("Run snippet", expanded=True):
             cluster_params = st.session_state.app_settings["cluster"]
