@@ -495,8 +495,9 @@ def page():
     st.set_page_config(layout="wide", menu_items=get_about_content())
     render_logo("Execute your Application", env)
 
-    if "server_started" not in st.session_state:
+    if not st.session_state.get("server_started"):
         activate_mlflow(env)
+        st.session_state["server_started"] = True
 
     # Define defaults for session state keys.
     defaults = {
@@ -544,7 +545,7 @@ def page():
     init_custom_ui(env.args_ui_snippet)
 
     # Sidebar toggles for each page section
-    show_install = st.sidebar.checkbox("INSTALL", value=True)
+    show_install = st.sidebar.checkbox("INSTALL", value=False)
     show_distribute = st.sidebar.checkbox("DISTRIBUTE", value=False)
     show_run = st.sidebar.checkbox("RUN", value=False)
     show_export = st.sidebar.checkbox("EXPORT DATA", value=False)
