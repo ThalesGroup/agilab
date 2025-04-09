@@ -13,6 +13,8 @@
 
 import os
 import re
+import traceback
+
 from pydantic import BaseModel, validator, conint, confloat
 import shutil
 import warnings
@@ -187,39 +189,43 @@ class Flight(AgiManager):
         Returns:
 
         """
-        # create list of works weighted
-        planes_partition, planes_partition_size, df = self.get_partition_by_planes(
-            self.get_data_from_files()
-        )
+        try:
+            # create list of works weighted
+            planes_partition, planes_partition_size, df = self.get_partition_by_planes(
+                self.get_data_from_files()
+            )
 
-        # get the second level of the distribution tree by by dispatching these works per workers
-        # make chunk of planes by worker with a load balancing that takes into consideration workers capacities
-        workers_chunks = AGI.make_chunks(
-            len(planes_partition), planes_partition_size, self.verbose, threshold=12
-        )
-        if workers_chunks:
-            # build tree: workers = dask workers -> works = planes -> files <=> list of list of list
-            # files by plane are capped  to max number of files requested per workers
+            # get the second level of the distribution tree by by dispatching these works per workers
+            # make chunk of planes by worker with a load balancing that takes into consideration workers capacities
+            workers_chunks = AGI.make_chunks(
+                len(planes_partition), planes_partition_size, self.verbose, threshold=12
+            )
+            if workers_chunks:
+                # build tree: workers = dask workers -> works = planes -> files <=> list of list of list
+                # files by plane are capped  to max number of files requested per workers
 
-            workers_planes_dist = []
-            df = df.with_columns([pl.col("id_plane").cast(pl.Int64)])
+                workers_planes_dist = []
+                df = df.with_columns([pl.col("id_plane").cast(pl.Int64)])
 
-            for planes in workers_chunks:
-                workers_planes_dist.append(
-                    [
-                        df.filter(pl.col("id_plane") == plane_id)["files"]
-                        .head(self.nfile)
-                        .to_list()
-                        for plane_id, _ in planes
-                    ]
-                )
+                for planes in workers_chunks:
+                    workers_planes_dist.append(
+                        [
+                            df.filter(pl.col("id_plane") == plane_id)["files"]
+                            .head(self.nfile)
+                            .to_list()
+                            for plane_id, _ in planes
+                        ]
+                    )
 
-            workers_chunks = [
-                [(plane, round(size / 1000, 3)) for plane, size in chunk]
-                for chunk in workers_chunks
-            ]
+                workers_chunks = [
+                    [(plane, round(size / 1000, 3)) for plane, size in chunk]
+                    for chunk in workers_chunks
+                ]
 
-        # tree: workers -> planes -> files
+            # tree: workers -> planes -> files
+        except Exception as e:
+            print(traceback.format_exc())
+            print(f"warning issue while trying to build distribution: {e}")
         return workers_planes_dist, workers_chunks, "plane", "files", "ko"
 
     def get_data_from_hawk(self):
