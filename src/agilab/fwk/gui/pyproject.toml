@@ -67,7 +67,7 @@ dependencies = [
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
-Source = "https://github.com/ThalesGroup/agilab/tree/main/src/fwk/gui"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/fwk/gui"
 Tracker = "https://github.com/ThalesGroup/agilab/issue"
 
 [project.scripts]
