@@ -305,7 +305,6 @@ class AGI:
                 mode=run_mode,
                 **args,
             )
-            print("timing: ", run)
             if not run:
                 raise InterruptedError(f"mode {m} interrupted unexpectedly")
 
@@ -328,7 +327,6 @@ class AGI:
             }
 
         # Sort the runs by "seconds" (fastest to slowest) and assign order values.
-        print("runs:", runs)
         ordered_runs = sorted(runs.items(), key=lambda item: item[1]["seconds"])
         for idx, (mode_key, run_data) in enumerate(ordered_runs, start=1):
             run_data["order"] = idx
