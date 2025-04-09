@@ -204,7 +204,7 @@ copy_project_files() {
     fi
     # Determine the absolute path of the source directory
     mkdir -p "$HOME/.local/share/agilab"
-    echo "$AGI_INSTALL_PATH/src" > "$HOME/.local/share/agilab/.agi-path"
+    echo "$AGI_INSTALL_PATH/src/agilab" > "$HOME/.local/share/agilab/.agi-path"
 
 }
 
