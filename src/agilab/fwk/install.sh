@@ -15,21 +15,26 @@ GREEN='\033[1;32m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}Installing framework from $(pwd)...${NC}"
+echo -e "${BLUE}Python Version: $AGI_PYTHON_VERSION${NC}"
 echo -e "${BLUE}Installing env...${NC}"
 pushd env > /dev/null
 uv sync -p "$AGI_PYTHON_VERSION" --dev --directory "$(realpath "$1/env")"
-uv pip install -e .
+uv run python -m ensurepip
+uv run python -m pip install -e .
 popd > /dev/null
 
 echo -e "${BLUE}Installing core...${NC}"
 pushd core > /dev/null
+echo "uv sync -p $AGI_PYTHON_VERSION --extra managers --group rapids --dev --directory $(realpath '$1/core')"
 uv sync -p "$AGI_PYTHON_VERSION" --extra managers --group rapids --dev --directory "$(realpath "$1/core")"
-uv pip install -e .
+uv run python -m ensurepip
+uv run python -m pip install -e .
 popd > /dev/null
 
 echo -e "${BLUE}Installing gui...${NC}"
 pushd gui > /dev/null
 uv sync -p "$AGI_PYTHON_VERSION" --dev --directory "$(realpath "$1/gui")"
+uv run python -m ensurepip
 popd > /dev/null
 
 echo -e "${GREEN}Checking installation...${NC}"

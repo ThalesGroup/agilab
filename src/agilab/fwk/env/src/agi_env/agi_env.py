@@ -84,7 +84,6 @@ class AgiEnv:
         envars = self.envars
         if install_type:
             install_type = int(install_type)
-            self.set_env_var("install_type", install_type)
         else:
             install_type = int(envars.get("INSTALL_TYPE", 0))
 
@@ -127,6 +126,7 @@ class AgiEnv:
 
         # Initialize .agilab resources
         self._init_resources(resource_path)
+        self.set_env_var("install_type", install_type)
 
         # if apps_dir is not provided or can't be guess from modul_path then take from envars
         if not apps_dir:

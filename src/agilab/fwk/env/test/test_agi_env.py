@@ -3,7 +3,7 @@ import pytest
 import tempfile
 from agi_env import AgiEnv
 
-agipath = AgiEnv.locate_agi_installation() / "agilab"
+agipath = AgiEnv.locate_agi_installation()
 
 # Fixture to create the environment once for all test.
 @pytest.fixture
