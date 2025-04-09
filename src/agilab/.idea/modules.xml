@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/agilab.iml" filepath="$PROJECT_DIR$/.idea/agilab.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/agi-oss.iml" filepath="$PROJECT_DIR$/.idea/agi-oss.iml" />
       <module fileurl="file://$PROJECT_DIR$/fwk/core/.idea/core.iml" filepath="$PROJECT_DIR$/fwk/core/.idea/core.iml" />
       <module fileurl="file://$PROJECT_DIR$/fwk/env/.idea/env.iml" filepath="$PROJECT_DIR$/fwk/env/.idea/env.iml" />
       <module fileurl="file://$PROJECT_DIR$/apps/flight_project/.idea/flight-project.iml" filepath="$PROJECT_DIR$/apps/flight_project/.idea/flight-project.iml" />

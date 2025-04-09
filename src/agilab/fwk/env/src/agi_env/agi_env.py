@@ -87,7 +87,7 @@ class AgiEnv:
             install_type = int(envars.get("INSTALL_TYPE", 0))
 
         if install_type !=0 :
-            self.agi_root = AgiEnv.locate_agi_installation() / "agilab"
+            self.agi_root = AgiEnv.locate_agi_installation()
             self.agi_fwk_env_path = self.agi_root / "fwk/env"
         else:
             head, sep, _ = __file__.partition("site-packages")
@@ -1175,7 +1175,9 @@ class AgiEnv:
         src_env_path = resources_path / ".env"
         dest_env_file = self.resource_path / ".env"
         if not src_env_path.exists():
-            raise RuntimeError(f"Installation issue: {src_env_path} is missing!")
+            msg = f"Installation issue: {src_env_path} is missing!"
+            print(msg)
+            raise RuntimeError(msg)
         if not dest_env_file.exists():
             os.makedirs(dest_env_file.parent, exist_ok=True)
             shutil.copy(src_env_path, dest_env_file)
