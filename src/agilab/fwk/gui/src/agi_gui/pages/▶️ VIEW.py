@@ -63,8 +63,9 @@ def main():
     # Use Streamlit's title or header for dynamic titles
     render_logo(page_title, env)
 
-    if "server_started" not in st.session_state:
+    if not st.session_state.get("server_started"):
         activate_mlflow(env)
+        st.session_state["server_started"] = True
 
     if st.session_state["current_page"] == "main":
         render_main_page()
