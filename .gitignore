@@ -38,3 +38,4 @@ src/*_worker_*/
 .idea/dataSources.local.xml
 .idea/sqlDataSources.xml
 .idea/dynamic.xml
+.idea/jupyter-settings.xml
