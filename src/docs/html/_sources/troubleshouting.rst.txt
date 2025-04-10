@@ -5,36 +5,36 @@ Troubleshooting
 A - Prerequisite:
 -----------------
 
-Run agilab.sh to install and then try to run your xxx_project.
+Run agilab.sh to install and then try to run your xxx-project.
 Each Agilab API call should be set with verbose mode >= 3. In particular, when debugging with a Dask worker,
-it will create a file (~/xxx_project_trace.txt) that shows what happened in your AGI.build("xxx_project", ...) run.
+it will create a file (~/xxx-project_trace.txt) that shows what happened in your AGI.build("xxx-project", ...) run.
 
 B- List of Available Scripts:
 ------------------------------
 These scripts are provided to run regression tests with the PyCharm IDE,
 which best matches Agilab troubleshooting.
 
-├── agi_install_local@core<xxx>
-├── agi_run0core<log/AGI_installl_xxx.py>
-├── agi_run@flight<log/xxx.py>
-├── agi_run@my_code<log/xxx.py>
-├── agi_zip@core
-├── build_egg@flight<wenv/xxx_worker>
-├── build_egg@my_code<wenv/xxx_worker>
-├── build_lib@flight<wenv/xxx_worker>
-├── build_lib@my_code<wenv/xxx_worker>
-├── cython_pre_processing@core<xxx_worker.py>
-├── debug_python@core<script>
-├── lab_run@gui
-├── run_all_test
-├── test_agi_env@env
-├── test_agi_manager@core
-├── test_agi_runner@core
-├── test_agi_worker@core
-├── test_dag_worker@core
-├── test_data_worker@core
-├── test_flight_worker
-└── test_my_code_worker
+- **agi_install_local@core<xxx>**
+- **agi_run0core<log/AGI_installl_xxx.py>**
+- **agi_run@flight<log/xxx.py>**
+- **agi_run@my_code<log/xxx.py>**
+- **agi_zip@core**
+- **build_egg@flight<wenv/xxx_worker>**
+- **build_egg@my_code<wenv/xxx_worker>**
+- **build_lib@flight<wenv/xxx_worker>**
+- **build_lib@my_code<wenv/xxx_worker>**
+- **cython_pre_processing@core<xxx_worker.py>**
+- **debug_python@core<script>**
+- **lab_run@gui**
+- **run_all_test**
+- **test_agi_env@env**
+- **test_agi_manager@core**
+- **test_agi_runner@core**
+- **test_agi_worker@core**
+- **test_dag_worker@core**
+- **test_data_worker@core**
+- **test_flight_worker**
+- **test_my_code_worker**
 
 C - Exemple of Tests Sequence:
 ----------------------
