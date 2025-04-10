@@ -6,7 +6,7 @@ import os
 
 def main():
     repo_root = Path(__file__).parent.absolute()
-    badges_root = repo_root.parent.parent.parent / 'badges'
+    badges_root = repo_root.parent.parent.parent / 'docs'
     os.makedirs(badges_root, exist_ok=True)
 
     # Find all test files (excluding those in .venv)
