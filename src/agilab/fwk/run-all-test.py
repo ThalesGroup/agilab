@@ -2,9 +2,13 @@
 import sys
 import subprocess
 from pathlib import Path
+import os
 
 def main():
     repo_root = Path(__file__).parent.absolute()
+    badges_root = repo_root.parent.parent.parent / 'badges'
+    os.makedirs(badges_root, exist_ok=True)
+
     # Find all test files (excluding those in .venv)
     test_files = sorted(
         p for p in repo_root.rglob("test*.py")
@@ -22,7 +26,7 @@ def main():
               "--cov-report=xml",  # retain XML report if needed
               "--import-mode=importlib",
               "--local-badge-output-dir",
-              str(repo_root / "badges"),
+              str(badges_root),
           ] + [str(f) for f in test_files]
 
     print("Running pytest with command:")
