@@ -539,6 +539,21 @@ class AgiEnv:
         except:
             return False
 
+    def create_junction_windows(source: Path, dest: Path):
+        """
+        Create a directory junction on Windows.
+
+        Args:
+            source (Path): The target directory path.
+            dest (Path): The destination junction path.
+        """
+        try:
+            # Using the mklink command to create a junction (/J) which doesn't require admin rights.
+            subprocess.check_call(['cmd', '/c', 'mklink', '/J', str(dest), str(source)])
+            print(f"Created junction: {dest} -> {source}")
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to create junction. Error: {e}")
+
     def create_symlink_windows(source: Path, dest: Path):
         """
         Create a symbolic link on Windows, handling permissions and types.
