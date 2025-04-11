@@ -57,6 +57,7 @@ def init_session_state(defaults: dict):
 # Helper function for displaying logs
 #####################################
 def display_log(stdout, stderr):
+def display_log(stdout, stderr):
     """
     Clean and display log messages.
     If either stdout or stderr contains "warning:" (case-insensitive),
@@ -545,7 +546,7 @@ def page():
     init_custom_ui(env.args_ui_snippet)
 
     # Sidebar toggles for each page section
-    show_install = st.sidebar.checkbox("INSTALL", value=False)
+    show_install = st.sidebar.checkbox("INSTALL", value=True)
     show_distribute = st.sidebar.checkbox("DISTRIBUTE", value=False)
     if st.session_state.get("args_serialized") or show_distribute:
         show_run = st.sidebar.checkbox("RUN", value=False)
