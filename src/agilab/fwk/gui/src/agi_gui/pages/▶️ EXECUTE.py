@@ -57,7 +57,6 @@ def init_session_state(defaults: dict):
 # Helper function for displaying logs
 #####################################
 def display_log(stdout, stderr):
-def display_log(stdout, stderr):
     """
     Clean and display log messages.
     If either stdout or stderr contains "warning:" (case-insensitive),
