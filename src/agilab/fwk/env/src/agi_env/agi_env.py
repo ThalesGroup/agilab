@@ -126,7 +126,7 @@ class AgiEnv:
 
         # Initialize .agilab resources
         self._init_resources(resource_path)
-        self.set_env_var("install_type", install_type)
+        self.set_env_var("INSTALL_TYPE", install_type)
 
         # if apps_dir is not provided or can't be guess from modul_path then take from envars
         if not apps_dir:
