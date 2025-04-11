@@ -366,7 +366,7 @@
 <li class="toctree-l1"><a class="reference internal" href="directory-structure.html">Project Files Structure</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Troubleshooting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#a-prerequisite">A - Prerequisite:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#b-list-of-available-scripts">B- List of Available Scripts:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#b-list-of-available-scripts">B - List of Available Scripts:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
 </ul>
 </li>
@@ -419,30 +419,32 @@ Each Agilab API call should be set with verbose mode &gt;= 3. In particular, whe
 it will create a file (~/xxx-project_trace.txt) that shows what happened in your AGI.build(“xxx-project”, …) run.</p>
 </section>
 <section id="b-list-of-available-scripts">
-<h2>B- List of Available Scripts:<a class="headerlink" href="#b-list-of-available-scripts" title="Link to this heading"></a></h2>
+<h2>B - List of Available Scripts:<a class="headerlink" href="#b-list-of-available-scripts" title="Link to this heading"></a></h2>
 <p>These scripts are provided to run regression tests with the PyCharm IDE,
 which best matches Agilab troubleshooting.</p>
-<p>├── agi_install_local&#64;core&lt;xxx&gt;
-├── agi_run0core&lt;log/AGI_installl_xxx.py&gt;
-├── agi_run&#64;flight&lt;log/xxx.py&gt;
-├── agi_run&#64;my_code&lt;log/xxx.py&gt;
-├── <a class="reference external" href="mailto:agi_zip&#37;&#52;&#48;core">agi_zip<span>&#64;</span>core</a>
-├── build_egg&#64;flight&lt;wenv/xxx_worker&gt;
-├── build_egg&#64;my_code&lt;wenv/xxx_worker&gt;
-├── build_lib&#64;flight&lt;wenv/xxx_worker&gt;
-├── build_lib&#64;my_code&lt;wenv/xxx_worker&gt;
-├── cython_pre_processing&#64;core&lt;xxx_worker.py&gt;
-├── debug_python&#64;core&lt;script&gt;
-├── <a class="reference external" href="mailto:lab_run&#37;&#52;&#48;gui">lab_run<span>&#64;</span>gui</a>
-├── run_all_test
-├── <a class="reference external" href="mailto:test_agi_env&#37;&#52;&#48;env">test_agi_env<span>&#64;</span>env</a>
-├── <a class="reference external" href="mailto:test_agi_manager&#37;&#52;&#48;core">test_agi_manager<span>&#64;</span>core</a>
-├── <a class="reference external" href="mailto:test_agi_runner&#37;&#52;&#48;core">test_agi_runner<span>&#64;</span>core</a>
-├── <a class="reference external" href="mailto:test_agi_worker&#37;&#52;&#48;core">test_agi_worker<span>&#64;</span>core</a>
-├── <a class="reference external" href="mailto:test_dag_worker&#37;&#52;&#48;core">test_dag_worker<span>&#64;</span>core</a>
-├── <a class="reference external" href="mailto:test_data_worker&#37;&#52;&#48;core">test_data_worker<span>&#64;</span>core</a>
-├── test_flight_worker
-└── test_my_code_worker</p>
+<ul class="simple">
+<li><p><strong>agi_install_local&#64;core&lt;xxx&gt;</strong></p></li>
+<li><p><strong>agi_run0core&lt;log/AGI_installl_xxx.py&gt;</strong></p></li>
+<li><p><strong>agi_run&#64;flight&lt;log/xxx.py&gt;</strong></p></li>
+<li><p><strong>agi_run&#64;my_code&lt;log/xxx.py&gt;</strong></p></li>
+<li><p><strong>agi_zip&#64;core</strong></p></li>
+<li><p><strong>build_egg&#64;flight&lt;wenv/xxx_worker&gt;</strong></p></li>
+<li><p><strong>build_egg&#64;my_code&lt;wenv/xxx_worker&gt;</strong></p></li>
+<li><p><strong>build_lib&#64;flight&lt;wenv/xxx_worker&gt;</strong></p></li>
+<li><p><strong>build_lib&#64;my_code&lt;wenv/xxx_worker&gt;</strong></p></li>
+<li><p><strong>cython_pre_processing&#64;core&lt;xxx_worker.py&gt;</strong></p></li>
+<li><p><strong>debug_python&#64;core&lt;script&gt;</strong></p></li>
+<li><p><strong>lab_run&#64;gui</strong></p></li>
+<li><p><strong>run_all_test</strong></p></li>
+<li><p><strong>test_agi_env&#64;env</strong></p></li>
+<li><p><strong>test_agi_manager&#64;core</strong></p></li>
+<li><p><strong>test_agi_runner&#64;core</strong></p></li>
+<li><p><strong>test_agi_worker&#64;core</strong></p></li>
+<li><p><strong>test_dag_worker&#64;core</strong></p></li>
+<li><p><strong>test_data_worker&#64;core</strong></p></li>
+<li><p><strong>test_flight_worker</strong></p></li>
+<li><p><strong>test_my_code_worker</strong></p></li>
+</ul>
 </section>
 <section id="c-exemple-of-tests-sequence">
 <h2>C - Exemple of Tests Sequence:<a class="headerlink" href="#c-exemple-of-tests-sequence" title="Link to this heading"></a></h2>

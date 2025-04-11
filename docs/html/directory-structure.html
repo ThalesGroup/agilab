@@ -366,7 +366,7 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Project Files Structure</a></li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshouting.html">Troubleshooting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#a-prerequisite">A - Prerequisite:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#b-list-of-available-scripts">B- List of Available Scripts:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#b-list-of-available-scripts">B - List of Available Scripts:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
 </ul>
 </li>
@@ -415,7 +415,7 @@
 <p>This is the Agilab project files tree:</p>
 <div class="code text highlight-default notranslate"><div class="highlight"><pre><span></span>.
 ├── apps
-│   ├── agent-app-template
+│   ├── agent_app_template
 │   │   ├── MANIFEST.in
 │   │   ├── MANIFEST.in.in
 │   │   ├── pyproject.toml
@@ -426,7 +426,7 @@
 │   │       ├── app_settings.toml
 │   │       ├── args_ui_snippet.py
 │   │       └── pre_prompt.json
-│   ├── dag-app-template
+│   ├── dag_app_template
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
 │   │   ├── README.md
@@ -436,7 +436,7 @@
 │   │       ├── dag_app
 │   │       ├── dag_app_worker
 │   │       └── pre_prompt.json
-│   ├── data-app-template
+│   ├── data_app_template
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
 │   │   ├── README.md
@@ -446,11 +446,30 @@
 │   │       ├── data_app
 │   │       ├── data_app_worker
 │   │       └── pre_prompt.json
-│   ├── flight-project
+│   ├── flight-legacy-project
+│   │   ├── dask_pid
+│   │   ├── pre_prompt.json
+│   │   ├── pyproject.toml
+│   │   ├── README.md
+│   │   ├── scripts
+│   │   │   └── post_install.py
+│   │   ├── setup
+│   │   ├── src
+│   │   │   ├── app_settings.toml
+│   │   │   ├── args_ui_snippet.py
+│   │   │   ├── flight_legacy
+│   │   │   ├── flight_legacy_worker
+│   │   │   ├── lab_steps.ipynb
+│   │   │   ├── lab_steps.toml
+│   │   │   └── pre_prompt.json
+│   │   └── test
+│   │       └── test_df.ipynb
+│   ├── flight_project
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── run_test.sh
+│   │   ├── setup
 │   │   ├── src
 │   │   │   ├── agi_core
 │   │   │   ├── app_settings.toml
@@ -468,10 +487,24 @@
 │   │   │   ├── test_flight.py
 │   │   │   └── test_flight_worker.py
 │   │   └── uv.lock
+│   ├── flight-sim-project
+│   │   ├── data.7z
+│   │   ├── distribution_tree.json
+│   │   ├── pyproject.toml
+│   │   ├── README.md
+│   │   ├── scripts
+│   │   │   └── post_install.py
+│   │   ├── setup
+│   │   └── src
+│   │       ├── app_settings.toml
+│   │       ├── args_ui_snippet.py
+│   │       ├── flight_sim
+│   │       ├── flight_sim_worker
+│   │       └── pre_prompt.json
 │   ├── install.ps1
 │   ├── install.py
 │   ├── install.sh
-│   ├── my-code-project
+│   ├── my_code_project
 │   │   ├── install.py
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
@@ -489,11 +522,33 @@
 │   │   │   ├── test_my_code_manager.py
 │   │   │   └── test_my_code_worker.py
 │   │   └── uv.lock
-│   └── README.md
+│   ├── pcm-predictor-project
+│   │   ├── pyproject.toml
+│   │   ├── README.md
+│   │   ├── scripts
+│   │   │   ├── post_install.py
+│   │   │   └── unzip_data.py
+│   │   ├── setup
+│   │   └── src
+│   │       ├── app_settings.toml
+│   │       ├── args_ui_snippet.py
+│   │       ├── pcm_predictor
+│   │       └── pcm_predictor_worker
+│   ├── README.md
+│   └── satcom-sim-project
+│       ├── data.7z
+│       ├── pyproject.toml
+│       ├── README.md
+│       ├── scripts
+│       │   ├── post_install.py
+│       │   └── unzip_data.py
+│       ├── setup
+│       └── src
+│           ├── app_settings.toml
+│           ├── args_ui_snippet.py
+│           ├── satcom_sim
+│           └── satcom_sim_worker
 ├── fwk
-│   ├── badges
-│   │   ├── coverage.svg
-│   │   └── tests.svg
 │   ├── core
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
@@ -524,7 +579,9 @@
 │   │   ├── src
 │   │   │   ├── agi_env
 │   │   │   ├── agi_env.egg-info
-│   │   │   └── __init__.py
+│   │   │   ├── __init__.py
+│   │   │   ├── main.py
+│   │   │   └── pyproject.toml
 │   │   ├── test
 │   │   │   ├── clean_csv.py
 │   │   │   ├── __init__.py
@@ -536,7 +593,8 @@
 │   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── src
-│   │   │   └── agi_gui
+│   │   │   ├── agi_gui
+│   │   │   └── agi_gui.egg-info
 │   │   ├── test
 │   │   │   ├── __init__.py
 │   │   │   └── test-streamlit.sh
@@ -544,18 +602,25 @@
 │   ├── install.ps1
 │   ├── install.sh
 │   └── run-all-test.py
-├── pyproject.toml
 └── views
+    ├── barycentric-graph
+    │   ├── __init__.py
+    │   └── src
+    │       ├── barycentric_graph
+    │       └── __init__.py
     ├── maps
     │   └── src
     │       └── maps
     ├── maps-3d
     │   └── src
     │       └── maps_3d
+    ├── maps-network-graph
+    │   └── src
+    │       └── maps_network_graph
     ├── pyproject.toml
     └── README.md
 
-51 directories, 90 files
+78 directories, 128 files
 </pre></div>
 </div>
 </section>

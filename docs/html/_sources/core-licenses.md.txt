@@ -56,5 +56,5 @@
 | tornado | APACHE SOFTWARE LICENSE |
 | typing-extensions | PSF-2.0 |
 | typing-inspection | MIT LICENSE |
-| urllib3 | MIT LICENSE |
+| urllib3 | MIT |
 | zict | BSD LICENSE |

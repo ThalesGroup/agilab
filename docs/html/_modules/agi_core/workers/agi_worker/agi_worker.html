@@ -363,7 +363,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../directory-structure.html">Project Files Structure</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../troubleshouting.html">Troubleshooting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../../troubleshouting.html#a-prerequisite">A - Prerequisite:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../troubleshouting.html#b-list-of-available-scripts">B- List of Available Scripts:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../troubleshouting.html#b-list-of-available-scripts">B - List of Available Scripts:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../troubleshouting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
 </ul>
 </li>
@@ -740,7 +740,7 @@
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span> <span class="n">mode</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 
-        <span class="n">env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">app</span><span class="p">)</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">app</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
         <span class="n">module</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">module</span>
 
         <span class="k">if</span> <span class="n">mode</span> <span class="o">&amp;</span> <span class="mi">2</span><span class="p">:</span>
@@ -774,6 +774,7 @@
             <span class="p">)</span>
 
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">())</span>
             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;error: </span><span class="si">{</span><span class="n">err</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
