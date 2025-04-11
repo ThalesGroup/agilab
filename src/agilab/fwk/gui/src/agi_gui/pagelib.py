@@ -192,11 +192,8 @@ def render_logo(edit_text, _env_=None):
     if _env_:
         env = _env_
     agilab_logo_path = env.resource_path / "agilab_logo.png"  # Replace with your logo filename
-    agi_logo_path = env.resource_path / "agilab_logo.png"
-    agi_logo_base64 = get_base64_of_image(agi_logo_path)
     agilab_logo_base64 = get_base64_of_image(agilab_logo_path)
-    if agi_logo_base64 and agilab_logo_base64:
-        agi_logo_src = f"data:image/png;base64,{agi_logo_base64}"
+    if agilab_logo_base64:
         st.markdown(
             f"""
             <style>
@@ -215,8 +212,8 @@ def render_logo(edit_text, _env_=None):
                 position: absolute;
                 top: 10px;       /* adjust vertical position as needed */
                 left: 18px;      /* adjust horizontal position as needed */
-                width: 90%;
-                height: 5%;
+                width: 70%;
+                height: 48px;
             }}
             /* Remove extra margin/padding from the h1 title */
             h1.page-title {{
