@@ -305,7 +305,7 @@
 | typing-inspection | MIT LICENSE |
 | tzdata | APACHE SOFTWARE LICENSE |
 | uri-template | MIT LICENSE |
-| urllib3 | MIT LICENSE |
+| urllib3 | MIT |
 | uvicorn | BSD LICENSE |
 | validators | MIT LICENSE |
 | visions | BSD LICENSE |
