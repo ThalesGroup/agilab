@@ -214,3 +214,9 @@ src/*_worker_*/
 /src/agilab/apps/flight-sim-project/.idea/vcs.xml
 /src/agilab/apps/satcom-sim-project/.idea/vcs.xml
 /src/agilab/apps/pcm-predictor-project/.idea/workspace.xml
+
+# managed PC install
+/thales/get-pip.py
+/thales/install-thales.ps1
+/thales/Python312.zip
+/thales/README.md
