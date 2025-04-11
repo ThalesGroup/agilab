@@ -86,17 +86,19 @@ class AgiEnv:
             install_type = int(install_type)
         else:
             install_type = int(envars.get("INSTALL_TYPE", 0))
+        self.set_env_var("INSTALL_TYPE", install_type)
 
-        if install_type !=0 :
+        if install_type:
             self.agi_root = AgiEnv.locate_agi_installation()
             self.agi_fwk_env_path = self.agi_root / "fwk/env"
+            if not self.agi_fwk_env_path.exists():
+                raise JumpToMain("Please check if you have correctly installed Agilab ")
         else:
             head, sep, _ = __file__.partition("site-packages")
             if not sep:
                 raise ValueError("site-packages not in", __file__)
             self.agi_root = Path(head + sep) / "agilab"
             self.agi_fwk_env_path = self.agi_root.parent
-
 
         # check validity of active_module if any and set the apps_dir
         if active_module:
@@ -117,16 +119,15 @@ class AgiEnv:
             self.module = None
 
 
-        if install_type == 0:
-            self.install_type = install_type
-            resource_path = self.agi_fwk_env_path / "agi_env" / self.agi_resources
-        else:
+        if install_type:
             self.install_type = install_type
             resource_path = self.agi_root / "fwk/env/src/agi_env" / self.agi_resources
+        else:
+            self.install_type = install_type
+            resource_path = self.agi_fwk_env_path / "agi_env" / self.agi_resources
 
         # Initialize .agilab resources
         self._init_resources(resource_path)
-        self.set_env_var("INSTALL_TYPE", install_type)
 
         # if apps_dir is not provided or can't be guess from modul_path then take from envars
         if not apps_dir:
@@ -457,10 +458,10 @@ class AgiEnv:
 
         self.gitignore_file = self.app_path / ".gitignore"
         dest = self.resource_path
-        if self.install_type == 0:
-            shutil.copytree(self.agi_root.parent / "agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
-        else:
+        if self.install_type:
             shutil.copytree(self.agi_root / "fwk/gui/src/agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
+        else:
+            shutil.copytree(self.agi_root.parent / "agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
 
     def _update_env_file(self, updates: dict):
         """
@@ -1121,10 +1122,10 @@ class AgiEnv:
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.12.9")
 
         os.makedirs(AgiEnv.apps_dir, exist_ok=True)
-        if self.install_type == 0:
-            self.core_src = self.agi_root
-        else:
+        if self.install_type:
             self.core_src = self.agi_root / "fwk/core/src"
+        else:
+            self.core_src = self.agi_root
         self.core_root = self.core_src.parent
 
         self.workers_root = self.core_src / "agi_core/workers"
@@ -1154,10 +1155,10 @@ class AgiEnv:
         if not self.is_valid_ip(self.scheduler_ip):
             raise ValueError(f"Invalid scheduler IP address: {self.scheduler_ip}")
 
-        if self.install_type == 0:
-            self.help_path = "https://thalesgroup.github.io/agilab"
-        else:
+        if self.install_type:
             self.help_path = str(self.agi_root / "../docs/html")
+        else:
+            self.help_path = "https://thalesgroup.github.io/agilab"
 
         self.AGILAB_SHARE_ABS = Path(
             envars.get("AGI_SHARE_DIR", self.home_abs / "data")
@@ -1195,9 +1196,9 @@ class AgiEnv:
 
         self.AGILAB_DATA_NROW = int(envars.get("AGI_GUI_NROW", 1000000))
         if self.install_type == 0:
-            self.copilot_file = self.agi_root / "agi_gui/agi_copilot.py"
-        else:
             self.copilot_file = self.agi_root / "fwk/gui/src/agi_gui/agi_copilot.py"
+        else:
+            self.copilot_file = self.agi_root / "agi_gui/agi_copilot.py"
 
     def _init_resources(self, resources_path):
         src_env_path = resources_path / ".env"
