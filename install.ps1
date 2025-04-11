@@ -1,13 +1,26 @@
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $false)]
+    [switch]$Offline,
+
+    [Parameter(Mandatory = $false)]
     [string]$OpenaiApiKey,
 
-    [Parameter(Mandatory = $true)]
-    [string]$AgiCredentials,
+    [Parameter(Mandatory = $false)]
+    [string]$AgiCredentials = "",
 
     [Parameter(Mandatory = $false)]
     [string]$InstallPath = (Get-Location).Path
 )
+
+if (-not $Offline) {
+    if (-not $OpenaiApiKey) {
+        throw "OpenaiApiKey is required when not in offline mode."
+    }
+    if (-not $AgiCredentials) {
+        throw "AgiCredentials is required when not in offline mode."
+    }
+}
+
 
 $LogDir = Join-Path $env:USERPROFILE "log\install_logs"
 if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir | Out-Null }
@@ -46,8 +59,11 @@ $FrameworkDir = Join-Path $AgiProject "fwk"
 $AppsDir = Join-Path $AgiProject "apps"
 
 Write-Host "Installation Directory: $InstallPath" -ForegroundColor Cyan
-Write-Host "Selected user: $AgiCredentials" -ForegroundColor Yellow
-Write-Host "OpenAI API Key: $OpenaiApiKey" -ForegroundColor Yellow
+if (-not $Offline)
+{
+    Write-Host "Selected user: $AgiCredentials" -ForegroundColor Yellow
+    Write-Host "OpenAI API Key: $OpenaiApiKey" -ForegroundColor Yellow
+}
 
 # ================================
 # Utility Functions
@@ -104,7 +120,7 @@ function Install-Dependencies {
     Write-Host ""
 }
 
-function Choose-PytonVersion {
+function Choose-PythonVersion {
     Write-Host "Choosing Python version..." -ForegroundColor Blue
 
     $availablePythonVersions = uv python list | Where-Object { $_ -match $PYTHON_VERSION }
@@ -249,8 +265,13 @@ function Install-FrameworkApps {
 }
 
 function Write-EnvValues {
-    $sharedEnv = Join-Path $env:LOCALAPPDATA "agilab\.env"
+    $sharedDir = $env:LOCALAPPDATA
+    $sharedEnv = Join-Path $sharedDir "agilab\.env"
+    $sharedPath = Join-Path $sharedDir "agilab\.agi-path"
     $agilabEnv = Join-Path $env:USERPROFILE ".agilab\.env"
+
+    $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $username = $currentUser.Split('\')[-1]
 
     if (-not (Test-Path $sharedEnv)) {
         Write-Host "Error: $sharedEnv does not exist." -ForegroundColor Red
@@ -258,6 +279,12 @@ function Write-EnvValues {
     }
 
     # Append the shared env file content to agilab env file
+    $path = Get-Content $sharedPath
+    if (-not ($path -like "C:\*") -and ($username -like "T0*"))
+    {
+        $userDir = [Environment]::GetFolderPath('UserProfile')
+        $agilabEnv = Join-Path $userDir "MyApp/.agilab/.env"
+    }
     Get-Content $sharedEnv | Out-File -Append -FilePath $agilabEnv -Encoding UTF8
 
     Write-Host ".env file updated." -ForegroundColor Green
@@ -266,10 +293,16 @@ function Write-EnvValues {
 # ================================
 # Main Flow
 # ================================
-Check-Internet
+if (-not $Offline)
+{
+    Check-Internet
+}
 Check-VisualStudio
-Install-Dependencies
-Choose-PytonVersion
+if (-not $Offline)
+{
+    Install-Dependencies
+}
+Choose-PythonVersion
 Backup-AGIProject
 Copy-ProjectFiles
 Update-Environment
