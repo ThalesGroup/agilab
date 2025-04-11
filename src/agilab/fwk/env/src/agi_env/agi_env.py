@@ -396,7 +396,11 @@ class AgiEnv:
 
     @staticmethod
     def locate_agi_installation():
-        where_is_agi = Path.home() / ".local/share/agilab/.agi-path"
+        if os.name == "nt":
+            where_is_agi = Path(os.getenv("LOCALAPPDATA")) / "agilab/.agi-path"
+        else:
+            where_is_agi = Path.home() / ".local/share/agilab/.agi-path"
+
         if where_is_agi.exists():
             try:
                 with where_is_agi.open("r") as f:
@@ -414,19 +418,7 @@ class AgiEnv:
             except Exception as e:
                 print(f"An error occurred: {e}")
         else:
-            try:
-                if os.name == "nt":
-                    import winreg
-
-                    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Environment")
-                    value, _ = winreg.QueryValueEx(key, "AGI_ROOT")
-                    winreg.CloseKey(key)
-                    return Path(value)
-            except FileNotFoundError:
-                print(
-                    "Warning AGI_ROOT is not defined in Windows user system environment variables"
-                )
-            return Path.home()
+            raise RuntimeError("agilab dir not found in local folder (.local on posix and %LOCALAPPDATA% on Windows).")
 
     def _check_module_path(self, module: Path):
         module = module.expanduser()
