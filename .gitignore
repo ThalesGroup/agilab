@@ -215,8 +215,19 @@ src/*_worker_*/
 /src/agilab/apps/satcom-sim-project/.idea/vcs.xml
 /src/agilab/apps/pcm-predictor-project/.idea/workspace.xml
 
-# managed PC install
+# managed PC install under windows
 /thales/get-pip.py
 /thales/install-thales.ps1
 /thales/Python312.zip
 /thales/README.md
+
+# gen heasers, docs and stubs
+/.idea/runConfigurations/gen_docs.xml
+/.idea/runConfigurations/gen_docstrings.xml
+/.idea/runConfigurations/gen_licence.xml
+/.idea/runConfigurations/install_ps1.xml
+/.idea/runConfigurations/install_sh.xml
+/.idea/runConfigurations/replace_header.xml
+/gen_stubs/gen_stubs.py
+/gen_stubs/pyproject.toml
+/gen_stubs/README.md
