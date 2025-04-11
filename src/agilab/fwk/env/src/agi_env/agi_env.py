@@ -403,7 +403,7 @@ class AgiEnv:
 
         if where_is_agi.exists():
             try:
-                with where_is_agi.open("r") as f:
+                with where_is_agi.open("r", encoding="utf-8-sig") as f:
                     install_path = f.read().strip()
                     if install_path:
                         return Path(install_path)
