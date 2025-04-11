@@ -157,9 +157,11 @@ class AgiEnv:
                 app_path = apps_dir / active_app
                 if app_path.exists():
                     self.app = active_app
+                src_apps = self.agi_root / "apps"
+                if not apps_dir.exists():
+                    shutil.copytree(src_apps, apps_dir)
                 else:
-                    if not apps_dir.exists():
-                        shutil.copytree(self.agi_root / "apps" , apps_dir)
+                    self.copy_missing(src_apps, apps_dir)
 
                 module = active_app.replace("_project", "").replace("-", "_")
             else:
@@ -230,6 +232,23 @@ class AgiEnv:
             self.export_local_bin = 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
         else:
             self.export_local_bin = 'export PATH="$HOME/.local/bin:$PATH";'
+
+    def copy_missing(self, src: Path, dst: Path):
+        # Ensure the destination directory exists
+        dst.mkdir(parents=True, exist_ok=True)
+
+        for item in src.iterdir():
+            src_item = item
+            dst_item = dst / item.name
+
+            if src_item.is_dir():
+                # Recursively copy the directory if it's missing entirely,
+                # or copy missing files inside it
+                self.copy_missing(src_item, dst_item)
+            else:
+                # Copy file if it does not exist in destination
+                if not dst_item.exists():
+                    shutil.copy2(src_item, dst_item)
 
 
     def active(self, target, install_type):
