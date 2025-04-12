@@ -1354,10 +1354,9 @@ class AgiEnv:
         stdout, stderr = await proc.communicate()
         return stdout.decode(), stderr.decode()
 
-    def run_agi(self, code, log_callback=None, venv: Path = None, type=None):
+    async def run_agi(self, code, log_callback=None, venv: Path = None, type=None):
         """
-        Write the code to a file, construct the command, and run it asynchronously.
-        The log_callback is used to update the live log.
+        Asynchronous version of run_agi for use within an async context.
         """
         pattern = r"await\s+(?:Agi\.)?([^\(]+)\("
         matches = re.findall(pattern, code)
@@ -1367,12 +1366,13 @@ class AgiEnv:
                 log_callback(message)
             else:
                 print(message)
-            return ""
+            return "", ""
         snippet_file = os.path.join(self.runenv, f"{matches[0]}-{self.target}.py")
         with open(snippet_file, "w") as file:
             file.write(code)
         cmd = f"uv run python {snippet_file}"
-        result = asyncio.run(AgiEnv._run_bg(cmd, venv=venv, log_callback=log_callback))
+        # Await _run_bg directly without asyncio.run()
+        result = await AgiEnv._run_bg(cmd, venv=venv, log_callback=log_callback)
         if log_callback:
             log_callback(f"Process finished with output: {result}")
         return result
