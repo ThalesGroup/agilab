@@ -1,13 +1,4 @@
-# BSD 3-Clause License
-#
-# Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
-# All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
-# following conditions are met:
-#
-#   ... (license text continues) ...
-
+import asyncio
 import time
 import streamlit as st
 from agi_gui.pagelib import get_about_content, render_logo, activate_mlflow
@@ -544,7 +535,7 @@ def workload_barchart(workers, workers_chunks, partition_key, weights_key, weigh
 # ===========================
 # Main Application UI
 # ===========================
-def page():
+async def page():
     global env
     env = st.session_state['env']
 
@@ -814,7 +805,7 @@ if __name__ == '__main__':
             clear_log()
             live_log_placeholder = st.empty()
             with st.spinner("Running AGI..."):
-                stdout, stderr = env.run_agi(
+                stdout, stderr = await env.run_agi(
                     cmd,
                     log_callback=lambda message: update_log(live_log_placeholder, message),
                     venv=project_path
@@ -919,13 +910,13 @@ if __name__ == '__main__':
 # ===========================
 # Main Entry Point
 # ===========================
-def main():
+async def main():
     try:
-        page()
+        await page()
     except Exception as e:
         st.error(f"An error occurred: {e}")
         import traceback
         st.code(f"```\n{traceback.format_exc()}\n```")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
