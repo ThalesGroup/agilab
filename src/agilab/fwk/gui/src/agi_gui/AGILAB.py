@@ -11,8 +11,8 @@
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from agi_gui.pagelib import env # do not move or change this line
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from agi_gui.pagelib import env  # do not move or change this line
+from pathlib import Path
 from datetime import datetime
 import streamlit as st
 import importlib
@@ -20,12 +20,11 @@ import sys
 import argparse
 
 # -------------------- Import Statements -------------------- #
-# (Include any other necessary imports from your original code)
 from agi_gui.pagelib import get_about_content, open_docs, get_base64_of_image, activate_mlflow
 from agi_env import AgiEnv
 
 
-#-------------------- Helper Functions -------------------- #
+# -------------------- Helper Functions -------------------- #
 def load_file_content(file_path: Path) -> str:
     """
     Reads the content of a file.
@@ -36,7 +35,6 @@ def load_file_content(file_path: Path) -> str:
     except Exception as e:
         st.error(f"Error loading {file_path}: {e}")
         return ""
-
 
 
 def display_landing_page(resources_path: Path):
@@ -114,12 +112,10 @@ def page(env):
 
 
 def main():
-
     st.set_page_config(
         menu_items=get_about_content(),  # Adjust if necessary
         layout="wide"
     )
-
 
     # --- Command-Line Argument Parsing ---
     parser = argparse.ArgumentParser(
@@ -160,36 +156,24 @@ def main():
         activate_mlflow(env)
         st.session_state["server_started"] = True
 
-    # Global resource path
-
     # --- Retrieve OpenAI API Key ---
     openai_api_key = env.OPENAI_API_KEY if env.OPENAI_API_KEY else args.openai_api_key
     if not openai_api_key:
-        # Prompt only if no value exists in the environment or CLI.
-        openai_api_key = input("Enter OpenAI API key: ").strip()
-        if not openai_api_key:
-            print("Error: Missing mandatory parameter: --openai-api-key")
-            sys.exit(1)
+        st.error("Error: Missing mandatory parameter: --openai-api-key")
+        sys.exit(1)
 
     # --- Retrieve Cluster Credentials ---
     cluster_credentials = env.CLUSTER_CREDENTIALS if env.CLUSTER_CREDENTIALS else args.cluster_credentials
+    # Instead of prompting for input, default to an empty string if not provided.
     if cluster_credentials is None:
-        # Prompt only if no cluster credentials exist.
-        cluster_enabled = input("Is cluster available? [N/y]: ").strip().lower() or "n"
-        if cluster_enabled == "y":
-            ssh_key_set = input("Is SSH key set? [N/y]: ").strip().lower() or "n"
-            if ssh_key_set == "y":
-                cluster_credentials = input("Enter user (SSH key is set): ").strip()
-            else:
-                cluster_credentials = input("Enter cluster credentials (user:password): ").strip()
-        else:
-            cluster_credentials = ""
+        cluster_credentials = ""
 
     # -------------------- Setup AgiEnv -------------------- #
     env.set_env_var("OPENAI_API_KEY", openai_api_key)
     env.set_env_var("CLUSTER_CREDENTIALS", cluster_credentials)
     env.set_env_var("INSTALL_TYPE", args.install_type)
     env.set_env_var("APPS_DIR", args.apps_dir)
+
     # -------------------- Navigation and Page Rendering -------------------- #
     try:
         if "current_page" not in st.session_state:
@@ -212,5 +196,4 @@ def main():
 
 # -------------------- Run the App -------------------- #
 if __name__ == "__main__":
-    # Set page configuration before any Streamlit commands.
     main()

@@ -1307,26 +1307,12 @@ class AgiEnv:
     class JumpToMain(Exception):
         pass
 
-    def run_agi_sync(self, code, log_callback=None, venv: Path = None, type=None):
-        pattern = r"await\s+(?:Agi\.)?([^\(]+)\("
-        matches = re.findall(pattern, code)
-        if not matches:
-            if log_callback:
-                log_callback("Could not determine snippet name from code.")
-            else:
-                print("Could not determine snippet name from code.")
-            return ""
-        snippet_file = os.path.join(self.runenv, f"{matches[0]}-{self.target}.py")
-        with open(snippet_file, "w") as file:
-            file.write(code)
-        cmd = f"uv run python {snippet_file}"
-        result = asyncio.run(AgiEnv.run_agi_bg(cmd, venv=venv))
-        if log_callback:
-            log_callback(result)
-        return result
-
     @staticmethod
-    async def run_agi_bg(cmd, cwd=".", venv=None, timeout=None, merge_stderr=True):
+    async def _run_bg(cmd, cwd=".", venv=None, timeout=None, log_callback=None):
+        """
+        Run the given command asynchronously, reading stdout and stderr line by line
+        and passing them to the log_callback.
+        """
         proc_env = AgiEnv._build_env(venv)
         proc_env["PYTHONUNBUFFERED"] = "1"
         proc = await asyncio.create_subprocess_shell(
@@ -1336,21 +1322,60 @@ class AgiEnv:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+
+        async def read_stream(stream, callback):
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                decoded_line = line.decode().rstrip()
+                if callback:
+                    callback(decoded_line)
+                else:
+                    print(decoded_line)
+
+        tasks = []
+        if proc.stdout:
+            tasks.append(asyncio.create_task(
+                read_stream(proc.stdout, lambda msg: log_callback(msg) if log_callback else print(msg))
+            ))
+        if proc.stderr:
+            tasks.append(asyncio.create_task(
+                read_stream(proc.stderr, lambda msg: log_callback(msg) if log_callback else print(msg))
+            ))
+
         try:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            await asyncio.wait_for(proc.wait(), timeout=timeout)
         except asyncio.TimeoutError as err:
             proc.kill()
-            stdout, stderr = await proc.communicate()
-            raise RuntimeError(
-                f"Timeout expired for command: {cmd}\nfrom: {cwd}\nOutput:\n{stdout.decode()}\nErrors:\n{stderr.decode() if stderr else ''}"
-            ) from err
-        if proc.returncode:
-            proc.kill()
-            stdout, stderr = await proc.communicate()
-            if not (Path("cwd/.venv")).exists():
-                print("no .venv found at",cwd)
-                exit(1)
+            raise RuntimeError(f"Timeout expired for command: {cmd}") from err
+
+        await asyncio.gather(*tasks)
+        stdout, stderr = await proc.communicate()
         return stdout.decode(), stderr.decode()
+
+    def run_agi(self, code, log_callback=None, venv: Path = None, type=None):
+        """
+        Write the code to a file, construct the command, and run it asynchronously.
+        The log_callback is used to update the live log.
+        """
+        pattern = r"await\s+(?:Agi\.)?([^\(]+)\("
+        matches = re.findall(pattern, code)
+        if not matches:
+            message = "Could not determine snippet name from code."
+            if log_callback:
+                log_callback(message)
+            else:
+                print(message)
+            return ""
+        snippet_file = os.path.join(self.runenv, f"{matches[0]}-{self.target}.py")
+        with open(snippet_file, "w") as file:
+            file.write(code)
+        cmd = f"uv run python {snippet_file}"
+        result = asyncio.run(AgiEnv._run_bg(cmd, venv=venv, log_callback=log_callback))
+        if log_callback:
+            log_callback(f"Process finished with output: {result}")
+        return result
 
     @staticmethod
     async def run_async(cmd, venv=None, cwd=None, timeout=None, log_callback=None):
