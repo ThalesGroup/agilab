@@ -99,7 +99,7 @@ def display_log(stdout, stderr):
     clean_stderr = re.sub(r'\x1b\[[0-9;]*m', '', stderr or "")
 
     # Normalize newlines.
-    clean_stdout = "\n".join(line for line in clean_stdout.splitlines() if line.strip())
+    clean_stdout = "\n".join(line for line in clean_stdout.splitlines()[:-3] if line.strip())
     clean_stderr = "\n".join(line for line in clean_stderr.splitlines() if line.strip())
 
     # Combine for checking.
@@ -114,15 +114,47 @@ def display_log(stdout, stderr):
     else:
         st.code(clean_stdout or "No logs available", language="python")
 
-
+import re
+import json
 
 def parse_benchmark(benchmark_str):
-    """Parse a benchmark string into a dictionary."""
-    json_str = re.sub(r'([{,]\s*)(\d+):', r'\1"\2":', benchmark_str)
-    json_str = json_str.replace("'", '"')
-    data = json.loads(json_str)
-    data = {int(k): v for k, v in data.items()}
-    return data
+    """
+    Parse a benchmark string into a dictionary.
+
+    This function converts a benchmark string that may have unquoted numeric keys and
+    single quotes into a valid JSON string and then parses it into a dictionary.
+    Numeric keys are converted to integers.
+
+    Args:
+        benchmark_str (str): The benchmark string to parse.
+
+    Returns:
+        dict: A dictionary with numeric keys as integers.
+
+    Raises:
+        ValueError: If the input is not a string or the benchmark string cannot be parsed.
+    """
+    if not isinstance(benchmark_str, str):
+        raise ValueError("Input must be a string.")
+    if len(benchmark_str) < 3:
+        return None
+
+    try:
+        # Replace unquoted numeric keys with quoted keys
+        json_str = re.sub(r'([{,]\s*)(\d+):', r'\1"\2":', benchmark_str)
+        # Replace single quotes with double quotes
+        json_str = json_str.replace("'", '"')
+        # Parse the JSON string
+        data = json.loads(json_str)
+    except json.JSONDecodeError as e:
+        raise ValueError("Invalid benchmark string. Failed to decode JSON.") from e
+
+    # Convert keys that represent numbers to integers, leave others as-is
+    def try_int(key):
+        return int(key) if key.isdigit() else key
+
+    return {try_int(k): v for k, v in data.items()}
+
 
 def safe_eval(expression, expected_type, error_message):
     try:
@@ -792,12 +824,13 @@ if __name__ == '__main__':
                 run_log = stdout
 
             if not st.session_state.get('mode'):
-                st.text("Benchmark result:")
                 try:
-                    benchmark_str = run_log.split("\n")[-2:-1][0]
+                    benchmark_str = st.session_state["log_text"].split("\n")[-5]
                     benchmark_data = parse_benchmark(benchmark_str)
-                    benchmark_df = pd.DataFrame.from_dict(benchmark_data, orient='index')
-                    st.dataframe(benchmark_df)
+                    if benchmark_data:
+                        benchmark_df = pd.DataFrame.from_dict(benchmark_data, orient='index')
+                        st.text("Benchmark result:")
+                        st.dataframe(benchmark_df)
                 except Exception:
                     st.code(f"```\n{run_log}\n```")
             st.session_state["loaded_df"] = cached_load_df(env.dataframes_path)
