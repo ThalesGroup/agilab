@@ -283,7 +283,7 @@ def render_generic_ui():
 def render_cluster_settings_ui():
     cluster_params = st.session_state.app_settings["cluster"]
 
-    cluster_enabled = st.sidebar.checkbox(
+    cluster_enabled = st.checkbox(
         "Enable Cluster",
         value=cluster_params.get("cluster_enabled", False),
         key="cluster_enabled",
@@ -639,6 +639,7 @@ if __name__ == '__main__':
                                          on_change=init_custom_ui, args=[args_ui_snippet])
             else:
                 st.checkbox("Custom UI", key="toggle_custom",
+                            value=st.session_state["toggle_custom"],
                             on_change=init_custom_ui, args=[args_ui_snippet])
             if st.session_state["toggle_custom"] and args_ui_snippet.exists() and args_ui_snippet.stat().st_size > 0:
                 try:
@@ -681,7 +682,7 @@ if __name__ == '__main__':
     asyncio.run(main())
             """
             st.code(cmd, language="python")
-        if st.sidebar.button("TEST DISTRIBUTE", key="preview_btn", type="secondary",
+        if st.button("Test Distribute", key="preview_btn", type="secondary",
                      help="Run the snippet and display your distribution tree"):
             st.session_state.preview_tree = True
             with st.expander("Orchestration log:", expanded=True):
@@ -801,13 +802,13 @@ if __name__ == '__main__':
                     st.code(f"```\n{run_log}\n```")
             st.session_state["loaded_df"] = cached_load_df(env.dataframes_path)
 
-        if st.sidebar.button("Load Data", key="load_data", type="primary"):
+        if st.sidebar.checkbox("LOAD DATA", key="load_data"):
             st.session_state["loaded_df"] = cached_load_df(env.dataframes_path)
         loaded_df = st.session_state.get("loaded_df")
         if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
             st.dataframe(loaded_df)
         else:
-            st.info("No data loaded yet. Click 'Load Data' from the sidebar to it.")
+            st.info("No data loaded yet. Click 'Load Data' from the sidebar to load it.")
 
     # ------------------
     # EXPORT-COLUMNS Section
