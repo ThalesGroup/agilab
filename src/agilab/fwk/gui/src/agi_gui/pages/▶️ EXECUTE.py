@@ -52,44 +52,69 @@ def init_session_state(defaults: dict):
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
 
+# ===========================
+# Utility and Helper Functions
+# ===========================
 
-#####################################
-# Helper function for displaying logs
-#####################################
+import re
+import streamlit as st
+
+
+import re
+import streamlit as st
+
+def clear_log():
+    """
+    Clear the accumulated log in session_state.
+    Call this before starting a new run (INSTALL, DISTRIBUTE, or EXECUTE)
+    to avoid mixing logs.
+    """
+    st.session_state["log_text"] = ""
+
+def update_log(live_log_placeholder, message):
+    """
+    Append a message to the accumulated log and update the live display.
+    The log is displayed as a formatted code block.
+    """
+    if "log_text" not in st.session_state:
+        st.session_state["log_text"] = ""
+    st.session_state["log_text"] += message + "\n"
+    live_log_placeholder.empty()
+    live_log_placeholder.code(st.session_state["log_text"], language="python")
+
 def display_log(stdout, stderr):
     """
-    Clean and display log messages.
-    If either stdout or stderr contains "warning:" (case-insensitive),
-    display the combined log using st.warning; if stderr contains other messages,
-    display them as errors. Otherwise, display stdout.
+    Clean and display final log messages.
+    If stdout is empty, fall back to the accumulated live log.
+    - Removes ANSI escape codes and normalizes newlines.
+    - If warnings or errors are detected, display them accordingly.
+    - Otherwise, display the final log in a code block.
     """
-    # Remove ANSI escape codes for clarity
+    # Fallback: if stdout is empty, use the accumulated live log.
+    if not stdout.strip() and "log_text" in st.session_state:
+        stdout = st.session_state["log_text"]
+
+    # Remove ANSI escape codes.
     clean_stdout = re.sub(r'\x1b\[[0-9;]*m', '', stdout or "")
     clean_stderr = re.sub(r'\x1b\[[0-9;]*m', '', stderr or "")
 
-    # Normalize newlines by splitting and rejoining with a single newline.
-    clean_stdout = "\n".join(line for line in clean_stdout.splitlines() if line.strip() != "")
-    clean_stderr = "\n".join(line for line in clean_stderr.splitlines() if line.strip() != "")
+    # Normalize newlines.
+    clean_stdout = "\n".join(line for line in clean_stdout.splitlines() if line.strip())
+    clean_stderr = "\n".join(line for line in clean_stderr.splitlines() if line.strip())
 
-    # Combine both outputs for checking
+    # Combine for checking.
     combined = "\n".join([clean_stdout, clean_stderr]).strip()
 
     if "warning:" in combined.lower():
         st.warning("Warnings occurred during cluster installation:")
-        st.code(combined)
+        st.code(combined, language="python")
     elif clean_stderr:
         st.error("Errors occurred during cluster installation:")
-        st.code(clean_stderr)
+        st.code(clean_stderr, language="python")
     else:
-        st.code(clean_stdout or "No logs available")
+        st.code(clean_stdout or "No logs available", language="python")
 
 
-# ===========================
-# Utility and Helper Functions
-# ===========================
-def update_log(log, message: str):
-    """Update a log placeholder with a message."""
-    log.text(message)
 
 def parse_benchmark(benchmark_str):
     """Parse a benchmark string into a dictionary."""
@@ -258,7 +283,7 @@ def render_generic_ui():
 def render_cluster_settings_ui():
     cluster_params = st.session_state.app_settings["cluster"]
 
-    cluster_enabled = st.checkbox(
+    cluster_enabled = st.sidebar.checkbox(
         "Enable Cluster",
         value=cluster_params.get("cluster_enabled", False),
         key="cluster_enabled",
@@ -516,6 +541,7 @@ def page():
         "env": env,
     }
 
+
     init_session_state(defaults)
     initialize_app_settings()
     projects = env.projects
@@ -542,11 +568,11 @@ def page():
         st.session_state["df_export_file"] = export_abs_module / "export.csv"
     if "loaded_df" not in st.session_state:
         st.session_state["loaded_df"] = None
-    init_custom_ui(env.args_ui_snippet)
+
 
     # Sidebar toggles for each page section
     show_install = st.sidebar.checkbox("INSTALL", value=True)
-    show_distribute = st.sidebar.checkbox("DISTRIBUTE", value=False)
+    show_distribute = st.sidebar.checkbox("SET ARGS", value=False)
     if st.session_state.get("args_serialized") or show_distribute:
         show_run = st.sidebar.checkbox("RUN", value=False)
     else:
@@ -586,13 +612,15 @@ if __name__ == '__main__':
             st.code(cmd, language="python")
         if st.button("Install", key="install_btn", type="primary",
                      help="Run the install snippet to set up your .venv for Manager and Worker"):
+            clear_log()
             live_log_placeholder = st.empty()
             with st.spinner("Installing worker..."):
-                stdout, stderr = env.run_agi_sync(
+                stdout, stderr = env.run_agi(
                     cmd,
                     log_callback=lambda message: update_log(live_log_placeholder, message),
                     venv=env.core_root
                 )
+
                 live_log_placeholder.empty()
                 # Use display_log to show warnings or errors appropriately
                 display_log(stdout, stderr)
@@ -605,9 +633,14 @@ if __name__ == '__main__':
     if show_distribute:
         with st.expander(f"{module} settings:", expanded=True):
             args_ui_snippet = env.args_ui_snippet
-            toggle_custom = st.checkbox("Custom UI", key="toggle_custom", value=st.session_state.toggle_custom,
-                                        on_change=init_custom_ui, args=[args_ui_snippet])
-            if toggle_custom and args_ui_snippet.exists() and args_ui_snippet.stat().st_size > 0:
+            if "toggle_custom" not in st.session_state:
+                st.checkbox("Custom UI", key="toggle_custom",
+                                         value=args_ui_snippet.stat().st_size > 0,
+                                         on_change=init_custom_ui, args=[args_ui_snippet])
+            else:
+                st.checkbox("Custom UI", key="toggle_custom",
+                            on_change=init_custom_ui, args=[args_ui_snippet])
+            if st.session_state["toggle_custom"] and args_ui_snippet.exists() and args_ui_snippet.stat().st_size > 0:
                 try:
                     runpy.run_path(args_ui_snippet, init_globals=globals())
                 except ValueError as e:
@@ -648,13 +681,14 @@ if __name__ == '__main__':
     asyncio.run(main())
             """
             st.code(cmd, language="python")
-        if st.button("Distribute", key="preview_btn", type="primary",
+        if st.sidebar.button("TEST DISTRIBUTE", key="preview_btn", type="secondary",
                      help="Run the snippet and display your distribution tree"):
             st.session_state.preview_tree = True
             with st.expander("Orchestration log:", expanded=True):
+                clear_log()
                 live_log_placeholder = st.empty()
                 with st.spinner("Building distribution..."):
-                    stdout, stderr = env.run_agi_sync(
+                    stdout, stderr = env.run_agi(
                         cmd,
                         log_callback=lambda message: update_log(live_log_placeholder, message),
                         venv=project_path
@@ -743,10 +777,11 @@ if __name__ == '__main__':
     asyncio.run(main())
             """
             st.code(cmd, language="python")
-        if st.button("Run", key="run_btn", type="primary", help="Run your snippet with your cluster and app settings"):
+        if st.button("RUN", key="run_btn", type="primary", help="Run your snippet with your cluster and app settings"):
+            clear_log()
             live_log_placeholder = st.empty()
             with st.spinner("Running AGI..."):
-                stdout, stderr = env.run_agi_sync(
+                stdout, stderr = env.run_agi(
                     cmd,
                     log_callback=lambda message: update_log(live_log_placeholder, message),
                     venv=project_path
