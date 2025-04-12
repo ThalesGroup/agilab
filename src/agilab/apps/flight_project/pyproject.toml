@@ -4,21 +4,22 @@ version = "0.1.8"
 description = "flight_project is an example of data project"
 requires-python = "==3.12.*"
 readme = "README.md"
-dependencies = [
-    "numpy",
-    "geopy",
-    "setuptools",
-    "cython",
-    "parso",
-    "py7zr",
-    "python-dotenv",
-]
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
 ]
 
 [project.license]
 text = "Thales SIX GTS France SAS"
+dependencies = [
+    "numpy",
+    "geopy",
+    "setuptools",
+    "sysconfig",
+    "cython",
+    "parso",
+    "py7zr",
+    "python-dotenv",
+]
 
 [project.optional-dependencies]
 agi-worker = []

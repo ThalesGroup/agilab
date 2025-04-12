@@ -30,6 +30,7 @@ import sys
 import stat
 import tempfile
 import time
+import sysconfig
 import warnings
 import abc
 import traceback
@@ -626,12 +627,11 @@ class AgiWorker(abc.ABC):
                     if target_lib is None:
                         raise FileNotFoundError(f"No file with extension '.{ext}' found in {extract_path}")
 
-                    shutil.copyfile(
-                        target_lib,
-                        os.path.join(sys_prefix, target_lib.name),
-                    )
+                    lib_dir =os.path.join(sysconfig.get_path("platlib"), target_lib.name)
+                    shutil.copyfile(target_lib, lib_dir)
 
                     if verbose > 2:
+                        f.write(f"copy {target_lib}\n tp {lib_dir}\n")
                         f.write(f"running cmd: {cmd}\nfrom path: {extract_path}\n")
 
                     res = AgiWorker.exec(cmd, extract_path, worker)

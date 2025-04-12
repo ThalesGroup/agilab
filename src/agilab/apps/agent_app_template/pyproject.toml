@@ -9,7 +9,15 @@ license = { text = "Thales SIX GTS France SAS" }
 requires-python = "==3.12.*"
 readme = "README.md"
 
-dependencies = ["setuptools", "cython", "parso", "py7zr", "python-dotenv", "ipython==8.34.0"]
+dependencies = [
+    "setuptools",
+    "sysconfig",
+    "cython",
+    "parso",
+    "py7zr",
+    "python-dotenv",
+    "ipython==8.34.0",
+]
 
 [dependency-groups]
 dev = ["black", "pytest", "licensecheck", "agent_app_project"]
