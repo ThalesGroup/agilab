@@ -34,6 +34,7 @@ from ipaddress import ip_address as is_ip
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from tempfile import gettempdir
 from typing import Any, Dict, List, Optional, Union
+import sysconfig
 
 # External Libraries
 from IPython.lib import backgroundjobs as bg
@@ -42,6 +43,7 @@ import numpy as np
 import polars as pl
 import psutil
 from dask.distributed import Client
+import json
 from paramiko import SSHClient, AutoAddPolicy, ssh_exception
 from scp import SCPClient
 from sklearn.ensemble import RandomForestRegressor
@@ -344,7 +346,11 @@ class AGI:
         AGI.best_mode[target] = best_run_data
         AGI._mode_auto = False
 
-        return runs
+        # Convert numeric keys to strings for valid JSON output.
+        runs_str_keys = {str(k): v for k, v in runs.items()}
+
+        # Return a JSON-formatted string
+        return json.dumps(runs_str_keys)
 
     @staticmethod
     def _is_local(ip):
@@ -993,8 +999,7 @@ class AGI:
         AGI._log_verbose(f"Copying {toml_local} to {toml_remote}", level=2)
         shutil.copyfile(toml_local, env.home_abs / toml_remote)
 
-        option = options["worker"]
-        cmd = f"uv {AGI._run_type} --project {env.wenv_abs} {options['worker']} --extra workers --directory {env.wenv_abs}"
+        cmd = f"uv {AGI._run_type} --project {env.wenv_abs} {options['worker']} --extra workers"
         AGI._log_verbose(f"Executing locally: \n{cmd} \nfrom {env.wenv_abs}", level=2)
         result = AgiEnv.run(cmd, env.wenv_abs)
         AGI._handle_command_result(result)
@@ -1341,13 +1346,20 @@ class AGI:
                 if AGI._verbose > 2:
                     print(cmd, "\ncwd", os.getcwd(), "\nfrom", wenv_path)
                 res = AgiEnv.run(cmd, wenv_path)
-                worker_egg = next(iter(wenv_path.glob("*cy*")), None)
-                if worker_egg:
-                    worker_egg_dir = AgiEnv.normalize_path(Path(worker_egg).parent)
-                else:
+                worker_lib = next(iter(wenv_path.glob("*cy*")), None)
+                if not worker_lib:
                     raise FileNotFoundError(wenv_path.name, "build_ext failed !")
-                if worker_egg not in sys.path:
-                    sys.path.insert(0, worker_egg_dir)
+
+                # Get the current interpreter's platlib path (e.g. '/usr/lib/python3.12/site-packages')
+                platlib = sysconfig.get_path("platlib")
+                platlib_idx = platlib.index('.venv')
+                wenv_platlib = platlib[platlib_idx:]
+                target_platlib = env.wenv_abs / wenv_platlib
+                destination = os.path.join(target_platlib, os.path.basename(worker_lib))
+
+                # Copy the file while preserving metadata.
+                shutil.copy2(worker_lib, destination)
+
                 if AGI._verbose > 1 and res and len(res) > 0:
                     print(res)
             os.remove(env.setup_app)

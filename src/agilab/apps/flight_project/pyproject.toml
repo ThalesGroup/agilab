@@ -7,19 +7,18 @@ readme = "README.md"
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
 ]
-
-[project.license]
-text = "Thales SIX GTS France SAS"
 dependencies = [
     "numpy",
     "geopy",
     "setuptools",
-    "sysconfig",
     "cython",
     "parso",
     "py7zr",
     "python-dotenv",
 ]
+
+[project.license]
+text = "Thales SIX GTS France SAS"
 
 [project.optional-dependencies]
 agi-worker = []

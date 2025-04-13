@@ -159,11 +159,11 @@ class AgiEnv:
                 if app_path.exists():
                     self.app = active_app
                 src_apps = self.agi_root / "apps"
-                if not apps_dir.exists():
-                    shutil.copytree(src_apps, apps_dir)
-                else:
-                    self.copy_missing(src_apps, apps_dir)
-
+                if not install_type:
+                    if not apps_dir.exists():
+                        shutil.copytree(src_apps, apps_dir)
+                    else:
+                        self.copy_missing(src_apps, apps_dir)
                 module = active_app.replace("_project", "").replace("-", "_")
             else:
                 apps_dir = self._determine_apps_dir(active_app)
