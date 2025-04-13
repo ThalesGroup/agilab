@@ -815,15 +815,22 @@ if __name__ == '__main__':
                 run_log = stdout
 
             if not st.session_state.get('mode'):
-                try:
-                    benchmark_str = st.session_state["log_text"].split("\n")[-5]
-                    benchmark_data = parse_benchmark(benchmark_str)
-                    if benchmark_data:
-                        benchmark_df = pd.DataFrame.from_dict(benchmark_data, orient='index')
-                        st.text("Benchmark result:")
-                        st.dataframe(benchmark_df)
-                except Exception:
-                    st.code(f"```\n{run_log}\n```")
+                match = re.search(r'(\{.*\})', st.session_state["log_text"], re.DOTALL)
+                if match:
+                    json_str = match.group(1)
+                    # If necessary, clean up single quotes to valid double quotes for JSON
+                    json_str = json_str.replace("'", '"')
+
+                    try:
+                        data = json.loads(json_str)
+                        if data:
+                            benchmark_df = pd.DataFrame.from_dict(data, orient='index')
+                            st.text("Benchmark result:")
+                            st.dataframe(benchmark_df)
+
+                    except json.JSONDecodeError as e:
+                        print("Error decoding JSON:", e)
+
             st.session_state["loaded_df"] = cached_load_df(env.dataframes_path)
 
         if st.sidebar.checkbox("LOAD DATA", key="load_data"):
