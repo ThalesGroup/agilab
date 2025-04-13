@@ -147,7 +147,7 @@
 | locket | BSD LICENSE |
 | lxml | BSD LICENSE |
 | mako | MIT LICENSE |
-| markdown | BSD LICENSE |
+| markdown | BSD-3-CLAUSE |
 | markdown-it-py | MIT LICENSE |
 | markdownlit | Apache License 2.0 |
 | markupsafe | BSD LICENSE |
@@ -192,7 +192,7 @@
 | patsy | BSD LICENSE |
 | pexpect | ISC LICENSE _ISCL_ |
 | phik | MIT LICENSE |
-| pillow | CMU LICENSE _MIT-CMU_ |
+| pillow | MIT-CMU |
 | platformdirs | MIT LICENSE |
 | plotly | MIT LICENSE |
 | ply | BSD |
