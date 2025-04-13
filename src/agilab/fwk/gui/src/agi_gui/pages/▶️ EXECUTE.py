@@ -833,7 +833,7 @@ if __name__ == '__main__':
 
             st.session_state["loaded_df"] = cached_load_df(env.dataframes_path)
 
-        if st.sidebar.button("LOAD DATA", key="load_data"):
+        if st.sidebar.checkbox("LOAD DATA", key="load_data"):
             st.session_state["loaded_df"] = cached_load_df(env.dataframes_path)
         loaded_df = st.session_state.get("loaded_df")
         if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
