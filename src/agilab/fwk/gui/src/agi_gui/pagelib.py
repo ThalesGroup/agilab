@@ -428,9 +428,10 @@ def find_files(directory, ext=".csv", recursive=True):
     # Normalize the extension to handle cases like 'csv' or '.csv'
     ext = f".{ext.lstrip('.')}"
     if recursive:
-        return list(directory.rglob(f"*/*{ext}"))
+        return list(directory.rglob(f"*{ext}"))
     else:
-        return list(directory.glob(f"*{ext}"))
+        return list(directory.glob(f"*/*{ext}"))
+
 
 
 @st.cache_data
@@ -699,6 +700,10 @@ def run_lab(query, snippet, copilot):
     except Exception as e:
         st.warning(f"Error: {e}")
 
+
+@st.cache_data(show_spinner=False)
+def cached_load_df(path):
+    return load_df(path, with_index=False)
 
 @st.cache_data
 def load_df(path: Path, nrows=None, with_index=True):

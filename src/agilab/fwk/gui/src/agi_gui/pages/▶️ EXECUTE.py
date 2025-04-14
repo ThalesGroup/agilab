@@ -29,6 +29,7 @@ from agi_gui.pagelib import (
     init_custom_ui,
     select_project,
     open_new_tab,
+    cached_load_df
 )
 
 from agi_env import AgiEnv
@@ -216,10 +217,6 @@ def load_toml_file(file_path):
         with file_path.open("rb") as f:
             return tomli.load(f)
     return {}
-
-@st.cache_data(show_spinner=False)
-def cached_load_df(path):
-    return load_df(path, with_index=False)
 
 @st.cache_data(show_spinner=False)
 def load_distribution_tree(file_path):
