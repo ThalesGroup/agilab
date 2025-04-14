@@ -13,6 +13,7 @@ output_format = "parquet"
 [views]
 view_module = [
     "maps",
+    "maps_3d",
 ]
 
 [cluster]
