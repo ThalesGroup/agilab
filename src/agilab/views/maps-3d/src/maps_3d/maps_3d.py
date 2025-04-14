@@ -34,7 +34,7 @@ var_default = [0, None]
 if "datadir" not in st.session_state:
     datadir = env.AGILAB_EXPORT_ABS / env.target
     if not datadir.exists():
-        os.mkdir(datadir, exist=True)
+        os.mkdir(datadir, exist_ok=True)
     st.session_state["datadir"] = datadir
 if "project" not in st.session_state:
     st.session_state["project"] = env.target
@@ -43,9 +43,7 @@ if "projects" not in st.session_state:
 if "datadir" not in st.session_state:
     st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
 if "beamdir" not in st.session_state:
-    st.session_state["beamdir"] = env.AGILAB_SHARE_ABS / env.target.replace(
-        "_project", ""
-    )
+    st.session_state["beamdir"] = env.AGILAB_SHARE_ABS / env.target.replace("_project", "")
 if "coltype" not in st.session_state:
     st.session_state["coltype"] = var[0]
 
@@ -443,7 +441,7 @@ def page():
                 beam_file_abs, with_index=False
             )
 
-    if st.sidebar.button("Load Data", key="load_data"):
+    if "Load Data" not in st.session_state:
         st.session_state["loaded_df"] = cached_load_df(env.dataframes_path)
     if "loaded_df" in st.session_state and st.session_state["df_file"]:
         st.session_state["loaded_df"]
@@ -536,26 +534,35 @@ def page():
             st.session_state.loaded_df.set_index(
                 st.session_state.loaded_df.columns[0], inplace=True
             )
-            continious_cols = st.session_state.loaded_df.select_dtypes(
-                include=["number"]
-            ).columns.tolist()
-            discrete_cols = st.session_state.loaded_df.select_dtypes(
-                include=["object"]
-            ).columns.tolist()
 
-            # Identify numerical columns
+            # Select numeric columns
+            numeric_cols = st.session_state.loaded_df.select_dtypes(include=["number"]).columns.tolist()
+
+            # Define lists to store continuous and discrete numeric variables
+            continious_cols = []
+            discrete_cols = []
+
+            # Define a threshold: if a numeric column has fewer unique values than this threshold,
+            # treat it as discrete. Adjust this value based on your needs.
+            unique_threshold = 10
+
+            # Loop through numeric columns and classify them based on the unique value count.
+            for col in numeric_cols:
+                if loaded_df[col].nunique() < unique_threshold:
+                    discrete_cols.append(col)
+                else:
+                    continious_cols.append(col)
+
+            # Identify and reassign date-like columns from discrete to continuous.
             date_format = "%Y-%m-%d %H:%M:%S"
-            for col in discrete_cols:
+            for col in discrete_cols.copy():
                 try:
-                    pd.to_datetime(
-                        st.session_state.loaded_df[col],
-                        format=date_format,
-                        errors="raise",
-                    )
+                    pd.to_datetime(st.session_state.loaded_df[col], format=date_format, errors="raise")
                     discrete_cols.remove(col)
                     continious_cols.append(col)
                 except (ValueError, TypeError):
                     pass
+
 
             # Initialize an empty DataFrame to store distribution metrics
             c = st.columns(5)
