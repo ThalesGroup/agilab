@@ -410,7 +410,7 @@ def get_random_port():
 
 
 @st.cache_data
-def find_files(directory, ext=".csv"):
+def find_files(directory, ext=".csv", recursive=True):
     """
     Finds all files with a specific extension in a directory and its subdirectories.
 
@@ -427,7 +427,10 @@ def find_files(directory, ext=".csv"):
 
     # Normalize the extension to handle cases like 'csv' or '.csv'
     ext = f".{ext.lstrip('.')}"
-    return list(directory.rglob(f"*{ext}"))
+    if recursive:
+        return list(directory.rglob(f"*/*{ext}"))
+    else:
+        return list(directory.glob(f"*{ext}"))
 
 
 @st.cache_data
