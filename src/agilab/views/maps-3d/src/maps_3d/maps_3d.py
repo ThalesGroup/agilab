@@ -414,7 +414,7 @@ def page():
     if st.session_state.beamdir:
         beamdir = Path(st.session_state.beamdir)
         if beamdir.exists() and beamdir.is_dir():
-            st.session_state["beam_csv_files"] = find_files(st.session_state["beamdir"])
+            st.session_state["beam_csv_files"] = find_files(st.session_state["beamdir"], recursive=False)
             beam_csv_files_rel = sorted(
                 [
                     Path(file).relative_to(beamdir).as_posix()
