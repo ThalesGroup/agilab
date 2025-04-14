@@ -1196,9 +1196,9 @@ class AgiEnv:
 
         self.AGILAB_DATA_NROW = int(envars.get("AGI_GUI_NROW", 1000000))
         if self.install_type == 0:
-            self.copilot_file = self.agi_root / "fwk/gui/src/agi_gui/agi_copilot.py"
-        else:
             self.copilot_file = self.agi_root / "agi_gui/agi_copilot.py"
+        else:
+            self.copilot_file = self.agi_root / "fwk/gui/src/agi_gui/agi_copilot.py"
 
     def _init_resources(self, resources_path):
         src_env_path = resources_path / ".env"
