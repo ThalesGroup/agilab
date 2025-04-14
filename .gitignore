@@ -49,7 +49,7 @@ src/*_worker_*/
 /docs/Makefile
 
 # private apps
-//src/agilab/views/autoencoder-latentspace/
+/src/agilab/views/autoencoder-latentspace/
 /src/agilab/views/barycentric-graph/
 /src/agilab/views/maps-network-graph/
 /src/agilab/apps/flight-legacy-project/
