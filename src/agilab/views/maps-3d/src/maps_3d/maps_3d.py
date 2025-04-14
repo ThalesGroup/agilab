@@ -14,7 +14,7 @@
 from agi_gui.pagelib import (
     env,
 )  # CAUTION: Place it at the first line to avoid other pagelib import instabilities
-from agi_gui.pagelib import find_files, load_df, render_logo
+from agi_gui.pagelib import find_files, load_df, render_logo, cached_load_df
 import traceback
 import streamlit as st
 import pandas as pd
@@ -362,6 +362,9 @@ def page():
         args=("datadir", "input_datadir"),
     )
 
+    if "loaded_df" not in st.session_state:
+        st.session_state["loaded_df"] = None
+
     datadir = Path(st.session_state.datadir)
 
     if not datadir.exists() or not datadir.is_dir():
@@ -407,7 +410,7 @@ def page():
     )
 
     # Initialize session state for beam_files if it doesn't exist
-    default_beam_files = ["beams.csv"]  # Define your default file here
+    default_beam_files = ["dataset/beams.csv"]  # Define your default file here
     if "beam_files" not in st.session_state:
         st.session_state["beam_files"] = default_beam_files
 
@@ -440,10 +443,19 @@ def page():
                 beam_file_abs, with_index=False
             )
 
-    if "df_file" in st.session_state and st.session_state["df_file"]:
-        df_file_abs = Path(st.session_state.datadir) / st.session_state.df_file
-        df_file_abs = "~/export/flight_sim/export.csv"
-        st.session_state["loaded_df"] = load_df(df_file_abs, with_index=False)
+    if st.sidebar.button("Load Data", key="load_data"):
+        st.session_state["loaded_df"] = cached_load_df(env.dataframes_path)
+    if "loaded_df" in st.session_state and st.session_state["df_file"]:
+        st.session_state["loaded_df"]
+        loaded_df = st.session_state.get("loaded_df")
+        if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
+            st.dataframe(loaded_df)
+        else:
+            st.info("No data loaded yet. Click 'Load Data' from the sidebar to load it.")
+
+        #df_file_abs = Path(st.session_state.datadir) / st.session_state.df_file
+        #df_file_abs = "~/export/flight_sim/export.csv"
+        #st.session_state["loaded_df"] = load_df(df_file_abs, with_index=False)
 
     # Create a button styled link to open geojson.io with Streamlit-like customization
     st.sidebar.markdown(
