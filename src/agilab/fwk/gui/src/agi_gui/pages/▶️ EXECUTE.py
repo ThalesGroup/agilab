@@ -638,7 +638,7 @@ if __name__ == '__main__':
             clear_log()
             live_log_placeholder = st.empty()
             with st.spinner("Installing worker..."):
-                stdout, stderr = env.run_agi(
+                stdout, stderr = await env.run_agi(
                     cmd,
                     log_callback=lambda message: update_log(live_log_placeholder, message),
                     venv=env.core_root
@@ -712,7 +712,7 @@ if __name__ == '__main__':
                 clear_log()
                 live_log_placeholder = st.empty()
                 with st.spinner("Building distribution..."):
-                    stdout, stderr = env.run_agi(
+                    stdout, stderr = await env.run_agi(
                         cmd,
                         log_callback=lambda message: update_log(live_log_placeholder, message),
                         venv=project_path
