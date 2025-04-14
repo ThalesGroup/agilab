@@ -24,7 +24,7 @@ import plotly.express as px
 import geojson
 import random
 
-render_logo(3D Maps and Network Topology Visualization)
+render_logo("3D Maps and Network Topology Visualization")
 
 # Define variable types and their default indices
 var = ["discrete", "continious", "lat", "long", "alt"]
