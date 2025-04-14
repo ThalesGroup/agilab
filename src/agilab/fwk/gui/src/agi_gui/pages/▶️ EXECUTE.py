@@ -771,10 +771,9 @@ if __name__ == '__main__':
     # RUN Section
     # ------------------
     if show_run:
-        mode = None
-        if not st.checkbox("Benchmark all modes", value=False,
+        if st.checkbox("Benchmark all modes", value=False,
                            help="This will run the snippet for each available mode and return a table with each run’s duration"):
-            mode = st.session_state.get(mode, 0)
+            st.session_state["mode"] = None
 
         with st.expander("Run snippet", expanded=True):
             cluster_params = st.session_state.app_settings["cluster"]
@@ -788,7 +787,7 @@ from agi_env import AgiEnv
 
 async def main():
     env = AgiEnv(install_type={env.install_type})
-    res = await AGI.run('{module}', env, mode={mode}, 
+    res = await AGI.run('{module}', env, mode={st.session_state["mode"]}, 
                         scheduler={scheduler}, workers={workers}, 
                         verbose={cluster_params.get('verbose', 2)}, {st.session_state.args_serialized})
     print(res)
