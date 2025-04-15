@@ -141,6 +141,8 @@ class AgiEnv:
         try:
             if apps_dir.exists():
                 self.apps_dir = apps_dir
+            elif install_type:
+                self.apps_dir = self.agi_root / apps_dir
 
         except FileNotFoundError:
             print("app_dir not found:/n", apps_dir)
@@ -155,15 +157,15 @@ class AgiEnv:
                 active_app = active_app
                 if not active_app.endswith('_project'):
                     active_app = active_app + '_project'
-                app_path = apps_dir / active_app
+                app_path = self.apps_dir / active_app
                 if app_path.exists():
                     self.app = active_app
                 src_apps = self.agi_root / "apps"
                 if not install_type:
                     if not apps_dir.exists():
-                        shutil.copytree(src_apps, apps_dir)
+                        shutil.copytree(src_apps, self.apps_dir)
                     else:
-                        self.copy_missing(src_apps, apps_dir)
+                        self.copy_missing(src_apps, self.apps_dir)
                 module = active_app.replace("_project", "").replace("-", "_")
             else:
                 apps_dir = self._determine_apps_dir(active_app)
@@ -171,7 +173,7 @@ class AgiEnv:
         else:
             module = "my_code"
 
-        self.projects = self.get_projects(apps_dir)
+        self.projects = self.get_projects(self.apps_dir)
 
         if not self.projects:
             print(f"Could not find any target project app in {self.agi_root / "apps"}.")
@@ -179,7 +181,7 @@ class AgiEnv:
         if not self.module:
             self.module = module
 
-        AgiEnv.apps_dir = apps_dir
+        AgiEnv.apps_dir = self.apps_dir
 
         # Initialize environment variables
         self._init_envars()
