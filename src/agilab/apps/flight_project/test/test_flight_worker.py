@@ -10,7 +10,7 @@ args = {
     'sampling_rate': 10.0,
     'datemin': "2020-01-01",
     'datemax': "2021-01-01",
-    'output_format': "parquet"
+    'output_format': "csv"
 }
 
 # AgiWorker.run flight command

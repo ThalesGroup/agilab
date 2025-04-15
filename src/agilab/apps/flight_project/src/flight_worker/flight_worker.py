@@ -180,14 +180,24 @@ class FlightWorker(AgiDataWorker):
 
         # Read the CSV file using Polars.
         df = pl.read_csv(file)
-        # Drop the first column from the DataFrame.
-        if not df.is_empty():
-            # Use Polars' drop method which returns a new DataFrame.
+
+        # If the first column is redundant (e.g. named "Unnamed: 0"), drop it.
+        if df.columns and df.columns[0].startswith("Unnamed"):
             df = df.drop(df.columns[0])
 
-        # Now compute multiple speed columns without re-parsing the date
-        df = self.calculate_speed("speed", df)
+        # Preprocess the DataFrame (date parsing, cleaning, etc.)
+        df = self.preprocess_df(df)
 
+        # Create previous coordinate columns if they are not already present.
+        # This assumes "lat" and "long" are valid column names.
+        if "lat" in df.columns and "long" in df.columns:
+            df = df.with_columns([
+                pl.col("lat").shift(1).alias("prev_lat"),
+                pl.col("long").shift(1).alias("prev_long"),
+            ])
+
+        # Calculate speed using the existing calculate_speed function.
+        df = self.calculate_speed("speed", df)
         return df
 
     def work_done(self, worker_df):
@@ -218,7 +228,7 @@ class FlightWorker(AgiDataWorker):
                 elif self.args["output_format"] == "csv":
                     timestamp = dt.now().strftime("%Y-%m-%d_%H-%M-%S")
                     filename = f"{self.data_out}/{timestamp}.csv"
-                    plane_df.write_csv(str(filename), no_index=True)
+                    plane_df.write_csv(str(filename))
 
                 if self.verbose > 0:
                     print(f"Saved dataframe for plane {plane} with shape {plane_df.shape} in {filename}")
