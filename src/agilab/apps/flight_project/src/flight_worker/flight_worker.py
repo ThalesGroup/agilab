@@ -178,12 +178,12 @@ class FlightWorker(AgiDataWorker):
                 raise FileNotFoundError(f"FlightWorker.work_pool({file})\n")
                 return pl.DataFrame()
 
-        # Read the CSV file and preprocess it (date parsing and shifting)
-        df = pl.read_csv(file, no_index_ok=True)
+        # Read the CSV file using Polars.
+        df = pl.read_csv(file)
         # Drop the first column from the DataFrame.
-        if not df.empty:
-            df.drop(df.columns[0], axis=1, inplace=True)
-        df = self.preprocess_df(df)
+        if not df.is_empty():
+            # Use Polars' drop method which returns a new DataFrame.
+            df = df.drop(df.columns[0])
 
         # Now compute multiple speed columns without re-parsing the date
         df = self.calculate_speed("speed", df)
