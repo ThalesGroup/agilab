@@ -53,7 +53,7 @@ src/*_worker_*/
 /src/agilab/views/barycentric-graph/
 /src/agilab/views/maps-network-graph/
 /src/agilab/apps/flight-legacy-project/
-/src/agilab/apps/flight-sim-project/
+/src/agilab/apps/flight_sim_project/
 /src/agilab/apps/pcm-predictor-project/
 /src/agilab/apps/satcom-sim-project/
 
