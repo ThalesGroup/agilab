@@ -9,7 +9,7 @@
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="SDK_NAME" value="uv (flight-project)" />
-    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/apps/flight-project/src/flight_worker" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/apps/flight_project/src/flight_worker" />
     <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
