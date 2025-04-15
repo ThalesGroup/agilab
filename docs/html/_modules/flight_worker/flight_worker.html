@@ -607,13 +607,26 @@
                 <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;FlightWorker.work_pool(</span><span class="si">{</span><span class="n">file</span><span class="si">}</span><span class="s2">)</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="k">return</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">()</span>
 
-        <span class="c1"># Read the CSV file and preprocess it (date parsing and shifting)</span>
+        <span class="c1"># Read the CSV file using Polars.</span>
         <span class="n">df</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+
+        <span class="c1"># If the first column is redundant (e.g. named &quot;Unnamed: 0&quot;), drop it.</span>
+        <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span> <span class="ow">and</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;Unnamed&quot;</span><span class="p">):</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+        <span class="c1"># Preprocess the DataFrame (date parsing, cleaning, etc.)</span>
         <span class="n">df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">preprocess_df</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
 
-        <span class="c1"># Now compute multiple speed columns without re-parsing the date</span>
-        <span class="n">df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">calculate_speed</span><span class="p">(</span><span class="s2">&quot;speed&quot;</span><span class="p">,</span> <span class="n">df</span><span class="p">)</span>
+        <span class="c1"># Create previous coordinate columns if they are not already present.</span>
+        <span class="c1"># This assumes &quot;lat&quot; and &quot;long&quot; are valid column names.</span>
+        <span class="k">if</span> <span class="s2">&quot;lat&quot;</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span> <span class="ow">and</span> <span class="s2">&quot;long&quot;</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">with_columns</span><span class="p">([</span>
+                <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;lat&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;prev_lat&quot;</span><span class="p">),</span>
+                <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;long&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;prev_long&quot;</span><span class="p">),</span>
+            <span class="p">])</span>
 
+        <span class="c1"># Calculate speed using the existing calculate_speed function.</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">calculate_speed</span><span class="p">(</span><span class="s2">&quot;speed&quot;</span><span class="p">,</span> <span class="n">df</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">df</span></div>
 
 
@@ -631,37 +644,26 @@
 
         <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
-        <span class="c1"># Filter speed and vspeed over</span>
+        <span class="c1"># Process each plane separately</span>
         <span class="k">for</span> <span class="n">plane</span> <span class="ow">in</span> <span class="n">worker_df</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;aircraft&quot;</span><span class="p">))</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">to_series</span><span class="p">():</span>
-            <span class="n">plane_df</span> <span class="o">=</span> <span class="n">worker_df</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;aircraft&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="n">plane</span><span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span>
-                <span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span>
-            <span class="p">)</span>  <span class="c1"># returns a new sorted DF</span>
-
-            <span class="c1">###########################</span>
-            <span class="c1"># Save dataframe</span>
-            <span class="c1">###########################</span>
-
+            <span class="n">plane_df</span> <span class="o">=</span> <span class="n">worker_df</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;aircraft&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="n">plane</span><span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">&quot;date&quot;</span><span class="p">)</span>
 
             <span class="c1"># Create (or replace) &quot;part_col&quot; from &quot;aircraft&quot;:</span>
             <span class="n">plane_df</span> <span class="o">=</span> <span class="n">plane_df</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;aircraft&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;part_col&quot;</span><span class="p">))</span>
 
             <span class="k">try</span><span class="p">:</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s2">&quot;output_format&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;parquet&quot;</span><span class="p">:</span>
-                    <span class="n">filename</span> <span class="o">=</span> <span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="p">)</span> <span class="o">/</span> <span class="nb">str</span><span class="p">(</span><span class="n">plane</span><span class="p">))</span><span class="o">.</span><span class="n">with_suffix</span><span class="p">(</span>
-                        <span class="s2">&quot;.parquet&quot;</span>
-                    <span class="p">)</span>
+                    <span class="n">filename</span> <span class="o">=</span> <span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="p">)</span> <span class="o">/</span> <span class="nb">str</span><span class="p">(</span><span class="n">plane</span><span class="p">))</span><span class="o">.</span><span class="n">with_suffix</span><span class="p">(</span><span class="s2">&quot;.parquet&quot;</span><span class="p">)</span>
+                    <span class="c1"># Ensure that the &quot;date&quot; column is present and correctly typed.</span>
+                    <span class="c1"># You might want to cast it to a datetime type if needed.</span>
                     <span class="n">plane_df</span><span class="o">.</span><span class="n">write_parquet</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">filename</span><span class="p">))</span>
                 <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s2">&quot;output_format&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;csv&quot;</span><span class="p">:</span>
                     <span class="n">timestamp</span> <span class="o">=</span> <span class="n">dt</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2">_%H-%M-%S&quot;</span><span class="p">)</span>
-                    <span class="c1"># Add an index column named &quot;index&quot; and then write to CSV</span>
                     <span class="n">filename</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">timestamp</span><span class="si">}</span><span class="s2">.csv&quot;</span>
-                    <span class="n">plane_df</span><span class="o">.</span><span class="n">with_row_count</span><span class="p">(</span><span class="s2">&quot;index&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">write_csv</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">timestamp</span><span class="si">}</span><span class="s2">.csv&quot;</span><span class="p">)</span>
-                    <span class="n">plane_df</span><span class="o">.</span><span class="n">write_csv</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+                    <span class="n">plane_df</span><span class="o">.</span><span class="n">write_csv</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">filename</span><span class="p">))</span>
 
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                    <span class="nb">print</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;FlightWorker.work_done - Saved dataframe for plane </span><span class="si">{</span><span class="n">plane</span><span class="si">}</span><span class="s2"> with shape </span><span class="si">{</span><span class="n">plane_df</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> in </span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s2">&quot;</span>
-                    <span class="p">)</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Saved dataframe for plane </span><span class="si">{</span><span class="n">plane</span><span class="si">}</span><span class="s2"> with shape </span><span class="si">{</span><span class="n">plane_df</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> in </span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                 <span class="nb">print</span><span class="p">(</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">())</span>
                 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error saving dataframe for plane </span><span class="si">{</span><span class="n">plane</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
