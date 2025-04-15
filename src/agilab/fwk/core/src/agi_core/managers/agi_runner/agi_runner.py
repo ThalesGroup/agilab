@@ -986,7 +986,7 @@ class AGI:
         ##################
         # manager install
         #################
-        app_path = env.app_path
+        app_path = env.app_path.absolute()
         cmd = f"uv {AGI._run_type} {options['manager']} --extra managers --project {app_path}"
         AGI._log_verbose(f"Executing locally: \n{cmd} \nvenv {app_path}", level=2)
         result = AgiEnv.run(cmd, venv=app_path)
@@ -1318,7 +1318,7 @@ class AGI:
         elif baseworker.startswith("AgiData"):
             packages += "data_worker"
 
-        app_path = env.app_path
+        app_path = env.app_path.absolute()
 
         shutil.copy(env.setup_core, env.setup_app)
         cmd = f"uv run --project {app_path} python setup bdist_egg --packages \"{packages}\" -d \"{wenv}\""
