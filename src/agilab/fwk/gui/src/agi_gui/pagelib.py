@@ -701,9 +701,10 @@ def run_lab(query, snippet, copilot):
         st.warning(f"Error: {e}")
 
 
-@st.cache_data(show_spinner=False)
-def cached_load_df(path):
-    return load_df(path, with_index=False)
+@st.cache_data
+def cached_load_df(path, with_index=True):
+    return load_df(path, with_index=with_index)
+
 
 @st.cache_data
 def load_df(path: Path, nrows=None, with_index=True):
@@ -713,7 +714,7 @@ def load_df(path: Path, nrows=None, with_index=True):
     Args:
         path (Path): The path to the file or directory.
         nrows (int, optional): Number of rows to read from the file (for CSV files only).
-        with_index (bool): Whether to set the first column as the index (creates an "index" column).
+        with_index (bool): Whether to set the "date" column as the DataFrame's index.
 
     Returns:
         pd.DataFrame or None: The loaded DataFrame or None if no valid files are found.
@@ -735,17 +736,10 @@ def load_df(path: Path, nrows=None, with_index=True):
         csv_files = [f for f in files if f.suffix == ".csv"]
 
         if parquet_files:
-            # Concatenate all Parquet files
+            # Concatenate all Parquet files with a default RangeIndex.
             df = pd.concat([pd.read_parquet(f) for f in parquet_files], ignore_index=True)
-            # Convert binary columns to strings if needed
-            binary_columns = [
-                col for col in df.select_dtypes(include=["object"]).columns
-                if df[col].apply(lambda x: isinstance(x, bytes)).any()
-            ]
-            for col in binary_columns:
-                df[col] = df[col].apply(lambda x: x.decode("utf-8") if isinstance(x, bytes) else x)
         elif csv_files:
-            # Concatenate all CSV files
+            # Concatenate all CSV files.
             df = pd.concat([
                 pd.read_csv(f, nrows=nrows, encoding="utf-8", index_col=0)
                 for f in csv_files
@@ -753,33 +747,35 @@ def load_df(path: Path, nrows=None, with_index=True):
     elif path.is_file():
         if path.suffix == ".csv":
             df = pd.read_csv(path, nrows=nrows, encoding="utf-8", index_col=0)
-            if with_index:
-                # Set the first column as the new index (if needed)
-                df.set_index(df.columns[0], inplace=True)
         elif path.suffix == ".parquet":
             df = pd.read_parquet(path)
-            # Convert binary columns to strings if needed
-            binary_columns = [
-                col for col in df.select_dtypes(include=["object"]).columns
-                if df[col].apply(lambda x: isinstance(x, bytes)).any()
-            ]
-            for col in binary_columns:
-                df[col] = df[col].apply(lambda x: x.decode("utf-8") if isinstance(x, bytes) else x)
         else:
             return None
     else:
         return None
 
-    # Optionally add the first column as a new 'index' column
-    # if with_index and not df.empty:
-    #     # Create the extra "index" column using the first column of the DataFrame.
-    #     df["index"] = df.iloc[:, 0]
-    #     # Compare the "index" column with the DataFrame's actual index.
-    #     if df["index"].equals(df.index.to_series()):
-    #         # Drop the extra column if it is identical.
-    #         df.drop("index", axis=1, inplace=True)
+    # Remove any extra "index" column that might have been written from CSV files.
+    if "index" in df.columns:
+        df.drop(columns=["index"], inplace=True)
+
+    # Optionally, set the "date" column as the DataFrame's index.
+    if with_index and not df.empty:
+        if "date" in df.columns:
+            # Convert "date" column to datetime (if not already) and set it as index.
+            df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        else:
+            # Fallback: use the first column as the index if "date" is not present.
+            df.set_index(df.columns[0], inplace=True)
+
+        if "index" in df.columns:
+            df.set_index("index", inplace=True)
+        elif "date" in df.columns:
+            df.set_index("date", inplace=True)
+        elif "datetime" in df.columns:
+            df.set_index("datetime", inplace=True)
 
     return df
+
 
 
 def save_csv(df, path: Path, sep=","):

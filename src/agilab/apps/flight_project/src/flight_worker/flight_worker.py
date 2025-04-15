@@ -179,7 +179,10 @@ class FlightWorker(AgiDataWorker):
                 return pl.DataFrame()
 
         # Read the CSV file and preprocess it (date parsing and shifting)
-        df = pl.read_csv(file)
+        df = pl.read_csv(file, no_index_ok=True)
+        # Drop the first column from the DataFrame.
+        if not df.empty:
+            df.drop(df.columns[0], axis=1, inplace=True)
         df = self.preprocess_df(df)
 
         # Now compute multiple speed columns without re-parsing the date
@@ -199,37 +202,26 @@ class FlightWorker(AgiDataWorker):
 
         os.makedirs(self.data_out, exist_ok=True)
 
-        # Filter speed and vspeed over
+        # Process each plane separately
         for plane in worker_df.select(pl.col("aircraft")).unique().to_series():
-            plane_df = worker_df.filter(pl.col("aircraft") == plane).sort(
-                ["date"]
-            )  # returns a new sorted DF
-
-            ###########################
-            # Save dataframe
-            ###########################
-
+            plane_df = worker_df.filter(pl.col("aircraft") == plane).sort("date")
 
             # Create (or replace) "part_col" from "aircraft":
             plane_df = plane_df.with_columns(pl.col("aircraft").alias("part_col"))
 
             try:
                 if self.args["output_format"] == "parquet":
-                    filename = (Path(self.data_out) / str(plane)).with_suffix(
-                        ".parquet"
-                    )
+                    filename = (Path(self.data_out) / str(plane)).with_suffix(".parquet")
+                    # Ensure that the "date" column is present and correctly typed.
+                    # You might want to cast it to a datetime type if needed.
                     plane_df.write_parquet(str(filename))
                 elif self.args["output_format"] == "csv":
                     timestamp = dt.now().strftime("%Y-%m-%d_%H-%M-%S")
-                    # Add an index column named "index" and then write to CSV
                     filename = f"{self.data_out}/{timestamp}.csv"
-                    plane_df.with_row_count("index").write_csv(f"{self.data_out}/{timestamp}.csv")
-                    plane_df.write_csv(filename)
+                    plane_df.write_csv(str(filename), no_index=True)
 
                 if self.verbose > 0:
-                    print(
-                        f"FlightWorker.work_done - Saved dataframe for plane {plane} with shape {plane_df.shape} in {filename}"
-                    )
+                    print(f"Saved dataframe for plane {plane} with shape {plane_df.shape} in {filename}")
             except Exception as e:
                 print(traceback.format_exc())
                 print(f"Error saving dataframe for plane {plane}: {e}")

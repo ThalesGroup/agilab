@@ -82,7 +82,7 @@ dev = [
     "pytest",
     "licensecheck",
     "pytest-local-badge",
-    "pytest-cov"
+    "pytest-cov",
 ]
 rapids = [
     { package = "cuspatial-cu12", markers = "platform_system == \"Linux\"" },

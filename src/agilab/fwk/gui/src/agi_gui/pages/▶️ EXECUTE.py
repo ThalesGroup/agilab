@@ -630,7 +630,7 @@ if __name__ == '__main__':
     asyncio.run(main())
             """
             st.code(cmd, language="python")
-        if st.button("Install", key="install_btn", type="primary",
+        if st.button("INSTALL", key="install_btn", type="primary",
                      help="Run the install snippet to set up your .venv for Manager and Worker"):
             clear_log()
             live_log_placeholder = st.empty()
@@ -702,7 +702,7 @@ if __name__ == '__main__':
     asyncio.run(main())
             """
             st.code(cmd, language="python")
-        if st.button("Test Distribute", key="preview_btn", type="secondary",
+        if st.button("TEST DISTRIBUTE", key="preview_btn", type="secondary",
                      help="Run the snippet and display your distribution tree"):
             st.session_state.preview_tree = True
             with st.expander("Orchestration log:", expanded=True):
@@ -840,11 +840,24 @@ if __name__ == '__main__':
     # ------------------
     # EXPORT-COLUMNS Section
     # ------------------
+    show_export = True
+
     if show_export:
         loaded_df = st.session_state.get("loaded_df")
-        if "export_tab_previous_project" not in st.session_state or \
-                st.session_state.export_tab_previous_project != st.session_state.get("project") or \
-                st.session_state.get("df_cols") != (loaded_df.columns.tolist() if loaded_df is not None else []):
+
+        # If loaded_df exists, make sure there are no empty column names.
+        if isinstance(loaded_df, pd.DataFrame):
+            # Rename any empty column names to a default value with an index.
+            loaded_df.columns = [
+                col if col.strip() != "" else f"Unnamed Column {idx}"
+                for idx, col in enumerate(loaded_df.columns)
+            ]
+
+        # Check if we need to update the session state for export tab
+        if ("export_tab_previous_project" not in st.session_state or
+                st.session_state.export_tab_previous_project != st.session_state.get("project") or
+                st.session_state.get("df_cols") != (loaded_df.columns.tolist() if loaded_df is not None else [])):
+
             st.session_state.export_tab_previous_project = st.session_state.get("project")
             if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
                 st.session_state.df_cols = loaded_df.columns.tolist()
@@ -862,7 +875,7 @@ if __name__ == '__main__':
             st.checkbox("Select All", key="check_all", on_change=on_select_all_changed)
 
             def on_individual_checkbox_change(col_name):
-                if st.session_state[f"export_col_{col_name}"]:
+                if st.session_state.get(f"export_col_{col_name}"):
                     if col_name not in st.session_state.selected_cols:
                         st.session_state.selected_cols.append(col_name)
                 else:
@@ -870,11 +883,14 @@ if __name__ == '__main__':
                         st.session_state.selected_cols.remove(col_name)
                 st.session_state.check_all = len(st.session_state.selected_cols) == len(st.session_state.df_cols)
 
+            # Create 5 columns for checkboxes layout
             cols_layout = st.columns(5)
             for idx, col in enumerate(st.session_state.df_cols):
+                # Provide a default label if the column name is empty.
+                label = col if col.strip() != "" else f"Unnamed Column {idx}"
                 with cols_layout[idx % 5]:
                     st.checkbox(
-                        col,
+                        label,
                         key=f"export_col_{col}",
                         value=col in st.session_state.selected_cols,
                         on_change=on_individual_checkbox_change,
@@ -908,7 +924,6 @@ if __name__ == '__main__':
                 open_new_tab(profile_file.as_uri())
         else:
             st.warning("No dataset found for this project.")
-
 
 # ===========================
 # Main Entry Point
