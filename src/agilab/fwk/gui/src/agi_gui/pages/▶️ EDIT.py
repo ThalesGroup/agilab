@@ -1244,7 +1244,11 @@ def page():
     """
     global CUSTOM_BUTTONS, INFO_BAR, CSS_TEXT, comp_props, ace_props, env
 
-    env = st.session_state['env']
+    if 'env' not in st.session_state:
+        st.error("The application environment is not initialized. Please reload the app.")
+        st.stop()
+    else:
+        env = st.session_state['env']
 
     render_logo("Edit your Project", env)
 

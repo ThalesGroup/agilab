@@ -534,7 +534,12 @@ def workload_barchart(workers, workers_chunks, partition_key, weights_key, weigh
 # ===========================
 async def page():
     global env
-    env = st.session_state['env']
+
+    if 'env' not in st.session_state:
+        st.error("The application environment is not initialized. Please reload the app.")
+        st.stop()
+    else:
+        env = st.session_state['env']
 
     # Set page configuration and render logo
     st.set_page_config(layout="wide", menu_items=get_about_content())
