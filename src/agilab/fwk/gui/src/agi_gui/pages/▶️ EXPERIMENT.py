@@ -471,7 +471,11 @@ def mlflow_controls():
 def page():
     global df_file
 
-    env = st.session_state['env']
+    if 'env' not in st.session_state:
+        st.error("The application environment is not initialized. Please reload the app.")
+        st.stop()
+    else:
+        env = st.session_state['env']
 
     # load preprompt
     with open(env.app_src_path / "pre_prompt.json") as f:
