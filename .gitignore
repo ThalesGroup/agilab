@@ -48,14 +48,10 @@ src/*_worker_*/
 /docs/make.bat
 /docs/Makefile
 
-# private apps
-/src/agilab/views/autoencoder-latentspace/
-/src/agilab/views/barycentric-graph/
-/src/agilab/views/maps-network-graph/
-/src/agilab/apps/flight-legacy-project/
-/src/agilab/apps/flight_sim_project/
-/src/agilab/apps/pcm-predictor-project/
-/src/agilab/apps/satcom-sim-project/
+# apps
+/src/agilab/apps/*_project/
+!/src/agilab/apps/flight_project/
+!/src/agilab/apps/my_code_project/
 
 # managed PC install under windows
 /thales/
