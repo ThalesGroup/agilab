@@ -986,6 +986,15 @@ class AgiEnv:
                 )
                 continue
 
+            if item.is_dir():
+                test_path = relative_path + "/"
+            else:
+                test_path = relative_path
+
+            if spec.match_file(test_path):
+                print(f"Skipping ignored item: {relative_path}")
+                continue
+
             print(f"Processing item: **{relative_path}**")
 
             if spec.match_file(relative_path):
