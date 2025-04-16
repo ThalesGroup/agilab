@@ -28,6 +28,7 @@ EGG*
 # Specific src patterns (adjust if needed)
 src/*-info/
 src/*_worker_*/
+src/agi_*
 
 # Pytest caches
 .pytest*
