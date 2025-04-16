@@ -49,8 +49,6 @@ from sqlalchemy import false
 
 from agi_env import AgiEnv
 
-env=None
-
 # Apply the custom CSS
 custom_css = (
     "<style> .stButton > button { max-width: 150px;  /* Adjust the max-width as needed */"
@@ -182,15 +180,14 @@ def get_base64_of_image(image_path):
 
 @st.cache_data
 def get_css_text():
-    global env
+    env = st.session_state["env"]
     with open(env.resource_path / "code_editor.scss") as file:
         return file.read()
 
 @st.cache_resource
-def render_logo(edit_text, _env_=None):
-    global env
-    if _env_:
-        env = _env_
+def render_logo(edit_text):
+    env = st.session_state["env"]
+
     agilab_logo_path = env.resource_path / "agilab_logo.png"  # Replace with your logo filename
     agilab_logo_base64 = get_base64_of_image(agilab_logo_path)
     if agilab_logo_base64:
@@ -266,7 +263,7 @@ def get_projects_zip():
     Returns:
         list: A list of zip file names for projects found in the env export_apps directory.
     """
-    global env
+    env = st.session_state["env"]
     return [p.name for p in env.export_apps.glob("*.zip")]
 
 
@@ -277,7 +274,7 @@ def get_templates():
     Returns:
         list: A list of template names (strings).
     """
-    global env
+    env = st.session_state["env"]
     return [p.stem for p in env.apps_dir.glob("*template")]
 
 
@@ -304,7 +301,6 @@ def get_about_content():
 
 
 def init_custom_ui(render_generic_ui):
-    global env
     """
     Initialize a custom user interface based on an input UI snippet.
 
@@ -317,6 +313,7 @@ def init_custom_ui(render_generic_ui):
     Session State Modifiers:
         - 'toggle_custom': The state of the custom toggle based on UI snippet size.
     """
+    env = st.session_state["env"]
     if "toggle_custom" not in st.session_state:
         st.session_state["toggle_custom"] = env.args_ui_snippet.stat().st_size > 0
     return
@@ -328,7 +325,7 @@ def on_project_change(project, switch_to_select=True):
 
     This function is optimized for speed and efficiency by minimizing attribute lookups, using tuples for fixed key collections, and leveraging 'del' for key removal.
     """
-    global env
+    env = st.session_state["env"]
     # Define the keys to clear as a tuple for immutability and minor performance gains
     keys_to_clear = (
         "is_args_from_ui",
@@ -367,6 +364,7 @@ def on_project_change(project, switch_to_select=True):
 
         # Change the app/project
         env.change_active_app(project, env.install_type)
+
         module = env.target
 
         # Update session state with new module and data directory paths
@@ -445,7 +443,7 @@ def get_custom_buttons():
     Notes:
         This function uses Streamlit's caching mechanism to avoid reloading the data each time it is called.
     """
-    global env
+    env = st.session_state["env"]
     with open(env.resource_path / "custom_buttons.json") as file:
         return json.load(file)
 
@@ -462,7 +460,7 @@ def get_info_bar():
 
     :raise FileNotFoundError: If the 'info_bar.json' file cannot be found.
     """
-    global env
+    env = st.session_state["env"]
     with open(env.resource_path / "info_bar.json") as file:
         return json.load(file)
 
@@ -664,7 +662,7 @@ def run_agi(code, path="."):
         id_core (int): Core identifier.
         path (str): The working directory.
     """
-    global env
+    env = st.session_state["env"]
     # Regular expression pattern to match the string between "await" and "("
     pattern = r"await\s+(?:Agi\.)?([^\(]+)\("
 
@@ -966,7 +964,6 @@ def select_project(projects, current_project):
     :return: Selected project name.
     :rtype: str
     """
-    global  env
     st.sidebar.selectbox(
         "Project Name",
         projects,
@@ -974,7 +971,7 @@ def select_project(projects, current_project):
         on_change=lambda: on_project_change(st.session_state["project_selectbox"]),
         key="project_selectbox",
     )
-    return env
+    return
 
 
 def open_new_tab(url):
@@ -1022,7 +1019,7 @@ def sidebar_views():
     Create sidebar controls for selecting modules and DataFrames.
     """
     # Set module and paths
-    global env
+    env = st.session_state["env"]
     Agi_export_abs = Path(env.AGILAB_EXPORT_ABS)
     modules = st.session_state.get(
         "modules", scan_dir(Agi_export_abs)
@@ -1102,9 +1099,9 @@ def on_df_change(module_dir, index_page, df_file, steps_file=None):
     st.session_state.page_broken = True
 
 
-def activate_mlflow(env_):
-    global env
-    env = env_
+def activate_mlflow():
+
+    env = st.session_state["env"]
 
     st.session_state["rapids_default"] = True
     os.makedirs(env.MLFLOW_TRACKING_DIR, exist_ok=True)

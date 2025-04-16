@@ -386,6 +386,7 @@ def sidebar_controls():
     Create sidebar controls for selecting modules and DataFrames.
     """
     global defaut_df
+    env = st.session_state["env"]
     Agi_export_abs = Path(env.AGILAB_EXPORT_ABS)
     modules = st.session_state.get("modules", scan_dir(Agi_export_abs))
     st.session_state["lab_dir"] = st.sidebar.selectbox(
@@ -604,7 +605,7 @@ def load_df_cached(path: Path, nrows=50, with_index=True):
     return load_df(path, nrows, with_index)
 
 def main():
-    global env, default_df, df_file
+    global default_df, df_file
     env = st.session_state['env']
 
     try:
@@ -645,7 +646,7 @@ def main():
             render_logo("Experiment on APPS")
 
         if "server_started" not in st.session_state:
-            activate_mlflow(env)
+            activate_mlflow()
 
         # Set session defaults
         session_defaults = {

@@ -251,7 +251,7 @@ def handle_export_project():
     """
     Handle the export of a project to a zip file.
     """
-    global env
+    env = st.session_state["env"]
     input_dir = env.app_path
     output_zip = (env.export_apps / env.app).with_suffix(".zip")
     gitignore_path = input_dir / ".gitignore"
@@ -286,7 +286,7 @@ def import_project(project_zip, ignore=False):
     Args:
         ignore (bool, optional): Whether to clean the project after import. Defaults to False.
     """
-    global env
+    env = st.session_state["env"]
     zip_path = env.export_apps / project_zip
     project_name = Path(project_zip).stem
     target_dir = env.apps_dir / project_name
@@ -323,7 +323,7 @@ def clone_project(target_project, dest_project):
         target_project (str): Name of the target project.
         dest_project (str): Name of the destination project.
     """
-    global env
+    env = st.session_state["env"]
     res = env.clone_preject(target_project, dest_project)
 
     # After cloning, update the session state
@@ -913,8 +913,6 @@ def handle_project_selection():
     """
     Handle the 'Select' tab in the sidebar for project selection.
     """
-    global env
-
     projects = st.session_state["projects"]
     current_project = st.session_state["project"]
 
@@ -931,7 +929,8 @@ def handle_project_selection():
 
     # Sidebar project selection
     #st.session_state["project"] = select_project(projects, current_project)
-    env = select_project(projects, current_project)
+    select_project(projects, current_project)
+    env = st.session_state["env"]
 
     # Export Button
     side_cols = st.sidebar.columns(2)
@@ -1046,17 +1045,18 @@ def handle_project_creation():
     Handle the 'Create' tab in the sidebar for project creation.
     """
     st.header("Create New Project")
+    env = st.session_state["env"]
 
+    # Render the selectbox with the updated index.
     st.sidebar.selectbox(
         "From Template",
-        st.session_state["templates"],
+        [env.app] + st.session_state["templates"],
         key="clone_src",
         on_change=lambda: on_project_change(
             st.session_state["clone_src"], switch_to_select=False
         ),
-        index=0,
-    )
 
+    )
     clone_dest = st.sidebar.text_input(
         label="Project Name",
         key="clone_dest",
@@ -1250,10 +1250,10 @@ def page():
     else:
         env = st.session_state['env']
 
-    render_logo("Edit your Project", env)
+    render_logo("Edit your Project")
 
     if not st.session_state.get("server_started"):
-        activate_mlflow(env)
+        activate_mlflow()
         st.session_state["server_started"] = True
 
     # Check if we need to switch the sidebar tab to "Select"
@@ -1289,7 +1289,7 @@ def page():
         "orchest_functions": ["build_distribution"],
         "project": env.app,
         "projects": env.projects,
-        "templates": [env.app] + get_templates(),
+        "templates": get_templates(),
         "archives": ["-- Select a file --"] + get_projects_zip(),
         "export_message": "",
         "project_imported": False,

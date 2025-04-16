@@ -188,7 +188,7 @@ def parse_and_validate_workers(workers_input):
     return workers or {"127.0.0.1": 1}
 
 def initialize_app_settings():
-    global env
+    env = st.session_state["env"]
     if "app_settings" not in st.session_state:
         st.session_state.app_settings = load_toml_file(env.app_settings_file)
     st.session_state.app_settings.setdefault("args", {})
@@ -343,6 +343,7 @@ def render_cluster_settings_ui():
         cluster_params.pop("workers", None)
 
     boolean_params = ["verbose", "cython", "pool"]
+    env = st.session_state["env"]
     if env.is_managed_pc:
         cluster_params["rapids"] = False
     else:
@@ -533,7 +534,7 @@ def workload_barchart(workers, workers_chunks, partition_key, weights_key, weigh
 # Main Application UI
 # ===========================
 async def page():
-    global env
+    env = st.session_state["env"]
 
     if 'env' not in st.session_state:
         st.error("The application environment is not initialized. Please reload the app.")
@@ -543,10 +544,10 @@ async def page():
 
     # Set page configuration and render logo
     st.set_page_config(layout="wide", menu_items=get_about_content())
-    render_logo("Execute your Application", env)
+    render_logo("Execute your Application")
 
     if not st.session_state.get("server_started"):
-        activate_mlflow(env)
+        activate_mlflow()
         st.session_state["server_started"] = True
 
     # Define defaults for session state keys.
@@ -577,7 +578,8 @@ async def page():
     if current_project not in projects:
         current_project = projects[0] if projects else None
         st.session_state["project"] = current_project
-    env = select_project(projects, current_project)
+    select_project(projects, current_project)
+    env = st.session_state["env"]
     project = env.app
     module = env.target
     project_path = env.apps_dir / project
