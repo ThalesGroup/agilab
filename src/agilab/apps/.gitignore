@@ -31,11 +31,5 @@ src/*_worker_*/
 .pytest*
 
 # JetBrains IDE settings
-.idea/workspace.xml
-.idea/tasks.xml
-.idea/dictionaries
-.idea/usage.statistics.xml
-.idea/dataSources.ids
-.idea/dataSources.local.xml
-.idea/sqlDataSources.xml
-.idea/dynamic.xml
+.idea/
+!.idea/runConfigurations
