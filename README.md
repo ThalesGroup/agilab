@@ -14,15 +14,31 @@
 AGILAB [BSD license](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) project purpose is to explore AI for engineering. It is designed to help engineers quickly experiment with AI-driven methods.
 See [documentation](https://thalesgroup.github.io/agilab).
 
-### Install
+### Install for developers
+
+### Linux and MacOS:
 
 ```bash
-mkdir agi-workspace && cd agi-workspace
-uv init && uv add agilab
+git clone https://github.com/ThalesGroup/agilab
+cd agilab  
+./install.sh --cluster-credentials <user:password> --openai-api-key <api-key> [--install-path <path>]
 ```
 
-### Run
+### Windows:
 
-```bash
+```powershell
+unzip agilab.zip
+cd agilab
+powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --cluster-credentials <user:password> --openai-api-key <api-key> [--install-path <path>]
+```
+
+## AGILab Execution
+
+### Linux and MacOS and Windows:
+
+```commandline
+cd agilab/src/agilab/fwk/gui
 uv run agilab
-```
+
+## Support
+Email: focus@thalesgroup.com
