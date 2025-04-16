@@ -30,7 +30,6 @@ import subprocess
 import threading
 import queue
 import traceback
-
 import time
 
 if os.name == "nt":
@@ -977,6 +976,7 @@ class AgiEnv:
             spec (PathSpec): Compiled PathSpec object to filter files/directories.
             source_root (Path): The root directory of the source project.
         """
+        import astor
         for item in source_dir.iterdir():
             try:
                 relative_path = item.relative_to(source_root).as_posix()
@@ -995,7 +995,7 @@ class AgiEnv:
                 print(f"Skipping ignored item: {relative_path}")
                 continue
 
-            print(f"Processing item: **{relative_path}**")
+            print(f"Processing item: {relative_path}")
 
             if spec.match_file(relative_path):
                 print(f"Skipping ignored item: {relative_path}")
