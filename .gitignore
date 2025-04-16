@@ -30,7 +30,7 @@ src/*_worker_*/
 .pytest*
 
 # JetBrains IDE settings
-/.idea/*
+/.idea/*.*
 
 # docs sources
 /docs/source/
