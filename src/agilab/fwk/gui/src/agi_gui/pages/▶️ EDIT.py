@@ -305,7 +305,7 @@ def normalize_project_name(dest):
     """
     Ensure the new project name ends with '_project'.
     """
-    dest = dest.replace("_", "-")
+    dest = dest.replace("-", "_")
     st.session_state.clone_dest = (
         dest + "_project" if not dest.endswith("_project") else dest
     )
@@ -1070,7 +1070,7 @@ def handle_project_creation():
         elif (env.apps_dir / clone_dest).exists():
             st.warning(f"Project '{clone_dest}' already exists.")
         else:
-            env.clone_project(env.apps_dir, st.session_state["clone_src"], env.apps_dir / clone_dest)
+            env.clone_project(env.apps_dir / st.session_state["clone_src"], env.apps_dir / clone_dest)
             project_path = env.apps_dir / clone_dest
             if project_path.exists():
                 st.success(f"Project '{clone_dest}' successfully created.")
