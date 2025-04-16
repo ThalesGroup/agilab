@@ -46,7 +46,6 @@ def main():
     This function retrieves the current page from the query parameters and stores it in the session state.
     Based on the current page, it sets the page title accordingly and renders the appropriate content.
     """
-    global env
 
     if 'env' not in st.session_state:
         st.error("The application environment is not initialized. Please reload the app.")
@@ -66,10 +65,10 @@ def main():
         page_title = view_path.stem
 
     # Use Streamlit's title or header for dynamic titles
-    render_logo(page_title, env)
+    render_logo(page_title)
 
     if not st.session_state.get("server_started"):
-        activate_mlflow(env)
+        activate_mlflow()
         st.session_state["server_started"] = True
 
     if st.session_state["current_page"] == "main":
@@ -86,7 +85,7 @@ def render_main_page():
 
     This function retrieves the list of projects, sets the current project, loads the app settings, allows the user to select views, and updates the configuration file accordingly.
     """
-    global env
+    env = st.session_state["env"]
     projects = env.projects
     st.session_state["projects"] = projects
 
@@ -97,7 +96,8 @@ def render_main_page():
         st.session_state["project"] = current_project
 
     # Sidebar project selection
-    env = select_project(projects, current_project)
+    select_project(projects, current_project)
+    env = st.session_state["env"]
 
     project = env.app
     # Define paths
