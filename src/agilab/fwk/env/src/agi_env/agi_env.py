@@ -51,6 +51,291 @@ class JumpToMain(Exception):
     """
     pass
 
+class ContentRenamer(ast.NodeTransformer):
+    """
+    A class that renames identifiers in an abstract syntax tree (AST).
+
+    Attributes:
+        rename_map (dict): A mapping of old identifiers to new identifiers.
+    """
+
+    def __init__(self, rename_map):
+        """
+        Initialize the ContentRenamer with the rename_map.
+
+        Args:
+            rename_map (dict): Mapping of old names to new names.
+        """
+        self.rename_map = rename_map
+
+    def visit_Name(self, node):
+        # Rename variable and function names
+        """
+        Visit and potentially rename a Name node in the abstract syntax tree.
+
+        Args:
+            self: The current object instance.
+            node: The Name node in the abstract syntax tree.
+
+        Returns:
+            ast.Node: The modified Name node after potential renaming.
+
+        Note:
+            This function modifies the Name node in place.
+
+        Raises:
+            None
+        """
+        if node.id in self.rename_map:
+            print(f"Renaming Name: {node.id} ➔ {self.rename_map[node.id]}")
+            node.id = self.rename_map[node.id]
+        self.generic_visit(node)  # Ensure child nodes are visited
+        return node
+
+    def visit_Attribute(self, node):
+        # Rename attributes
+        """
+        Visit and potentially rename an attribute in a node.
+
+        Args:
+            node: A node representing an attribute.
+
+        Returns:
+            node: The visited node with potential attribute renamed.
+
+        Raises:
+            None.
+        """
+        if node.attr in self.rename_map:
+            print(f"Renaming Attribute: {node.attr} ➔ {self.rename_map[node.attr]}")
+            node.attr = self.rename_map[node.attr]
+        self.generic_visit(node)
+        return node
+
+    def visit_FunctionDef(self, node):
+        # Rename function names
+        """
+        Rename a function node based on a provided mapping.
+
+        Args:
+            node (ast.FunctionDef): The function node to be processed.
+
+        Returns:
+            ast.FunctionDef: The function node with potential name change.
+        """
+        if node.name in self.rename_map:
+            print(f"Renaming Function: {node.name} ➔ {self.rename_map[node.name]}")
+            node.name = self.rename_map[node.name]
+        self.generic_visit(node)
+        return node
+
+    def visit_ClassDef(self, node):
+        # Rename class names
+        """
+        Visit and potentially rename a ClassDef node.
+
+        Args:
+            node (ast.ClassDef): The ClassDef node to visit.
+
+        Returns:
+            ast.ClassDef: The potentially modified ClassDef node.
+        """
+        if node.name in self.rename_map:
+            print(f"Renaming Class: {node.name} ➔ {self.rename_map[node.name]}")
+            node.name = self.rename_map[node.name]
+        self.generic_visit(node)
+        return node
+
+    def visit_arg(self, node):
+        # Rename function argument names
+        """
+        Visit and potentially rename an argument node.
+
+        Args:
+            self: The instance of the class.
+            node: The argument node to visit and possibly rename.
+
+        Returns:
+            ast.AST: The modified argument node.
+
+        Notes:
+            Modifies the argument node in place if its name is found in the rename map.
+
+        Raises:
+            None.
+        """
+        if node.arg in self.rename_map:
+            print(f"Renaming Argument: {node.arg} ➔ {self.rename_map[node.arg]}")
+            node.arg = self.rename_map[node.arg]
+        self.generic_visit(node)
+        return node
+
+    def visit_Global(self, node):
+        # Rename global variable names
+        """
+        Visit and potentially rename global variables in the AST node.
+
+        Args:
+            self: The instance of the class that contains the renaming logic.
+            node: The AST node to visit and potentially rename global variables.
+
+        Returns:
+            AST node: The modified AST node with global variable names potentially renamed.
+        """
+        new_names = []
+        for name in node.names:
+            if name in self.rename_map:
+                print(f"Renaming Global Variable: {name} ➔ {self.rename_map[name]}")
+                new_names.append(self.rename_map[name])
+            else:
+                new_names.append(name)
+        node.names = new_names
+        self.generic_visit(node)
+        return node
+
+    def visit_nonlocal(self, node):
+        # Rename nonlocal variable names
+        """
+        Visit and potentially rename nonlocal variables in the AST node.
+
+        Args:
+            self: An instance of the class containing the visit_nonlocal method.
+            node: The AST node to visit and potentially modify.
+
+        Returns:
+            ast.AST: The modified AST node after visiting and potentially renaming nonlocal variables.
+        """
+        new_names = []
+        for name in node.names:
+            if name in self.rename_map:
+                print(
+                    f"Renaming Nonlocal Variable: {name} ➔ {self.rename_map[name]}"
+                )
+                new_names.append(self.rename_map[name])
+            else:
+                new_names.append(name)
+        node.names = new_names
+        self.generic_visit(node)
+        return node
+
+    def visit_Assign(self, node):
+        # Rename assigned variable names
+        """
+        Visit and process an assignment node.
+
+        Args:
+            self: The instance of the visitor class.
+            node: The assignment node to be visited.
+
+        Returns:
+            ast.Node: The visited assignment node.
+        """
+        self.generic_visit(node)
+        return node
+
+    def visit_AnnAssign(self, node):
+        # Rename annotated assignments
+        """
+        Visit and process an AnnAssign node in an abstract syntax tree.
+
+        Args:
+            self: The AST visitor object.
+            node: The AnnAssign node to be visited.
+
+        Returns:
+            AnnAssign: The visited AnnAssign node.
+        """
+        self.generic_visit(node)
+        return node
+
+    def visit_For(self, node):
+        # Rename loop variable names
+        """
+        Visit and potentially rename the target variable in a For loop node.
+
+        Args:
+            node (ast.For): The For loop node to visit.
+
+        Returns:
+            ast.For: The modified For loop node.
+
+        Note:
+            This function may modify the target variable in the For loop node if it exists in the rename map.
+        """
+        if isinstance(node.target, ast.Name) and node.target.id in self.rename_map:
+            print(
+                f"Renaming For Loop Variable: {node.target.id} ➔ {self.rename_map[node.target.id]}"
+            )
+            node.target.id = self.rename_map[node.target.id]
+        self.generic_visit(node)
+        return node
+
+    def visit_Import(self, node):
+        """
+        Rename imported modules in 'import module' statements.
+
+        Args:
+            node (ast.Import): The import node.
+        """
+        for alias in node.names:
+            original_name = alias.name
+            if original_name in self.rename_map:
+                print(
+                    f"Renaming Import Module: {original_name} ➔ {self.rename_map[original_name]}"
+                )
+                alias.name = self.rename_map[original_name]
+            else:
+                # Handle compound module names if necessary
+                for old, new in self.rename_map.items():
+                    if original_name.startswith(old):
+                        print(
+                            f"Renaming Import Module: {original_name} ➔ {original_name.replace(old, new, 1)}"
+                        )
+                        alias.name = original_name.replace(old, new, 1)
+                        break
+        self.generic_visit(node)
+        return node
+
+    def visit_ImportFrom(self, node):
+        """
+        Rename modules and imported names in 'from module import name' statements.
+
+        Args:
+            node (ast.ImportFrom): The import from node.
+        """
+        # Rename the module being imported from
+        if node.module in self.rename_map:
+            print(
+                f"Renaming ImportFrom Module: {node.module} ➔ {self.rename_map[node.module]}"
+            )
+            node.module = self.rename_map[node.module]
+        else:
+            for old, new in self.rename_map.items():
+                if node.module and node.module.startswith(old):
+                    new_module = node.module.replace(old, new, 1)
+                    print(
+                        f"Renaming ImportFrom Module: {node.module} ➔ {new_module}"
+                    )
+                    node.module = new_module
+                    break
+
+        # Rename the imported names
+        for alias in node.names:
+            if alias.name in self.rename_map:
+                print(
+                    f"Renaming Imported Name: {alias.name} ➔ {self.rename_map[alias.name]}"
+                )
+                alias.name = self.rename_map[alias.name]
+            else:
+                for old, new in self.rename_map.items():
+                    if alias.name.startswith(old):
+                        print(
+                            f"Renaming Imported Name: {alias.name} ➔ {alias.name.replace(old, new, 1)}"
+                        )
+                        alias.name = alias.name.replace(old, new, 1)
+                        break
+        self.generic_visit(node)
+        return node
 
 class AgiEnv:
     """
@@ -667,7 +952,7 @@ class AgiEnv:
             print(f"No .gitignore file found at '{gitignore_path}'.")
             return
 
-        spec = self.read_gitignore(self, gitignore_path)
+        spec = self.read_gitignore(gitignore_path)
 
         # Create the destination directory
         try:
@@ -678,295 +963,6 @@ class AgiEnv:
 
         # Start recursive cloning
         self.clone_directory(source_root, dest_root, rename_map, spec, source_root)
-
-    import ast
-    import astor
-
-    class ContentRenamer(ast.NodeTransformer):
-        """
-        A class that renames identifiers in an abstract syntax tree (AST).
-
-        Attributes:
-            rename_map (dict): A mapping of old identifiers to new identifiers.
-        """
-
-        def __init__(self, rename_map):
-            """
-            Initialize the ContentRenamer with the rename_map.
-
-            Args:
-                rename_map (dict): Mapping of old names to new names.
-            """
-            self.rename_map = rename_map
-
-        def visit_Name(self, node):
-            # Rename variable and function names
-            """
-            Visit and potentially rename a Name node in the abstract syntax tree.
-
-            Args:
-                self: The current object instance.
-                node: The Name node in the abstract syntax tree.
-
-            Returns:
-                ast.Node: The modified Name node after potential renaming.
-
-            Note:
-                This function modifies the Name node in place.
-
-            Raises:
-                None
-            """
-            if node.id in self.rename_map:
-                print(f"Renaming Name: {node.id} ➔ {self.rename_map[node.id]}")
-                node.id = self.rename_map[node.id]
-            self.generic_visit(node)  # Ensure child nodes are visited
-            return node
-
-        def visit_Attribute(self, node):
-            # Rename attributes
-            """
-            Visit and potentially rename an attribute in a node.
-
-            Args:
-                node: A node representing an attribute.
-
-            Returns:
-                node: The visited node with potential attribute renamed.
-
-            Raises:
-                None.
-            """
-            if node.attr in self.rename_map:
-                print(f"Renaming Attribute: {node.attr} ➔ {self.rename_map[node.attr]}")
-                node.attr = self.rename_map[node.attr]
-            self.generic_visit(node)
-            return node
-
-        def visit_FunctionDef(self, node):
-            # Rename function names
-            """
-            Rename a function node based on a provided mapping.
-
-            Args:
-                node (ast.FunctionDef): The function node to be processed.
-
-            Returns:
-                ast.FunctionDef: The function node with potential name change.
-            """
-            if node.name in self.rename_map:
-                print(f"Renaming Function: {node.name} ➔ {self.rename_map[node.name]}")
-                node.name = self.rename_map[node.name]
-            self.generic_visit(node)
-            return node
-
-        def visit_ClassDef(self, node):
-            # Rename class names
-            """
-            Visit and potentially rename a ClassDef node.
-
-            Args:
-                node (ast.ClassDef): The ClassDef node to visit.
-
-            Returns:
-                ast.ClassDef: The potentially modified ClassDef node.
-            """
-            if node.name in self.rename_map:
-                print(f"Renaming Class: {node.name} ➔ {self.rename_map[node.name]}")
-                node.name = self.rename_map[node.name]
-            self.generic_visit(node)
-            return node
-
-        def visit_arg(self, node):
-            # Rename function argument names
-            """
-            Visit and potentially rename an argument node.
-
-            Args:
-                self: The instance of the class.
-                node: The argument node to visit and possibly rename.
-
-            Returns:
-                ast.AST: The modified argument node.
-
-            Notes:
-                Modifies the argument node in place if its name is found in the rename map.
-
-            Raises:
-                None.
-            """
-            if node.arg in self.rename_map:
-                print(f"Renaming Argument: {node.arg} ➔ {self.rename_map[node.arg]}")
-                node.arg = self.rename_map[node.arg]
-            self.generic_visit(node)
-            return node
-
-        def visit_Global(self, node):
-            # Rename global variable names
-            """
-            Visit and potentially rename global variables in the AST node.
-
-            Args:
-                self: The instance of the class that contains the renaming logic.
-                node: The AST node to visit and potentially rename global variables.
-
-            Returns:
-                AST node: The modified AST node with global variable names potentially renamed.
-            """
-            new_names = []
-            for name in node.names:
-                if name in self.rename_map:
-                    print(f"Renaming Global Variable: {name} ➔ {self.rename_map[name]}")
-                    new_names.append(self.rename_map[name])
-                else:
-                    new_names.append(name)
-            node.names = new_names
-            self.generic_visit(node)
-            return node
-
-        def visit_nonlocal(self, node):
-            # Rename nonlocal variable names
-            """
-            Visit and potentially rename nonlocal variables in the AST node.
-
-            Args:
-                self: An instance of the class containing the visit_nonlocal method.
-                node: The AST node to visit and potentially modify.
-
-            Returns:
-                ast.AST: The modified AST node after visiting and potentially renaming nonlocal variables.
-            """
-            new_names = []
-            for name in node.names:
-                if name in self.rename_map:
-                    print(
-                        f"Renaming Nonlocal Variable: {name} ➔ {self.rename_map[name]}"
-                    )
-                    new_names.append(self.rename_map[name])
-                else:
-                    new_names.append(name)
-            node.names = new_names
-            self.generic_visit(node)
-            return node
-
-        def visit_Assign(self, node):
-            # Rename assigned variable names
-            """
-            Visit and process an assignment node.
-
-            Args:
-                self: The instance of the visitor class.
-                node: The assignment node to be visited.
-
-            Returns:
-                ast.Node: The visited assignment node.
-            """
-            self.generic_visit(node)
-            return node
-
-        def visit_AnnAssign(self, node):
-            # Rename annotated assignments
-            """
-            Visit and process an AnnAssign node in an abstract syntax tree.
-
-            Args:
-                self: The AST visitor object.
-                node: The AnnAssign node to be visited.
-
-            Returns:
-                AnnAssign: The visited AnnAssign node.
-            """
-            self.generic_visit(node)
-            return node
-
-        def visit_For(self, node):
-            # Rename loop variable names
-            """
-            Visit and potentially rename the target variable in a For loop node.
-
-            Args:
-                node (ast.For): The For loop node to visit.
-
-            Returns:
-                ast.For: The modified For loop node.
-
-            Note:
-                This function may modify the target variable in the For loop node if it exists in the rename map.
-            """
-            if isinstance(node.target, ast.Name) and node.target.id in self.rename_map:
-                print(
-                    f"Renaming For Loop Variable: {node.target.id} ➔ {self.rename_map[node.target.id]}"
-                )
-                node.target.id = self.rename_map[node.target.id]
-            self.generic_visit(node)
-            return node
-
-        def visit_Import(self, node):
-            """
-            Rename imported modules in 'import module' statements.
-
-            Args:
-                node (ast.Import): The import node.
-            """
-            for alias in node.names:
-                original_name = alias.name
-                if original_name in self.rename_map:
-                    print(
-                        f"Renaming Import Module: {original_name} ➔ {self.rename_map[original_name]}"
-                    )
-                    alias.name = self.rename_map[original_name]
-                else:
-                    # Handle compound module names if necessary
-                    for old, new in self.rename_map.items():
-                        if original_name.startswith(old):
-                            print(
-                                f"Renaming Import Module: {original_name} ➔ {original_name.replace(old, new, 1)}"
-                            )
-                            alias.name = original_name.replace(old, new, 1)
-                            break
-            self.generic_visit(node)
-            return node
-
-        def visit_ImportFrom(self, node):
-            """
-            Rename modules and imported names in 'from module import name' statements.
-
-            Args:
-                node (ast.ImportFrom): The import from node.
-            """
-            # Rename the module being imported from
-            if node.module in self.rename_map:
-                print(
-                    f"Renaming ImportFrom Module: {node.module} ➔ {self.rename_map[node.module]}"
-                )
-                node.module = self.rename_map[node.module]
-            else:
-                for old, new in self.rename_map.items():
-                    if node.module and node.module.startswith(old):
-                        new_module = node.module.replace(old, new, 1)
-                        print(
-                            f"Renaming ImportFrom Module: {node.module} ➔ {new_module}"
-                        )
-                        node.module = new_module
-                        break
-
-            # Rename the imported names
-            for alias in node.names:
-                if alias.name in self.rename_map:
-                    print(
-                        f"Renaming Imported Name: {alias.name} ➔ {self.rename_map[alias.name]}"
-                    )
-                    alias.name = self.rename_map[alias.name]
-                else:
-                    for old, new in self.rename_map.items():
-                        if alias.name.startswith(old):
-                            print(
-                                f"Renaming Imported Name: {alias.name} ➔ {alias.name.replace(old, new, 1)}"
-                            )
-                            alias.name = alias.name.replace(old, new, 1)
-                            break
-            self.generic_visit(node)
-            return node
 
     def clone_directory(self, source_dir, dest_dir, rename_map, spec, source_root):
         """
@@ -1096,7 +1092,6 @@ class AgiEnv:
                 except Exception as e:
                     print(f"Failed to clone symlink '{item}': {e}")
 
-    @staticmethod
     def read_gitignore(self, gitignore_path):
         """
         Read patterns from a .gitignore file and compile them into a PathSpec.
