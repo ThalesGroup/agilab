@@ -1042,22 +1042,31 @@ class AgiEnv:
 
     def _cleanup_rename(self, root: Path, rename_map: dict):
         """
-        1) Rename any leftover file/dir names containing old keys.
+        1) Rename any leftover file/dir names by rewriting the full path.
         2) Rewrite text files to replace any leftover old→new in contents.
         """
-        # filesystem names
+        # 1) filesystem names
+        # Sort by descending path‐length so nested items go first
         for old, new in sorted(rename_map.items(), key=lambda kv: len(kv[0]), reverse=True):
-            for path in list(root.rglob(f"*{old}*")):
-                path.rename(path.with_name(path.name.replace(old, new)))
+            # list(...) to freeze the generator
+            for path in sorted(root.rglob(f"*{old}*"), key=lambda p: len(str(p)), reverse=True):
+                old_path = str(path)
+                new_path = old_path.replace(old, new)
+                # ensure parent exists
+                Path(new_path).parent.mkdir(parents=True, exist_ok=True)
+                path.rename(new_path)
 
-        # contents
+        # 2) file contents
         exts = {".py", ".toml", ".md", ".txt", ".json", ".yaml", ".yml"}
         for file in root.rglob("*"):
-            if not file.is_file() or file.suffix.lower() not in exts: continue
+            if not file.is_file() or file.suffix.lower() not in exts:
+                continue
             text = file.read_text(encoding="utf-8")
-            newt = text
-            for old, new in rename_map.items(): newt = newt.replace(old, new)
-            if newt != text: file.write_text(newt, encoding="utf-8")
+            new_text = text
+            for old, new in rename_map.items():
+                new_text = new_text.replace(old, new)
+            if new_text != text:
+                file.write_text(new_text, encoding="utf-8")
 
     def read_gitignore(self, gitignore_path: Path) -> 'PathSpec':
         from pathspec import PathSpec
