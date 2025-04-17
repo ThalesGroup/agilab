@@ -298,19 +298,6 @@ def import_project(project_zip, ignore=False):
     st.session_state["project_imported"] = True
 
 
-# -------------------- Project Name Normalizer -------------------- #
-
-
-def normalize_project_name(dest):
-    """
-    Ensure the new project name ends with '_project'.
-    """
-    dest = dest.replace("-", "_")
-    st.session_state.clone_dest = (
-        dest + "_project" if not dest.endswith("_project") else dest
-    )
-
-
 # -------------------- Project Cloner (Recursive with .venv Symlink) -------------------- #
 
 
@@ -1047,7 +1034,7 @@ def handle_project_creation():
     st.header("Create New Project")
     env = st.session_state["env"]
 
-    # Render the selectbox with the updated index.
+    # choose a template (relative project name, e.g. "flight_project")
     st.sidebar.selectbox(
         "From Template",
         [env.app] + st.session_state["templates"],
@@ -1055,14 +1042,14 @@ def handle_project_creation():
         on_change=lambda: on_project_change(
             st.session_state["clone_src"], switch_to_select=False
         ),
-
     )
-    clone_dest = st.sidebar.text_input(
+    st.sidebar.text_input(
         label="Project Name",
         key="clone_dest",
         on_change=lambda: normalize_project_name(st.session_state["clone_dest"]),
     )
 
+    clone_dest = normalize_project_name(st.session_state["clone_dest"])
     cols = st.sidebar.columns(3)
     if cols[2].button("Create", type="primary", use_container_width=True):
         if not clone_dest:
@@ -1081,51 +1068,75 @@ def handle_project_creation():
             else:
                 st.error(f"Error while creating '{clone_dest}'.")
     else:
-        st.info("Please enter a project name and click 'Create'.")
+        st.sidebar.info("Enter a project name and click 'Create'.")
+
+
+def normalize_project_name(raw: str) -> str:
+    """
+    Given a raw string, return a cleaned-up project name:
+      - strip whitespace
+      - replace spaces or illegal chars with underscore
+      - lowercase
+      - append '_project' if missing
+    """
+    name = raw.strip().lower()
+    # replace any non-alphanumeric/_ with underscore
+    name = re.sub(r"[^0-9a-z_]+", "_", name)
+    # collapse multiple underscores
+    name = re.sub(r"_+", "_", name).strip("_")
+    if not name:
+        return ""
+    return name if name.endswith("_project") else name + "_project"
 
 
 def handle_project_rename():
     """
     Handle the 'Rename' tab in the sidebar for renaming projects.
     """
-    st.header(f"Rename Project '{st.session_state['project']}'")
+    current = st.session_state["project"]
+    st.header(f"Rename Project '{current}'")
 
-    # Input for the new project name
-    clone_dest = st.sidebar.text_input(
-        "New Project Name",
+    # — no on_change here —
+    raw = st.sidebar.text_input(
+        "New Project Name (no suffix)",
         key="clone_dest",
-        on_change=lambda: normalize_project_name(st.session_state["clone_dest"]),
-        help="Enter the new name for your project. It will be suffixed with '_project' if not already present.",
-    )
+        help="Enter the base name for your new project; '_project' will be appended if needed."
+    ).strip()
 
-    # Rename button
     cols = st.sidebar.columns(3)
     if cols[2].button("Rename", type="primary", use_container_width=True):
-        if not clone_dest:
+        if not raw:
             st.error("Project name must not be empty.")
-        elif (env.apps_dir / clone_dest).exists():
-            st.warning(f"Project '{clone_dest}' already exists.")
-        else:
-            src_project = env.app
-            clone_project(env.apps_dir, src_project, clone_dest)
-            project_path = env.apps_dir / clone_dest
-            if project_path.exists():
-                st.success(f"Project '{clone_dest}' successfully created.")
-                on_project_change(clone_dest)
-                shutil.rmtree(src_project, ignore_errors=True)
-                # Provide feedback to the user
-                st.sidebar.success(
-                    f"Project '{st.session_state['project']}' has been renamed to '{clone_dest}'."
-                )
-                st.session_state["project"] = clone_dest
+            return
 
-                # Trigger a sidebar tab switch to 'Select' to reflect the changes
-                st.session_state["switch_to_select"] = True
-                st.rerun()  # Trigger rerun to apply the change
-            else:
-                st.error(f"Error: Project '{clone_dest}' was not found after renaming.")
+        # locally normalize
+        new_name = normalize_project_name(raw)
+        if not new_name:
+            st.error("Could not normalize project name.")
+            return
+
+        src_path  = env.apps_dir / current
+        dest_path = env.apps_dir / new_name
+
+        if dest_path.exists():
+            st.warning(f"Project '{new_name}' already exists.")
+            return
+
+        # perform clone
+        env.clone_project(Path(current), Path(new_name))
+
+        # verify & cleanup
+        if dest_path.exists():
+            shutil.rmtree(src_path, ignore_errors=True)
+
+            st.success(f"Project renamed: '{current}' → '{new_name}'")
+            st.session_state["project"] = new_name
+            st.session_state["switch_to_select"] = True
+            st.rerun()
+        else:
+            st.error(f"Error: Project '{new_name}' not found after renaming.")
     else:
-        st.sidebar.info("Enter a new name for the selected project and click 'Rename'.")
+        st.sidebar.info("Enter a base name above and click Rename.")
 
 
 def handle_project_delete():
