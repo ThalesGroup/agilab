@@ -1020,8 +1020,9 @@ class AgiEnv:
             elif item.is_file():
                 if dest_item.exists():
                     continue
-                suf = item.suffix.lower()
-                if suf in (".7z", ".zip"): shutil.copy2(item, dest_item)
+                suf = dest_item.suffix.lower()
+                if suf in (".7z", ".zip"):
+                    shutil.copy2(item, dest_item)
                 elif suf == ".py":
                     src = item.read_text(encoding="utf-8")
                     try:
@@ -1034,7 +1035,8 @@ class AgiEnv:
                         shutil.copy2(item, dest_item)
                 else:
                     txt = item.read_text(encoding="utf-8")
-                    for old, new in rename_map.items(): txt = txt.replace(old, new)
+                    for old, new in rename_map.items():
+                        txt = txt.replace(old, new)
                     dest_item.write_text(txt, encoding="utf-8")
 
             elif item.is_symlink():
@@ -1042,21 +1044,42 @@ class AgiEnv:
 
     def _cleanup_rename(self, root: Path, rename_map: dict):
         """
-        1) Rename any leftover file/dir names by rewriting the full path.
+        1) Rename any leftover file/dir names whose basename exactly matches a key
+           (or key+'_worker', key+'_project').
         2) Rewrite text files to replace any leftover old→new in contents.
         """
-        # 1) filesystem names
-        # Sort by descending path‐length so nested items go first
-        for old, new in sorted(rename_map.items(), key=lambda kv: len(kv[0]), reverse=True):
-            # list(...) to freeze the generator
-            for path in sorted(root.rglob(f"*{old}*"), key=lambda p: len(str(p)), reverse=True):
-                old_path = str(path)
-                new_path = old_path.replace(old, new)
-                # ensure parent exists
-                Path(new_path).parent.mkdir(parents=True, exist_ok=True)
-                path.rename(new_path)
+        # 1) Build a simple name→new_name map (no slashes)
+        simple_map = {
+            old: new
+            for old, new in rename_map.items()
+            if "/" not in old
+        }
+        # Sort by key length descending so longer names (e.g. 'p20') beat shorter (e.g. 'p2')
+        sorted_map = sorted(simple_map.items(), key=lambda kv: len(kv[0]), reverse=True)
 
-        # 2) file contents
+        # Walk bottom‑up so children get renamed before parents
+        for path in sorted(root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+            old_name = path.name
+            new_name = old_name
+
+            for old, new in sorted_map:
+                if old_name == old:
+                    new_name = new
+                    break
+                if old_name == f"{old}_worker":
+                    new_name = f"{new}_worker"
+                    break
+                if old_name == f"{old}_project":
+                    new_name = f"{new}_project"
+                    break
+
+            if new_name != old_name:
+                target = path.with_name(new_name)
+                # ensure the parent dir exists (it should)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                path.rename(target)
+
+        # 2) Now fix up any lingering references inside text files
         exts = {".py", ".toml", ".md", ".txt", ".json", ".yaml", ".yml"}
         for file in root.rglob("*"):
             if not file.is_file() or file.suffix.lower() not in exts:
