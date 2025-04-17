@@ -47,8 +47,6 @@ from sqlalchemy import false
 #             print(f"Adding {path} to sys.path")
 #             sys.path.insert(0, path)
 
-from agi_env import AgiEnv
-
 # Apply the custom CSS
 custom_css = (
     "<style> .stButton > button { max-width: 150px;  /* Adjust the max-width as needed */"
@@ -186,7 +184,10 @@ def get_css_text():
 
 @st.cache_resource
 def render_logo(edit_text):
-    env = st.session_state["env"]
+    if "env" in st.session_state:
+        env = st.session_state["env"]
+    else:
+        return
 
     agilab_logo_path = env.resource_path / "agilab_logo.png"  # Replace with your logo filename
     agilab_logo_base64 = get_base64_of_image(agilab_logo_path)

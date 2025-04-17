@@ -47,12 +47,6 @@ def main():
     Based on the current page, it sets the page title accordingly and renders the appropriate content.
     """
 
-    if 'env' not in st.session_state:
-        st.error("The application environment is not initialized. Please reload the app.")
-        st.stop()
-    else:
-        env = st.session_state['env']
-
     current_page = st.query_params.get("current_page", "main")
     st.session_state["current_page"] = current_page
 
@@ -85,7 +79,11 @@ def render_main_page():
 
     This function retrieves the list of projects, sets the current project, loads the app settings, allows the user to select views, and updates the configuration file accordingly.
     """
-    env = st.session_state["env"]
+    if 'env' not in st.session_state:
+        st.error("The application environment is not initialized. Please reload the app.")
+        st.stop()
+    else:
+        env = st.session_state['env']
     projects = env.projects
     st.session_state["projects"] = projects
 

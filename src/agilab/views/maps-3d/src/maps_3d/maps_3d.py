@@ -11,9 +11,6 @@
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from agi_gui.pagelib import (
-    env,
-)  # CAUTION: Place it at the first line to avoid other pagelib import instabilities
 from agi_gui.pagelib import find_files, load_df, render_logo, cached_load_df
 import traceback
 import streamlit as st
@@ -25,6 +22,12 @@ import geojson
 import random
 
 render_logo("3D Maps and Network Topology Visualization")
+
+if 'env' not in st.session_state:
+    st.error("The application environment is not initialized. Please reload the app.")
+    st.stop()
+else:
+    env = st.session_state['env']
 
 # Define variable types and their default indices
 var = ["discrete", "continious", "lat", "long", "alt"]
@@ -352,6 +355,7 @@ def page():
     Returns:
         None
     """
+
     st.sidebar.text_input(
         "Data Directory",
         value=st.session_state.datadir,
@@ -442,14 +446,10 @@ def page():
             )
 
     if "Load Data" not in st.session_state:
-        st.session_state["loaded_df"] = cached_load_df(env.dataframes_path)
+        st.session_state["loaded_df"] = cached_load_df(env.AGILAB_EXPORT_ABS / env.target)
     if "loaded_df" in st.session_state and st.session_state["df_file"]:
         st.session_state["loaded_df"]
         loaded_df = st.session_state.get("loaded_df")
-        if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
-            st.dataframe(loaded_df)
-        else:
-            st.info("No data loaded yet. Click 'Load Data' from the sidebar to load it.")
 
         #df_file_abs = Path(st.session_state.datadir) / st.session_state.df_file
         #df_file_abs = "~/export/flight_sim/export.csv"
@@ -566,6 +566,9 @@ def page():
 
             # Initialize an empty DataFrame to store distribution metrics
             c = st.columns(5)
+            # set a default opacity in case the slider never gets created
+            opacity_value = st.session_state.get("opacity_slider", 0.8)
+
             for i, cols in enumerate([discrete_cols, continious_cols]):
                 if cols:
                     colsn = (
@@ -788,7 +791,10 @@ def page():
             # Add the legend to the PyDeck deck
             st.pydeck_chart(r)
             st.markdown(legend_html, unsafe_allow_html=True)
-
+    if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
+        st.dataframe(loaded_df)
+    else:
+        st.info("No data loaded yet. Click 'Load Data' from the sidebar to load it.")
 
 # -------------------- Main Application Entry -------------------- #
 def main():
