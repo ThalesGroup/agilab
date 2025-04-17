@@ -276,7 +276,7 @@ def handle_export_project():
 
     st.session_state["export_message"] = "Export completed."
     time.sleep(1)
-    st.session_state["archives"].append(st.session_state["project"] + ".zip")
+    st.session_state["archives"].append(env.app + ".zip")
 
 
 def import_project(project_zip, ignore=False):
@@ -299,29 +299,192 @@ def import_project(project_zip, ignore=False):
 
 
 # -------------------- Project Cloner (Recursive with .venv Symlink) -------------------- #
+    def clone_directory(self,
+                        source_dir: Path,
+                        dest_dir: Path,
+                        rename_map: dict,
+                        spec: PathSpec,
+                        source_root: Path):
+        """
+        Recursively copy + rename directories, files, and contents.
+        """
+        import ast, astor
+
+        for item in source_dir.iterdir():
+            rel = item.relative_to(source_root).as_posix()
+            # skip .gitignore’d files
+            if spec.match_file(rel + ("/" if item.is_dir() else "")):
+                continue
+
+            # 1) Build a new relative path by applying map only to entire segments
+            parts = rel.split("/")
+            for i, seg in enumerate(parts):
+                for old, new in sorted(rename_map.items(), key=lambda kv: -len(kv[0])):
+                    if seg == old:
+                        parts[i] = new
+                        break
+            new_rel = "/".join(parts)
+            dst = dest_dir / new_rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+
+            # 2) Recurse / copy
+            if item.is_dir():
+                if item.name == ".venv":
+                    os.symlink(item, dst, target_is_directory=True)
+                else:
+                    self.clone_directory(item, dest_dir, rename_map, spec, source_root)
+
+            elif item.is_file():
+                suf = item.suffix.lower()
+
+                # Python → AST rename + whole‑word replace
+                if suf == ".py":
+                    src = item.read_text()
+                    try:
+                        tree = ast.parse(src)
+                        tree = ContentRenamer(rename_map).visit(tree)
+                        ast.fix_missing_locations(tree)
+                        out = astor.to_source(tree)
+                    except SyntaxError:
+                        out = src
+                    # leftover whole‑word replaces
+                    for old, new in rename_map.items():
+                        out = re.sub(rf"\b{re.escape(old)}\b", new, out)
+                    dst.write_text(out, encoding="utf-8")
+
+                # text files → whole‑word replace
+                elif suf in (".toml", ".md", ".txt", ".json", ".yaml", ".yml"):
+                    txt = item.read_text()
+                    for old, new in rename_map.items():
+                        txt = re.sub(rf"\b{re.escape(old)}\b", new, txt)
+                    dst.write_text(txt, encoding="utf-8")
+
+                # archives or binaries
+                else:
+                    shutil.copy2(item, dst)
+
+            elif item.is_symlink():
+                target = os.readlink(item)
+                os.symlink(target, dst, target_is_directory=item.is_dir())
 
 
-def clone_project(target_project, dest_project):
+def clone_directory(self,
+                    source_dir: Path,
+                    dest_dir: Path,
+                    rename_map: dict,
+                    spec: PathSpec,
+                    source_root: Path):
     """
-    Clone a project by recursively copying files and directories, applying renaming.
-    For the .venv directory, create a symbolic link instead of copying if it's not ignored.
-
-    Args:
-        target_project (str): Name of the target project.
-        dest_project (str): Name of the destination project.
+    Recursively copy + rename directories, files, and contents.
     """
-    env = st.session_state["env"]
-    res = env.clone_preject(target_project, dest_project)
+    for item in source_dir.iterdir():
+        rel = item.relative_to(source_root).as_posix()
+        # skip .gitignore’d files
+        if spec.match_file(rel + ("/" if item.is_dir() else "")):
+            continue
 
-    # After cloning, update the session state
-    st.session_state["projects"] = env.projects
-    st.session_state["project_created"] = True  # Set flag for successful creation
-    st.session_state["project"] = dest_project  # Set the new project as current
+        # 1) Build a new relative path by applying map only to entire segments
+        parts = rel.split("/")
+        for i, seg in enumerate(parts):
+            for old, new in sorted(rename_map.items(), key=lambda kv: -len(kv[0])):
+                if seg == old:
+                    parts[i] = new
+                    break
+        new_rel = "/".join(parts)
 
-    # Change the app to the new project
-    env.change_active_app(dest_project, env.install_type)
+        dst = dest_dir / new_rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
 
-    return res
+        # 2) Recurse / copy
+        if item.is_dir():
+            if item.name == ".venv":
+                os.symlink(item, dst, target_is_directory=True)
+            else:
+                self.clone_directory(item, dest_dir, rename_map, spec, source_root)
+
+        elif item.is_file():
+            suf = item.suffix.lower()
+
+            # First, if the **basename** matches an old→new, rename the file itself
+            base = item.stem
+            if base in rename_map:
+                dst = dst.with_name(rename_map[base] + item.suffix)
+
+            # Archives
+            if suf in (".7z", ".zip"):
+                shutil.copy2(item, dst)
+
+            # Python → AST rename + whole‑word replace
+            elif suf == ".py":
+                src = item.read_text(encoding="utf-8")
+                try:
+                    tree = ast.parse(src)
+                    renamer = ContentRenamer(rename_map)
+                    new_tree = renamer.visit(tree)
+                    ast.fix_missing_locations(new_tree)
+                    out = astor.to_source(new_tree)
+                except SyntaxError:
+                    out = src
+                # apply any leftover whole‑word replaces
+                for old, new in rename_map.items():
+                    out = re.sub(rf"\b{re.escape(old)}\b", new, out)
+                dst.write_text(out, encoding="utf-8")
+
+            # Text files → whole‑word replace
+            elif suf in (".toml", ".md", ".txt", ".json", ".yaml", ".yml"):
+                txt = item.read_text(encoding="utf-8")
+                for old, new in rename_map.items():
+                    txt = re.sub(rf"\b{re.escape(old)}\b", new, txt)
+                dst.write_text(txt, encoding="utf-8")
+
+            # Everything else
+            else:
+                shutil.copy2(item, dst)
+
+        elif item.is_symlink():
+            target = os.readlink(item)
+            os.symlink(target, dst, target_is_directory=item.is_dir())
+
+
+def _cleanup_rename(self, root: Path, rename_map: dict):
+    """
+    1) Rename any leftover file/dir basenames (including .py) that exactly match a key.
+    2) Rewrite text files for any straggler content references.
+    """
+    # Build simple name→new map (no slashes)
+    simple_map = {old: new for old, new in rename_map.items() if "/" not in old}
+    # Sort longest first
+    sorted_simple = sorted(simple_map.items(), key=lambda kv: len(kv[0]), reverse=True)
+
+    # -- step 1: rename basenames bottom‑up --
+    for path in sorted(root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        old_name = path.name
+        # exact matches
+        for old, new in sorted_simple:
+            if old_name == old:
+                path.rename(path.with_name(new))
+                break
+            if old_name == f"{old}_worker" or old_name == f"{old}_project":
+                path.rename(path.with_name(old_name.replace(old, new, 1)))
+                break
+            if path.is_file() and old_name.startswith(old + "."):
+                # e.g. flight.py → truc.py
+                new_name = new + old_name[len(old):]
+                path.rename(path.with_name(new_name))
+                break
+
+    # -- step 2: rewrite any lingering references in text files --
+    exts = {".py", ".toml", ".md", ".json", ".yaml", ".yml", ".txt"}
+    for file in root.rglob("*"):
+        if not file.is_file() or file.suffix.lower() not in exts:
+            continue
+        txt = file.read_text(encoding="utf-8")
+        new_txt = txt
+        for old, new in rename_map.items():
+            new_txt = re.sub(rf"\b{re.escape(old)}\b", new, new_txt)
+        if new_txt != txt:
+            file.write_text(new_txt, encoding="utf-8")
+
 
 import ast
 import astor
@@ -901,22 +1064,14 @@ def handle_project_selection():
     Handle the 'Select' tab in the sidebar for project selection.
     """
     projects = st.session_state["projects"]
-    current_project = st.session_state["project"]
+    env = st.session_state["env"]
 
     if not projects:
         st.warning("No projects available.")
         return
 
-    # Ensure current_project is in projects list
-    if current_project not in projects:
-        current_project = projects[0]
-        st.session_state["project"] = current_project
-        # Optionally, trigger a rerun if necessary
-        st.rerun()
-
     # Sidebar project selection
-    #st.session_state["project"] = select_project(projects, current_project)
-    select_project(projects, current_project)
+    select_project(projects, env.app)
     env = st.session_state["env"]
 
     # Export Button
@@ -1040,7 +1195,7 @@ def handle_project_creation():
         [env.app] + st.session_state["templates"],
         key="clone_src",
         on_change=lambda: on_project_change(
-            st.session_state["clone_src"], switch_to_select=False
+            st.session_state["clone_src"], switch_to_select=True
         ),
     )
 
@@ -1063,11 +1218,9 @@ def handle_project_creation():
 
         # verify
         if (env.apps_dir / new_name).exists():
-            st.success(f"Project '{new_name}' created — ready to rename.")
-        # 1️update the “current project”…
-            st.session_state["project"] = new_name
-        # 2️then switch into Rename on the next run…
-            st.session_state["go_to_rename"] = True
+            st.success(f"Project '{new_name}' created.")
+            env.change_active_app(new_name)
+            st.session_state["switch_to_select"] = True
             st.rerun()
         else:
             st.error(f"Error while creating '{new_name}'.")
@@ -1098,7 +1251,8 @@ def handle_project_rename():
     """
     Handle the 'Rename' tab in the sidebar for renaming projects.
     """
-    current = st.session_state["project"]
+    env = st.session_state["env"]
+    current = env.app
     st.header(f"Rename Project '{current}'")
 
     # — no on_change here —
@@ -1135,7 +1289,7 @@ def handle_project_rename():
             shutil.rmtree(src_path, ignore_errors=True)
 
             st.success(f"Project renamed: '{current}' → '{new_name}'")
-            st.session_state["project"] = new_name
+            env.change_active_app(new_name)
             st.session_state["switch_to_select"] = True
             st.rerun()
         else:
@@ -1215,9 +1369,7 @@ def handle_project_import():
         if cols[2].button("Import", type="primary", use_container_width=True):
             if not path.exists():
                 import_project(selected_archive, st.session_state["clean_import"])
-                st.session_state["project"] = (
-                    import_target  # Trigger rerun to apply the change
-                )
+                env.change_active_app(import_target)
             else:
                 overwrite_modal.open()
 
@@ -1231,7 +1383,7 @@ def handle_project_import():
                     try:
                         shutil.rmtree(path)
                         import_project(import_target, st.session_state["clean_import"])
-                        st.session_state["project"] = import_target
+                        env.change_active_app(import_target)
                         overwrite_modal.close()
                     except PermissionError:
                         st.error(f"Project '{import_target}' is not removable.")
@@ -1328,10 +1480,6 @@ def page():
 
     for key, value in session_defaults.items():
         st.session_state.setdefault(key, value)
-
-    # if we’ve just created a project and need to immediately show Rename:
-    if st.session_state.pop("go_to_rename", False):
-        st.session_state["sidebar_selection"] = "Rename"
 
     # Sidebar: Project selection, creation, loading
     sidebar_selection = st.sidebar.radio(
