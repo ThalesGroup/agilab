@@ -35,6 +35,8 @@ import re
 import sys
 from pathlib import Path, PureWindowsPath, PurePosixPath
 from dotenv import dotenv_values, set_key
+from pathspec import PathSpec
+
 
 class JumpToMain(Exception):
     """
@@ -152,8 +154,12 @@ class AgiEnv:
         # 2) Final cleanup
         self._cleanup_rename(dest_root, rename_map)
 
-    def clone_directory(self, source_dir: Path, dest_dir: Path,
-                        rename_map: dict, spec: PathSpec, source_root: Path):
+    def clone_directory(self,
+                        source_dir: Path,
+                        dest_dir: Path,
+                        rename_map: dict,
+                        spec: "PathSpec",  # ← quoted
+                        source_root: Path):
         """
         Recursively copy + rename:
          - explicit src/<mod> and src/<mod>_worker directory swaps
