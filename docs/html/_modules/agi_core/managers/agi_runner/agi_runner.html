@@ -132,6 +132,7 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../agi-env.html#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../../agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../agi-env.html#agi_env.agi_env.JumpToMain"><code class="docutils literal notranslate"><span class="pre">JumpToMain</span></code></a></li>
 </ul>
 </li>
@@ -1410,7 +1411,7 @@
         <span class="c1">##################</span>
         <span class="c1"># manager install</span>
         <span class="c1">#################</span>
-        <span class="n">app_path</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">app_path</span>
+        <span class="n">app_path</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">app_path</span><span class="o">.</span><span class="n">absolute</span><span class="p">()</span>
         <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_run_type</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;manager&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> --extra managers --project </span><span class="si">{</span><span class="n">app_path</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="n">AGI</span><span class="o">.</span><span class="n">_log_verbose</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Executing locally: </span><span class="se">\n</span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2"> </span><span class="se">\n</span><span class="s2">venv </span><span class="si">{</span><span class="n">app_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
         <span class="n">result</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">venv</span><span class="o">=</span><span class="n">app_path</span><span class="p">)</span>
@@ -1751,7 +1752,7 @@
         <span class="k">elif</span> <span class="n">baseworker</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;AgiData&quot;</span><span class="p">):</span>
             <span class="n">packages</span> <span class="o">+=</span> <span class="s2">&quot;data_worker&quot;</span>
 
-        <span class="n">app_path</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">app_path</span>
+        <span class="n">app_path</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">app_path</span><span class="o">.</span><span class="n">absolute</span><span class="p">()</span>
 
         <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">setup_core</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">setup_app</span><span class="p">)</span>
         <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv run --project </span><span class="si">{</span><span class="n">app_path</span><span class="si">}</span><span class="s2"> python setup bdist_egg --packages </span><span class="se">\&quot;</span><span class="si">{</span><span class="n">packages</span><span class="si">}</span><span class="se">\&quot;</span><span class="s2"> -d </span><span class="se">\&quot;</span><span class="si">{</span><span class="n">wenv</span><span class="si">}</span><span class="se">\&quot;</span><span class="s2">&quot;</span>
