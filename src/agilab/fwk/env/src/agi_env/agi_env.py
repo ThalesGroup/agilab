@@ -31,6 +31,9 @@ import threading
 import queue
 import traceback
 import time
+if os.name == "nt":
+    import winreg
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 import re
 import sys
 from pathlib import Path, PureWindowsPath, PurePosixPath
@@ -51,8 +54,282 @@ class ContentRenamer(ast.NodeTransformer):
         rename_map (dict): A mapping of old identifiers to new identifiers.
     """
     def __init__(self, rename_map):
+        """
+        Initialize the ContentRenamer with the rename_map.
+
+        Args:
+            rename_map (dict): Mapping of old names to new names.
+        """
         self.rename_map = rename_map
-    # ... (all visit_* methods unchanged) ...
+
+    def visit_Name(self, node):
+        # Rename variable and function names
+        """
+        Visit and potentially rename a Name node in the abstract syntax tree.
+
+        Args:
+            self: The current object instance.
+            node: The Name node in the abstract syntax tree.
+
+        Returns:
+            ast.Node: The modified Name node after potential renaming.
+
+        Note:
+            This function modifies the Name node in place.
+
+        Raises:
+            None
+        """
+        if node.id in self.rename_map:
+            print(f"Renaming Name: {node.id} ➔ {self.rename_map[node.id]}")
+            node.id = self.rename_map[node.id]
+        self.generic_visit(node)  # Ensure child nodes are visited
+        return node
+
+    def visit_Attribute(self, node):
+        # Rename attributes
+        """
+        Visit and potentially rename an attribute in a node.
+
+        Args:
+            node: A node representing an attribute.
+
+        Returns:
+            node: The visited node with potential attribute renamed.
+
+        Raises:
+            None.
+        """
+        if node.attr in self.rename_map:
+            print(f"Renaming Attribute: {node.attr} ➔ {self.rename_map[node.attr]}")
+            node.attr = self.rename_map[node.attr]
+        self.generic_visit(node)
+        return node
+
+    def visit_FunctionDef(self, node):
+        # Rename function names
+        """
+        Rename a function node based on a provided mapping.
+
+        Args:
+            node (ast.FunctionDef): The function node to be processed.
+
+        Returns:
+            ast.FunctionDef: The function node with potential name change.
+        """
+        if node.name in self.rename_map:
+            print(f"Renaming Function: {node.name} ➔ {self.rename_map[node.name]}")
+            node.name = self.rename_map[node.name]
+        self.generic_visit(node)
+        return node
+
+    def visit_ClassDef(self, node):
+        # Rename class names
+        """
+        Visit and potentially rename a ClassDef node.
+
+        Args:
+            node (ast.ClassDef): The ClassDef node to visit.
+
+        Returns:
+            ast.ClassDef: The potentially modified ClassDef node.
+        """
+        if node.name in self.rename_map:
+            print(f"Renaming Class: {node.name} ➔ {self.rename_map[node.name]}")
+            node.name = self.rename_map[node.name]
+        self.generic_visit(node)
+        return node
+
+    def visit_arg(self, node):
+        # Rename function argument names
+        """
+        Visit and potentially rename an argument node.
+
+        Args:
+            self: The instance of the class.
+            node: The argument node to visit and possibly rename.
+
+        Returns:
+            ast.AST: The modified argument node.
+
+        Notes:
+            Modifies the argument node in place if its name is found in the rename map.
+
+        Raises:
+            None.
+        """
+        if node.arg in self.rename_map:
+            print(f"Renaming Argument: {node.arg} ➔ {self.rename_map[node.arg]}")
+            node.arg = self.rename_map[node.arg]
+        self.generic_visit(node)
+        return node
+
+    def visit_Global(self, node):
+        # Rename global variable names
+        """
+        Visit and potentially rename global variables in the AST node.
+
+        Args:
+            self: The instance of the class that contains the renaming logic.
+            node: The AST node to visit and potentially rename global variables.
+
+        Returns:
+            AST node: The modified AST node with global variable names potentially renamed.
+        """
+        new_names = []
+        for name in node.names:
+            if name in self.rename_map:
+                print(f"Renaming Global Variable: {name} ➔ {self.rename_map[name]}")
+                new_names.append(self.rename_map[name])
+            else:
+                new_names.append(name)
+        node.names = new_names
+        self.generic_visit(node)
+        return node
+
+    def visit_nonlocal(self, node):
+        # Rename nonlocal variable names
+        """
+        Visit and potentially rename nonlocal variables in the AST node.
+
+        Args:
+            self: An instance of the class containing the visit_nonlocal method.
+            node: The AST node to visit and potentially modify.
+
+        Returns:
+            ast.AST: The modified AST node after visiting and potentially renaming nonlocal variables.
+        """
+        new_names = []
+        for name in node.names:
+            if name in self.rename_map:
+                print(
+                    f"Renaming Nonlocal Variable: {name} ➔ {self.rename_map[name]}"
+                )
+                new_names.append(self.rename_map[name])
+            else:
+                new_names.append(name)
+        node.names = new_names
+        self.generic_visit(node)
+        return node
+
+    def visit_Assign(self, node):
+        # Rename assigned variable names
+        """
+        Visit and process an assignment node.
+
+        Args:
+            self: The instance of the visitor class.
+            node: The assignment node to be visited.
+
+        Returns:
+            ast.Node: The visited assignment node.
+        """
+        self.generic_visit(node)
+        return node
+
+    def visit_AnnAssign(self, node):
+        # Rename annotated assignments
+        """
+        Visit and process an AnnAssign node in an abstract syntax tree.
+
+        Args:
+            self: The AST visitor object.
+            node: The AnnAssign node to be visited.
+
+        Returns:
+            AnnAssign: The visited AnnAssign node.
+        """
+        self.generic_visit(node)
+        return node
+
+    def visit_For(self, node):
+        # Rename loop variable names
+        """
+        Visit and potentially rename the target variable in a For loop node.
+
+        Args:
+            node (ast.For): The For loop node to visit.
+
+        Returns:
+            ast.For: The modified For loop node.
+
+        Note:
+            This function may modify the target variable in the For loop node if it exists in the rename map.
+        """
+        if isinstance(node.target, ast.Name) and node.target.id in self.rename_map:
+            print(
+                f"Renaming For Loop Variable: {node.target.id} ➔ {self.rename_map[node.target.id]}"
+            )
+            node.target.id = self.rename_map[node.target.id]
+        self.generic_visit(node)
+        return node
+
+    def visit_Import(self, node):
+        """
+        Rename imported modules in 'import module' statements.
+
+        Args:
+            node (ast.Import): The import node.
+        """
+        for alias in node.names:
+            original_name = alias.name
+            if original_name in self.rename_map:
+                print(
+                    f"Renaming Import Module: {original_name} ➔ {self.rename_map[original_name]}"
+                )
+                alias.name = self.rename_map[original_name]
+            else:
+                # Handle compound module names if necessary
+                for old, new in self.rename_map.items():
+                    if original_name.startswith(old):
+                        print(
+                            f"Renaming Import Module: {original_name} ➔ {original_name.replace(old, new, 1)}"
+                        )
+                        alias.name = original_name.replace(old, new, 1)
+                        break
+        self.generic_visit(node)
+        return node
+
+    def visit_ImportFrom(self, node):
+        """
+        Rename modules and imported names in 'from module import name' statements.
+
+        Args:
+            node (ast.ImportFrom): The import from node.
+        """
+        # Rename the module being imported from
+        if node.module in self.rename_map:
+            print(
+                f"Renaming ImportFrom Module: {node.module} ➔ {self.rename_map[node.module]}"
+            )
+            node.module = self.rename_map[node.module]
+        else:
+            for old, new in self.rename_map.items():
+                if node.module and node.module.startswith(old):
+                    new_module = node.module.replace(old, new, 1)
+                    print(
+                        f"Renaming ImportFrom Module: {node.module} ➔ {new_module}"
+                    )
+                    node.module = new_module
+                    break
+
+        # Rename the imported names
+        for alias in node.names:
+            if alias.name in self.rename_map:
+                print(
+                    f"Renaming Imported Name: {alias.name} ➔ {self.rename_map[alias.name]}"
+                )
+                alias.name = self.rename_map[alias.name]
+            else:
+                for old, new in self.rename_map.items():
+                    if alias.name.startswith(old):
+                        print(
+                            f"Renaming Imported Name: {alias.name} ➔ {alias.name.replace(old, new, 1)}"
+                        )
+                        alias.name = alias.name.replace(old, new, 1)
+                        break
+        self.generic_visit(node)
+        return node
 
 class AgiEnv:
     """
@@ -787,4 +1064,406 @@ class AgiEnv:
         lines = gitignore_path.read_text(encoding="utf-8").splitlines()
         return PathSpec.from_lines(GitWildMatchPattern, lines)
 
-    # ... (remaining methods unchanged) ...
+
+    def _init_envars(self):
+        envars = self.envars
+        self.credantials = envars.get("CLUSTER_CREDENTIALS", getpass.getuser())
+        credantials = self.credantials.split(":")
+        self.user = credantials[0]
+        if len(credantials) > 1:
+            self.password = credantials[1]
+        else:
+            self.password = None
+        self.python_version = envars.get("AGI_PYTHON_VERSION", "3.12.9")
+
+        os.makedirs(AgiEnv.apps_dir, exist_ok=True)
+        if self.install_type:
+            self.core_src = self.agi_root / "fwk/core/src"
+        else:
+            self.core_src = self.agi_root
+        self.core_root = self.core_src.parent
+
+        self.workers_root = self.core_src / "agi_core/workers"
+        self.manager_root = self.core_src / "agi_core/managers/"
+        path = str(self.core_src)
+        if path not in sys.path:
+            sys.path.insert(0, path)
+
+        # Determine module path and set target.
+        if isinstance(self.module, Path):
+            self.module_path = self.module.expanduser().resolve()
+        else:
+            self.module_path = self._determine_module_path(self.module)
+        self.target = self.module_path.stem  # Define self.target here
+
+        self.AGILAB_SHARE_ABS = Path(
+            envars.get("AGI_SHARE_DIR", self.home_abs / "data")
+        )
+
+        self.dataframes_path = self.AGILAB_SHARE_ABS / self.target / "dataframes"
+
+        # Now that target is defined, we can use it for further assignments.
+        self._init_projects()
+
+        self.WORKER_VENV_REL = Path(envars.get("WORKER_VENV_DIR", "wenv"))
+        self.scheduler_ip = envars.get("AGI_SCHEDULER_IP", "127.0.0.1")
+        if not self.is_valid_ip(self.scheduler_ip):
+            raise ValueError(f"Invalid scheduler IP address: {self.scheduler_ip}")
+
+        if self.install_type:
+            self.help_path = str(self.agi_root / "../docs/html")
+        else:
+            self.help_path = "https://thalesgroup.github.io/agilab"
+
+        self.AGILAB_SHARE_ABS = Path(
+            envars.get("AGI_SHARE_DIR", self.home_abs / "data")
+        )
+
+    def is_valid_ip(self, ip: str) -> bool:
+        pattern = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
+        if pattern.match(ip):
+            parts = ip.split(".")
+            return all(0 <= int(part) <= 255 for part in parts)
+        return False
+
+    def init_envars_app(self, envars):
+        self.CLUSTER_CREDENTIALS = envars.get("CLUSTER_CREDENTIALS", None)
+        self.OPENAI_API_KEY = envars.get("OPENAI_API_KEY", None)
+        AGILAB_LOG_ABS = Path(envars.get("AGI_LOG_DIR", self.home_abs / "log"))
+        if not AGILAB_LOG_ABS.exists():
+            AGILAB_LOG_ABS.mkdir(parents=True)
+        self.AGILAB_LOG_ABS = AGILAB_LOG_ABS
+        self.runenv = self.AGILAB_LOG_ABS
+        AGILAB_EXPORT_ABS = Path(envars.get("AGI_EXPORT_DIR", self.home_abs / "export"))
+        if not AGILAB_EXPORT_ABS.exists():
+            AGILAB_EXPORT_ABS.mkdir(parents=True)
+        self.AGILAB_EXPORT_ABS = AGILAB_EXPORT_ABS
+        self.export_apps = AGILAB_EXPORT_ABS / "apps"
+        if not self.export_apps.exists():
+            os.makedirs(str(self.export_apps), exist_ok=True)
+        self.MLFLOW_TRACKING_DIR = Path(
+            envars.get("MLFLOW_TRACKING_DIR", self.home_abs / ".mlflow")
+        )
+        self.AGILAB_VIEWS_ABS = Path(
+            envars.get("AGI_VIEWS_DIR", self.agi_root / "views")
+        )
+        self.AGILAB_VIEWS_REL = Path(envars.get("AGI_VIEWS_DIR", "agi/_"))
+
+        self.AGILAB_DATA_NROW = int(envars.get("AGI_GUI_NROW", 1000000))
+        if self.install_type == 0:
+            self.copilot_file = self.agi_root / "agi_gui/agi_copilot.py"
+        else:
+            self.copilot_file = self.agi_root / "fwk/gui/src/agi_gui/agi_copilot.py"
+
+    def _init_resources(self, resources_path):
+        src_env_path = resources_path / ".env"
+        dest_env_file = self.resource_path / ".env"
+        if not src_env_path.exists():
+            msg = f"Installation issue: {src_env_path} is missing!"
+            print(msg)
+            raise RuntimeError(msg)
+        if not dest_env_file.exists():
+            os.makedirs(dest_env_file.parent, exist_ok=True)
+            shutil.copy(src_env_path, dest_env_file)
+        for root, dirs, files in os.walk(resources_path):
+            for file in files:
+                src_file = Path(root) / file
+                relative_path = src_file.relative_to(resources_path)
+                dest_file = self.resource_path / relative_path
+                dest_file.parent.mkdir(parents=True, exist_ok=True)
+                if not dest_file.exists():
+                    os.makedirs(dest_env_file.parent, exist_ok=True)
+                    shutil.copy(src_file, dest_file)
+
+    def _init_worker_env(self):
+        self.wenv_rel = self.WORKER_VENV_REL / self.target_worker
+        self.wenv_abs = self.home_abs / self.wenv_rel
+        self.wenv_target_worker = self.wenv_abs
+        distribution_tree = self.wenv_abs / "distribution_tree.json"
+        self.cyprepro = self.core_src / "agi_core/workers/agi_worker/cyprepro.py"
+        self.post_install_script = self.wenv_abs / "src" / self.target_worker / "post_install.py"
+        if distribution_tree.exists():
+            distribution_tree.unlink()
+        self.distribution_tree = distribution_tree
+
+    def _init_projects(self):
+        for idx, project in enumerate(self.projects):
+            if self.target == project[:-8].replace("-", "_"):
+                self.app_path = AgiEnv.apps_dir / project
+                self.project_index = idx
+                self.app = project
+                break
+
+    def get_projects(self, path:Path):
+        return [p.name for p in path.glob("*project")]
+
+
+    def get_modules(self, target=None):
+        pattern = "_project"
+        modules = [
+            re.sub(f"^{pattern}|{pattern}$", "", project).replace("-", "_")
+            for project in self.get_projects(AgiEnv.apps_dir)
+        ]
+        return modules
+
+    @property
+    def scheduler_ip_address(self):
+        return self.scheduler_ip
+
+    def change_active_module(self, module_path, install_type):
+        if module_path != self.module_path:
+            self.__init__(active_module=module_path, install_type=install_type, verbose=self.verbose)
+
+    def change_active_app(self, app, install_type):
+        if isinstance(app, str):
+            app_name = app
+        elif isinstance(app, Path):
+            app_name = app.name
+        else:
+            raise TypeError(f"Invalid app type: {type(app)}\nSupported type are <str> and <Path>")
+
+        if app_name != self.app:
+            self.__init__(active_app=app_name, install_type=install_type, verbose=self.verbose)
+
+    def check_args(self, target_args_class, target_args):
+        try:
+            validated_args = target_args_class.parse_obj(target_args)
+            validation_errors = None
+        except Exception as e:
+            import humanize
+            validation_errors = self.humanize_validation_errors(e)
+        return validation_errors
+
+    def humanize_validation_errors(self, error):
+        formatted_errors = []
+        for err in error.errors():
+            field = ".".join(str(loc) for loc in err["loc"])
+            message = err["msg"]
+            error_type = err.get("type", "unknown_error")
+            input_value = err.get("ctx", {}).get("input_value", None)
+            user_message = f"❌ **{field}**: {message}"
+            if input_value is not None:
+                user_message += f" (Received: `{input_value}`)"
+            user_message += f"\n*Error Type:* `{error_type}`\n"
+            formatted_errors.append(user_message)
+        return formatted_errors
+
+    @staticmethod
+    def _build_env(venv=None):
+        proc_env = os.environ.copy()
+        if venv is not None:
+            venv_path = Path(venv) / ".venv"
+            proc_env["VIRTUAL_ENV"] = str(venv_path)
+            bin_path = "Scripts" if os.name == "nt" else "bin"
+            venv_bin = venv_path / bin_path
+            proc_env["PATH"] = str(venv_bin) + os.pathsep + proc_env.get("PATH", "")
+        return proc_env
+
+    class JumpToMain(Exception):
+        pass
+
+    @staticmethod
+    async def _run_bg(cmd, cwd=".", venv=None, timeout=None, log_callback=None):
+        """
+        Run the given command asynchronously, reading stdout and stderr line by line
+        and passing them to the log_callback.
+        """
+        proc_env = AgiEnv._build_env(venv)
+        proc_env["PYTHONUNBUFFERED"] = "1"
+        proc = await asyncio.create_subprocess_shell(
+            cmd,
+            cwd=os.path.abspath(cwd),
+            env=proc_env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        async def read_stream(stream, callback):
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                decoded_line = line.decode().rstrip()
+                if callback:
+                    callback(decoded_line)
+                else:
+                    print(decoded_line)
+
+        tasks = []
+        if proc.stdout:
+            tasks.append(asyncio.create_task(
+                read_stream(proc.stdout, lambda msg: log_callback(msg) if log_callback else print(msg))
+            ))
+        if proc.stderr:
+            tasks.append(asyncio.create_task(
+                read_stream(proc.stderr, lambda msg: log_callback(msg) if log_callback else print(msg))
+            ))
+
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=timeout)
+        except asyncio.TimeoutError as err:
+            proc.kill()
+            raise RuntimeError(f"Timeout expired for command: {cmd}") from err
+
+        await asyncio.gather(*tasks)
+        stdout, stderr = await proc.communicate()
+        return stdout.decode(), stderr.decode()
+
+    async def run_agi(self, code, log_callback=None, venv: Path = None, type=None):
+        """
+        Asynchronous version of run_agi for use within an async context.
+        """
+        pattern = r"await\s+(?:Agi\.)?([^\(]+)\("
+        matches = re.findall(pattern, code)
+        if not matches:
+            message = "Could not determine snippet name from code."
+            if log_callback:
+                log_callback(message)
+            else:
+                print(message)
+            return "", ""
+        snippet_file = os.path.join(self.runenv, f"{matches[0]}-{self.target}.py")
+        with open(snippet_file, "w") as file:
+            file.write(code)
+        cmd = f"uv run python {snippet_file}"
+        # Await _run_bg directly without asyncio.run()
+        result = await AgiEnv._run_bg(cmd, venv=venv, log_callback=log_callback)
+        if log_callback:
+            log_callback(f"Process finished with output: {result}")
+        return result
+
+    @staticmethod
+    async def run_async(cmd, venv=None, cwd=None, timeout=None, log_callback=None):
+        if not cwd:
+            cwd = venv
+        process_env = os.environ.copy()
+        venv_path = Path(venv) / ".venv"
+        process_env["VIRTUAL_ENV"] = str(venv_path)
+        bin_dir = "Scripts" if os.name == "nt" else "bin"
+        venv_bin = venv_path / bin_dir
+        process_env["PATH"] = str(venv_bin) + os.pathsep + process_env.get("PATH", "")
+        shell_executable = "/bin/bash" if os.name != "nt" else None
+
+        # If cmd is a list, join it for shell=True.
+        if isinstance(cmd, list):
+            cmd = " ".join(cmd)
+
+        process = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(cwd),
+            env=process_env,
+            executable=shell_executable
+        )
+
+        async def read_stream(stream, callback):
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                decoded_line = line.decode().rstrip()
+                callback(decoded_line)
+
+        # Start a task for reading stderr concurrently.
+        stderr_task = asyncio.create_task(
+            read_stream(process.stderr, log_callback if log_callback else print)
+        )
+
+    @staticmethod
+    def run(cmd, venv=None, cwd=None, timeout=None, wait=True, log_callback=None):
+        if not cwd:
+            cwd = venv
+        process_env = os.environ.copy()
+        venv_path = Path(venv) / ".venv"
+        process_env["VIRTUAL_ENV"] = str(venv_path)
+        bin_dir = "Scripts" if os.name == "nt" else "bin"
+        venv_bin = venv_path / bin_dir
+        process_env["PATH"] = str(venv_bin) + os.pathsep + process_env.get("PATH", "")
+        shell_executable = "/bin/bash" if os.name != "nt" else None
+
+        if wait:
+            try:
+                process = subprocess.Popen(
+                    cmd,
+                    shell=True,
+                    cwd=str(venv) if not cwd else str(cwd),
+                    env=process_env,
+                    text=True,
+                    executable=shell_executable,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                output_lines = []
+                while True:
+                    if process.stderr:
+                        line = process.stderr.readline().rstrip()
+                        if line:
+                            if log_callback:
+                                log_callback(line)
+                            else:
+                                print(line)
+                        if line == '' and process.poll() is not None:
+                            break
+                    else:
+                        break
+                process.wait(timeout=timeout)
+                return process.stdout.read() if process.stdout else ""
+            except Exception as e:
+                print(traceback.format_exc())
+                raise RuntimeError(f"Command execution error: {e}") from e
+        else:
+            return ""
+
+    @staticmethod
+    def create_symlink(source: Path, dest: Path):
+        try:
+            source_resolved = source.resolve(strict=True)
+        except FileNotFoundError as e:
+            raise FileNotFoundError(
+                f"Error: Source path does not exist: {source}\n{e}"
+            ) from e
+        if dest.exists() or dest.is_symlink():
+            if dest.is_symlink():
+                try:
+                    existing_target = dest.resolve(strict=True)
+                    if existing_target == source_resolved:
+                        print(f"Symlink already exists and is correct: {dest} -> {source_resolved}")
+                        return
+                    else:
+                        print(f"Warning: Symlink at {dest} points to {existing_target}, expected {source_resolved}.")
+                        return
+                except RecursionError:
+                    raise RecursionError(f"Error: Detected a symlink loop while resolving existing symlink at {dest}.")
+                except FileNotFoundError:
+                    print(f"Warning: Symlink at {dest} is broken.")
+                    return
+            else:
+                print(f"Warning: Destination already exists and is not a symlink: {dest}")
+                return
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            raise OSError(f"Error: Failed to create parent directories for {dest}: {e}") from e
+        try:
+            if os.name == "nt":
+                is_dir = source_resolved.is_dir()
+                os.symlink(str(source_resolved), str(dest), target_is_directory=is_dir)
+            else:
+                os.symlink(str(source_resolved), str(dest))
+            print(f"Symlink created: {dest} -> {source_resolved}")
+        except OSError as e:
+            if os.name == "nt":
+                raise OSError(
+                    "Error: Failed to create symlink on Windows.\nEnsure you have the necessary permissions or Developer Mode is enabled."
+                ) from e
+            else:
+                raise OSError(f"Error: Failed to create symlink: {e}") from e
+
+    @staticmethod
+    def normalize_path(path):
+        return (
+            str(PureWindowsPath(Path(path)))
+            if os.name == "nt"
+            else str(PurePosixPath(Path(path)))
+        )
