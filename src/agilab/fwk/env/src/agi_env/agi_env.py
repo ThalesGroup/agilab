@@ -36,6 +36,7 @@ if os.name == "nt":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 import re
 import sys
+import shutil
 from pathlib import Path, PureWindowsPath, PurePosixPath
 from dotenv import dotenv_values, set_key
 from pathspec import PathSpec
