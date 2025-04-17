@@ -19,7 +19,7 @@ See [documentation](https://thalesgroup.github.io/agilab).
 
 ```bash
 mk dir agi-workspace && cd agi-workspace
-uv run agilab 
+uv run agilab --openai-api-key "your-api-key" [--install-path "path"] [--cluster-credentials "user:password"]
 ```
 
 
@@ -30,7 +30,7 @@ uv run agilab
 ```bash
 git clone https://github.com/ThalesGroup/agilab
 cd agilab  
-./install.sh  --openai-api-key <api-key> [--install-path <path>] [--cluster-credentials <user:password>]
+./install.sh  --openai-api-key "your-api-key" [--install-path "path"] [--cluster-credentials "user:password"]
 ```
 
 ### Windows:
@@ -38,7 +38,7 @@ cd agilab
 ```powershell
 unzip agilab.zip
 cd agilab
-powershell.exe -ExecutionPolicy Bypass -File .\install.ps1  --openai-api-key <api-key> [--install-path <path>] [--cluster-credentials <user:password>]
+powershell.exe -ExecutionPolicy Bypass -File .\install.ps1  --openai-api-key "your-api-key" [--install-path "path"] [--cluster-credentials "user:password"]
 ```
 
 ## AGILab Execution
