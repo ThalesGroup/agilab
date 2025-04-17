@@ -46,7 +46,7 @@ src/*_worker_*/
 /src/agilab/views/
 !/src/agilab/views/maps/
 !/src/agilab/apps/maps-3d/
-!.idea/runConfigurations/
+!*/.idea/runConfigurations/
 
 # managed PC install under windows
 /thales/
