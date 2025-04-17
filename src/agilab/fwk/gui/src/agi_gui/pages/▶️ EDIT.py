@@ -1043,32 +1043,37 @@ def handle_project_creation():
             st.session_state["clone_src"], switch_to_select=False
         ),
     )
-    st.sidebar.text_input(
-        label="Project Name",
-        key="clone_dest",
-        on_change=lambda: normalize_project_name(st.session_state["clone_dest"]),
-    )
 
-    clone_dest = normalize_project_name(st.session_state["clone_dest"])
+    raw = st.sidebar.text_input("Project Name (no suffix)", key="clone_dest").strip()
+
     cols = st.sidebar.columns(3)
     if cols[2].button("Create", type="primary", use_container_width=True):
-        if not clone_dest:
+        if not raw:
             st.error("Project name must not be empty.")
-        elif (env.apps_dir / clone_dest).exists():
-            st.warning(f"Project '{clone_dest}' already exists.")
+            return
+
+        new_name = normalize_project_name(raw)
+        if (env.apps_dir / new_name).exists():
+            st.warning(f"Project '{new_name}' already exists.")
+            return
+
+        # clone it
+        env.clone_project(Path(st.session_state["clone_src"]),
+                          Path(new_name))
+
+        # verify
+        if (env.apps_dir / new_name).exists():
+            st.success(f"Project '{new_name}' created — ready to rename.")
+        # 1️update the “current project”…
+            st.session_state["project"] = new_name
+        # 2️then switch into Rename on the next run…
+            st.session_state["go_to_rename"] = True
+            st.rerun()
         else:
-            env.clone_project(env.apps_dir / st.session_state["clone_src"], env.apps_dir / clone_dest)
-            project_path = env.apps_dir / clone_dest
-            if project_path.exists():
-                st.success(f"Project '{clone_dest}' successfully created.")
-                on_project_change(clone_dest)  # Trigger rerun to apply the change
-                # Trigger a sidebar tab switch to 'Select' to reflect the changes
-                st.session_state["switch_to_select"] = True
-                st.rerun()  #
-            else:
-                st.error(f"Error while creating '{clone_dest}'.")
+            st.error(f"Error while creating '{new_name}'.")
     else:
         st.sidebar.info("Enter a project name and click 'Create'.")
+
 
 
 def normalize_project_name(raw: str) -> str:
@@ -1323,6 +1328,10 @@ def page():
 
     for key, value in session_defaults.items():
         st.session_state.setdefault(key, value)
+
+    # if we’ve just created a project and need to immediately show Rename:
+    if st.session_state.pop("go_to_rename", False):
+        st.session_state["sidebar_selection"] = "Rename"
 
     # Sidebar: Project selection, creation, loading
     sidebar_selection = st.sidebar.radio(
