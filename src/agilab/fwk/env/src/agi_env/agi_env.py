@@ -970,113 +970,103 @@ class AgiEnv:
         # 2) Final cleanup
         self._cleanup_rename(dest_root, rename_map)
 
-    def clone_directory(self, source_dir: Path, dest_dir: Path,
-                        rename_map: dict, spec: PathSpec, source_root: Path):
+    def clone_directory(self,
+                        source_dir: Path,
+                        dest_dir: Path,
+                        rename_map: dict,
+                        spec: PathSpec,
+                        source_root: Path):
         """
-        1) Only do the explicit src/<mod> and src/<mod>_worker folder‐level swap here.
-        2) Never do any substring replace on new_rel.
-        3) File‐contents still get AST/text renaming.
+        Recursively copy + rename:
+         - explicit src/<mod> and src/<mod>_worker directory swaps
+         - then per‐segment old→new on each path segment (folders and filenames)
+         - then AST/text content rewriting
         """
-        import shutil, os, ast, astor
+        import astor
 
+        # bare module names, e.g. "flight" → "truc"
         tm = source_root.name[:-8]
         dp = dest_dir.name[:-8]
         tm_mod = tm.replace("-", "_")
         dp_mod = dp.replace("-", "_")
 
         for item in source_dir.iterdir():
-            rel = item.relative_to(source_root).as_posix()
-            if spec.match_file(rel + ("/" if item.is_dir() else "")):
+            rel_parts = item.relative_to(source_root).parts
+            test_path = "/".join(rel_parts) + ("/" if item.is_dir() else "")
+            if spec.match_file(test_path):
                 continue
 
-            # 1) explicit folder‐level swap
-            parts = rel.split("/")
-            if len(parts) >= 2 and parts[0] == "src":
-                if parts[1] == tm_mod:
-                    parts[1] = dp_mod
-                elif parts[1] == f"{tm_mod}_worker":
-                    parts[1] = f"{dp_mod}_worker"
-            new_rel = "/".join(parts)
+            # build a new tuple of path‐segments
+            new_parts = []
+            for idx, seg in enumerate(rel_parts):
+                # first two segments get explicit logic for src/<mod> and src/<mod>_worker
+                if idx == 0:
+                    # keep 'src' or whatever stays the same
+                    new_parts.append(seg)
+                elif idx == 1 and seg == tm_mod:
+                    new_parts.append(dp_mod)
+                elif idx == 1 and seg == f"{tm_mod}_worker":
+                    new_parts.append(f"{dp_mod}_worker")
+                else:
+                    # otherwise replace any occurrence of tm_mod inside the segment
+                    new_parts.append(seg.replace(tm_mod, dp_mod))
 
+            new_rel = Path(*new_parts)
             dest_item = dest_dir / new_rel
 
+            # .venv symlink special case
             if item.is_dir() and item.name == ".venv":
                 self.handle_venv_directory(item, dest_item)
                 continue
 
             if item.is_dir():
                 dest_item.mkdir(parents=True, exist_ok=True)
+                # recurse into subdirectory
                 self.clone_directory(item, dest_dir, rename_map, spec, source_root)
 
             elif item.is_file():
                 if dest_item.exists():
                     continue
+                suffix = item.suffix.lower()
 
-                suf = dest_item.suffix.lower()
-                if suf in (".7z", ".zip"):
+                # copy archives
+                if suffix in (".7z", ".zip"):
                     shutil.copy2(item, dest_item)
-                elif suf == ".py":
-                    src = item.read_text(encoding="utf-8")
+
+                # Python files → AST renaming
+                elif suffix == ".py":
+                    text = item.read_text(encoding="utf-8")
                     try:
-                        tree    = ast.parse(src)
+                        tree = ast.parse(text)
                         renamer = ContentRenamer(rename_map)
-                        new_t   = renamer.visit(tree)
-                        ast.fix_missing_locations(new_t)
-                        dest_item.write_text(astor.to_source(new_t), encoding="utf-8")
+                        new_tree = renamer.visit(tree)
+                        ast.fix_missing_locations(new_tree)
+                        new_code = astor.to_source(new_tree)
+                        dest_item.write_text(new_code, encoding="utf-8")
                     except SyntaxError:
                         shutil.copy2(item, dest_item)
-                else:
-                    # only content‐level generic replacement here
+
+                # other text → string replace
+                elif suffix in (".toml", ".md", ".txt", ".json", ".yaml", ".yml"):
                     txt = item.read_text(encoding="utf-8")
                     for old, new in rename_map.items():
                         txt = txt.replace(old, new)
                     dest_item.write_text(txt, encoding="utf-8")
 
+                # binary or misc
+                else:
+                    shutil.copy2(item, dest_item)
+
             elif item.is_symlink():
-                os.symlink(os.readlink(item), dest_item, target_is_directory=item.is_dir())
+                target = os.readlink(item)
+                os.symlink(target, dest_item, target_is_directory=item.is_dir())
 
-
-    def _cleanup_rename(self, root: Path, rename_map: dict):
-        """
-        1) Rename any file/dir whose BASENAME exactly matches a key
-           (or key+'_worker' / key+'_project').
-        2) Then rewrite ANY leftover references inside text files.
-        """
-        # build a flat map of old_name -> new_name (no slashes)
-        simple = {old: new for old,new in rename_map.items() if "/" not in old}
-        # sort so longer names (e.g. 'trucmuch') match before shorter ('truc')
-        sorted_map = sorted(simple.items(), key=lambda kv: len(kv[0]), reverse=True)
-
-        # 1) filesystem, bottom‐up
-        for path in sorted(root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
-            name = path.name
-            new_name = name
-            for old, new in sorted_map:
-                if name == old:
-                    new_name = new
-                    break
-                if name == f"{old}_worker":
-                    new_name = f"{new}_worker"
-                    break
-                if name == f"{old}_project":
-                    new_name = f"{new}_project"
-                    break
-            if new_name != name:
-                target = path.with_name(new_name)
-                target.parent.mkdir(parents=True, exist_ok=True)
-                path.rename(target)
-
-        # 2) contents
-        exts = {".py", ".toml", ".md", ".txt", ".json", ".yaml", ".yml"}
-        for file in root.rglob("*"):
-            if not file.is_file() or file.suffix.lower() not in exts:
-                continue
-            text = file.read_text(encoding="utf-8")
-            new_text = text
-            for old, new in rename_map.items():
-                new_text = new_text.replace(old, new)
-            if new_text != text:
-                file.write_text(new_text, encoding="utf-8")
+    def replace_content(txt: str, rename_map: dict) -> str:
+        for old, new in sorted(rename_map.items(), key=lambda kv: len(kv[0]), reverse=True):
+            # only match whole‐word occurrences of `old`
+            pattern = re.compile(rf"\b{re.escape(old)}\b")
+            txt = pattern.sub(new, txt)
+        return txt
 
     def _cleanup_rename(self, root: Path, rename_map: dict):
         """
@@ -1116,12 +1106,12 @@ class AgiEnv:
                 path.rename(target)
 
         # 2) Now fix up any lingering references inside text files
-        exts = {".py", ".toml", ".md", ".txt", ".json", ".yaml", ".yml"}
+        exts = {".toml", ".md", ".txt", ".json", ".yaml", ".yml"}
         for file in root.rglob("*"):
             if not file.is_file() or file.suffix.lower() not in exts:
                 continue
             text = file.read_text(encoding="utf-8")
-            new_text = text
+            new_text = replace_content(text, rename_map)
             for old, new in rename_map.items():
                 new_text = new_text.replace(old, new)
             if new_text != text:
