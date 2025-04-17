@@ -73,6 +73,12 @@ def page():
     Raises:
         None
     """
+    if 'env' not in st.session_state:
+        st.error("The application environment is not initialized. Please reload the app.")
+        st.stop()
+    else:
+        env = st.session_state['env']
+
     if "project" not in st.session_state:
         st.session_state["project"] = env.target
 
