@@ -52,7 +52,6 @@ src/*_worker_*/
 /thales/
 
 # gen heasers, docs and stubs
-.idea
 !/.idea/runConfigurations/install_agilab_enduser.xml
 
 /gen_stubs/gen_stubs.py
