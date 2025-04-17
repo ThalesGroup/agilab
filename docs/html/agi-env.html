@@ -135,6 +135,7 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#agi_env.agi_env.JumpToMain"><code class="docutils literal notranslate"><span class="pre">JumpToMain</span></code></a></li>
 </ul>
 </li>
@@ -438,285 +439,6 @@
 <em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agi_env.agi_env.</span></span><span class="sig-name descname"><span class="pre">AgiEnv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">install_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">apps_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active_app</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active_module</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>AgiEnv manages paths and environment variables within the agiFramework.</p>
-<dl class="py class">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ContentRenamer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rename_map</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer" title="Link to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">NodeTransformer</span></code></p>
-<p>A class that renames identifiers in an abstract syntax tree (AST).</p>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.rename_map">
-<span class="sig-name descname"><span class="pre">rename_map</span></span><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.rename_map" title="Link to this definition"></a></dt>
-<dd><p>A mapping of old identifiers to new identifiers.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>dict</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rename_map</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.__init__" title="Link to this definition"></a></dt>
-<dd><p>Initialize the ContentRenamer with the rename_map.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>rename_map</strong> (<em>dict</em>) – Mapping of old names to new names.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.generic_visit">
-<span class="sig-name descname"><span class="pre">generic_visit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.generic_visit" title="Link to this definition"></a></dt>
-<dd><p>Called if no explicit visitor function exists for a node.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit">
-<span class="sig-name descname"><span class="pre">visit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit" title="Link to this definition"></a></dt>
-<dd><p>Visit a node.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_AnnAssign">
-<span class="sig-name descname"><span class="pre">visit_AnnAssign</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_AnnAssign"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_AnnAssign" title="Link to this definition"></a></dt>
-<dd><p>Visit and process an AnnAssign node in an abstract syntax tree.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>self</strong> – The AST visitor object.</p></li>
-<li><p><strong>node</strong> – The AnnAssign node to be visited.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The visited AnnAssign node.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>AnnAssign</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_Assign">
-<span class="sig-name descname"><span class="pre">visit_Assign</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_Assign"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_Assign" title="Link to this definition"></a></dt>
-<dd><p>Visit and process an assignment node.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>self</strong> – The instance of the visitor class.</p></li>
-<li><p><strong>node</strong> – The assignment node to be visited.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The visited assignment node.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>ast.Node</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_Attribute">
-<span class="sig-name descname"><span class="pre">visit_Attribute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_Attribute"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_Attribute" title="Link to this definition"></a></dt>
-<dd><p>Visit and potentially rename an attribute in a node.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>node</strong> – A node representing an attribute.</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The visited node with potential attribute renamed.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>node</p>
-</dd>
-<dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>None.</strong> – </p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_ClassDef">
-<span class="sig-name descname"><span class="pre">visit_ClassDef</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_ClassDef"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_ClassDef" title="Link to this definition"></a></dt>
-<dd><p>Visit and potentially rename a ClassDef node.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>node</strong> (<em>ast.ClassDef</em>) – The ClassDef node to visit.</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The potentially modified ClassDef node.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>ast.ClassDef</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_Constant">
-<span class="sig-name descname"><span class="pre">visit_Constant</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_Constant" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_For">
-<span class="sig-name descname"><span class="pre">visit_For</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_For"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_For" title="Link to this definition"></a></dt>
-<dd><p>Visit and potentially rename the target variable in a For loop node.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>node</strong> (<em>ast.For</em>) – The For loop node to visit.</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The modified For loop node.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>ast.For</p>
-</dd>
-</dl>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>This function may modify the target variable in the For loop node if it exists in the rename map.</p>
-</div>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_FunctionDef">
-<span class="sig-name descname"><span class="pre">visit_FunctionDef</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_FunctionDef"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_FunctionDef" title="Link to this definition"></a></dt>
-<dd><p>Rename a function node based on a provided mapping.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>node</strong> (<em>ast.FunctionDef</em>) – The function node to be processed.</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The function node with potential name change.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>ast.FunctionDef</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_Global">
-<span class="sig-name descname"><span class="pre">visit_Global</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_Global"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_Global" title="Link to this definition"></a></dt>
-<dd><p>Visit and potentially rename global variables in the AST node.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>self</strong> – The instance of the class that contains the renaming logic.</p></li>
-<li><p><strong>node</strong> – The AST node to visit and potentially rename global variables.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The modified AST node with global variable names potentially renamed.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>AST node</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_Import">
-<span class="sig-name descname"><span class="pre">visit_Import</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_Import"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_Import" title="Link to this definition"></a></dt>
-<dd><p>Rename imported modules in ‘import module’ statements.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>node</strong> (<em>ast.Import</em>) – The import node.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_ImportFrom">
-<span class="sig-name descname"><span class="pre">visit_ImportFrom</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_ImportFrom"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_ImportFrom" title="Link to this definition"></a></dt>
-<dd><p>Rename modules and imported names in ‘from module import name’ statements.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>node</strong> (<em>ast.ImportFrom</em>) – The import from node.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_Name">
-<span class="sig-name descname"><span class="pre">visit_Name</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_Name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_Name" title="Link to this definition"></a></dt>
-<dd><p>Visit and potentially rename a Name node in the abstract syntax tree.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>self</strong> – The current object instance.</p></li>
-<li><p><strong>node</strong> – The Name node in the abstract syntax tree.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The modified Name node after potential renaming.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>ast.Node</p>
-</dd>
-</dl>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>This function modifies the Name node in place.</p>
-</div>
-<dl class="field-list simple">
-<dt class="field-odd">Raises<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>None</strong> – </p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_arg">
-<span class="sig-name descname"><span class="pre">visit_arg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_arg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_arg" title="Link to this definition"></a></dt>
-<dd><p>Visit and potentially rename an argument node.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>self</strong> – The instance of the class.</p></li>
-<li><p><strong>node</strong> – The argument node to visit and possibly rename.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The modified argument node.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>ast.AST</p>
-</dd>
-</dl>
-<p class="rubric">Notes</p>
-<p>Modifies the argument node in place if its name is found in the rename map.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Raises<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>None.</strong> – </p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ContentRenamer.visit_nonlocal">
-<span class="sig-name descname"><span class="pre">visit_nonlocal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.ContentRenamer.visit_nonlocal"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ContentRenamer.visit_nonlocal" title="Link to this definition"></a></dt>
-<dd><p>Visit and potentially rename nonlocal variables in the AST node.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>self</strong> – An instance of the class containing the visit_nonlocal method.</p></li>
-<li><p><strong>node</strong> – The AST node to visit and potentially modify.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The modified AST node after visiting and potentially renaming nonlocal variables.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>ast.AST</p>
-</dd>
-</dl>
-</dd></dl>
-
-</dd></dl>
-
 <dl class="py exception">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.JumpToMain">
 <em class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">JumpToMain</span></span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.JumpToMain"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.JumpToMain" title="Link to this definition"></a></dt>
@@ -774,16 +496,6 @@ set self.__traceback__ to tb and return self.</p>
 <span class="sig-name descname"><span class="pre">apps_dir</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.apps_dir" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
-<dl class="py attribute">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.ast">
-<span class="sig-name descname"><span class="pre">ast</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;module</span> <span class="pre">'ast'</span> <span class="pre">from</span> <span class="pre">'/home/pcm/.local/share/uv/python/cpython-3.12.9-linux-x86_64-gnu/lib/python3.12/ast.py'&gt;</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.ast" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.astor">
-<span class="sig-name descname"><span class="pre">astor</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;module</span> <span class="pre">'astor'</span> <span class="pre">from</span> <span class="pre">'/home/pcm/PycharmProjects/agilab/.venv/lib/python3.12/site-packages/astor/__init__.py'&gt;</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.astor" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.change_active_app">
 <span class="sig-name descname"><span class="pre">change_active_app</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">install_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.change_active_app"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.change_active_app" title="Link to this definition"></a></dt>
@@ -803,34 +515,14 @@ set self.__traceback__ to tb and return self.</p>
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.clone_directory">
 <span class="sig-name descname"><span class="pre">clone_directory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dest_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rename_map</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spec</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">source_root</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.clone_directory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.clone_directory" title="Link to this definition"></a></dt>
 <dd><p>Recursively clone directories and files from source to destination,
-applying renaming and respecting .gitignore patterns.
-Creates a symbolic link for the .venv directory if it’s not ignored.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>source_dir</strong> (<em>Path</em>) – Source directory path.</p></li>
-<li><p><strong>dest_dir</strong> (<em>Path</em>) – Destination directory path.</p></li>
-<li><p><strong>rename_map</strong> (<em>dict</em>) – Mapping of old relative paths to new relative paths.</p></li>
-<li><p><strong>spec</strong> (<em>PathSpec</em>) – Compiled PathSpec object to filter files/directories.</p></li>
-<li><p><strong>source_root</strong> (<em>Path</em>) – The root directory of the source project.</p></li>
-</ul>
-</dd>
-</dl>
+applying renaming and respecting .gitignore patterns.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.clone_project">
 <span class="sig-name descname"><span class="pre">clone_project</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_project</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dest_project</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.clone_project"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.clone_project" title="Link to this definition"></a></dt>
 <dd><p>Clone a project by recursively copying files and directories, applying renaming.
-For the .venv directory, create a symbolic link instead of copying if it’s not ignored.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>target_project</strong> (<em>str</em>) – Name of the target project.</p></li>
-<li><p><strong>dest_project</strong> (<em>str</em>) – Name of the destination project.</p></li>
-</ul>
-</dd>
-</dl>
+Auto‐appends “_project” to either name if missing.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -856,6 +548,11 @@ For the .venv directory, create a symbolic link instead of copying if it’s not
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.create_rename_map">
 <span class="sig-name descname"><span class="pre">create_rename_map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_project</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dest_project</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.create_rename_map"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.create_rename_map" title="Link to this definition"></a></dt>
 <dd><p>Create a mapping of old names to new names for renaming during project cloning.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></span></p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -1006,7 +703,7 @@ Returns a tuple: (base_class_name, module_name)</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.read_gitignore">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">read_gitignore</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gitignore_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.read_gitignore"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.read_gitignore" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">read_gitignore</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gitignore_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.read_gitignore"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.read_gitignore" title="Link to this definition"></a></dt>
 <dd><p>Read patterns from a .gitignore file and compile them into a PathSpec.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1069,6 +766,285 @@ and persists the change in the .agilab/.env file.</p>
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.set_openai_api_key">
 <span class="sig-name descname"><span class="pre">set_openai_api_key</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">api_key</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.set_openai_api_key"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.set_openai_api_key" title="Link to this definition"></a></dt>
 <dd><p>Set the OPENAI_API_KEY environment variable.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agi_env.agi_env.</span></span><span class="sig-name descname"><span class="pre">ContentRenamer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rename_map</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#ContentRenamer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.ContentRenamer" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">NodeTransformer</span></code></p>
+<p>A class that renames identifiers in an abstract syntax tree (AST).</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer.rename_map">
+<span class="sig-name descname"><span class="pre">rename_map</span></span><a class="headerlink" href="#agi_env.agi_env.ContentRenamer.rename_map" title="Link to this definition"></a></dt>
+<dd><p>A mapping of old identifiers to new identifiers.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rename_map</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#ContentRenamer.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.ContentRenamer.__init__" title="Link to this definition"></a></dt>
+<dd><p>Initialize the ContentRenamer with the rename_map.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>rename_map</strong> (<em>dict</em>) – Mapping of old names to new names.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer.generic_visit">
+<span class="sig-name descname"><span class="pre">generic_visit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_env.agi_env.ContentRenamer.generic_visit" title="Link to this definition"></a></dt>
+<dd><p>Called if no explicit visitor function exists for a node.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer.visit">
+<span class="sig-name descname"><span class="pre">visit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_env.agi_env.ContentRenamer.visit" title="Link to this definition"></a></dt>
+<dd><p>Visit a node.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer.visit_AnnAssign">
+<span class="sig-name descname"><span class="pre">visit_AnnAssign</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#ContentRenamer.visit_AnnAssign"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.ContentRenamer.visit_AnnAssign" title="Link to this definition"></a></dt>
+<dd><p>Visit and process an AnnAssign node in an abstract syntax tree.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>self</strong> – The AST visitor object.</p></li>
+<li><p><strong>node</strong> – The AnnAssign node to be visited.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The visited AnnAssign node.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>AnnAssign</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer.visit_Assign">
+<span class="sig-name descname"><span class="pre">visit_Assign</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#ContentRenamer.visit_Assign"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.ContentRenamer.visit_Assign" title="Link to this definition"></a></dt>
+<dd><p>Visit and process an assignment node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>self</strong> – The instance of the visitor class.</p></li>
+<li><p><strong>node</strong> – The assignment node to be visited.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The visited assignment node.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ast.Node</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer.visit_Attribute">
+<span class="sig-name descname"><span class="pre">visit_Attribute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#ContentRenamer.visit_Attribute"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.ContentRenamer.visit_Attribute" title="Link to this definition"></a></dt>
+<dd><p>Visit and potentially rename an attribute in a node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>node</strong> – A node representing an attribute.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The visited node with potential attribute renamed.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>node</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>None.</strong> – </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer.visit_ClassDef">
+<span class="sig-name descname"><span class="pre">visit_ClassDef</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#ContentRenamer.visit_ClassDef"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.ContentRenamer.visit_ClassDef" title="Link to this definition"></a></dt>
+<dd><p>Visit and potentially rename a ClassDef node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>node</strong> (<em>ast.ClassDef</em>) – The ClassDef node to visit.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The potentially modified ClassDef node.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ast.ClassDef</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer.visit_Constant">
+<span class="sig-name descname"><span class="pre">visit_Constant</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_env.agi_env.ContentRenamer.visit_Constant" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer.visit_For">
+<span class="sig-name descname"><span class="pre">visit_For</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#ContentRenamer.visit_For"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.ContentRenamer.visit_For" title="Link to this definition"></a></dt>
+<dd><p>Visit and potentially rename the target variable in a For loop node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>node</strong> (<em>ast.For</em>) – The For loop node to visit.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The modified For loop node.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ast.For</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function may modify the target variable in the For loop node if it exists in the rename map.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer.visit_FunctionDef">
+<span class="sig-name descname"><span class="pre">visit_FunctionDef</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#ContentRenamer.visit_FunctionDef"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.ContentRenamer.visit_FunctionDef" title="Link to this definition"></a></dt>
+<dd><p>Rename a function node based on a provided mapping.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>node</strong> (<em>ast.FunctionDef</em>) – The function node to be processed.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The function node with potential name change.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ast.FunctionDef</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer.visit_Global">
+<span class="sig-name descname"><span class="pre">visit_Global</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#ContentRenamer.visit_Global"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.ContentRenamer.visit_Global" title="Link to this definition"></a></dt>
+<dd><p>Visit and potentially rename global variables in the AST node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>self</strong> – The instance of the class that contains the renaming logic.</p></li>
+<li><p><strong>node</strong> – The AST node to visit and potentially rename global variables.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The modified AST node with global variable names potentially renamed.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>AST node</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer.visit_Import">
+<span class="sig-name descname"><span class="pre">visit_Import</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#ContentRenamer.visit_Import"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.ContentRenamer.visit_Import" title="Link to this definition"></a></dt>
+<dd><p>Rename imported modules in ‘import module’ statements.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>node</strong> (<em>ast.Import</em>) – The import node.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer.visit_ImportFrom">
+<span class="sig-name descname"><span class="pre">visit_ImportFrom</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#ContentRenamer.visit_ImportFrom"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.ContentRenamer.visit_ImportFrom" title="Link to this definition"></a></dt>
+<dd><p>Rename modules and imported names in ‘from module import name’ statements.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>node</strong> (<em>ast.ImportFrom</em>) – The import from node.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer.visit_Name">
+<span class="sig-name descname"><span class="pre">visit_Name</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#ContentRenamer.visit_Name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.ContentRenamer.visit_Name" title="Link to this definition"></a></dt>
+<dd><p>Visit and potentially rename a Name node in the abstract syntax tree.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>self</strong> – The current object instance.</p></li>
+<li><p><strong>node</strong> – The Name node in the abstract syntax tree.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The modified Name node after potential renaming.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ast.Node</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function modifies the Name node in place.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer.visit_arg">
+<span class="sig-name descname"><span class="pre">visit_arg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#ContentRenamer.visit_arg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.ContentRenamer.visit_arg" title="Link to this definition"></a></dt>
+<dd><p>Visit and potentially rename an argument node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>self</strong> – The instance of the class.</p></li>
+<li><p><strong>node</strong> – The argument node to visit and possibly rename.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The modified argument node.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ast.AST</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Modifies the argument node in place if its name is found in the rename map.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None.</strong> – </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.ContentRenamer.visit_nonlocal">
+<span class="sig-name descname"><span class="pre">visit_nonlocal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#ContentRenamer.visit_nonlocal"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.ContentRenamer.visit_nonlocal" title="Link to this definition"></a></dt>
+<dd><p>Visit and potentially rename nonlocal variables in the AST node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>self</strong> – An instance of the class containing the visit_nonlocal method.</p></li>
+<li><p><strong>node</strong> – The AST node to visit and potentially modify.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The modified AST node after visiting and potentially renaming nonlocal variables.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ast.AST</p>
+</dd>
+</dl>
 </dd></dl>
 
 </dd></dl>
