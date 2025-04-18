@@ -57,6 +57,11 @@ class MyCodeWorker(AgiDagWorker):
             raise RuntimeError("Cython requested but not executed")
 
     def exec(self, algo):
+        """
+        :param work: contain the worker function name called by AgiWorker.do_work
+        this is type string and not type function to avoid manager (e.g. My_code) to be dependant of MyCodeWorker
+        :return:
+        """
         algo = eval(algo)
 
     def algo_A(self):
