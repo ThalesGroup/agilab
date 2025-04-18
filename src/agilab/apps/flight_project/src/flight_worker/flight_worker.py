@@ -26,7 +26,6 @@ from agi_core.workers.agi_worker import AgiWorker
 
 warnings.filterwarnings("ignore")
 
-
 import polars as pl
 from geopy.distance import geodesic
 
