@@ -56,13 +56,19 @@ class MyCodeWorker(AgiDagWorker):
         if(self.mode & 2 and "cy" not in __file__):
             raise RuntimeError("Cython requested but not executed")
 
-    def exec(self, algo):
+    def get_work(self, work: str):
         """
         :param work: contain the worker function name called by AgiWorker.do_work
         this is type string and not type function to avoid manager (e.g. My_code) to be dependant of MyCodeWorker
         :return:
         """
-        algo = eval(algo)
+        from agi_core.managers.agi_manager import AgiManager
+        self.args = AgiManager.args
+        # if it comes in as "FlightSimWorker.work", turn it into "work"
+        method = getattr(self, work, None)
+        if method is None:
+            raise AttributeError(f"No such method '{work}' on {self.__class__.__name__}")
+        return method()
 
     def algo_A(self):
         """
