@@ -19,6 +19,9 @@ view_module = [
 [cluster]
 verbose = true
 cython = false
-cluster_enabled = false
+cluster_enabled = true
 rapids = false
 pool = false
+
+[cluster.workers]
+"127.0.0.1" = 2

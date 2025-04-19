@@ -1161,13 +1161,13 @@ class AGI:
         """
         env = AGI.env
         if (AGI._mode_auto and AGI._mode == AGI.DASK_MODE) or not AGI._mode_auto:
-            if not scheduler and AGI._verbose and AGI._mode & AGI.DASK_MODE:
-                if scheduler != None:
+            if AGI._mode & AGI.DASK_MODE:
+                if scheduler is None:
                     print("AGI.run(...scheduler='scheduler ip address' is required\nStop")
                     exit(1)
                 else:
-                    sheduler="127.0.0.1"
-            AGI._scheduler_ip, AGI._scheduler_port = AGI._get_scheduler(scheduler)
+                    scheduler="127.0.0.1"
+                AGI._scheduler_ip, AGI._scheduler_port = AGI._get_scheduler(scheduler)
 
             # clean cluster env
             for ip in set(list(AGI.workers) + [AGI._scheduler_ip]):

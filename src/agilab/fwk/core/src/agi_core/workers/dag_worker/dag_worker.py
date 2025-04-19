@@ -48,161 +48,148 @@ class AgiDagWorker(AgiWorker):
         return time.time() - AgiWorker.t0
 
     def exec_mono_process(self, workers_tree, workers_tree_info):
-        """Execute tasks in a single process, respecting dependencies."""
+        """
+        Execute tasks in a single process, respecting dependencies,
+        but only for branches assigned to this worker via round-robin.
+        """
+        # guard against None
+        workers_tree      = workers_tree      or []
+        workers_tree_info = workers_tree_info or []
+        num_workers       = len(workers_tree)
+        worker_id         = self.worker_id
 
-        for work_id, work in enumerate(workers_tree):
-            # Validate worker_id
-            if self.worker_id >= len(workers_tree):
-                print(
-                    f"Error: worker_id {self.worker_id} is out of range for workers_tree."
-                )
-                return
-
-            current_worker_tasks = workers_tree[work_id]
-            current_worker_info = workers_tree_info[work_id]
-
-            # Build the complete dependency_graph for the current worker
-            dependency_graph = {}
-            function_info = {}
-
-            for (function, dependencies), (partition_name, weight) in zip(
-                current_worker_tasks, current_worker_info
-            ):
-                dependency_graph[function] = dependencies
-                function_info[function] = {
-                    "partition_name": partition_name,
-                    "weight": weight,
-                }
-
-            # Debug: Print the complete dependency graph and function info
+        # collect only branches for this worker
+        assigned = [
+            (tree, info)
+            for idx, (tree, info) in enumerate(zip(workers_tree, workers_tree_info))
+            if idx % num_workers == worker_id
+        ]
+        if not assigned:
             if self.verbose > 0:
-                print(f"Complete dependency graph for worker {self.worker_id}:")
-                for func, deps in dependency_graph.items():
-                    dep_names = [dep for dep in deps]
-                    print(f"  {func}: {dep_names}")
-                print(f"Function info:")
-                for func, info in function_info.items():
+                print(f"No tasks for worker {worker_id}")
+            return
+
+        # execute each branch sequentially
+        for tree, info in assigned:
+            # build dependency graph & function metadata
+            dependency_graph = {fn: deps for fn, deps in tree}
+            function_info    = {
+                fn: {"partition_name": pname, "weight": weight}
+                for (fn, _), (pname, weight) in zip(tree, info)
+            }
+
+            # debug
+            if self.verbose > 0:
+                print(f"Complete dependency graph for worker {worker_id}:")
+                for fn, deps in dependency_graph.items():
+                    print(f"  {fn}: {deps}")
+                print("Function info:")
+                for fn, meta in function_info.items():
                     print(
-                        f"  {func}: algo={info['partition_name']}, sequence={info['weight']}"
+                        f"  {fn}: algo={meta['partition_name']}, sequence={meta['weight']}"
                     )
 
-            # Perform topological sort on the complete dependency graph
+            # topological sort
             try:
                 topo_order = self.topological_sort(dependency_graph)
                 if self.verbose > 0:
-                    sorted_funcs = [func for func in topo_order]
-                    print(f"Topological order: {sorted_funcs}")
+                    print(f"Topological order: {topo_order}")
             except (KeyError, ValueError) as e:
-                raise Exception(
-                    f"Error during topological sort for worker_id {self.worker_id}: {e}"
-                )
+                print(f"Error during topological sort: {e}")
+                continue
 
-            # Execute functions in topologically sorted order
-            for func in topo_order:
-                partition = function_info[func]["partition_name"]
+            # execute in order
+            for fn in topo_order:
+                pname = function_info[fn]["partition_name"]
                 if self.verbose > 0:
-                    print(
-                        f"Executing {func} for partition {partition}",
-                        flush=True,
-                    )
+                    print(f"Executing {fn} for partition {pname}", flush=True)
                 try:
-                    self.exec(func)
+                    self.get_work(fn)
                 except Exception as e:
-                    print(f"Error executing function {func}: {e}")
-                    continue  # Continue with the next function
+                    print(f"Error executing {fn}: {e}")
 
     def topological_sort(self, dependency_graph):
         """
         Perform a topological sort on the dependency graph.
-
-        Args:
-            dependency_graph (dict): A dictionary where keys are functions and values are lists of dependent functions.
-
-        Returns:
-            list: A list of functions in topologically sorted order.
-
-        Raises:
-            ValueError: If a cycle is detected in the dependencies.
+        Raises ValueError on cycles.
         """
-        # Calculate in-degrees and adjacency list
         in_degree = defaultdict(int)
-        adj_list = defaultdict(list)
-        for func, deps in dependency_graph.items():
+        adj_list  = defaultdict(list)
+        for fn, deps in dependency_graph.items():
             for dep in deps:
-                adj_list[dep].append(func)
-                in_degree[func] += 1
+                adj_list[dep].append(fn)
+                in_degree[fn] += 1
 
-        # Initialize queue with nodes of in-degree 0
-        queue = deque([func for func in dependency_graph if in_degree[func] == 0])
-
+        queue = deque([fn for fn in dependency_graph if in_degree[fn] == 0])
         topo_order = []
         while queue:
             current = queue.popleft()
             topo_order.append(current)
-
-            for neighbor in adj_list[current]:
-                in_degree[neighbor] -= 1
-                if in_degree[neighbor] == 0:
-                    queue.append(neighbor)
+            for nbr in adj_list[current]:
+                in_degree[nbr] -= 1
+                if in_degree[nbr] == 0:
+                    queue.append(nbr)
 
         if len(topo_order) != len(dependency_graph):
-            # For debugging, identify the cycle
-            remaining = set(dependency_graph.keys()) - set(topo_order)
-            cycle_funcs = ", ".join([func.__name__ for func in remaining])
-            raise ValueError(f"Circular dependency detected involving: {cycle_funcs}")
-
+            remaining = set(dependency_graph) - set(topo_order)
+            raise ValueError(f"Circular dependency detected: {remaining}")
         return topo_order
 
     def exec_multi_process(self, workers_tree, workers_tree_info):
-        """Execute tasks in multiple threads, respecting dependencies."""
-        if workers_tree is None:
-            workers_tree = []
+        """
+        Execute tasks in multiple threads, distributing branches to workers in
+        round‑robin, then honoring dependencies per worker.
+        """
+        # guard against None
+        workers_tree      = workers_tree      or []
+        workers_tree_info = workers_tree_info or []
+        num_workers       = len(workers_tree)
+        worker_id         = self.worker_id
 
-        worker_tree = workers_tree[self.worker_id]
-        worker_tree_info = workers_tree_info[self.worker_id]
+        # collect tasks assigned to this worker by round-robin
+        assigned = []
+        for idx, (tree, info) in enumerate(zip(workers_tree, workers_tree_info)):
+            if idx % num_workers != worker_id:
+                continue
+            for (fn, deps), (pname, weight) in zip(tree, info):
+                assigned.append((fn, deps, pname, weight))
 
-        dependency_graph = {}
-        function_info = {}
+        if not assigned:
+            if self.verbose > 0:
+                print(f"No tasks for worker {worker_id}")
+            return
 
-        for (function, dependencies), (partition_name, weight) in zip(
-            worker_tree, worker_tree_info
-        ):
-            dependency_graph[function] = dependencies
-            function_info[function] = {
-                "partition_name": partition_name,
-                "weight": weight,
-            }
+        # build combined dependency graph & metadata
+        dependency_graph = {fn: deps for fn, deps, _, _ in assigned}
+        function_info    = {
+            fn: {"partition_name": pname, "weight": weight}
+            for fn, _, pname, weight in assigned
+        }
 
-        # Perform topological sort
+        # topological sort
         try:
             topo_order = self.topological_sort(dependency_graph)
         except ValueError as e:
-            print(f"Error: {e}")
+            if self.verbose > 0:
+                print(f"Error in dependency graph: {e}")
             return
 
+        # execute in parallel
         futures = {}
         with ThreadPoolExecutor() as executor:
-            for function in topo_order:
-                dependencies = dependency_graph[function]
-                # Wait for dependencies to complete
-                for dep in dependencies:
+            for fn in topo_order:
+                for dep in dependency_graph.get(fn, []):
                     if dep in futures:
-                        future_dep, _ = futures[dep]  # Extract the future
-                        future_dep.result()
-                # Submit the function to be executed
-                partition_name = function_info[function]["partition_name"]
-                future = executor.submit(self.exec, (function))
-                futures[function] = (future, partition_name)
+                        futures[dep][0].result()
+                future = executor.submit(self.get_work, fn)
+                futures[fn] = (future, function_info[fn]["partition_name"])
 
-        # Collect results
-        for function, (future, partition_name) in futures.items():
+        # collect results
+        for fn, (future, pname) in futures.items():
             try:
-                result = future.result()
+                future.result()
                 if self.verbose > 0:
-                    print(
-                        f"Method {function} for partition {partition_name} completed."
-                    )
+                    print(f"Method {fn} for partition {pname} completed.")
             except Exception as exc:
-                print(
-                    f"Method {function} for partition {partition_name} generated an exception: {exc}"
-                )
+                print(f"Method {fn} for partition {pname} generated an exception: {exc}")
+

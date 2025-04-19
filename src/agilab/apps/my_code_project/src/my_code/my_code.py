@@ -64,14 +64,14 @@ class MyCode(AgiManager):
 
         workers_tree = [
             [  # worker 0
-                ("MyCodeWorker.algo_A", []),
-                ("MyCodeWorker.algo_B", ["MyCodeWorker.algo_A"]),
-                ("MyCodeWorker.algo_C", ["MyCodeWorker.algo_B"]),
+                ("algo_A", []),
+                ("algo_B", ["algo_A"]),
+                ("algo_C", ["algo_B"]),
             ],
             [  # worker 1
-                ("MyCodeWorker.algo_X", []),
-                ("MyCodeWorker.algo_Y", ["MyCodeWorker.algo_X"]),
-                ("MyCodeWorker.algo_Z", ["MyCodeWorker.algo_Y"]),
+                ("algo_X", []),
+                ("algo_Y", ["algo_X"]),
+                ("algo_Z", ["algo_Y"]),
             ],
         ]
 
