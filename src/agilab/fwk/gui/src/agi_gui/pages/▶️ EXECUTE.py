@@ -170,6 +170,7 @@ def parse_and_validate_scheduler(scheduler_input):
     return scheduler
 
 def parse_and_validate_workers(workers_input):
+    env = st.session_state["env"]
     workers = safe_eval(
         expression=workers_input,
         expected_type=dict,
