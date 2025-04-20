@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="build-egg@my-code&lt;wenv/xxx_worker&gt;" type="PythonConfigurationType" factoryName="Python">
-    <module name="core" />
+  <configuration default="false" name="agi-run@{APP}&lt;log/{APP}.py&gt;" type="PythonConfigurationType" factoryName="Python">
+    <module name="{APP}_worker" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
@@ -8,14 +8,14 @@
       <env name="PYTHONUNBUFFERED" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
-    <option name="SDK_NAME" value="uv (core)" />
-    <option name="WORKING_DIRECTORY" value="$ProjectFileDir$" />
+    <option name="SDK_NAME" value="uv ({APP}_worker)" />
+    <option name="WORKING_DIRECTORY" value="$USER_HOME$/log" />
     <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="$ProjectFileDir$/apps/my_code_project/setup" />
-    <option name="PARAMETERS" value="bdist_egg --packages &quot;agi_worker, dag_worker&quot; -d $FilePrompt$" />
+    <option name="SCRIPT_NAME" value="$FilePrompt$" />
+    <option name="PARAMETERS" value="" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />
