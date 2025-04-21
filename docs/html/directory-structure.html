@@ -24,7 +24,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Troubleshooting" href="troubleshouting.html" />
+    <link rel="next" title="Troubleshooting" href="troubleshooting.html" />
     <link rel="prev" title="Example2: Flight-Project" href="flight-project.html" /> 
 </head>
 
@@ -232,6 +232,7 @@
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_multi_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_work"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_work()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_worker_info()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.home_dir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.is_managed_pc</span></code></a></li>
@@ -365,16 +366,16 @@
 </ul>
 </li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Project Files Structure</a></li>
-<li class="toctree-l1"><a class="reference internal" href="troubleshouting.html">Troubleshooting</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#a-prerequisite">A - Prerequisite:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#b-list-of-available-scripts">B - List of Available Scripts:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="troubleshouting.html#known-bugs">Known Bugs</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#uv-sync-failed">&lt;UV&gt; Sync Failed</a></li>
-<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#dask-debug-issue">&lt;DASK&gt; Debug Issue</a></li>
-<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#pycharm-run-debug-configuration-is-broken">&lt;PYCHARM&gt; Run/Debug Configuration is Broken</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html#known-bugs">Known Bugs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#uv-sync-failed">&lt;UV&gt; Sync Failed</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#dask-debug-issue">&lt;DASK&gt; Debug Issue</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#pycharm-run-debug-configuration-is-broken">&lt;PYCHARM&gt; Run/Debug Configuration is Broken</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">Licences</a><ul>
@@ -465,6 +466,28 @@
 │   │       │   ├── post_install.py
 │   │       │   └── pyproject.toml
 │   │       └── pre_prompt.json
+│   ├── flight-legacy-project
+│   │   ├── dask_pid
+│   │   ├── pre_prompt.json
+│   │   ├── pyproject.toml
+│   │   ├── README.md
+│   │   ├── scripts
+│   │   │   └── post_install.py
+│   │   ├── setup
+│   │   ├── src
+│   │   │   ├── app_settings.toml
+│   │   │   ├── args_ui_snippet.py
+│   │   │   ├── flight_legacy
+│   │   │   │   ├── flight_legacy.py
+│   │   │   │   └── __init__.py
+│   │   │   ├── flight_legacy_worker
+│   │   │   │   ├── flight_legacy_worker.py
+│   │   │   │   └── __init__.py
+│   │   │   ├── lab_steps.ipynb
+│   │   │   ├── lab_steps.toml
+│   │   │   └── pre_prompt.json
+│   │   └── test
+│   │       └── test_df.ipynb
 │   ├── flight_project
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
@@ -501,6 +524,41 @@
 │   │   │   ├── test_flight.py
 │   │   │   └── test_flight_worker.py
 │   │   └── uv.lock
+│   ├── flight_sim_project
+│   │   ├── distribution_tree.json
+│   │   ├── pyproject.toml
+│   │   ├── README.md
+│   │   ├── src
+│   │   │   ├── agi_core
+│   │   │   │   └── workers
+│   │   │   ├── app_settings.toml
+│   │   │   ├── args_ui_snippet.py
+│   │   │   ├── flight_sim
+│   │   │   │   ├── flight_sim.py
+│   │   │   │   └── __init__.py
+│   │   │   ├── flight_sim_project.egg-info
+│   │   │   │   ├── dependency_links.txt
+│   │   │   │   ├── not-zip-safe
+│   │   │   │   ├── PKG-INFO
+│   │   │   │   ├── requires.txt
+│   │   │   │   ├── SOURCES.txt
+│   │   │   │   └── top_level.txt
+│   │   │   ├── flight_sim_worker
+│   │   │   │   ├── dataset.7z
+│   │   │   │   ├── flight_sim_worker.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── post_install.py
+│   │   │   │   └── pyproject.toml
+│   │   │   ├── main.py
+│   │   │   ├── pre_prompt.json
+│   │   │   └── pyproject.toml
+│   │   ├── test
+│   │   │   ├── __init__.py
+│   │   │   ├── test_df.ipynb
+│   │   │   ├── test_flight_sim_manager.py
+│   │   │   ├── test_flight_sim.py
+│   │   │   └── test_flight_sim_worker.py
+│   │   └── uv.lock
 │   ├── install.ps1
 │   ├── install.py
 │   ├── install.sh
@@ -509,6 +567,7 @@
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
 │   │   ├── README.md
+│   │   ├── setup
 │   │   ├── src
 │   │   │   ├── agi_core
 │   │   │   │   └── workers
@@ -534,7 +593,40 @@
 │   │   │   ├── test_my_code_manager.py
 │   │   │   └── test_my_code_worker.py
 │   │   └── uv.lock
-│   └── README.md
+│   ├── pcm-predictor-project
+│   │   ├── pyproject.toml
+│   │   ├── README.md
+│   │   ├── scripts
+│   │   │   ├── post_install.py
+│   │   │   └── unzip_data.py
+│   │   ├── setup
+│   │   └── src
+│   │       ├── app_settings.toml
+│   │       ├── args_ui_snippet.py
+│   │       ├── pcm_predictor
+│   │       │   ├── __init__.py
+│   │       │   └── pcm_predictor.py
+│   │       └── pcm_predictor_worker
+│   │           ├── __init__.py
+│   │           └── pcm_predictor_worker.py
+│   ├── README.md
+│   └── satcom-sim-project
+│       ├── data.7z
+│       ├── pyproject.toml
+│       ├── README.md
+│       ├── scripts
+│       │   ├── post_install.py
+│       │   └── unzip_data.py
+│       ├── setup
+│       └── src
+│           ├── app_settings.toml
+│           ├── args_ui_snippet.py
+│           ├── satcom_sim
+│           │   ├── __init__.py
+│           │   └── satcom_sim.py
+│           └── satcom_sim_worker
+│               ├── __init__.py
+│               └── satcom_sim_worker.py
 ├── fwk
 │   ├── core
 │   │   ├── LICENSE
@@ -590,6 +682,7 @@
 │   │   │   ├── __init__.py
 │   │   │   └── test_agi_env.py
 │   │   └── uv.lock
+│   ├── gen-app-script.py
 │   ├── gui
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
@@ -619,7 +712,26 @@
 │   ├── install.ps1
 │   ├── install.sh
 │   └── run-all-test.py
+├── pycharm
+│   ├── _template_app_egg.xml
+│   ├── _template_app_lib.xml
+│   ├── _template_app_run.xml
+│   └── _template_app_test.xml
 └── views
+    ├── autoencoder-latentspace
+    │   ├── __init__.py
+    │   └── src
+    │       ├── autoencoder_latentspace
+    │       │   ├── autoencoder_latentspace.py
+    │       │   └── __init__.py
+    │       └── __init__.py
+    ├── barycentric-graph
+    │   ├── __init__.py
+    │   └── src
+    │       ├── barycentric_graph
+    │       │   ├── barycentric_graph.py
+    │       │   └── __init__.py
+    │       └── __init__.py
     ├── maps
     │   └── src
     │       └── maps
@@ -630,10 +742,15 @@
     │       └── maps_3d
     │           ├── __init__.py
     │           └── maps_3d.py
+    ├── maps-network-graph
+    │   └── src
+    │       └── maps_network_graph
+    │           ├── __init__.py
+    │           └── maps_network_graph.py
     ├── pyproject.toml
     └── README.md
 
-58 directories, 160 files
+92 directories, 242 files
 </pre></div>
 </div>
 </section>
@@ -643,7 +760,7 @@
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="flight-project.html" class="btn btn-neutral float-left" title="Example2: Flight-Project" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="troubleshouting.html" class="btn btn-neutral float-right" title="Troubleshooting" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="troubleshooting.html" class="btn btn-neutral float-right" title="Troubleshooting" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

@@ -135,6 +135,7 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="agi-env.html#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.JumpToMain"><code class="docutils literal notranslate"><span class="pre">JumpToMain</span></code></a></li>
 </ul>
 </li>
@@ -231,6 +232,7 @@
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_multi_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_work"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_work()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_worker_info()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.home_dir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.is_managed_pc</span></code></a></li>
@@ -422,52 +424,55 @@ it will create a file (~/xxx-project_trace.txt) that shows what happened in your
 <h2>B - List of Available Scripts:<a class="headerlink" href="#b-list-of-available-scripts" title="Link to this heading"></a></h2>
 <p>These scripts are provided to run regression tests with the PyCharm IDE,
 which best matches Agilab troubleshooting.</p>
-<ul class="simple">
-<li><p><strong>agi_install_local&#64;core&lt;xxx&gt;</strong></p></li>
-<li><p><strong>agi_run0core&lt;log/AGI_installl_xxx.py&gt;</strong></p></li>
-<li><p><strong>agi_run&#64;flight&lt;log/xxx.py&gt;</strong></p></li>
-<li><p><strong>agi_run&#64;my_code&lt;log/xxx.py&gt;</strong></p></li>
-<li><p><strong>agi_zip&#64;core</strong></p></li>
-<li><p><strong>build_egg&#64;flight&lt;wenv/xxx_worker&gt;</strong></p></li>
-<li><p><strong>build_egg&#64;my_code&lt;wenv/xxx_worker&gt;</strong></p></li>
-<li><p><strong>build_lib&#64;flight&lt;wenv/xxx_worker&gt;</strong></p></li>
-<li><p><strong>build_lib&#64;my_code&lt;wenv/xxx_worker&gt;</strong></p></li>
-<li><p><strong>cython_pre_processing&#64;core&lt;xxx_worker.py&gt;</strong></p></li>
-<li><p><strong>debug_python&#64;core&lt;script&gt;</strong></p></li>
-<li><p><strong>lab_run&#64;gui</strong></p></li>
-<li><p><strong>run_all_test</strong></p></li>
-<li><p><strong>test_agi_env&#64;env</strong></p></li>
-<li><p><strong>test_agi_manager&#64;core</strong></p></li>
-<li><p><strong>test_agi_runner&#64;core</strong></p></li>
-<li><p><strong>test_agi_worker&#64;core</strong></p></li>
-<li><p><strong>test_dag_worker&#64;core</strong></p></li>
-<li><p><strong>test_data_worker&#64;core</strong></p></li>
-<li><p><strong>test_flight_worker</strong></p></li>
-<li><p><strong>test_my_code_worker</strong></p></li>
-</ul>
+<div class="code text highlight-default notranslate"><div class="highlight"><pre><span></span>.
+├── agilab_run.xml
+├── agi_manager_test.xml
+├── agi_runner_test.xml
+├── app_install_local.xml
+├── app_install.xml
+├── app_script_gen.xml
+├── core_test_agi_worker.xml
+├── core_test_dag_worker.xml
+├── core_test_data_worker.xml
+├── cython_preprocessing.xml
+├── env_test.xml
+├── fwk_test.xml
+├── my-code_egg.xml
+├── my-code_lib.xml
+├── my-code_run.xml
+├── my-code_test.xml
+└── zip_all.xml
+
+1 directory, 17 files
+</pre></div>
+</div>
 </section>
 <section id="c-exemple-of-tests-sequence">
 <h2>C - Exemple of Tests Sequence:<a class="headerlink" href="#c-exemple-of-tests-sequence" title="Link to this heading"></a></h2>
 <ul class="simple">
-<li><p><strong>1. agi_zip&#64;core</strong>
+<li><p><strong>1. zip-all</strong>
 Tests the zip of the whole agi project directory with .gitignore filtration. A agi.zip file should created at the root dir of your project</p></li>
-<li><p><strong>2. run_all_test</strong>
+<li><p><strong>2. test-all</strong>
 This will lunch unitary test for both agi-env and agi-core components and display the pytest result</p></li>
-<li><p><strong>3. cython_pre_processing&#64;core</strong> (if cyprepro.py error)
+<li><p><strong>3. cython_preprocessing</strong> (if cyprepro.py error)
 This will prompt for your worker source file &lt;your_code_worker.py&gt; to convert into a your_code_worker.pyx transformable into Cython compilable source code.
 A file &lt;your_code_worker.pyx&gt; should appear in your wenv</p></li>
-<li><p><strong>4. build_egg&#64;your_code&lt;wenv/your_code_worker&gt;</strong>
+<li><p><strong>4. app-install-local</strong>
+This will prompt for your module name &lt;your_code&gt; to be installed. This will install your code manager venv and your code worker wenv.</p></li>
+<li><p><strong>5. app_script-gen</strong>
+This will generate the script below</p></li>
+<li><p><strong>6. &lt;your app&gt;_egg</strong>
 This will prompt for a worker module file &lt;www_worker.py&gt; to build in wenv the egg file for remote worker.
 Creates a project egg file containing all the required files to compile the worker Cython library.</p></li>
-<li><p><strong>5. build_lib&#64;your_code&lt;wenv/your_code_worker&gt;</strong>
+<li><p><strong>7. &lt;your app&gt;_lib&gt;</strong>
 This will prompt for the directory where you build your egg file in wenv to build your lib file for remote worker.
 Creates a project lib file your_code_worker_cy.cpython-xxx-yyy-zzz.so containing the worker Cython library.</p></li>
-<li><p><strong>6. agi_install_local&#64;core&lt;your_code&gt;</strong>
-This will prompt for your module name &lt;your_code&gt; to be installed. This will install your code manager venv and your code worker wenv.</p></li>
-<li><p><strong>7. agi_run&#64;your_code&lt;log/AGI.distribute-your_code.py&gt;</strong>
-This will prompt for a file selection to select your AGI snippet &lt;AGI.xxx.py&gt; source code you want to run
+<li><p><strong>8. &lt;your app&gt;_test&gt;</strong>
+This will test your app in a minimalistic way.</p></li>
+<li><p><strong>9. app_install</strong>
+This will prompt for a file selection to select your AGI install snippet &lt;AGI.xxx-install.py&gt; source code you want to run
 If it does not work, you can restore from the agilab.zip before starting a new investigation.</p></li>
-<li><p><strong>8. agi_run&#64;your_code&lt;log/AGI.run-your_code.py&gt;</strong>
+<li><p><strong>10. app-run</strong>
 This will prompt for a file selection to select your AGI snippet &lt;AGI.xxx.py&gt; source code you want to run
 If it does not work, you can restore from the agilab.zip before starting a new investigation.</p></li>
 </ul>

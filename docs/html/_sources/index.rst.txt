@@ -18,7 +18,7 @@ Welcome to the framework documentation. Below are the main sections:
    my-code-project
    flight-project
    directory-structure
-   troubleshouting
+   troubleshooting
    license
 
 Indices and tables

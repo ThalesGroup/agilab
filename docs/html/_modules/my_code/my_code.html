@@ -229,6 +229,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_multi_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_work"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_work()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_worker_info()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.home_dir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.is_managed_pc</span></code></a></li>
@@ -485,14 +486,14 @@
 
         <span class="n">workers_tree</span> <span class="o">=</span> <span class="p">[</span>
             <span class="p">[</span>  <span class="c1"># worker 0</span>
-                <span class="p">(</span><span class="s2">&quot;MyCodeWorker.algo_A&quot;</span><span class="p">,</span> <span class="p">[]),</span>
-                <span class="p">(</span><span class="s2">&quot;MyCodeWorker.algo_B&quot;</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;MyCodeWorker.algo_A&quot;</span><span class="p">]),</span>
-                <span class="p">(</span><span class="s2">&quot;MyCodeWorker.algo_C&quot;</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;MyCodeWorker.algo_B&quot;</span><span class="p">]),</span>
+                <span class="p">(</span><span class="s2">&quot;algo_A&quot;</span><span class="p">,</span> <span class="p">[]),</span>
+                <span class="p">(</span><span class="s2">&quot;algo_B&quot;</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;algo_A&quot;</span><span class="p">]),</span>
+                <span class="p">(</span><span class="s2">&quot;algo_C&quot;</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;algo_B&quot;</span><span class="p">]),</span>
             <span class="p">],</span>
             <span class="p">[</span>  <span class="c1"># worker 1</span>
-                <span class="p">(</span><span class="s2">&quot;MyCodeWorker.algo_X&quot;</span><span class="p">,</span> <span class="p">[]),</span>
-                <span class="p">(</span><span class="s2">&quot;MyCodeWorker.algo_Y&quot;</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;MyCodeWorker.algo_X&quot;</span><span class="p">]),</span>
-                <span class="p">(</span><span class="s2">&quot;MyCodeWorker.algo_Z&quot;</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;MyCodeWorker.algo_Y&quot;</span><span class="p">]),</span>
+                <span class="p">(</span><span class="s2">&quot;algo_X&quot;</span><span class="p">,</span> <span class="p">[]),</span>
+                <span class="p">(</span><span class="s2">&quot;algo_Y&quot;</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;algo_X&quot;</span><span class="p">]),</span>
+                <span class="p">(</span><span class="s2">&quot;algo_Z&quot;</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;algo_Y&quot;</span><span class="p">]),</span>
             <span class="p">],</span>
         <span class="p">]</span>
 
