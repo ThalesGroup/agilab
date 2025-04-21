@@ -1,0 +1,59 @@
+# Flight-sim-project Licenses
+| Package Name | License |
+|--------------|---------|
+| bcrypt | APACHE SOFTWARE LICENSE |
+| brotli | MIT LICENSE |
+| cffi | MIT LICENSE |
+| click | BSD LICENSE |
+| cloudpickle | BSD LICENSE |
+| contourpy | BSD LICENSE |
+| cryptography | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| cycler | BSD LICENSE |
+| cython | APACHE SOFTWARE LICENSE |
+| dask | BSD LICENSE |
+| distributed | BSD LICENSE |
+| fonttools | MIT LICENSE |
+| fsspec | BSD LICENSE |
+| geographiclib | MIT LICENSE |
+| geopy | MIT LICENSE |
+| inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| jinja2 | BSD LICENSE |
+| kiwisolver | BSD LICENSE |
+| locket | BSD LICENSE |
+| markupsafe | BSD LICENSE |
+| matplotlib | PYTHON SOFTWARE FOUNDATION LICENSE |
+| msgpack | APACHE SOFTWARE LICENSE |
+| multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| numpy | BSD LICENSE |
+| packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| pandas | BSD LICENSE |
+| paramiko | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
+| parso | MIT LICENSE |
+| partd | BSD |
+| pillow | MIT-CMU |
+| polars | MIT LICENSE |
+| psutil | BSD LICENSE |
+| py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pycparser | BSD LICENSE |
+| pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
+| pydeck | APACHE LICENSE 2.0 |
+| pynacl | APACHE LICENSE 2.0 |
+| pyparsing | MIT LICENSE |
+| pyppmd | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| python-dotenv | BSD LICENSE |
+| pytz | MIT LICENSE |
+| pyyaml | MIT LICENSE |
+| pyzstd | BSD LICENSE |
+| scp | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
+| setuptools | MIT LICENSE |
+| six | MIT LICENSE |
+| sortedcontainers | APACHE SOFTWARE LICENSE |
+| tblib | BSD-2-CLAUSE |
+| texttable | MIT LICENSE |
+| toolz | BSD LICENSE |
+| tornado | APACHE SOFTWARE LICENSE |
+| tzdata | APACHE SOFTWARE LICENSE |
+| urllib3 | MIT |
+| zict | BSD LICENSE |
