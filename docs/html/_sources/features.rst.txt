@@ -30,7 +30,7 @@ agi-core
   - **Deployment Modes:**
 
     - Single Node with MacOS, Windows (from W11) or Linux (Ubuntu from ubuntu 24.04)
-    - Cluster with heterogeneous os Modes
+    - Cluster with heterogeneous os per node
 
 - **Dynamic Node Capacity Calibration:**
 
