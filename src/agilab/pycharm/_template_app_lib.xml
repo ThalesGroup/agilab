@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="build-lib{APP}&lt;wenv/{APP}_worker&gt;" type="PythonConfigurationType" factoryName="Python">
+  <configuration default="false" name="{APP}-lib" type="PythonConfigurationType" factoryName="Python">
     <module name="{APP}-project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
