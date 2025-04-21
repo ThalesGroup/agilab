@@ -1,8 +1,9 @@
 AGILab
 ========
 
-.. image:: diagrams/Agilab-Overview.png
+.. image:: Agilab-Overview.svg
    :alt: AGILab Overview
+   :align: center
 
 .. toctree::
    :maxdepth: 2
