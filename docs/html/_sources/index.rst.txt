@@ -1,25 +1,43 @@
 AGILab Documentation
 =====================
 
-Welcome to the framework documentation. Below are the main sections:
+Welcome to the AGILab framework documentation.
+You’ll find everything from quickstarts to API references, as well as example projects.
 
 .. toctree::
    :maxdepth: 2
+   :caption: Getting Started
 
    quick-start
    introduction
    introduction2
    introduction3
    features
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Core Topics
+
    cluster
    agilab
    view
    framework-api
-   my-code-project
-   flight-project
    directory-structure
    troubleshooting
    license
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Example Projects
+
+   my-code-project
+   flight-project
+
+.. toctree::
+   :maxdepth: 1
+   :caption: External Resources
+
+   `AGILab on GitHub <https://github.com/ThalesGroup/agilab>`__
 
 Indices and tables
 ==================

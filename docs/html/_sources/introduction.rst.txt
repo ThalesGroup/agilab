@@ -5,8 +5,9 @@ Overview
 --------
 Building robust models from data requires close collaboration between domain experts and data scientists. Once the algorithm is trained, the process becomes similar to standard engineering activities.
 
-.. image:: diagrams/AI-Problematic.png
-   :alt: AI Problematic Diagram
+.. image:: AI-Problematic.svg
+   :alt: AI Problematic
+   :align: center
 
 AGILab is a multi-project data science solution designed to manage projects using template-based frameworks. It also serves as a first step towards an experimental Python IDE for data science applied to engineering.
 **Remark**: Historically agilab has been develop as a playground for agi-core, so to benefit from agi cluster automation functionality all you need is agi-core and agi-env, meaning you can remove lab and view directory.
@@ -61,8 +62,9 @@ Example: Aircraft Telecommunication
 
 Today, a single algorithm is rarely enough to solve complex problems. Instead, a suite of algorithms is needed to address diverse use cases with intricate implementations. For example, consider telecom systems in an aircraft:
 
-.. image:: diagrams/NeedsAlgosSet.png
-   :alt: Needs Algos Set
+.. image:: NeedsAlgosSet.svg
+   :alt: Needs for Algo Set
+   :align: center
 
 This scenario requires reuse across organizations, infrastructure, and operating systems. While many consider virtualization and containerization (e.g., Docker) as the solution, AGILab offers an alternative.
 
@@ -72,8 +74,9 @@ AGILab is designed for modern development needs—reducing overhead, promoting c
 
 Since Artificial General Intelligence (AGI) has not yet been achieved with a single algorithm, a "model of models" is necessary. For instance, in aircraft telecom, this approach is illustrated as follows:
 
-.. image:: diagrams/ModelOfModels.png
+.. image:: ModelOfModels.svg
    :alt: Model Of Models
+   :align: center
 
 AGILab provides a dynamic playground to experiment with various architectural solutions without reworking your code. This flexibility is achieved through two main mechanisms:
 
