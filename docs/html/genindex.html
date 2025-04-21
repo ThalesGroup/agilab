@@ -229,6 +229,7 @@
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_multi_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_work"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_work()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_worker_info()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.home_dir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.is_managed_pc</span></code></a></li>
@@ -362,16 +363,16 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="directory-structure.html">Project Files Structure</a></li>
-<li class="toctree-l1"><a class="reference internal" href="troubleshouting.html">Troubleshooting</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#a-prerequisite">A - Prerequisite:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#b-list-of-available-scripts">B - List of Available Scripts:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="troubleshouting.html#known-bugs">Known Bugs</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#uv-sync-failed">&lt;UV&gt; Sync Failed</a></li>
-<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#dask-debug-issue">&lt;DASK&gt; Debug Issue</a></li>
-<li class="toctree-l2"><a class="reference internal" href="troubleshouting.html#pycharm-run-debug-configuration-is-broken">&lt;PYCHARM&gt; Run/Debug Configuration is Broken</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html#known-bugs">Known Bugs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#uv-sync-failed">&lt;UV&gt; Sync Failed</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#dask-debug-issue">&lt;DASK&gt; Debug Issue</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#pycharm-run-debug-configuration-is-broken">&lt;PYCHARM&gt; Run/Debug Configuration is Broken</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">Licences</a><ul>
@@ -747,7 +748,7 @@
 </li>
         <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec">(flight_worker.flight_worker.FlightWorker static method)</a>
 </li>
-        <li><a href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec">(my_code_worker.my_code_worker.MyCodeWorker method)</a>
+        <li><a href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec">(my_code_worker.my_code_worker.MyCodeWorker static method)</a>
 </li>
       </ul></li>
       <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.exec_mono_process">exec_mono_process() (agi_core.workers.dag_worker.dag_worker.AgiDagWorker method)</a>
@@ -860,15 +861,17 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.get_import_mapping">get_import_mapping() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.get_modules">get_modules() (agi_env.agi_env.AgiEnv method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="flight-project.html#flight.flight.Flight.get_partition_by_planes">get_partition_by_planes() (flight.flight.Flight method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.get_projects">get_projects() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.get_venv_root">get_venv_root() (agi_env.agi_env.AgiEnv static method)</a>
+</li>
+      <li><a href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_work">get_work() (my_code_worker.my_code_worker.MyCodeWorker method)</a>
 </li>
       <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.get_worker_info">get_worker_info() (agi_core.workers.agi_worker.agi_worker.AgiWorker static method)</a>
 
@@ -1281,7 +1284,7 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.read_gitignore">read_gitignore() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.rename_map">rename_map (agi_env.agi_env.ContentRenamer attribute)</a>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.replace_content">replace_content() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.run">run() (agi_core.managers.agi_runner.agi_runner.AGI static method)</a>
 

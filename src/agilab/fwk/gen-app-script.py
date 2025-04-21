@@ -2,17 +2,17 @@ import os
 import sys
 import xml.etree.ElementTree as ET
 from tkinter import simpledialog, Tk
-
+import filecmp
+import tempfile
 
 if len(sys.argv) < 2:
     print("Usage: script.py <replacement_name>")
     sys.exit(1)
 
 app = sys.argv[1]
-
 if not app:
     print("No name entered. Exiting.")
-    exit(1)
+    sys.exit(1)
 
 print(f"Replacement name: {app}")
 
@@ -26,21 +26,41 @@ template_paths = [
 output_dir = os.path.join(os.getcwd(), '.idea', 'runConfigurations')
 os.makedirs(output_dir, exist_ok=True)
 
-for template_path in template_paths:
-    tree = ET.parse(template_path)
-    xml_root = tree.getroot()
+for tpl in template_paths:
+    tree = ET.parse(tpl)
+    root = tree.getroot()
 
-    for elem in xml_root.iter():
-        for attr in elem.attrib:
-            if '{APP}' in elem.attrib[attr]:
-                elem.attrib[attr] = elem.attrib[attr].replace('{APP}', app)
-        if elem.text and '{APP}' in elem.text:
-            elem.text = elem.text.replace('{APP}', app)
+    # replace {APP} placeholders
+    for el in root.iter():
+        for k, v in el.attrib.items():
+            if '{APP}' in v:
+                el.attrib[k] = v.replace('{APP}', app)
+        if el.text and '{APP}' in el.text:
+            el.text = el.text.replace('{APP}', app)
 
-    base_name = os.path.basename(template_path).replace('TEMPLATE', app)
-    output_file = os.path.join(output_dir, base_name)
+    # derive output filename
+    base = os.path.basename(tpl).replace('_template_app', f'_{app}')
+    out_path = os.path.join(output_dir, base)
 
-    tree.write(output_file.replace("_template_app", app))
-    print(f"Generated config: {output_file}")
+    # --- idempotency check ----------------
+    if os.path.exists(out_path):
+        # optional: compare contents to avoid silent mismatches
+        # write to a temp file and compare
+        fd, tmp_path = tempfile.mkstemp(suffix='.xml')
+        os.close(fd)
+        tree.write(tmp_path)
+        if filecmp.cmp(tmp_path, out_path, shallow=False):
+            print(f"Skipped (unchanged): {out_path}")
+            os.remove(tmp_path)
+            continue
+        else:
+            os.replace(tmp_path, out_path)
+            print(f"Updated config (changed): {out_path}")
+            continue
+    # ---------------------------------------
 
-print(f"All {app} configurations generated successfully.")
+    # first time write
+    tree.write(out_path)
+    print(f"Generated config: {out_path}")
+
+print(f"All {app} configurations processed.")

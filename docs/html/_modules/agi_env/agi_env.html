@@ -229,6 +229,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_multi_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_work"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_work()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_worker_info()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.home_dir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.is_managed_pc</span></code></a></li>
@@ -418,11 +419,11 @@
 <span class="c1"># following conditions are met:</span>
 <span class="c1">#</span>
 <span class="c1"># 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the</span>
-<span class="c1"># following disclaimer.</span>
+<span class="c1">#    following disclaimer.</span>
 <span class="c1"># 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the</span>
-<span class="c1"># following disclaimer in the documentation and/or other materials provided with the distribution.</span>
+<span class="c1">#    following disclaimer in the documentation and/or other materials provided with the distribution.</span>
 <span class="c1"># 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or THALES SIX GTS France SAS,</span>
-<span class="c1"># may be used to endorse or promote products derived from this software without specific prior written permission.</span>
+<span class="c1">#    may be used to endorse or promote products derived from this software without specific prior written permission.</span>
 <span class="c1">#</span>
 <span class="c1"># THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot; AND ANY EXPRESS OR IMPLIED WARRANTIES,</span>
 <span class="c1"># INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE</span>
@@ -442,18 +443,16 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">queue</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">traceback</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
-
 <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;nt&quot;</span><span class="p">:</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">winreg</span>
     <span class="n">asyncio</span><span class="o">.</span><span class="n">set_event_loop_policy</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">WindowsProactorEventLoopPolicy</span><span class="p">())</span>
-
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span><span class="p">,</span> <span class="n">PureWindowsPath</span><span class="p">,</span> <span class="n">PurePosixPath</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dotenv</span><span class="w"> </span><span class="kn">import</span> <span class="n">dotenv_values</span><span class="p">,</span> <span class="n">set_key</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathspec</span><span class="w"> </span><span class="kn">import</span> <span class="n">PathSpec</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pathspec.patterns</span><span class="w"> </span><span class="kn">import</span> <span class="n">GitWildMatchPattern</span>
+
 
 <div class="viewcode-block" id="JumpToMain">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.JumpToMain">[docs]</a>
@@ -469,11 +468,9 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">ContentRenamer</span><span class="p">(</span><span class="n">ast</span><span class="o">.</span><span class="n">NodeTransformer</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A class that renames identifiers in an abstract syntax tree (AST).</span>
-
 <span class="sd">    Attributes:</span>
 <span class="sd">        rename_map (dict): A mapping of old identifiers to new identifiers.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-
 <div class="viewcode-block" id="ContentRenamer.__init__">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.__init__">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rename_map</span><span class="p">):</span>
@@ -1409,91 +1406,71 @@
 
     <span class="c1"># -------------------- Rename Map Creator -------------------- #</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">create_rename_map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target_project</span><span class="p">,</span> <span class="n">dest_project</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Create a mapping of old names to new names for renaming during project cloning.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="k">def</span><span class="w"> </span><span class="nf">capitalize</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
-<span class="w">            </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">            Capitalize each word in a given string separated by underscores.</span>
-
-<span class="sd">            Args:</span>
-<span class="sd">                name (str): A string containing words separated by underscores.</span>
-
-<span class="sd">            Returns:</span>
-<span class="sd">                str: The input string with each word capitalized.</span>
-<span class="sd">            &quot;&quot;&quot;</span>
-            <span class="k">return</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">part</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">))</span>
-
-        <span class="n">target_package</span> <span class="o">=</span> <span class="n">target_project</span><span class="p">[:</span><span class="o">-</span><span class="mi">8</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-template&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
-        <span class="n">target_module</span> <span class="o">=</span> <span class="n">target_package</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
-        <span class="n">target_class</span> <span class="o">=</span> <span class="n">capitalize</span><span class="p">(</span><span class="n">target_module</span><span class="p">)</span>
-
-        <span class="n">dest_package</span> <span class="o">=</span> <span class="n">dest_project</span><span class="p">[:</span><span class="o">-</span><span class="mi">8</span><span class="p">]</span>
-        <span class="n">dest_module</span> <span class="o">=</span> <span class="n">dest_package</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
-        <span class="n">dest_class</span> <span class="o">=</span> <span class="n">capitalize</span><span class="p">(</span><span class="n">dest_module</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="p">{</span>
-            <span class="n">target_project</span><span class="p">:</span> <span class="n">dest_project</span><span class="p">,</span>
-            <span class="n">target_package</span><span class="p">:</span> <span class="n">dest_package</span><span class="p">,</span>
-            <span class="n">target_module</span><span class="p">:</span> <span class="n">dest_module</span><span class="p">,</span>
-            <span class="n">target_class</span> <span class="o">+</span> <span class="s2">&quot;Worker&quot;</span><span class="p">:</span> <span class="n">dest_class</span> <span class="o">+</span> <span class="s2">&quot;Worker&quot;</span><span class="p">,</span>
-            <span class="n">target_class</span> <span class="o">+</span> <span class="s2">&quot;Args&quot;</span><span class="p">:</span> <span class="n">dest_class</span> <span class="o">+</span> <span class="s2">&quot;Args&quot;</span><span class="p">,</span>
-            <span class="n">target_class</span><span class="p">:</span> <span class="n">dest_class</span><span class="p">,</span>
-        <span class="p">}</span>
-
 <div class="viewcode-block" id="AgiEnv.create_rename_map">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.create_rename_map">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">create_rename_map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target_project</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">dest_project</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_rename_map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target_project</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">dest_project</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Create a mapping of old names to new names for renaming during project cloning.</span>
+<span class="sd">        Create a mapping of old → new names for cloning.</span>
+<span class="sd">        Includes project names, top-level src folders, worker folders,</span>
+<span class="sd">        in-file identifiers and class names.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">cap</span><span class="p">(</span><span class="n">s</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">))</span>
 
-        <span class="k">def</span><span class="w"> </span><span class="nf">capitalize</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">part</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">))</span>
+        <span class="n">name_tp</span> <span class="o">=</span> <span class="n">target_project</span><span class="o">.</span><span class="n">name</span>      <span class="c1"># e.g. &quot;flight_project&quot;</span>
+        <span class="n">name_dp</span> <span class="o">=</span> <span class="n">dest_project</span><span class="o">.</span><span class="n">name</span>        <span class="c1"># e.g. &quot;tata_project&quot;</span>
+        <span class="n">tp</span> <span class="o">=</span> <span class="n">name_tp</span><span class="p">[:</span><span class="o">-</span><span class="mi">8</span><span class="p">]</span>                  <span class="c1"># strip &quot;_project&quot; → &quot;flight&quot;</span>
+        <span class="n">dp</span> <span class="o">=</span> <span class="n">name_dp</span><span class="p">[:</span><span class="o">-</span><span class="mi">8</span><span class="p">]</span>                  <span class="c1"># → &quot;tata&quot;</span>
 
-        <span class="c1"># Drop the trailing &quot;_project&quot; to get package names</span>
-        <span class="n">target_pkg</span> <span class="o">=</span> <span class="n">target_project</span><span class="p">[:</span><span class="o">-</span><span class="mi">8</span><span class="p">]</span>  <span class="c1"># e.g. &quot;my_code&quot;</span>
-        <span class="n">dest_pkg</span> <span class="o">=</span> <span class="n">dest_project</span><span class="p">[:</span><span class="o">-</span><span class="mi">8</span><span class="p">]</span>  <span class="c1"># e.g. &quot;new_name&quot;</span>
+        <span class="n">tm</span> <span class="o">=</span> <span class="n">tp</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
+        <span class="n">dm</span> <span class="o">=</span> <span class="n">dp</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
+        <span class="n">tc</span> <span class="o">=</span> <span class="n">cap</span><span class="p">(</span><span class="n">tm</span><span class="p">)</span>                       <span class="c1"># &quot;Flight&quot;</span>
+        <span class="n">dc</span> <span class="o">=</span> <span class="n">cap</span><span class="p">(</span><span class="n">dm</span><span class="p">)</span>                       <span class="c1"># &quot;Tata&quot;</span>
 
-        <span class="n">target_module</span> <span class="o">=</span> <span class="n">target_pkg</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
-        <span class="n">dest_module</span> <span class="o">=</span> <span class="n">dest_pkg</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="c1"># project-level</span>
+            <span class="n">name_tp</span><span class="p">:</span>              <span class="n">name_dp</span><span class="p">,</span>
 
-        <span class="n">target_class</span> <span class="o">=</span> <span class="n">capitalize</span><span class="p">(</span><span class="n">target_module</span><span class="p">)</span>
-        <span class="n">dest_class</span> <span class="o">=</span> <span class="n">capitalize</span><span class="p">(</span><span class="n">dest_module</span><span class="p">)</span>
+            <span class="c1"># folder-level (longest keys first)</span>
+            <span class="sa">f</span><span class="s2">&quot;src/</span><span class="si">{</span><span class="n">tm</span><span class="si">}</span><span class="s2">_worker&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;src/</span><span class="si">{</span><span class="n">dm</span><span class="si">}</span><span class="s2">_worker&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;src/</span><span class="si">{</span><span class="n">tm</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">:</span>        <span class="sa">f</span><span class="s2">&quot;src/</span><span class="si">{</span><span class="n">dm</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
 
-        <span class="c1"># Base map</span>
-        <span class="n">rename_map</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="n">target_project</span><span class="p">:</span> <span class="n">dest_project</span><span class="p">,</span>  <span class="c1"># my_code_project → new_name_project</span>
-            <span class="n">target_module</span><span class="p">:</span> <span class="n">dest_module</span><span class="p">,</span>  <span class="c1"># my_code         → new_name</span>
-            <span class="n">target_class</span> <span class="o">+</span> <span class="s2">&quot;Worker&quot;</span><span class="p">:</span> <span class="n">dest_class</span> <span class="o">+</span> <span class="s2">&quot;Worker&quot;</span><span class="p">,</span>  <span class="c1"># MyCodeWorker    → NewNameWorker</span>
-            <span class="n">target_class</span> <span class="o">+</span> <span class="s2">&quot;Args&quot;</span><span class="p">:</span> <span class="n">dest_class</span> <span class="o">+</span> <span class="s2">&quot;Args&quot;</span><span class="p">,</span>  <span class="c1"># MyCodeArgs      → NewNameArgs</span>
-            <span class="n">target_class</span><span class="p">:</span> <span class="n">dest_class</span><span class="p">,</span>  <span class="c1"># MyCode          → NewName</span>
-        <span class="p">}</span>
+            <span class="c1"># sibling-level</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tm</span><span class="si">}</span><span class="s2">_worker&quot;</span><span class="p">:</span>      <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">dm</span><span class="si">}</span><span class="s2">_worker&quot;</span><span class="p">,</span>
+            <span class="n">tm</span><span class="p">:</span>                    <span class="n">dm</span><span class="p">,</span>
 
-        <span class="c1"># ensure we also catch the top‑level src folder</span>
-        <span class="n">rename_map</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;src/</span><span class="si">{</span><span class="n">target_module</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;src/</span><span class="si">{</span><span class="n">dest_module</span><span class="si">}</span><span class="s2">&quot;</span>
-
-        <span class="k">return</span> <span class="n">rename_map</span></div>
+            <span class="c1"># class-level</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tc</span><span class="si">}</span><span class="s2">Worker&quot;</span><span class="p">:</span>       <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">dc</span><span class="si">}</span><span class="s2">Worker&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tc</span><span class="si">}</span><span class="s2">Args&quot;</span><span class="p">:</span>         <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">dc</span><span class="si">}</span><span class="s2">Args&quot;</span><span class="p">,</span>
+            <span class="n">tc</span><span class="p">:</span>                    <span class="n">dc</span><span class="p">,</span>
+        <span class="p">}</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.clone_project">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.clone_project">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">clone_project</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target_project</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">dest_project</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">clone_project</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target_project</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">dest_project</span><span class="p">:</span> <span class="n">Path</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Clone a project by recursively copying files and directories, applying renaming.</span>
-<span class="sd">        Auto‐appends &quot;_project&quot; to either name if missing.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># allow callers to specify without the &quot;_project&quot; suffix</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">target_project</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;_project&quot;</span><span class="p">):</span>
-            <span class="n">target_project</span> <span class="o">=</span> <span class="n">target_project</span> <span class="o">+</span> <span class="s2">&quot;_project&quot;</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">dest_project</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;_project&quot;</span><span class="p">):</span>
-            <span class="n">dest_project</span> <span class="o">=</span> <span class="n">dest_project</span> <span class="o">+</span> <span class="s2">&quot;_project&quot;</span>
+<span class="sd">        Clone a project by copying files and directories, applying renaming,</span>
+<span class="sd">        then cleaning up any leftovers.</span>
 
-        <span class="n">rename_map</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_rename_map</span><span class="p">(</span><span class="n">target_project</span><span class="p">,</span> <span class="n">dest_project</span><span class="p">)</span>
-        <span class="n">source_root</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">target_project</span>
-        <span class="n">dest_root</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">dest_project</span>
+<span class="sd">        Args:</span>
+<span class="sd">            target_project: Path under self.apps_dir (e.g. Path(&quot;flight_project&quot;))</span>
+<span class="sd">            dest_project:   Path under self.apps_dir (e.g. Path(&quot;tata_project&quot;))</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Lazy import heavy deps</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span><span class="o">,</span><span class="w"> </span><span class="nn">ast</span><span class="o">,</span><span class="w"> </span><span class="nn">os</span><span class="o">,</span><span class="w"> </span><span class="nn">astor</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">pathspec</span><span class="w"> </span><span class="kn">import</span> <span class="n">PathSpec</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">pathspec.patterns</span><span class="w"> </span><span class="kn">import</span> <span class="n">GitWildMatchPattern</span>
+
+        <span class="c1"># normalize names</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">target_project</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;_project&quot;</span><span class="p">):</span>
+            <span class="n">target_project</span> <span class="o">=</span> <span class="n">target_project</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="n">target_project</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s2">&quot;_project&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">dest_project</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;_project&quot;</span><span class="p">):</span>
+            <span class="n">dest_project</span> <span class="o">=</span> <span class="n">dest_project</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="n">dest_project</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s2">&quot;_project&quot;</span><span class="p">)</span>
+
+        <span class="n">rename_map</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_rename_map</span><span class="p">(</span><span class="n">target_project</span><span class="p">,</span> <span class="n">dest_project</span><span class="p">)</span>
+        <span class="n">source_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">target_project</span>
+        <span class="n">dest_root</span>   <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">dest_project</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">source_root</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Source project &#39;</span><span class="si">{</span><span class="n">target_project</span><span class="si">}</span><span class="s2">&#39; does not exist.&quot;</span><span class="p">)</span>
@@ -1502,19 +1479,24 @@
             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Destination project &#39;</span><span class="si">{</span><span class="n">dest_project</span><span class="si">}</span><span class="s2">&#39; already exists.&quot;</span><span class="p">)</span>
             <span class="k">return</span>
 
-        <span class="n">gitignore_path</span> <span class="o">=</span> <span class="n">source_root</span> <span class="o">/</span> <span class="s2">&quot;.gitignore&quot;</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">gitignore_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No .gitignore file found at &#39;</span><span class="si">{</span><span class="n">gitignore_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+        <span class="n">gitignore</span> <span class="o">=</span> <span class="n">source_root</span> <span class="o">/</span> <span class="s2">&quot;.gitignore&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">gitignore</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No .gitignore at &#39;</span><span class="si">{</span><span class="n">gitignore</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
             <span class="k">return</span>
-        <span class="n">spec</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">read_gitignore</span><span class="p">(</span><span class="n">gitignore_path</span><span class="p">)</span>
+        <span class="n">spec</span> <span class="o">=</span> <span class="n">PathSpec</span><span class="o">.</span><span class="n">from_lines</span><span class="p">(</span><span class="n">GitWildMatchPattern</span><span class="p">,</span> <span class="n">gitignore</span><span class="o">.</span><span class="n">read_text</span><span class="p">()</span><span class="o">.</span><span class="n">splitlines</span><span class="p">())</span>
 
         <span class="k">try</span><span class="p">:</span>
             <span class="n">dest_root</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to create destination directory &#39;</span><span class="si">{</span><span class="n">dest_root</span><span class="si">}</span><span class="s2">&#39;: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not create &#39;</span><span class="si">{</span><span class="n">dest_root</span><span class="si">}</span><span class="s2">&#39;: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="k">return</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">clone_directory</span><span class="p">(</span><span class="n">source_root</span><span class="p">,</span> <span class="n">dest_root</span><span class="p">,</span> <span class="n">rename_map</span><span class="p">,</span> <span class="n">spec</span><span class="p">,</span> <span class="n">source_root</span><span class="p">)</span></div>
+        <span class="c1"># 1) Recursive clone</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">clone_directory</span><span class="p">(</span><span class="n">source_root</span><span class="p">,</span> <span class="n">dest_root</span><span class="p">,</span> <span class="n">rename_map</span><span class="p">,</span> <span class="n">spec</span><span class="p">,</span> <span class="n">source_root</span><span class="p">)</span>
+
+        <span class="c1"># 2) Final cleanup</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cleanup_rename</span><span class="p">(</span><span class="n">dest_root</span><span class="p">,</span> <span class="n">rename_map</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">projects</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dest_project</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.clone_directory">
@@ -1526,86 +1508,132 @@
                         <span class="n">spec</span><span class="p">:</span> <span class="n">PathSpec</span><span class="p">,</span>
                         <span class="n">source_root</span><span class="p">:</span> <span class="n">Path</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Recursively clone directories and files from source to destination,</span>
-<span class="sd">        applying renaming and respecting .gitignore patterns.</span>
+<span class="sd">        Recursively copy + rename directories, files, and contents.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="kn">import</span><span class="w"> </span><span class="nn">astor</span>
 
         <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">source_dir</span><span class="o">.</span><span class="n">iterdir</span><span class="p">():</span>
-            <span class="c1"># compute path relative to the project root</span>
+            <span class="c1"># inside your clone_directory loop, after you&#39;ve computed `rel`</span>
             <span class="n">rel</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">source_root</span><span class="p">)</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span>
-            <span class="n">test_path</span> <span class="o">=</span> <span class="n">rel</span> <span class="o">+</span> <span class="p">(</span><span class="s2">&quot;/&quot;</span> <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">is_dir</span><span class="p">()</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
-
-            <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">match_file</span><span class="p">(</span><span class="n">test_path</span><span class="p">):</span>
-                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Skipping ignored: </span><span class="si">{</span><span class="n">rel</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">match_file</span><span class="p">(</span><span class="n">rel</span> <span class="o">+</span> <span class="p">(</span><span class="s2">&quot;/&quot;</span> <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">is_dir</span><span class="p">()</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">)):</span>
                 <span class="k">continue</span>
 
-            <span class="c1"># apply *all* of our mappings to the *entire* relative path</span>
-            <span class="n">new_rel</span> <span class="o">=</span> <span class="n">rel</span>
-            <span class="k">for</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">rename_map</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span>
-                                   <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">kv</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">kv</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-                <span class="n">new_rel</span> <span class="o">=</span> <span class="n">new_rel</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">)</span>
+            <span class="c1"># split into segments</span>
+            <span class="n">parts</span> <span class="o">=</span> <span class="n">rel</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span>
 
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">rel</span><span class="si">}</span><span class="s2">  →  </span><span class="si">{</span><span class="n">new_rel</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="c1"># map each segment exactly via your rename_map (falling back to itself)</span>
+            <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span><span class="n">rename_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">seg</span><span class="p">,</span> <span class="n">seg</span><span class="p">)</span> <span class="k">for</span> <span class="n">seg</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">]</span>
 
-            <span class="n">dest_item</span> <span class="o">=</span> <span class="n">dest_dir</span> <span class="o">/</span> <span class="n">Path</span><span class="p">(</span><span class="n">new_rel</span><span class="p">)</span>
-
-            <span class="c1"># .venv gets a symlink</span>
-            <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">is_dir</span><span class="p">()</span> <span class="ow">and</span> <span class="n">item</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;.venv&quot;</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">handle_venv_directory</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">dest_item</span><span class="p">)</span>
-                <span class="k">continue</span>
+            <span class="c1"># now reconstruct the destination path</span>
+            <span class="n">dst_item</span> <span class="o">=</span> <span class="n">dest_dir</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="o">*</span><span class="n">parts</span><span class="p">)</span>
+            <span class="n">dst_item</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
-                <span class="n">dest_item</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">clone_directory</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">dest_dir</span><span class="p">,</span> <span class="n">rename_map</span><span class="p">,</span> <span class="n">spec</span><span class="p">,</span> <span class="n">source_root</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;.venv&quot;</span><span class="p">:</span>
+                    <span class="c1"># keep venv as a symlink</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">symlink</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">dst_item</span><span class="p">,</span> <span class="n">target_is_directory</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">clone_directory</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">dest_dir</span><span class="p">,</span> <span class="n">rename_map</span><span class="p">,</span> <span class="n">spec</span><span class="p">,</span> <span class="n">source_root</span><span class="p">)</span>
 
             <span class="k">elif</span> <span class="n">item</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
-                <span class="k">if</span> <span class="n">dest_item</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Skipping existing file: </span><span class="si">{</span><span class="n">dest_item</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                    <span class="k">continue</span>
+                <span class="n">suf</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">suffix</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
 
-                <span class="c1"># pick copy strategy based on suffix</span>
-                <span class="k">if</span> <span class="n">dest_item</span><span class="o">.</span><span class="n">suffix</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;.7z&quot;</span><span class="p">,</span> <span class="s2">&quot;.zip&quot;</span><span class="p">):</span>
-                    <span class="n">shutil</span><span class="o">.</span><span class="n">copy2</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">dest_item</span><span class="p">)</span>
-                <span class="k">elif</span> <span class="n">dest_item</span><span class="o">.</span><span class="n">suffix</span> <span class="o">==</span> <span class="s2">&quot;.py&quot;</span><span class="p">:</span>
+                <span class="c1"># first, if the **basename** matches an old→new, rename the file itself</span>
+                <span class="n">base</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">stem</span>
+                <span class="k">if</span> <span class="n">base</span> <span class="ow">in</span> <span class="n">rename_map</span><span class="p">:</span>
+                    <span class="n">dst_item</span> <span class="o">=</span> <span class="n">dst_item</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="n">rename_map</span><span class="p">[</span><span class="n">base</span><span class="p">]</span> <span class="o">+</span> <span class="n">item</span><span class="o">.</span><span class="n">suffix</span><span class="p">)</span>
+
+                <span class="c1"># archives</span>
+                <span class="k">if</span> <span class="n">suf</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;.7z&quot;</span><span class="p">,</span> <span class="s2">&quot;.zip&quot;</span><span class="p">):</span>
+                    <span class="n">shutil</span><span class="o">.</span><span class="n">copy2</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">dst_item</span><span class="p">)</span>
+
+                <span class="c1"># Python → AST rename + whole‑word replace</span>
+                <span class="k">elif</span> <span class="n">suf</span> <span class="o">==</span> <span class="s2">&quot;.py&quot;</span><span class="p">:</span>
                     <span class="n">src</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
                     <span class="k">try</span><span class="p">:</span>
                         <span class="n">tree</span> <span class="o">=</span> <span class="n">ast</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">src</span><span class="p">)</span>
                         <span class="n">renamer</span> <span class="o">=</span> <span class="n">ContentRenamer</span><span class="p">(</span><span class="n">rename_map</span><span class="p">)</span>
                         <span class="n">new_tree</span> <span class="o">=</span> <span class="n">renamer</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">tree</span><span class="p">)</span>
                         <span class="n">ast</span><span class="o">.</span><span class="n">fix_missing_locations</span><span class="p">(</span><span class="n">new_tree</span><span class="p">)</span>
-                        <span class="n">new_code</span> <span class="o">=</span> <span class="n">astor</span><span class="o">.</span><span class="n">to_source</span><span class="p">(</span><span class="n">new_tree</span><span class="p">)</span>
-                        <span class="n">dest_item</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">new_code</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+                        <span class="n">out</span> <span class="o">=</span> <span class="n">astor</span><span class="o">.</span><span class="n">to_source</span><span class="p">(</span><span class="n">new_tree</span><span class="p">)</span>
                     <span class="k">except</span> <span class="ne">SyntaxError</span><span class="p">:</span>
-                        <span class="n">shutil</span><span class="o">.</span><span class="n">copy2</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">dest_item</span><span class="p">)</span>
-                <span class="k">elif</span> <span class="n">dest_item</span><span class="o">.</span><span class="n">suffix</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;.toml&quot;</span><span class="p">,</span> <span class="s2">&quot;.md&quot;</span><span class="p">,</span> <span class="s2">&quot;.txt&quot;</span><span class="p">,</span> <span class="s2">&quot;.json&quot;</span><span class="p">,</span> <span class="s2">&quot;.yaml&quot;</span><span class="p">,</span> <span class="s2">&quot;.yml&quot;</span><span class="p">):</span>
+                        <span class="n">out</span> <span class="o">=</span> <span class="n">src</span>
+                    <span class="c1"># apply any leftover whole‑word replaces</span>
+                    <span class="k">for</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="ow">in</span> <span class="n">rename_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="n">out</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">rf</span><span class="s2">&quot;\b</span><span class="si">{</span><span class="n">re</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">old</span><span class="p">)</span><span class="si">}</span><span class="s2">\b&quot;</span><span class="p">,</span> <span class="n">new</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+                    <span class="n">dst_item</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+
+                <span class="c1"># text files → whole‑word replace</span>
+                <span class="k">elif</span> <span class="n">suf</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;.toml&quot;</span><span class="p">,</span> <span class="s2">&quot;.md&quot;</span><span class="p">,</span> <span class="s2">&quot;.txt&quot;</span><span class="p">,</span> <span class="s2">&quot;.json&quot;</span><span class="p">,</span> <span class="s2">&quot;.yaml&quot;</span><span class="p">,</span> <span class="s2">&quot;.yml&quot;</span><span class="p">):</span>
                     <span class="n">txt</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
                     <span class="k">for</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="ow">in</span> <span class="n">rename_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                        <span class="n">txt</span> <span class="o">=</span> <span class="n">txt</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">)</span>
-                    <span class="n">dest_item</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">txt</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+                        <span class="n">txt</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">rf</span><span class="s2">&quot;\b</span><span class="si">{</span><span class="n">re</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">old</span><span class="p">)</span><span class="si">}</span><span class="s2">\b&quot;</span><span class="p">,</span> <span class="n">new</span><span class="p">,</span> <span class="n">txt</span><span class="p">)</span>
+                    <span class="n">dst_item</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">txt</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+
+                <span class="c1"># everything else</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="n">shutil</span><span class="o">.</span><span class="n">copy2</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">dest_item</span><span class="p">)</span>
+                    <span class="n">shutil</span><span class="o">.</span><span class="n">copy2</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">dst_item</span><span class="p">)</span>
 
             <span class="k">elif</span> <span class="n">item</span><span class="o">.</span><span class="n">is_symlink</span><span class="p">():</span>
                 <span class="n">target</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">readlink</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
-                <span class="n">os</span><span class="o">.</span><span class="n">symlink</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">dest_item</span><span class="p">,</span> <span class="n">target_is_directory</span><span class="o">=</span><span class="n">item</span><span class="o">.</span><span class="n">is_dir</span><span class="p">())</span></div>
+                <span class="n">os</span><span class="o">.</span><span class="n">symlink</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">dst_item</span><span class="p">,</span> <span class="n">target_is_directory</span><span class="o">=</span><span class="n">item</span><span class="o">.</span><span class="n">is_dir</span><span class="p">())</span></div>
+
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_cleanup_rename</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">rename_map</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        1) Rename any leftover file/dir basenames (including .py) that exactly match a key.</span>
+<span class="sd">        2) Rewrite text files for any straggler content references.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># build simple name→new map (no slashes)</span>
+        <span class="n">simple_map</span> <span class="o">=</span> <span class="p">{</span><span class="n">old</span><span class="p">:</span> <span class="n">new</span> <span class="k">for</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="ow">in</span> <span class="n">rename_map</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="s2">&quot;/&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">old</span><span class="p">}</span>
+        <span class="c1"># sort longest first</span>
+        <span class="n">sorted_simple</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">simple_map</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">kv</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">kv</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1"># -- step 1: rename basenames (dirs &amp; files) bottom‑up --</span>
+        <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s2">&quot;*&quot;</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">parts</span><span class="p">),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+            <span class="n">old</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">name</span>
+            <span class="k">for</span> <span class="n">o</span><span class="p">,</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">sorted_simple</span><span class="p">:</span>
+                <span class="c1"># directory exactly &quot;flight&quot; → &quot;truc&quot;, or &quot;flight_worker&quot; → &quot;truc_worker&quot;</span>
+                <span class="k">if</span> <span class="n">old</span> <span class="o">==</span> <span class="n">o</span> <span class="ow">or</span> <span class="n">old</span> <span class="o">==</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">o</span><span class="si">}</span><span class="s2">_worker&quot;</span> <span class="ow">or</span> <span class="n">old</span> <span class="o">==</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">o</span><span class="si">}</span><span class="s2">_project&quot;</span><span class="p">:</span>
+                    <span class="n">new_name</span> <span class="o">=</span> <span class="n">old</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+                    <span class="n">path</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="n">new_name</span><span class="p">))</span>
+                    <span class="k">break</span>
+                <span class="c1"># file like &quot;flight.py&quot; → &quot;truc.py&quot;</span>
+                <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">is_file</span><span class="p">()</span> <span class="ow">and</span> <span class="n">old</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">o</span> <span class="o">+</span> <span class="s2">&quot;.&quot;</span><span class="p">):</span>
+                    <span class="n">new_name</span> <span class="o">=</span> <span class="n">n</span> <span class="o">+</span> <span class="n">old</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">o</span><span class="p">):]</span>
+                    <span class="n">path</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="n">new_name</span><span class="p">))</span>
+                    <span class="k">break</span>
+
+        <span class="c1"># -- step 2: rewrite any lingering text references --</span>
+        <span class="n">exts</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;.py&quot;</span><span class="p">,</span> <span class="s2">&quot;.toml&quot;</span><span class="p">,</span> <span class="s2">&quot;.md&quot;</span><span class="p">,</span> <span class="s2">&quot;.txt&quot;</span><span class="p">,</span> <span class="s2">&quot;.json&quot;</span><span class="p">,</span> <span class="s2">&quot;.yaml&quot;</span><span class="p">,</span> <span class="s2">&quot;.yml&quot;</span><span class="p">}</span>
+        <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">root</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s2">&quot;*&quot;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">file</span><span class="o">.</span><span class="n">is_file</span><span class="p">()</span> <span class="ow">or</span> <span class="n">file</span><span class="o">.</span><span class="n">suffix</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">exts</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">txt</span> <span class="o">=</span> <span class="n">file</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+            <span class="n">new_txt</span> <span class="o">=</span> <span class="n">txt</span>
+            <span class="k">for</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="ow">in</span> <span class="n">rename_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">new_txt</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">rf</span><span class="s2">&quot;\b</span><span class="si">{</span><span class="n">re</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">old</span><span class="p">)</span><span class="si">}</span><span class="s2">\b&quot;</span><span class="p">,</span> <span class="n">new</span><span class="p">,</span> <span class="n">new_txt</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">new_txt</span> <span class="o">!=</span> <span class="n">txt</span><span class="p">:</span>
+                <span class="n">file</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">new_txt</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="AgiEnv.replace_content">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.replace_content">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">replace_content</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">txt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">rename_map</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">rename_map</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">kv</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">kv</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+            <span class="c1"># only match whole‐word occurrences of `old`</span>
+            <span class="n">pattern</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">rf</span><span class="s2">&quot;\b</span><span class="si">{</span><span class="n">re</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">old</span><span class="p">)</span><span class="si">}</span><span class="s2">\b&quot;</span><span class="p">)</span>
+            <span class="n">txt</span> <span class="o">=</span> <span class="n">pattern</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="n">txt</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">txt</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.read_gitignore">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.read_gitignore">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">read_gitignore</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gitignore_path</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Read patterns from a .gitignore file and compile them into a PathSpec.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            gitignore_path (Path): Path to the .gitignore file.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            PathSpec: Compiled PathSpec object.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">gitignore_path</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-            <span class="n">patterns</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">splitlines</span><span class="p">()</span>
-        <span class="k">return</span> <span class="n">PathSpec</span><span class="o">.</span><span class="n">from_lines</span><span class="p">(</span><span class="n">GitWildMatchPattern</span><span class="p">,</span> <span class="n">patterns</span><span class="p">)</span></div>
+    <span class="k">def</span><span class="w"> </span><span class="nf">read_gitignore</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gitignore_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;PathSpec&#39;</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">pathspec</span><span class="w"> </span><span class="kn">import</span> <span class="n">PathSpec</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">pathspec.patterns</span><span class="w"> </span><span class="kn">import</span> <span class="n">GitWildMatchPattern</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="n">gitignore_path</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">splitlines</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">PathSpec</span><span class="o">.</span><span class="n">from_lines</span><span class="p">(</span><span class="n">GitWildMatchPattern</span><span class="p">,</span> <span class="n">lines</span><span class="p">)</span></div>
 
 
 
@@ -1775,7 +1803,7 @@
 
 <div class="viewcode-block" id="AgiEnv.change_active_app">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.change_active_app">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">change_active_app</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">app</span><span class="p">,</span> <span class="n">install_type</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">change_active_app</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">app</span><span class="p">,</span> <span class="n">install_type</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="n">app_name</span> <span class="o">=</span> <span class="n">app</span>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">Path</span><span class="p">):</span>
