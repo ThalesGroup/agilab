@@ -1,9 +1,9 @@
-Licences
+Licenses
 ========
 
 .. toctree::
    :maxdepth: 2
-   :caption: Licenses
+   :caption: Licenses per components
 
    gui-licenses.md
    core-licenses.md
