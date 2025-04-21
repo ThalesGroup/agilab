@@ -29,7 +29,7 @@ class DummyAgiDagWorker(AgiDagWorker):
         self.worker_id = worker_id
         # Override exec to simply call the function and record its name.
         self.execution_order = []
-    def exec(self, func):
+    def get_work(self, func):
         # Record that the function was "executed"
         self.execution_order.append(func.__name__)
         # Call the function to simulate side effects.
