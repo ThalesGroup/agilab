@@ -20,7 +20,7 @@ These scripts are provided to debug your app with the PyCharm IDE, which best ma
 C - Exemple of Tests Sequence:
 ----------------------
 
-- **1. zip-all**u
+- **1. zip-all**
 
   Tests the zip of the whole agi project directory with .gitignore filtration. A agi.zip file should created at the root dir of your projectu
 
