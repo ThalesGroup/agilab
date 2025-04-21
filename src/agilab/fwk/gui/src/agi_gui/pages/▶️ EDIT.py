@@ -841,7 +841,6 @@ def render_code_editor(file, code, lang, tab, comp_props, ace_props, fct=None):
 
 # -------------------- Editing Handler -------------------- #
 
-
 def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
     """
     Handle the editing of functions/methods and attributes for a given module path.
@@ -852,6 +851,16 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
         comp_props (dict): Component properties for the code editor.
         ace_props (dict): Ace editor properties.
     """
+
+    def update_selected_class():
+        """Callback to update selected class and reset selected item."""
+        st.session_state[class_state_key] = st.session_state[f"{key_prefix}_class_select"]
+        st.session_state[item_state_key] = ""
+
+    def update_selected_item():
+        """Callback to update selected item."""
+        st.session_state[item_state_key] = st.session_state[f"{key_prefix}_item_select"]
+
     if not path.exists():
         st.warning(f"{path} not found.")
         return
@@ -871,13 +880,6 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
     if item_state_key not in st.session_state:
         st.session_state[item_state_key] = ""
 
-    def update_selected_class():
-        """Callback to update selected class and reset selected item."""
-        st.session_state[class_state_key] = st.session_state[
-            f"{key_prefix}_class_select"
-        ]
-        st.session_state[item_state_key] = ""
-
     selected_class = st.selectbox(
         "Select a class:",
         classes,
@@ -892,11 +894,9 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
 
     # Get functions and attributes based on the selected class
     try:
-        if st.session_state[class_state_key] == "module-level":
-            result = get_fcts_and_attrs_name(path)
-        else:
-            # result = get_fcts_and_attrs_name(path, st.session_state[env.worker_path])
-            result = get_fcts_and_attrs_name(path, selected_class)
+        cls = selected_class if selected_class != "module-level"  else None
+        # result = get_fcts_and_attrs_name(path, st.session_state[env.worker_path])
+        result = get_fcts_and_attrs_name(path, cls)
         functions = result["functions"]
         attributes = result["attributes"]
     except Exception as e:
@@ -911,10 +911,6 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
     # Ensure selected_item is set correctly
     if st.session_state[item_state_key] not in items:
         st.session_state[item_state_key] = items[0] if items else ""
-
-    def update_selected_item():
-        """Callback to update selected item."""
-        st.session_state[item_state_key] = st.session_state[f"{key_prefix}_item_select"]
 
     selected_item = st.selectbox(
         "Select a method or attribute:",
@@ -1061,7 +1057,8 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
 
 def handle_project_selection():
     """
-    Handle the 'Select' tab in the sidebar for project selection.
+    Handle the 'Select' tab in the sidebar for project selection,
+    but render each section only if its checkbox is checked.
     """
     projects = st.session_state["projects"]
     env = st.session_state["env"]
@@ -1077,110 +1074,104 @@ def handle_project_selection():
     # Export Button
     side_cols = st.sidebar.columns(2)
     if side_cols[1].button(
-            "Export",
-            type="secondary",
-            use_container_width=True,
-            help="this will export your project under ~/Agi_EXPORT_DIR / <your input filename>",
+        "Export",
+        type="secondary",
+        use_container_width=True,
+        help="this will export your project under ~/Agi_EXPORT_DIR / <your input filename>",
     ):
         handle_export_project()
 
-    # Render Tabs
-    tabs = st.tabs(
-        [
-            "PYTHON-ENV",
-            "MANAGER",
-            "WORKER",
-            "EXPORT-APP-FILTER",
-            "APP-SETTINGS",
-            "ARGS-UI",
-            "PRE-PROMPT",
-        ]
-    )
-    (
-        tab_venv,
-        tab_manager,
-        tab_worker,
-        tab_git,
-        tab_settings,
-        tab_streamlit,
-        tab_pre_prompt,
-    ) = tabs
+    # Define each section as (label, render‑fn)
+    sections = [
+        ("PYTHON‑ENV", lambda: _render_python_env(env)),
+        ("MANAGER",    lambda: _render_manager(env)),
+        ("WORKER",     lambda: _render_worker(env)),
+        ("EXPORT‑APP‑FILTER", lambda: _render_gitignore(env)),
+        ("APP‑SETTINGS",      lambda: _render_app_settings(env)),
+        ("ARGS‑UI",           lambda: _render_args_ui(env)),
+        ("PRE‑PROMPT",        lambda: _render_pre_prompt(env)),
+    ]
 
-    with tab_venv:
-        app_venv_file = env.app_path / "pyproject.toml"
-        if app_venv_file.exists():
-            app_venv = app_venv_file.read_text()
-            if "-cu12" in app_venv:
-                st.session_state["rapids"] = True
-            render_code_editor(
-                app_venv_file, app_venv, "toml", "venv", comp_props, ace_props
-            )
-        else:
-            st.warning("App settings file not found.")
+    for label, render_fn in sections:
+        if st.checkbox(label, value=False):
+            render_fn()
 
-    with tab_worker:
-        st.header("Edit Worker Module")
-        handle_editing(env.worker_path, "edit_tab_worker", comp_props, ace_props)
 
-    with tab_manager:
-        st.header("Edit AgiManager Module")
-        handle_editing(env.module_path, "edit_tab_manager", comp_props, ace_props)
+# helper functions
 
-    with tab_git:
-        gitignore_file = env.gitignore_file
-        if gitignore_file.exists():
-            render_code_editor(
-                gitignore_file,
-                gitignore_file.read_text(),
-                "gitignore",
-                "git",
-                comp_props,
-                ace_props,
-            )
-        else:
-            st.warning("Gitignore file not found.")
+def _render_python_env(env):
+    app_venv_file = env.app_path / "pyproject.toml"
+    if app_venv_file.exists():
+        app_venv = app_venv_file.read_text()
+        if "-cu12" in app_venv:
+            st.session_state["rapids"] = True
+        render_code_editor(
+            app_venv_file, app_venv, "toml", "venv", comp_props, ace_props
+        )
+    else:
+        st.warning("App settings file not found.")
 
-    with tab_settings:
-        app_settings_file = env.app_settings_file
-        if app_settings_file.exists():
-            render_code_editor(
-                app_settings_file,
-                app_settings_file.read_text(),
-                "toml",
-                "set",
-                comp_props,
-                ace_props,
-            )
-        else:
-            st.warning("App settings file not found.")
+def _render_manager(env):
+    st.header("Edit Manager Module")
+    handle_editing(env.module_path, "edit_tab_manager", comp_props, ace_props)
 
-    with tab_streamlit:
-        args_ui_snippet = env.args_ui_snippet
-        if args_ui_snippet.exists():
-            render_code_editor(
-                args_ui_snippet,
-                args_ui_snippet.read_text(),
-                "python",
-                "st",
-                comp_props,
-                ace_props,
-            )
-        else:
-            st.warning("Args UI snippet file not found.")
+def _render_worker(env):
+    st.header("Edit Worker Module")
+    handle_editing(env.worker_path, "edit_tab_worker", comp_props, ace_props)
 
-    with tab_pre_prompt:
-        pre_prompt_file = env.app_src_path / "pre_prompt.json"
-        if pre_prompt_file.exists():
-            with open(pre_prompt_file, "r", encoding="utf-8") as f:
-                pre_prompt_content = json.load(f)
-                # Serialize the JSON content back to a string with indentation for readability
-                pre_prompt_str = json.dumps(pre_prompt_content, indent=4)
-                render_code_editor(
-                    pre_prompt_file, pre_prompt_str, "json", "st", comp_props, ace_props
-                )
-        else:
-            st.warning("pre_prompt file not found.")
+def _render_gitignore(env):
+    gitignore_file = env.gitignore_file
+    if gitignore_file.exists():
+        render_code_editor(
+            gitignore_file,
+            gitignore_file.read_text(),
+            "gitignore",
+            "git",
+            comp_props,
+            ace_props,
+        )
+    else:
+        st.warning("Gitignore file not found.")
 
+def _render_app_settings(env):
+    app_settings_file = env.app_settings_file
+    if app_settings_file.exists():
+        render_code_editor(
+            app_settings_file,
+            app_settings_file.read_text(),
+            "toml",
+            "set",
+            comp_props,
+            ace_props,
+        )
+    else:
+        st.warning("App settings file not found.")
+
+def _render_args_ui(env):
+    args_ui_snippet = env.args_ui_snippet
+    if args_ui_snippet.exists():
+        render_code_editor(
+            args_ui_snippet,
+            args_ui_snippet.read_text(),
+            "python",
+            "st",
+            comp_props,
+            ace_props,
+        )
+    else:
+        st.warning("Args UI snippet file not found.")
+
+def _render_pre_prompt(env):
+    pre_prompt_file = env.app_src_path / "pre_prompt.json"
+    if pre_prompt_file.exists():
+        with open(pre_prompt_file, "r", encoding="utf-8") as f:
+            pre_prompt_content = json.load(f)
+        pre_prompt_str = json.dumps(pre_prompt_content, indent=4)
+        render_code_editor(
+            pre_prompt_file, pre_prompt_str, "json", "st", comp_props, ace_props
+        )
+    else:
+        st.warning("pre_prompt file not found.")
 
 def handle_project_creation():
     """
