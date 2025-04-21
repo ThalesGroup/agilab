@@ -1,0 +1,36 @@
+Example2: Flight-Project
+==============
+
+manager: flight
+------
+.. image:: diagrams/packages_flight.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+.. automodule:: flight.flight
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_flight.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+worker: flight_worker
+-------------
+.. image:: diagrams/packages_flight_worker.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+.. automodule:: flight_worker.flight_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_flight_worker.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
