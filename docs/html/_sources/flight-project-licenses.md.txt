@@ -23,7 +23,7 @@
 | python-dotenv | BSD LICENSE |
 | pytz | MIT LICENSE |
 | pyzstd | BSD LICENSE |
-| setuptools | MIT LICENSE |
+| setuptools |  |
 | six | MIT LICENSE |
 | texttable | MIT LICENSE |
 | tzdata | APACHE SOFTWARE LICENSE |

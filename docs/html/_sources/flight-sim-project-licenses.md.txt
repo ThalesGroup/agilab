@@ -47,7 +47,7 @@
 | pyyaml | MIT LICENSE |
 | pyzstd | BSD LICENSE |
 | scp | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
-| setuptools | MIT LICENSE |
+| setuptools |  |
 | six | MIT LICENSE |
 | sortedcontainers | APACHE SOFTWARE LICENSE |
 | tblib | BSD-2-CLAUSE |
