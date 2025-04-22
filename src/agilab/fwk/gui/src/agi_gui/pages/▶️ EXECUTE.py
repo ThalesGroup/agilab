@@ -193,8 +193,10 @@ def initialize_app_settings():
     env = st.session_state["env"]
     if "app_settings" not in st.session_state:
         st.session_state.app_settings = load_toml_file(env.app_settings_file)
-    st.session_state.app_settings.setdefault("args", {})
-    st.session_state.app_settings.setdefault("cluster", {})
+    if "args" not in st.session_state.app_settings:
+        st.session_state.app_settings.setdefault("args", {})
+    if "cluster" not in st.session_state.app_settings:
+        st.session_state.app_settings.setdefault("cluster", {})
 
 def filter_warning_messages(log: str) -> str:
     """
