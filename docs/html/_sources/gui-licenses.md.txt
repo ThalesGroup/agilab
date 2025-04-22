@@ -73,7 +73,7 @@
 | flask | BSD LICENSE |
 | fonttools | MIT LICENSE |
 | fqdn | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
-| frozenlist | APACHE SOFTWARE LICENSE |
+| frozenlist | APACHE-2.0 |
 | fsspec | BSD LICENSE |
 | future | MIT LICENSE |
 | geojson | BSD LICENSE |
@@ -249,7 +249,7 @@
 | seaborn | BSD LICENSE |
 | send2trash | BSD LICENSE |
 | sentencepiece | APACHE SOFTWARE LICENSE |
-| setuptools | MIT LICENSE |
+| setuptools |  |
 | sgmllib3k | BSD LICENSE |
 | shellingham | ISC LICENSE _ISCL_ |
 | six | MIT LICENSE |

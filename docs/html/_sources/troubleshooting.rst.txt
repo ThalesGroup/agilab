@@ -24,7 +24,7 @@ C - Exemple of Tests Sequence:
 
   Tests the zip of the whole agi project directory with .gitignore filtration. A agi.zip file should created at the root dir of your projectu
 
-- **2. test-all**
+- **2. fwk-test**
 
   This will lunch unitary test for both agi-env and agi-core components and display the pytest result
 
