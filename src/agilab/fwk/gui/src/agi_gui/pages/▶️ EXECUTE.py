@@ -160,6 +160,7 @@ def safe_eval(expression, expected_type, error_message):
         return None
 
 def parse_and_validate_scheduler(scheduler_input):
+    env = st.session_state["env"]
     scheduler = scheduler_input.strip()
     if not scheduler:
         st.error("Scheduler must be provided as a valid IP address.")
@@ -235,6 +236,7 @@ def generate_profile_report(df):
 # UI Rendering Functions
 # ===========================
 def render_generic_ui():
+    env = st.session_state["env"]
     ncols = 2
     cols = st.columns([10, 1, 10])
     new_args_list = []

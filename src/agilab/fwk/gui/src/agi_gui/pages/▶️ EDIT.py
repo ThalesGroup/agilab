@@ -851,7 +851,7 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
         comp_props (dict): Component properties for the code editor.
         ace_props (dict): Ace editor properties.
     """
-
+    env = st.session_state["env"]
     def update_selected_class():
         """Callback to update selected class and reset selected item."""
         st.session_state[class_state_key] = st.session_state[f"{key_prefix}_class_select"]
@@ -1294,6 +1294,7 @@ def handle_project_delete():
     Handle the 'Delete' tab in the sidebar for deleting projects.
     """
     st.header("Delete Project")
+    env = st.session_state["env"]
 
     # Confirmation checkbox
     confirm_delete = st.checkbox(
@@ -1336,6 +1337,7 @@ def handle_project_import():
     """
     Handle the 'Import' tab in the sidebar for project loading.
     """
+    env = st.session_state["env"]
     selected_archive = st.sidebar.selectbox(
         f"From {env.export_apps}",
         st.session_state["archives"],
@@ -1401,7 +1403,7 @@ def page():
     """
     Main function to render the Streamlit page.
     """
-    global CUSTOM_BUTTONS, INFO_BAR, CSS_TEXT, comp_props, ace_props, env
+    global CUSTOM_BUTTONS, INFO_BAR, CSS_TEXT, comp_props, ace_props
 
     if 'env' not in st.session_state:
         st.error("The application environment is not initialized. Please reload the app.")
