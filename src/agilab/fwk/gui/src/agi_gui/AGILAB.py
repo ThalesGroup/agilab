@@ -108,6 +108,8 @@ def page(env):
     """,
         unsafe_allow_html=True,
     )
+    if "GUI_NROW" not in st.session_state:
+        st.session_state["GUI_NROW"] = env.GUI_NROW
 
 
 def main():

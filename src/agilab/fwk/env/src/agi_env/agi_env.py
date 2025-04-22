@@ -340,6 +340,7 @@ class AgiEnv:
     apps_dir = None
     app = None
     module = None
+    GUI_NROW = None
 
     def __init__(self, install_type: int=None, apps_dir: Path = None, active_app: Path | str = None,
               active_module: Path = None, verbose: int = 0):
@@ -427,6 +428,8 @@ class AgiEnv:
         except FileNotFoundError:
             print("app_dir not found:/n", apps_dir)
             exit(1)
+
+        self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
 
         if not active_app:
             active_app = envars.get("APP_DEFAULT", 'flight_project')
