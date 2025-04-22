@@ -1362,7 +1362,7 @@ class AGI:
 
                 if AGI._verbose > 1 and res and len(res) > 0:
                     print(res)
-            os.remove(env.setup_app)
+            # os.remove(env.setup_app)
         return wenv
 
     @staticmethod
