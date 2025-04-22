@@ -610,7 +610,7 @@ async def page():
     else:
         show_run = False
 
-    show_export = st.sidebar.checkbox("EXPORT DATA", value=False)
+    show_export = st.sidebar.checkbox("EXPORT DATA", value=False,help="")
 
     # ------------------
     # INSTALL Section

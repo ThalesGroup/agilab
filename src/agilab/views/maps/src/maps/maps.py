@@ -18,7 +18,7 @@ import plotly.express as px
 from pathlib import Path
 
 st.title(":world_map: Cartography Visualisation")
-
+env = st.session_state['env']
 # Initialize session state
 if "datadir" not in st.session_state:
     st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
@@ -153,14 +153,17 @@ def page():
         return  # Stop further processing
 
     # data filter to speed-up
+
     nrows = st.session_state.loaded_df.shape[0]
+
     lines = st.slider(
         "Select the desired number of points:",
-        min_value=10,
+        min_value=5,
         max_value=nrows,
-        value=nrows,
+        value=st.session_state.GUI_NROW,
         step=10,
     )
+    st.session_state.GUI_NROW = lines
     if lines >= 0:
         st.session_state.loaded_df = st.session_state.loaded_df.iloc[:lines, :]
 
