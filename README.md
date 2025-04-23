@@ -30,8 +30,8 @@ uv run agilab --openai-api-key "your-api-key"
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab
-cd agilab  
-./install.sh  --openai-api-key "your-api-key" [--install-path "path"] [--cluster-credentials "user:password"]
+cd agilab  /src/agilab
+./install.sh  --install-type 1 --openai-api-key "your-api-key"
 ```
 
 ### Windows:
@@ -39,7 +39,7 @@ cd agilab
 ```powershell
 unzip agilab.zip
 cd agilab
-powershell.exe -ExecutionPolicy Bypass -File .\install.ps1  --openai-api-key "your-api-key" [--install-path "path"] [--cluster-credentials "user:password"]
+powershell.exe -ExecutionPolicy Bypass -File .\install.ps1  --install-type 1  --openai-api-key "your-api-key"
 ```
 
 ## AGILab Execution
