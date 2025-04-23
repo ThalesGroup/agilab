@@ -424,6 +424,8 @@ class AgiEnv:
                 self.apps_dir = apps_dir
             elif install_type:
                 self.apps_dir = self.agi_root / apps_dir
+            else:
+                os.makedirs(str(apps_dir), exist_ok=True)
 
         except FileNotFoundError:
             print("app_dir not found:/n", apps_dir)
@@ -440,15 +442,15 @@ class AgiEnv:
                 active_app = active_app
                 if not active_app.endswith('_project'):
                     active_app = active_app + '_project'
-                app_path = self.apps_dir / active_app
+                app_path = apps_dir / active_app
                 if app_path.exists():
                     self.app = active_app
                 src_apps = self.agi_root / "apps"
                 if not install_type:
                     if not apps_dir.exists():
-                        shutil.copytree(src_apps, self.apps_dir)
+                        shutil.copytree(src_apps, apps_dir)
                     else:
-                        self.copy_missing(src_apps, self.apps_dir)
+                        self.copy_missing(src_apps, apps_dir)
                 module = active_app.replace("_project", "").replace("-", "_")
             else:
                 apps_dir = self._determine_apps_dir(active_app)
