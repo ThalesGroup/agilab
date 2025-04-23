@@ -524,10 +524,11 @@ def page():
             lines = st.slider(
                 "Select the desired number of points:",
                 min_value=10,
-                max_value=nrows,
+                max_value=st.session_state.GUI_NROW,
                 value=3830,
                 step=10,
             )
+            st.session_state.GUI_NROW = lines
             if lines >= 0:
                 st.session_state.loaded_df = st.session_state.loaded_df.iloc[:lines, :]
 
