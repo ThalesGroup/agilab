@@ -304,7 +304,9 @@ def handle_export_project():
 
     st.session_state["export_message"] = "Export completed."
     time.sleep(1)
-    st.session_state["archives"].append(env.app + ".zip")
+    app_zip = env.app + ".zip"
+    if app_zip not in st.session_state["archives"]:
+        st.session_state["archives"].append(app_zip)
 
 
 def import_project(project_zip, ignore=False):
