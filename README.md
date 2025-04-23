@@ -21,9 +21,8 @@ See [documentation](https://thalesgroup.github.io/agilab).
 mk dir agi-workspace && cd agi-workspace
 uv init --bare
 uv add agilab
-uv run agilab --openai-api-key "your-api-key" [--install-path "path"] [--cluster-credentials "user:password"]
+uv run agilab --openai-api-key "your-api-key"
 ```
-
 
 ## Install for developers
 
