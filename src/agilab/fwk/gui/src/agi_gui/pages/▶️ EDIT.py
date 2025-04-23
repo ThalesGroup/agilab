@@ -37,6 +37,7 @@ from agi_gui.pagelib import (
     activate_mlflow
 )
 from pathspec import PathSpec
+from pathspec.patterns import GitWildMatchPattern
 from streamlit_modal import Modal
 from code_editor import code_editor
 from agi_env import AgiEnv
@@ -214,6 +215,33 @@ def replace_content(content, rename_map):
     return content
 
 
+# -------------------- Gitignore Reader -------------------- #
+
+
+@st.cache_data
+def read_gitignore(gitignore_path):
+    """
+
+    Read patterns from a .gitignore file and compile them into a PathSpec.
+
+
+
+    Args:
+
+        gitignore_path (Path): Path to the .gitignore file.
+
+
+
+    Returns:
+
+        PathSpec: Compiled PathSpec object.
+
+    """
+
+    with open(gitignore_path, "r") as f:
+        patterns = f.read().splitlines()
+
+    return PathSpec.from_lines(GitWildMatchPattern, patterns)
 # -------------------- Project Cleaner -------------------- #
 
 
@@ -1077,7 +1105,7 @@ def handle_project_selection():
         "Export",
         type="secondary",
         use_container_width=True,
-        help="this will export your project under ~/Agi_EXPORT_DIR / <your input filename>",
+        help=f"this will export your project under  {(env.export_apps / env.app).with_suffix(".zip")}",
     ):
         handle_export_project()
 
