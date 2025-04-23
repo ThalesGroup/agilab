@@ -28,7 +28,7 @@ echo -e "${BLUE}Retrieving all apps...${NC}"
 apps=()
 
 # Loop through each directory ending with '/'
-for dir in */; do
+for dir in $1/*/; do
     if [ -d "$dir" ]; then
         dir_name=$(basename "$dir")
 
@@ -43,7 +43,7 @@ echo -e "${BLUE}Apps to install:${NC} ${apps[*]}"
 
 for app in "${apps[@]}"; do
     echo -e "${BLUE}Installing $app...${NC}"
-    if eval "$APP_INSTALL $app --apps-dir $(pwd) --install-type 1"; then
+    if eval "$APP_INSTALL $app --apps-dir $(pwd) --install-type $2"; then
         echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
     else
         echo -e "${RED}✗ '$app' installation failed.${NC}"

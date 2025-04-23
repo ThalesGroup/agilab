@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="env-test" type="tests" factoryName="py.test">
+  <configuration default="false" name="env-test" type="tests" factoryName="py.test" show_console_on_std_err="true" show_console_on_std_out="true">
     <module name="core" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />

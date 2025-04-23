@@ -363,22 +363,27 @@ class AgiEnv:
         env_path = self.resource_path / ".env"
         self.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
         envars = self.envars
-        if install_type:
-            install_type = int(install_type)
-        else:
-            install_type = int(envars.get("INSTALL_TYPE", 0))
 
         if install_type:
             self.agi_root = AgiEnv.locate_agi_installation()
             self.agi_fwk_env_path = self.agi_root / "fwk/env"
-            if not self.agi_fwk_env_path.exists():
-                raise JumpToMain("Please check if you have correctly installed Agilab ")
+            resource_path = self.agi_fwk_env_path / "src/agi_env" / self.agi_resources
         else:
+            install_type = envars.get("INSTALL_TYPE", 0)
             head, sep, _ = __file__.partition("site-packages")
             if not sep:
                 raise ValueError("site-packages not in", __file__)
-            self.agi_root = Path(head + sep) / "agilab"
-            self.agi_fwk_env_path = self.agi_root.parent
+            self.agi_fwk_env_path = Path(head + sep)
+            self.agi_root =  self.agi_fwk_env_path / "agilab"
+            resource_path = self.agi_fwk_env_path / "agi_env" / self.agi_resources
+
+        if not self.agi_fwk_env_path.exists():
+            raise JumpToMain("Please check if you have correctly installed Agilab ")
+
+        self.install_type = int(install_type)
+        # Initialize .agilab resources
+        self._init_resources(resource_path)
+        self.set_env_var("INSTALL_TYPE", install_type)
 
         # check validity of active_module if any and set the apps_dir
         if active_module:
@@ -398,17 +403,7 @@ class AgiEnv:
         else:
             self.module = None
 
-
-        if install_type:
-            self.install_type = install_type
-            resource_path = self.agi_root / "fwk/env/src/agi_env" / self.agi_resources
-        else:
-            self.install_type = install_type
-            resource_path = self.agi_fwk_env_path / "agi_env" / self.agi_resources
-
-        # Initialize .agilab resources
-        self._init_resources(resource_path)
-        self.set_env_var("INSTALL_TYPE", install_type)
+        # self.set_env_var("INSTALL_TYPE", install_type)
 
         # if apps_dir is not provided or can't be guess from modul_path then take from envars
         if not apps_dir:
@@ -693,6 +688,7 @@ class AgiEnv:
             try:
                 with where_is_agi.open("r", encoding="utf-8-sig") as f:
                     install_path = f.read().strip()
+
                     if install_path:
                         return Path(install_path)
                     else:
