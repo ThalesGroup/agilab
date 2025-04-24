@@ -364,6 +364,9 @@ class AgiEnv:
         self.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
         envars = self.envars
 
+        if not install_type:
+            install_type = envars.get("INSTALL_TYPE", 0)
+
         if install_type:
             self.agi_root = AgiEnv.locate_agi_installation()
             self.agi_fwk_env_path = self.agi_root / "fwk/env"
