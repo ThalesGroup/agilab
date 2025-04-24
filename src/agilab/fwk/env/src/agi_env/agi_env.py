@@ -434,26 +434,25 @@ class AgiEnv:
             active_app = envars.get("APP_DEFAULT", 'flight_project')
 
         # check validity of active_app and set module
-        if active_app:
-            if isinstance(active_app, str):
-                active_app = active_app
-                if not active_app.endswith('_project'):
-                    active_app = active_app + '_project'
-                app_path = apps_dir / active_app
-                if app_path.exists():
-                    self.app = active_app
-                src_apps = self.agi_root / "apps"
-                if not install_type:
-                    if not apps_dir.exists():
-                        shutil.copytree(src_apps, apps_dir)
-                    else:
-                        self.copy_missing(src_apps, apps_dir)
-                module = active_app.replace("_project", "").replace("-", "_")
-            else:
-                apps_dir = self._determine_apps_dir(active_app)
-                module = apps_dir.name.replace("_project", "").replace("-", "_")
+        if isinstance(active_app, str):
+            active_app = active_app
+            if not active_app.endswith('_project'):
+                active_app = active_app + '_project'
+            app_path = apps_dir / active_app
+            if app_path.exists():
+                self.app = active_app
+            src_apps = self.agi_root / "apps"
+            if not install_type:
+                if not apps_dir.exists():
+                    shutil.copytree(src_apps, apps_dir)
+                else:
+                    self.copy_missing(src_apps, apps_dir)
+            module = active_app.replace("_project", "").replace("-", "_")
         else:
-            module = "my_code"
+            apps_dir = self._determine_apps_dir(active_app)
+            module = apps_dir.name.replace("_project", "").replace("-", "_")
+
+        AgiEnv.resolve_packages_path_in_toml(module, agi_root, apps_dir)
 
         self.projects = self.get_projects(self.apps_dir)
 
@@ -1504,3 +1503,56 @@ class AgiEnv:
             if os.name == "nt"
             else str(PurePosixPath(Path(path)))
         )
+
+    @staticmethod
+    def resolve_packages_path_in_toml(module, agi_root, apps_dir):
+        """
+        Updates the 'agi-core' package path in the pyproject.toml file for a given module.
+
+        Args:
+            module (str): The module name (using underscore as separator).
+
+        Raises:
+            FileNotFoundError: If the pyproject.toml file cannot be found.
+            RuntimeError: If an error occurs during reading or writing the TOML file.
+        """
+
+        # Convert agi_root to POSIX string
+        agi_root_str = agi_root.as_posix()
+
+        # Build the module path based on naming conventions (underscores to hyphens)
+        module_path = Path(apps_dir) / (module + "_project")
+        pyproject_file = module_path / "pyproject.toml"
+
+        if not pyproject_file.exists():
+            raise FileNotFoundError(f"pyproject.toml not found in {module_path}")
+
+        try:
+            with pyproject_file.open("rb") as f:
+                content = tomli.load(f)
+        except Exception as e:
+            raise RuntimeError(f"Error loading TOML from {pyproject_file}: {e}")
+
+        # On non-Windows, ensure agi_root_str ends with a slash
+        if not agi_root_str.endswith("/"):
+            agi_root_str += "/"
+
+        # Compute the agi-core path
+        agi_core = f"{agi_root_str}fwk/core"
+
+        # Safely retrieve (or create) the nested structure for tool/uv/sources
+        sources = content.setdefault("tool", {}).setdefault("uv", {}).setdefault("sources", {})
+
+        # Update the 'agi-core' entry if it exists and is a dict
+        if isinstance(sources.get("agi-core"), dict) and "path" in sources["agi-core"]:
+            sources["agi-core"]["path"] = agi_core
+        else:
+            print(f"Warning: 'agi-core' entry not found or invalid in {pyproject_file}; skipping update.")
+
+        try:
+            with pyproject_file.open("wb") as f:
+                tomli_w.dump(content, f)
+        except Exception as e:
+            raise RuntimeError(f"Error writing updated TOML to {pyproject_file}: {e}")
+
+        print("Updated", pyproject_file)
