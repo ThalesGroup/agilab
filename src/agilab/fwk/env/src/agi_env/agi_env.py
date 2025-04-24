@@ -378,7 +378,7 @@ class AgiEnv:
             resource_path = self.agi_fwk_env_path / "agi_env" / self.agi_resources
 
         if not self.agi_fwk_env_path.exists():
-            raise JumpToMain("Please check if you have correctly installed Agilab ")
+            raise JumpToMain(f"Please check if you have correctly installed Agilab in {self.agi_fwk_env_path} ")
 
         self.install_type = int(install_type)
         # Initialize .agilab resources

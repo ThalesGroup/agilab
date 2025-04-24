@@ -30,7 +30,7 @@ uv run agilab --openai-api-key "your-api-key"
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab
-cd agilab  /src/agilab
+cd agilab  agilab/src/agilab/fwk/gui
 ./install.sh  --install-type 1 --openai-api-key "your-api-key"
 ```
 
@@ -38,7 +38,7 @@ cd agilab  /src/agilab
 
 ```powershell
 unzip agilab.zip
-cd agilab
+cd agilab/src/agilab/fwk/gui
 powershell.exe -ExecutionPolicy Bypass -File .\install.ps1  --install-type 1  --openai-api-key "your-api-key"
 ```
 
