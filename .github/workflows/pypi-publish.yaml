@@ -71,23 +71,22 @@ jobs:
         run: |
           # Strip leading 'v' if present
           VERSION=${VERSION#v}
-          echo "Setting version: $VERSION"
-          FILES=("pyproject.toml" "src/agilab/fwk/env/pyproject.toml" "src/agilab/fwk/core/pyproject.toml" "src/agilab/fwk/gui/pyproject.toml")
-          for file in "${FILES[@]}"; do
-            if [ -f "$file" ]; then
-              echo "Updating version in $file"
-              # Remove the dynamic versioning line if present
-              sed -i '/dynamic *= *\["version"\]/d' "$file"
-              # If a version line exists, update it; otherwise, insert it after the [project] header.
-              if grep -q '^version *= *".*"' "$file"; then
-                sed -i "s/^version *= *.*/version = \"$VERSION\"/" "$file"
-              else
-                sed -i "/^\[project\]/a version = \"$VERSION\"" "$file"
-              fi
-            else
-              echo "Warning: $file not found!"
-            fi
-          done
+          echo "Bumping version to $VERSION"
+
+          # Find every pyproject.toml in the repo (excluding .git)…
+          find . -type f -name pyproject.toml \
+            -not -path "./.git/*" \
+            | while read file; do
+                echo "→ Updating $file"
+                # Remove any dynamic-version plugin lines
+                sed -i '/^dynamic\s*=/d' "$file"
+                # Replace existing version=… or insert under [project] if missing
+                if grep -q '^version *= *".*"' "$file"; then
+                  sed -i "s/^version *= *.*/version = \"$VERSION\"/" "$file"
+                else
+                  sed -i "/^\[project\]/a version = \"$VERSION\"" "$file"
+                fi
+              done
 
       - name: Commit version changes
         env:
