@@ -452,7 +452,7 @@ class AgiEnv:
             apps_dir = self._determine_apps_dir(active_app)
             module = apps_dir.name.replace("_project", "").replace("-", "_")
 
-        AgiEnv.resolve_packages_path_in_toml(module, agi_root, apps_dir)
+        AgiEnv.resolve_packages_path_in_toml(module, self.agi_root, apps_dir)
 
         self.projects = self.get_projects(self.apps_dir)
 
