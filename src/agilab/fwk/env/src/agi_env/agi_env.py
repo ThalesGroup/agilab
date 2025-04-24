@@ -373,12 +373,13 @@ class AgiEnv:
         if not install_type:
             cwd = os.getcwd()
             # If we're not in site-packages, or we're in the "gui" folder under site-packages → 1, else 0
-            install_type = 1 if ("site-packages" not in __file__ or cwd.endswith("gui")) else 0
+            install_type = 1 if ("site-packages" not in __file__ and sys.prefix.endswith("gui/.venv")) else 0
         if self.verbose:
             print("install_type", install_type)
 
+        self.agi_root = AgiEnv.locate_agi_installation()
+
         if install_type:
-            self.agi_root = AgiEnv.locate_agi_installation()
             self.agi_fwk_env_path = self.agi_root / "fwk/env"
             resource_path = self.agi_fwk_env_path / "src/agi_env" / self.agi_resources
         else:
@@ -386,7 +387,7 @@ class AgiEnv:
             if not sep:
                 raise ValueError("site-packages not in", __file__)
             self.agi_fwk_env_path = Path(head + sep)
-            self.agi_root =  self.agi_fwk_env_path / "agilab"
+            #self.agi_root =  self.agi_fwk_env_path / "agilab"
             resource_path = self.agi_fwk_env_path / "agi_env" / self.agi_resources
         if not self.agi_fwk_env_path.exists():
             raise JumpToMain("your Agilab installation is not valid")
@@ -1532,7 +1533,7 @@ class AgiEnv:
         agi_root_str = agi_root.as_posix()
 
         # Build the module path based on naming conventions (underscores to hyphens)
-        module_path = Path(apps_dir) / (module + "_project")
+        module_path =  agi_root / apps_dir / (module + "_project")
         pyproject_file = module_path / "pyproject.toml"
 
         if not pyproject_file.exists():
