@@ -50,7 +50,7 @@ def main():
         "--apps-dir", type=str, help="Directory for apps", default="apps"
     )
     parser.add_argument(
-        "--install-type", type=str, help="Install type", default="0"
+        "--install-type", type=str, help="Install type", default=None
     )
     # Parse known arguments; extra arguments are captured in `unknown`
     args, unknown = parser.parse_known_args()
@@ -70,12 +70,28 @@ def main():
     if args.apps_dir is not None:
         custom_args.extend(["--apps-dir", args.apps_dir])
     if args.install_type is not None:
+        agilab_install = None
         custom_args.extend(["--install-type", args.install_type])
-        if args.install_type == "0":
+        if not args.install_type:
             agi_path_storage = Path("~/").expanduser() /".local/share/agilab/.agi-path"
+            if agi_path_storage.exists():
+                with open(agi_path_storage, "r") as f:
+                    agilab_install = f.read()
+                    agilab_install = Path(agilab_install)
+                    if not agilab_install.exists():
+                        agilab_install = None
+                    else:
+                        print("agilab found in", agilab_install)
+        if not agilab_install:
             os.makedirs(agi_path_storage.parent, exist_ok=True)
             with open(agi_path_storage, "w") as f:
-                f.write(str(Path(args.apps_dir).absolute().parent))
+                agilab_install = Path(args.apps_dir).absolute().parent.parent.parent
+                if agilab_install.exists():
+                    print("agilab found in", agilab_install)
+                    f.write(str(agilab_install))
+                else:
+                    print("No agilab installed in", agilab_install)
+                    exit(1)
     if unknown:
         custom_args.extend(unknown)
 
