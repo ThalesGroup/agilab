@@ -356,6 +356,10 @@ class AgiEnv:
         - active_module: path of the active module
         - verbose: verbosity level
         """
+        if install_type and not isinstance(install_type, int):
+            Print("install_type should be a int")
+            exit(1)
+
         self.verbose = verbose
         self.is_managed_pc = getpass.getuser().startswith("T0")
         self.agi_resources = Path("resources/.agilab")
@@ -367,7 +371,11 @@ class AgiEnv:
         envars = self.envars
 
         if not install_type:
-            install_type = int(envars.get("INSTALL_TYPE", 0))
+            cwd = os.getcwd()
+            # If we're not in site-packages, or we're in the "gui" folder under site-packages → 1, else 0
+            install_type = 1 if ("site-packages" not in __file__ or cwd.endswith("gui")) else 0
+        if self.verbose:
+            print("install_type", install_type)
 
         if install_type:
             self.agi_root = AgiEnv.locate_agi_installation()
@@ -380,11 +388,10 @@ class AgiEnv:
             self.agi_fwk_env_path = Path(head + sep)
             self.agi_root =  self.agi_fwk_env_path / "agilab"
             resource_path = self.agi_fwk_env_path / "agi_env" / self.agi_resources
-
         if not self.agi_fwk_env_path.exists():
-            raise JumpToMain(f"Please check if you have correctly installed Agilab in {self.agi_fwk_env_path} ")
+            raise JumpToMain("your Agilab installation is not valid")
 
-        self.install_type = int(install_type)
+        self.install_type = install_type
         # Initialize .agilab resources
         self._init_resources(resource_path)
         self.set_env_var("INSTALL_TYPE", install_type)
@@ -691,13 +698,15 @@ class AgiEnv:
             try:
                 with where_is_agi.open("r", encoding="utf-8-sig") as f:
                     install_path = f.read().strip()
-
-                    if install_path:
-                        return Path(install_path)
+                    agilab_path = Path(install_path)
+                    if install_path and agilab_path.exists():
+                        print("Run Agilab:", install_path)
+                        return agilab_path
                     else:
                         raise ValueError("Installation path file is empty.")
                 where_is_agi.unlink()
-                print(f"Installation path set to: {self.home_abs}")
+                if self.verbose:
+                    print(f"Agilab Installation found at: {self.home_abs}")
             except FileNotFoundError:
                 print(f"File {where_is_agi} does not exist.")
             except PermissionError:
