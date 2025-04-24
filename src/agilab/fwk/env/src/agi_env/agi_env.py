@@ -365,14 +365,13 @@ class AgiEnv:
         envars = self.envars
 
         if not install_type:
-            install_type = envars.get("INSTALL_TYPE", 0)
+            install_type = int(envars.get("INSTALL_TYPE", 0))
 
         if install_type:
             self.agi_root = AgiEnv.locate_agi_installation()
             self.agi_fwk_env_path = self.agi_root / "fwk/env"
             resource_path = self.agi_fwk_env_path / "src/agi_env" / self.agi_resources
         else:
-            install_type = envars.get("INSTALL_TYPE", 0)
             head, sep, _ = __file__.partition("site-packages")
             if not sep:
                 raise ValueError("site-packages not in", __file__)

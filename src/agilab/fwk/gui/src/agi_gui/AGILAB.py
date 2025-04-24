@@ -150,7 +150,7 @@ def main():
     args, unknown = parser.parse_known_args()
     st.session_state["apps_dir"] = args.apps_dir
     st.session_state["INSTALL_TYPE"] = args.install_type
-    env = AgiEnv(apps_dir=Path(args.apps_dir), install_type=args.install_type, verbose=1)
+    env = AgiEnv(apps_dir=Path(args.apps_dir), install_type=int(args.install_type), verbose=1)
     st.session_state['env'] = env
 
     if not st.session_state.get("server_started"):
