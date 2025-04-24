@@ -31,7 +31,7 @@ uv run agilab --openai-api-key "your-api-key"
 ```bash
 git clone https://github.com/ThalesGroup/agilab
 cd agilab  agilab/src/agilab/fwk/gui
-./install.sh  --openai-api-key "your-api-key"
+./install.sh --openai-api-key "your-api-key"
 ```
 
 ### Windows:
