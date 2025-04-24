@@ -192,7 +192,7 @@ def main():
     except Exception as e:
         st.error(f"An error occurred: {e}")
         import traceback
-        st.error(traceback.format_exc())
+        st.code(traceback.format_exc())
 
 
 # -------------------- Run the App -------------------- #

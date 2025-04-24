@@ -20,8 +20,6 @@ import os
 import sys
 import asyncio
 from pathlib import Path
-import tomli
-import tomli_w
 import argparse
 
 core_src = str(Path(__file__).parent.parent / 'fwk/core/src')
