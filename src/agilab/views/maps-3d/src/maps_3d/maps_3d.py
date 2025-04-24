@@ -809,7 +809,7 @@ def main():
         st.error(f"An error occurred: {e}")
         import traceback
 
-        st.error(traceback.format_exc())
+        st.code(traceback.format_exc())
 
 
 # -------------------- Main Entry Point -------------------- #
