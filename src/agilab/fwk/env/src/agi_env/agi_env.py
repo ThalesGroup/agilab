@@ -374,7 +374,7 @@ class AgiEnv:
         if not install_type:
             cwd = os.getcwd()
             # If we're not in site-packages, or we're in the "gui" folder under site-packages → 1, else 0
-            install_type = 1 if ("site-packages" not in __file__ and sys.prefix.endswith("gui/.venv")) else 0
+            install_type = 1 if ("site-packages" not in __file__ or sys.prefix.endswith("gui/.venv")) else 0
         if self.verbose:
             print("install_type", install_type)
 
