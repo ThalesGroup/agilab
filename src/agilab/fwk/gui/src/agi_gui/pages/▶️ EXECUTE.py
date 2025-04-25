@@ -1,7 +1,6 @@
 import asyncio
 import time
 import streamlit as st
-from agi_gui.pagelib import get_about_content, render_logo, activate_mlflow
 
 # ===========================
 # Standard Imports (lightweight)
@@ -13,22 +12,25 @@ import runpy
 import ast
 import re
 import json
+import numbers
 from collections import defaultdict
 from pathlib import Path
 
-# Third-Party lightweight imports
+# Third-Party imports
+import networkx as nx
+import matplotlib.pyplot as plt
+import textwrap
+from matplotlib.patches import Patch
+from collections import defaultdict
+import numbers
+import streamlit as st
 import tomli         # For reading TOML files
 import tomli_w       # For writing TOML files
 import pandas as pd
 import pydantic
-
 # Project Libraries:
 from agi_gui.pagelib import (
-    load_df,
-    save_csv,
-    init_custom_ui,
-    select_project,
-    open_new_tab,
+    get_about_content, render_logo, activate_mlflow, save_csv, init_custom_ui, select_project, open_new_tab,
     cached_load_df
 )
 
@@ -47,13 +49,6 @@ def init_session_state(defaults: dict):
 # ===========================
 # Utility and Helper Functions
 # ===========================
-
-import re
-import streamlit as st
-
-
-import re
-import streamlit as st
 
 def clear_log():
     """
@@ -105,9 +100,6 @@ def display_log(stdout, stderr):
         st.code(clean_stderr, language="python")
     else:
         st.code(clean_stdout or "No logs available", language="python")
-
-import re
-import json
 
 def parse_benchmark(benchmark_str):
     """
@@ -397,109 +389,184 @@ def update_select_all():
         col for i, col in enumerate(st.session_state.df_cols) if st.session_state.get(f"export_col_{i}", False)
     ]
 
-# ===========================
-# Visualization Functions
-# ===========================
-def show_graph(workers, workers_chunks, workers_tree, partition_key, weights_key, show_leaf_list=False):
-    """Display a directed acyclic graph (DAG) based on distribution tree data."""
-    import networkx as nx
-    import matplotlib.pyplot as plt
-    import textwrap
-    from matplotlib.patches import Patch
+def _draw_distribution(graph, partition_key, show_leaf_list, title):
+    """
+    Shared drawing routine for distribution or DAG graphs.
+    """
+    # Determine multipartite layout
+    pos = nx.multipartite_layout(graph, subset_key="level", align="horizontal")
+    # Invert axes for better top-down view
+    pos = {k: (-x, -y) for k, (x, y) in pos.items()}
 
-    graph = nx.DiGraph()
+    # Classify nodes by level
+    ip_nodes = [n for n, d in graph.nodes(data=True) if d.get("level") == 0]
+    worker_nodes = [n for n, d in graph.nodes(data=True) if d.get("level") == 1]
+    partition_nodes = [n for n, d in graph.nodes(data=True) if d.get("level") == 2]
+    leaf_nodes = [n for n, d in graph.nodes(data=True) if d.get("level") == 3]
+
+    plt.figure(figsize=(12, 8))
+    plt.margins(x=0.1, y=0.1)
+
+    # Draw nodes
+    nx.draw_networkx_nodes(graph, pos, nodelist=ip_nodes, node_color="royalblue", node_shape="o", node_size=1500)
+    nx.draw_networkx_nodes(graph, pos, nodelist=worker_nodes, node_color="skyblue", node_shape="o", node_size=1500)
+    nx.draw_networkx_nodes(graph, pos, nodelist=partition_nodes, node_color="lightgreen", node_shape="s", node_size=1500)
+    if show_leaf_list:
+        nx.draw_networkx_nodes(graph, pos, nodelist=leaf_nodes, node_color="lightgrey", node_shape="s", node_size=1000)
+    nx.draw_networkx_edges(graph, pos)
+
+    # Label drawing
+    ax = plt.gca()
+    for node in graph.nodes():
+        x, y = pos[node]
+        data = graph.nodes[node]
+        # Rotate leaf labels if present
+        if show_leaf_list and node in leaf_nodes:
+            rotation, fontsize = 90, 7
+        else:
+            rotation, fontsize = 0, 7
+        # Wrap long labels
+        wrapped = textwrap.fill(node, width=12)
+        ax.text(
+            x, y, wrapped,
+            horizontalalignment="center",
+            verticalalignment="center",
+            rotation=rotation,
+            fontsize=fontsize,
+            bbox=dict(facecolor="white", edgecolor="none", pad=1.0, alpha=1.0)
+        )
+
+    # Edge labels (weights)
+    edge_labels = nx.get_edge_attributes(graph, "weight")
+    if edge_labels:
+        nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_size=6)
+
+    # Legend
+    patches = [
+        Patch(facecolor="royalblue", label="Host IP"),
+        Patch(facecolor="skyblue", label="Worker"),
+        Patch(facecolor="lightgreen", label=partition_key.title()),
+    ]
+    if show_leaf_list:
+        patches.append(Patch(facecolor="lightgrey", label="Leaf List"))
+    plt.legend(handles=patches, loc="center", bbox_to_anchor=(0.5, -0.05), ncol=len(patches))
+
+    plt.tight_layout()
+    plt.title(title)
+    plt.axis("off")
+    st.pyplot(plt, use_container_width=True)
+
+def show_tree(workers, workers_chunks, workers_tree, partition_key, weights_key, show_leaf_list=False):
+    """
+    Display the distribution tree of the workload, optionally including the leaf list.
+    """
+    total = 0
+    total_per_host = defaultdict(int)
+    workers_works = defaultdict(list)
+
+    # Build workload mapping
+    for worker, chunks, files_list in zip(workers, workers_chunks, workers_tree):
+        ip = worker.split("-")[0]
+        for (partition, size), files in zip(chunks, files_list):
+            # Normalize size
+            if isinstance(size, numbers.Number):
+                size_processed = size
+            else:
+                size_processed = 1
+                st.warning(f"Non-numeric size '{size}' for partition '{partition}' treated as 1.")
+            total += size_processed
+            total_per_host[ip] += size_processed
+            workers_works[worker].append((partition, size_processed, len(files), files))
+
+    if not workers_works:
+        st.warning("No workers with assigned chunks found.")
+        return
+
+    # Determine minimum for relative weights
+    min_size = min(sum(sz for _, sz, _, _ in w) for w in workers_works.values())
+    graph = nx.Graph()
+
+    # Populate nodes and edges
+    for worker, works in workers_works.items():
+        try:
+            ip, wnum = worker.split("-")
+        except ValueError:
+            st.error(f"Worker identifier '{worker}' is not in the expected 'ip-number' format.")
+            continue
+        # Host node
+        host_load = round(100 * total_per_host[ip] / total) if total else 0
+        host_node = f"{ip}\n{host_load}%"
+        graph.add_node(host_node, level=0)
+        # Worker node
+        wsize = sum(sz for _, sz, _, _ in works)
+        wload = round(100 * wsize / total) if total else 0
+        worker_node = f"{wnum}\n{ip}\n{wload}%"
+        graph.add_node(worker_node, level=1)
+        graph.add_edge(host_node, worker_node, weight=round(wsize / min_size, 1))
+        # Partition and leaves
+        for partition, sz, nfiles, files in works:
+            part_node = f"{partition}\n{nfiles} {weights_key}"
+            graph.add_node(part_node, level=2)
+            graph.add_edge(worker_node, part_node, weight=sz)
+            if show_leaf_list and files:
+                for leaf in files:
+                    graph.add_node(leaf, level=3)
+                    graph.add_edge(part_node, leaf)
+
+    _draw_distribution(graph, partition_key, show_leaf_list, title="Distribution Tree")
+
+
+def show_graph(workers, workers_chunks, workers_tree, partition_key, weights_key, show_leaf_list=False):
+    """
+    Display a directed acyclic graph (DAG) based on distribution tree data.
+    """
     total = 0
     total_per_host = defaultdict(int)
     workers_works = defaultdict(list)
 
     for worker, chunks, tree in zip(workers, workers_chunks, workers_tree):
         ip = worker.split("-")[0]
-        for chunk, item in zip(chunks, tree):
-            partition, size = chunk
-            if len(item) == 2:
-                node, dependencies = item
-            else:
-                node, dependencies = item[0], []
-            size_processed = size if isinstance(size, (int, float)) else 1
+        for (partition, size), item in zip(chunks, tree):
+            node, deps = (item[0], item[1]) if len(item) == 2 else (item[0], [])
+            size_processed = size if isinstance(size, numbers.Number) else 1
             total += size_processed
             total_per_host[ip] += size_processed
-            workers_works[worker].append((partition, size_processed, node, dependencies))
+            workers_works[worker].append((partition, size_processed, node, deps))
 
     if not workers_works:
         st.warning("No workers with assigned chunks found.")
         return
 
-    min_size = min(sum(size for _, size, _, _ in works) for works in workers_works.values()) if workers_works else 1
+    min_size = min(sum(sz for _, sz, _, _ in w) for w in workers_works.values())
+    graph = nx.DiGraph()
 
     for worker, works in workers_works.items():
         try:
-            ip, worker_num = worker.split("-")
+            ip, wnum = worker.split("-")
         except ValueError:
             st.error(f"Worker identifier '{worker}' is not in the expected 'ip-number' format.")
             continue
 
-        host_load = round((100 * total_per_host[ip] / total)) if total > 0 else 0
+        host_load = round(100 * total_per_host[ip] / total) if total else 0
         host_node = f"{ip}\n{host_load}%"
         graph.add_node(host_node, level=0)
 
-        worker_size = sum(size for _, size, _, _ in works)
-        worker_load = round((100 * worker_size / total)) if total > 0 else 0
-        worker_node = f"{worker_num}\n{ip}\n{worker_load}%"
+        wsize = sum(sz for _, sz, _, _ in works)
+        wload = round(100 * wsize / total) if total else 0
+        worker_node = f"{wnum}\n{ip}\n{wload}%"
         graph.add_node(worker_node, level=1)
-        graph.add_edge(host_node, worker_node, weight=round(worker_size / min_size, 1))
+        graph.add_edge(host_node, worker_node, weight=round(wsize / min_size, 1))
 
-        for partition, size, node, dependencies in works:
-            partition_node = f"{partition}\nfiles: {len(dependencies)} {weights_key}"
-            graph.add_node(partition_node, level=2)
-            graph.add_edge(worker_node, partition_node, weight=size)
-            if show_leaf_list and dependencies:
-                for leaf in dependencies:
-                    leaf_node = f"{leaf}"
-                    graph.add_node(leaf_node, level=3)
-                    graph.add_edge(partition_node, leaf_node)
+        for partition, sz, node, deps in works:
+            part_node = f"{partition}\nfiles: {len(deps)} {weights_key}"
+            graph.add_node(part_node, level=2)
+            graph.add_edge(worker_node, part_node, weight=sz)
+            if show_leaf_list and deps:
+                for leaf in deps:
+                    graph.add_node(leaf, level=3)
+                    graph.add_edge(part_node, leaf)
 
-    pos = nx.multipartite_layout(graph, subset_key="level", align="horizontal")
-    pos = {k: (-x, -y) for k, (x, y) in pos.items()}
-    ip_nodes = [node for node, data in graph.nodes(data=True) if data["level"] == 0]
-    workers_nodes = [node for node, data in graph.nodes(data=True) if data["level"] == 1]
-    partitions_nodes = [node for node, data in graph.nodes(data=True) if data["level"] == 2]
-    leaf_nodes = [node for node, data in graph.nodes(data=True) if data["level"] == 3]
-
-    plt.figure(figsize=(12, 8))
-    plt.margins(x=0.1, y=0.1)
-    nx.draw_networkx_nodes(graph, pos, nodelist=ip_nodes, node_color="royalblue", node_shape="o", node_size=1500)
-    nx.draw_networkx_nodes(graph, pos, nodelist=workers_nodes, node_color="skyblue", node_shape="o", node_size=1500)
-    nx.draw_networkx_nodes(graph, pos, nodelist=partitions_nodes, node_color="lightgreen", node_shape="s", node_size=1500)
-    if show_leaf_list:
-        nx.draw_networkx_nodes(graph, pos, nodelist=leaf_nodes, node_color="lightgrey", node_shape="s", node_size=1000)
-    nx.draw_networkx_edges(graph, pos)
-    ax = plt.gca()
-    for node in graph.nodes():
-        x, y = pos[node]
-        if node in leaf_nodes and show_leaf_list:
-            rotation = 90
-            fontsize = 7
-            wrapped_label = textwrap.fill(node, width=10)
-        else:
-            rotation = 0
-            fontsize = 7
-            wrapped_label = node
-        ax.text(x, y, s=wrapped_label, horizontalalignment="center", verticalalignment="center", rotation=rotation,
-                fontsize=fontsize, bbox=dict(facecolor="white", edgecolor="none", pad=1.0, alpha=1.0))
-    edge_labels = nx.get_edge_attributes(graph, "weight")
-    nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_size=6)
-    legend_patches = [
-        Patch(facecolor="royalblue", label="Host IP"),
-        Patch(facecolor="skyblue", label="Worker"),
-        Patch(facecolor="lightgreen", label=partition_key.title()),
-    ]
-    if show_leaf_list:
-        legend_patches.append(Patch(facecolor="lightgrey", label="Leaf List"))
-    plt.legend(handles=legend_patches, loc="center", bbox_to_anchor=(0.5, -0.05), ncol=len(legend_patches))
-    plt.tight_layout()
-    plt.title("Orchestration View")
-    plt.axis("off")
-    st.pyplot(plt, use_container_width=True)
+    _draw_distribution(graph, partition_key, show_leaf_list, title="Orchestration View")
 
 def workload_barchart(workers, workers_chunks, partition_key, weights_key, weights_unit):
     """Display a workload bar chart using Plotly."""
@@ -740,7 +807,11 @@ if __name__ == '__main__':
                     weights_unit = "Unit"
                     tabs = st.tabs(["Tree", "Workload"])
                     with tabs[0]:
-                        show_graph(workers, workers_chunks, workers_tree, partition_key, weights_key,
+                        if env.base_worker_cls.endswith('dag-worker'):
+                            show_graph(workers, workers_chunks, workers_tree, partition_key, weights_key,
+                                   show_leaf_list=st.checkbox("Show leaf nodes", value=False))
+                        else:
+                            show_tree(workers, workers_chunks, workers_tree, partition_key, weights_key,
                                    show_leaf_list=st.checkbox("Show leaf nodes", value=False))
                     with tabs[1]:
                         workload_barchart(workers, workers_chunks, partition_key, weights_key, weights_unit)
