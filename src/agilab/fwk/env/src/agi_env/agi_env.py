@@ -26,6 +26,7 @@ import cmd
 import asyncio
 import getpass
 import os
+from os.path import dirname as d
 import subprocess
 import threading
 import queue
@@ -456,7 +457,7 @@ class AgiEnv:
                 if not apps_dir.exists():
                     shutil.copytree(src_apps, apps_dir)
                 else:
-                    self.copy_missing(src_apps, apps_dir)
+                    self.copy_missing(src_apps, Path(os.getcwd()) / apps_dir)
             module = active_app.replace("_project", "").replace("-", "_")
         else:
             apps_dir = self._determine_apps_dir(active_app)
@@ -715,7 +716,8 @@ class AgiEnv:
             except Exception as e:
                 print(f"An error occurred: {e}")
         else:
-            raise RuntimeError("agilab dir not found in local folder (.local on posix and %LOCALAPPDATA% on Windows).")
+            return Path(next(iter([d(p).replace('_gui', 'lab')
+                                   for p in sys.path_importer_cache if p.endswith('AGILAB.py')]), os.getcwd()))
 
     def _check_module_path(self, module: Path):
         module = module.expanduser()
