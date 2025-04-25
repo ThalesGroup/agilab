@@ -18,7 +18,7 @@ See [documentation](https://thalesgroup.github.io/agilab).
 ## Install and Execution for enduser
 
 ```bash
-mk dir agi-workspace && cd agi-workspace
+mkdir agi-workspace && cd agi-workspace
 uv init --bare
 uv add agilab
 uv run agilab --openai-api-key "your-api-key"
