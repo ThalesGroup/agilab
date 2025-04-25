@@ -65,7 +65,16 @@ C - Exemple of Tests Sequence:
   This will prompt for a file selection to select your AGI snippet <AGI.xxx.py> source code you want to run
   If it does not work, you can restore from the agilab.zip before starting a new investigation.
 
+D - agilab_run vs lab_run:
+--------------------------
 
+- **1. agilab_run**
+
+  This will run streamlit module which will run AGILAB.py in run/debug mode
+
+- **12. lab-run**
+
+  This will directly lunch run_lab.py in run/debug mode
 
 
 Known Bugs
