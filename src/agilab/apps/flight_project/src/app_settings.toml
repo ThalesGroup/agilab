@@ -18,7 +18,7 @@ view_module = [
 
 [cluster]
 verbose = true
-cython = true
+cython = false
 cluster_enabled = false
-rapids = true
-pool = true
+rapids = false
+pool = false
