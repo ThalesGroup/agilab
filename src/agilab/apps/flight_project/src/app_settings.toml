@@ -2,7 +2,7 @@
 data_source = "file"
 path = "/home/pcm/data/flight/dataset"
 files = "csv/*"
-nfile = 1
+nfile = 2
 nskip = 0
 nread = 0
 sampling_rate = 1.0
