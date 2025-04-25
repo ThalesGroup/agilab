@@ -1,7 +1,7 @@
 [args]
 data_source = "file"
-path = "/home/pcm/data/flight"
-files = "*"
+path = "/home/pcm/data/flight/dataset"
+files = "csv/*"
 nfile = 1
 nskip = 0
 nread = 0

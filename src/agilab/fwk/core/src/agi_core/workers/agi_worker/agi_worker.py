@@ -305,6 +305,14 @@ class AgiWorker(abc.ABC):
 
     @staticmethod
     def run(app, workers={"127.0.0.1": 1}, mode=0, verbose=3, args=None):
+        """
+        :param app:
+        :param workers:
+        :param mode:
+        :param verbose:
+        :param args:
+        :return:
+        """
 
         env = AgiEnv(active_app=app, verbose=verbose)
         module = env.module
