@@ -86,12 +86,17 @@ class FlightWorker(AgiDataWorker):
             print(f"from: {__file__}\n", end="")
 
         if os.name == "nt" and not getpass.getuser().startswith("T0"):
-            net_path = AgiWorker.normalize_path("//127.0.0.1" + self.args["path"][6:])
+            path = Path(self.args["path"])
+            parts = path.parts
+            if "Users" in parts:
+                index = parts.index("Users") + 2
+                path = Path(*parts[index:])
+            net_path = AgiWorker.normalize_path("\\\\127.0.0.1\\" + str(path))
             try:
                 # Your NFS account in order to mount it as net drive on Windows
-                cmd = f"net use 'Z:' '{net_path}' /user:nsbl 2633"
+                cmd = f'net use Z: "{net_path}" /user:nsbl 2633'
                 print(cmd)
-                subprocess.run(cmd, check=True)
+                subprocess.run(cmd, shell=True, check=True)
             except Exception as e:
                 print(f"Failed to map network drive: {e}")
 
