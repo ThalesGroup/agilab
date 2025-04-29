@@ -115,15 +115,19 @@ class AgiWorker(abc.ABC):
             str: The joined path.
         """
         if os.name == "nt" and not AgiWorker.is_managed_pc:
-            net_path = AgiEnv.normalize_path("//127.0.0.1" + path1[6:])
+            path = Path(self.args["path"])
+            parts = path.parts
+            if "Users" in parts:
+                index = parts.index("Users") + 2
+                path = Path(*parts[index:])
+            net_path = AgiWorker.normalize_path("\\\\127.0.0.1\\" + str(path))
             try:
                 # your nfs account in order to mount it as net drive on windows
-                cmd = f"net use 'Z:' '{net_path}' /user:nsbl 2633"
+                cmd = f'net use Z: "{net_path}" /user:nsbl 2633'
                 print(cmd)
-                subprocess.run(cmd, check=True)
-            except:
-                pass
-
+                subprocess.run(cmd, shell=True, check=True)
+            except Exception as e:
+                print(f"Mount failed: {e}")
         return AgiWorker.join(AgiWorker.expand(path1), path2)
 
     @staticmethod
