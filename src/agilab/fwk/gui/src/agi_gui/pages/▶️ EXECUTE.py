@@ -66,8 +66,9 @@ def update_log(live_log_placeholder, message):
     if "log_text" not in st.session_state:
         st.session_state["log_text"] = ""
     st.session_state["log_text"] += message + "\n"
+
     live_log_placeholder.empty()
-    live_log_placeholder.code(st.session_state["log_text"], language="python")
+    live_log_placeholder.code(st.session_state["log_text"], language="python", height=min(500, len(st.session_state["log_text"])))
 
 def display_log(stdout, stderr):
     """
@@ -94,10 +95,10 @@ def display_log(stdout, stderr):
 
     if "warning:" in combined.lower():
         st.warning("Warnings occurred during cluster installation:")
-        st.code(combined, language="python")
+        st.code(combined, language="python", height=400)
     elif clean_stderr:
         st.error("Errors occurred during cluster installation:")
-        st.code(clean_stderr, language="python")
+        st.code(clean_stderr, language="python", height=200)
     else:
         st.code(clean_stdout or "No logs available", language="python")
 
