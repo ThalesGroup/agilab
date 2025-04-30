@@ -100,13 +100,13 @@ install_dependencies() {
         sudo apt install -y build-essential curl wget unzip \
             software-properties-common libssl-dev zlib1g-dev \
             libbz2-dev libreadline-dev libsqlite3-dev libxml2-dev \
-            liblzma-dev llvm tk-dev p7zip-full libffi-dev
+            liblzma-dev llvm tk-dev p7zip-full libffi-dev clang
     elif command -v dnf >/dev/null 2>&1; then
         echo -e "${BLUE}Detected dnf package manager (Linux).${NC}"
         sudo dnf install -y @development-tools wget curl unzip \
             openssl-devel zlib-devel ncurses-devel bzip2-devel \
             readline-devel sqlite-devel libxml2-devel xz-devel \
-            libffi-devel gdbm-devel nss-devel
+            libffi-devel gdbm-devel nss-devel clang
     elif command -v brew >/dev/null 2>&1; then
         echo -e "${BLUE}Detected Homebrew (macOS).${NC}"
         brew upgrade

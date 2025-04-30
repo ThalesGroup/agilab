@@ -85,7 +85,7 @@ dev = [
     "pytest-cov",
 ]
 rapids = [
-    { package = "cuspatial-cu12", markers = "platform_system == \"Linux\"" },
+    "cuspatial-cu12; platform_system == 'Linux'",
 ]
 
 [tool.uv]
