@@ -54,11 +54,10 @@ if "coltype" not in st.session_state:
 discreteseqs = ["Plotly", "D3", "G10", "T10", "Alphabet", "Dark24", "Light24"]
 
 # Terrain Layer configuration
-MAPBOX_API_KEY = "your-api-key"
 TERRAIN_IMAGE = (
     "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
 )
-SURFACE_IMAGE = f"https://api.mapbox.com/v4/mapbox.satellite/{{z}}/{{x}}/{{y}}@2x.png?access_token={MAPBOX_API_KEY}"
+SURFACE_IMAGE = f"https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}"
 ELEVATION_DECODER = {
     "rScaler": 256,
     "gScaler": 1,
