@@ -174,6 +174,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#d-agilab-run-vs-lab-run">D - agilab_run vs lab_run:</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting.html#known-bugs">Known Bugs</a><ul>
@@ -182,7 +183,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#pycharm-run-debug-configuration-is-broken">&lt;PYCHARM&gt; Run/Debug Configuration is Broken</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../../license.html">Licences</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">Licenses</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../gui-licenses.html">Gui Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../core-licenses.html">Core Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../env-licenses.html">Env Licenses</a></li>
@@ -391,6 +392,11 @@
 </ul>
 </li>
 </ul>
+<p class="caption" role="heading"><span class="caption-text">Hosting Sites</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../agilab-github.html"><strong>Agilab project</strong></a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../agilab-github.html#agilab-components"><strong>Agilab components</strong></a></li>
+</ul>
 
         </div>
       </div>
@@ -515,12 +521,17 @@
             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;from: </span><span class="si">{</span><span class="vm">__file__</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;nt&quot;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">getpass</span><span class="o">.</span><span class="n">getuser</span><span class="p">()</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;T0&quot;</span><span class="p">):</span>
-            <span class="n">net_path</span> <span class="o">=</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">normalize_path</span><span class="p">(</span><span class="s2">&quot;//127.0.0.1&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s2">&quot;path&quot;</span><span class="p">][</span><span class="mi">6</span><span class="p">:])</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s2">&quot;path&quot;</span><span class="p">])</span>
+            <span class="n">parts</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">parts</span>
+            <span class="k">if</span> <span class="s2">&quot;Users&quot;</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">:</span>
+                <span class="n">index</span> <span class="o">=</span> <span class="n">parts</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s2">&quot;Users&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">2</span>
+                <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="o">*</span><span class="n">parts</span><span class="p">[</span><span class="n">index</span><span class="p">:])</span>
+            <span class="n">net_path</span> <span class="o">=</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">normalize_path</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\\\</span><span class="s2">127.0.0.1</span><span class="se">\\</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="c1"># Your NFS account in order to mount it as net drive on Windows</span>
-                <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;net use &#39;Z:&#39; &#39;</span><span class="si">{</span><span class="n">net_path</span><span class="si">}</span><span class="s2">&#39; /user:nsbl 2633&quot;</span>
+                <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;net use Z: &quot;</span><span class="si">{</span><span class="n">net_path</span><span class="si">}</span><span class="s1">&quot; /user:nsbl 2633&#39;</span>
                 <span class="nb">print</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
-                <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">check</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">check</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to map network drive: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 

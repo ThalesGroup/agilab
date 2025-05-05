@@ -62,7 +62,7 @@ def display_landing_page(resources_path: Path):
       <strong>Founding Concept:</strong>
     <ul>
       AGILAB outlines a method for scaling into a project’s execution environment without the need for virtualization or containerization (such as Docker). The approach involves encapsulating an app's logic into two components: a worker (which is scalable and free from dependency constraints) and a manager (which is easily integrable due to minimal dependency requirements). This design enables seamless integration within a single app, contributing to the move toward Artificial General Intelligence (AGI).
-      For infrastructure that required docker, there is an agilab docker image that can be updated, please send an email at focus@thaleshroup.com with [docker] in the subject.
+      For infrastructure that required docker, there is an agilab docker script tp generate a docker image in the docker directory under the project root.
     </ul>      
     </div>
       <strong>Key Features:</strong>

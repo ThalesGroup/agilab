@@ -174,6 +174,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#d-agilab-run-vs-lab-run">D - agilab_run vs lab_run:</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting.html#known-bugs">Known Bugs</a><ul>
@@ -450,6 +451,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">getpass</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">os.path</span><span class="w"> </span><span class="kn">import</span> <span class="n">dirname</span> <span class="k">as</span> <span class="n">d</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">queue</span>
@@ -846,7 +848,7 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="n">install_type</span><span class="p">:</span>
             <span class="n">cwd</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">()</span>
             <span class="c1"># If we&#39;re not in site-packages, or we&#39;re in the &quot;gui&quot; folder under site-packages → 1, else 0</span>
-            <span class="n">install_type</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="p">(</span><span class="s2">&quot;site-packages&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="vm">__file__</span> <span class="ow">and</span> <span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;gui/.venv&quot;</span><span class="p">))</span> <span class="k">else</span> <span class="mi">0</span>
+            <span class="n">install_type</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="p">(</span><span class="s2">&quot;site-packages&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="vm">__file__</span> <span class="ow">or</span> <span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;gui/.venv&quot;</span><span class="p">))</span> <span class="k">else</span> <span class="mi">0</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">:</span>
             <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;install_type&quot;</span><span class="p">,</span> <span class="n">install_type</span><span class="p">)</span>
 
@@ -929,7 +931,7 @@
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">apps_dir</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
                     <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span><span class="n">src_apps</span><span class="p">,</span> <span class="n">apps_dir</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">copy_missing</span><span class="p">(</span><span class="n">src_apps</span><span class="p">,</span> <span class="n">apps_dir</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">copy_missing</span><span class="p">(</span><span class="n">src_apps</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">())</span> <span class="o">/</span> <span class="n">apps_dir</span><span class="p">)</span>
             <span class="n">module</span> <span class="o">=</span> <span class="n">active_app</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_project&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">apps_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_determine_apps_dir</span><span class="p">(</span><span class="n">active_app</span><span class="p">)</span>
@@ -1218,7 +1220,8 @@
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;An error occurred: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;agilab dir not found in local folder (.local on posix and %LOCALAPPDATA</span><span class="si">% o</span><span class="s2">n Windows).&quot;</span><span class="p">)</span></div>
+            <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">([</span><span class="n">d</span><span class="p">(</span><span class="n">p</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;_gui&#39;</span><span class="p">,</span> <span class="s1">&#39;lab&#39;</span><span class="p">)</span>
+                                   <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path_importer_cache</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;AGILAB.py&#39;</span><span class="p">)]),</span> <span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">()))</span></div>
 
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_check_module_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">:</span> <span class="n">Path</span><span class="p">):</span>
@@ -1951,11 +1954,13 @@
         <span class="n">snippet_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">runenv</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">matches</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">target</span><span class="si">}</span><span class="s2">.py&quot;</span><span class="p">)</span>
         <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">snippet_file</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
             <span class="n">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">code</span><span class="p">)</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv run python </span><span class="si">{</span><span class="n">snippet_file</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv run --project </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">venv</span><span class="p">)</span><span class="si">}</span><span class="s2"> python </span><span class="si">{</span><span class="n">snippet_file</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="c1"># Await _run_bg directly without asyncio.run()</span>
         <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">_run_bg</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">venv</span><span class="o">=</span><span class="n">venv</span><span class="p">,</span> <span class="n">log_callback</span><span class="o">=</span><span class="n">log_callback</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">log_callback</span><span class="p">:</span>
             <span class="n">log_callback</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Process finished with output: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;test&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">result</span></div>
 
 
@@ -2026,7 +2031,6 @@
                     <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
                     <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
                 <span class="p">)</span>
-                <span class="n">output_lines</span> <span class="o">=</span> <span class="p">[]</span>
                 <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
                     <span class="k">if</span> <span class="n">process</span><span class="o">.</span><span class="n">stderr</span><span class="p">:</span>
                         <span class="n">line</span> <span class="o">=</span> <span class="n">process</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
