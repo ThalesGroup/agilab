@@ -249,7 +249,7 @@
 | seaborn | BSD LICENSE |
 | send2trash | BSD LICENSE |
 | sentencepiece | APACHE SOFTWARE LICENSE |
-| setuptools |  |
+| setuptools | MIT |
 | sgmllib3k | BSD LICENSE |
 | shellingham | ISC LICENSE _ISCL_ |
 | six | MIT LICENSE |
