@@ -1346,7 +1346,7 @@ class AGI:
                 if AGI._verbose > 2:
                     print(cmd, "\ncwd", os.getcwd(), "\nfrom", wenv_path)
                 res = AgiEnv.run(cmd, wenv_path)
-                worker_lib = next(iter(wenv_path.glob("*cy*")), None)
+                worker_lib = next(iter(wenv_path.glob("*_cy.*")), None)
                 if not worker_lib:
                     raise FileNotFoundError(wenv_path.name, "build_ext failed !")
 
