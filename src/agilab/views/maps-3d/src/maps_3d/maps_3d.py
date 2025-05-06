@@ -21,35 +21,6 @@ import plotly.express as px
 import geojson
 import random
 
-render_logo("3D Maps and Network Topology Visualization")
-
-if 'env' not in st.session_state:
-    st.error("The application environment is not initialized. Please reload the app.")
-    st.stop()
-else:
-    env = st.session_state['env']
-
-# Define variable types and their default indices
-var = ["discrete", "continious", "lat", "long", "alt"]
-var_default = [0, None]
-
-# Lazy imports and efficient session state initialization
-if "datadir" not in st.session_state:
-    datadir = env.AGILAB_EXPORT_ABS / env.target
-    if not datadir.exists():
-        os.mkdir(datadir, exist_ok=True)
-    st.session_state["datadir"] = datadir
-if "project" not in st.session_state:
-    st.session_state["project"] = env.target
-if "projects" not in st.session_state:
-    st.session_state["projects"] = env.projects
-if "datadir" not in st.session_state:
-    st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
-if "beamdir" not in st.session_state:
-    st.session_state["beamdir"] = env.AGILAB_SHARE_ABS / env.target.replace("_project", "")
-if "coltype" not in st.session_state:
-    st.session_state["coltype"] = var[0]
-
 # List of available color palettes
 discreteseqs = ["Plotly", "D3", "G10", "T10", "Alphabet", "Dark24", "Light24"]
 
@@ -354,6 +325,34 @@ def page():
     Returns:
         None
     """
+    render_logo("3D Maps and Network Topology Visualization")
+
+    if 'env' not in st.session_state:
+        st.error("The application environment is not initialized. Please reload the app.")
+        st.stop()
+    else:
+        env = st.session_state['env']
+
+    # Define variable types and their default indices
+    var = ["discrete", "continious", "lat", "long", "alt"]
+    var_default = [0, None]
+
+    # Lazy imports and efficient session state initialization
+    if "datadir" not in st.session_state:
+        datadir = env.AGILAB_EXPORT_ABS / env.target
+        if not datadir.exists():
+            os.mkdir(datadir, exist_ok=True)
+        st.session_state["datadir"] = datadir
+    if "project" not in st.session_state:
+        st.session_state["project"] = env.target
+    if "projects" not in st.session_state:
+        st.session_state["projects"] = env.projects
+    if "datadir" not in st.session_state:
+        st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
+    if "beamdir" not in st.session_state:
+        st.session_state["beamdir"] = env.AGILAB_SHARE_ABS / env.target.replace("_project", "")
+    if "coltype" not in st.session_state:
+        st.session_state["coltype"] = var[0]
 
     st.sidebar.text_input(
         "Data Directory",
