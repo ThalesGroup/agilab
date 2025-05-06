@@ -1163,10 +1163,12 @@ class AGI:
         if (AGI._mode_auto and AGI._mode == AGI.DASK_MODE) or not AGI._mode_auto:
             if AGI._mode & AGI.DASK_MODE:
                 if scheduler is None:
-                    print("AGI.run(...scheduler='scheduler ip address' is required\nStop")
-                    exit(1)
-                else:
-                    scheduler="127.0.0.1"
+                    if list(AGI.workers) == ["127.0.0.1"]:
+                        scheduler = "127.0.0.1"
+                    else:
+                        print("AGI.run(...scheduler='scheduler ip address' is required\nStop")
+                        exit(1)
+
                 AGI._scheduler_ip, AGI._scheduler_port = AGI._get_scheduler(scheduler)
 
             # clean cluster env
