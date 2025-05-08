@@ -390,6 +390,10 @@ class AgiEnv:
             self.agi_fwk_env_path = Path(head + sep)
             #self.agi_root =  self.agi_fwk_env_path / "agilab"
             resource_path = self.agi_fwk_env_path / "agi_env" / self.agi_resources
+
+        if install_type == 2:
+            return
+
         if not self.agi_fwk_env_path.exists():
             raise JumpToMain("your Agilab installation is not valid")
 
@@ -416,7 +420,6 @@ class AgiEnv:
         else:
             self.module = None
 
-        # self.set_env_var("INSTALL_TYPE", install_type)
 
         # if apps_dir is not provided or can't be guess from modul_path then take from envars
         if not apps_dir:
@@ -444,7 +447,6 @@ class AgiEnv:
         if not active_app:
             active_app = envars.get("APP_DEFAULT", 'flight_project')
 
-        # check validity of active_app and set module
         if isinstance(active_app, str):
             active_app = active_app
             if not active_app.endswith('_project'):
