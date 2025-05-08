@@ -550,65 +550,65 @@ class AgiWorker(abc.ABC):
                 extract_path = Path(AgiWorker.home_dir) / "wenv" / target_worker
                 extract_src = extract_path / "src"
 
-                if verbose > 2:
-                    f.write(f"extract_path: {extract_path} \n")
-
-                os.makedirs(extract_path, exist_ok=True)
-
-                if verbose > 2:
-                    f.write("sys.path:\n")
-                    for x in sys.path:
-                        f.write(f"\t{x}\n")
-
-                # retrieve the egg file name without extension from the dask-scratch-space
-                egg_src = next(
-                    (x for x in Path(dask_home).glob(f"*{app.replace('-', '_')}*.src")),
-                    None
-                )
-                if egg_src is None:
-                    raise FileNotFoundError(
-                        f"No file starting with '{app}' and not having suffix '.src' was found in {dask_home}"
-                    )
-
-                if verbose > 2:
-                    f.write(f"worker_egg: {egg_src}\n")
-
+                # if verbose > 2:
+                #     f.write(f"extract_path: {extract_path} \n")
+                #
+                # os.makedirs(extract_path, exist_ok=True)
+                #
+                # if verbose > 2:
+                #     f.write("sys.path:\n")
+                #     for x in sys.path:
+                #         f.write(f"\t{x}\n")
+                #
+                # # retrieve the egg file name without extension from the dask-scratch-space
+                # egg_src = next(
+                #     (x for x in Path(dask_home).glob(f"*{app.replace('-', '_')}*.src")),
+                #     None
+                # )
+                # if egg_src is None:
+                #     raise FileNotFoundError(
+                #         f"No file starting with '{app}' and not having suffix '.src' was found in {dask_home}"
+                #     )
+                #
+                # if verbose > 2:
+                #     f.write(f"worker_egg: {egg_src}\n")
+                #
                 if mode & 2:
-                    # case cython requested
-                    if AgiWorker._built:
-                        # case cython already built
-                        return
-
-                    if verbose > 2:
-                        f.write(f"unzip: {egg_src}\nto: {extract_path}\n")
-
-                    # unzip it into the wenv
-                    with ZipFile(egg_src, "r") as zip_ref:
-                        zip_ref.extractall(extract_src)
-
-                    if verbose > 2:
-                        f.write(f" done!\n")
-                        f.write(f"copyfile: 'setup' to {extract_path}")
-
-                    shutil.copyfile(
-                        os.path.join(extract_path, "src/agi_core/workers/agi_worker/setup"),
-                        os.path.join(extract_path, "setup"),
-                    )
-
-                    if verbose > 2:
-                        f.write(f" done!\n")
-
-                    sys_prefix = Path(get_python_lib())
-
-                    # clean the target lib if any
-                    ext = "pyd" if os.name == "nt" else "so"
-                    target_lib_iter = sys_prefix.glob(f"*{target_worker}*.{ext}")
-                    for lib in target_lib_iter:
-                        if verbose > 2:
-                            f.write(f" removing:  {lib}")
-                        os.remove(lib)
-                        if verbose > 2:
-                            f.write(f" done!\n")
+                #     # case cython requested
+                #     if AgiWorker._built:
+                #         # case cython already built
+                #         return
+                #
+                #     if verbose > 2:
+                #         f.write(f"unzip: {egg_src}\nto: {extract_path}\n")
+                #
+                #     # unzip it into the wenv
+                #     with ZipFile(egg_src, "r") as zip_ref:
+                #         zip_ref.extractall(extract_src)
+                #
+                #     if verbose > 2:
+                #         f.write(f" done!\n")
+                #         f.write(f"copyfile: 'setup' to {extract_path}")
+                #
+                #     shutil.copyfile(
+                #         os.path.join(extract_path, "src/agi_core/workers/agi_worker/setup"),
+                #         os.path.join(extract_path, "setup"),
+                #     )
+                #
+                #     if verbose > 2:
+                #         f.write(f" done!\n")
+                #
+                #     sys_prefix = Path(get_python_lib())
+                #
+                #     # clean the target lib if any
+                #     ext = "pyd" if os.name == "nt" else "so"
+                #     target_lib_iter = sys_prefix.glob(f"*{target_worker}*.{ext}")
+                #     for lib in target_lib_iter:
+                #         if verbose > 2:
+                #             f.write(f" removing:  {lib}")
+                #         os.remove(lib)
+                #         if verbose > 2:
+                #             f.write(f" done!\n")
 
                     if verbose > 2:
                         f.write(f"sys_prefix: {sys_prefix}\n")

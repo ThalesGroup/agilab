@@ -35,6 +35,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from tempfile import gettempdir
 from typing import Any, Dict, List, Optional, Union
 import sysconfig
+import logging
 
 # External Libraries
 from IPython.lib import backgroundjobs as bg
@@ -44,7 +45,7 @@ import polars as pl
 import psutil
 from dask.distributed import Client
 import json
-from paramiko import SSHClient, AutoAddPolicy, ssh_exception
+from paramiko import SSHClient, AutoAddPolicy, ssh_exception, util
 from scp import SCPClient
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
@@ -542,22 +543,20 @@ class AGI:
     @staticmethod
     def _exec_ssh(ip, cmd):
         with closing(AGI._ssh_connect(ip)) as ssh_client:
-            if AGI._verbose:
-                stdin, stdout, stderr = ssh_client.exec_command(cmd)
-            else:
-                with open(os.devnull, "w") as f, redirect_stdout(f), redirect_stderr(f):
-                    stdin, stdout, stderr = ssh_client.exec_command(cmd)
-            if stdout:
-                output = stdout.read()
-                if output != "\"":
-                    return output.decode("iso-8859-1", errors="ignore")
-            if stderr:
-                error = stderr.read()
-                if error != "\"":
-                    print(ip, cmd, "\n", error.decode("iso-8859-1", errors="ignore"))
-                raise FileNotFoundError(f"Please run AGI.install(['{ip}'])")
-            else:
-                return None
+            stdin, stdout, stderr = ssh_client.exec_command(cmd)
+            # Wait for command to finish and get its exit status
+            exit_status = stdout.channel.recv_exit_status()
+
+            out_bytes = stdout.read()
+            err_bytes = stderr.read()
+
+            # If the command failed (non-zero), treat stderr as an error
+            if exit_status != 0:
+                err_text = err_bytes.decode('iso-8859-1', errors='ignore').strip()
+                raise RuntimeError(f"{cmd}\nRemote command failed on {ip} (exit {exit_status}):\n{err_text}")
+
+            # Otherwise, return whatever was on stdout and ignore stderr
+            return out_bytes.decode('iso-8859-1', errors='ignore')
 
     @staticmethod
     def _exec_bg(cmd, cwd):
@@ -583,18 +582,26 @@ class AGI:
         Returns:
 
         """
+        if AGI._verbose > 2:
+            logging.basicConfig(level=logging.DEBUG)
         ssh_client = SSHClient()
+        ssh_client.load_system_host_keys()
         ssh_client.set_missing_host_key_policy(AutoAddPolicy())
-        ssh_client.load_system_host_keys()
-        ssh_client.load_system_host_keys()
+        env = AGI.env
+        user = env.user
+        if not user:
+            raise PermissionError(f'ERROR: user is mandatory, please set it in environment files {env.resource_path / ".env"}')
 
         try:
             ssh_client.connect(
                 ip,
-                username=AGI.env.user,
-                timeout=AGI.TIMEOUT,
-                password=AGI.env.password,
+                username= env.user,
+                timeout= AGI.TIMEOUT,
+                password= env.password,
+                look_for_keys=True,
+                allow_agent=True,
             )
+
             return ssh_client
         except ssh_exception.NoValidConnectionsError as err:
             raise ConnectionError(f"error: ssh unable to connect to {ip}") from err
@@ -602,9 +609,14 @@ class AGI:
             raise ConnectionRefusedError(f"error: ssh connect {ip} wrong password") from err
         except TimeoutError as err:
             raise TimeoutError(f"error: ssh connect {ip} timeout") from err
+        except Exception as err:
+            print(f"[AGI DEBUG] connect() failed:", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            raise
 
     @staticmethod
-    def _kill(ip=None, current_pid=None, force=True):
+    def _kill(ip=None, current_pid=None,
+              force=True):
         """kill the uv python and dask processes
 
         Args:
@@ -629,7 +641,7 @@ class AGI:
                 if pid != current_pid:
                     pids.append(pid)
             os.remove(file)
-        python_exe = sys.executable if AGI._is_local(ip) else "python3"
+        python_exe = "uv run python"
         cmds = []
         if force:
             cmds.append(
@@ -678,24 +690,24 @@ class AGI:
 
     @staticmethod
     def _send_file(ip, local_path, remote_path):
-        """Send file to remote host
-        :paraim ip: the address of the remote host
+        """Send file to remote host, creating remote path if it does not exist.
 
         Args:
-          local_path: the path of the local file
-          remote_path: the path of the remote file
-          ip:
+            ip (str): the address of the remote host
+            local_path (str): the path of the local file
+            remote_path (str): the path of the remote file
 
-        Returns:
-
+        Raises:
+            ConnectionError: If file transfer fails
         """
         try:
             with closing(AGI._ssh_connect(ip)) as ssh_client:
+                # Send file
                 with SCPClient(ssh_client.get_transport()) as scp:
                     scp.put(local_path, remote_path)
 
         except Exception as e:
-            raise ConnectionError(f"Failed send file {local_path} to {remote_path} due to:\n{e}")
+            raise ConnectionError(f"Failed to send file {local_path} to {remote_path} on {ip} due to:\n{e}")
 
     @staticmethod
     def _clean_dirs_local():
@@ -727,15 +739,17 @@ class AGI:
         Returns:
 
         """
-        python_exe = sys.executable if AGI._is_local(ip) else "python3"
+        env = AGI.env
+        wenv = "~/" + str(env.wenv_rel)
         AGI._exec_ssh(
             ip,
-            (f'{python_exe} -c "import os, glob, shutil\n'
-             "from tempfile import gettempdir as tmp\n"
-             f"wenv = '{(AGI.env.home_abs / AGI.env.wenv_rel).absolute()}'\n"
-             f"for d in [tmp() + '/dask-scratch-space', str(wenv) + '/*y']:\n"
-             "    for x in glob.glob(d):\n"
-             '        shutil.rmtree(x, ignore_errors=True)"')
+            cmd=(
+                "uv run python -c \"import os, glob, shutil\n"
+                "from tempfile import gettempdir\n"
+                "wenv_path = os.path.abspath(os.path.expanduser('$wenv'))\n"
+                "patterns = [os.path.join(gettempdir(), 'dask-scratch-space'), os.path.join(wenv_path, '*y')]\n"
+                "[shutil.rmtree(path, ignore_errors=True) for pat in patterns for path in glob.glob(pat)]\""
+            )
         )
 
     @staticmethod
@@ -763,34 +777,80 @@ class AGI:
 
     @staticmethod
     def _check_cluster(scheduler):
+        """
+        Validate and prepare each remote node in the cluster:
+        - Verify each IP is valid and reachable.
+        - Detect and install Python interpreters if missing.
+        - Detect and install 'uv' CLI via pip if missing.
+        - Use 'uv' to install the specified Python version, create necessary directories, and install packages.
+        """
         list_ip = set(list(AGI.workers) + [AGI._get_scheduler(scheduler)[0]])
         localhost_ip = socket.gethostbyname("localhost")
         if not list_ip:
             list_ip.add(localhost_ip)
+
+        # Validate IPs
         for ip in list_ip:
             if not AGI._is_local(ip) and not is_ip(ip):
-                raise ValueError("error: invalid ip address")
+                raise ValueError(f"Error: invalid IP address {ip}")
+
+        # Prepare each remote node
         for ip in list_ip:
-            if not AGI._is_local(ip):
+            if AGI._is_local(ip):
+                continue
+
+            try:
+                # 2. Ensure UV CLI is installed
+                uv_installed = False
                 try:
-                    with closing(AGI._ssh_connect(ip)) as ssh_client:
-                        stdin, stdout, stderr = ssh_client.exec_command("python3 -m platform")
-                        out = stdout.read().decode().strip()
-                        if not out:
-                            stdin, stdout, stderr = ssh_client.exec_command("Set-Alias python3 python")
-                            err = stderr.read().decode().strip()
-                            if err:
-                                raise Exception(f"Failed to check installation on {ip} due to:\n{err}")
-                        stdin, stdout, stderr = ssh_client.exec_command(
-                            "python3 -m pip install setuptools psutil dask[distributed] uv")
-                        out = stdout.read().decode().strip()
-                        if out:
-                            continue
-                        err = stderr.read().decode().strip()
-                        if err:
-                            raise Exception(f"Failed to check installation on {ip} due to:\n{err}")
-                except Exception as e:
-                    print(f"Failed to check installation on {ip} due to:\n{e}")
+                    out = AGI._exec_ssh(ip, 'uv --version')
+                    if self._verbose:
+                        print(out, "installed")
+
+                except Exception:
+                    try:
+                        # Try PowerShell installer (Windows)
+                        AGI._exec_ssh(
+                            ip,
+                            'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"'
+                        )
+                        uv_installed = True
+                    except Exception:
+                        try:
+                            # Fallback to shell installer (Unix)
+                            AGI._exec_ssh(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
+                            # Source uv environment
+                            AGI._exec_ssh(ip, 'source $HOME/.local/bin/env')
+                            uv_installed = True
+                        except Exception:
+                            # Network or installer not reachable
+                            raise PermissionError(
+                                f"Remote host {ip} cannot fetch the UV installer."
+                                " Ensure it has Internet access or install 'uv' manually on the remote host."
+                            )
+
+                    # 3. Use UV to install the required Python version
+                    python_version = AGI.env.python_version
+                    AGI._exec_ssh(ip, f"uv python install {python_version}")
+                    try:
+                        AGI._exec_ssh(ip, f"uv -q init --bare")
+                    except Exception:
+                        pass
+                    AGI._exec_ssh(ip, f"uv add psutil")
+
+                # 4. Create the remote virtualenv directory
+                remote_dir = "~/" + str(AGI.env.wenv_rel)
+                out = AGI._exec_ssh(
+                    ip,
+                    f"uv run -p {python_version} python -c \"import os; "
+                    f"os.makedirs(os.path.expanduser({remote_dir!r}), exist_ok=True)\""
+                )
+                if AGI._verbose:
+                    print(out)
+
+            except Exception as e:
+                raise Exception(f"Failed to prepare node {ip}:\n{e}") from e
+
 
     @staticmethod
     async def _install(scheduler):
@@ -812,7 +872,7 @@ class AGI:
         AGI._log_verbose(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1", level=1)
         AGI._install_env_local(app_path, wenv_rel, options)
         core_root = env.core_root
-        cmd = f"uv run --project {core_root} python setup bdist_egg -d \"{wenv_abs}\""
+        cmd = f"uv run -p {env.python_version} --project {core_root} python setup bdist_egg -d \"{wenv_abs}\""
         if AGI._verbose > 2:
             # print(cmd, "\ncwd", os.getcwd(), "\nvenv", wenv_abs, "\ncwd", core_root)
             print(cmd, "\ncwd", os.getcwd(), "\nvenv", wenv_abs, "\ncwd", wenv_abs)
@@ -882,12 +942,13 @@ class AGI:
             toml_remote (Path): Path to the remote pyproject.toml.
             option (str): Additional installation options.
         """
-        cmd = "python3 -m ensurepip"
+        python = f"uv run -p {AGI.env.python_version} python"
+        cmd = python + " -m ensurepip"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
 
-        cmd = f"python3 -c \"import os; os.makedirs('{dest}', exist_ok=True)\""
+        cmd = python + f" -c \"import os; os.makedirs('{dest}', exist_ok=True)\""
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
@@ -896,7 +957,13 @@ class AGI:
         AGI._send_file(ip, egg, dest)
         AGI._send_file(ip, env.worker_pyproject, dest)
 
-        cmd = f"cd {dest}; python3 -c \"import zipfile,pathlib;[zipfile.ZipFile(x).extractall('src') for x in pathlib.Path('.').glob('*.egg')]\""
+
+        cmd = (f"cd {dest}; {python} -c \"import os, pathlib, zipfile; "
+               f"root = os.path.join('wenv','flight_worker'); "
+               f"os.makedirs(os.path.join(root,'src'), exist_ok=True); "
+               f"[zipfile.ZipFile(str(egg)).extractall(os.path.join(root,'src')) "
+               f"for egg in pathlib.Path(root).glob('*.egg')]\"")
+
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
@@ -1365,6 +1432,25 @@ class AGI:
                 if AGI._verbose > 1 and res and len(res) > 0:
                     print(res)
             # os.remove(env.setup_app)
+        else:
+            # upload target_worker files into the dask-worker-space
+            AGI._dask_client.upload_file(str(env.setup_core))
+
+            # finally BUILD AND LOAD THE TARGET WORKER EGG ON all workers
+            for worker in list(AGI._dask_client.scheduler_info()["workers"].keys()):
+                # wip = worker.split('/')[-1].split(':')[0]
+                AGI._dask_client.run(
+                    agi_worker.build,
+                    env.target_worker,
+                    AGI._dask_client.scheduler_info()["workers"][worker][
+                        "local_directory"
+                    ],
+                    worker,
+                    mode=AGI._mode,
+                    verbose=AGI._verbose,
+                    workers=[worker],
+                )
+
         return wenv
 
     @staticmethod
@@ -1565,7 +1651,7 @@ class AGI:
 
         t = time.time()
 
-        if AGI.debug > 2:
+        if AGI._verbose > 2:
             AGI._run_time = AGI._dask_client.run(
                 AgiWorker._get_stdout,
                 AgiWorker.do_works,
