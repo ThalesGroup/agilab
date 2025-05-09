@@ -188,7 +188,7 @@ def main() -> None:
     logging.info(f"Final package list: {all_packages}")
 
     wenv_path = Path('~').expanduser() / env.wenv_rel
-    sys.argv[-1] = str(wenv_path)
+    sys.argv += ['-d', str(wenv_path)]
 
     setup(
         name=worker_module,
