@@ -942,7 +942,10 @@ class AGI:
             toml_remote (Path): Path to the remote pyproject.toml.
             option (str): Additional installation options.
         """
-        python = f"uv run -p {AGI.env.python_version} python"
+        pyvers = env.python_version
+        wenv = env.wenv_rel
+        worker = env.target_worker
+        python = f"uv run -p {pyvers} python"
         cmd = python + " -m ensurepip"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
@@ -953,85 +956,40 @@ class AGI:
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
 
-        egg = next(iter(env.wenv_abs.glob("*.egg")), None)
+        egg = str(next(iter(env.wenv_abs.glob("*.egg")), None))
         AGI._send_file(ip, egg, dest)
         AGI._send_file(ip, env.worker_pyproject, dest)
+        AGI._send_file(ip, env.setup_core, dest)
 
-
-        cmd = (f"cd {dest}; {python} -c \"import os, pathlib, zipfile; "
-               f"root = os.path.join('wenv','flight_worker'); "
-               f"os.makedirs(os.path.join(root,'src'), exist_ok=True); "
-               f"[zipfile.ZipFile(str(egg)).extractall(os.path.join(root,'src')) "
-               f"for egg in pathlib.Path(root).glob('*.egg')]\"")
-
-        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
-
-        cmd = f"{env.export_local_bin} uv sync --upgrade --project {dest} {option}"
-        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
-
-        cmd = f"cd {dest}; {env.export_local_bin} uv pip install -e ."
-        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
-
-        # build agi_env*.whl
-        env_path = env.agi_fwk_env_path
-        wenv_path = env.wenv_abs
-
-        # make egg for remote install
         cmd = (
-            f"uv run --project {env_path} python setup bdist_wheel -d \"{wenv_path}\""
+            f"{python} -c \"import os, pathlib, zipfile;"
+            f" root = os.path.abspath(os.path.expanduser(os.path.join('~', '{wenv}')));"
+            f" os.makedirs(os.path.join(root, 'src'), exist_ok=True);"
+            f" [zipfile.ZipFile(str(egg)).extractall(os.path.join(root, 'src'))"
+            f"  for egg in pathlib.Path(root).glob('*.egg')]\""
         )
-        if AGI._verbose > 2:
-            print(cmd, "\ncwd", os.getcwd(), "\nvenv", env_path, "\ncwd", env_path)
-        res = AgiEnv.run(cmd, cwd=env_path, venv=env_path)
 
-        # upload agi_core.eg
-        env_whl = next(iter(wenv_path.glob(f"agi_env*.whl")), None)
-        env_whl_path = AgiEnv.normalize_path(env_whl)
-        AGI._send_file(ip, env_whl_path, dest)
-
-        if AGI._verbose > 2:
-            print(f"uploaded:", env_whl_path)
-
-        cmd = f"cd {dest} && {env.export_local_bin} uv add {Path(env_whl).name}"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
 
-        # build agi_core*.whl
-        core_root = env.core_root
-        wenv_path = env.wenv_abs
-
-        # make egg for remote install
-        cmd = (
-            f"uv run --project {core_root} python setup bdist_wheel -d \"{wenv_path}\""
-        )
-        if AGI._verbose > 2:
-            print(cmd, "\ncwd", os.getcwd(), "\nvenv", core_root, "\ncwd", core_root)
-        res = AgiEnv.run(cmd, cwd=core_root, venv=core_root)
-
-        # upload agi_core.eg
-        core_whl = next(iter(wenv_path.glob(f"agi_core*.whl")), None)
-        core_whl_path = AgiEnv.normalize_path(core_whl)
-        AGI._send_file(ip, core_whl_path, dest)
-
-        if AGI._verbose > 2:
-            print(f"uploaded:", core_whl_path)
-
-        cmd = f"cd {dest} && {env.export_local_bin} uv add {Path(core_whl).name}"
+        cmd = f"uv sync --upgrade --project {dest} {option}"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
 
-        script = env.wenv_rel / "src" / env.target_worker / "post_install.py"
-        data_dir = 'data/flight'
+        home = Path.home()
+        script = home / wenv / "src" / worker / "post_install.py"
+        data_dir = home / "data" / worker
 
-        cmd = f"[ -f {script} ] && ({env.export_local_bin} uv run --project {env.wenv_rel} python {script} {data_dir})"
+        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
+        result = AGI._exec_ssh(ip, cmd)
+        AGI._handle_command_result(result)
+
+        cmd = (f"{python} -c \"import os,subprocess;script=os.path.expanduser(r'{script}');"
+               f"data=os.path.expanduser(r'{data_dir}');"
+               f"subprocess.run(['uv','run','-p','{pyvers}','--project','{wenv}','python',script,data],check=True)\"")
+
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
@@ -1080,7 +1038,7 @@ class AGI:
         ##################
         # post install
         ###############s##
-        script = env.post_install_script
+        script = env.post_install
         data_dir = env.AGILAB_SHARE_ABS / AGI._target
 
         if script.exists():
@@ -1433,9 +1391,6 @@ class AGI:
                     print(res)
             # os.remove(env.setup_app)
         else:
-            # upload target_worker files into the dask-worker-space
-            AGI._dask_client.upload_file(str(env.setup_core))
-
             # finally BUILD AND LOAD THE TARGET WORKER EGG ON all workers
             for worker in list(AGI._dask_client.scheduler_info()["workers"].keys()):
                 # wip = worker.split('/')[-1].split(':')[0]

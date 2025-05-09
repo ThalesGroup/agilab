@@ -5,6 +5,7 @@
 - Romain LOUVET contributor
 - Théo PLANTEFOL contributor
 - Julien BESTARD contributor
+- Remy CHEN contributor
 
 ### Roles
 Content developper
