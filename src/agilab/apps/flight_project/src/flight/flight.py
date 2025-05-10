@@ -160,11 +160,12 @@ class Flight(AgiManager):
             # implement another logic
             pass
 
-        self.path = AgiEnv.normalize_path(Path(path).expanduser())
+        base_path = Path(path).expanduser()
+        self.path = AgiEnv.normalize_path(base_path)
         self.files = args["files"]
         self.nfile = args["nfile"]
         AgiManager.args = args
-        self.data_out = os.path.join(self.path, "dataframes")
+        self.data_out = AgiEnv.normalize_path(base_path / "dataframes")
         """
           remove dataframe files from previous run
           """
