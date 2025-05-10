@@ -163,9 +163,7 @@ if st.session_state.data_source == "file":
     if not directory.is_dir():
         st.error(f"The provided path '{directory}' is not a valid directory.")
         st.stop()
-    validated_path = directory.as_posix()
-else:
-    validated_path = st.session_state.path
+validated_path = st.session_state.path
 
 args_from_ui = {
     "data_source": st.session_state.data_source,
