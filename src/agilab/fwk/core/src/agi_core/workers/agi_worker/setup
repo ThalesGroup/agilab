@@ -188,7 +188,8 @@ def main() -> None:
     logging.info(f"Final package list: {all_packages}")
 
     wenv_path = Path('~').expanduser() / env.wenv_rel
-    sys.argv += ['-d', str(wenv_path)]
+    if command == 'bdist_egg':
+        sys.argv += ['-d', str(wenv_path)]
 
     setup(
         name=worker_module,
