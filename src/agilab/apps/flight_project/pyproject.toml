@@ -42,7 +42,7 @@ dev = [
     "pytest",
     "licensecheck",
     "flight_project",
-    "ipython==8.34.0",
+    "ipython",
     "pandas",
 ]
 rapids = [

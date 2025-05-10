@@ -15,7 +15,7 @@ dependencies = [
     "parso",
     "py7zr",
     "python-dotenv",
-    "ipython==8.34.0",
+    "ipython",
 ]
 
 [dependency-groups]
