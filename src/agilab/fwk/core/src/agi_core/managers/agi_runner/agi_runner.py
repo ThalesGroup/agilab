@@ -589,30 +589,40 @@ class AGI:
         ssh_client.set_missing_host_key_policy(AutoAddPolicy())
         env = AGI.env
         user = env.user
+        password = env.password
+
         if not user:
             raise PermissionError(f'ERROR: user is mandatory, please set it in environment files {env.resource_path / ".env"}')
 
         try:
             ssh_client.connect(
                 ip,
-                username= env.user,
+                username= user,
                 timeout= AGI.TIMEOUT,
-                password= env.password,
+                password= password,
                 look_for_keys=True,
                 allow_agent=True,
             )
 
             return ssh_client
         except ssh_exception.NoValidConnectionsError as err:
-            raise ConnectionError(f"error: ssh unable to connect to {ip}") from err
+            print("error: ssh no valid connection")
+            print(f"SSH failed to connect at {user}@{ip}")
+            exit(1)
         except ssh_exception.AuthenticationException as err:
-            raise ConnectionRefusedError(f"error: ssh connect {ip} wrong password") from err
+            print("error: ssh connect authentication failed")
+            print(f"SSH failed to connect at {user}@{ip}")
+            exit(1)
         except TimeoutError as err:
-            raise TimeoutError(f"error: ssh connect {ip} timeout") from err
+            print(f"error: ssh connect timeout")
+            print(f"SSH failed to connect at {user}@{ip}")
+            exit(1)
         except Exception as err:
-            print(f"[AGI DEBUG] connect() failed:", file=sys.stderr)
+            print(f"error: ssh connect failed:", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
-            raise
+            print(f"SSH failed to connect at {user}@{ip}")
+            exit(1)
+
 
     @staticmethod
     def _kill(ip=None, current_pid=None,
