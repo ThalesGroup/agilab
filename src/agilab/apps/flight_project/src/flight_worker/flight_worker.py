@@ -101,9 +101,9 @@ class FlightWorker(AgiDataWorker):
                 print(f"Failed to map network drive: {e}")
 
         # Path to database on symlink Path.home()/data(symlink)
-        self.home_rel = Path(self.args["path"])
-        path = AgiWorker.normalize_path(self.home_rel.expanduser())
-        self.data_out = os.path.join(path, "dataframes")
+        self.home_rel = Path(self.args["path"]).expanduser()
+        path = AgiWorker.normalize_path(self.home_rel)
+        self.data_out = AgiWorker.normalize_path(self.home_rel.parent / "dataframes")
 
         if os.name != "nt":
             self.data_out = self.data_out.replace("\\", "/")
