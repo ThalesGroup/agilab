@@ -511,18 +511,49 @@ class AGI:
 
     @staticmethod
     def _read_stderr(output_stream):
-        """read error output for asynchrone thread
+        """Read remote stderr robustly on Linux (UTF-8), Windows OEM (CP850), then ANSI (CP1252)."""
+        def decode_bytes(bs: bytes) -> str:
+            # try UTF-8, then OEM (CP850) for console accents, then ANSI (CP1252)
+            for enc in ('utf-8', 'cp850', 'cp1252'):
+                try:
+                    return bs.decode(enc)
+                except Exception:
+                    continue
+            # final fallback
+            return bs.decode('cp850', errors='replace')
 
-        Args:
-          output_stream: IO stream
+        chan = getattr(output_stream, 'channel', None)
+        if chan is None:
+            # simple iteration fallback
+            for raw in output_stream:
+                if isinstance(raw, bytes):
+                    decoded = decode_bytes(raw)
+                else:
+                    decoded = decode_bytes(raw.encode('latin-1', errors='replace'))
+                line = decoded.strip()
+                print(line)
+                AGI._worker_init_error = line.endswith('[ProjectError]')
+            return
 
-        Returns:
+        # non-blocking channel read
+        while True:
+            if chan.recv_stderr_ready():
+                try:
+                    raw = chan.recv_stderr(1024)
+                except Exception:
+                    continue
+                if not raw:
+                    break
+                decoded = decode_bytes(raw)
+                for part in decoded.splitlines():
+                    line = part.strip()
+                    print(line)
+                    AGI._worker_init_error = line.endswith('[ProjectError]')
+            elif chan.exit_status_ready():
+                break
+            else:
+                time.sleep(0.1)
 
-        """
-        for line in output_stream:
-            strip_line = line.strip()
-            print(strip_line)
-            AGI._worker_init_error = strip_line.endswith("[ProjectError]")
 
     @staticmethod
     def _exec_ssh_async(ip, cmd):
@@ -750,7 +781,8 @@ class AGI:
 
         """
         env = AGI.env
-        wenv = "~/" + str(env.wenv_rel)
+        wenv = env.wenv_rel
+
         AGI._exec_ssh(
             ip,
             cmd=(
@@ -846,10 +878,11 @@ class AGI:
                         AGI._exec_ssh(ip, f"uv -q init --bare")
                     except Exception:
                         pass
-                    AGI._exec_ssh(ip, f"uv add psutil")
+                    AGI._exec_ssh(ip, f"uv add setuptools psutil dask[distributed]")
 
                 # 4. Create the remote virtualenv directory
-                remote_dir = "~/" + str(AGI.env.wenv_rel)
+                remote_dir = AGI.env.wenv_rel
+
                 out = AGI._exec_ssh(
                     ip,
                     f"uv run -p {python_version} python -c \"import os; "
@@ -880,14 +913,13 @@ class AGI:
         AGI._venv_todo(node_ips)
         start_time = time.time()
         AGI._log_verbose(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1", level=1)
-        AGI._install_env_local(app_path, wenv_rel, options)
+        AGI._install_env_local(app_path, Path(wenv_rel), options)
         core_root = env.core_root
         cmd = f"uv run -p {env.python_version} --project {core_root} python setup bdist_egg -d \"{wenv_abs}\""
         if AGI._verbose > 2:
             # print(cmd, "\ncwd", os.getcwd(), "\nvenv", wenv_abs, "\ncwd", core_root)
             print(cmd, "\ncwd", os.getcwd(), "\nvenv", wenv_abs, "\ncwd", wenv_abs)
-        # res = AgiEnv.run(cmd, cwd=core_root, venv=wenv_abs)
-        res = AgiEnv.run(cmd, cwd=wenv_abs, venv=wenv_abs)
+        res = AgiEnv.run(cmd, wenv_abs)
         tasks = []
         for ip in node_ips:
             AGI._log_verbose(f"********   Starting {AGI._run_type} for Agi_worker in .venv on {ip}", level=1)
@@ -975,7 +1007,7 @@ class AGI:
         # 4) Unzip egg into remote venv src/
         cmd = (
             f"{python} -c \"import os, pathlib, zipfile;"
-            f" root = os.path.abspath(os.path.expanduser(os.path.join('~','{wenv}')));"
+            f" root = os.path.abspath(os.path.expanduser('{wenv}'));"
             f" os.makedirs(os.path.join(root,'src'), exist_ok=True);"
             f" [zipfile.ZipFile(str(egg)).extractall(os.path.join(root,'src'))"
             f"  for egg in pathlib.Path(root).glob('*.egg')]\""
@@ -1053,13 +1085,13 @@ class AGI:
             return " ".join(base)
 
         toml_local = src / "pyproject.toml"
-        toml_remote = dest / "pyproject.toml"
+        toml_remote = dest.expanduser() / "pyproject.toml"
 
         # Manager install
         app_path = env.app_path.absolute()
         cmd = uv_cmd(options["manager"], "--extra", "managers", "--project", str(app_path))
         AGI._log_verbose(f"Executing locally:\n{cmd}\nvenv {app_path}", level=2)
-        result = AgiEnv.run(cmd, venv=app_path);
+        result = AgiEnv.run(cmd, app_path);
         AGI._handle_command_result(result)
 
         # Worker wenv install
@@ -1067,7 +1099,7 @@ class AGI:
         shutil.copyfile(toml_local, env.home_abs / toml_remote)
         cmd = uv_cmd("--project", str(env.wenv_abs), options["worker"], "--extra", "workers")
         AGI._log_verbose(f"Executing locally:\n{cmd}\nfrom {env.wenv_abs}", level=2)
-        result = AgiEnv.run(cmd, cwd=env.wenv_abs);
+        result = AgiEnv.run(cmd, env.wenv_abs)
         AGI._handle_command_result(result)
 
         # Worker lib install
@@ -1079,7 +1111,7 @@ class AGI:
         if script.exists():
             cmd = uv_cmd("--project", str(wenv), str(script), str(data_dir))
             AGI._log_verbose(f"Executing locally:\n{cmd}\nfrom {script.parent}", level=2)
-            result = AgiEnv.run(cmd, cwd=script.parent, venv=wenv)
+            result = AgiEnv.run(cmd, wenv, cwd=script.parent)
             AGI._handle_command_result(result)
 
         AGI._uninstall_modules()
@@ -1280,42 +1312,81 @@ class AGI:
     @staticmethod
     async def _start(scheduler):
         """
-        dask my_code_wprker start
-        :param worker_env: the worker env root directory
+        Start Dask workers on local and remote hosts,
+        setting PATH correctly for each OS.
         """
+        # helper to pick export_local_bin for a given host
+        async def _detect_export_cmd(ip: str) -> str:
+            if AGI._is_local(ip):
+                return AGI.env.export_local_bin
+
+            # probe remote OS via SSH
+            try:
+                proc = await asyncio.create_subprocess_shell(
+                    f'ssh {ip} uname -s',
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.DEVNULL
+                )
+                out, _ = await proc.communicate()
+                os_id = out.decode().strip().lower()
+            except Exception:
+                os_id = ''
+
+            if any(x in os_id for x in ('linux', 'darwin', 'bsd')):
+                return 'export PATH="$HOME/.local/bin:$PATH";'
+            else:
+                return 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
+
         env = AGI.env
+        # start the scheduler first
         if not await AGI._start_scheduler(scheduler):
             return
-        # to avoid later on workers to be run from src
-        # sys.path.pop(0)
 
+        # launch each worker
         for i, (ip, n) in enumerate(AGI.workers.items()):
+            export_cmd = await _detect_export_cmd(ip)
+
             for j in range(n):
                 if AGI._verbose:
                     print(f"starting worker #{i}.{j} on {ip}")
+
+                # choose absolute vs. relative paths
                 if AGI._is_local(ip):
                     pid_file = env.wenv_abs / "dask-pid"
-                    cmd = (
-                        f'{env.export_local_bin} uv run --project {env.wenv_abs} dask worker "{AGI._scheduler}" --no-nanny '
-                        f"--pid-file {pid_file}#{i}.{j}")
-                    if AGI._verbose > 1:
-                        print(cmd)
-                    AGI._exec_bg(cmd, env.wenv_abs)
+                    proj_dir = env.wenv_abs
                 else:
                     AGI._install_done = True
-                    pid_file = env.wenv_rel / "dask-pid"
-                    cmd = (
-                        f'{env.export_local_bin} uv run --project {env.wenv_rel} dask worker "{AGI._scheduler}" --no-nanny '
-                        f"--pid-file dask-pid#{i}.{j}")
-                    if AGI._verbose > 1:
-                        print(cmd)
+                    pid_file = Path(env.wenv_rel) / "dask-pid"
+                    proj_dir = env.wenv_rel
+
+                # build the command
+                cmd = (
+                    f'{export_cmd} '
+                    f'cd "{proj_dir}"; uv run'
+                    f'dask worker "{AGI._scheduler}" --no-nanny '
+                    f'--pid-file "{pid_file}#{i}.{j}"'
+                )
+
+                if AGI._verbose > 1:
+                    print(cmd)
+
+                # execute locally or over SSH
+                if AGI._is_local(ip):
+                    AGI._exec_bg(cmd, env.wenv_abs)
+                else:
                     AGI._exec_ssh_async(ip, cmd)
                     time.sleep(1)
+
                 if AGI._worker_init_error:
                     raise FileNotFoundError(f"Please run AGI.install([{ip}])")
+
+        # wait for all workers to sync
         await AGI._sync()
-        if not AGI._mode_auto or (AGI._mode < 6) or AGI._mode & AGI.CYTHON_MODE:
+
+        # optionally build Cython/cluster libs
+        if (not AGI._mode_auto) or (AGI._mode < 6) or (AGI._mode & AGI.CYTHON_MODE):
             await AGI._build_cluster_libs()
+
 
     @staticmethod
     async def _sync():

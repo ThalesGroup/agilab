@@ -1230,12 +1230,13 @@ class AgiEnv:
                     shutil.copy(src_file, dest_file)
 
     def _init_worker_env(self):
-        self.wenv_rel = self.WORKER_VENV_REL / self.target_worker
-        self.wenv_abs = self.home_abs / self.wenv_rel
+        wenv_rel = self.WORKER_VENV_REL / self.target_worker
+        self.wenv_rel = rel if (rel := str(wenv_rel)).startswith("~/") else "~/" + rel
+        self.wenv_abs = self.home_abs / wenv_rel
         self.wenv_target_worker = self.wenv_abs
         distribution_tree = self.wenv_abs / "distribution_tree.json"
         self.cyprepro = self.core_src / "agi_core/workers/agi_worker/cyprepro.py"
-        self.post_install = self.wenv_rel / "src" / self.target_worker / "post_install.py"
+        self.post_install = Path(self.wenv_rel) / "src" / self.target_worker / "post_install.py"
         if distribution_tree.exists():
             distribution_tree.unlink()
         self.distribution_tree = distribution_tree
@@ -1427,7 +1428,7 @@ class AgiEnv:
         )
 
     @staticmethod
-    def run(cmd, venv=None, cwd=None, timeout=None, wait=True, log_callback=None):
+    def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
         if not cwd:
             cwd = venv
         process_env = os.environ.copy()

@@ -41,7 +41,7 @@ dev = [
     "pytest",
     "licensecheck",
     "my_code_project",
-    "ipython==8.34.0",
+    "ipython",
 ]
 
 [tool.uv]
