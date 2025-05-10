@@ -231,7 +231,7 @@ class FlightWorker(AgiDataWorker):
                     plane_df.write_parquet(str(filename))
                 elif self.args["output_format"] == "csv":
                     timestamp = dt.now().strftime("%Y-%m-%d_%H-%M-%S")
-                    filename = f"{self.data_out}/{timestamp}.csv"
+                    filename = f"{self.data_out}/{str(plane)+'_'+timestamp}.csv"
                     plane_df.write_csv(str(filename))
 
                 if self.verbose > 0:
