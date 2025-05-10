@@ -357,9 +357,6 @@ class AgiEnv:
         - active_module: path of the active module
         - verbose: verbosity level
         """
-        if install_type and not isinstance(install_type, int):
-            Print("install_type should be a int")
-            exit(1)
 
         self.verbose = verbose
         self.is_managed_pc = getpass.getuser().startswith("T0")
@@ -371,10 +368,14 @@ class AgiEnv:
         self.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
         envars = self.envars
 
-        if not install_type:
+        if install_type:
+            install_type = int(install_type)
+            self.set_install_type(install_type)
+        else:
             cwd = os.getcwd()
             # If we're not in site-packages, or we're in the "gui" folder under site-packages → 1, else 0
             install_type = 1 if ("site-packages" not in __file__ or sys.prefix.endswith("gui/.venv")) else 0
+
         if self.verbose:
             print("install_type", install_type)
 
@@ -423,7 +424,7 @@ class AgiEnv:
 
         # if apps_dir is not provided or can't be guess from modul_path then take from envars
         if not apps_dir:
-            apps_dir = envars.get("APPS_DIR", '.')
+            apps_dir = envars.get("APPS_DIR", 'apps')
         else:
             set_key(dotenv_path=env_path, key_to_set="APPS_DIR", value_to_set=str(apps_dir))
 
