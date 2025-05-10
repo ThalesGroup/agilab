@@ -1,6 +1,6 @@
 [args]
 data_source = "file"
-path = "/home/pcm/data/flight/dataset"
+path = "data/flight/dataset"
 files = "csv/*"
 nfile = 2
 nskip = 0
@@ -20,6 +20,10 @@ view_module = [
 [cluster]
 verbose = true
 cython = false
-cluster_enabled = false
+cluster_enabled = true
 rapids = false
 pool = false
+scheduler = "192.168.20.123"
+
+[cluster.workers]
+"192.168.20.222" = 2
