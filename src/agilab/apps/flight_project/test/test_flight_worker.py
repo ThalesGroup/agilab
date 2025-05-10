@@ -14,5 +14,5 @@ args = {
 }
 
 # AgiWorker.run flight command
-result = AgiWorker.run('flight', mode=0, verbose=3, args=args)
+result = AgiWorker.run('flight', mode=0, verbose=3, workers={"192.168.20.222":2}, args=args)
 print(result)

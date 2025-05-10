@@ -369,7 +369,8 @@ class AgiEnv:
         envars = self.envars
 
         if install_type:
-            install_type = int(install_type)
+            if isinstance(install_type, str):
+                install_type = int(install_type)
             self.set_install_type(install_type)
         else:
             cwd = os.getcwd()

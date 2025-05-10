@@ -108,8 +108,7 @@ class AgiManager:
         loaded_workers = {}
         workers_work_item_tree_iter = iter(workers_tree)
         for ip, nb_workers in workers.items():
-            for i in range(nb_workers):
-                chunks = next(workers_work_item_tree_iter)
+            for i, chunks in enumerate(workers_work_item_tree_iter):
                 if ip not in loaded_workers:
                     loaded_workers[ip] = 0
                 if chunks:
