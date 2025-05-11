@@ -45,6 +45,7 @@ dev = [
     "ipython",
     "pandas",
     "logging",
+    "dask[distributed]",
 ]
 rapids = [
     "cuspatial-cu12; platform_system == 'Linux'",
