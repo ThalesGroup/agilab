@@ -467,7 +467,7 @@ class AgiEnv:
             apps_dir = self._determine_apps_dir(active_app)
             module = apps_dir.name.replace("_project", "").replace("-", "_")
 
-        AgiEnv.resolve_packages_path_in_toml(module, self.agi_root, apps_dir)
+        self.agi_root = AgiEnv.resolve_packages_path_in_toml(module, self.agi_root, apps_dir)
 
         self.projects = self.get_projects(self.apps_dir)
 
@@ -483,13 +483,14 @@ class AgiEnv:
         self._init_envars()
 
         self.app_path = self.apps_dir / active_app
+        self.app_src = self.app_path / "src"
         self.setup_app =  self.app_path / "setup"
-        self.setup_core = self.core_src / "agi_core/workers/agi_worker/setup"
+        self.setup_core = self.workers_root / "agi_worker/setup"
         self.target_worker = f"{self.module}_worker"
         self.worker_path = (
-                self.app_path / "src" / self.target_worker / f"{self.target_worker}.py"
+                self.app_src / self.target_worker / f"{self.target_worker}.py"
         )
-        self.module_path = self.app_path / "src" / self.module / f"{self.module}.py"
+        self.module_path = self.app_src / self.module / f"{self.module}.py"
         self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
         self.uvproject = self.app_path / "uv.toml"
 
@@ -509,12 +510,12 @@ class AgiEnv:
             )
             exit(1)
 
-        app_src_path = self.app_path / "src"
+        app_src_path = self.app_src
         app_src = str(app_src_path)
         if app_src not in sys.path:
             sys.path.insert(0, app_src)
         app_src_path.mkdir(parents=True, exist_ok=True)
-        self.app_src_path = self.agi_root / app_src_path
+        self.app_src_path = self.core_root.parent.parent / app_src_path
 
         # Initialize worker environment
         self._init_worker_env()
@@ -762,7 +763,7 @@ class AgiEnv:
         self.gitignore_file = self.app_path / ".gitignore"
         dest = self.resource_path
         if self.install_type:
-            shutil.copytree(self.agi_root / "fwk/gui/src/agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
+            shutil.copytree(self.core_root.parent / "gui/src/agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
         else:
             shutil.copytree(self.agi_root.parent / "agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
 
@@ -1134,13 +1135,14 @@ class AgiEnv:
 
         os.makedirs(AgiEnv.apps_dir, exist_ok=True)
         if self.install_type:
-            self.core_src = self.agi_root / "fwk/core/src"
+            self.core_src = self.agi_root / "src"
         else:
             self.core_src = self.agi_root
         self.core_root = self.core_src.parent
-
-        self.workers_root = self.core_src / "agi_core/workers"
-        self.manager_root = self.core_src / "agi_core/managers/"
+        self.env_src =  self.core_root.parent / "env/src"
+        self.agi_core = self.core_src / "agi_core"
+        self.workers_root = self.agi_core / "workers"
+        self.manager_root = self.agi_core / "managers"
         path = str(self.core_src)
         if path not in sys.path:
             sys.path.insert(0, path)
@@ -1236,7 +1238,7 @@ class AgiEnv:
         self.wenv_abs = self.home_abs / wenv_rel
         self.wenv_target_worker = self.wenv_abs
         distribution_tree = self.wenv_abs / "distribution_tree.json"
-        self.cyprepro = self.core_src / "agi_core/workers/agi_worker/cyprepro.py"
+        self.cyprepro = self.workers_root / "agi_worker/cyprepro.py"
         self.post_install = wenv_rel / "src" / self.target_worker / "post_install.py"
         if distribution_tree.exists():
             distribution_tree.unlink()
@@ -1538,9 +1540,6 @@ class AgiEnv:
             RuntimeError: If an error occurs during reading or writing the TOML file.
         """
 
-        # Convert agi_root to POSIX string
-        agi_root_str = agi_root.as_posix()
-
         # Build the module path based on naming conventions (underscores to hyphens)
         module_path =  agi_root / apps_dir / (module + "_project")
         pyproject_file = module_path / "pyproject.toml"
@@ -1554,19 +1553,15 @@ class AgiEnv:
         except Exception as e:
             raise RuntimeError(f"Error loading TOML from {pyproject_file}: {e}")
 
-        # On non-Windows, ensure agi_root_str ends with a slash
-        if not agi_root_str.endswith("/"):
-            agi_root_str += "/"
-
         # Compute the agi-core path
-        agi_core = f"{agi_root_str}fwk/core"
+        agi_core = agi_root / "fwk/core"
 
         # Safely retrieve (or create) the nested structure for tool/uv/sources
         sources = content.setdefault("tool", {}).setdefault("uv", {}).setdefault("sources", {})
 
         # Update the 'agi-core' entry if it exists and is a dict
         if isinstance(sources.get("agi-core"), dict) and "path" in sources["agi-core"]:
-            sources["agi-core"]["path"] = agi_core
+            sources["agi-core"]["path"] = str(agi_core)
         else:
             print(f"Warning: 'agi-core' entry not found or invalid in {pyproject_file}; skipping update.")
 
@@ -1577,3 +1572,4 @@ class AgiEnv:
             raise RuntimeError(f"Error writing updated TOML to {pyproject_file}: {e}")
 
         print("Updated", pyproject_file)
+        return agi_core

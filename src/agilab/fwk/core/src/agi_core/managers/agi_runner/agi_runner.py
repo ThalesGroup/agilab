@@ -1579,7 +1579,7 @@ class AGI:
             for worker in list(AGI._dask_client.scheduler_info()["workers"].keys()):
                 # wip = worker.split('/')[-1].split(':')[0]
                 AGI._dask_client.run(
-                    agi_worker.build,
+                    AgiWorker.build,
                     env.target_worker,
                     AGI._dask_client.scheduler_info()["workers"][worker][
                         "local_directory"
