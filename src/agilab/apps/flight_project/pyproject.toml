@@ -44,6 +44,7 @@ dev = [
     "flight_project",
     "ipython",
     "pandas",
+    "logging",
 ]
 rapids = [
     "cuspatial-cu12; platform_system == 'Linux'",

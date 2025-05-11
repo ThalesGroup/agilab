@@ -2,7 +2,7 @@ from agi_core.workers.agi_worker import AgiWorker
 
 args = {
     'data_source': "file",
-    'path': "~/data/flight/dataset",
+    'path': "data/flight/dataset",
     'files': "csv/*",
     'nfile': 1,
     'nskip': 0,
