@@ -42,16 +42,19 @@ def exec(cmd, cwd=".", timeout=None):
     return outs
 
 
-def unzip_data(archive_path: str, extract_to: str):
-    if not os.path.exists(archive_path):
+def unzip_data(archive_path: Path, extract_to: Path=None):
+    if not archive_path.exists():
         print(f"Archive '{archive_path}' does not exist.")
         sys.exit(1)
+
+    if not extract_to:
+        extract_to = "data"
 
     os.makedirs(extract_to, exist_ok=True)
 
     try:
-        with py7zr.SevenZipFile(archive_path, mode="r") as archive:
-            archive.extractall(path=extract_to)
+        with py7zr.SevenZipFile(str(archive_path), mode="r") as archive:
+            archive.extractall(path=str(extract_to))
         print(f"Successfully extracted '{archive_path}' to '{extract_to}'.")
     except Exception as e:
         print(f"Failed to extract '{archive_path}': {e}")
@@ -78,5 +81,6 @@ if __name__ == "__main__":
     extraction_destination = sys.argv[1]
 
     # Optionally, resolve the absolute path
-    extraction_destination = str(Path(extraction_destination).resolve())
+    extraction_destination = Path().home() / extraction_destination
+
     unzip_data(archive, extraction_destination)
