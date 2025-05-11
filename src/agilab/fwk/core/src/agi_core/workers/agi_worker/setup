@@ -95,18 +95,22 @@ def find_sys_prefix(base_dir: str) -> str:
 
 def create_symlink_for_module(env, pck: str) -> list[Path]:
     # e.g. "agi_core.workers.agi_worker"
-    dir_pck = Path(*pck.split('.'))            # -> Path("agi_core")/"workers"/"agi_worker"
+    pck_src = pck.replace('.', '/')            # -> Path("agi_core")/"workers"/"agi_worker"
     # extract "core" from "agi_core"
-    root_pck = pck.split('.')[0].split('_', 1)[1]
+    pck_root = pck.split('.')[0]
+    src_abs = env.workers_root / pck_src
+    if pck_root == "agi_env":
+        src_abs = env.env_src / pck_src
+    elif pck_root == env.target_worker:
+        src_abs = env.app_src / pck_src
 
-    src = env.agi_root / 'fwk' / root_pck / 'src' / dir_pck
-    dest = Path('src') / dir_pck
+    dest = Path('src') / pck_src
     created_links: list[Path] = []
 
     try:
         dest = dest.absolute()
     except FileNotFoundError:
-        logging.error(f"Source path does not exist: {src}")
+        logging.error(f"Source path does not exist: {src_abs}")
         sys.exit(1)
 
     if not dest.parent.exists():
@@ -114,19 +118,19 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
         dest.parent.mkdir(parents=True, exist_ok=True)
 
     if not dest.exists():
-        logging.info(f"Linking {src} -> {dest}")
+        logging.info(f"Linking {src_abs} -> {dest}")
         try:
-            AgiEnv.create_symlink(src, dest)
+            AgiEnv.create_symlink(src_abs, dest)
             created_links.append(dest)
-            logging.info(f"Symlink created: {dest} -> {src}")
+            logging.info(f"Symlink created: {dest} -> {src_abs}")
         except Exception as symlink_err:
             logging.warning(f"Symlink creation failed: {symlink_err}. Trying hard link instead.")
             try:
-                os.link(src, dest)
+                os.link(src_abs, dest)
                 created_links.append(dest)
-                logging.info(f"Hard link created: {dest} -> {src}")
+                logging.info(f"Hard link created: {dest} -> {src_abs}")
             except Exception as link_err:
-                logging.error(f"Failed to create link from {src} to {dest}: {link_err}")
+                logging.error(f"Failed to create link from {src_abs} to {dest}: {link_err}")
                 sys.exit(1)
     else:
         logging.debug(f"Link already exists for {dest}")
@@ -164,7 +168,7 @@ def main() -> None:
     env = AgiEnv(active_app=target_package + "_project", install_type=install_type)
 
     # Setup modules and extensions
-    custom_modules = ["agi_core.workers.agi_worker", "agi_env"] + packages
+    custom_modules = ["agi_worker", "agi_env"] + packages
     worker_module = target_module + '_worker'
     ext_modules = []
     links_created: list[Path] = []
@@ -185,6 +189,7 @@ def main() -> None:
         os.chdir(env.app_path)
         for module in custom_modules:
             links_created.extend(create_symlink_for_module(env, module))
+
 
     discovered = find_packages(where='src', exclude=[target_module, f"{target_module}.*"] )
     all_packages = list(set(discovered + custom_modules))
