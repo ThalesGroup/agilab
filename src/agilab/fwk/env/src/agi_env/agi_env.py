@@ -1154,16 +1154,16 @@ class AgiEnv:
             self.module_path = self._determine_module_path(self.module)
         self.target = self.module_path.stem  # Define self.target here
 
-        self.AGILAB_SHARE_ABS = Path(
-            envars.get("AGI_SHARE_DIR", self.home_abs / "data")
+        self.AGILAB_SHARE = Path(
+            envars.get("AGI_SHARE_DIR", "data")
         )
 
-        self.dataframes_path = self.AGILAB_SHARE_ABS / self.target / "dataframes"
+        self.data_dir = self.AGILAB_SHARE / self.target
+        self.dataframes_path =  self.data_dir / "dataframes"
 
         # Now that target is defined, we can use it for further assignments.
         self._init_projects()
 
-        self.WORKER_VENV_REL = Path(envars.get("WORKER_VENV_DIR", "wenv"))
         self.scheduler_ip = envars.get("AGI_SCHEDULER_IP", "127.0.0.1")
         if not self.is_valid_ip(self.scheduler_ip):
             raise ValueError(f"Invalid scheduler IP address: {self.scheduler_ip}")
@@ -1173,7 +1173,7 @@ class AgiEnv:
         else:
             self.help_path = "https://thalesgroup.github.io/agilab"
 
-        self.AGILAB_SHARE_ABS = Path(
+        self.AGILAB_SHARE = Path(
             envars.get("AGI_SHARE_DIR", self.home_abs / "data")
         )
 
@@ -1233,13 +1233,13 @@ class AgiEnv:
                     shutil.copy(src_file, dest_file)
 
     def _init_worker_env(self):
-        wenv_rel = self.WORKER_VENV_REL / self.target_worker
-        self.wenv_rel = str(wenv_rel)
+        wenv_rel = Path("wenv") / self.target_worker
+        self.wenv_rel = wenv_rel
         self.wenv_abs = self.home_abs / wenv_rel
         self.wenv_target_worker = self.wenv_abs
         distribution_tree = self.wenv_abs / "distribution_tree.json"
         self.cyprepro = self.workers_root / "agi_worker/cyprepro.py"
-        self.post_install = wenv_rel / "src" / self.target_worker / "post_install.py"
+        self.post_install =  Path("src") / self.target_worker / "post_install.py"
         if distribution_tree.exists():
             distribution_tree.unlink()
         self.distribution_tree = distribution_tree

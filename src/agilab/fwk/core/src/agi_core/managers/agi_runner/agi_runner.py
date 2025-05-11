@@ -627,7 +627,7 @@ class AGI:
 
         """
         if AGI._verbose > 2:
-            logging.basicConfig(level=logging.DEBUG)
+            logging.basicConfig(level=logging.WARNING)
         ssh_client = SSHClient()
         ssh_client.load_system_host_keys()
         ssh_client.set_missing_host_key_policy(AutoAddPolicy())
@@ -860,7 +860,7 @@ class AGI:
 
             try:
                 # 2. Ensure UV CLI is installed
-                remote_dir = AGI.env.wenv_rel
+                wenv_rel = AGI.env.wenv_rel
                 pyvers = AGI.env.python_version
                 try:
                     out = AGI._exec_ssh(ip, 'uv --version')
@@ -906,7 +906,7 @@ class AGI:
                 out = AGI._exec_ssh(
                     ip,
                     f"uv run -p {pyvers} python -c \"import os; "
-                    f"os.makedirs(os.path.expanduser({remote_dir!r}), exist_ok=True)\""
+                    f"os.makedirs('{wenv_rel}', exist_ok=True)\""
                 )
 
             except Exception as e:
@@ -944,7 +944,7 @@ class AGI:
             AGI._log_verbose(f"********   Starting {AGI._run_type} for Agi_worker in .venv on {ip}", level=1)
             if not AGI._is_local(ip):
                 tasks.append(asyncio.create_task(
-                    AGI._install_env_remote(ip, env, str(wenv_rel), options["worker"])
+                    AGI._install_env_remote(ip, env, wenv_rel, options["worker"])
                 ))
         await asyncio.gather(*tasks)
         if AGI._verbose:
@@ -994,7 +994,7 @@ class AGI:
                 print(result)
 
     @staticmethod
-    async def _install_env_remote(ip: str, env, wenv_rel: str, option: str):
+    async def _install_env_remote(ip: str, env, wenv_rel: Path, option: str):
         """Install packages and set up the environment on a remote node.
 
         Adds --config-file uv.toml to `uv sync` only when the remote hardware
@@ -1025,13 +1025,13 @@ class AGI:
         # 4) Unzip egg into remote venv src/
         cmd = (
             f"{python} -c \"import os, pathlib, zipfile;"
-            f" root = os.path.abspath(os.path.expanduser('{wenv_rel}'));"
+            f" root = '{wenv_rel}';"
             f" os.makedirs(os.path.join(root,'src'), exist_ok=True);"
             f" [zipfile.ZipFile(str(egg)).extractall(os.path.join(root,'src'))"
             f"  for egg in pathlib.Path(root).glob('*.egg')]\""
         )
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd);
+        result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
@@ -1047,25 +1047,16 @@ class AGI:
 
         # 6) Build and run uv sync, adding --config-file only when has_rapids_hw
         if has_rapids_hw:
-            sync_cmd = f"uv sync --upgrade --project {wenv_rel} {option}"
+            sync_cmd = f"cd {wenv_rel} && uv sync --upgrade {option}"
         else:
-            sync_cmd = f"uv --config-file {wenv_rel + os.sep + "uv.toml"} sync --upgrade --project {wenv_rel} {option}"
+            sync_cmd = f"cd {wenv_rel} && uv --config-file uv.toml sync --upgrade {option}"
 
         AGI._log_verbose(f"Executing on {ip}: {sync_cmd}", level=2)
         result = AGI._exec_ssh(ip, sync_cmd);
         AGI._handle_command_result(result)
 
         # 7) Post-install script
-        cmd = (
-            f"{python} -c \"import os, pathlib, subprocess\n"
-            f"home = pathlib.Path.home()'\n"
-            f"script = home / '{env.post_install}'\n"
-            f"data_dir = home / 'data' / '{env.target_worker}'\n"
-            f"subprocess.run(["
-            f"'uv', 'run', '-p', '{pyvers}', '--project', '{wenv_rel}', 'python',"
-            f" str(script), str(data_dir))"
-            f"], check=True)\""
-        )
+        cmd = f"cd {wenv_rel} && uv run -p {pyvers} python {env.post_install} '{env.data_dir}'"
 
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd);
@@ -1184,7 +1175,7 @@ class AGI:
 
         # Post-install
         script = env.post_install
-        data_dir = env.AGILAB_SHARE_ABS / AGI._target
+        data_dir = env.data_dir
         if script.exists():
             cmd = uv_cmd("--project", str(wenv), str(script), str(data_dir))
             AGI._log_verbose(f"Executing locally:\n{cmd}\nfrom {script.parent}", level=2)
