@@ -29,12 +29,20 @@ data-worker = ["polars", ]
 workers = ["agi-core[agent-worker]", "agi-core[agi-worker]"]
 managers = ["agi-core[managers]"]
 
+# do not remove
 [tool.uv]
-default-groups = ["dev"]
+default-groups = [
+    "dev",
+]
 
-[tool.uv.sources]
-agi-core = { path = "core", editable = true }
-agent-app_project = { workspace = true }
+# do not remove
+[tool.uv.sources.agi-core]
+path = "/home/pcm/PycharmProjects/agilab/src/agilab/fwk/core"
+editable = true
+
+# do not remove
+[tool.uv.sources.agent_app_project]
+workspace = true
 
 [tool.setuptools]
 include-package-data = true
