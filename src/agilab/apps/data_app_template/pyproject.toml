@@ -29,9 +29,11 @@ data-worker = [ "polars",]
 workers = ["agi-core[data-worker]", "agi-core[agi-worker]"]
 managers = ["agi-core[managers]"]
 
+# do not remove
 [tool.uv]
 default-groups = ["dev"]
 
+# do not remove
 [tool.uv.sources]
 agi-core = { path = "core", editable = true }
 data-app_project = { workspace = true }

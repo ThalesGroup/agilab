@@ -44,16 +44,18 @@ dev = [
     "ipython",
 ]
 
+# do not remove
 [tool.uv]
 default-groups = [
     "dev",
 ]
 
+# do not remove
 [tool.uv.sources.agi-core]
 path = "/home/pcm/PycharmProjects/agilab/src/agilab/fwk/core"
 editable = true
 
-[tool.uv.sources.flight_project]
+[tool.uv.sources.my_code_project]
 workspace = true
 
 [tool.setuptools]
