@@ -4,7 +4,7 @@ AGI app setup
 Author: Jean-Pierre Morard
 Tested on Windows, Linux and MacOS
 """
-
+import getpass
 import sys
 import os
 import logging
@@ -94,10 +94,13 @@ def find_sys_prefix(base_dir: str) -> str:
 
 
 def create_symlink_for_module(env, pck: str) -> list[Path]:
-    dir_pck = pck.replace('.', os.sep)
-    root_pck = pck.split(".")[0].split("_")[1]
-    src = env.agi_root / 'fwk' / root_pck / "src" / dir_pck
-    dest = Path("src") / dir_pck
+    # e.g. "agi_core.workers.agi_worker"
+    dir_pck = Path(*pck.split('.'))            # -> Path("agi_core")/"workers"/"agi_worker"
+    # extract "core" from "agi_core"
+    root_pck = pck.split('.')[0].split('_', 1)[1]
+
+    src = env.agi_root / 'fwk' / root_pck / 'src' / dir_pck
+    dest = Path('src') / dir_pck
     created_links: list[Path] = []
 
     try:
@@ -187,20 +190,37 @@ def main() -> None:
     all_packages = list(set(discovered + custom_modules))
     logging.info(f"Final package list: {all_packages}")
 
-    wenv_path = Path('~').expanduser() / env.wenv_rel
-    if command == 'bdist_egg':
-        sys.argv += ['-d', str(wenv_path)]
-
-    setup(
-        name=worker_module,
-        package_dir={'': 'src'},
-        packages=all_packages,
-        package_data={'': ['*.pyx', '*.7z']},
-        ext_modules=ext_modules,
-        zip_safe=False,
-    )
 
     if command == 'bdist_egg':
+        if str(getpass.getuser()).startswith("T0"):
+            prefix = "~/MyApp/"
+        else:
+            prefix = "~/"
+        home_dir = Path(prefix).expanduser().absolute()
+        wenv_path = home_dir / env.wenv_rel
+
+        # ensure -d/--dist-dir points at our wenv_path, not add a duplicate
+        dist_dir = str(wenv_path)
+        try:
+            idx = sys.argv.index('-d')
+            # if there’s no argument after it, just insert; otherwise replace
+            if idx + 1 < len(sys.argv) and not sys.argv[idx + 1].startswith('-'):
+                sys.argv[idx + 1] = dist_dir
+            else:
+                sys.argv.insert(idx + 1, dist_dir)
+        except ValueError:
+            # no -d flag yet
+            sys.argv += ['-d', dist_dir]
+
+        setup(
+            name=worker_module,
+            package_dir={'': 'src'},
+            packages=all_packages,
+            package_data={'': ['*.pyx', '*.7z']},
+            ext_modules=ext_modules,
+            zip_safe=False,
+        )
+
         wenv_path.mkdir(parents=True, exist_ok=True)
         for egg in wenv_path.glob('*.egg'):
             with ZipFile(egg, 'r') as zf:
@@ -221,6 +241,17 @@ def main() -> None:
         # cleanup symlinks
         for link in links_created:
             link.unlink()
+    else:
+
+        setup(
+            name=worker_module,
+            package_dir={'': 'src'},
+            packages=all_packages,
+            package_data={'': ['*.pyx', '*.7z']},
+            ext_modules=ext_modules,
+            zip_safe=False,
+        )
+
 
 if __name__ == '__main__':
     main()

@@ -34,6 +34,7 @@ import sysconfig
 import warnings
 import abc
 import traceback
+import logging
 
 # External Libraries:
 from contextlib import redirect_stdout
@@ -123,7 +124,7 @@ class AgiWorker(abc.ABC):
             net_path = AgiWorker.normalize_path("\\\\127.0.0.1\\" + str(path))
             try:
                 # your nfs account in order to mount it as net drive on windows
-                cmd = f'net use Z: "{net_path}" /user:nsbl 2633'
+                cmd = f'net use Z: "{net_path}" /user:your-name your-password'
                 print(cmd)
                 subprocess.run(cmd, shell=True, check=True)
             except Exception as e:
@@ -278,34 +279,26 @@ class AgiWorker(abc.ABC):
             print("sys.path:\n\t", sys.path)
             raise RuntimeError("something wrong happened in _class_loader") from err
 
+    @staticmethod
+    @staticmethod
     def onerror(func, path, exc_info):
-        """Error handler for `shutil.rmtree`.
-
-        If the error is due to an access error (read only file)
-        it attempts to add write permission and then retries.
-
-        If the error is for another reason it re-raises the error.
-
-        Usage : `shutil.rmtree(path, onerror=onerror)`
-
-        Args:
-          func:
-          path:
-          exc_info:
-        Returns:
         """
-        try:
-            # Check if file access issue
-            if not os.access(path, os.W_OK):
-                # Try to change the permissions of the file to writable
-                os.chmod(path, stat.S_IWUSR)
-                # Try the operation again
+        Error handler for `shutil.rmtree`.
+        If it’s a permission error, make it writable and retry.
+        Otherwise re-raise.
+        """
+        exc_type, exc_value, _ = exc_info
+
+        # handle permission errors or any non-writable path
+        if exc_type is PermissionError or not os.access(path, os.W_OK):
+            try:
+                os.chmod(path, stat.S_IWUSR | stat.S_IREAD)
                 func(path)
-        except:
-            print(f"warning failed to grant write access to {path}")
-        # else:
-        # Reraise the error if it's not a permission issue
-        # raise
+            except Exception as e:
+                logging.warning(f"warning failed to grant write access to {path}: {e}")
+        else:
+            # not a permission problem—re-raise so you see real errors
+            raise exc_value
 
     @staticmethod
     def run(app, workers={"127.0.0.1": 1}, mode=0, verbose=3, args=None):

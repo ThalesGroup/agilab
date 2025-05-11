@@ -1,6 +1,6 @@
 [args]
 data_source = "file"
-path = "~/data/flight"
+path = "data/flight"
 files = "*"
 nfile = 1
 nskip = 0

@@ -7,6 +7,7 @@
 import getpass
 import glob
 import io
+import logging
 import os
 import re
 import shutil
@@ -94,7 +95,7 @@ class FlightWorker(AgiDataWorker):
             net_path = AgiWorker.normalize_path("\\\\127.0.0.1\\" + str(path))
             try:
                 # Your NFS account in order to mount it as net drive on Windows
-                cmd = f'net use Z: "{net_path}" /user:nsbl 2633'
+                cmd = f'net use Z: "{net_path}" /user:your-credentials'
                 print(cmd)
                 subprocess.run(cmd, shell=True, check=True)
             except Exception as e:
@@ -110,7 +111,7 @@ class FlightWorker(AgiDataWorker):
 
         # Remove dataframe files from previous run
         try:
-            shutil.rmtree(self.data_out, ignore_errors=False, onerror=self.onerror)
+            shutil.rmtree(self.data_out, ignore_errors=True, onerror=self.onerror)
             os.makedirs(self.data_out, exist_ok=True)
         except Exception as e:
             print(f"Error removing directory: {e}")

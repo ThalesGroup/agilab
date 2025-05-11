@@ -51,6 +51,19 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 import subprocess
 
+import inspect
+from IPython.core.ultratb import FormattedTB
+
+# Patch for IPython ≥8.37 (theme_name) vs ≤8.36 (color_scheme)
+_sig = inspect.signature(FormattedTB.__init__).parameters
+_tb_kwargs = dict(mode='Verbose', call_pdb=True)
+if 'color_scheme' in _sig:
+    _tb_kwargs['color_scheme'] = 'Linux'
+else:
+    _tb_kwargs['theme_name'] = 'Linux'
+
+sys.excepthook = FormattedTB(**_tb_kwargs)
+
 # Project Libraries:
 from agi_env import AgiEnv
 from agi_core.managers.agi_manager import AgiManager
@@ -656,78 +669,82 @@ class AGI:
 
 
     @staticmethod
-    def _kill(ip=None, current_pid=None,
-              force=True):
-        """kill the uv python and dask processes
+    def _kill(ip: str | None = None, current_pid: int | None = None, force: bool = True):
+        """
+        Terminate 'uv' and Dask processes on the given host and clean up pid files.
 
         Args:
-          ip: the ip address of the host (Default value = None)
-          pid: the pid of the proces to kill
-          current_pid: (Default value = None)
-          force: (Default value = True)
-
+            ip (str, optional): IP address of the host to kill processes on. Defaults to local host.
+            current_pid (int, optional): PID of this process to exclude. Defaults to this process.
+            force (bool, optional): Whether to kill all 'dask' processes by name. Defaults to True.
         Returns:
-
+            The result of the last kill command (dict or None).
         """
         env = AGI.env
-        localhost_ip = socket.gethostbyname("localhost")
-        if not ip:
-            ip = localhost_ip
-        if not current_pid:
-            current_pid = os.getpid()
-        pids = []
-        for file in env.wenv_abs.glob("dask-pid*"):
-            with open(file, "r") as f:
-                pid = int(f.read().strip())
+        localhost = socket.gethostbyname("localhost")
+        ip = ip or localhost
+        current_pid = current_pid or os.getpid()
+
+        # 1) Collect PIDs from any pid files and remove those files
+        pids_to_kill: list[int] = []
+        for pid_file in env.wenv_abs.glob("dask-pid*"):
+            try:
+                text = pid_file.read_text().strip()
+                pid = int(text)
                 if pid != current_pid:
-                    pids.append(pid)
-            os.remove(file)
+                    pids_to_kill.append(pid)
+            except Exception:
+                logging.warning(f"Could not read PID from {pid_file}, skipping")
+            try:
+                pid_file.unlink()
+            except Exception as e:
+                logging.warning(f"Failed to remove pid file {pid_file}: {e}")
+
         python_exe = "uv run python"
-        cmds = []
+        cmds: list[str] = []
+
+        # 2) If force, kill by process name
         if force:
             cmds.append(
-                python_exe +
-                ' -c "import os, psutil, getpass; n, u, d = \'name\', \'username\', \'dask\';'
-                ' [p.terminate() for p in psutil.process_iter(attrs=[n, u]) '
-                'if p and str(p.info[u]).endswith(getpass.getuser()) and str(p.info[n]).startswith(d)]"'
+                python_exe
+                + ' -c "import psutil, getpass; me=getpass.getuser(); '
+                  "[p.terminate() for p in psutil.process_iter(attrs=['name','username']) "
+                  "if p.info['username']==me and p.info['name'].startswith('dask')]"
+                  '"'
             )
-        if pids:
+
+        # 3) If we found any explicit pid files, terminate those PIDs
+        if pids_to_kill:
             cmds.append(
-                python_exe + ' -c "import os, psutil;'
-                             f"i, pids_to_kill = 'pid', set({pids});"
-                             f"pids_to_kill.discard(os.getpid());"
-                             '[p.terminate() for p in psutil.process_iter([i]) if p.info[i] in pids_to_kill]"'
+                python_exe
+                + ' -c "import os, psutil; '
+                  f"pids={pids_to_kill}; "
+                  "[psutil.Process(pid).terminate() for pid in pids if pid!=os.getpid()]"
+                  '"'
             )
-        try:
-            for cmd in cmds:
-                if AGI._verbose > 1:
-                    print(cmd, "from", env.wenv_abs if ip else env.manager_root)
 
-                res = (
-                    AGI._exec_ssh(ip, cmd)
-                    if not AGI._is_local(ip)
-                    else AGI._exec_bg(cmd, env.manager_root)
-                )
+        last_res = None
+        for cmd in cmds:
+            # choose working directory based on local vs remote
+            cwd = env.manager_root if ip == localhost else str(env.wenv_abs)
+            if AGI._verbose > 1:
+                print(f"Executing: {cmd}\n  from {cwd}")
 
-                if isinstance(res, tuple):
-                    stdout, stderr = res[0], res[1]
-                    if AGI._verbose and stdout:
-                        print(stdout)
-                        return
+            if AGI._is_local(ip):
+                last_res = AGI.run(cmd, cwd)
+            else:
+                last_res = AGI._exec_ssh(ip, cmd)
 
-                    if stderr:
-                        raise RuntimeError(stderr)
+            # handle tuple or dict result
+            if isinstance(last_res, dict):
+                out = last_res.get("stdout", "")
+                err = last_res.get("stderr", "")
+                if out and AGI._verbose:
+                    print(out)
+                if err:
+                    raise RuntimeError(err)
 
-        except PermissionError:
-            pass
-        except Exception as e:
-            # case where the process required sudo elevation as the process do not belongs to the current user
-            print(e)
-            raise Exception("AGI.kill internal error") from e
-        if res and AGI._verbose > 1:
-            print(ip, cmd)
-            if len(res) > 0:
-                print(res)
+        return last_res
 
     @staticmethod
     def _send_file(ip, local_path, remote_path):
@@ -843,7 +860,8 @@ class AGI:
 
             try:
                 # 2. Ensure UV CLI is installed
-                uv_installed = False
+                remote_dir = AGI.env.wenv_rel
+                pyvers = AGI.env.python_version
                 try:
                     out = AGI._exec_ssh(ip, 'uv --version')
                     if self._verbose:
@@ -872,24 +890,24 @@ class AGI:
                             )
 
                     # 3. Use UV to install the required Python version
-                    python_version = AGI.env.python_version
-                    AGI._exec_ssh(ip, f"uv python install {python_version}")
+                    AGI._exec_ssh(ip, f"uv python install {pyvers}")
                     try:
-                        AGI._exec_ssh(ip, f"uv -q init --bare")
+                        #AGI._exec_ssh(ip, f"uv init --bare && uv add setuptools psutil dask[distributed]")
+                        # make sure the uv env exists:
+                        AGI._exec_ssh(ip, 'uv init --bare')
+                        # then install Dask with pip into that env:
+                        cmd = f'uv add setuptools psutil dask[distributed]"'
+                        AGI._exec_ssh(ip, cmd)
+
                     except Exception:
                         pass
-                    AGI._exec_ssh(ip, f"uv add setuptools psutil dask[distributed]")
 
                 # 4. Create the remote virtualenv directory
-                remote_dir = AGI.env.wenv_rel
-
                 out = AGI._exec_ssh(
                     ip,
-                    f"uv run -p {python_version} python -c \"import os; "
+                    f"uv run -p {pyvers} python -c \"import os; "
                     f"os.makedirs(os.path.expanduser({remote_dir!r}), exist_ok=True)\""
                 )
-                if AGI._verbose:
-                    print(out)
 
             except Exception as e:
                 raise Exception(f"Failed to prepare node {ip}:\n{e}") from e
@@ -902,7 +920,8 @@ class AGI:
         app_path = env.app_path
         wenv_rel = env.wenv_rel
         wenv_abs = env.wenv_abs
-        extras = "--dev -p " + env.python_version
+        pyvers = env.python_version
+        extras = "--dev -p " + pyvers
         extras += " --group rapids" if AGI._rapids_install \
             else ""
         options = {"manager": extras, "worker": extras}
@@ -915,7 +934,7 @@ class AGI:
         AGI._log_verbose(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1", level=1)
         AGI._install_env_local(app_path, Path(wenv_rel), options)
         core_root = env.core_root
-        cmd = f"uv run -p {env.python_version} --project {core_root} python setup bdist_egg -d \"{wenv_abs}\""
+        cmd = f"uv run -p {pyvers} --project {core_root} python setup bdist_egg -d \"{wenv_abs}\""
         if AGI._verbose > 2:
             # print(cmd, "\ncwd", os.getcwd(), "\nvenv", wenv_abs, "\ncwd", core_root)
             print(cmd, "\ncwd", os.getcwd(), "\nvenv", wenv_abs, "\ncwd", wenv_abs)
@@ -975,15 +994,13 @@ class AGI:
                 print(result)
 
     @staticmethod
-    async def _install_env_remote(ip: str, env, dest: str, option: str):
+    async def _install_env_remote(ip: str, env, wenv_rel: str, option: str):
         """Install packages and set up the environment on a remote node.
 
         Adds --config-file uv.toml to `uv sync` only when the remote hardware
         supports Rapids (detected via `nvidia-smi`), regardless of os.name.
         """
         pyvers = env.python_version
-        wenv = env.wenv_rel
-        worker = env.target_worker
         python = f"uv run -p {pyvers} python"
 
         # 1) Bootstrap ensurepip
@@ -993,21 +1010,22 @@ class AGI:
         AGI._handle_command_result(result)
 
         # 2) Create project dir remotely
-        cmd = python + f" -c \"import os; os.makedirs('{dest}', exist_ok=True)\""
+        cmd = python + f" -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd);
         AGI._handle_command_result(result)
 
         # 3) Send egg, pyproject, core setup
         egg = str(next(iter(env.wenv_abs.glob("*.egg")), None))
-        AGI._send_file(ip, egg, dest)
-        AGI._send_file(ip, env.worker_pyproject, dest)
-        AGI._send_file(ip, env.setup_core, dest)
+        AGI._send_file(ip, egg, wenv_rel)
+        AGI._send_file(ip, env.worker_pyproject, wenv_rel)
+        AGI._send_file(ip, env.uvproject, wenv_rel)
+        AGI._send_file(ip, env.setup_core, wenv_rel)
 
         # 4) Unzip egg into remote venv src/
         cmd = (
             f"{python} -c \"import os, pathlib, zipfile;"
-            f" root = os.path.abspath(os.path.expanduser('{wenv}'));"
+            f" root = os.path.abspath(os.path.expanduser('{wenv_rel}'));"
             f" os.makedirs(os.path.join(root,'src'), exist_ok=True);"
             f" [zipfile.ZipFile(str(egg)).extractall(os.path.join(root,'src'))"
             f"  for egg in pathlib.Path(root).glob('*.egg')]\""
@@ -1024,37 +1042,96 @@ class AGI:
                 " sys.exit(0 if r.returncode==0 else 1)\""
         )
         result = AGI._exec_ssh(ip, check_rapids)
-        has_rapids_hw = (result.returncode == 0)
+        has_rapids_hw = (result != "")
         AGI._log_verbose(f"Remote Rapids-capable GPU: {has_rapids_hw}", level=2)
 
         # 6) Build and run uv sync, adding --config-file only when has_rapids_hw
         if has_rapids_hw:
-            sync_cmd = f"uv sync --upgrade --project {dest} {option}"
+            sync_cmd = f"uv sync --upgrade --project {wenv_rel} {option}"
         else:
-            sync_cmd = f"uv --config-file uv.toml sync --upgrade --project {dest} {option}"
+            sync_cmd = f"uv --config-file {wenv_rel + os.sep + "uv.toml"} sync --upgrade --project {wenv_rel} {option}"
 
         AGI._log_verbose(f"Executing on {ip}: {sync_cmd}", level=2)
         result = AGI._exec_ssh(ip, sync_cmd);
         AGI._handle_command_result(result)
 
         # 7) Post-install script
-        home = Path.home()
-        script = home / wenv / "src" / worker / "post_install.py"
-        data_dir = home / "data" / worker
-
         cmd = (
-            f"{python} -c \"import os, subprocess;"
-            f" script=os.path.expanduser(r'{script}');"
-            f" data=os.path.expanduser(r'{data_dir}');"
-            f" subprocess.run(['uv','run','-p','{pyvers}',"
-            f"'--project','{wenv}','python', script, data], check=True)\""
+            f"{python} -c \"import os, pathlib, subprocess\n"
+            f"home = pathlib.Path.home()'\n"
+            f"script = home / '{env.post_install}'\n"
+            f"data_dir = home / 'data' / '{env.target_worker}'\n"
+            f"subprocess.run(["
+            f"'uv', 'run', '-p', '{pyvers}', '--project', '{wenv_rel}', 'python',"
+            f" str(script), str(data_dir))"
+            f"], check=True)\""
         )
+
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd);
         AGI._handle_command_result(result)
 
+        #####################################################
+        # install env & core for enabling dask worker spawn
+        ##################################################
+
+        cmd = f"cd {wenv_rel} && uv pip install -e ."
+        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
+        result = AGI._exec_ssh(ip, cmd)
+        AGI._handle_command_result(result)
+
+        # build agi_env*.whl
+        env_path = env.agi_fwk_env_path
+        wenv_path = env.wenv_abs
+
+        # make egg for remote install
+        cmd = (
+            f"uv run --project {env_path} python setup bdist_wheel -d \"{wenv_path}\""
+        )
+        if AGI._verbose > 2:
+            print(cmd, "\ncwd", os.getcwd(), "\nvenv", env_path, "\ncwd", env_path)
+        res = AgiEnv.run(cmd, cwd=env_path, venv=env_path)
+
+        # upload agi_core.eg
+        env_whl = next(iter(wenv_path.glob(f"agi_env*.whl")), None)
+        env_whl_path = AgiEnv.normalize_path(env_whl)
+        AGI._send_file(ip, env_whl_path, wenv_rel)
+
+        if AGI._verbose > 2:
+            print(f"uploaded:", env_whl_path)
+
+        cmd = f"cd {wenv_rel} && uv add {Path(env_whl).name}"
+        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
+        result = AGI._exec_ssh(ip, cmd)
+        AGI._handle_command_result(result)
+
+        # build agi_core*.whl
+        core_root = env.core_root
+        wenv_path = env.wenv_abs
+
+        # make egg for remote install
+        cmd = (
+            f"uv run --project {core_root} python setup bdist_wheel -d \"{wenv_path}\""
+        )
+        if AGI._verbose > 2:
+            print(cmd, "\ncwd", os.getcwd(), "\nvenv", core_root, "\ncwd", core_root)
+        res = AgiEnv.run(cmd, cwd=core_root, venv=core_root)
+
+        # upload agi_core.eg
+        core_whl = next(iter(wenv_path.glob(f"agi_core*.whl")), None)
+        core_whl_path = AgiEnv.normalize_path(core_whl)
+        AGI._send_file(ip, core_whl_path, wenv_rel)
+
+        if AGI._verbose > 2:
+            print(f"uploaded:", core_whl_path)
+
+        cmd = f"cd {wenv_rel} && uv add {Path(core_whl).name}"
+        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
+        result = AGI._exec_ssh(ip, cmd)
+        AGI._handle_command_result(result)
+
     @staticmethod
-    def _install_env_local(src: Path, dest: Path, options: dict):
+    def _install_env_local(src: Path, wenv_rel: Path, options: dict):
         """Install packages and set up the environment on the local node.
 
         Adds --config-file uv.toml to all `uv {run_type}` calls only when
@@ -1085,7 +1162,7 @@ class AGI:
             return " ".join(base)
 
         toml_local = src / "pyproject.toml"
-        toml_remote = dest.expanduser() / "pyproject.toml"
+        toml_remote = wenv_rel.expanduser() / "pyproject.toml"
 
         # Manager install
         app_path = env.app_path.absolute()
@@ -1310,32 +1387,34 @@ class AGI:
         return True
 
     @staticmethod
+    async def _detect_export_cmd(ip: str) -> str:
+        if AGI._is_local(ip):
+            return AGI.env.export_local_bin
+
+        # probe remote OS via SSH
+        try:
+            proc = await asyncio.create_subprocess_shell(
+                f'ssh {ip} uname -s',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL
+            )
+            out, _ = await proc.communicate()
+            os_id = out.decode().strip().lower()
+        except Exception:
+            os_id = ''
+
+        if any(x in os_id for x in ('linux', 'darwin', 'bsd')):
+            return 'export PATH="$HOME/.local/bin:$PATH";'
+        else:
+            return 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
+
+    @staticmethod
     async def _start(scheduler):
         """
         Start Dask workers on local and remote hosts,
         setting PATH correctly for each OS.
         """
         # helper to pick export_local_bin for a given host
-        async def _detect_export_cmd(ip: str) -> str:
-            if AGI._is_local(ip):
-                return AGI.env.export_local_bin
-
-            # probe remote OS via SSH
-            try:
-                proc = await asyncio.create_subprocess_shell(
-                    f'ssh {ip} uname -s',
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.DEVNULL
-                )
-                out, _ = await proc.communicate()
-                os_id = out.decode().strip().lower()
-            except Exception:
-                os_id = ''
-
-            if any(x in os_id for x in ('linux', 'darwin', 'bsd')):
-                return 'export PATH="$HOME/.local/bin:$PATH";'
-            else:
-                return 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
 
         env = AGI.env
         # start the scheduler first
@@ -1344,7 +1423,7 @@ class AGI:
 
         # launch each worker
         for i, (ip, n) in enumerate(AGI.workers.items()):
-            export_cmd = await _detect_export_cmd(ip)
+            export_cmd = await AGI._detect_export_cmd(ip)
 
             for j in range(n):
                 if AGI._verbose:
@@ -1357,14 +1436,13 @@ class AGI:
                 else:
                     AGI._install_done = True
                     pid_file = Path(env.wenv_rel) / "dask-pid"
-                    proj_dir = env.wenv_rel
+                    wenv_rel = env.wenv_rel
 
                 # build the command
                 cmd = (
                     f'{export_cmd} '
-                    f'cd "{proj_dir}"; uv run'
-                    f'dask worker "{AGI._scheduler}" --no-nanny '
-                    f'--pid-file "{pid_file}#{i}.{j}"'
+                    f'uv --project {wenv_rel} run dask worker {AGI._scheduler} --no-nanny '
+                    f'--pid-file {pid_file}#{i}.{j}'
                 )
 
                 if AGI._verbose > 1:

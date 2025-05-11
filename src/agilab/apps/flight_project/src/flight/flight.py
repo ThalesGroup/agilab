@@ -14,7 +14,7 @@
 import os
 import re
 import traceback
-
+import logging
 from pydantic import BaseModel, validator, conint, confloat
 import shutil
 import warnings
@@ -142,15 +142,6 @@ class Flight(AgiManager):
             path = args.get("path", os.path.join("~/data", "flight"))
             if env.is_managed_pc:
                 path = path.replace("~", "~/MyApp")
-            # path_abs = AgiEnv.normalize_path(os.path.expanduser(path))
-            # if not os.path.exists(path_abs):
-            # this is not working on Thales managed PC
-            # os.link(src=os.path.join(AGI.env.app_path, "data"), dst=path_abs)
-            # os.makedirs(path_abs, exist_ok=True)
-            # data_src = os.path.join(AGI.env.app_path, "data.7z")
-            # Extract contents of src_archive directly to path_abs
-            # with py7zr.SevenZipFile(data_src, mode="r") as archive:
-            # archive.extractall(path_abs)
             args["nfile"] = args.get("nfile", 999_999_999_999)
             if args["nfile"] == 0:
                 args["nfile"] = 999_999_999_999
@@ -160,19 +151,20 @@ class Flight(AgiManager):
             # implement another logic
             pass
 
-        base_path = Path(path).expanduser()
+        base_path = env.home_abs / path
         self.path = AgiEnv.normalize_path(base_path)
         self.files = args["files"]
         self.nfile = args["nfile"]
         AgiManager.args = args
-        self.data_out = AgiEnv.normalize_path(base_path / "dataframes")
+        self.data_out = AgiEnv.normalize_path(base_path.parent / "dataframe")
+
         """
           remove dataframe files from previous run
           """
         try:
             if os.path.exists(self.data_out):
                 shutil.rmtree(
-                    self.data_out, ignore_errors=False, onerror=AgiManager.onerror
+                    self.data_out, ignore_errors=True, onerror=AgiManager.onerror
                 )
             os.makedirs(self.data_out, exist_ok=True)
         except Exception as e:

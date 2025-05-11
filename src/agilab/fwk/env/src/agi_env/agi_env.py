@@ -491,6 +491,7 @@ class AgiEnv:
         )
         self.module_path = self.app_path / "src" / self.module / f"{self.module}.py"
         self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
+        self.uvproject = self.app_path / "uv.toml"
 
         target_class = "".join(x.title() for x in self.target.split("_"))
         worker_class = target_class + "Worker"
@@ -1231,12 +1232,12 @@ class AgiEnv:
 
     def _init_worker_env(self):
         wenv_rel = self.WORKER_VENV_REL / self.target_worker
-        self.wenv_rel = rel if (rel := str(wenv_rel)).startswith("~/") else "~/" + rel
+        self.wenv_rel = str(wenv_rel)
         self.wenv_abs = self.home_abs / wenv_rel
         self.wenv_target_worker = self.wenv_abs
         distribution_tree = self.wenv_abs / "distribution_tree.json"
         self.cyprepro = self.core_src / "agi_core/workers/agi_worker/cyprepro.py"
-        self.post_install = Path(self.wenv_rel) / "src" / self.target_worker / "post_install.py"
+        self.post_install = wenv_rel / "src" / self.target_worker / "post_install.py"
         if distribution_tree.exists():
             distribution_tree.unlink()
         self.distribution_tree = distribution_tree

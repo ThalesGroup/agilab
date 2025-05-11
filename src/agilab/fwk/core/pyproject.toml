@@ -37,7 +37,6 @@ keywords = [
     "datascience",
 ]
 dependencies = [
-    "dask[distributed]",
     "paramiko",
     "scp",
     "scikit-learn",
@@ -49,7 +48,8 @@ dependencies = [
     "py7zr",
     "agi-env",
     "python-dotenv",
-    "tomli"
+    "tomli",
+    "logging"
 ]
 
 [project.urls]
@@ -72,6 +72,7 @@ managers = [
     "requests",
     "wheel",
     "polars",
+    "dask[distributed]",
 ]
 workers = []
 
