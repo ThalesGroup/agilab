@@ -1441,7 +1441,7 @@ class AGI:
                 # build the command
                 cmd = (
                     f'{export_cmd} '
-                    f'uv --project {wenv_rel} run dask worker {AGI._scheduler} --no-nanny '
+                    f'uv --project {env.wenv_abs} run dask worker {AGI._scheduler} --no-nanny '
                     f'--pid-file {pid_file}#{i}.{j}'
                 )
 
