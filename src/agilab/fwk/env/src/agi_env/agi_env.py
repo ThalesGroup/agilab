@@ -763,7 +763,7 @@ class AgiEnv:
         self.gitignore_file = self.app_path / ".gitignore"
         dest = self.resource_path
         if self.install_type:
-            shutil.copytree(self.core_root / "fwk/gui/src/agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
+            shutil.copytree(self.core_root.parent / "fwk/gui/src/agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
         else:
             shutil.copytree(self.agi_root.parent / "agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
 
@@ -1135,7 +1135,7 @@ class AgiEnv:
 
         os.makedirs(AgiEnv.apps_dir, exist_ok=True)
         if self.install_type:
-            self.core_src = self.agi_root / "src"
+            self.core_src = self.agi_root / "core/src"
         else:
             self.core_src = self.agi_root
         self.core_root = self.core_src.parent
