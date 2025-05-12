@@ -1668,18 +1668,27 @@ class AGI:
         else:
             # finally BUILD AND LOAD THE TARGET WORKER EGG ON all workers
             for worker in list(AGI._dask_client.scheduler_info()["workers"].keys()):
-                # wip = worker.split('/')[-1].split(':')[0]
-                AGI._dask_client.run(
-                    AgiWorker.build,
-                    env.target_worker,
-                    AGI._dask_client.scheduler_info()["workers"][worker][
-                        "local_directory"
-                    ],
-                    worker,
-                    mode=AGI._mode,
-                    verbose=AGI._verbose,
-                    workers=[worker],
-                )
+                wip = worker.split('/')[-1].split(':')[0]
+                if AGI._is_local(wip):
+                    AgiWorker.build(
+                        env.target_worker,
+                        env.wenv_rel,
+                        worker,
+                        mode = AGI._mode,
+                        verbose = AGI._verbose,
+                    )
+                else:
+                    AGI._dask_client.run(
+                        AgiWorker.build,
+                        env.target_worker,
+                        AGI._dask_client.scheduler_info()["workers"][worker][
+                            "local_directory"
+                        ],
+                        worker,
+                        mode=AGI._mode,
+                        verbose=AGI._verbose,
+                        workers=[worker],
+                    )
 
         return wenv
 
