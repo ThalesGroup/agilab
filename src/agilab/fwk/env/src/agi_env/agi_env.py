@@ -467,7 +467,7 @@ class AgiEnv:
             apps_dir = self._determine_apps_dir(active_app)
             module = apps_dir.name.replace("_project", "").replace("-", "_")
 
-        self.agi_root = AgiEnv.resolve_packages_path_in_toml(module, self.agi_root, apps_dir)
+        self.agi_core = AgiEnv.resolve_packages_path_in_toml(module, self.agi_root, apps_dir)
 
         self.projects = self.get_projects(self.apps_dir)
 
@@ -763,7 +763,7 @@ class AgiEnv:
         self.gitignore_file = self.app_path / ".gitignore"
         dest = self.resource_path
         if self.install_type:
-            shutil.copytree(self.core_root.parent / "gui/src/agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
+            shutil.copytree(self.core_root / "fwk/gui/src/agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
         else:
             shutil.copytree(self.agi_root.parent / "agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
 
@@ -1555,15 +1555,6 @@ class AgiEnv:
 
         # Compute the agi-core path
         agi_core = agi_root / "fwk/core"
-
-        # Safely retrieve (or create) the nested structure for tool/uv/sources
-        sources = content.setdefault("tool", {}).setdefault("uv", {}).setdefault("sources", {})
-
-        # Update the 'agi-core' entry if it exists and is a dict
-        if isinstance(sources.get("agi-core"), dict) and "path" in sources["agi-core"]:
-            sources["agi-core"]["path"] = str(agi_core)
-        else:
-            print(f"Warning: 'agi-core' entry not found or invalid in {pyproject_file}; skipping update.")
 
         try:
             with pyproject_file.open("wb") as f:
