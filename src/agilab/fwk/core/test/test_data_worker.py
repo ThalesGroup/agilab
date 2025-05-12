@@ -112,9 +112,9 @@ def test_exec_mono_process(worker_csv):
     assert result_df is not None, "Expected a DataFrame from exec_mono_process."
     # Expect two rows in the resulting DataFrame.
     assert result_df.height == 2, f"Expected DataFrame height of 2, got {result_df.height}."
-    # Expect each row to have part_col equal to str((0, 0)).
-    part_values = result_df["part_col"].to_list()
-    assert part_values == [str((0, 0)), str((0, 0))], f"Unexpected part_col values: {part_values}"
+    # Expect each row to have worker_id equal to str((0, 0)).
+    part_values = result_df["worker_id"].to_list()
+    assert part_values == [str((0, 0)), str((0, 0))], f"Unexpected worker_id values: {part_values}"
 
 def test_exec_multi_process(worker_csv):
     # For multi-process execution, set mode to an odd number.
@@ -127,7 +127,7 @@ def test_exec_multi_process(worker_csv):
     assert result_df is not None, "Expected a DataFrame from exec_multi_process."
     assert result_df.height == 2, f"Expected DataFrame height of 2, got {result_df.height}."
     assert result_df["col"].to_list() == [100, 200], "Column 'col' does not match expected values."
-    assert "part_col" in result_df.columns, "Expected 'part_col' in the DataFrame columns."
+    assert "worker_id" in result_df.columns, "Expected 'worker_id' in the DataFrame columns."
 
 def test_works_method(worker_csv):
     # Verify that works() returns a float execution time greater than zero.

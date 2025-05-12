@@ -185,10 +185,10 @@ class AgiDataWorker(AgiWorker):
                     # Additional processing per result can be done here.
 
             if list_df:
-                # Add a 'part_col' to each DataFrame.
+                # Add a 'worker_id' to each DataFrame.
                 for idx, df_result in enumerate(list_df):
                     list_df[idx] = df_result.with_columns(
-                        pl.lit(str((self.worker_id, idx))).alias("part_col")
+                        pl.lit(str((self.worker_id, idx))).alias("worker_id")
                     )
 
                 # Concatenate all DataFrames into a single DataFrame.
@@ -227,10 +227,10 @@ class AgiDataWorker(AgiWorker):
                             list_df.append(df_result)
 
                     if list_df:
-                        # Add a 'part_col' to each DataFrame.
+                        # Add a 'worker_id' to each DataFrame.
                         for idx, df_result in enumerate(list_df):
                             list_df[idx] = df_result.with_columns(
-                                pl.lit(str((self.worker_id, 0))).alias("part_col")
+                                pl.lit(str((self.worker_id, 0))).alias("worker_id")
                             )
 
                         # Concatenate all DataFrames into a single DataFrame.
