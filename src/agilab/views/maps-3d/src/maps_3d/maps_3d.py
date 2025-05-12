@@ -440,11 +440,11 @@ def page():
         for beam_file in st.session_state["beam_files"]:
             beam_file_abs = Path(st.session_state.beamdir) / beam_file
             st.session_state["dfs_beams"][beam_file] = load_df(
-                beam_file_abs, with_index=False
+                beam_file_abs, with_index=True
             )
 
     if "Load Data" not in st.session_state:
-        st.session_state["loaded_df"] = cached_load_df(env.AGILAB_EXPORT_ABS / env.target)
+        st.session_state["loaded_df"] = cached_load_df(env.AGILAB_EXPORT_ABS / env.target,with_index=False)
     if "loaded_df" in st.session_state and st.session_state["df_file"]:
         st.session_state["loaded_df"]
         loaded_df = st.session_state.get("loaded_df")
@@ -522,28 +522,27 @@ def page():
             lines = st.slider(
                 "Select the desired number of points:",
                 min_value=10,
-                max_value=st.session_state.GUI_NROW,
-                value=3830,
+                max_value=nrows,
+                value=st.session_state.GUI_NROW,
                 step=10,
             )
             st.session_state.GUI_NROW = lines
             if lines >= 0:
                 st.session_state.loaded_df = st.session_state.loaded_df.iloc[:lines, :]
 
-            st.session_state.loaded_df.set_index(
-                st.session_state.loaded_df.columns[0], inplace=True
-            )
+            # st.session_state.loaded_df.set_index(
+            #     st.session_state.loaded_df.columns[0], inplace=True
+            # )
 
             # Select numeric columns
             numeric_cols = st.session_state.loaded_df.select_dtypes(include=["number"]).columns.tolist()
-
             # Define lists to store continuous and discrete numeric variables
             continious_cols = []
             discrete_cols = []
 
             # Define a threshold: if a numeric column has fewer unique values than this threshold,
             # treat it as discrete. Adjust this value based on your needs.
-            unique_threshold = 10
+            unique_threshold = 20
 
             # Loop through numeric columns and classify them based on the unique value count.
             for col in numeric_cols:

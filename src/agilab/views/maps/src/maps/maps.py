@@ -137,7 +137,7 @@ def page():
     # Load the selected DataFrame
     df_file_abs = Path(st.session_state.datadir) / st.session_state.df_file
     try:
-        st.session_state["loaded_df"] = load_df(df_file_abs, with_index=True)
+        st.session_state["loaded_df"] = load_df(df_file_abs, with_index=False)
     except Exception as e:
         st.error(f"Error loading data: {e}")
         st.warning("The selected data file could not be loaded. Please select a valid file.")
