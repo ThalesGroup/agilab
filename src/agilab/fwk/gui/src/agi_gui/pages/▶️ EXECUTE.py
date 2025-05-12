@@ -911,10 +911,10 @@ if __name__ == '__main__':
                     except json.JSONDecodeError as e:
                         print("Error decoding JSON:", e)
 
-            st.session_state["loaded_df"] = cached_load_df(env.dataframes_path)
+            st.session_state["loaded_df"] = cached_load_df(Path().home() / env.dataframes_path)
 
         if st.sidebar.button("Load Data", key="load_data"):
-            st.session_state["loaded_df"] = cached_load_df(env.dataframes_path)
+            st.session_state["loaded_df"] = cached_load_df(Path().home() / env.dataframes_path)
         loaded_df = st.session_state.get("loaded_df")
         if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
             st.dataframe(loaded_df)
