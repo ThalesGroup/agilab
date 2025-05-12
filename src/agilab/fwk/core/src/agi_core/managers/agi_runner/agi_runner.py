@@ -1202,7 +1202,7 @@ class AGI:
 
         # make whl for remote install
         cmd = (
-            f"uv run --project {core_root} python setup bdist_whl -d \"{wenv_path}\""
+            f"uv run --project {core_root} python setup bdist_wheel -d \"{wenv_path}\""
         )
         if AGI._verbose > 2:
             print(cmd, "\ncwd", os.getcwd(), "\nvenv", core_root, "\ncwd", core_root)
