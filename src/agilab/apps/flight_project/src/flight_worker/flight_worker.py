@@ -221,8 +221,8 @@ class FlightWorker(AgiDataWorker):
         for plane in worker_df.select(pl.col("aircraft")).unique().to_series():
             plane_df = worker_df.filter(pl.col("aircraft") == plane).sort("date")
 
-            # Create (or replace) "part_col" from "aircraft":
-            plane_df = plane_df.with_columns(pl.col("aircraft").alias("part_col"))
+            # Create (or replace) "worker_id" from "aircraft":
+            plane_df = plane_df.with_columns(pl.col("aircraft").alias("worker_id"))
 
             try:
                 if self.args["output_format"] == "parquet":
