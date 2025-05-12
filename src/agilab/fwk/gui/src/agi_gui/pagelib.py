@@ -740,12 +740,12 @@ def load_df(path: Path, nrows=None, with_index=True):
         elif csv_files:
             # Concatenate all CSV files.
             df = pd.concat([
-                pd.read_csv(f, nrows=nrows, encoding="utf-8", index_col=0)
+                pd.read_csv(f, nrows=nrows, encoding="utf-8", index_col=None)
                 for f in csv_files
-            ], ignore_index=False)
+            ], ignore_index=True)
     elif path.is_file():
         if path.suffix == ".csv":
-            df = pd.read_csv(path, nrows=nrows, encoding="utf-8", index_col=0)
+            df = pd.read_csv(path, nrows=nrows, encoding="utf-8", index_col=None)
         elif path.suffix == ".parquet":
             df = pd.read_parquet(path)
         else:
