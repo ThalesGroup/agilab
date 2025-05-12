@@ -1186,7 +1186,13 @@ class AGI:
         if AGI._verbose > 2:
             print(f"uploaded:", env_whl_path)
 
-        cmd = f"cd {wenv_rel} && uv add {env_whl}"
+        # Bootstrap ensurepip
+        cmd = f"cd {wenv_rel} && uv run python -m ensurepip"
+        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
+        result = AGI._exec_ssh(ip, cmd);
+        AGI._handle_command_result(result)
+
+        cmd = f"cd {wenv_rel} && uv run python -m pip install {env_whl}"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
@@ -1216,7 +1222,7 @@ class AGI:
         if AGI._verbose > 2:
             print(f"uploaded:", core_whl_path)
 
-        cmd = f"cd {wenv_rel} && uv add {core_whl}"
+        cmd = f"cd {wenv_rel} && uv run python -m pip install {core_whl}"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
