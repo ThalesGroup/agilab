@@ -974,7 +974,7 @@ class AGI:
                         # make sure the uv env exists:
                         AGI._exec_ssh(ip, 'uv init --bare')
                         # then install Dask with pip into that env:
-                        cmd = f'uv add setuptools psutil paramiko dask[distributed]"'
+                        cmd = f'uv add setuptools psutil dask[distributed]"'
                         AGI._exec_ssh(ip, cmd)
 
                     except Exception:
