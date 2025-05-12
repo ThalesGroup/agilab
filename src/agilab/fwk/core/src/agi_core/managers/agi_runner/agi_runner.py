@@ -1191,12 +1191,7 @@ class AGI:
         result = AGI._exec_ssh(ip, cmd);
         AGI._handle_command_result(result)
 
-        cmd = f"cd {wenv_rel} && uv run python -m pip install {env_whl.relative_to(Path().home())}"
-        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
-
-        cmd = f"cd {wenv_rel} && uv add {Path(env_whl).name}"
+        cmd = f"cd {wenv_rel} && uv run python -m pip install {Path(env_whl).name}"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
@@ -1221,7 +1216,7 @@ class AGI:
         if AGI._verbose > 2:
             print(f"uploaded:", core_whl_path)
 
-        cmd = f"cd {wenv_rel} && uv run python -m pip install {core_whl}"
+        cmd = f"cd {wenv_rel} && uv run python -m pip install {Path(core_whl).name}"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
