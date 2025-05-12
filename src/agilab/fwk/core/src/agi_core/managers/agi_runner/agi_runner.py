@@ -750,6 +750,27 @@ class AGI:
 
     @staticmethod
     def _send_file(ip, local_path, remote_path):
+        """Send file to remote host, creating remote path if it does not exist.
+
+        Args:
+            ip (str): the address of the remote host
+            local_path (str): the path of the local file
+            remote_path (str): the path of the remote file
+
+        Raises:
+            ConnectionError: If file transfer fails
+        """
+        try:
+            with closing(AGI._ssh_connect(ip)) as ssh_client:
+                # Send file
+                with SCPClient(ssh_client.get_transport()) as scp:
+                    scp.put(local_path, remote_path)
+
+        except Exception as e:
+            raise ConnectionError(f"Failed to send file {local_path} to {remote_path} on {ip} due to:\n{e}")
+
+    @staticmethod
+    def _send_file_sftp(ip, local_path, remote_path):
         """Send a file to a remote host via SFTP, creating missing dirs and overwriting any existing file.
 
         Args:
