@@ -11,6 +11,8 @@
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from IPython.lib import backgroundjobs as bg
+from IPython.core.ultratb import FormattedTB
 import asyncio
 import getpass
 import glob
@@ -38,8 +40,7 @@ import sysconfig
 import logging
 
 # External Libraries
-from IPython.lib import backgroundjobs as b
-from IPython.core.ultratb import FormattedTB
+from IPython.lib import backgroundjobs as bg
 import humanize
 import numpy as np
 import polars as pl
@@ -51,13 +52,9 @@ from stat import S_ISDIR
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 import subprocess
+
 import inspect
-
-# Project Libraries:
-from agi_env import AgiEnv
-from agi_core.managers.agi_manager import AgiManager
-from agi_core.workers.agi_worker import AgiWorker
-
+from IPython.core.ultratb import FormattedTB
 
 # Patch for IPython ≥8.37 (theme_name) vs ≤8.36 (color_scheme)
 _sig = inspect.signature(FormattedTB.__init__).parameters
@@ -68,9 +65,14 @@ else:
     _tb_kwargs['theme_name'] = 'Linux'
 
 sys.excepthook = FormattedTB(**_tb_kwargs)
+
+# Project Libraries:
+from agi_env import AgiEnv
+from agi_core.managers.agi_manager import AgiManager
+from agi_core.workers.agi_worker import AgiWorker
+
 warnings.filterwarnings("ignore")
 workers_default = {socket.gethostbyname("localhost"): 1}
-
 
 class AGI:
     """
@@ -789,6 +791,7 @@ class AGI:
 
                 # finally upload
                 sftp.put(local_path, remote_file)
+
                 sftp.close()
 
         except Exception as e:
