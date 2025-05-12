@@ -1180,8 +1180,7 @@ class AGI:
 
         # upload agi_env.whl
         env_whl = next(iter(wenv_path.glob(f"agi_env*.whl")), None)
-        env_whl_path = AgiEnv.normalize_path(env_whl.relative_to(Path().home()))
-        AGI._send_file(ip, env_whl_path, wenv_rel)
+        AGI._send_file(ip, env_whl, wenv_rel)
 
         if AGI._verbose > 2:
             print(f"uploaded:", env_whl_path)
