@@ -1191,7 +1191,7 @@ class AGI:
         result = AGI._exec_ssh(ip, cmd);
         AGI._handle_command_result(result)
 
-        cmd = f"cd {wenv_rel} && uv run python -m pip install {env_whl}"
+        cmd = f"cd {wenv_rel} && uv run python -m pip install {env_whl.relative_to(Path().home())}"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
