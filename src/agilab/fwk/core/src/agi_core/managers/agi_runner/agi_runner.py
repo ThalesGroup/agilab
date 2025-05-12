@@ -762,12 +762,27 @@ class AGI:
         """
         try:
             with closing(AGI._ssh_connect(ip)) as ssh_client:
-                # Send file
+                # 1) ensure the remote directory exists
+                remote_dir = os.path.dirname(remote_path)
+                if remote_dir:
+                    mkdir_cmd = f'mkdir -p "{remote_dir}"'
+                    stdin, stdout, stderr = ssh_client.exec_command(mkdir_cmd)
+                    if stdout.channel.recv_exit_status() != 0:
+                        err = stderr.read().decode().strip()
+                        raise ConnectionError(f"Could not create remote directory {remote_dir!r} on {ip}: {err}")
+
+                # 2) remove any existing file at the destination
+                rm_cmd = f'rm -f "{remote_path}"'
+                ssh_client.exec_command(rm_cmd)
+
+                # 3) upload the file
                 with SCPClient(ssh_client.get_transport()) as scp:
                     scp.put(local_path, remote_path)
 
         except Exception as e:
-            raise ConnectionError(f"Failed to send file {local_path} to {remote_path} on {ip} due to:\n{e}")
+            raise ConnectionError(
+                f"Failed to send {local_path!r} to {ip}:{remote_path!r}:\n{e}"
+            )
 
     @staticmethod
     def _send_file_sftp(ip, local_path, remote_path):
