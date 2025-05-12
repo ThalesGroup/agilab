@@ -38,21 +38,26 @@ import sysconfig
 import logging
 
 # External Libraries
-from IPython.lib import backgroundjobs as bg
+from IPython.lib import backgroundjobs as b
+from IPython.core.ultratb import FormattedTB
 import humanize
 import numpy as np
 import polars as pl
 import psutil
 from dask.distributed import Client
 import json
-from paramiko import SSHClient, AutoAddPolicy, ssh_exception, util
-from scp import SCPClient
+from paramiko import SSHClient, SFTPClient, AutoAddPolicy, ssh_exception, util
+from stat import S_ISDIR
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 import subprocess
-
 import inspect
-from IPython.core.ultratb import FormattedTB
+
+# Project Libraries:
+from agi_env import AgiEnv
+from agi_core.managers.agi_manager import AgiManager
+from agi_core.workers.agi_worker import AgiWorker
+
 
 # Patch for IPython ≥8.37 (theme_name) vs ≤8.36 (color_scheme)
 _sig = inspect.signature(FormattedTB.__init__).parameters
@@ -63,14 +68,9 @@ else:
     _tb_kwargs['theme_name'] = 'Linux'
 
 sys.excepthook = FormattedTB(**_tb_kwargs)
-
-# Project Libraries:
-from agi_env import AgiEnv
-from agi_core.managers.agi_manager import AgiManager
-from agi_core.workers.agi_worker import AgiWorker
-
 warnings.filterwarnings("ignore")
 workers_default = {socket.gethostbyname("localhost"): 1}
+
 
 class AGI:
     """
@@ -748,24 +748,78 @@ class AGI:
 
     @staticmethod
     def _send_file(ip, local_path, remote_path):
-        """Send file to remote host, creating remote path if it does not exist.
+        """Send a file to a remote host via SFTP, creating missing dirs and overwriting any existing file.
 
         Args:
-            ip (str): the address of the remote host
-            local_path (str): the path of the local file
-            remote_path (str): the path of the remote file
+            ip (str): Address of the remote host
+            local_path (str): Local file to send
+            remote_path (str): Destination path on the remote host
 
         Raises:
-            ConnectionError: If file transfer fails
+            ConnectionError: If any step fails
         """
+        remote_str = str(remote_path)
+        remote_file = None
         try:
-            with closing(AGI._ssh_connect(ip)) as ssh_client:
-                # Send file
-                with SCPClient(ssh_client.get_transport()) as scp:
-                    scp.put(local_path, remote_path)
+            with closing(AGI._ssh_connect(ip)) as ssh:
+                # open an SFTP session
+                sftp: SFTPClient = ssh.open_sftp()
+
+                # determine final remote filename (if remote_path is a directory)
+                try:
+                    if AGI._is_remote_dir(sftp, remote_str):
+                        filename = os.path.basename(local_path)
+                        remote_file = remote_str.rstrip('/') + '/' + filename
+                    else:
+                        remote_file = remote_str
+                except IOError:
+                    # remote path doesn’t exist → treat as file target
+                    remote_file = remote_str
+
+                # ensure parent directory exists
+                parent = os.path.dirname(remote_file)
+                if parent:
+                    AGI._sftp_mkdirs(sftp, parent)
+
+                # remove existing file if present
+                try:
+                    sftp.remove(remote_file)
+                except IOError:
+                    pass  # ignore if it wasn’t there
+
+                # finally upload
+                sftp.put(local_path, remote_file)
+                sftp.close()
 
         except Exception as e:
-            raise ConnectionError(f"Failed to send file {local_path} to {remote_path} on {ip} due to:\n{e}")
+            raise ConnectionError(
+                f"Failed to send {local_path!r} to {ip}:{remote_file!r}:\n{e}"
+            )
+
+    @staticmethod
+    def _is_remote_dir(sftp: SFTPClient, path: str) -> bool:
+        """Return True if the remote path exists and is a directory."""
+        try:
+            return S_ISDIR(sftp.stat(path).st_mode)
+        except IOError:
+            # doesn’t exist (will be created as file)
+            return False
+
+
+    def _sftp_mkdirs(sftp: SFTPClient, remote_directory: str):
+        """Recursively create remote directories via SFTP (like mkdir -p)."""
+        dirs = []
+        head, tail = os.path.split(remote_directory)
+        while tail:
+            dirs.insert(0, tail)
+            head, tail = os.path.split(head)
+        curr = head or '/'
+        for d in dirs:
+            curr = curr.rstrip('/') + '/' + d
+            try:
+                sftp.stat(curr)
+            except IOError:
+                sftp.mkdir(curr)
 
     @staticmethod
     def _clean_dirs_local():
@@ -835,7 +889,7 @@ class AGI:
         return list_ip
 
     @staticmethod
-    def _check_cluster(scheduler):
+    def _install_cluster(scheduler):
         """
         Validate and prepare each remote node in the cluster:
         - Verify each IP is valid and reachable.
@@ -896,7 +950,7 @@ class AGI:
                         # make sure the uv env exists:
                         AGI._exec_ssh(ip, 'uv init --bare')
                         # then install Dask with pip into that env:
-                        cmd = f'uv add setuptools psutil dask[distributed]"'
+                        cmd = f'uv add setuptools psutil paramiko dask[distributed]"'
                         AGI._exec_ssh(ip, cmd)
 
                     except Exception:
@@ -927,7 +981,7 @@ class AGI:
         options = {"manager": extras, "worker": extras}
         if isinstance(env.base_worker_cls, str):
             options["worker"] += " --extra " + " --extra ".join(AGI.install_worker_group)
-        AGI._check_cluster(scheduler)
+        AGI._install_cluster(scheduler)
         node_ips = AGI._get_clean_nodes(scheduler)
         AGI._venv_todo(node_ips)
         start_time = time.time()
@@ -1071,25 +1125,30 @@ class AGI:
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
 
-        # build agi_env*.whl
+        # build agi_env*.egg
         env_path = env.agi_fwk_env_path
         wenv_path = env.wenv_abs
 
         # make egg for remote install
         cmd = (
-            f"uv run --project {env_path} python setup bdist_wheel -d \"{wenv_path}\""
+            f"uv run --project {env_path} python setup bdist_egg -d \"{wenv_path}\""
         )
         if AGI._verbose > 2:
             print(cmd, "\ncwd", os.getcwd(), "\nvenv", env_path, "\ncwd", env_path)
         res = AgiEnv.run(cmd, cwd=env_path, venv=env_path)
 
-        # upload agi_core.eg
+        # upload agi_env.whl
         env_whl = next(iter(wenv_path.glob(f"agi_env*.whl")), None)
         env_whl_path = AgiEnv.normalize_path(env_whl)
         AGI._send_file(ip, env_whl_path, wenv_rel)
 
         if AGI._verbose > 2:
             print(f"uploaded:", env_whl_path)
+
+        cmd = f"cd {wenv_rel} && uv add {env_whl}"
+        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
+        result = AGI._exec_ssh(ip, cmd)
+        AGI._handle_command_result(result)
 
         cmd = f"cd {wenv_rel} && uv add {Path(env_whl).name}"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
@@ -1100,15 +1159,15 @@ class AGI:
         core_root = env.core_root
         wenv_path = env.wenv_abs
 
-        # make egg for remote install
+        # make whl for remote install
         cmd = (
-            f"uv run --project {core_root} python setup bdist_wheel -d \"{wenv_path}\""
+            f"uv run --project {core_root} python setup bdist_whl -d \"{wenv_path}\""
         )
         if AGI._verbose > 2:
             print(cmd, "\ncwd", os.getcwd(), "\nvenv", core_root, "\ncwd", core_root)
         res = AgiEnv.run(cmd, cwd=core_root, venv=core_root)
 
-        # upload agi_core.eg
+        # upload agi_core.whl
         core_whl = next(iter(wenv_path.glob(f"agi_core*.whl")), None)
         core_whl_path = AgiEnv.normalize_path(core_whl)
         AGI._send_file(ip, core_whl_path, wenv_rel)
@@ -1116,7 +1175,7 @@ class AGI:
         if AGI._verbose > 2:
             print(f"uploaded:", core_whl_path)
 
-        cmd = f"cd {wenv_rel} && uv add {Path(core_whl).name}"
+        cmd = f"cd {wenv_rel} && uv add {core_whl}"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
@@ -1632,7 +1691,7 @@ class AGI:
         # do distribut
 
         cmd = (f'uv run --project {env.wenv_abs} python -c "from agi_core.workers.agi_worker import AgiWorker;'
-               f'print(AgiWorker.run(\'{AGI.env.app}\', {AGI.workers}, {AGI._mode}, {AGI._verbose}, {AgiManager.args}))"')
+               f'print(AgiWorker.run(\'{AGI.env.app}\', {AGI.workers}, {AGI._mode}, {AGI._verbose}, {AGI._args}))"')
         res = AgiEnv.run(cmd, env.wenv_abs)
         AGI._handle_command_result(res)
         return res.split('\n')[-2]
@@ -1770,7 +1829,7 @@ class AGI:
                     verbose=AGI._verbose,
                     worker_id=list(AGI._dask_workers).index(worker),
                     worker=worker,
-                    args=AgiManager.args,
+                    args=AGI._args,
                     workers=[worker],
                 )
                 for worker in AGI._dask_workers
