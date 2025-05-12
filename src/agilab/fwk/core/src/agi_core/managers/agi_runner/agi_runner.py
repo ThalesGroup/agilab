@@ -48,7 +48,7 @@ import psutil
 from dask.distributed import Client
 import json
 from paramiko import SSHClient, SFTPClient, AutoAddPolicy, ssh_exception, util
-from stat import S_ISDIR
+from scp import SCPClient
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 import subprocess
