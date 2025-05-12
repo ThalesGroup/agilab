@@ -750,38 +750,40 @@ class AGI:
 
     @staticmethod
     def _send_file(ip, local_path, remote_path):
-        """Send file to remote host, creating remote path if it does not exist.
+        """Send file to remote host, creating remote path if it does not exist,
+        and overwrite any existing file without choking on non-UTF-8 output."""
+        # 1) cast to str so PosixPath(...) never leaks into shell commands
+        remote_str = str(remote_path)
 
-        Args:
-            ip (str): the address of the remote host
-            local_path (str): the path of the local file
-            remote_path (str): the path of the remote file
-
-        Raises:
-            ConnectionError: If file transfer fails
-        """
         try:
             with closing(AGI._ssh_connect(ip)) as ssh_client:
-                # 1) ensure the remote directory exists
-                remote_dir = os.path.dirname(remote_path)
+                # 2) ensure the remote directory exists
+                remote_dir = os.path.dirname(remote_str)
                 if remote_dir:
                     mkdir_cmd = f'mkdir -p "{remote_dir}"'
-                    stdin, stdout, stderr = ssh_client.exec_command(mkdir_cmd)
-                    if stdout.channel.recv_exit_status() != 0:
-                        err = stderr.read().decode().strip()
-                        raise ConnectionError(f"Could not create remote directory {remote_dir!r} on {ip}: {err}")
+                    stdin, stdout, stderr = ssh_client.exec_command(
+                        mkdir_cmd, get_pty=True
+                    )
+                    exit_status = stdout.channel.recv_exit_status()
+                    if exit_status != 0:
+                        err = stderr.read().decode('utf-8', errors='ignore').strip()
+                        raise ConnectionError(
+                            f"Could not create remote directory {remote_dir!r} on {ip}: {err}"
+                        )
 
-                # 2) remove any existing file at the destination
-                rm_cmd = f'rm -f "{remote_path}"'
-                ssh_client.exec_command(rm_cmd)
+                # 3) remove any existing file at the destination
+                rm_cmd = f'rm -f "{remote_str}"'
+                # we don’t need to check exit status for rm -f
+                ssh_client.exec_command(rm_cmd, get_pty=True)
 
-                # 3) upload the file
+                # 4) upload the file
                 with SCPClient(ssh_client.get_transport()) as scp:
-                    scp.put(local_path, remote_path)
+                    scp.put(local_path, remote_str)
 
         except Exception as e:
+            # show remote_str in the error, not a PosixPath repr
             raise ConnectionError(
-                f"Failed to send {local_path!r} to {ip}:{remote_path!r}:\n{e}"
+                f"Failed to send {local_path!r} to {ip}:{remote_str!r}:\n{e}"
             )
 
     @staticmethod

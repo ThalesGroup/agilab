@@ -57,6 +57,9 @@ members = ["src"]
 [tool.setuptools.data-files]
 agi_env = [
     "src/resources/*",
+    "*.ipynb",
+    "*.json",
+    "*.toml",
 ]
 [tool.mypy]
 mypy_path = ["stubs"]
