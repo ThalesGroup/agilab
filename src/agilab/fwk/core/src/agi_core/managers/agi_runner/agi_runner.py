@@ -1106,7 +1106,7 @@ class AGI:
         )
 
         # Bootstrap ensurepip
-        cmd = "cd {wenv_rel} && uv run python -m ensurepip"
+        cmd = f"cd {wenv_rel} && uv run python -m ensurepip"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd);
         AGI._handle_command_result(result)
@@ -1128,46 +1128,41 @@ class AGI:
         result = AgiEnv.run(cmd, venv=env_path)
 
         # upload agi_env*.egg
-        egg = next(iter(wenv_path.glob(f"agi_env*.egg")), None)
-        AGI._send_file(ip, egg, wenv_rel)
+        agi_env_egg = next(iter(wenv_path.glob(f"agi_env*.egg")), None)
+        AGI._send_file(ip, agi_env_egg, wenv_rel)
 
         if AGI._verbose > 2:
-            print(f"uploaded:", egg)
+            print(f"uploaded:", agi_env_egg)
 
         # install agi_env*.egg
-        cmd = f"cd {wenv_rel} && uv run python -m pip install {Path(egg).name}"
-        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
+        # cmd = f"uv run --project {wenv_rel} python -m pip install {Path(agi_env_egg).name}"
+        # AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
+        # result = AGI._exec_ssh(ip, cmd)
+        # AGI._handle_command_result(result)
 
         # make agi_core*.egg locally
         core_root = env.core_root
 
         cmd = (
-            f"uv cd {wenv_rel} && run python setup bdist_egg -d \"{wenv_path}\""
+            f"cd {wenv_path} && uv run python setup bdist_egg -d \"{wenv_path}\""
         )
         if AGI._verbose > 2:
             print(cmd, "\ncwd", os.getcwd(), "\nvenv", core_root, "\ncwd", core_root)
         result = AgiEnv.run(cmd, venv=core_root)
 
         # upload agi_core*.egg
-        egg = next(iter(wenv_path.glob(f"agi_core*.egg")), None)
+        agi_core_egg = next(iter(wenv_path.glob(f"agi_core*.egg")), None)
         AGI._send_file(ip, egg, wenv_rel)
 
         if AGI._verbose > 2:
-            print(f"uploaded:", egg)
+            print(f"uploaded:", agi_core_egg)
 
         # install agi_core*.egg
-        cmd = f"cd {wenv_rel} && uv run python -m pip install {Path(egg).name}"
-        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
+        # cmd = f"uv run  --project {wenv_rel} python -m pip install {Path(agi_core_egg).name}"
+        # AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
+        # #result = AGI._exec_ssh(ip, cmd)
+        # AGI._handle_command_result(result)
 
-        # finally BUILD THE TARGET WORKER LIB
-        cmd = f"cd {wenv_rel} && uv run -p {pyvers} python setup build_ext -b '{wenv_rel}'"
-        AGI._log_verbose(f"Build worker lib on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
 
     @staticmethod
     def _install_env_local(src: Path, wenv_rel: Path, options: dict):
@@ -1557,7 +1552,9 @@ class AGI:
 
         """
         env = AGI.env
+        pyvers = env.python_version
         wenv = AgiEnv.normalize_path(str(env.wenv_abs))
+        wenv_rel = env.wenv_rel
         is_cy = AGI._mode & AGI.CYTHON_MODE
         packages = "agi_worker, "
         baseworker = env.base_worker_cls
@@ -1613,21 +1610,27 @@ class AGI:
                 if AGI._verbose > 1 and res and len(res) > 0:
                     print(res)
             # os.remove(env.setup_app)
-        # else:
-        #     # finally BUILD AND LOAD THE TARGET WORKER EGG ON all workers
-        #     for worker in list(AGI._dask_client.scheduler_info()["workers"].keys()):
-        #         # wip = worker.split('/')[-1].split(':')[0]
-        #         AGI._dask_client.run(
-        #             AgiWorker.build,
-        #             env.target_worker,
-        #             AGI._dask_client.scheduler_info()["workers"][worker][
-        #                 "local_directory"
-        #             ],
-        #             worker,
-        #             mode=AGI._mode,
-        #             verbose=AGI._verbose,
-        #             workers=[worker],
-        #         )
+        else:
+
+            # finally BUILD AND LOAD THE TARGET WORKER EGG ON all workers
+            for worker in list(AGI._dask_client.scheduler_info()["workers"].keys()):
+                ip = worker.split('/')[-1].split(':')[0]
+                #finally BUILD THE TARGET WORKER LIB
+                cmd = f"cd {wenv_rel} && uv run -p {pyvers} python setup build_ext -b '{wenv_rel}'"
+                AGI._log_verbose(f"Build worker lib on {ip}: {cmd}", level=2)
+                result = AGI._exec_ssh(ip, cmd)
+                AGI._handle_command_result(result)
+                # AGI._dask_client.run(
+                #     AgiWorker.build,
+                #     env.target_worker,
+                #     AGI._dask_client.scheduler_info()["workers"][worker][
+                #         "local_directory"
+                #     ],
+                #     worker,
+                #     mode=AGI._mode,
+                #     verbose=AGI._verbose,
+                #     workers=[worker],
+                # )
 
         return wenv
 
