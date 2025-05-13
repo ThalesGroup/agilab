@@ -959,10 +959,10 @@ class AGI:
                 pyvers = AGI.env.python_version
                 try:
                     out = AGI._exec_ssh(ip, 'uv --version')
-                    if self._verbose:
+                    if AGI._verbose:
                         print(out, "installed")
 
-                except Exception:
+                except Exception as e:
                     try:
                         # Try PowerShell installer (Windows)
                         AGI._exec_ssh(
