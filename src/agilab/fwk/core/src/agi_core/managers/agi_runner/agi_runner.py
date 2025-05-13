@@ -1105,6 +1105,12 @@ class AGI:
             "if not os.path.exists(os.path.join(ROOT, 'pyproject.toml')) else None\""
         )
 
+        # Bootstrap ensurepip
+        cmd = "cd {wenv_rel} && uv run python -m ensurepip"
+        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
+        result = AGI._exec_ssh(ip, cmd);
+        AGI._handle_command_result(result)
+
         cmd = f"cd {wenv_rel} && uv pip install -e ."
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
