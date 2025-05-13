@@ -1024,9 +1024,15 @@ class AGI:
         result = AgiEnv.run(cmd, cwd=env_path, venv=env_path)
         AGI._handle_command_result(result)
 
+        whls, eggs, whl_names, egg_names = [], [], [], []
+        for p in wenv_path.iterdir():
+            if p.suffix == ".whl" and p.name.startswith("agi_"):
+                whls.append(p);
+                whl_names.append(p.name)
+            elif p.suffix == ".egg" and p.name.startswith(env.app):
+                eggs.append(p);
+                egg_names.append(p.name)
         # 3) Send egg, whl, pyproject, uvproject, setup_core
-        whls = [whl for whl in wenv_path.glob("agi_*.whl")]
-        eggs = [egg for egg in wenv_path.glob(f"{env.app}*egg")]
         AGI._send_files(ip, whls + eggs + [env.worker_pyproject, env.uvproject, env.setup_core], wenv_rel)
 
         # 1) Bootstrap ensurepip
@@ -1101,7 +1107,7 @@ class AGI:
         result = AGI._exec_ssh(ip, cmd);
         AGI._handle_command_result(result)
 
-        cmd = f"cd {wenv_rel} && uv add {eggs}"
+        cmd = f"cd {wenv_rel} && uv add {whl_names}"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
