@@ -1096,30 +1096,6 @@ class AGI:
         # install env & core for enabling dask worker spawn
         ##################################################
 
-        cmd = f"cd {wenv_rel} && uv pip install -e ."
-        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
-
-        # build agi_env*.egg
-        env_path = env.agi_fwk_env_path
-        wenv_path = env.wenv_abs
-
-        # make egg for remote install
-        cmd = (
-            f"cd {wenv_rel} && uv run python setup bdist_egg -d \"{wenv_path}\""
-        )
-        if AGI._verbose > 2:
-            print(cmd, "\ncwd", os.getcwd(), "\nvenv", env_path, "\ncwd", env_path)
-        res = AgiEnv.run(cmd, cwd=env_path, venv=env_path)
-
-        # upload agi_env.whl
-        env_whl = next(iter(wenv_path.glob(f"agi_env*.whl")), None)
-        AGI._send_file(ip, env_whl, wenv_rel)
-
-        if AGI._verbose > 2:
-            print(f"uploaded:", env_whl_path)
-
         # init venv
         cmd = (
             f"{python} -c "
@@ -1129,36 +1105,54 @@ class AGI:
             "if not os.path.exists(os.path.join(ROOT, 'pyproject.toml')) else None\""
         )
 
-        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd);
-        AGI._handle_command_result(result)
-
-        cmd = f"cd {wenv_rel} && uv add {Path(env_whl).name}"
+        cmd = f"cd {wenv_rel} && uv pip install -e ."
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
 
-        # build agi_core*.whl
-        core_root = env.core_root
+        # make agi_env*.egg locally
+        env_path = env.agi_fwk_env_path
         wenv_path = env.wenv_abs
 
-        # make whl for remote install
+        cmd = (
+            f"cd {wenv_rel} && uv run python setup bdist_egg -d \"{wenv_path}\""
+        )
+        if AGI._verbose > 2:
+            print(cmd, "\ncwd", os.getcwd(), "\nvenv", env_path, "\ncwd", env_path)
+        result = AgiEnv.run(cmd, venv=env_path)
+
+        # upload agi_env*.egg
+        egg = next(iter(wenv_path.glob(f"agi_env*.egg")), None)
+        AGI._send_file(ip, egg, wenv_rel)
+
+        if AGI._verbose > 2:
+            print(f"uploaded:", egg)
+
+        # install agi_env*.egg
+        cmd = f"cd {wenv_rel} && uv run python -m pip install {Path(egg).name}"
+        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
+        result = AGI._exec_ssh(ip, cmd)
+        AGI._handle_command_result(result)
+
+        # make agi_core*.egg locally
+        core_root = env.core_root
+
         cmd = (
             f"uv cd {wenv_rel} && run python setup bdist_wheel -d \"{wenv_path}\""
         )
         if AGI._verbose > 2:
             print(cmd, "\ncwd", os.getcwd(), "\nvenv", core_root, "\ncwd", core_root)
-        res = AgiEnv.run(cmd, cwd=core_root, venv=core_root)
+        result = AgiEnv.run(cmd, venv=core_root)
 
-        # upload agi_core.whl
-        core_whl = next(iter(wenv_path.glob(f"agi_core*.whl")), None)
-        core_whl_path = AgiEnv.normalize_path(core_whl)
-        AGI._send_file(ip, core_whl_path, wenv_rel)
+        # upload agi_core*.egg
+        egg = next(iter(wenv_path.glob(f"agi_core*.egg")), None)
+        AGI._send_file(ip, egg, wenv_rel)
 
         if AGI._verbose > 2:
-            print(f"uploaded:", core_whl_path)
+            print(f"uploaded:", egg)
 
-        cmd = f"cd {wenv_rel} && uv add {Path(core_whl).name}"
+        # install agi_core*.egg
+        cmd = f"cd {wenv_rel} && uv run python -m pip install {Path(egg).name}"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
