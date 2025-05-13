@@ -960,9 +960,10 @@ class AGI:
                 try:
                     out = AGI._exec_ssh(ip, 'uv --version')
                     if AGI._verbose:
-                        print(out, "installed")
+                        print(out.rstrip('\r\n'), "already installed")
 
                 except Exception as e:
+
                     try:
                         # Try PowerShell installer (Windows)
                         AGI._exec_ssh(
