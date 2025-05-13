@@ -768,23 +768,19 @@ class AgiEnv:
             shutil.copytree(self.agi_root.parent / "agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
 
     def _update_env_file(self, updates: dict):
-        """
-        Updates the .agilab/.env file with the key/value pairs from updates.
-        Reads the current file (if any), updates the keys, and writes back all key/value pairs.
-        """
         env_file = self.resource_path / ".env"
-        env_data = {}
-        if env_file.exists():
-            with env_file.open("r") as f:
-                for line in f:
-                    if '=' in line:
-                        k, v = line.strip().split("=", 1)
-                        env_data[k] = v
-        # Update with the new key/value pairs.
-        env_data.update(updates)
-        with env_file.open("w") as f:
-            for k, v in env_data.items():
-                f.write(f"{k}={v}\n")
+        # parse existing .env into a dict (handles quotes/comments)
+        env_data = dotenv_values(dotenv_path=env_file)  # returns plain dict
+        # ensure the file exists before using set_key
+        env_file.touch(exist_ok=True)
+        # update or add each key
+        for k, v in updates.items():
+            set_key(
+                str(env_file),
+                k,
+                str(v),
+                quote_mode="never"  # or "always" if you want quotes around the value
+            )
 
     def set_env_var(self, key: str, value: str):
         """
