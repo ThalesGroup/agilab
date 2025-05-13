@@ -1138,7 +1138,7 @@ class AGI:
         core_root = env.core_root
 
         cmd = (
-            f"uv cd {wenv_rel} && run python setup bdist_wheel -d \"{wenv_path}\""
+            f"uv cd {wenv_rel} && run python setup bdist_egg -d \"{wenv_path}\""
         )
         if AGI._verbose > 2:
             print(cmd, "\ncwd", os.getcwd(), "\nvenv", core_root, "\ncwd", core_root)
