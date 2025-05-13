@@ -749,6 +749,23 @@ class AGI:
         return last_res
 
     @staticmethod
+    def _send_file(ip, local_file, remote_path):
+        """Send file to remote host, creating remote path if it does not exist,
+        and overwrite any existing file without choking on non-UTF-8 output."""
+        # 1) cast to str so PosixPath(...) never leaks into shell commands
+        with closing(AGI._ssh_connect(ip)) as ssh_client:
+            _local_file = str(local_file)
+            try:
+                with SCPClient(ssh_client.get_transport()) as scp:
+                    scp.put(_local_file, remote_path)
+
+            except Exception as e:
+                # show remote_str in the error, not a PosixPath repr
+                raise ConnectionError(
+                    f"Failed to send {_local_file} to {ip}:{remote_path!r}:\n{e}"
+                )
+
+    @staticmethod
     def _send_files(ip, local_files, remote_path):
         """Send file to remote host, creating remote path if it does not exist,
         and overwrite any existing file without choking on non-UTF-8 output."""
@@ -1024,16 +1041,9 @@ class AGI:
         result = AgiEnv.run(cmd, cwd=env_path, venv=env_path)
         AGI._handle_command_result(result)
 
-        whls, eggs, whl_names, egg_names = [], [], [], []
-        for p in wenv_path.iterdir():
-            if p.suffix == ".whl" and p.name.startswith("agi_"):
-                whls.append(p);
-                whl_names.append(p.name)
-            elif p.suffix == ".egg" and p.name.startswith(env.app):
-                eggs.append(p);
-                egg_names.append(p.name)
-        # 3) Send egg, whl, pyproject, uvproject, setup_core
-        AGI._send_files(ip, whls + eggs + [env.worker_pyproject, env.uvproject, env.setup_core], wenv_rel)
+        # 3) Send egg, pyproject, core setup
+        egg = next(iter(wenv_path.glob(f"{env.app}*.egg")), None)
+        AGI._send_files(ip, [egg, env.worker_pyproject, env.uvproject, env.setup_core], wenv_rel)
 
         # 1) Bootstrap ensurepip
         cmd = python + " -m ensurepip"
@@ -1091,6 +1101,22 @@ class AGI:
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
 
+        # build agi_env*.egg
+        env_path = env.agi_fwk_env_path
+        wenv_path = env.wenv_abs
+
+        # make egg for remote install
+        cmd = (
+            f"cd {wenv_rel} && uv run python setup bdist_egg -d \"{wenv_path}\""
+        )
+        if AGI._verbose > 2:
+            print(cmd, "\ncwd", os.getcwd(), "\nvenv", env_path, "\ncwd", env_path)
+        res = AgiEnv.run(cmd, cwd=env_path, venv=env_path)
+
+        # upload agi_env.whl
+        env_whl = next(iter(wenv_path.glob(f"agi_env*.whl")), None)
+        AGI._send_file(ip, env_whl, wenv_rel)
+
         if AGI._verbose > 2:
             print(f"uploaded:", env_whl_path)
 
@@ -1107,7 +1133,32 @@ class AGI:
         result = AGI._exec_ssh(ip, cmd);
         AGI._handle_command_result(result)
 
-        cmd = f"cd {wenv_rel} && uv add {', '.join(whl_names)}"
+        cmd = f"cd {wenv_rel} && uv add {Path(env_whl).name}"
+        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
+        result = AGI._exec_ssh(ip, cmd)
+        AGI._handle_command_result(result)
+
+        # build agi_core*.whl
+        core_root = env.core_root
+        wenv_path = env.wenv_abs
+
+        # make whl for remote install
+        cmd = (
+            f"uv cd {wenv_rel} && run python setup bdist_wheel -d \"{wenv_path}\""
+        )
+        if AGI._verbose > 2:
+            print(cmd, "\ncwd", os.getcwd(), "\nvenv", core_root, "\ncwd", core_root)
+        res = AgiEnv.run(cmd, cwd=core_root, venv=core_root)
+
+        # upload agi_core.whl
+        core_whl = next(iter(wenv_path.glob(f"agi_core*.whl")), None)
+        core_whl_path = AgiEnv.normalize_path(core_whl)
+        AGI._send_file(ip, core_whl_path, wenv_rel)
+
+        if AGI._verbose > 2:
+            print(f"uploaded:", core_whl_path)
+
+        cmd = f"cd {wenv_rel} && uv add {Path(core_whl).name}"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
@@ -1353,7 +1404,7 @@ class AGI:
                 cmd = f"python3 -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
                 AGI._exec_ssh(AGI._scheduler_ip, cmd)
                 toml_wenv = wenv_rel / "pyproject.toml"
-                AGI._send_files(AGI._scheduler_ip, [toml_local], toml_wenv)
+                AGI._send_file(AGI._scheduler_ip, toml_local, toml_wenv)
                 cmd = (
                     f"uv run --project {wenv_rel} dask scheduler --port {AGI._scheduler_port} --host {AGI._scheduler_ip} "
                     f"--pid-file dask_pid")
