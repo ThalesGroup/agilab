@@ -963,7 +963,8 @@ class AGI:
                         print(out.rstrip('\r\n'), "already installed")
 
                 except Exception as e:
-
+                    if AGI._verbose:
+                        print("installing uv ...")
                     try:
                         # Try PowerShell installer (Windows)
                         AGI._exec_ssh(
@@ -1141,6 +1142,16 @@ class AGI:
         has_rapids_hw = (result != "")
         AGI._log_verbose(f"Remote Rapids-capable GPU: {has_rapids_hw}", level=2)
 
+        cmd = python + (
+            " -c \"import platform;"
+            " sys_p=platform.system();"
+            " print(sys_p)\""
+        )
+        AGI._log_verbose(f"Detecting remote OS on {ip}: {cmd}", level=2)
+        os_result = AGI._exec_ssh(ip, cmd)
+        remote_os = os_result.strip()
+        remote_os_is_windows = remote_os.lower().startswith("windows")
+
         # 6) Build and run uv sync, adding --config-file only when has_rapids_hw
         if has_rapids_hw:
             sync_cmd = f"cd {wenv_rel} && uv sync --upgrade {option}"
@@ -1187,8 +1198,13 @@ class AGI:
         if AGI._verbose > 2:
             print(f"uploaded:", env_whl_path)
 
+        # get remot os
+
         # init venv
-        cmd = f"cd {wenv_rel} && uv init --bare"
+        if remote_os_is_windows:
+            cmd = f"cd {wenv_rel} && if not exist pyproject.toml\\NUL uv init --bare"
+        else:
+            cmd = f"cd {wenv_rel} && [ ! -d .git ] && uv init --bare"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd);
         AGI._handle_command_result(result)
@@ -1203,9 +1219,7 @@ class AGI:
         wenv_path = env.wenv_abs
 
         # make whl for remote install
-        cmd = (
-            f"uv run --project {core_root} python setup bdist_wheel -d \"{wenv_path}\""
-        )
+        cmd = f"cd {core_root} && uv run python setup bdist_wheel -d \"{wenv_path}\""
         if AGI._verbose > 2:
             print(cmd, "\ncwd", os.getcwd(), "\nvenv", core_root, "\ncwd", core_root)
         result = AgiEnv.run(cmd, cwd=core_root, venv=core_root)
