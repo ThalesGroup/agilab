@@ -1026,24 +1026,8 @@ class AGI:
         supports Rapids (detected via `nvidia-smi`), regardless of os.name.
         """
         pyvers = env.python_version
-        python = f"uv run -p {pyvers} python"
-
-        # build agi_env*.egg
-        env_path = env.agi_fwk_env_path
+        python = f"uv run -p {pyvers} python"h
         wenv_path = env.wenv_abs
-
-        # make egg for remote install
-        cmd = (
-            f"uv run --project {env_path} python setup bdist_egg -d \"{wenv_path}\""
-        )
-        if AGI._verbose > 2:
-            print(cmd, "\ncwd", os.getcwd(), "\nvenv", env_path, "\ncwd", env_path)
-        result = AgiEnv.run(cmd, cwd=env_path, venv=env_path)
-        AGI._handle_command_result(result)
-
-        # 3) Send egg, pyproject, core setup
-        egg = next(iter(wenv_path.glob(f"{env.app}*.egg")), None)
-        AGI._send_files(ip, [egg, env.worker_pyproject, env.uvproject, env.setup_core], wenv_rel)
 
         # 1) Bootstrap ensurepip
         cmd = python + " -m ensurepip"
@@ -1096,6 +1080,7 @@ class AGI:
         # install env & core for enabling dask worker spawn
         ##################################################
 
+
         # init venv
         cmd = (
             f"{python} -c "
@@ -1116,46 +1101,33 @@ class AGI:
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
 
-        # make agi_env*.egg locally
-        env_path = env.agi_fwk_env_path
-        wenv_path = env.wenv_abs
+                # build agi_env*.whl
+        wenv = env.agi_fwk_env_path
+        cmd = f"uv run --project {wenv} build --wheel"
+        result = AgiEnv.run(cmd, venv=wenv)
+        AGI._handle_command_result(result)
 
-        cmd = (
-            f"cd {wenv_rel} && uv run python setup bdist_egg -d \"{wenv_path}\""
-        )
-        if AGI._verbose > 2:
-            print(cmd, "\ncwd", os.getcwd(), "\nvenv", env_path, "\ncwd", env_path)
-        result = AgiEnv.run(cmd, venv=env_path)
+        dist = wenv / "dist"
+        whl = next(iter(dist.glob("agi_env*.whl", None)))
+        AGI._send_file(ip, whl, wenv_rel)
 
-        # upload agi_env*.egg
-        agi_env_egg = next(iter(wenv_path.glob(f"agi_env*.egg")), None)
-        AGI._send_file(ip, agi_env_egg, wenv_rel)
+        cmd = f"uv add --project {wenv} Path({whl}).name""
+        result = AgiEnv.run(cmd, venv=wenv)
+        AGI._handle_command_result(result)
 
-        if AGI._verbose > 2:
-            print(f"uploaded:", agi_env_egg)
+        # build agi_core*.whl
+        wenv = env.agi_core
+        cmd = f"uv run --project {wenv} build --wheel"
+        result = AgiEnv.run(cmd, venv=wenv)
+        AGI._handle_command_result(result)
 
-        # install agi_env*.egg
-        # cmd = f"uv run --project {wenv_rel} python -m pip install {Path(agi_env_egg).name}"
-        # AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        # result = AGI._exec_ssh(ip, cmd)
-        # AGI._handle_command_result(result)
+        dist = wenv / "dist"
+        whl = next(iter(dist.glob("agi_core*.whl", None)))
+        AGI._send_file(ip, whl, wenv_rel
 
-        # make agi_core*.egg locally
-        core_root = env.core_root
-
-        cmd = (
-            f"cd {wenv_path} && uv run python setup bdist_egg -d \"{wenv_path}\""
-        )
-        if AGI._verbose > 2:
-            print(cmd, "\ncwd", os.getcwd(), "\nvenv", core_root, "\ncwd", core_root)
-        result = AgiEnv.run(cmd, venv=core_root)
-
-        # upload agi_core*.egg
-        agi_core_egg = next(iter(wenv_path.glob(f"agi_core*.egg")), None)
-        AGI._send_file(ip, egg, wenv_rel)
-
-        if AGI._verbose > 2:
-            print(f"uploaded:", agi_core_egg)
+        cmd = f"uv add --project {wenv} Path({whl}).name"
+        result = AgiEnv.run(cmd, venv=wenv)
+        AGI._handle_command_result(result)
 
         # install agi_core*.egg
         # cmd = f"uv run  --project {wenv_rel} python -m pip install {Path(agi_core_egg).name}"
@@ -1614,23 +1586,24 @@ class AGI:
 
             # finally BUILD AND LOAD THE TARGET WORKER EGG ON all workers
             for worker in list(AGI._dask_client.scheduler_info()["workers"].keys()):
-                ip = worker.split('/')[-1].split(':')[0]
-                #finally BUILD THE TARGET WORKER LIB
-                cmd = f"cd {wenv_rel} && uv run -p {pyvers} python setup build_ext -b '{wenv_rel}'"
-                AGI._log_verbose(f"Build worker lib on {ip}: {cmd}", level=2)
-                result = AGI._exec_ssh(ip, cmd)
-                AGI._handle_command_result(result)
-                # AGI._dask_client.run(
-                #     AgiWorker.build,
-                #     env.target_worker,
-                #     AGI._dask_client.scheduler_info()["workers"][worker][
-                #         "local_directory"
-                #     ],
-                #     worker,
-                #     mode=AGI._mode,
-                #     verbose=AGI._verbose,
-                #     workers=[worker],
-                # )
+                # ip = worker.split('/')[-1].split(':')[0]
+                # #finally BUILD THE TARGET WORKER LIB
+                # cmd = f"cd {wenv_rel} && uv run -p {pyvers} python setup build_ext -b '{wenv_rel}'"
+                # AGI._log_verbose(f"Build worker lib on {ip}: {cmd}", level=2)
+                # result = AGI._exec_ssh(ip, cmd)
+                # AGI._handle_command_result(result)
+
+                AGI._dask_client.run(
+                    AgiWorker.build,
+                    env.target_worker,
+                    AGI._dask_client.scheduler_info()["workers"][worker][
+                        "local_directory"
+                    ],
+                    worker,
+                    mode=AGI._mode,
+                    verbose=AGI._verbose,
+                    workers=[worker],
+                )
 
         return wenv
 
