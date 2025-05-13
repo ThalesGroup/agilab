@@ -1186,13 +1186,13 @@ class AGI:
         if AGI._verbose > 2:
             print(f"uploaded:", env_whl_path)
 
-        # Bootstrap ensurepip
-        cmd = f"cd {wenv_rel} && uv run python -m ensurepip"
+        # init venv
+        cmd = f"cd {wenv_rel} && uv init --bare"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd);
         AGI._handle_command_result(result)
 
-        cmd = f"cd {wenv_rel} && uv run python -m pip install {Path(env_whl).name}"
+        cmd = f"cd {wenv_rel} && uv add {Path(env_whl).name}"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
@@ -1218,16 +1218,14 @@ class AGI:
         if AGI._verbose > 2:
             print(f"uploaded:", core_whl_path)
 
-        cmd = f"cd {wenv_rel} && uv run python -m pip install {Path(core_whl).name}"
+        cmd = f"cd {wenv_rel} && uv add {Path(core_whl).name}"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
 
+
         # finally BUILD THE TARGET WORKER LIB ON all workers
-        cmd = (
-            f"cd {wenv_rel} && uv run run python -c \""
-            f"AgiWorker.build({env.target_worker}, {wenv_rel}, {wenv_rel.name}, mode=2, verbose={AGI._verbose})\""
-        )
+        cmd = "cd {wenv_rel} && uv run python setup build_ext -d {wenv_rel}"
         AGI._log_verbose(f"Build worker lib on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
