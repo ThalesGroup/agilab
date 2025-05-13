@@ -490,7 +490,7 @@ class AgiWorker(abc.ABC):
         return system_info
 
     @staticmethod
-    def build(app, target_worker, dask_home, worker, mode=0, verbose=0):
+    def build(target_worker, dask_home, worker, mode=0, verbose=0):
         """Function to build target code on a my_code_AgiWorker.
 
         Args:
@@ -543,114 +543,56 @@ class AgiWorker(abc.ABC):
                 extract_path = Path(AgiWorker.home_dir) / "wenv" / target_worker
                 extract_src = extract_path / "src"
 
-                # if verbose > 2:
-                #     f.write(f"extract_path: {extract_path} \n")
-                #
-                # os.makedirs(extract_path, exist_ok=True)
-                #
-                # if verbose > 2:
-                #     f.write("sys.path:\n")
-                #     for x in sys.path:
-                #         f.write(f"\t{x}\n")
-                #
-                # # retrieve the egg file name without extension from the dask-scratch-space
-                # egg_src = next(
-                #     (x for x in Path(dask_home).glob(f"*{app.replace('-', '_')}*.src")),
-                #     None
-                # )
-                # if egg_src is None:
-                #     raise FileNotFoundError(
-                #         f"No file starting with '{app}' and not having suffix '.src' was found in {dask_home}"
-                #     )
-                #
-                # if verbose > 2:
-                #     f.write(f"worker_egg: {egg_src}\n")
-                #
-                if mode & 2:
-                #     # case cython requested
-                #     if AgiWorker._built:
-                #         # case cython already built
-                #         return
-                #
-                #     if verbose > 2:
-                #         f.write(f"unzip: {egg_src}\nto: {extract_path}\n")
-                #
-                #     # unzip it into the wenv
-                #     with ZipFile(egg_src, "r") as zip_ref:
-                #         zip_ref.extractall(extract_src)
-                #
-                #     if verbose > 2:
-                #         f.write(f" done!\n")
-                #         f.write(f"copyfile: 'setup' to {extract_path}")
-                #
-                #     shutil.copyfile(
-                #         os.path.join(extract_path, "src/agi_core/workers/agi_worker/setup"),
-                #         os.path.join(extract_path, "setup"),
-                #     )
-                #
-                #     if verbose > 2:
-                #         f.write(f" done!\n")
-                #
-                #     sys_prefix = Path(get_python_lib())
-                #
-                #     # clean the target lib if any
-                #     ext = "pyd" if os.name == "nt" else "so"
-                #     target_lib_iter = sys_prefix.glob(f"*{target_worker}*.{ext}")
-                #     for lib in target_lib_iter:
-                #         if verbose > 2:
-                #             f.write(f" removing:  {lib}")
-                #         os.remove(lib)
-                #         if verbose > 2:
-                #             f.write(f" done!\n")
+                if not mode & 2:
 
-                    if verbose > 2:
-                        f.write(f"sys_prefix: {sys_prefix}\n")
-                    # build the target extension
-                    cmd = [
-                        "cd",
-                        str(extract_path),
-                        "&&",
-                        "uv",
-                        "run",
-                        "python",
-                        "setup",
-                        "build_ext",
-                        "--debug",
-                        "-d",
-                        str(extract_path)
-                    ]
+                    # if verbose > 2:
+                    #     f.write(f"sys_prefix: {sys_prefix}\n")
+                    # # build the target extension
+                    # cmd = [
+                    #     "cd",
+                    #     str(extract_path),
+                    #     "&&",
+                    #     "uv",
+                    #     "run",
+                    #     "python",
+                    #     "setup",
+                    #     "build_ext",
+                    #     "--debug",
+                    #     "-d",
+                    #     str(extract_path)
+                    # ]
+                    #
+                    # # Fixing side effect: add extract_path as a string
+                    # extract_path_str = str(extract_path)
+                    # if extract_path_str not in sys.path:
+                    #     sys.path.append(extract_path_str)
+                    #
+                    # target_lib = next(
+                    #     (p for p in extract_path.iterdir() if p.suffix == f".{ext}"),
+                    #     None
+                    # )
+                    # if target_lib is None:
+                    #     raise FileNotFoundError(f"No file with extension '.{ext}' found in {extract_path}")
+                    #
+                    # lib_dir =os.path.join(sysconfig.get_path("platlib"), target_lib.name)
+                    # shutil.copyfile(target_lib, lib_dir)
+                    #
+                    # if verbose > 2:
+                    #     f.write(f"copy {target_lib}\n tp {lib_dir}\n")
+                    #     f.write(f"running cmd: {cmd}\nfrom path: {extract_path}\n")
+                    #
+                    # res = AgiWorker.exec(cmd, extract_path, worker)
+                    #
+                    # if verbose > 2:
+                    #     f.write(f"stdout: {res.stdout}")
+                    #     f.write("\n")
+                    #     f.write(f"stderr: {res.stderr}")
+                    #     f.write("\n")
+                    #     f.write(f" done!\n")
+                    #
+                    # AgiWorker._built = True
 
-                    # Fixing side effect: add extract_path as a string
-                    extract_path_str = str(extract_path)
-                    if extract_path_str not in sys.path:
-                        sys.path.append(extract_path_str)
-
-                    target_lib = next(
-                        (p for p in extract_path.iterdir() if p.suffix == f".{ext}"),
-                        None
-                    )
-                    if target_lib is None:
-                        raise FileNotFoundError(f"No file with extension '.{ext}' found in {extract_path}")
-
-                    lib_dir =os.path.join(sysconfig.get_path("platlib"), target_lib.name)
-                    shutil.copyfile(target_lib, lib_dir)
-
-                    if verbose > 2:
-                        f.write(f"copy {target_lib}\n tp {lib_dir}\n")
-                        f.write(f"running cmd: {cmd}\nfrom path: {extract_path}\n")
-
-                    res = AgiWorker.exec(cmd, extract_path, worker)
-
-                    if verbose > 2:
-                        f.write(f"stdout: {res.stdout}")
-                        f.write("\n")
-                        f.write(f"stderr: {res.stderr}")
-                        f.write("\n")
-                        f.write(f" done!\n")
-
-                    AgiWorker._built = True
-
-                else:
+                #else:
                     # case worker egg need to be added to sys.path
                     egg_dest = os.path.join(
                         extract_path, os.path.basename(egg_src) + ".egg"
