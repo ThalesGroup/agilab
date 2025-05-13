@@ -1107,7 +1107,7 @@ class AGI:
         result = AGI._exec_ssh(ip, cmd);
         AGI._handle_command_result(result)
 
-        cmd = f"cd {wenv_rel} && uv add {' '.join(whl_names)}"
+        cmd = f"cd {wenv_rel} && uv add {', '.join(whl_names)}"
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
