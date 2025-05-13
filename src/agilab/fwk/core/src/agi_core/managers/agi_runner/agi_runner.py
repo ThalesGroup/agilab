@@ -930,84 +930,75 @@ class AGI:
         return list_ip
 
     @staticmethod
-    def _install_cluster(scheduler):
+    @staticmethod
+    async def _install_cluster(scheduler):
         """
-        Validate and prepare each remote node in the cluster:
-        - Verify each IP is valid and reachable.
-        - Detect and install Python interpreters if missing.
-        - Detect and install 'uv' CLI via pip if missing.
-        - Use 'uv' to install the specified Python version, create necessary directories, and install packages.
+        Validate and prepare each remote node in the cluster in parallel:
+          - Verify each IP is valid.
+          - Install or detect uv CLI.
+          - Install the requested Python version.
+          - Create and bootstrap the wenv.
+          - Init only if not already initialized.
         """
-        list_ip = set(list(AGI.workers) + [AGI._get_scheduler(scheduler)[0]])
-        localhost_ip = socket.gethostbyname("localhost")
+        # 1) Build the set of remote IPs
+        list_ip = set(AGI.workers) | {AGI._get_scheduler(scheduler)[0]}
         if not list_ip:
-            list_ip.add(localhost_ip)
-
-        # Validate IPs
+            list_ip = {socket.gethostbyname("localhost")}
+        # Validate
         for ip in list_ip:
             if not AGI._is_local(ip) and not is_ip(ip):
-                raise ValueError(f"Error: invalid IP address {ip}")
+                raise ValueError(f"Invalid IP address {ip}")
+        # 2) Fire off all preparations concurrently
+        await asyncio.gather(*(
+            AGI._prepare_node(ip, AGI.env.wenv_rel, AGI.env.python_version, AGI._verbose)
+            for ip in list_ip
+            if not AGI._is_local(ip)
+        ))
 
-        # Prepare each remote node
-        for ip in list_ip:
-            if AGI._is_local(ip):
-                continue
+    @staticmethod
+    async def _prepare_node(ip, wenv_rel, pyvers, verbose):
+        """Runs one big SSH script that does everything in one shot."""
+        # A single shell script that will:
+        #  - install uv if needed,
+        #  - install Python via uv,
+        #  - mkdir wenv_rel,
+        #  - init only if pyproject.toml missing,
+        #  - install Dask deps.
+        # All checks are done in Python on the remote side, so it's portable.
+        remote_script = r'''
+    import os, subprocess as s, sys
+    # 1) Ensure uv CLI
+    try:
+        s.run(["uv","--version"], check=True, stdout=s.DEVNULL, stderr=s.DEVNULL)
+    except:
+        # try windows installer
+        try:
+            s.run(["powershell","-ExecutionPolicy","ByPass","-c",
+                   "irm https://astral.sh/uv/install.ps1 | iex"], check=True)
+        except:
+            # fallback unix
+            s.run(["sh","-lc","curl -LsSf https://astral.sh/uv/install.sh | sh"], check=True)
+    # 2) Install Python version
+    s.run(["uv","python","install",PYVERS], check=True)
+    # 3) Make project dir
+    os.makedirs(R'{WENV}', exist_ok=True)
+    # 4) uv init only if not already
+    if not os.path.exists(os.path.join(R'{WENV}',"pyproject.toml")):
+        s.run(["uv","init","--bare"], cwd=R'{WENV}', check=True)
+    # 5) Add core deps
+    s.run(["uv","add","setuptools","psutil","dask[distributed]"], cwd=R'{WENV}', check=False)
+    print("OK")
+    '''.strip()
 
-            try:
-                # 2. Ensure UV CLI is installed
-                wenv_rel = AGI.env.wenv_rel
-                pyvers = AGI.env.python_version
-                try:
-                    out = AGI._exec_ssh(ip, 'uv --version')
-                    if AGI._verbose:
-                        print(out.rstrip('\r\n'), "already installed")
-
-                except Exception as e:
-                    if AGI._verbose:
-                        print("installing uv ...")
-                    try:
-                        # Try PowerShell installer (Windows)
-                        AGI._exec_ssh(
-                            ip,
-                            'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"'
-                        )
-                        uv_installed = True
-                    except Exception:
-                        try:
-                            # Fallback to shell installer (Unix)
-                            AGI._exec_ssh(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
-                            # Source uv environment
-                            AGI._exec_ssh(ip, 'source $HOME/.local/bin/env')
-                            uv_installed = True
-                        except Exception:
-                            # Network or installer not reachable
-                            raise PermissionError(
-                                f"Remote host {ip} cannot fetch the UV installer."
-                                " Ensure it has Internet access or install 'uv' manually on the remote host."
-                            )
-
-                    # 3. Use UV to install the required Python version
-                    AGI._exec_ssh(ip, f"uv python install {pyvers}")
-                    try:
-                        #AGI._exec_ssh(ip, f"uv init --bare && uv add setuptools psutil dask[distributed]")
-                        # make sure the uv env exists:
-                        AGI._exec_ssh(ip, 'uv init --bare')
-                        # then install Dask with pip into that env:
-                        cmd = f'uv add setuptools psutil dask[distributed]"'
-                        AGI._exec_ssh(ip, cmd)
-
-                    except Exception:
-                        pass
-
-                # 4. Create the remote virtualenv directory
-                out = AGI._exec_ssh(
-                    ip,
-                    f"uv run -p {pyvers} python -c \"import os; "
-                    f"os.makedirs('{wenv_rel}', exist_ok=True)\""
-                )
-
-            except Exception as e:
-                raise Exception(f"Failed to prepare node {ip}:\n{e}") from e
+        # interpolate constants
+        script = remote_script.replace("PYVERS", f"'{pyvers}'") \
+            .replace("R'{WENV}'", f"r'{wenv_rel}'")
+        # one SSH call
+        cmd = f"uv run -p {pyvers} python - << 'EOF'\n{script}\nEOF"
+        if verbose:
+            AGI._log_verbose(f"Preparing {ip} with:\n{cmd}", level=2)
+        result = AGI._exec_ssh(ip, cmd)
+        AGI._handle_command_result(result)
 
 
     @staticmethod
@@ -1018,31 +1009,36 @@ class AGI:
         wenv_rel = env.wenv_rel
         wenv_abs = env.wenv_abs
         pyvers = env.python_version
-        extras = "--dev -p " + pyvers
-        extras += " --group rapids" if AGI._rapids_install else ""
+        extras = f"--dev -p {pyvers}" + (" --group rapids" if AGI._rapids_install else "")
         options = {"manager": extras, "worker": extras}
         if isinstance(env.base_worker_cls, str):
             options["worker"] += " --extra " + " --extra ".join(AGI.install_worker_group)
-        AGI._install_cluster(scheduler)
+
+        # collect node IPs and build local egg
         node_ips = AGI._get_clean_nodes(scheduler)
-        AGI._venv_todo(node_ips)
-        start_time = time.time()
-        AGI._log_verbose(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1", level=1)
-        AGI._install_env_local(app_path, Path(wenv_rel), options)
         core_root = env.core_root
-        cmd = f"uv run -p {pyvers} --project {core_root} python setup bdist_egg -d \"{wenv_abs}\""
+        build_cmd = f"uv run --project {core_root} python setup bdist_egg -d \"{wenv_abs}\""
         if AGI._verbose > 2:
-            # print(cmd, "\ncwd", os.getcwd(), "\nvenv", wenv_abs, "\ncwd", core_root)
-            print(cmd, "\ncwd", os.getcwd(), "\nvenv", wenv_abs, "\ncwd", wenv_abs)
-        res = AgiEnv.run(cmd, wenv_abs)
-        tasks = []
-        for ip in node_ips:
-            AGI._log_verbose(f"********   Starting {AGI._run_type} for Agi_worker in .venv on {ip}", level=1)
-            if not AGI._is_local(ip):
-                tasks.append(asyncio.create_task(
-                    AGI._install_env_remote(ip, env, wenv_rel, options["worker"])
-                ))
-        await asyncio.gather(*tasks)
+            print(build_cmd, os.getcwd(), wenv_abs)
+        # build egg in background thread
+        await asyncio.to_thread(lambda: AgiEnv.run(build_cmd, cwd=wenv_abs, venv=wenv_abs))
+
+        # prepare parallel tasks: local install + remote installs
+        start_time = time.time()
+        AGI._log_verbose(f"********   Starting parallel install for {app_path}", level=1)
+
+        local_task = asyncio.create_task(
+            asyncio.to_thread(AGI._install_env_local, app_path, Path(wenv_rel), options)
+        )
+        remote_tasks = [
+            asyncio.create_task(
+                AGI._install_env_remote(ip, env, wenv_rel, options["worker"])
+            )
+            for ip in node_ips if not AGI._is_local(ip)
+        ]
+
+        # run all installs concurrently
+        await asyncio.gather(local_task, *remote_tasks)
 
         if AGI._verbose:
             duration = AGI._format_duration(time.time() - start_time)
@@ -1092,159 +1088,74 @@ class AGI:
 
     @staticmethod
     async def _install_env_remote(ip: str, env, wenv_rel: Path, option: str):
-        """Install packages and set up the environment on a remote node.
-
-        Adds --config-file uv.toml to `uv sync` only when the remote hardware
-        supports Rapids (detected via `nvidia-smi`), regardless of os.name.
-        """
+        """Batch install environment on a remote node (cross-platform)."""
         pyvers = env.python_version
         python = f"uv run -p {pyvers} python"
 
-        # 1) Bootstrap ensurepip
-        cmd = python + " -m ensurepip"
-        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd);
-        AGI._handle_command_result(result)
+        # 1) Pre-upload necessary files
+        egg = next(iter(env.wenv_abs.glob("*.egg")), None)
+        files = [egg, env.worker_pyproject, env.uvproject, env.setup_core]
+        for f in files:
+            AGI._send_file(ip, str(f), wenv_rel)
 
-        # 2) Create project dir remotely
-        cmd = python + f" -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
-        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd);
-        AGI._handle_command_result(result)
+        # 2) Construct remote Python script
+        remote_script = f'''import os, pathlib, subprocess as s, sys, zipfile
 
-        # 3) Send egg, pyproject, core setup
-        egg = str(next(iter(env.wenv_abs.glob("*.egg")), None))
-        AGI._send_file(ip, egg, wenv_rel)
-        AGI._send_file(ip, env.worker_pyproject, wenv_rel)
-        AGI._send_file(ip, env.uvproject, wenv_rel)
-        AGI._send_file(ip, env.setup_core, wenv_rel)
+    # constants
+    ROOT = r"{wenv_rel}"
+    PY = "{python}"
+    OPTION = "{option}"
+    POST = r"{env.post_install}"
+    DATA = r"{env.data_dir}"
+    EGG = r"{Path(egg).name}"
+    UVPROJ = r"{Path(env.uvproject).name}"
 
-        # 4) Unzip egg into remote venv src/
+    # 1) ensure pip
+    s.run(PY.split() + ["-m", "ensurepip"], check=True)
+
+    # 2) mkdir project dir
+    os.makedirs(ROOT, exist_ok=True)
+
+    # 3) unzip eggs
+    src = os.path.join(ROOT, "src")
+    os.makedirs(src, exist_ok=True)
+    for e in pathlib.Path(ROOT).glob("*.egg"):
+        zipfile.ZipFile(str(e)).extractall(src)
+
+    # 4) detect GPU
+    has_gpu = s.run(PY.split() + ["-c", "import subprocess,sys; sys.exit(subprocess.run(['nvidia-smi']).returncode)"], stdout=s.DEVNULL, stderr=s.DEVNULL).returncode == 0
+
+    # 5) sync
+    os.chdir(ROOT)
+    sync_cmd = ["uv", "sync", "--upgrade", OPTION] if has_gpu else ["uv", "--config-file", "uv.toml", "sync", "--upgrade", OPTION]
+    s.run(sync_cmd, check=True)
+
+    # 6) post-install hook
+    s.run((PY + f" {POST!r} {DATA!r}").split(), check=True)
+
+    # 7) pip install -e .
+    s.run(["uv", "pip", "install", "-e", "."], check=True)
+
+    # 8) init only if missing
+    if not os.path.exists(os.path.join(ROOT, "pyproject.toml")):
+        s.run(["uv", "init", "--bare"], cwd=ROOT, check=True)
+
+    # 9) add wheels
+    for w in [EGG, UVPROJ]:
+        s.run(["uv", "add", w], cwd=ROOT, check=True)
+
+    print("OK")'''
+
+        # 3) Encode and send in one SSH call (base64 for safe quoting)
+        import base64
+        payload = base64.b64encode(remote_script.encode('utf-8')).decode('ascii')
         cmd = (
-            f"{python} -c \"import os, pathlib, zipfile;"
-            f" root = '{wenv_rel}';"
-            f" os.makedirs(os.path.join(root,'src'), exist_ok=True);"
-            f" [zipfile.ZipFile(str(egg)).extractall(os.path.join(root,'src'))"
-            f"  for egg in pathlib.Path(root).glob('*.egg')]\""
+            f"{python} -c \"import base64,sys; "
+            f"exec(base64.b64decode('{payload}'))\""
         )
-        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
+        AGI._log_verbose(f"Executing batch install on {ip}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
-
-        # 5) Check remote Rapids hardware support via nvidia-smi
-        check_rapids = (
-                python +
-                " -c \"import subprocess,sys; "
-                "r=subprocess.run(['nvidia-smi'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL);"
-                " sys.exit(0 if r.returncode==0 else 1)\""
-        )
-        result = AGI._exec_ssh(ip, check_rapids)
-        has_rapids_hw = (result != "")
-        AGI._log_verbose(f"Remote Rapids-capable GPU: {has_rapids_hw}", level=2)
-
-        cmd = python + (
-            " -c \"import platform;"
-            " sys_p=platform.system();"
-            " print(sys_p)\""
-        )
-        AGI._log_verbose(f"Detecting remote OS on {ip}: {cmd}", level=2)
-        os_result = AGI._exec_ssh(ip, cmd)
-        remote_os = os_result.strip()
-        remote_os_is_windows = remote_os.lower().startswith("windows")
-
-        # 6) Build and run uv sync, adding --config-file only when has_rapids_hw
-        if has_rapids_hw:
-            sync_cmd = f"cd {wenv_rel} && uv sync --upgrade {option}"
-        else:
-            sync_cmd = f"cd {wenv_rel} && uv --config-file uv.toml sync --upgrade {option}"
-
-        AGI._log_verbose(f"Executing on {ip}: {sync_cmd}", level=2)
-        result = AGI._exec_ssh(ip, sync_cmd);
-        AGI._handle_command_result(result)
-
-        # 7) Post-install script
-        cmd = f"cd {wenv_rel} && uv run -p {pyvers} python {env.post_install} '{env.data_dir}'"
-
-        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd);
-        AGI._handle_command_result(result)
-
-        #####################################################
-        # install env & core for enabling dask worker spawn
-        ##################################################
-
-        cmd = f"cd {wenv_rel} && uv pip install -e ."
-        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
-
-        # build agi_env*.egg
-        env_path = env.agi_fwk_env_path
-        wenv_path = env.wenv_abs
-
-        # make egg for remote install
-        cmd = (
-            f"uv run --project {env_path} python setup bdist_egg -d \"{wenv_path}\""
-        )
-        if AGI._verbose > 2:
-            print(cmd, "\ncwd", os.getcwd(), "\nvenv", env_path, "\ncwd", env_path)
-        result = AgiEnv.run(cmd, cwd=env_path, venv=env_path)
-        AGI._handle_command_result(result)
-
-        # upload agi_env.whl
-        env_whl = next(iter(wenv_path.glob(f"agi_env*.whl")), None)
-        AGI._send_file(ip, env_whl, wenv_rel)
-
-        if AGI._verbose > 2:
-            print(f"uploaded:", env_whl_path)
-
-        # get remot os
-
-        # init venv
-        if remote_os_is_windows:
-            cmd = f"cd {wenv_rel} && if not exist pyproject.toml\\NUL uv init --bare"
-        else:
-            cmd = f"cd {wenv_rel} && [ ! -d .git ] && uv init --bare"
-        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd);
-        AGI._handle_command_result(result)
-
-        cmd = f"cd {wenv_rel} && uv add {Path(env_whl).name}"
-        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
-
-        # build agi_core*.whl
-        core_root = env.core_root
-        wenv_path = env.wenv_abs
-
-        # make whl for remote install
-        cmd = f"cd {core_root} && uv run python setup bdist_wheel -d \"{wenv_path}\""
-        if AGI._verbose > 2:
-            print(cmd, "\ncwd", os.getcwd(), "\nvenv", core_root, "\ncwd", core_root)
-        result = AgiEnv.run(cmd, cwd=core_root, venv=core_root)
-        AGI._handle_command_result(result)
-
-        # upload agi_core.whl
-        core_whl = next(iter(wenv_path.glob(f"agi_core*.whl")), None)
-        core_whl_path = AgiEnv.normalize_path(core_whl)
-        AGI._send_file(ip, core_whl_path, wenv_rel)
-
-        if AGI._verbose > 2:
-            print(f"uploaded:", core_whl_path)
-
-        cmd = f"cd {wenv_rel} && uv add {Path(core_whl).name}"
-        AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
-
-
-        # finally BUILD THE TARGET WORKER LIB ON all workers
-        cmd = "cd {wenv_rel} && uv run python setup build_ext -d {wenv_rel}"
-        AGI._log_verbose(f"Build worker lib on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
-
 
     @staticmethod
     def _install_env_local(src: Path, wenv_rel: Path, options: dict):
