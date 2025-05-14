@@ -1223,7 +1223,7 @@ def handle_project_creation():
     raw = st.sidebar.text_input("Project Name (no suffix)", key="clone_dest").strip()
 
     cols = st.sidebar.columns(3)
-    if cols[2].button("Create and Clone", type="primary", use_container_width=True):
+    if cols[2].button("Create", type="primary", use_container_width=True):
         if not raw:
             st.error("Project name must not be empty.")
             return
@@ -1506,12 +1506,12 @@ def page():
 
     # Sidebar: Project selection, creation, loading
     sidebar_selection = st.sidebar.radio(
-        "PROJECT", ["Select", "Create", "Rename", "Delete", "Import"], key="sidebar_selection"
+        "PROJECT", ["Select", "Create and Clone", "Rename", "Delete", "Import"], key="sidebar_selection"
     )
 
     if sidebar_selection == "Select":
         handle_project_selection()
-    elif sidebar_selection == "Create":
+    elif sidebar_selection == "Create and Clone":
         handle_project_creation()
     elif sidebar_selection == "Rename":
         handle_project_rename()
