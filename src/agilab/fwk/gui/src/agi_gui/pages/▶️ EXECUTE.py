@@ -15,6 +15,7 @@ import json
 import numbers
 from collections import defaultdict
 from pathlib import Path
+import importlib
 
 # Third-Party imports
 import networkx as nx
@@ -607,11 +608,12 @@ def workload_barchart(workers, workers_chunks, partition_key, weights_key, weigh
 # Main Application UI
 # ===========================
 async def page():
-    env = st.session_state["env"]
+    if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
+        # Redirect back to the landing page and rerun immediately
+        page_module = importlib.import_module("AGILAB")
+        page_module.main()
+        st.rerun()
 
-    if 'env' not in st.session_state:
-        st.error("The application environment is not initialized. Please reload the app.")
-        st.stop()
     else:
         env = st.session_state['env']
 
@@ -620,7 +622,7 @@ async def page():
     render_logo("Execute your Application")
 
     if not st.session_state.get("server_started"):
-        activate_mlflow()
+        activate_mlflow(env)
         st.session_state["server_started"] = True
 
     # Define defaults for session state keys.

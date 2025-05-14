@@ -114,11 +114,6 @@ def page(env):
 
 
 def main():
-    st.set_page_config(
-        menu_items=get_about_content(),  # Adjust if necessary
-        layout="wide"
-    )
-
     # --- Command-Line Argument Parsing ---
     parser = argparse.ArgumentParser(
         description="Run the AGI Streamlit App with optional parameters."
@@ -152,10 +147,11 @@ def main():
     st.session_state["apps_dir"] = args.apps_dir
     st.session_state["INSTALL_TYPE"] = args.install_type
     env = AgiEnv(apps_dir=Path(args.apps_dir), install_type=int(args.install_type), verbose=1)
+    env.init_done = True
     st.session_state['env'] = env
 
     if not st.session_state.get("server_started"):
-        activate_mlflow()
+        activate_mlflow(env)
         st.session_state["server_started"] = True
 
     # --- Retrieve OpenAI API Key ---
@@ -177,6 +173,11 @@ def main():
     env.set_env_var("APPS_DIR", args.apps_dir)
 
     # -------------------- Navigation and Page Rendering -------------------- #
+    st.set_page_config(
+        menu_items=get_about_content(),  # Adjust if necessary
+        layout="wide"
+    )
+
     try:
         if "current_page" not in st.session_state:
             st.session_state.current_page = "AGILAB"

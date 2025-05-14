@@ -22,6 +22,7 @@ import re
 import platform
 import ctypes
 from ctypes import wintypes
+import importlib
 
 import streamlit as st
 from agi_gui.pagelib import get_about_content, render_logo
@@ -1435,16 +1436,21 @@ def page():
     """
     global CUSTOM_BUTTONS, INFO_BAR, CSS_TEXT, comp_props, ace_props
 
-    if 'env' not in st.session_state:
-        st.error("The application environment is not initialized. Please reload the app.")
-        st.stop()
+    if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
+        # Redirect back to the landing page and rerun immediately
+        page_module = importlib.import_module("AGILAB")
+        page_module.main()
+        st.rerun()
+
     else:
         env = st.session_state['env']
+
+    env = st.session_state['env']
 
     render_logo("Edit your Project")
 
     if not st.session_state.get("server_started"):
-        activate_mlflow()
+        activate_mlflow(env)
         st.session_state["server_started"] = True
 
     # Check if we need to switch the sidebar tab to "Select"

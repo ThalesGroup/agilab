@@ -345,6 +345,7 @@ class AgiEnv:
     module = None
     GUI_NROW = None
     GUI_SAMPLING = None
+    init_done = False
 
     def __init__(self, install_type: int=None, apps_dir: Path = None, active_app: Path | str = None,
               active_module: Path = None, verbose: int = 0):

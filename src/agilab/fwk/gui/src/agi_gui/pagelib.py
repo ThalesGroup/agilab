@@ -1136,9 +1136,10 @@ def on_df_change(module_dir, index_page, df_file, steps_file=None):
     st.session_state.page_broken = True
 
 
-def activate_mlflow():
+def activate_mlflow(env=None):
 
-    env = st.session_state["env"]
+    if not env:
+        return
 
     st.session_state["rapids_default"] = True
     os.makedirs(env.MLFLOW_TRACKING_DIR, exist_ok=True)
