@@ -344,6 +344,7 @@ class AgiEnv:
     app = None
     module = None
     GUI_NROW = None
+    GUI_SAMPLING = None
 
     def __init__(self, install_type: int=None, apps_dir: Path = None, active_app: Path | str = None,
               active_module: Path = None, verbose: int = 0):
@@ -445,7 +446,7 @@ class AgiEnv:
             exit(1)
 
         self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
-
+        self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
         if not active_app:
             active_app = envars.get("APP_DEFAULT", 'flight_project')
 

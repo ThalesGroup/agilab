@@ -311,6 +311,30 @@ def move_to_data(file_name, csv):
     st.sidebar.success(f"File moved to {data_path}")
     update_beamdir("beamdir", "input_beamdir")
 
+def downsample_df_deterministic(df: pd.DataFrame, ratio: int) -> pd.DataFrame:
+    """
+    Return a new DataFrame containing every `ratio`-th row from the original df.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The original DataFrame to down-sample.
+    ratio : int
+        Keep one row every `ratio` rows. E.g. ratio=20 → rows 0, 20, 40, …
+
+    Returns
+    -------
+    pd.DataFrame
+        The down-sampled DataFrame, re-indexed from 0.
+    """
+    if ratio <= 0:
+        raise ValueError("`ratio` must be a positive integer.")
+    # Ensure a clean integer index before slicing
+    df_reset = df.reset_index(drop=True)
+    # Take every ratio-th row
+    sampled = df_reset.iloc[::ratio].copy()
+    # Reset index for the result
+    return sampled.reset_index(drop=True)
 
 # Main page function
 def page():
@@ -440,11 +464,10 @@ def page():
         for beam_file in st.session_state["beam_files"]:
             beam_file_abs = Path(st.session_state.beamdir) / beam_file
             st.session_state["dfs_beams"][beam_file] = load_df(
-                beam_file_abs, with_index=True
+                beam_file_abs, with_index=False
             )
-
     if "Load Data" not in st.session_state:
-        st.session_state["loaded_df"] = cached_load_df(env.AGILAB_EXPORT_ABS / env.target,with_index=False)
+        st.session_state["loaded_df"] = cached_load_df(env.AGILAB_EXPORT_ABS / env.target,with_index=True)
     if "loaded_df" in st.session_state and st.session_state["df_file"]:
         st.session_state["loaded_df"]
         loaded_df = st.session_state.get("loaded_df")
@@ -518,6 +541,17 @@ def page():
                 isinstance(st.session_state.loaded_df, pd.DataFrame)
                 and not st.session_state.loaded_df.empty
         ):
+            # Initialize an empty DataFrame to store distribution metrics
+            c = st.columns(5)
+            sampling_ratio = c[4].number_input(
+                "Select the desired Sampling ratio",
+                min_value=1,
+                value=st.session_state.GUI_SAMPLING,
+                step=1,
+            )
+            st.session_state.GUI_SAMPLING = sampling_ratio
+            st.session_state.loaded_df=downsample_df_deterministic(st.session_state.loaded_df, sampling_ratio)
+            loaded_df = st.session_state.loaded_df
             nrows = st.session_state.loaded_df.shape[0]
             lines = st.slider(
                 "Select the desired number of points:",
@@ -561,9 +595,6 @@ def page():
                 except (ValueError, TypeError):
                     pass
 
-
-            # Initialize an empty DataFrame to store distribution metrics
-            c = st.columns(5)
             # set a default opacity in case the slider never gets created
             opacity_value = st.session_state.get("opacity_slider", 0.8)
 
@@ -691,6 +722,7 @@ def page():
             all_beam_polygons = []
 
             for beam_file, df in st.session_state.get("dfs_beams", {}).items():
+                df.set_index(df.columns.tolist()[0], inplace=True, drop=True)
                 beam_indices = df.index.unique()
                 colors = generate_random_colors(len(beam_indices))
 
