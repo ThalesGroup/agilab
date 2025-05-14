@@ -1,4 +1,4 @@
-[dependency-groups]
-rapids = [
-    "cuspatial-cu12; platform_system == 'Linux'",
+[tool.uv.sources.rapids]
+dependencies = [
+    "cuspatial-cu12; platform_system == 'Linux'"
 ]
