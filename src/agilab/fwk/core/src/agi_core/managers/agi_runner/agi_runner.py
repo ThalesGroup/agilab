@@ -588,6 +588,8 @@ class AGI:
 
     @staticmethod
     def _exec_ssh(ip, cmd):
+        if not (AGI._mode & 4):
+            return
         with closing(AGI._ssh_connect(ip)) as ssh_client:
             stdin, stdout, stderr = ssh_client.exec_command(cmd)
             # Wait for command to finish and get its exit status
@@ -847,7 +849,7 @@ class AGI:
                 raise ValueError("error: invalid ip address")
         for ip in list_ip:
             try:
-                if not AGI._is_local(ip):
+                if not AGI._is_local(ip) and (AGI._mode & 4):
                     AGI._kill(ip, os.getpid(), force=True)
             except:
                 pass
@@ -951,7 +953,8 @@ class AGI:
         options = {"manager": extras, "worker": extras}
         if isinstance(env.base_worker_cls, str):
             options["worker"] += " --extra " + " --extra ".join(AGI.install_worker_group)
-        AGI._install_cluster(scheduler)
+        if AGI._mode & 4:
+            AGI._install_cluster(scheduler)
         node_ips = AGI._get_clean_nodes(scheduler)
         AGI._venv_todo(node_ips)
         start_time = time.time()
@@ -963,14 +966,15 @@ class AGI:
             # print(cmd, "\ncwd", os.getcwd(), "\nvenv", wenv_abs, "\ncwd", core_root)
             print(cmd, "\ncwd", os.getcwd(), "\nvenv", wenv_abs, "\ncwd", wenv_abs)
         res = AgiEnv.run(cmd, wenv_abs)
-        tasks = []
-        for ip in node_ips:
-            AGI._log_verbose(f"********   Starting {AGI._run_type} for Agi_worker in .venv on {ip}", level=1)
-            if not AGI._is_local(ip):
-                tasks.append(asyncio.create_task(
-                    AGI._install_env_remote(ip, env, wenv_rel, options["worker"])
-                ))
-        await asyncio.gather(*tasks)
+        if AGI._mode & 4:
+            tasks = []
+            for ip in node_ips:
+                AGI._log_verbose(f"********   Starting {AGI._run_type} for Agi_worker in .venv on {ip}", level=1)
+                if not AGI._is_local(ip):
+                    tasks.append(asyncio.create_task(
+                        AGI._install_env_remote(ip, env, wenv_rel, options["worker"])
+                    ))
+            await asyncio.gather(*tasks)
 
         if AGI._verbose:
             duration = AGI._format_duration(time.time() - start_time)
@@ -1207,7 +1211,9 @@ class AGI:
 
         # Worker wenv install
         AGI._log_verbose(f"Copying {toml_local} to {toml_remote}", level=2)
-        shutil.copyfile(toml_local, env.home_abs / toml_remote)
+        shutil.copy2(toml_local, env.wenv_abs)
+        AGI._log_verbose(f"Copying {env.setup_core} to {toml_remote}", level=2)
+        shutil.copy2(env.setup_core, env.wenv_abs)
         cmd = uv_cmd("--project", str(env.wenv_abs), options["worker"], "--extra", "workers")
         AGI._log_verbose(f"Executing locally:\n{cmd}\nfrom {env.wenv_abs}", level=2)
         result = AgiEnv.run(cmd, env.wenv_abs)
@@ -1217,6 +1223,15 @@ class AGI:
         wenv = AGI._build_worker_lib(is_local=True)
 
         # Post-install
+        # 7) Post-install script
+        # cmd = f"cd {wenv_rel} && uv run -p {pyvers} python {env.post_install} {env.data_dir}"
+        #
+        # AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
+        # result = AGI._exec_ssh(ip, cmd);
+        # AGI._handle_command_result(result)
+
+
+
         script = env.post_install
         data_dir = env.data_dir
         if script.exists():
