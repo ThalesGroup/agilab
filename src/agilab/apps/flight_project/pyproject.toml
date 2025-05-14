@@ -47,9 +47,6 @@ dev = [
     "logging",
     "dask[distributed]",
 ]
-rapids = [
-    "cuspatial-cu12; platform_system == 'Linux'",
-]
 
 [tool.uv]
 default-groups = [

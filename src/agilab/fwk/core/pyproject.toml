@@ -85,9 +85,6 @@ dev = [
     "pytest-local-badge",
     "pytest-cov",
 ]
-rapids = [
-    "cuspatial-cu12; platform_system == 'Linux'",
-]
 
 [tool.uv]
 default-groups = [
