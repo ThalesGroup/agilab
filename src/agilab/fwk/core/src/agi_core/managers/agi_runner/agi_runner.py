@@ -1030,7 +1030,7 @@ class AGI:
         supports Rapids (detected via `nvidia-smi`), regardless of os.name.
         """
         pyvers = env.python_version
-        python = f"uv run -p {pyvers} python"h
+        python = f"uv run -p {pyvers} python"
         wenv_path = env.wenv_abs
 
         # 1) Bootstrap ensurepip
@@ -1074,7 +1074,7 @@ class AGI:
         AGI._handle_command_result(result)
 
         # 7) Post-install script
-        cmd = f"cd {wenv_rel} && uv run -p {pyvers} python {env.post_install} {env.data_dir}"
+        cmd= f"cd {wenv_rel} && uv run -p {pyvers} python {env.post_install} {env.data_dir}"
 
         AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd);
@@ -1115,7 +1115,7 @@ class AGI:
         whl = next(iter(dist.glob("agi_env*.whl", None)))
         AGI._send_file(ip, whl, wenv_rel)
 
-        cmd = f"uv add --project {wenv} Path({whl}).name""
+        cmd = f"uv add --project {wenv} Path({whl}).name"
         result = AgiEnv.run(cmd, venv=wenv)
         AGI._handle_command_result(result)
 
@@ -1127,7 +1127,7 @@ class AGI:
 
         dist = wenv / "dist"
         whl = next(iter(dist.glob("agi_core*.whl", None)))
-        AGI._send_file(ip, whl, wenv_rel
+        AGI._send_file(ip, whl, wenv_rel)
 
         cmd = f"uv add --project {wenv} Path({whl}).name"
         result = AgiEnv.run(cmd, venv=wenv)
@@ -1148,6 +1148,7 @@ class AGI:
         os.name == 'nt' (Windows) AND hardware supports Rapids (nvidia-smi).
         """
         env = AGI.env
+        pyvers = env.python_version
         run_type = AGI._run_type  # ["run","sync --upgrade","sync","simulate"]
 
         def hardware_supports_rapids() -> bool:
@@ -1164,54 +1165,41 @@ class AGI:
 
         has_rapids_hw = hardware_supports_rapids()
 
-        def uv_cmd(*parts: str) -> str:
-            base = ["uv"]
-            if not has_rapids_hw:
-                base += ["--config-file", "uv.toml"]
-            base += [run_type] + list(parts)
-            return " ".join(base)
-
+        # Paths
         toml_local = src / "pyproject.toml"
         toml_remote = wenv_rel.expanduser() / "pyproject.toml"
-
-        # Manager install
         app_path = env.app_path.absolute()
-        cmd = uv_cmd(options["manager"], "--extra", "managers", "--project", str(app_path))
+
+        # 1) Manager install
+        cmd = f"uv {run_type} {options['manager']} --extra managers --project {app_path}"
         AGI._log_verbose(f"Executing locally:\n{cmd}\nvenv {app_path}", level=2)
-        result = AgiEnv.run(cmd, app_path);
+        result = AgiEnv.run(cmd, app_path)
         AGI._handle_command_result(result)
 
-        # Worker wenv install
-        AGI._log_verbose(f"Copying {toml_local} to {toml_remote}", level=2)
+        # 2) Worker wenv install
+        AGI._log_verbose(f"Copying {toml_local} → {env.wenv_abs}", level=2)
         shutil.copy2(toml_local, env.wenv_abs)
-        AGI._log_verbose(f"Copying {env.setup_core} to {toml_remote}", level=2)
+        AGI._log_verbose(f"Copying {env.setup_core} → {env.wenv_abs}", level=2)
         shutil.copy2(env.setup_core, env.wenv_abs)
-        cmd = uv_cmd("--project", str(env.wenv_abs), options["worker"], "--extra", "workers")
+
+        cmd = (
+            f"uv {run_type} --project {env.wenv_abs} "
+            f"{options['worker']} --extra workers"
+        )
         AGI._log_verbose(f"Executing locally:\n{cmd}\nfrom {env.wenv_abs}", level=2)
         result = AgiEnv.run(cmd, env.wenv_abs)
         AGI._handle_command_result(result)
 
-        # Worker lib install
+        # 3) Worker lib install
         wenv = AGI._build_worker_lib(is_local=True)
 
-        # Post-install
-        # 7) Post-install script
-        # cmd = f"cd {wenv_rel} && uv run -p {pyvers} python {env.post_install} {env.data_dir}"
-        #
-        # AGI._log_verbose(f"Executing on {ip}: {cmd}", level=2)
-        # result = AGI._exec_ssh(ip, cmd);
-        # AGI._handle_command_result(result)
+        # 4) Post-install script
+        cmd = f"cd {wenv} && uv run -p {pyvers} python {env.post_install} {env.data_dir}"
+        AGI._log_verbose(f"Executing locally:{cmd}", level=2)
+        result = AgiEnv.run(cmd, wenv)
+        AGI._handle_command_result(result)
 
-
-
-        script = env.post_install
-        data_dir = env.data_dir
-        if script.exists():
-            cmd = uv_cmd("--project", str(wenv), str(script), str(data_dir))
-            AGI._log_verbose(f"Executing locally:\n{cmd}\nfrom {script.parent}", level=2)
-            result = AgiEnv.run(cmd, wenv, cwd=script.parent)
-            AGI._handle_command_result(result)
-
+        # 5) Cleanup
         AGI._uninstall_modules()
         AGI._install_done_local = True
 
