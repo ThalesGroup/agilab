@@ -704,7 +704,35 @@ def run_lab(query, snippet, copilot):
 def cached_load_df(path, with_index=True):
     return load_df(path, with_index=with_index)
 
+def get_first_match_and_keyword(string_list, keywords_to_find):
+    """
+    Finds the first occurrence of any keyword in any string.
+    Returns a tuple: (actual_matched_substring, found_keyword_pattern)
+    - actual_matched_substring: The segment from the string that matched.
+    - found_keyword_pattern: The keyword from keywords_to_find that matched.
 
+    Search is case-insensitive.
+    Returns (None, None) if no keyword is found in any string.
+    """
+    # Ensure inputs are iterable, though the loops will handle empty lists
+    if not string_list or not keywords_to_find:
+        return None, None
+
+    for text_string in string_list:
+        if not isinstance(text_string, str):
+            print(f"Warning: Item in string_list is not a string: {text_string}")
+        for keyword_pattern in keywords_to_find:
+            if not isinstance(keyword_pattern, str) or not keyword_pattern:
+                print(f"Warning: Item in keywords_to_find is not a valid string: {keyword_pattern}")
+            try:
+                match = re.search(re.escape(keyword_pattern), text_string, re.IGNORECASE)
+                if match:
+                    return text_string, keyword_pattern
+            except re.error:
+                print(f"Warning: Could not compile regex for keyword: {keyword_pattern}")
+                pass # Try the next keyword
+    # If we've gone through everything and found nothing...
+    return None, None
 @st.cache_data
 def load_df(path: Path, nrows=None, with_index=True):
     """
@@ -759,19 +787,27 @@ def load_df(path: Path, nrows=None, with_index=True):
 
     # Optionally, set the "date" column as the DataFrame's index.
     if with_index and not df.empty:
-        if "date" in df.columns:
-            # Convert "date" column to datetime (if not already) and set it as index.
-            df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        col_name,keyword = get_first_match_and_keyword(df.columns.tolist(),["time","date"])
+        if col_name:
+            if keyword == "time":
+                df[col_name] = pd.to_timedelta(df[col_name], unit='s')
+            elif keyword == "date":
+                df[col_name] = pd.to_datetime(df[col_name], errors="coerce")
+            df.set_index(col_name, inplace=True,drop=False)
+            print(f"found keyword: {keyword} in col name: {col_name}")
         else:
-            # Fallback: use the first column as the index if "date" is not present.
-            df.set_index(df.columns[0], inplace=True)
-
-        if "index" in df.columns:
-            df.set_index("index", inplace=True)
-        elif "date" in df.columns:
-            df.set_index("date", inplace=True)
-        elif "datetime" in df.columns:
-            df.set_index("datetime", inplace=True)
+            df.set_index(df.columns[0], inplace=True, drop=False)
+        # ---------------- OLD CODE FOR INDEX ------------------
+        # if "date" in df.columns:
+        #     # Convert "date" column to datetime (if not already) and set it as index.
+        #     df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        # else:
+        #     # Fallback: use the first column as the index if "date" is not present.
+        #     df.set_index(df.columns[0], inplace=True)
+        # if "date" in df.columns:
+        #     df.set_index("date", inplace=True)
+        # elif "datetime" in df.columns:
+        #     df.set_index("datetime", inplace=True)
 
     return df
 

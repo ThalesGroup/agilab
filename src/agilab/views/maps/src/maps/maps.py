@@ -51,6 +51,30 @@ if "coltype" not in st.session_state:
 #     """
 #     st.session_state[var_key] = st.session_state[widget_key]
 
+def downsample_df_deterministic(df: pd.DataFrame, ratio: int) -> pd.DataFrame:
+    """
+    Return a new DataFrame containing every `ratio`-th row from the original df.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The original DataFrame to down-sample.
+    ratio : int
+        Keep one row every `ratio` rows. E.g. ratio=20 → rows 0, 20, 40, …
+
+    Returns
+    -------
+    pd.DataFrame
+        The down-sampled DataFrame, re-indexed from 0.
+    """
+    if ratio <= 0:
+        raise ValueError("`ratio` must be a positive integer.")
+    # Ensure a clean integer index before slicing
+    df_reset = df.reset_index(drop=True)
+    # Take every ratio-th row
+    sampled = df_reset.iloc[::ratio].copy()
+    # Reset index for the result
+    return sampled.reset_index(drop=True)
 
 def page():
     """
@@ -137,7 +161,7 @@ def page():
     # Load the selected DataFrame
     df_file_abs = Path(st.session_state.datadir) / st.session_state.df_file
     try:
-        st.session_state["loaded_df"] = load_df(df_file_abs, with_index=False)
+        st.session_state["loaded_df"] = load_df(df_file_abs, with_index=True)
     except Exception as e:
         st.error(f"Error loading data: {e}")
         st.warning("The selected data file could not be loaded. Please select a valid file.")
@@ -153,7 +177,15 @@ def page():
         return  # Stop further processing
 
     # data filter to speed-up
-
+    c = st.columns(5)
+    sampling_ratio = c[4].number_input(
+        "Select the desired Sampling ratio",
+        min_value=1,
+        value=st.session_state.GUI_SAMPLING,
+        step=1,
+    )
+    st.session_state.GUI_SAMPLING = sampling_ratio
+    st.session_state.loaded_df = downsample_df_deterministic(st.session_state.loaded_df, sampling_ratio)
     nrows = st.session_state.loaded_df.shape[0]
 
     lines = st.slider(
@@ -208,7 +240,6 @@ def page():
         except (ValueError, TypeError):
             pass
 
-    c = st.columns(4)
     for i, cols in enumerate([discrete_cols, continuous_cols]):
         if cols:
             colsn = (

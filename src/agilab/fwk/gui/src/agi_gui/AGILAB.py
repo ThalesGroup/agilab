@@ -22,7 +22,6 @@ import argparse
 from agi_gui.pagelib import get_about_content, open_docs, get_base64_of_image, activate_mlflow
 from agi_env import AgiEnv
 
-
 # -------------------- Helper Functions -------------------- #
 def load_file_content(file_path: Path) -> str:
     """
@@ -110,6 +109,8 @@ def page(env):
     )
     if "GUI_NROW" not in st.session_state:
         st.session_state["GUI_NROW"] = env.GUI_NROW
+    if "GUI_SAMPLING" not in st.session_state:
+        st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
 
 
 def main():
