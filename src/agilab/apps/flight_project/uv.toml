@@ -1,5 +1,4 @@
-environments = [
-  "sys_platform == 'linux'",
-  "sys_platform == 'darwin'",
-  "sys_platform == 'win32'"
+[dependency-groups]
+rapids = [
+    "cuspatial-cu12; platform_system == 'Linux'",
 ]
