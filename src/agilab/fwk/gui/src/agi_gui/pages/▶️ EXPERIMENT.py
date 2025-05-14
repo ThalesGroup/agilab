@@ -26,6 +26,7 @@ import os
 import json
 import webbrowser
 from pathlib import Path
+import importlib
 import mlflow
 import pandas as pd
 from code_editor import code_editor
@@ -472,10 +473,13 @@ def mlflow_controls():
 def page():
     global df_file
 
-    if 'env' not in st.session_state:
-        st.error("The application environment is not initialized. Please reload the app.")
-        st.stop()
-    else:
+    if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", False):
+        # Redirect back to the landing page and rerun immediately
+        page_module = importlib.import_module("AGILAB")
+        page_module.main()
+        st.rerun()
+
+    elif st.session_state['env'].init_done:
         env = st.session_state['env']
 
     # load preprompt
@@ -606,7 +610,15 @@ def load_df_cached(path: Path, nrows=50, with_index=True):
 
 def main():
     global default_df, df_file
-    env = st.session_state['env']
+
+    if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
+        # Redirect back to the landing page and rerun immediately
+        page_module = importlib.import_module("AGILAB")
+        page_module.main()
+        st.rerun()
+
+    else:
+        env = st.session_state['env']
 
     try:
         # Set page configuration
@@ -646,7 +658,7 @@ def main():
             render_logo("Experiment on APPS")
 
         if "server_started" not in st.session_state:
-            activate_mlflow()
+            activate_mlflow(env)
 
         # Set session defaults
         session_defaults = {
