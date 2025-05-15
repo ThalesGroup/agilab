@@ -385,7 +385,6 @@ class AgiEnv:
         self.agi_root = AgiEnv.locate_agi_installation(verbose)
 
         if install_type:
-            # todo fix self.agi_root
             self.agi_fwk_env_path = self.agi_root / "fwk/env"
             resource_path = self.agi_fwk_env_path / "src/agi_env" / self.agi_resources
         else:
@@ -488,13 +487,14 @@ class AgiEnv:
         self.app_path = self.apps_dir / active_app
         self.app_src = self.app_path / "src"
         self.setup_app =  self.app_path / "setup"
-        self.setup_core = self.workers_root / "agi_worker/setup"
+        self.setup_core_rel = "agi_worker/setup"
+        self.setup_core = self.workers_root / self.setup_core_rel
         self.target_worker = f"{self.module}_worker"
         self.worker_path = (
                 self.app_src / self.target_worker / f"{self.target_worker}.py"
         )
         self.module_path = self.app_src / self.module / f"{self.module}.py"
-        self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
+        self.pyproject = self.worker_path.parent / "pyproject.toml"
         self.uvproject = self.app_path / "uv.toml"
 
         target_class = "".join(x.title() for x in self.target.split("_"))
