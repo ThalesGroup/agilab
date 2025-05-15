@@ -2,7 +2,7 @@
 name = "flight_project"
 version = "0.1.8"
 description = ""
-requires-python = "==3.12.*"
+requires-python = ">=3.11"
 readme = "README.md"
 dependencies = [ "numpy", "geopy", "setuptools", "cython", "parso", "py7zr", "python-dotenv", "humanize"]
 [[project.authors]]

@@ -34,7 +34,7 @@ usage() {
     exit 1
 }
 
-PYTHON_VERSION="3.12"
+PYTHON_VERSION="3.11"
 AGI_INSTALL_PATH="$(realpath '.')"
 CURRENT_PATH="$(realpath '.')"
 cluster_credentials=""

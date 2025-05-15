@@ -17,7 +17,7 @@ Pop-Location
 # Install core
 Write-Host "Installing core..." -ForegroundColor Blue
 Push-Location "core"
-uv sync -p $env:PYTHON_VERSION --extra managers --group rapids --dev --directory (Resolve-Path "$($args[0])\core")
+uv sync -p $env:PYTHON_VERSION --extra managers --config-file uv.toml --dev --directory (Resolve-Path "$($args[0])\core")
 uv pip install -e .
 Pop-Location
 
