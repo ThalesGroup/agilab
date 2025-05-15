@@ -77,7 +77,7 @@ def render_main_page():
     This function retrieves the list of projects, sets the current project, loads the app settings, allows the user to select views, and updates the configuration file accordingly.
     """
     if 'env' not in st.session_state:
-        env = AgiEnv(verbose=1)
+        env = AgiEnv(verbose=0)
         env.init_done = True
         st.session_state['env'] = env
     else:

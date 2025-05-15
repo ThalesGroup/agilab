@@ -710,7 +710,8 @@ class AgiEnv:
                     install_path = f.read().strip()
                     agilab_path = Path(install_path)
                     if install_path and agilab_path.exists():
-                        print("Run Agilab:", install_path)
+                        if self.verbose:
+                            print("Run Agilab:", install_path)
                         return agilab_path
                     else:
                         raise ValueError("Installation path file is empty.")
@@ -1560,5 +1561,6 @@ class AgiEnv:
         except Exception as e:
             raise RuntimeError(f"Error writing updated TOML to {pyproject_file}: {e}")
 
-        print("Updated", pyproject_file)
+        if self.verbose:
+            print("Updated", pyproject_file)
         return agi_core
