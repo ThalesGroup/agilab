@@ -1114,8 +1114,8 @@ class AGI:
         whl = next(iter(dist.glob("agi_env*.whl")))
         AGI._send_file(ip, whl, wenv_rel)
 
-        cmd = f"cd {wenv_rel} && uv add '{Path(whl).name}'"
-        result = AgiEnv.run(cmd, venv=wenv)
+        cmd = f" v --project {wenv_rel} add {Path(whl).name}\"
+        result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
 
         # build agi_core*.whl
@@ -1128,13 +1128,13 @@ class AGI:
         whl = next(iter(dist.glob("agi_core*.whl" )))
         AGI._send_file(ip, whl, wenv_rel)
 
-        cmd = f"cd {wenv_rel} && uv add '{Path(whl).name}'"
-        result = AgiEnv.run(cmd, venv=wenv)
+        cmd = f"uv --project {wenv_rel} add {Path(whl).name}"
+        result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
 
         AGI._send_file(ip, env.setup_core, wenv_rel)
         # install agi_core*.egg
-        cmd = f"cd {wenv_rel} && uv run python setup build_ext -b {env.target_worker}"
+        cmd = f"uv run python setup build_ext -b {env.target_worker}"
         logging.info(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
