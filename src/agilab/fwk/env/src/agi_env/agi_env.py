@@ -382,9 +382,10 @@ class AgiEnv:
         if self.verbose:
             print("install_type", install_type)
 
-        self.agi_root = AgiEnv.locate_agi_installation()
+        self.agi_root = AgiEnv.locate_agi_installation(verbose)
 
         if install_type:
+            # todo fix self.agi_root
             self.agi_fwk_env_path = self.agi_root / "fwk/env"
             resource_path = self.agi_fwk_env_path / "src/agi_env" / self.agi_resources
         else:
@@ -469,7 +470,7 @@ class AgiEnv:
             apps_dir = self._determine_apps_dir(active_app)
             module = apps_dir.name.replace("_project", "").replace("-", "_")
 
-        self.agi_core = AgiEnv.resolve_packages_path_in_toml(module, self.agi_root, apps_dir)
+        self.agi_core = AgiEnv.resolve_packages_path_in_toml(module, self.agi_root, apps_dir, verbose)
 
         self.projects = self.get_projects(self.apps_dir)
 
@@ -698,7 +699,7 @@ class AgiEnv:
         return mode_int
 
     @staticmethod
-    def locate_agi_installation():
+    def locate_agi_installation(verbose):
         if os.name == "nt":
             where_is_agi = Path(os.getenv("LOCALAPPDATA")) / "agilab/.agi-path"
         else:
@@ -710,7 +711,7 @@ class AgiEnv:
                     install_path = f.read().strip()
                     agilab_path = Path(install_path)
                     if install_path and agilab_path.exists():
-                        if self.verbose:
+                        if verbose:
                             print("Run Agilab:", install_path)
                         return agilab_path
                     else:
@@ -1527,7 +1528,7 @@ class AgiEnv:
         )
 
     @staticmethod
-    def resolve_packages_path_in_toml(module, agi_root, apps_dir):
+    def resolve_packages_path_in_toml(module, agi_root, apps_dir, verbose):
         """
         Updates the 'agi-core' package path in the pyproject.toml file for a given module.
 
@@ -1561,6 +1562,6 @@ class AgiEnv:
         except Exception as e:
             raise RuntimeError(f"Error writing updated TOML to {pyproject_file}: {e}")
 
-        if self.verbose:
+        if verbose:
             print("Updated", pyproject_file)
         return agi_core
