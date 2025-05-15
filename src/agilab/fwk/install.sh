@@ -25,8 +25,8 @@ popd > /dev/null
 
 echo -e "${BLUE}Installing core...${NC}"
 pushd core > /dev/null
-echo "uv sync -p $AGI_PYTHON_VERSION --extra managers --group rapids --dev --directory $(realpath '$1/core')"
-uv sync -p "$AGI_PYTHON_VERSION" --extra managers --group rapids --dev --directory "$(realpath "$1/core")"
+echo "uv sync -p $AGI_PYTHON_VERSION --extra managers --config-file uv.toml --dev --directory $(realpath '$1/core')"
+uv sync -p "$AGI_PYTHON_VERSION" --extra managers --config-file uv.toml --dev --directory "$(realpath "$1/core")"
 uv run python -m ensurepip
 uv run python -m pip install -e .
 popd > /dev/null

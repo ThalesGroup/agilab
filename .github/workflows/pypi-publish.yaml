@@ -34,7 +34,7 @@ jobs:
           echo "Building core package for testing"
           pushd src/agilab/fwk/core > /dev/null
           rm -rf dist
-          uv sync --dev --extra workers --extra managers --group rapids
+          uv sync --dev --extra workers --extra managers --config-file uv.toml
           uv pip install -e .
           # uv run ../run-all-test.py
           popd > /dev/null
