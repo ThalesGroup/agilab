@@ -28,7 +28,7 @@ import importlib
 # Use modern TOML libraries instead of toml
 import tomli         # For reading TOML files
 import tomli_w       # For writing TOML files
-from agi_gui.pagelib import list_views, get_about_content, render_logo, select_project
+from agi_gui.pagelib import activate_mlflow, list_views, get_about_content, render_logo, select_project
 
 from agi_env import AgiEnv
 
@@ -77,8 +77,9 @@ def render_main_page():
     This function retrieves the list of projects, sets the current project, loads the app settings, allows the user to select views, and updates the configuration file accordingly.
     """
     if 'env' not in st.session_state:
-        st.error("The application environment is not initialized. Please reload the app.")
-        st.stop()
+        env = AgiEnv(verbose=1)
+        env.init_done = True
+        st.session_state['env'] = env
     else:
         env = st.session_state['env']
 
