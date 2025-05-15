@@ -352,7 +352,7 @@ def page():
     render_logo("3D Maps and Network Topology Visualization")
 
     if 'env' not in st.session_state:
-         st.error("The application environment is not initialized. Please click on  AGILAB.")
+        st.error("The application environment is not initialized. Please click on  AGILAB.")
         st.stop()
     else:
         env = st.session_state['env']
