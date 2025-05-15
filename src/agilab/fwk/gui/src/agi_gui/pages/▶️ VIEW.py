@@ -81,7 +81,7 @@ def render_main_page():
         env.init_done = True
         st.session_state['env'] = env
     else:
-    env = st.session_state['env']
+        env = st.session_state['env']
 
     if not st.session_state.get("server_started"):
         activate_mlflow(env)
