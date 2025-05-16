@@ -17,8 +17,6 @@ BLUE='\033[1;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-
-
 # Prevent Running as Root
 if [[ "$EUID" -eq 0 ]]; then
     echo -e "${RED}Error: This script should not be run as root. Please run as a regular user.${NC}"
@@ -32,14 +30,9 @@ find . \( -name ".venv" -o -name "uv.lock" -o -name "build" -o -name "dist" -o -
 # Command-Line Arguments
 # ================================
 usage() {
-    echo "Usage: $0 --cluster-credentials <user:password> --openai-api-key <api-key> [--install-path <path>]"
+    echo "Usage: $0 --cluster-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path>]"
     exit 1
 }
-
-read -p "Enter Python version [3.12]: " PYTHON_VERSION
-PYTHON_VERSION=${PYTHON_VERSION:-3.12}
-
-echo "You selected Python version $PYTHON_VERSION"
 
 AGI_INSTALL_PATH="$(realpath '.')"
 CURRENT_PATH="$(realpath '.')"
@@ -49,13 +42,32 @@ openai_api_key=""
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --cluster-credentials) cluster_credentials="$2"; shift 2;;
-        --openai-api-key) openai_api_key="$2"; shift 2;;
-        --install-path) AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
-        *) echo -e "${RED}Unknown option: $1${NC}"; usage;;
+        --openai-api-key)      openai_api_key="$2";      shift 2;;
+        --install-path)        AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
+        *) echo -e "${RED}Unknown option: $1${NC}" && usage;;
     esac
 done
 
-[[ -z "$openai_api_key" ]] && echo -e "${RED}Missing mandatory parameter: --openai-api-key${NC}" && usage
+# Validate mandatory parameters
+if [[ -z "$cluster_credentials" ]]; then
+    echo -e "${RED}Missing mandatory parameter: --cluster-credentials${NC}"
+    usage
+fi
+
+# Ensure credentials are in user[:password] form
+if [[ ! "$cluster_credentials" =~ ^[^:]+(:.*)?$ ]]; then
+    echo -e "${RED}Invalid format for --cluster-credentials. Expected user or user:password${NC}"
+    usage
+fi
+
+if [[ -z "$openai_api_key" ]]; then
+    echo -e "${RED}Missing mandatory parameter: --openai-api-key${NC}"
+    usage
+fi
+
+read -p "Enter Python version [3.12]: " PYTHON_VERSION
+PYTHON_VERSION=${PYTHON_VERSION:-3.12}
+echo "You selected Python version $PYTHON_VERSION"
 
 # ================================
 # Pre-check Functions
@@ -89,22 +101,17 @@ set_locale() {
     export LANG=en_US.UTF-8
 }
 
-
 install_dependencies() {
     echo -e "${BLUE}Step: Installing system dependencies...${NC}"
     read -rp "Do you want to install system dependencies? (y/N): " confirm
-    [[ "$confirm" =~ ^[Yy]$ ]] || {
-        echo -e "${YELLOW}Skipping dependency installation.${NC}"
-        return
-    }
-
+    [[ "$confirm" =~ ^[Yy]$ ]] || { echo -e "${YELLOW}Skipping dependency installation.${NC}"; return; }
 
     if ! command -v uv > /dev/null 2>&1; then
         echo -e "${GREEN}Installing uv...${NC}"
         curl -LsSf https://astral.sh/uv/install.sh | sh
-        # TODO: check for MacOS
         source "$HOME/.local/bin/env"
     fi
+
     if command -v apt >/dev/null 2>&1; then
         echo -e "${BLUE}Detected apt package manager (Linux).${NC}"
         sudo apt update
@@ -147,11 +154,7 @@ choose_python_version() {
 
     while true; do
         read -rp "Enter the number of the Python version you want to use (default: 1) " selection
-
-        if [[ -z "$selection" ]]; then
-            selection=1
-        fi
-
+        selection=${selection:-1}
         if [[ $selection =~ ^[0-9]+$ ]] && (( selection >= 1 && selection <= ${#python_array[@]} )); then
             chosen_python=$(echo "${python_array[$((selection - 1))]}" | cut -d' ' -f1)
             break
@@ -164,7 +167,6 @@ choose_python_version() {
     if ! echo "$installed_pythons" | grep -q "$chosen_python"; then
         echo -e "${YELLOW}Installing $chosen_python...${NC}"
         uv python install "$chosen_python"
-
         echo -e "${GREEN}Python version ($chosen_python) is now installed.${NC}"
     else
         echo -e "${GREEN}Python version ($chosen_python) is already installed.${NC}"
@@ -174,14 +176,10 @@ choose_python_version() {
 }
 
 backup_existing_project() {
-    echo 'uv run --project "$AGI_INSTALL_PATH/fwk/core/managers" python "$AGI_INSTALL_PATH/zip-agi.py" --dir2zip "$AGI_INSTALL_PATH" --zipfile "$backup_file"';
-    # Backup existing project if a valid project directory exists
-
     if [[ -d "$AGI_INSTALL_PATH" && -f "$AGI_INSTALL_PATH/zip-agi.py" && "$AGI_INSTALL_PATH" != "$CURRENT_PATH" ]]; then
         echo -e "${YELLOW}Existing project found at $AGI_INSTALL_PATH with zip-agi.py present.${NC}"
         backup_file="${AGI_INSTALL_PATH}_backup_$(date +%Y%m%d-%H%M%S).zip"
         echo -e "${YELLOW}Creating backup: $backup_file${NC}"
-
         if uv run --project "$AGI_INSTALL_PATH/fwk/core/managers" python "$AGI_INSTALL_PATH/zip-agi.py" --dir2zip "$AGI_INSTALL_PATH" --zipfile "$backup_file"; then
             echo -e "${GREEN}Backup created successfully at $backup_file.${NC}"
             echo -e "${YELLOW}Removing existing project directory...${NC}"
@@ -204,28 +202,20 @@ backup_existing_project() {
 
 copy_project_files() {
     if [[ "$AGI_INSTALL_PATH" != "$CURRENT_PATH" ]]; then
-        if [[ -d "$CURRENT_PATH/src" ]]; then
-            echo -e "${BLUE}Copying project files to install directory...${NC}"
-            mkdir -p "$AGI_INSTALL_PATH"
-            rsync -a "$CURRENT_PATH/" "$AGI_INSTALL_PATH/"
-        else
-            echo -e "${RED}Source directory 'src' not found. Exiting.${NC}"
-            exit 1
-        fi
+        [[ -d "$CURRENT_PATH/src" ]] || { echo -e "${RED}Source directory 'src' not found. Exiting.${NC}"; exit 1; }
+        echo -e "${BLUE}Copying project files to install directory...${NC}"
+        mkdir -p "$AGI_INSTALL_PATH"
+        rsync -a "$CURRENT_PATH/" "$AGI_INSTALL_PATH/"
     else
         echo "Using current directory as install directory; no copy needed."
     fi
-    # Determine the absolute path of the source directory
     mkdir -p "$HOME/.local/share/agilab"
     echo "$AGI_INSTALL_PATH/src/agilab" > "$HOME/.local/share/agilab/.agi-path"
-
 }
 
 update_environment() {
     ENV_FILE="$HOME/.local/share/agilab/.env"
-    if [[ -f "$ENV_FILE" ]]; then
-        rm "$ENV_FILE"
-    fi
+    [[ -f "$ENV_FILE" ]] && rm "$ENV_FILE"
     mkdir -p "$(dirname "$ENV_FILE")"
     {
         echo "OPENAI_API_KEY=\"$openai_api_key\""
@@ -238,65 +228,44 @@ update_environment() {
 install_framework_apps() {
     framework_dir="$AGI_INSTALL_PATH/src/agilab/fwk"
     apps_dir="$AGI_INSTALL_PATH/src/agilab/apps"
-
     chmod +x "$framework_dir/install.sh" "$apps_dir/install.sh"
 
     echo -e "${BLUE}Installing Framework...${NC}"
     pushd "$framework_dir" > /dev/null
-    ./install.sh "$framework_dir"
-    popd > /dev/null
+      ./install.sh "$framework_dir"
+    popd  > /dev/null
 
     echo -e "${BLUE}Installing Apps...${NC}"
     pushd "$apps_dir" > /dev/null
-    ./install.sh "$apps_dir" "1"
-    popd > /dev/null
+      ./install.sh "$apps_dir" "1"
+    popd  > /dev/null
 }
 
 write_env_values() {
-  shared_env="$HOME/.local/share/agilab/.env"
-  agilab_env="$HOME/.agilab/.env"
+    shared_env="$HOME/.local/share/agilab/.env"
+    agilab_env="$HOME/.agilab/.env"
 
-  if [[ ! -f "$shared_env" ]]; then
-    echo -e "${RED}Error: $shared_env does not exist.${NC}"
-    return 1
-  fi
+    [[ -f "$shared_env" ]] || { echo -e "${RED}Error: $shared_env does not exist.${NC}"; return 1; }
 
-  # Read the shared .env file line by line
-  #!/bin/bash
-
-  # Detect platform and define sed command accordingly
-  if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS
-    sed_cmd() {
-      sed -i '' "s|^$1=.*|$1=$2|" "$agilab_env"
-    }
-  else
-    # Linux and others
-    sed_cmd() {
-      sed -i "s|^$1=.*|$1=$2|" "$agilab_env"
-    }
-  fi
-
-  while IFS='=' read -r key value || [[ -n "$key" ]]; do
-    # Skip empty lines and comments
-    [[ -z "$key" || "$key" =~ ^# ]] && continue
-
-    # Check if the key exists in the agilab_env file
-    if grep -q "^$key=" "$agilab_env"; then
-      # If the value is different, update it
-      current_value=$(grep "^$key=" "$agilab_env" | cut -d '=' -f2-)
-      if [[ "$current_value" != "$value" ]]; then
-        sed_cmd "$key" "$value"
-      fi
+    # Detect platform for sed
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed_cmd() { sed -i '' "s|^$1=.*|$1=$2|" "$agilab_env"; }
     else
-      # Append the new key-value pair
-      echo "$key=$value" >> "$agilab_env"
+        sed_cmd() { sed -i "s|^$1=.*|$1=$2|" "$agilab_env"; }
     fi
-  done < "$shared_env"
 
-  echo -e "${GREEN}.env file updated.${NC}"
+    while IFS='=' read -r key value || [[ -n "$key" ]]; do
+        [[ -z "$key" || "$key" =~ ^# ]] && continue
+        if grep -q "^$key=" "$agilab_env"; then
+            current_value=$(grep "^$key=" "$agilab_env" | cut -d '=' -f2-)
+            [[ "$current_value" != "$value" ]] && sed_cmd "$key" "$value"
+        else
+            echo "$key=$value" >> "$agilab_env"
+        fi
+    done < "$shared_env"
+
+    echo -e "${GREEN}.env file updated.${NC}"
 }
-
 
 # ================================
 # Script Execution
