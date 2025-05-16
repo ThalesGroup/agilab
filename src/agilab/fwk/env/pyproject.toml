@@ -31,7 +31,7 @@ dependencies = [
     "pydantic",
     "python-dotenv",
     "setuptools",
-    "tomli_w",
+    "tomlkit",
     "astor",
 ]
 
