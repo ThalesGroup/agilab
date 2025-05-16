@@ -41,8 +41,7 @@ import shutil
 from pathlib import Path, PureWindowsPath, PurePosixPath
 from dotenv import dotenv_values, set_key
 from pathspec import PathSpec
-import tomli
-import tomli_w
+import tomlkit
 
 
 class JumpToMain(Exception):
@@ -1527,41 +1526,63 @@ class AgiEnv:
             else str(PurePosixPath(Path(path)))
         )
 
-    @staticmethod
-    def resolve_packages_path_in_toml(module, agi_root, apps_dir, verbose):
-        """
-        Updates the 'agi-core' package path in the pyproject.toml file for a given module.
+    class AGI:
+        @staticmethod
+        def resolve_packages_path_in_toml(module: str, agi_root: Path, apps_dir: str, verbose: bool):
+            """
+            Updates the 'agi-core' package path in the pyproject.toml file for a given module,
+            preserving comments.
 
-        Args:
-            module (str): The module name (using underscore as separator).
+            Args:
+                module (str): The module name (underscore-separated).
+                agi_root (Path): Root of the AGI project.
+                apps_dir (str): Subdirectory under agi_root where apps live.
+                verbose (bool): If True, prints the updated file path.
 
-        Raises:
-            FileNotFoundError: If the pyproject.toml file cannot be found.
-            RuntimeError: If an error occurs during reading or writing the TOML file.
-        """
+            Returns:
+                Path: The computed agi_core path.
 
-        # Build the module path based on naming conventions (underscores to hyphens)
-        module_path =  agi_root / apps_dir / (module + "_project")
-        pyproject_file = module_path / "pyproject.toml"
+            Raises:
+                FileNotFoundError: If the pyproject.toml file cannot be found.
+                RuntimeError: If an error occurs during reading or writing the TOML file.
+            """
+            # 1) Locate the pyproject.toml
+            module_path = agi_root / apps_dir / f"{module}_project"
+            pyproject_file = module_path / "pyproject.toml"
+            if not pyproject_file.exists():
+                raise FileNotFoundError(f"pyproject.toml not found in {module_path}")
 
-        if not pyproject_file.exists():
-            raise FileNotFoundError(f"pyproject.toml not found in {module_path}")
+            # 2) Read file as text
+            try:
+                toml_text = pyproject_file.read_text(encoding="utf-8")
+            except Exception as e:
+                raise RuntimeError(f"Error reading {pyproject_file}: {e}")
 
-        try:
-            with pyproject_file.open("rb") as f:
-                content = tomli.load(f)
-        except Exception as e:
-            raise RuntimeError(f"Error loading TOML from {pyproject_file}: {e}")
+            # 3) Parse with tomlkit to preserve comments
+            try:
+                doc = tomlkit.parse(toml_text)
+            except Exception as e:
+                raise RuntimeError(f"Error parsing TOML from {pyproject_file}: {e}")
 
-        # Compute the agi-core path
-        agi_core = agi_root / "fwk/core"
+            # 4) Compute the new agi-core path
+            agi_core_path = agi_root / "fwk" / "core"
 
-        try:
-            with pyproject_file.open("wb") as f:
-                tomli_w.dump(content, f)
-        except Exception as e:
-            raise RuntimeError(f"Error writing updated TOML to {pyproject_file}: {e}")
+            # 5) Update the dependency entry, e.g. under [tool.pdm.dependencies] or wherever it lives.
+            #    Adjust this key path to match your pyproject structure.
+            try:
+                deps = doc["tool"]["pdm"]["dependencies"]
+                # e.g. change "agi-core" to a path requirement
+                deps["agi-core"] = {"path": str(agi_core_path)}
+            except KeyError:
+                raise RuntimeError("Could not find [tool.pdm.dependencies] in the TOML")
 
-        if verbose:
-            print("Updated", pyproject_file)
-        return agi_core
+            # 6) Write back, preserving comments
+            try:
+                new_toml = tomlkit.dumps(doc)
+                pyproject_file.write_text(new_toml, encoding="utf-8")
+            except Exception as e:
+                raise RuntimeError(f"Error writing updated TOML to {pyproject_file}: {e}")
+
+            if verbose:
+                print("Updated", pyproject_file)
+            return agi_core_path
