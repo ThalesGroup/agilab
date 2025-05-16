@@ -30,7 +30,7 @@ find . \( -name ".venv" -o -name "uv.lock" -o -name "build" -o -name "dist" -o -
 # Command-Line Arguments
 # ================================
 usage() {
-    echo "Usage: $0 --cluster-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path>]"
+    echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path>]"
     exit 1
 }
 
@@ -41,7 +41,7 @@ openai_api_key=""
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        --cluster-credentials) cluster_credentials="$2"; shift 2;;
+        --cluster-ssh-credentials) cluster_credentials="$2"; shift 2;;
         --openai-api-key)      openai_api_key="$2";      shift 2;;
         --install-path)        AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
         *) echo -e "${RED}Unknown option: $1${NC}" && usage;;
@@ -50,13 +50,13 @@ done
 
 # Validate mandatory parameters
 if [[ -z "$cluster_credentials" ]]; then
-    echo -e "${RED}Missing mandatory parameter: --cluster-credentials${NC}"
+    echo -e "${RED}Missing mandatory parameter: --cluster-ssh-credentials${NC}"
     usage
 fi
 
 # Ensure credentials are in user[:password] form
 if [[ ! "$cluster_credentials" =~ ^[^:]+(:.*)?$ ]]; then
-    echo -e "${RED}Invalid format for --cluster-credentials. Expected user or user:password${NC}"
+    echo -e "${RED}Invalid format for --cluster-ssh-credentials. Expected user or user:password${NC}"
     usage
 fi
 

@@ -622,54 +622,48 @@ class AGI:
 
     @staticmethod
     def _ssh_connect(ip):
-        """ssh connect
-
-        Args:
-          ip: ip address to be used for ssh connection
-
-        Returns:
-
         """
-        if AGI._verbose > 2:
-            logging.basicConfig(level=logging.WARNING)
-        ssh_client = SSHClient()
-        ssh_client.load_system_host_keys()
-        ssh_client.set_missing_host_key_policy(AutoAddPolicy())
-        env = AGI.env
-        user = env.user
-        password = env.password
+        SSH connect.
+
+        Raises:
+            ValueError: if username is not set.
+            ConnectionError: for any SSH connection failure.
+        """
+        user = AGI.env.user
+        password = AGI.env.password
 
         if not user:
-            raise PermissionError(f'ERROR: user is mandatory, please set it in environment files {env.resource_path / ".env"}')
+            # fail immediately with a clear message
+            raise ValueError("SSH username is not configured. Please set 'user' in your .env file.")
+
+        client = SSHClient()
+        client.load_system_host_keys()
+        client.set_missing_host_key_policy(AutoAddPolicy())
 
         try:
-            ssh_client.connect(
+            client.connect(
                 ip,
-                username= user,
-                timeout= AGI.TIMEOUT,
-                password= password,
+                username=user,
+                password=password,
+                timeout=AGI.TIMEOUT,
                 look_for_keys=True,
                 allow_agent=True,
             )
+            return client
 
-            return ssh_client
-        except ssh_exception.NoValidConnectionsError as err:
-            logging.error("error: ssh no valid connection")
-            logging.error(f"SSH failed to connect at {user}@{ip}")
-            exit(1)
-        except ssh_exception.AuthenticationException as err:
-            logging.info("error: ssh connect authentication failed")
-            logging.error(f"SSH failed to connect at {user}@{ip}")
-            exit(1)
-        except TimeoutError as err:
-            logging.error(f"error: ssh connect timeout")
-            logging.error(f"SSH failed to connect at {user}@{ip}")
-            exit(1)
-        except Exception as err:
-            logging.error(f"error: ssh connect failed:", file=sys.stderr)
-            traceback.logging.info_exc(file=sys.stderr)
-            logging.error(f"SSH failed to connect at {user}@{ip}")
-            exit(1)
+        except ssh_exception.AuthenticationException:
+            client.close()
+            raise ConnectionError(f"Authentication failed for SSH user '{user}' on host {ip}.")
+
+        except ssh_exception.NoValidConnectionsError:
+            client.close()
+            raise ConnectionError(f"Could not connect to {ip}. Host unreachable or no SSH service running.")
+
+        except Exception as e:
+            client.close()
+            # collapse any other details into one line for the user
+            raise ConnectionError(f"SSH connection to {ip} failed: {e.__class__.__name__}: {e}")
+
 
 
     @staticmethod
@@ -877,66 +871,48 @@ class AGI:
         # Validate IPs
         for ip in list_ip:
             if not AGI._is_local(ip) and not is_ip(ip):
-                raise ValueError(f"Error: invalid IP address {ip}")
+                raise ValueError(f"Invalid IP address: {ip}")
 
-        # Prepare each remote node
+        # Prepare each remote node (skip local)
         for ip in list_ip:
             if AGI._is_local(ip):
                 continue
 
             try:
-                # 2. Ensure UV CLI is installed
                 wenv_rel = AGI.env.wenv_rel
                 pyvers = AGI.env.python_version
+
+                # 1) Check uv
                 try:
-                    out = AGI._exec_ssh(ip, 'uv --version')
-                    logging.info(out, "installed")
-
+                    AGI._exec_ssh(ip, 'uv --version')
                 except Exception:
+                    # Try Windows installer
                     try:
-                        # Try PowerShell installer (Windows)
-                        AGI._exec_ssh(
-                            ip,
-                            'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"'
-                        )
-                        uv_installed = True
+                        AGI._exec_ssh(ip,
+                                      'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"'
+                                      )
                     except Exception:
-                        try:
-                            # Fallback to shell installer (Unix)
-                            AGI._exec_ssh(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
-                            # Source uv environment
-                            AGI._exec_ssh(ip, 'source $HOME/.local/bin/env')
-                            uv_installed = True
-                        except Exception:
-                            # Network or installer not reachable
-                            raise PermissionError(
-                                f"Remote host {ip} cannot fetch the UV installer."
-                                " Ensure it has Internet access or install 'uv' manually on the remote host."
-                            )
+                        # Fallback to Unix installer
+                        AGI._exec_ssh(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
+                        AGI._exec_ssh(ip, 'source $HOME/.local/bin/env')
 
-                    # 3. Use UV to install the required Python version
-                    AGI._exec_ssh(ip, f"uv python install {pyvers}")
-                    try:
-                        #AGI._exec_ssh(ip, f"uv init --bare && uv add setuptools psutil dask[distributed]")
-                        # make sure the uv env exists:
-                        AGI._exec_ssh(ip, 'uv init --bare')
-                        # then install Dask with pip into that env:
-                        cmd = f'uv add setuptools psutil dask[distributed]"'
-                        AGI._exec_ssh(ip, cmd)
+                # 2) Install Python
+                AGI._exec_ssh(ip, f"uv python install {pyvers}")
 
-                    except Exception:
-                        pass
+                # 3) Bootstrap the uv environment
+                AGI._exec_ssh(ip, 'uv init --bare')
 
-                # 4. Create the remote virtualenv directory
-                out = AGI._exec_ssh(
+                # 4) Make remote wenv dir
+                AGI._exec_ssh(
                     ip,
-                    f"uv run -p {pyvers} python -c \"import os; "
-                    f"os.makedirs('{wenv_rel}', exist_ok=True)\""
+                    f"uv run -p {pyvers} python -c "
+                    f"\"import os; os.makedirs(r'{wenv_rel}', exist_ok=True)\""
                 )
 
             except Exception as e:
-                raise Exception(f"Failed to prepare node {ip}:\n{e}") from e
-
+                # Only show the first line of the inner error message
+                msg = str(e).splitlines()[0]
+                raise RuntimeError(f"Node {ip} setup failed: {msg}")
 
     @staticmethod
     async def _install(scheduler):

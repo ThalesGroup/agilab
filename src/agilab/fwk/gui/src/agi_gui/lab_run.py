@@ -41,7 +41,7 @@ def main():
         description="Run AGILAB application with custom options."
     )
     parser.add_argument(
-        "--cluster-credentials", type=str, help="Cluster account user:password", default=None
+        "--cluster-ssh-credentials", type=str, help="Cluster account user:password", default=None
     )
     parser.add_argument(
         "--openai-api-key", type=str, help="OpenAI API key", default=None
@@ -64,7 +64,7 @@ def main():
     # Collect custom arguments.
     custom_args = []
     if args.cluster_credentials is not None:
-        custom_args.extend(["--cluster-credentials", args.cluster_credentials])
+        custom_args.extend(["--cluster-ssh-credentials", args.cluster_credentials])
     if args.openai_api_key is not None:
         custom_args.extend(["--openai-api-key", args.openai_api_key])
     if args.apps_dir is not None:
