@@ -1569,7 +1569,7 @@ class AgiEnv:
         # 5) Update the dependency entry, e.g. under [tool.pdm.dependencies] or wherever it lives.
         #    Adjust this key path to match your pyproject structure.
         try:
-            deps = doc["tool"]["pdm"]["dependencies"]
+            deps = doc["tool"]["uv"]["dependencies"]
             # e.g. change "agi-core" to a path requirement
             deps["agi-core"] = {"path": str(agi_core_path)}
         except KeyError:
