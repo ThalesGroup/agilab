@@ -1119,7 +1119,7 @@ class AGI:
 
         AGI._send_file(ip, env.setup_core, wenv_rel)
         # install agi_core*.egg
-        cmd = f"uv run python setup build_ext -b {env.target_worker}"
+        cmd = f"cd {wenv_rel} && uv run python setup build_ext -b {env.target_worker}"
         logging.info(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
