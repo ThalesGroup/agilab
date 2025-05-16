@@ -95,11 +95,6 @@ agi_gui = [
     "src/resources/.agilab/*"
 ]
 
-[tool.uv]
-default-groups = [
-    "dev",
-]
-
 [tool.uv.sources.agi-env]
 path = "../env"
 editable = true

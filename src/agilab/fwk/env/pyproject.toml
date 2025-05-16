@@ -45,9 +45,6 @@ dev = [
     "agi-env", "black", "pytest", "licensecheck"
 ]
 
-[tool.uv]
-default-groups = ["dev"]
-
 [tool.uv.sources.agi-env]
 workspace = true
 
