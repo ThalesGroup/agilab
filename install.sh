@@ -17,6 +17,8 @@ BLUE='\033[1;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+
+
 # Prevent Running as Root
 if [[ "$EUID" -eq 0 ]]; then
     echo -e "${RED}Error: This script should not be run as root. Please run as a regular user.${NC}"
@@ -34,7 +36,11 @@ usage() {
     exit 1
 }
 
-PYTHON_VERSION="3.11"
+read -p "Enter Python version [3.12]: " PYTHON_VERSION
+PYTHON_VERSION=${PYTHON_VERSION:-3.12}
+
+echo "You selected Python version $PYTHON_VERSION"
+
 AGI_INSTALL_PATH="$(realpath '.')"
 CURRENT_PATH="$(realpath '.')"
 cluster_credentials=""
@@ -83,10 +89,15 @@ set_locale() {
     export LANG=en_US.UTF-8
 }
 
+
 install_dependencies() {
     echo -e "${BLUE}Step: Installing system dependencies...${NC}"
     read -rp "Do you want to install system dependencies? (y/N): " confirm
-    [[ "$confirm" =~ ^[Yy]$ ]] || { echo -e "${YELLOW}Skipping dependency installation.${NC}"; return; }
+    [[ "$confirm" =~ ^[Yy]$ ]] || {
+        echo -e "${YELLOW}Skipping dependency installation.${NC}"
+        return
+    }
+
 
     if ! command -v uv > /dev/null 2>&1; then
         echo -e "${GREEN}Installing uv...${NC}"
@@ -120,7 +131,7 @@ install_dependencies() {
 
 choose_python_version() {
     echo -e "${BLUE}Choosing Python version...${NC}"
-    available_python_versions=$(uv python list | grep $PYTHON_VERSION)
+    available_python_versions=$(uv python list | grep -F -- "$PYTHON_VERSION")
     python_array=()
     while IFS= read -r line; do
         python_array+=("$line")
