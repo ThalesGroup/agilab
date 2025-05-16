@@ -865,6 +865,10 @@ class AGI:
         """
         list_ip = set(list(AGI.workers) + [AGI._get_scheduler(scheduler)[0]])
         localhost_ip = socket.gethostbyname("localhost")
+        env = AGI.env
+        pyvers = env.python_version
+        python = f"uv run -p {pyvers} python"
+
         if not list_ip:
             list_ip.add(localhost_ip)
 
@@ -900,7 +904,12 @@ class AGI:
                 AGI._exec_ssh(ip, f"uv python install {pyvers}")
 
                 # 3) Bootstrap the uv environment
-                AGI._exec_ssh(ip, 'uv init --bare')
+                cmd = (
+                    f"{python} -c \"import os, subprocess; "
+                    "subprocess.run(['uv','init','--bare'], cwd={wenv_rel}, check=True) "
+                    "if not os.path.exists('pyproject.toml') else None\""
+                )
+                AGI._exec_ssh(ip, cmd)
 
                 # 4) Make remote wenv dir
                 AGI._exec_ssh(
