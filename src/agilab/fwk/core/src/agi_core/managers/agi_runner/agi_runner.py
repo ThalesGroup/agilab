@@ -1099,7 +1099,7 @@ class AGI:
         whl = next(iter(dist.glob("agi_env*.whl")))
         AGI._send_file(ip, whl, wenv_rel)
 
-        cmd = f"uv --project {wenv_rel} add {Path(whl).name}"
+        cmd = f"cd {wenv_rel} && uv add {Path(whl).name}"
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
 
@@ -1113,7 +1113,7 @@ class AGI:
         whl = next(iter(dist.glob("agi_core*.whl" )))
         AGI._send_file(ip, whl, wenv_rel)
 
-        cmd = f"uv --project {wenv_rel} add {Path(whl).name}"
+        cmd = f"cd {wenv_rel} && uv add {Path(whl).name}"
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
 
