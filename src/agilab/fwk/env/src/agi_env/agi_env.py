@@ -1526,62 +1526,51 @@ class AgiEnv:
             else str(PurePosixPath(Path(path)))
         )
 
+    import tomlkit
+    from pathlib import Path
+
     @staticmethod
-    def resolve_packages_path_in_toml(module: str, agi_root: Path, apps_dir: str, verbose: bool):
+    def resolve_packages_path_in_toml(module: str,
+                                      agi_root: Path,
+                                      apps_dir: Path,
+                                      verbose: bool):
         """
-        Updates the 'agi-core' package path in the pyproject.toml file for a given module,
-        preserving comments.
-
-        Args:
-            module (str): The module name (underscore-separated).
-            agi_root (Path): Root of the AGI project.
-            apps_dir (str): Subdirectory under agi_root where apps live.
-            verbose (bool): If True, prints the updated file path.
-
-        Returns:
-            Path: The computed agi_core path.
-
-        Raises:
-            FileNotFoundError: If the pyproject.toml file cannot be found.
-            RuntimeError: If an error occurs during reading or writing the TOML file.
+        Updates the 'agi-core' package path under [tool.uv.sources] in the
+        project's pyproject.toml, preserving all comments and formatting.
         """
-        # 1) Locate the pyproject.toml
-        module_path = agi_root / apps_dir / f"{module}_project"
+        module_path = agi_root / apps_dir / (module + "_project")
         pyproject_file = module_path / "pyproject.toml"
         if not pyproject_file.exists():
             raise FileNotFoundError(f"pyproject.toml not found in {module_path}")
 
-        # 2) Read file as text
-        try:
-            toml_text = pyproject_file.read_text(encoding="utf-8")
-        except Exception as e:
-            raise RuntimeError(f"Error reading {pyproject_file}: {e}")
+        text = pyproject_file.read_text(encoding="utf-8")
+        doc = tomlkit.parse(text)
 
-        # 3) Parse with tomlkit to preserve comments
+        # Navigate to tool.uv.sources
         try:
-            doc = tomlkit.parse(toml_text)
-        except Exception as e:
-            raise RuntimeError(f"Error parsing TOML from {pyproject_file}: {e}")
-
-        # 4) Compute the new agi-core path
-        agi_core_path = agi_root / "fwk" / "core"
-
-        # 5) Update the dependency entry, e.g. under [tool.pdm.dependencies] or wherever it lives.
-        #    Adjust this key path to match your pyproject structure.
-        try:
-            deps = doc["tool"]["uv"]["dependencies"]
-            # e.g. change "agi-core" to a path requirement
-            deps["agi-core"] = {"path": str(agi_core_path)}
+            uv = doc["tool"]["uv"]
         except KeyError:
-            raise RuntimeError("Could not find [tool.pdm.dependencies] in the TOML")
+            raise RuntimeError("Could not find [tool.uv] section in the TOML")
 
-        # 6) Write back, preserving comments
-        try:
-            new_toml = tomlkit.dumps(doc)
-            pyproject_file.write_text(new_toml, encoding="utf-8")
-        except Exception as e:
-            raise RuntimeError(f"Error writing updated TOML to {pyproject_file}: {e}")
+        if "sources" not in uv or not isinstance(uv["sources"], tomlkit.items.Table):
+            raise RuntimeError("Could not find [tool.uv.sources] in the TOML")
+
+        sources = uv["sources"]
+
+        # Compute and insert the local path for agi-core
+        agi_core_path = str((agi_root / "fwk" / "core").resolve())
+        # Use an inline table so it stays on one line, matching most TOML styles
+        tbl = tomlkit.inline_table()
+        tbl["path"] = agi_core_path
+        tbl["editable"] = True
+
+        sources["agi-core"] = tbl
+
+        # Write back, preserving comments
+        pyproject_file.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
         if verbose:
             print("Updated", pyproject_file)
-        return agi_core_path
+
+        return agi_root / "fwk" / "core"
+
