@@ -119,7 +119,7 @@ def main():
         description="Run the AGI Streamlit App with optional parameters."
     )
     parser.add_argument(
-        "--cluster-credentials",
+        "--cluster-ssh-credentials",
         type=str,
         help="Cluster credentials (username:password)",
         default=None
