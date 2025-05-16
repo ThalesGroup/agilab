@@ -48,11 +48,6 @@ dev = [
     "dask[distributed]",
 ]
 
-[tool.uv]
-default-groups = [
-    "dev",
-]
-
 [tool.uv.sources.agi-core]
 path = "/home/pcm/PycharmProjects/agilab/src/agilab/fwk/core"
 editable = true

@@ -86,11 +86,6 @@ dev = [
     "pytest-cov",
 ]
 
-# do not remove
-[tool.uv]
-default-groups = [
-    "dev",
-]
 
 [tool.uv.sources.agi-env]
 path = "../env"
