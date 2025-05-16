@@ -775,6 +775,7 @@ class AgiEnv:
         # parse existing .env into a dict (handles quotes/comments)
         env_data = dotenv_values(dotenv_path=env_file)  # returns plain dict
         # ensure the file exists before using set_key
+        os.makedirs(env_file.parent, exist_ok=True)
         env_file.touch(exist_ok=True)
         # update or add each key
         for k, v in updates.items():
