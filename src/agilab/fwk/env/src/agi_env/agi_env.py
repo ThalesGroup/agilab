@@ -495,7 +495,7 @@ class AgiEnv:
         )
         self.module_path = self.app_src / self.module / f"{self.module}.py"
         self.pyproject = self.worker_path.parent / "pyproject.toml"
-        self.uvproject = self.app_path / "uv.toml"
+        self.uvproject = self.worker_path.parent /  "uv.toml"
 
         target_class = "".join(x.title() for x in self.target.split("_"))
         worker_class = target_class + "Worker"
