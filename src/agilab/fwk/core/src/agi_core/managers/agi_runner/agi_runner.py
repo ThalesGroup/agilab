@@ -1085,7 +1085,7 @@ class AGI:
         cmd = f"cd {wenv} && uv build --wheel"
         AgiEnv.run(cmd, venv=wenv)
 
-        whl = next(iter(wenv.glob("agi_core*.whl" )))
+        whl = next(iter(dist.glob("agi_core*.whl" )))
         AGI._send_file(ip, whl, wenv_rel)
 
         cmd = f"cd {wenv_rel} && uv add {Path(whl).name}"
