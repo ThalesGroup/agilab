@@ -1051,7 +1051,7 @@ class AGI:
         cmd= f"cd {wenv_rel} && uv run -p {pyvers} python {env.post_install} {env.data_dir}"
 
         logging.info(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd);
+        result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
 
         #####################################################
