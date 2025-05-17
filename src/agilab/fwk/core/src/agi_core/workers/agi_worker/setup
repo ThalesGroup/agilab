@@ -49,6 +49,7 @@ def parse_custom_args(raw_args: list[str], cwd) -> argparse.Namespace:
     parser.add_argument(
         '--build-dir', '-b',
         dest='build_dir',
+        default=cwd.relative_to(Path().home()),
         help='Output directory for build_ext (must be a directory)'
     )
     parser.add_argument(
