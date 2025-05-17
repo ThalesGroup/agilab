@@ -1013,7 +1013,7 @@ class AGI:
                         "sys.exit(0 if r.returncode == 0 else 1)\""
                         )
 
-        reeult = AGI._exec_ssh(ip, check_rapids)
+        result = AGI._exec_ssh(ip, check_rapids)
         has_rapids_hw = (result != "")
         logging.info(f"Remote Rapids-capable GPU: {has_rapids_hw}", level=2)
 
