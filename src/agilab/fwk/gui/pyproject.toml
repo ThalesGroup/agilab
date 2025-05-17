@@ -63,6 +63,7 @@ dependencies = [
     "tomli",
     "ydata",
     "ydata-profiling",
+    "tomli_w",
 ]
 
 [project.urls]
