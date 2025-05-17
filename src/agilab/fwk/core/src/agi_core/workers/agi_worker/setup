@@ -7,80 +7,88 @@ Tested on Windows, Linux and MacOS
 import getpass
 import sys
 import os
+import shutil
 import logging
 from pathlib import Path
 from zipfile import ZipFile
 import argparse
+
 from setuptools import setup, find_packages, Extension, SetuptoolsDeprecationWarning
 from Cython.Build import cythonize
 from agi_env import AgiEnv
 import warnings
 
 warnings.filterwarnings("ignore", category=SetuptoolsDeprecationWarning)
-
-# Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
-def parse_custom_args(raw_args: list[str]) -> argparse.Namespace:
+def parse_custom_args(raw_args: list[str], cwd) -> argparse.Namespace:
     """
     Parse custom CLI arguments and return an argparse Namespace.
     Known args:
       - packages: comma-separated list
       - install_type: integer install type
       - build_dir: output directory for build_ext (alias -b)
+      - dist_dir: output directory for bdist_egg (alias -d)
       - command: setup command ("build_ext" or "bdist_egg")
     Unknown args are left in remaining.
     """
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument(
-        'command',
-        choices=['build_ext', 'bdist_egg'],
-        help='Setup command to run'
-    )
+    parser.add_argument('command', choices=['build_ext', 'bdist_egg'])
     parser.add_argument(
         '--packages', '-p',
         type=lambda s: [pkg.strip() for pkg in s.split(',') if pkg.strip()],
-        default=[],
-        help='Comma-separated list of extra packages to include'
+        default=[]
     )
     parser.add_argument(
         '--install-type', '-i',
         dest='install_type',
         type=int,
-        default=1,
-        help='Installation type identifier (integer)'
+        default=1
     )
     parser.add_argument(
         '--build-dir', '-b',
         dest='build_dir',
-        help='Output directory for build_ext'
+        help='Output directory for build_ext (must be a directory)'
     )
-    # allow interspersed remaining args for setuptools
+    parser.add_argument(
+        '--dist-dir', '-d',
+        dest='dist_dir',
+        help='Output directory for bdist_egg (must be a directory)',
+        default=cwd.relative_to(Path().home())
+    )
     known, remaining = parser.parse_known_args(raw_args)
     known.remaining = remaining
-    # Validate required build_dir for build_ext
+
     if known.command == 'build_ext' and not known.build_dir:
-        parser.error("'build_ext' requires --build-dir/-b <out-dir>")
+        parser.error("'build_ext' requires --build-dir / -b <out-dir>")
+    if known.command == 'bdist_egg' and not known.dist_dir:
+        parser.error("'bdist_egg' requires --dist-dir / -d <out-dir>")
+
     return known
 
 
 def truncate_path_at_segment(
-        path_str: str, segment: str = "_worker", exact_match: bool = False, multiple: bool = False
+        path_str: str,
+        segment: str = "_worker",
+        exact_match: bool = False,
+        multiple: bool = False,
 ) -> Path:
-    path = Path(path_str)
-    if exact_match:
-        indices = [i for i in reversed(range(len(path.parts))) if path.parts[i] == segment]
-    else:
-        indices = [i for i in reversed(range(len(path.parts))) if segment in path.parts[i]]
+    """
+    Return the Path up through the last directory whose name ends with `segment`,
+    e.g. '/foo/flight_worker/bar.py' → '/foo/flight_worker'.
 
-    if not indices:
-        raise ValueError(
-            f"Cannot compile worker extension from '{path_str}' as it does not contain segment '{segment}'."
-        )
-
-    target_index = indices[-1] if multiple else indices[0]
-    return Path(*path.parts[: target_index + 1])
+    exact_match and multiple are kept for signature compatibility but ignored,
+    since we want any dir name ending in segment.
+    """
+    parts = Path(path_str).parts
+    # find all indices where the directory name ends with our segment
+    idxs = [i for i, p in enumerate(parts) if p.endswith(segment)]
+    if not idxs:
+        raise ValueError(f"No directory ending with '{segment}' found in '{path_str}'")
+    # pick the last occurrence
+    idx = idxs[-1]
+    return Path(*parts[: idx + 1])
 
 
 def find_sys_prefix(base_dir: str) -> str:
@@ -89,174 +97,150 @@ def find_sys_prefix(base_dir: str) -> str:
     if python_dirs:
         logging.info(f"Found Python directory: {python_dirs[0]}")
         return str(python_dirs[0])
-    else:
-        return sys.prefix
+    return sys.prefix
 
 
-def create_symlink_for_module(env, pck: str) -> list[Path]:
-    # e.g. "agi_core.workers.agi_worker"
-    pck_src = pck.replace('.', '/')            # -> Path("agi_core")/"workers"/"agi_worker"
-    # extract "core" from "agi_core"
-    pck_root = pck.split('.')[0]
-    src_abs = env.workers_root / pck_src
-    if pck_root == "agi_env":
+def copy_module_into_src(env, pck: str) -> list[Path]:
+    """
+    Recursively copy the entire package from env into ./src,
+    so that setuptools only ever sees files under ./src.
+    Returns the list of top-level dirs copied (for cleanup).
+    """
+    pck_src = pck.replace('.', '/')
+    # decide where the real code lives
+    root = pck.split('.')[0]
+    if root == "agi_env":
         src_abs = env.env_src / pck_src
-    elif pck_root == env.target_worker:
+    elif root == env.target_worker:
         src_abs = env.app_src / pck_src
+    else:
+        src_abs = env.workers_root / pck_src
 
     dest = Path('src') / pck_src
-    created_links: list[Path] = []
+    if dest.exists():
+        return []
+    logging.info(f"Copying {src_abs} → {dest}")
+    shutil.copytree(src_abs, dest)
+    return [dest]
 
-    try:
-        dest = dest.absolute()
-    except FileNotFoundError:
-        logging.error(f"Source path does not exist: {src_abs}")
-        sys.exit(1)
-
-    if not dest.parent.exists():
-        logging.info(f"Creating directory: {dest.parent}")
-        dest.parent.mkdir(parents=True, exist_ok=True)
-
-    if not dest.exists():
-        logging.info(f"Linking {src_abs} -> {dest}")
-        try:
-            AgiEnv.create_symlink(src_abs, dest)
-            created_links.append(dest)
-            logging.info(f"Symlink created: {dest} -> {src_abs}")
-        except Exception as symlink_err:
-            logging.warning(f"Symlink creation failed: {symlink_err}. Trying hard link instead.")
-            try:
-                os.link(src_abs, dest)
-                created_links.append(dest)
-                logging.info(f"Hard link created: {dest} -> {src_abs}")
-            except Exception as link_err:
-                logging.error(f"Failed to create link from {src_abs} to {dest}: {link_err}")
-                sys.exit(1)
-    else:
-        logging.debug(f"Link already exists for {dest}")
-
-    return created_links
-
-
-# --- End custom command ---
 
 def main() -> None:
-    # Extract custom args
-    custom = parse_custom_args(sys.argv[1:])
-    # Prepare parameters
-    # Reconstruct sys.argv for setuptools: only include the command and its build-dir for build_ext
-    sys.argv = [sys.argv[0], custom.command]
-    if custom.command == 'build_ext':
-        sys.argv += ['-b', custom.build_dir]
-    # (we do not forward --packages or --install-type into setuptools)
 
-    # Prepare parameters
-    command = custom.command
-    packages = custom.packages
-    install_type = custom.install_type
-    out_dir = custom.build_dir
+    cwd = Path(__file__).parent
+    os.chdir(cwd)
+    opts = parse_custom_args(sys.argv[1:], cwd)
+    cmd = opts.command
+    packages = opts.packages
+    install_type = opts.install_type
 
+    # Determine out_dir (strip file to dir)
+    outdir = opts.build_dir if opts.build_dir else opts.dist_dir
+    p = Path(outdir)
+    if p.suffix and not p.is_dir():
+        logging.warning(f"'{outdir}' looks like a file; using its parent directory instead.")
+        p = p.parent
     try:
-        # get extension path from build_dir or assume bdist_egg
-        ext_path = truncate_path_at_segment(out_dir or custom.remaining[-1], "_worker")
-    except ValueError as e:
-        logging.error(e)
-        sys.exit(1)
+        out_arg = p.relative_to(Path().home()).as_posix()
+    except Exception:
+        out_arg = str(p)
 
-    target_package = ext_path.stem.replace("_worker", "")
-    target_module = target_package.replace("-", "_")
-    env = AgiEnv(active_app=target_package + "_project", install_type=install_type)
+    # Rebuild sys.argv for setuptools with correct flags
+    flag = '-b' if cmd == 'build_ext' else '-d'
+    sys.argv = [sys.argv[0], cmd, flag, '.']
 
-    # Setup modules and extensions
-    custom_modules = ["agi_worker", "agi_env"] + packages
-    worker_module = target_module + '_worker'
-    ext_modules = []
-    links_created: list[Path] = []
-
-    if command == 'build_ext':
-        os.chdir(env.wenv_abs)
-        src_path = (env.wenv_abs / 'src' / worker_module / worker_module).with_suffix('.pyx')
-        sys_prefix = find_sys_prefix("~/MyApp")
-        extension_mod = Extension(
-            name=f"{worker_module}_cy",
-            sources=[str(src_path.absolute())],
-            include_dirs=[str(Path(sys_prefix) / 'include')],
-            library_dirs=[str(Path(sys_prefix) / sys.platlibdir)]
-        )
-        ext_modules = cythonize([extension_mod], language_level=3)
-        logging.info(f"Cython extension configured for {worker_module}_cy")
-    else:
-        os.chdir(env.app_path)
-        for module in custom_modules:
-            links_created.extend(create_symlink_for_module(env, module))
-
-
-    discovered = find_packages(where='src', exclude=[target_module, f"{target_module}.*"] )
-    all_packages = list(set(discovered + custom_modules))
-    logging.info(f"Final package list: {all_packages}")
-
-
-    if command == 'bdist_egg':
-        if str(getpass.getuser()).startswith("T0"):
-            prefix = "~/MyApp/"
-        else:
-            prefix = "~/"
-        home_dir = Path(prefix).expanduser().absolute()
-        wenv_path = home_dir / env.wenv_rel
-
-        # ensure -d/--dist-dir points at our wenv_path, not add a duplicate
-        dist_dir = str(wenv_path)
+    # ext_path only relevant for build_ext
+    ext_path = None
+    if cmd == 'build_ext':
+        if not opts.build_dir:
+            logging.error("build_ext requires --build-dir/-b argument")
+            sys.exit(1)
         try:
-            idx = sys.argv.index('-d')
-            # if there’s no argument after it, just insert; otherwise replace
-            if idx + 1 < len(sys.argv) and not sys.argv[idx + 1].startswith('-'):
-                sys.argv[idx + 1] = dist_dir
-            else:
-                sys.argv.insert(idx + 1, dist_dir)
-        except ValueError:
-            # no -d flag yet
-            sys.argv += ['-d', dist_dir]
+            ext_path = truncate_path_at_segment(opts.build_dir, "_worker")
+        except ValueError as e:
+            logging.error(e)
+            sys.exit(1)
 
-        setup(
-            name=worker_module,
-            package_dir={'': 'src'},
-            packages=all_packages,
-            package_data={'': ['*.pyx', '*.7z']},
-            ext_modules=ext_modules,
-            zip_safe=False,
-        )
-
-        wenv_path.mkdir(parents=True, exist_ok=True)
-        for egg in wenv_path.glob('*.egg'):
-            with ZipFile(egg, 'r') as zf:
-                zf.extractall(wenv_path / 'src')
-        # post-process decorators removal
-        script = env.cyprepro
-        worker_src = (wenv_path / 'src' / worker_module / worker_module).with_suffix('.py')
-        cmd = (
-            f"uv run python '{script}' remove_decorators "
-            f"--worker_path '{worker_src}' --verbose"
-        )
-        if env.verbose:
-            print(cmd, "\ncwd:", os.getcwd(), "\nfrom:", env.core_root)
-        res = env.run(cmd, env.wenv_abs)
-        if env.verbose:
-            print("stdout:\n", res.get('stdout'))
-            print("stderr:\n", res.get('stderr'))
-        # cleanup symlinks
-        for link in links_created:
-            link.unlink()
+    # For bdist_egg, choose target_pkg/module differently:
+    if outdir:
+        target_pkg = Path(outdir).name.replace("_worker", "")
     else:
+        if packages:
+            target_pkg = packages[0].replace("_worker", "")
+        else:
+            logging.error("Cannot determine target package name.")
+            sys.exit(1)
 
-        setup(
-            name=worker_module,
-            package_dir={'': 'src'},
-            packages=all_packages,
-            package_data={'': ['*.pyx', '*.7z']},
-            ext_modules=ext_modules,
-            zip_safe=False,
+    target_module = target_pkg.replace("-", "_")
+    env = AgiEnv(active_app=target_pkg + "_project", install_type=install_type)
+
+    custom_modules = ["agi_worker", "agi_env"] + packages
+    worker_module = target_module + "_worker"
+    ext_modules = []
+    copies = []
+
+    # Change directory to build_dir BEFORE setup if build_ext
+    if cmd == 'build_ext':
+        os.chdir(opts.build_dir)  # <--- here!
+        src_rel = Path("src") / worker_module / f"{worker_module}.pyx"
+        prefix = Path(find_sys_prefix("~/MyApp"))
+        mod = Extension(
+            name=worker_module + '_cy',
+            sources=[str(src_rel)],
+            include_dirs=[str(prefix / "include")],
+            library_dirs=[str(prefix / sys.platlibdir)],
         )
+        ext_modules = cythonize([mod], language_level=3)
+        logging.info(f"Cython extension configured: {worker_module}_cy")
 
+    elif not install_type:
+        # For bdist_egg copy modules under src
+        os.chdir(env.app_path)
+        for m in custom_modules:
+            copies += copy_module_into_src(env, m)
 
-if __name__ == '__main__':
+    # Discover packages and combine with custom modules
+    package_dir = {'': 'src'}
+    found_pkgs = find_packages(where='src')
+    all_packages = found_pkgs + custom_modules
+
+    # TO SUPPRESS WARNING
+    with open("README.md", "w", encoding="utf-8") as f:
+        f.write("build aborted")
+
+    # Now call setup()
+    setup(
+        name=worker_module,
+        version="0.1.0",
+        package_dir=package_dir,
+        packages=all_packages,
+        include_package_data=True,
+        ext_modules=ext_modules,
+        zip_safe=False,
+    )
+
+    # Post bdist_egg steps: unpack, decorator stripping, cleanup
+    if cmd == 'bdist_egg' and install_type != 2:
+        out_dir = Path(out_arg)
+        dest_src = out_dir / "src"
+        dest_src.mkdir(exist_ok=True, parents=True)
+        for egg in out_dir.glob("*.egg"):
+            logging.info(f"Unpacking {egg} → {dest_src}")
+            with ZipFile(egg, 'r') as zf:
+                zf.extractall(dest_src)
+
+        worker_py = dest_src / worker_module / f"{worker_module}.py"
+        cmd = (
+            f"uv run python \"{env.pre_install}\" remove_decorators "
+            f"--worker_path \"{worker_py}\" --verbose"
+        )
+        logging.info(f"Stripping decorators via:\n  {cmd}")
+        os.system(cmd)
+
+        # Cleanup copied modules
+        for c in copies:
+            shutil.rmtree(c, ignore_errors=True)
+        logging.info("Cleanup complete.")
+    os.remove("README.md")
+
+if __name__ == "__main__":
     main()
