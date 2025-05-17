@@ -1082,6 +1082,7 @@ class AGI:
 
         # build agi_core*.whl
         wenv = env.core_root
+        dist = wenv / "dist"
         cmd = f"cd {wenv} && uv build --wheel"
         AgiEnv.run(cmd, venv=wenv)
 
