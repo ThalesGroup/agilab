@@ -1499,7 +1499,7 @@ class AGI:
                 shutil.copy(env.setup_core, wenv_abs)
                 cmd = f"cd {wenv_abs} && uv run -p {pyvers} python setup build_ext -b {wenv_abs}"
                 logging.info(cmd, "\ncwd", os.getcwd(), "\nfrom", wenv_abs)
-                AgiEnv.run(cmd, wenv_abs)
+                res = AgiEnv.run(cmd, wenv_abs)
                 worker_lib = next(iter(wenv_abs.glob("*_cy.*")), None)
                 if not worker_lib:
                     raise FileNotFoundError(wenv_abs.name, "build_ext failed !")

@@ -5,8 +5,9 @@ description = "flight_project is an example of data project"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [
-    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
+    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
 ]
+
 dependencies = [
     "numpy",
     "geopy",
@@ -15,11 +16,11 @@ dependencies = [
     "parso",
     "py7zr",
     "python-dotenv",
-    "fastparquet"
+    "fastparquet",
     "cython",
     "ipython",
     "pandas",
-    "logging",
+    "logging"
 ]
 
 [project.license]
