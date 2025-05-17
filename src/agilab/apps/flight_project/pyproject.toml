@@ -17,7 +17,6 @@ dependencies = [
     "py7zr",
     "python-dotenv",
     "fastparquet",
-    "cython",
     "ipython",
     "pandas",
     "logging"
