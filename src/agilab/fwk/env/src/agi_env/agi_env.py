@@ -11,6 +11,7 @@ from pathlib import Path, PureWindowsPath, PurePosixPath
 from dotenv import dotenv_values, set_key
 from pathspec import PathSpec
 import tomlkit
+import logging
 
 
 class AgiEnv:
@@ -43,7 +44,7 @@ class AgiEnv:
             self.install_type = install_type
 
         if self.verbose:
-            print("install_type", install_type)
+            logging.info("install_type", install_type)
 
         self.agi_root = AgiEnv.locate_agi_installation(verbose)
 
@@ -70,14 +71,14 @@ class AgiEnv:
                 self.module = active_module.stem
                 appsdir = self._determine_apps_dir(active_module)
                 if apps_dir:
-                    print("Warning: apps_dir will be determined from active_module path")
+                    logging.info("Warning: apps_dir will be determined from active_module path")
                 apps_dir = appsdir
                 app = apps_dir.name
                 if active_app:
-                    print("Warning: active_app will be determined from active_module path")
+                    logging.info("Warning: active_app will be determined from active_module path")
                 active_app = app
             else:
-                print("active_module must be of type 'Path'")
+                logging.info("active_module must be of type 'Path'")
                 exit(1)
         else:
             self.module = None
@@ -97,7 +98,7 @@ class AgiEnv:
             else:
                 os.makedirs(str(apps_dir), exist_ok=True)
         except FileNotFoundError:
-            print("apps_dir not found:", apps_dir)
+            logging.err("apps_dir not found:", apps_dir)
             exit(1)
 
         self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
@@ -140,7 +141,7 @@ class AgiEnv:
         self.projects = self.get_projects(self.apps_dir)
 
         if not self.projects:
-            print(f"Could not find any target project app in {self.agi_root / 'apps'}.")
+            logging.info(f"Could not find any target project app in {self.agi_root / 'apps'}.")
 
         envars = self.envars
         self.credantials = envars.get("CLUSTER_CREDENTIALS", getpass.getuser())
@@ -201,7 +202,7 @@ class AgiEnv:
         self.workers_packages_prefix = "agi_core.workers."
 
         if not self.worker_path.exists():
-            print(f"Missing {self.target_worker_class} definition; should be in {self.worker_path} but it does not exist")
+            logging.info(f"Missing {self.target_worker_class} definition; should be in {self.worker_path} but it does not exist")
             exit(1)
 
         app_src_path = self.app_src
@@ -257,25 +258,24 @@ class AgiEnv:
                     agilab_path = Path(install_path)
                     if install_path and agilab_path.exists():
                         if verbose:
-                            print("Run Agilab:", install_path)
+                            logging.info("Run Agilab:", install_path)
                         return agilab_path
                     else:
                         raise ValueError("Installation path file is empty or invalid.")
             except FileNotFoundError:
-                print(f"File {where_is_agi} does not exist.")
+                logging.err(f"File {where_is_agi} does not exist.")
             except PermissionError:
-                print(f"Permission denied when accessing {where_is_agi}.")
+                logging.err(f"Permission denied when accessing {where_is_agi}.")
             except Exception as e:
-                print(f"An error occurred: {e}")
+                logging.err(f"An error occurred: {e}")
 
         for p in sys.path_importer_cache:
             if p.endswith("AGILAB.py"):
                 base_dir = os.path.dirname(p).replace('_gui', 'lab')
                 if verbose:
-                    print(f"Fallback agilab path found: {base_dir}")
+                    logging.info(f"Fallback agilab path found: {base_dir}")
                 return Path(base_dir)
-        if verbose:
-            print("Falling back to current working directory")
+        logging.info("Falling back to current working directory")
         return Path(os.getcwd())
 
     def copy_missing(self, src: Path, dst: Path):
@@ -301,7 +301,7 @@ class AgiEnv:
         dest_env_file = self.resource_path / ".env"
         if not src_env_path.exists():
             msg = f"Installation issue: {src_env_path} is missing!"
-            print(msg)
+            logging.info(msg)
             raise RuntimeError(msg)
         if not dest_env_file.exists():
             os.makedirs(dest_env_file.parent, exist_ok=True)
@@ -359,15 +359,14 @@ class AgiEnv:
             with open(module_path, "r", encoding="utf-8") as file:
                 source = file.read()
         except (IOError, FileNotFoundError) as e:
-            if self.verbose:
-                print(f"Error reading module file {module_path}: {e}")
+            logging.err(f"Error reading module file {module_path}: {e}")
             return []
 
         try:
             tree = ast.parse(source)
         except SyntaxError as e:
             if self.verbose:
-                print(f"Syntax error parsing {module_path}: {e}")
+                logging.err(f"Syntax error parsing {module_path}: {e}")
             raise RuntimeError(f"Syntax error parsing {module_path}: {e}")
 
         import_mapping = self.get_import_mapping(source)
@@ -387,7 +386,7 @@ class AgiEnv:
             tree = ast.parse(source)
         except SyntaxError as e:
             if self.verbose:
-                print(f"Syntax error during import mapping: {e}")
+                logging.err(f"Syntax error during import mapping: {e}")
             raise
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
@@ -479,7 +478,7 @@ class AgiEnv:
         pyproject_file.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
         if self.verbose:
-            print("Updated", pyproject_file)
+            logging.info("Updated", pyproject_file)
 
         return agi_root / "fwk" / "core"
 
@@ -565,6 +564,7 @@ class AgiEnv:
 
         if wait:
             try:
+                logging.info(f"Executing locally:\n{cmd}\nvenv{venv}", level=2)
                 process = subprocess.Popen(
                     cmd,
                     shell=True,
@@ -575,7 +575,7 @@ class AgiEnv:
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                 )
-                # Read stderr line by line and call log_callback or print
+                # Read stderr line by line and call log_callback or logging.info
                 while True:
                     if process.stderr:
                         line = process.stderr.readline().rstrip()
@@ -583,18 +583,38 @@ class AgiEnv:
                             if log_callback:
                                 log_callback(line)
                             else:
-                                print(line)
+                                logging.info(line)
                         if line == '' and process.poll() is not None:
                             break
                     else:
                         break
                 process.wait(timeout=timeout)
-                return process.stdout.read() if process.stdout else ""
+                result = process.stdout.read() if process.stdout else ""
+                AgiEnv._handle_result(result)
             except Exception as e:
-                print(traceback.format_exc())
+                logging.error(traceback.format_exc())
                 raise RuntimeError(f"Command execution error: {e}") from e
-        else:
-            return ""
+
+    @staticmethod
+    def _handle_result(result):
+        """Handle the result of a command execution.
+
+        Args:
+            result (dict or str): A dictionary with keys "stdout" (standard output)
+                                  and "stdin" (standard input), or a string.
+        """
+        # ANSI escape codes for colors
+        GREEN = "\033[32m"
+        BLUE = "\033[34m"
+        RESET = "\033[0m"
+        if result:
+            if isinstance(result, dict):
+                stdout_output = result.get("stdout", "")
+                logging.info(f"{GREEN}{stdout_output}{RESET}")
+                stdin_output = result.get("stdin", "")
+                logging.info(f"{BLUE}{stdin_output}{RESET}")
+            elif isinstance(result, str):
+                logging.info(result)
 
     @staticmethod
     async def run_async(cmd, venv=None, cwd=None, timeout=None, log_callback=None):
@@ -639,10 +659,10 @@ class AgiEnv:
                 callback(decoded_line)
 
         stdout_task = asyncio.create_task(
-            read_stream(process.stdout, log_callback if log_callback else print)
+            read_stream(process.stdout, log_callback if log_callback else logging.info)
         )
         stderr_task = asyncio.create_task(
-            read_stream(process.stderr, log_callback if log_callback else print)
+            read_stream(process.stderr, log_callback if log_callback else logging.err)
         )
 
         try:
@@ -672,18 +692,18 @@ class AgiEnv:
                 try:
                     existing_target = dest.resolve(strict=True)
                     if existing_target == source_resolved:
-                        print(f"Symlink already exists and is correct: {dest} -> {source_resolved}")
+                        logging.info(f"Symlink already exists and is correct: {dest} -> {source_resolved}")
                         return
                     else:
-                        print(f"Warning: Symlink at {dest} points to {existing_target}, expected {source_resolved}.")
+                        logging.info(f"Warning: Symlink at {dest} points to {existing_target}, expected {source_resolved}.")
                         return
                 except RecursionError:
                     raise RecursionError(f"Detected symlink loop while resolving {dest}.")
                 except FileNotFoundError:
-                    print(f"Warning: Symlink at {dest} is broken.")
+                    logging.info(f"Warning: Symlink at {dest} is broken.")
                     return
             else:
-                print(f"Warning: Destination already exists and is not a symlink: {dest}")
+                logging.info(f"Warning: Destination already exists and is not a symlink: {dest}")
                 return
 
         try:
@@ -693,7 +713,7 @@ class AgiEnv:
                 os.symlink(str(source_resolved), str(dest), target_is_directory=is_dir)
             else:
                 os.symlink(str(source_resolved), str(dest))
-            print(f"Symlink created: {dest} -> {source_resolved}")
+            logging.info(f"Symlink created: {dest} -> {source_resolved}")
         except OSError as e:
             if os.name == "nt":
                 raise OSError(
