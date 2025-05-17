@@ -214,6 +214,7 @@ def main() -> None:
         package_dir=package_dir,
         packages=all_packages,
         include_package_data=True,
+        package_data={'': ['*.7z']},
         ext_modules=ext_modules,
         zip_safe=False,
     )
