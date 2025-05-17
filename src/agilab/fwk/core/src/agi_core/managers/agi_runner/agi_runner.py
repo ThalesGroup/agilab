@@ -1093,7 +1093,7 @@ class AGI:
         AGI._exec_ssh(ip, cmd)
 
         # install agi_core*.egg
-        cmd = f"cd {wenv_rel} && uv run python setup build_ext -b {env.target_worker}"
+        cmd = f"cd {wenv_rel} && uv run python setup build_ext"
         AGI._exec_ssh(ip, cmd)
 
     @staticmethod
