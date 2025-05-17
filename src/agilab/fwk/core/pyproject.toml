@@ -65,7 +65,7 @@ data-worker = [
     "polars",
 ]
 managers = [
-    "jupyter",    "cython",
+    "jupyter",
     "mypy",
     "numba",
     "pydantic",
