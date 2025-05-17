@@ -1092,7 +1092,7 @@ class AGI:
         cmd = f"cd {wenv_rel} && uv add {Path(whl).name}"
         AGI._exec_ssh(ip, cmd)
         setup = wenv_rel / "setup"
-        out_dir = Path('..') / wenv_rel
+        out_dir = Path('..') / wenv_path.name
         # build target_worker lib
         cmd = f"cd {wenv_rel} && uv run -p {pyvers} python {setup} build_ext -b {out_dir}"
         AGI._exec_ssh(ip, cmd)
