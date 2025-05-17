@@ -26,6 +26,8 @@ class AgiEnv:
     def __init__(self, install_type: int = None, apps_dir: Path = None,
                  active_app: Path | str = None, active_module: Path = None, verbose: int = 0):
         self.verbose = verbose
+        AgiEnv.init_logging(verbose)  # Initialize logging here
+
         self.is_managed_pc = getpass.getuser().startswith("T0")
         self.agi_resources = Path("resources/.agilab")
         self.home_abs = Path.home() / "MyApp" if self.is_managed_pc else Path.home()
@@ -234,6 +236,27 @@ class AgiEnv:
             self.export_local_bin = 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
         else:
             self.export_local_bin = 'export PATH="$HOME/.local/bin:$PATH";'
+
+    @staticmethod
+    def init_logging(verbosity: int = 0):
+        """
+        Initialize logging based on verbosity:
+        0 = WARNING (default),
+        1 = INFO,
+        2 or more = DEBUG
+        """
+        level = logging.WARNING
+        if verbosity >= 2:
+            level = logging.DEBUG
+        elif verbosity == 1:
+            level = logging.INFO
+
+        logging.basicConfig(
+            level=level,
+            format="%(asctime)s [%(levelname)s] %(message)s",
+            datefmt="%H:%M:%S"
+        )
+        logging.debug(f"Logging initialized at level {logging.getLevelName(level)}")
 
     def active(self, target, install_type):
         if self.module != target:
