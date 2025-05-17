@@ -943,11 +943,7 @@ class AGI:
         start_time = time.time()
         logging.info(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1", level=1)
         AGI._install_env_local(app_path, Path(wenv_rel), options)
-        core_root = env.core_root
-        cmd = f"uv run -p {pyvers} --project {core_root} python setup bdist_egg -d \"{wenv_abs}\""
-        # logging.info(cmd, "\ncwd", os.getcwd(), "\nvenv", wenv_abs, "\ncwd", core_root)
-        logging.info(cmd, "\ncwd", os.getcwd(), "\nvenv", wenv_abs, "\ncwd", wenv_abs)
-        logging.info(AGI.run(cmd, wenv_abs))
+        # logging.info(AGI.run(cmd, wenv_abs))
         if AGI._mode & 4:
             tasks = []
             for ip in node_ips:
@@ -997,21 +993,15 @@ class AGI:
         pyvers = env.python_version
         python = f"uv run -p {pyvers} python"
 
+        AGI._send_file(ip, env.setup_core, wenv_rel)
+
         # build agi_env*.egg locally
-        env_path = env.agi_fwk_env_path
+        env_path = env.wenv_abs
         wenv_path = env.wenv_abs
         cmd = f"cd {env_path} && uv run python setup bdist_egg -d \"{wenv_path}\""
         result = AgiEnv.run(cmd, cwd=env_path, venv=env_path)
         AGI._handle_command_result(result)
 
-        # ─── NEW: ensure remote wenv_rel directory exists ────────────────
-        mkdir_cmd = (
-            f"{python} -c \"import os; "
-            f"os.makedirs(r'{wenv_rel}', exist_ok=True)\""
-        )
-        logging.info(f"Creating remote dir on {ip}: {mkdir_cmd}", level=2)
-        result = AGI._exec_ssh(ip, mkdir_cmd)
-        AGI._handle_command_result(result)
         # ────────────────────────────────────────────────────────────────
 
         # 3) Send egg
@@ -1095,8 +1085,7 @@ class AGI:
         result = AgiEnv.run(cmd, venv=wenv)
         AGI._handle_command_result(result)
 
-        dist = wenv / "dist"
-        whl = next(iter(dist.glob("agi_env*.whl")))
+        whl = next(iter(wenv.glob("agi_env*.whl")))
         AGI._send_file(ip, whl, wenv_rel)
 
         cmd = f"cd {wenv_rel} && uv add {Path(whl).name}"
@@ -1109,21 +1098,18 @@ class AGI:
         result = AgiEnv.run(cmd, venv=wenv)
         AGI._handle_command_result(result)
 
-        dist = wenv / "dist"
-        whl = next(iter(dist.glob("agi_core*.whl" )))
+        whl = next(iter(wenv.glob("agi_core*.whl" )))
         AGI._send_file(ip, whl, wenv_rel)
 
         cmd = f"cd {wenv_rel} && uv add {Path(whl).name}"
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
 
-        AGI._send_file(ip, env.setup_core, wenv_rel)
         # install agi_core*.egg
         cmd = f"cd {wenv_rel} && uv run python setup build_ext -b {env.target_worker}"
         logging.info(f"Executing on {ip}: {cmd}", level=2)
         result = AGI._exec_ssh(ip, cmd)
         AGI._handle_command_result(result)
-
 
     @staticmethod
     def _install_env_local(src: Path, wenv_rel: Path, options: dict):
@@ -1164,7 +1150,7 @@ class AGI:
         # 2) Worker wenv install
         logging.info(f"Copying {toml_local} → {env.wenv_abs}", level=2)
         shutil.copy2(toml_local, env.wenv_abs)
-        logging.info(f"Copying {env.setup_core} → {env.wenv_abs}", level=2)
+        logging.info(f"Copying {env.setup_core_rel} → {env.wenv_abs}", level=2)
         shutil.copy2(env.setup_core, env.wenv_abs)
 
         cmd = (
@@ -1505,7 +1491,6 @@ class AGI:
         env = AGI.env
         pyvers = env.python_version
         wenv = AgiEnv.normalize_path(str(env.wenv_abs))
-        wenv_rel = env.wenv_rel
         is_cy = AGI._mode & AGI.CYTHON_MODE
         packages = "agi_worker, "
         baseworker = env.base_worker_cls
@@ -1516,37 +1501,35 @@ class AGI:
         elif baseworker.startswith("AgiData"):
             packages += "data_worker"
 
-        app_path = env.app_path.absolute()
-
-        shutil.copy(env.setup_core, env.setup_app)
-        cmd = f"uv run --project {app_path} python setup bdist_egg --packages \"{packages}\" -d \"{wenv}\""
-        logging.info(cmd, "\ncwd", os.getcwd(), "\nfrom", app_path)
-        res = AgiEnv.run(cmd, app_path)
+        wenv_abs = env.wenv_abs
+        shutil.copy(env.setup_core, wenv_abs)
+        cmd = f"cd {wenv_abs} && uv run -p {pyvers} python setup bdist_egg --packages \"{packages}\""
+        logging.info(cmd, "\ncwd", os.getcwd(), "\nfrom", wenv_abs)
+        res = AgiEnv.run(cmd, wenv_abs)
         logging.info(res)
-        wenv_path = Path(wenv)
         # compile in cython when cython is requested
         if is_local:
 
-            cmd = f"cd {wenv_path} && uv pip install -e ."
-            logging.info(cmd, "\ncwd", os.getcwd(), "\nfrom", wenv_path)
-            res = AgiEnv.run(cmd, wenv_path)
+            cmd = f"cd {wenv_abs} && uv pip install -e ."
+            logging.info(cmd, "\ncwd", os.getcwd(), "\nfrom", wenv_abs)
+            res = AgiEnv.run(cmd, wenv_abs)
             logging.info(res)
 
             if is_cy:
                 # cython compilation of wenv/src into wenw
-                shutil.copy(env.setup_core, wenv_path)
-                cmd = f"uv run --project {wenv_path} python setup build_ext -b {wenv_path}"
-                logging.info(cmd, "\ncwd", os.getcwd(), "\nfrom", wenv_path)
-                res = AgiEnv.run(cmd, wenv_path)
-                worker_lib = next(iter(wenv_path.glob("*_cy.*")), None)
+                shutil.copy(env.setup_core, wenv_abs)
+                cmd = f"cd {wenv_abs} && uv run -p {pyvers} python setup build_ext -b {wenv_abs}"
+                logging.info(cmd, "\ncwd", os.getcwd(), "\nfrom", wenv_abs)
+                res = AgiEnv.run(cmd, wenv_abs)
+                worker_lib = next(iter(wenv_abs.glob("*_cy.*")), None)
                 if not worker_lib:
-                    raise FileNotFoundError(wenv_path.name, "build_ext failed !")
+                    raise FileNotFoundError(wenv_abs.name, "build_ext failed !")
 
                 # Get the current interpreter's platlib path (e.g. '/usr/lib/python3.12/site-packages')
                 platlib = sysconfig.get_path("platlib")
                 platlib_idx = platlib.index('.venv')
                 wenv_platlib = platlib[platlib_idx:]
-                target_platlib = env.wenv_abs / wenv_platlib
+                target_platlib = wenv_abs / wenv_platlib
                 destination = os.path.join(target_platlib, os.path.basename(worker_lib))
 
                 # Copy the file while preserving metadata.
