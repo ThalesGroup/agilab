@@ -369,6 +369,14 @@ class AgiEnv:
     def get_projects(self, path: Path):
         return [p.name for p in path.glob("*project")]
 
+    def get_modules(self, target=None):
+        pattern = "_project"
+        modules = [
+            re.sub(f"^{pattern}|{pattern}$", "", project).replace("-", "_")
+            for project in self.get_projects(AgiEnv.apps_dir)
+        ]
+        return modules
+
     def get_base_worker_cls(self, module_path, class_name):
         base_info_list = self.get_base_classes(module_path, class_name)
         try:

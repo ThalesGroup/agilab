@@ -281,7 +281,7 @@ class AGI:
             except Exception as err:
                 logging.error(err)
                 if verbose > 1:
-                    logging.err(traceback.format_exc())
+                    logging.error(traceback.format_exc())
                 raise
 
     @staticmethod
