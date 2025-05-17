@@ -210,9 +210,8 @@ class AGI:
         AGI.target_path = env.module_path
         AGI._target = env.target
         AGI._rapids_install = rapids_enabled
-
-        if verbose > 1:
-            sys.verbose = True
+        AGI.init_logging(verbose)
+        logging.info(f"AGI instance created for target {target} with verbosity {verbose}")
 
         if mode is None or isinstance(mode, list):
             mode_range = range(8) if mode is None else sorted(mode)
@@ -369,6 +368,26 @@ class AGI:
 
         # Return a JSON-formatted string
         return json.dumps(runs_str_keys)
+
+    @staticmethod
+    def init_logging(verbosity: int = 1):
+        """
+        Initialize logging with a level based on verbosity:
+        0 = WARNING, 1 = INFO, 2 or more = DEBUG
+        """
+        level = logging.WARNING  # default
+
+        if verbosity >= 2:
+            level = logging.DEBUG
+        elif verbosity == 1:
+            level = logging.INFO
+
+        logging.basicConfig(
+            level=level,
+            format="%(asctime)s [%(levelname)s] %(message)s",
+            datefmt="%H:%M:%S",
+        )
+        logging.debug(f"Logging initialized at level {logging.getLevelName(level)}")
 
     @staticmethod
     def _is_local(ip):
@@ -591,7 +610,7 @@ class AGI:
         if not (AGI._mode & 4):
             return
         with closing(AGI._ssh_connect(ip)) as ssh_client:
-            logging.info(f"ssh {ip} {cmd}", level=2)
+            logging.info(f"ssh {ip} {cmd}")
             stdin, stdout, stderr = ssh_client.exec_command(cmd)
             # Wait for command to finish and get its exit status
             exit_status = stdout.channel.recv_exit_status()
@@ -947,13 +966,13 @@ class AGI:
         node_ips = AGI._get_clean_nodes(scheduler)
         AGI._venv_todo(node_ips)
         start_time = time.time()
-        logging.info(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1", level=1)
+        logging.info(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1")
         AGI._install_env_local(app_path, Path(wenv_rel), options)
         # logging.info(AGI.run(cmd, wenv_abs))
         if AGI._mode & 4:
             tasks = []
             for ip in node_ips:
-                logging.info(f"********   Starting {AGI._run_type} for Agi_worker in .venv on {ip}", level=1)
+                logging.info(f"********   Starting {AGI._run_type} for Agi_worker in .venv on {ip}")
                 if not AGI._is_local(ip):
                     tasks.append(asyncio.create_task(
                         AGI._install_env_remote(ip, env, wenv_rel, options["worker"])
@@ -962,7 +981,7 @@ class AGI:
 
         if AGI._verbose:
             duration = AGI._format_duration(time.time() - start_time)
-            logging.info(f"\n********   Agi {AGI._run_type} completed in {duration}", level=1)
+            logging.info(f"\n********   Agi {AGI._run_type} completed in {duration}")
 
     @staticmethod
     def _initialize_installation():
@@ -1015,7 +1034,7 @@ class AGI:
 
         result = AGI._exec_ssh(ip, check_rapids)
         has_rapids_hw = (result != "")
-        logging.info(f"Remote Rapids-capable GPU: {has_rapids_hw}", level=2)
+        logging.info(f"Remote Rapids-capable GPU: {has_rapids_hw}")
 
         # 6) Build and run uv sync, adding --config-file only when has_rapids_hw
         if has_rapids_hw:
@@ -1107,20 +1126,20 @@ class AGI:
 
         # 1) Manager install
         cmd = f"uv {run_type} {options['manager']} --extra managers --project {app_path}"
-        logging.info(f"Executing locally:\n{cmd}\nvenv {app_path}", level=2)
+        logging.info(f"Executing locally:\n{cmd}\nvenv {app_path}")
         AgiEnv.run(cmd, app_path)
 
         # 2) Worker wenv install
-        logging.info(f"Copying {toml_local} → {env.wenv_abs}", level=2)
+        logging.info(f"Copying {toml_local} → {env.wenv_abs}")
         shutil.copy2(toml_local, env.wenv_abs)
-        logging.info(f"Copying {env.setup_core_rel} → {env.wenv_abs}", level=2)
+        logging.info(f"Copying {env.setup_core_rel} → {env.wenv_abs}")
         shutil.copy2(env.setup_core, env.wenv_abs)
 
         cmd = (
             f"uv {run_type} --project {env.wenv_abs} "
             f"{options['worker']} --extra workers"
         )
-        logging.info(f"Executing locally:\n{cmd}\nfrom {env.wenv_abs}", level=2)
+        logging.info(f"Executing locally:\n{cmd}\nfrom {env.wenv_abs}")
         AgiEnv.run(cmd, env.wenv_abs)
 
         # 3) Worker lib install
@@ -1128,7 +1147,7 @@ class AGI:
 
         # 4) Post-install script
         cmd = f"cd {wenv} && uv run -p {pyvers} python {env.post_install} {env.data_dir}"
-        logging.info(f"Executing locally:{cmd}", level=2)
+        logging.info(f"Executing locally:{cmd}")
         AgiEnv.run(cmd, wenv)
 
         # 5) Cleanup
@@ -1144,7 +1163,7 @@ class AGI:
         """Uninstall specified modules."""
         for module in AGI._module_to_clean:
             cmd = f"uv run python -m pip uninstall {module} -y"
-            logging.info(f"Executing locally: {cmd}", level=2)
+            logging.info(f"Executing locally: {cmd}")
             AgiEnv.run(cmd, AGI.env.core_root)
         AGI._module_to_clean.clear()
 
@@ -1501,7 +1520,7 @@ class AGI:
                 # ip = worker.split('/')[-1].split(':')[0]
                 # #finally BUILD THE TARGET WORKER LIB
                 # cmd = f"cd {wenv_rel} && uv run -p {pyvers} python setup build_ext -b '{wenv_rel}'"
-                # logging.info(f"Build worker lib on {ip}: {cmd}", level=2)
+                # logging.info(f"Build worker lib on {ip}: {cmd}")
                 # result = AGI._exec_ssh(ip, cmd)
                 # AGI._handle_command_result(result)
 
