@@ -1091,9 +1091,9 @@ class AGI:
 
         cmd = f"cd {wenv_rel} && uv add {Path(whl).name}"
         AGI._exec_ssh(ip, cmd)
-
+        setup = wenv_rel / "setup"
         # install agi_core*.egg
-        cmd = f"cd {wenv_rel} && uv run python setup build_ext"
+        cmd = f"uv run python {setup} build_ext"
         AGI._exec_ssh(ip, cmd)
 
     @staticmethod
