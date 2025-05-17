@@ -22,8 +22,6 @@ dag-worker = []
 data-worker = ["polars", ]
 workers = ["agi-core[agi-worker]", "agi-core[data-worker]", ]
 managers = ["agi-core[managers]", ]
-
-[tool.uv]
 default-groups = ["dev", ]
 
 [tool.mypy]
