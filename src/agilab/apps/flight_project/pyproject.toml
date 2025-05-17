@@ -19,6 +19,7 @@ dependencies = [
     "cython",
     "ipython",
     "pandas",
+    "logging",
 ]
 
 [project.license]
@@ -45,7 +46,6 @@ dev = [
     "pytest",
     "licensecheck",
     "flight_project",
-    "logging",
     "dask[distributed]",
 ]
 

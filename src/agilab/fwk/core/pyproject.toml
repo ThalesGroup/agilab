@@ -73,6 +73,7 @@ managers = [
     "wheel",
     "polars",
     "dask[distributed]",
+    "cython",
 ]
 workers = []
 
