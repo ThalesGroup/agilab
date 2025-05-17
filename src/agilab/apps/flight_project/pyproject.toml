@@ -15,7 +15,10 @@ dependencies = [
     "parso",
     "py7zr",
     "python-dotenv",
-    "fastparquet",
+    "fastparquet"
+    "cython",
+    "ipython",
+    "pandas",
 ]
 
 [project.license]
@@ -42,8 +45,6 @@ dev = [
     "pytest",
     "licensecheck",
     "flight_project",
-    "ipython",
-    "pandas",
     "logging",
     "dask[distributed]",
 ]
