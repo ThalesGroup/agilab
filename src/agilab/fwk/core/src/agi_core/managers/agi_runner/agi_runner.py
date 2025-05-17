@@ -608,7 +608,9 @@ class AGI:
                     logging.warning(f"{cmd}\nRemote command failed on {ip} (exit {exit_status}):\n{err_text}")
 
             # Otherwise, return whatever was on stdout and ignore stderr
-            logging.info(out_bytes.decode('iso-8859-1', errors='ignore'))
+            result = out_bytes.decode('iso-8859-1', errors='ignore')
+            logging.info(result)
+            return result
 
     @staticmethod
     def _exec_bg(cmd, cwd):
@@ -1011,7 +1013,7 @@ class AGI:
                         "sys.exit(0 if r.returncode == 0 else 1)\""
                         )
 
-        AGI._exec_ssh(ip, check_rapids)
+        reeult = AGI._exec_ssh(ip, check_rapids)
         has_rapids_hw = (result != "")
         logging.info(f"Remote Rapids-capable GPU: {has_rapids_hw}", level=2)
 
