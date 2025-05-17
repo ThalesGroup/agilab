@@ -282,7 +282,7 @@ class AGI:
             except Exception as err:
                 logging.error(err)
                 if verbose > 1:
-                    logging.error(traceback.format_exc())
+                    logging.err(traceback.format_exc())
                 raise
 
     @staticmethod
@@ -591,6 +591,7 @@ class AGI:
         if not (AGI._mode & 4):
             return
         with closing(AGI._ssh_connect(ip)) as ssh_client:
+            logging.info(f"ssh {ip} {cmd}", level=2)
             stdin, stdout, stderr = ssh_client.exec_command(cmd)
             # Wait for command to finish and get its exit status
             exit_status = stdout.channel.recv_exit_status()
@@ -601,10 +602,13 @@ class AGI:
             # If the command failed (non-zero), treat stderr as an error
             if exit_status != 0:
                 err_text = err_bytes.decode('iso-8859-1', errors='ignore').strip()
-                raise RuntimeError(f"{cmd}\nRemote command failed on {ip} (exit {exit_status}):\n{err_text}")
+                if "error" in err_text:
+                    logging.error(f"{cmd}\nRemote command failed on {ip} (exit {exit_status}):\n{err_text}")
+                else:
+                    logging.warning(f"{cmd}\nRemote command failed on {ip} (exit {exit_status}):\n{err_text}")
 
             # Otherwise, return whatever was on stdout and ignore stderr
-            return out_bytes.decode('iso-8859-1', errors='ignore')
+            logging.info(out_bytes.decode('iso-8859-1', errors='ignore'))
 
     @staticmethod
     def _exec_bg(cmd, cwd):
@@ -728,9 +732,9 @@ class AGI:
             logging.info(f"Executing: {cmd}\n  from {cwd}")
 
             if AGI._is_local(ip):
-                last_res = AGI.run(cmd, cwd)
+                AGI.run(cmd, cwd)
             else:
-                last_res = AGI._exec_ssh(ip, cmd)
+                AGI._exec_ssh(ip, cmd)
 
             # handle tuple or dict result
             if isinstance(last_res, dict):
@@ -967,27 +971,6 @@ class AGI:
         AGI._worker_init_error = False
 
     @staticmethod
-    def _handle_command_result(result):
-        """Handle the result of a command execution.
-
-        Args:
-            result (dict or str): A dictionary with keys "stdout" (standard output)
-                                  and "stdin" (standard input), or a string.
-        """
-        # ANSI escape codes for colors
-        GREEN = "\033[32m"
-        BLUE = "\033[34m"
-        RESET = "\033[0m"
-        if result:
-            if isinstance(result, dict):
-                stdout_output = result.get("stdout", "")
-                logging.info(f"{GREEN}{stdout_output}{RESET}")
-                stdin_output = result.get("stdin", "")
-                logging.info(f"{BLUE}{stdin_output}{RESET}")
-            elif isinstance(result, str):
-                logging.info(result)
-
-    @staticmethod
     async def _install_env_remote(ip: str, env, wenv_rel: Path, option: str):
         """Install packages and set up the environment on a remote node."""
         pyvers = env.python_version
@@ -999,8 +982,7 @@ class AGI:
         env_path = env.wenv_abs
         wenv_path = env.wenv_abs
         cmd = f"cd {env_path} && uv run python setup bdist_egg -d \"{wenv_path}\""
-        result = AgiEnv.run(cmd, cwd=env_path, venv=env_path)
-        AGI._handle_command_result(result)
+        AgiEnv.run(cmd, cwd=env_path, venv=env_path)
 
         # ────────────────────────────────────────────────────────────────
 
@@ -1010,9 +992,7 @@ class AGI:
 
         # 1) Bootstrap ensurepip
         cmd = python + " -m ensurepip"
-        logging.info(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
+        AGI._exec_ssh(ip, cmd)
 
         # 4) Unzip egg into remote venv src/
         cmd = (
@@ -1023,9 +1003,7 @@ class AGI:
             f"  for e in pathlib.Path(root).glob('*.egg')]\""
         )
 
-        logging.info(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
+        AGI._exec_ssh(ip, cmd)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
         check_rapids = (f"cd {wenv_rel} && {python} -c \"import subprocess, sys, shutil;"
@@ -1033,7 +1011,7 @@ class AGI:
                         "sys.exit(0 if r.returncode == 0 else 1)\""
                         )
 
-        result = AGI._exec_ssh(ip, check_rapids)
+        AGI._exec_ssh(ip, check_rapids)
         has_rapids_hw = (result != "")
         logging.info(f"Remote Rapids-capable GPU: {has_rapids_hw}", level=2)
 
@@ -1043,21 +1021,15 @@ class AGI:
         else:
             sync_cmd = f"cd {wenv_rel} && uv --config-file uv.toml sync --upgrade {option}"
 
-        logging.info(f"Executing on {ip}: {sync_cmd}", level=2)
-        result = AGI._exec_ssh(ip, sync_cmd);
-        AGI._handle_command_result(result)
+        AGI._exec_ssh(ip, sync_cmd);
 
         # 7) Post-install script
         cmd= f"cd {wenv_rel} && uv run -p {pyvers} python {env.post_install} {env.data_dir}"
-
-        logging.info(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
+        AGI._exec_ssh(ip, cmd)
 
         #####################################################
         # install env & core for enabling dask worker spawn
         ##################################################
-
 
         # init venv
         cmd = (
@@ -1070,46 +1042,36 @@ class AGI:
 
         # Bootstrap ensurepip
         cmd = f"cd {wenv_rel} && uv run python -m ensurepip"
-        logging.info(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd);
-        AGI._handle_command_result(result)
+        AGI._exec_ssh(ip, cmd);
 
         cmd = f"cd {wenv_rel} && uv pip install -e ."
-        logging.info(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
+        AGI._exec_ssh(ip, cmd)
 
         # build agi_env*.whl
         wenv = env.agi_fwk_env_path
         cmd = f"cd {wenv} && uv build --wheel"
-        result = AgiEnv.run(cmd, venv=wenv)
-        AGI._handle_command_result(result)
+        AgiEnv.run(cmd, venv=wenv)
 
         whl = next(iter(wenv.glob("agi_env*.whl")))
         AGI._send_file(ip, whl, wenv_rel)
 
         cmd = f"cd {wenv_rel} && uv add {Path(whl).name}"
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
+        AGI._exec_ssh(ip, cmd)
 
         # build agi_core*.whl
         wenv = env.core_root
         cmd = f"cd {wenv} && uv build --wheel"
-        result = AgiEnv.run(cmd, venv=wenv)
-        AGI._handle_command_result(result)
+        AgiEnv.run(cmd, venv=wenv)
 
         whl = next(iter(wenv.glob("agi_core*.whl" )))
         AGI._send_file(ip, whl, wenv_rel)
 
         cmd = f"cd {wenv_rel} && uv add {Path(whl).name}"
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
+        AGI._exec_ssh(ip, cmd)
 
         # install agi_core*.egg
         cmd = f"cd {wenv_rel} && uv run python setup build_ext -b {env.target_worker}"
-        logging.info(f"Executing on {ip}: {cmd}", level=2)
-        result = AGI._exec_ssh(ip, cmd)
-        AGI._handle_command_result(result)
+        AGI._exec_ssh(ip, cmd)
 
     @staticmethod
     def _install_env_local(src: Path, wenv_rel: Path, options: dict):
@@ -1144,8 +1106,7 @@ class AGI:
         # 1) Manager install
         cmd = f"uv {run_type} {options['manager']} --extra managers --project {app_path}"
         logging.info(f"Executing locally:\n{cmd}\nvenv {app_path}", level=2)
-        result = AgiEnv.run(cmd, app_path)
-        AGI._handle_command_result(result)
+        AgiEnv.run(cmd, app_path)
 
         # 2) Worker wenv install
         logging.info(f"Copying {toml_local} → {env.wenv_abs}", level=2)
@@ -1158,8 +1119,7 @@ class AGI:
             f"{options['worker']} --extra workers"
         )
         logging.info(f"Executing locally:\n{cmd}\nfrom {env.wenv_abs}", level=2)
-        result = AgiEnv.run(cmd, env.wenv_abs)
-        AGI._handle_command_result(result)
+        AgiEnv.run(cmd, env.wenv_abs)
 
         # 3) Worker lib install
         wenv = AGI._build_worker_lib(is_local=True)
@@ -1167,8 +1127,7 @@ class AGI:
         # 4) Post-install script
         cmd = f"cd {wenv} && uv run -p {pyvers} python {env.post_install} {env.data_dir}"
         logging.info(f"Executing locally:{cmd}", level=2)
-        result = AgiEnv.run(cmd, wenv)
-        AGI._handle_command_result(result)
+        AgiEnv.run(cmd, wenv)
 
         # 5) Cleanup
         AGI._uninstall_modules()
@@ -1184,8 +1143,7 @@ class AGI:
         for module in AGI._module_to_clean:
             cmd = f"uv run python -m pip uninstall {module} -y"
             logging.info(f"Executing locally: {cmd}", level=2)
-            result = AgiEnv.run(cmd, AGI.env.core_root)
-            AGI._handle_command_result(result)
+            AgiEnv.run(cmd, AGI.env.core_root)
         AGI._module_to_clean.clear()
 
     @staticmethod
@@ -1505,22 +1463,20 @@ class AGI:
         shutil.copy(env.setup_core, wenv_abs)
         cmd = f"cd {wenv_abs} && uv run -p {pyvers} python setup bdist_egg --packages \"{packages}\""
         logging.info(cmd, "\ncwd", os.getcwd(), "\nfrom", wenv_abs)
-        res = AgiEnv.run(cmd, wenv_abs)
-        logging.info(res)
+        AgiEnv.run(cmd, wenv_abs)
         # compile in cython when cython is requested
         if is_local:
 
             cmd = f"cd {wenv_abs} && uv pip install -e ."
             logging.info(cmd, "\ncwd", os.getcwd(), "\nfrom", wenv_abs)
-            res = AgiEnv.run(cmd, wenv_abs)
-            logging.info(res)
+            AgiEnv.run(cmd, wenv_abs)
 
             if is_cy:
                 # cython compilation of wenv/src into wenw
                 shutil.copy(env.setup_core, wenv_abs)
                 cmd = f"cd {wenv_abs} && uv run -p {pyvers} python setup build_ext -b {wenv_abs}"
                 logging.info(cmd, "\ncwd", os.getcwd(), "\nfrom", wenv_abs)
-                res = AgiEnv.run(cmd, wenv_abs)
+                AgiEnv.run(cmd, wenv_abs)
                 worker_lib = next(iter(wenv_abs.glob("*_cy.*")), None)
                 if not worker_lib:
                     raise FileNotFoundError(wenv_abs.name, "build_ext failed !")
@@ -1609,8 +1565,7 @@ class AGI:
 
         cmd = (f'uv run --project {env.wenv_abs} python -c "from agi_core.workers.agi_worker import AgiWorker;'
                f'print(AgiWorker.run(\'{AGI.env.app}\', {AGI.workers}, {AGI._mode}, {AGI._verbose}, {AGI._args}))"')
-        res = AgiEnv.run(cmd, env.wenv_abs)
-        AGI._handle_command_result(res)
+        AgiEnv.run(cmd, env.wenv_abs)
         return res.split('\n')[-2]
 
     @staticmethod
