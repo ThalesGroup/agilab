@@ -18,11 +18,10 @@ print(f"Replacement name: {app}")
 
 template_paths = [
     'pycharm/_template_app_lib.xml',
-    'pycharm/_template_app_egg.xml',
     'pycharm/_template_app_run_manager.xml',
     'pycharm/_template_app_run_worker.xml',
     'pycharm/_template_app_test.xml',
-    'pycharm/_template_app_postinstall.xml',
+    'pycharm/_template_app_preinstall.xml',
     'pycharm/_template_app_postinstall.xml'
 ]
 

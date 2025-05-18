@@ -139,7 +139,7 @@ class Flight(AgiManager):
         self.data_source = args["data_source"]
         if self.data_source == "file":
             args["files"] = args.get("files", "*")
-            path = args.get("path", os.path.join("~/data", "flight"))
+            path = args.get("path", "data/flight")
             if env.is_managed_pc:
                 path = path.replace("~", "~/MyApp")
             args["nfile"] = args.get("nfile", 999_999_999_999)
@@ -156,16 +156,14 @@ class Flight(AgiManager):
         self.files = args["files"]
         self.nfile = args["nfile"]
         AgiManager.args = args
-        self.data_out = AgiEnv.normalize_path(base_path.parent / "dataframe")
+        self.data_out = AgiEnv.normalize_path(base_path / "dataframe")
 
         """
           remove dataframe files from previous run
           """
         try:
             if os.path.exists(self.data_out):
-                shutil.rmtree(
-                    self.data_out, ignore_errors=True, onerror=AgiManager.onerror
-                )
+                shutil.rmtree(self.data_out, ignore_errors=True, onerror=AgiManager.onerror)
             os.makedirs(self.data_out, exist_ok=True)
         except Exception as e:
             print(f"warning issue while trying to remove directory: {e}")

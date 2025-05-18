@@ -1002,7 +1002,7 @@ class AGI:
         # build agi_env*.egg locally
         env_path = env.wenv_abs
         wenv_path = env.wenv_abs
-        cmd = f"cd {env_path} && uv run python setup bdist_egg -d \"{wenv_path}\""
+        cmd = f"cd {env_path} && uv -p {pyvers} run python setup bdist_egg -d \"{wenv_path}\""
         AgiEnv.run(cmd, cwd=env_path, venv=env_path)
 
         # ────────────────────────────────────────────────────────────────
@@ -1120,15 +1120,18 @@ class AGI:
             except (subprocess.CalledProcessError, FileNotFoundError):
                 return False
 
-        has_rapids_hw = hardware_supports_rapids()
-
         # Paths
         toml_local = src / "pyproject.toml"
         toml_remote = wenv_rel.expanduser() / "pyproject.toml"
         app_path = env.app_path.absolute()
 
         # 1) Manager install
-        cmd = f"uv {run_type} {options['manager']} --extra managers --project {app_path}"
+        has_rapids_hw = hardware_supports_rapids()
+        if has_rapids_hw:
+            cmd = f"uv {run_type} {options['manager']} --extra managers --project {app_path}"
+        else:
+            cmd = f"uv --config-file uv.toml {run_type} {options['manager']} --extra managers --project {app_path}"
+
         logging.info(f"Executing locally:\n{cmd}\nvenv {app_path}")
         AgiEnv.run(cmd, app_path)
 
@@ -1138,10 +1141,11 @@ class AGI:
         logging.info(f"Copying {env.setup_core_rel} → {env.wenv_abs}")
         shutil.copy2(env.setup_core, env.wenv_abs)
 
-        cmd = (
-            f"uv {run_type} --project {env.wenv_abs} "
-            f"{options['worker']} --extra workers"
-        )
+        if has_rapids_hw:
+            cmd = f"uv {run_type} --project {env.wenv_abs} {options['worker']} --extra workers"
+        else:
+            cmd = f"uv --config-file uv.toml {run_type} --project {env.wenv_abs} {options['worker']} --extra workers"
+
         logging.info(f"Executing locally:\n{cmd}\nfrom {env.wenv_abs}")
         AgiEnv.run(cmd, env.wenv_abs)
 
@@ -1483,23 +1487,20 @@ class AGI:
         elif baseworker.startswith("AgiData"):
             packages += "data_worker"
 
-        wenv_abs = env.wenv_abs
-        shutil.copy(env.setup_core, wenv_abs)
-        cmd = f"cd {wenv_abs} && uv run -p {pyvers} python setup bdist_egg --packages \"{packages}\""
-        logging.info(cmd, "\ncwd", os.getcwd(), "\nfrom", wenv_abs)
-        AgiEnv.run(cmd, wenv_abs)
+        wenv = env.app_path
+        shutil.copy(env.setup_core, wenv)
+        cmd = f"cd {wenv} && uv run -p {pyvers} python setup bdist_egg --packages \"{packages}\" -d {env.wenv_abs}"
+        AgiEnv.run(cmd, wenv)
         # compile in cython when cython is requested
         if is_local:
 
             cmd = f"cd {wenv_abs} && uv pip install -e ."
-            logging.info(cmd, "\ncwd", os.getcwd(), "\nfrom", wenv_abs)
             AgiEnv.run(cmd, wenv_abs)
 
             if is_cy:
                 # cython compilation of wenv/src into wenw
                 shutil.copy(env.setup_core, wenv_abs)
                 cmd = f"cd {wenv_abs} && uv run -p {pyvers} python setup build_ext -b {wenv_abs}"
-                logging.info(cmd, "\ncwd", os.getcwd(), "\nfrom", wenv_abs)
                 res = AgiEnv.run(cmd, wenv_abs)
                 worker_lib = next(iter(wenv_abs.glob("*_cy.*")), None)
                 if not worker_lib:

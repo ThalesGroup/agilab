@@ -101,29 +101,48 @@ def find_sys_prefix(base_dir: str) -> str:
     return sys.prefix
 
 
-def copy_module_into_src(env, pck: str) -> list[Path]:
-    """
-    Recursively copy the entire package from env into ./src,
-    so that setuptools only ever sees files under ./src.
-    Returns the list of top-level dirs copied (for cleanup).
-    """
-    pck_src = pck.replace('.', '/')
-    # decide where the real code lives
-    root = pck.split('.')[0]
-    if root == "agi_env":
+def create_symlink_for_module(env, pck: str) -> list[Path]:
+    # e.g. "agi_core.workers.agi_worker"
+    pck_src = pck.replace('.', '/')            # -> Path("agi_core")/"workers"/"agi_worker"
+    # extract "core" from "agi_core"
+    pck_root = pck.split('.')[0]
+    src_abs = env.workers_root / pck_src
+    if pck_root == "agi_env":
         src_abs = env.env_src / pck_src
-    elif root == env.target_worker:
+    elif pck_root == env.target_worker:
         src_abs = env.app_src / pck_src
-    else:
-        src_abs = env.workers_root / pck_src
 
     dest = Path('src') / pck_src
-    if dest.exists():
-        return []
-    logging.info(f"Copying {src_abs} → {dest}")
-    shutil.copytree(src_abs, dest)
-    return [dest]
+    created_links: list[Path] = []
+ try:
+        dest = dest.absolute()
+    except FileNotFoundError:
+        logging.error(f"Source path does not exist: {src_abs}")
+        sys.exit(1)
 
+    if not dest.parent.exists():
+        logging.info(f"Creating directory: {dest.parent}")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+    if not dest.exists():
+        logging.info(f"Linking {src_abs} -> {dest}")
+        try:
+            AgiEnv.create_symlink(src_abs, dest)
+            created_links.append(dest)
+            logging.info(f"Symlink created: {dest} -> {src_abs}")
+        except Exception as symlink_err:
+            logging.warning(f"Symlink creation failed: {symlink_err}. Trying hard link instead.")
+            try:
+                os.link(src_abs, dest)
+                created_links.append(dest)
+                logging.info(f"Hard link created: {dest} -> {src_abs}")
+            except Exception as link_err:
+                logging.error(f"Failed to create link from {src_abs} to {dest}: {link_err}")
+                sys.exit(1)
+    else:
+        logging.debug(f"Link already exists for {dest}")
+
+    return created_links
 
 def main() -> None:
 
@@ -135,7 +154,7 @@ def main() -> None:
     install_type = opts.install_type
 
     # Determine out_dir (strip file to dir)
-    outdir = opts.build_dir if opts.build_dir else opts.dist_dir
+    outdir = opts.dist_dir if opts.dist_dir else opts.build_dir
     p = Path(outdir)
     if p.suffix and not p.is_dir():
         logging.warning(f"'{outdir}' looks like a file; using its parent directory instead.")
@@ -163,10 +182,10 @@ def main() -> None:
 
     # For bdist_egg, choose target_pkg/module differently:
     if outdir:
-        target_pkg = Path(outdir).name.replace("_worker", "")
+        target_pkg = Path(outdir).name.removesuffix("_worker").removesuffix("_project")
     else:
         if packages:
-            target_pkg = packages[0].replace("_worker", "")
+            target_pkg = packages[0].name.replace("_worker", "").replace("_project", "")
         else:
             logging.error("Cannot determine target package name.")
             sys.exit(1)
@@ -194,10 +213,13 @@ def main() -> None:
         logging.info(f"Cython extension configured: {worker_module}_cy")
 
     elif not install_type:
-        # For bdist_egg copy modules under src
-        os.chdir(env.app_path)
-        for m in custom_modules:
-            copies += copy_module_into_src(env, m)
+    # For bdist_egg copy modules under src
+    os.chdir(env.app_path)
+    for module in custom_modules:
+        links_created.extend(create_symlink_for_module(env, module))
+
+    for m in custom_modules:
+        copies += copy_module_into_src(env, m)
 
     # Discover packages and combine with custom modules
     package_dir = {'': 'src'}
