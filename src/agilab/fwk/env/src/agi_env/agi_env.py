@@ -262,6 +262,29 @@ class AgiEnv:
         if self.module != target:
             self.change_active_app(target + '_project', install_type)
 
+    def check_args(self, target_args_class, target_args):
+        try:
+            validated_args = target_args_class.parse_obj(target_args)
+            validation_errors = None
+        except Exception as e:
+            import humanize
+            validation_errors = self.humanize_validation_errors(e)
+        return validation_errors
+
+    def humanize_validation_errors(self, error):
+        formatted_errors = []
+        for err in error.errors():
+            field = ".".join(str(loc) for loc in err["loc"])
+            message = err["msg"]
+            error_type = err.get("type", "unknown_error")
+            input_value = err.get("ctx", {}).get("input_value", None)
+            user_message = f"❌ **{field}**: {message}"
+            if input_value is not None:
+                user_message += f" (Received: `{input_value}`)"
+            user_message += f"\n*Error Type:* `{error_type}`\n"
+            formatted_errors.append(user_message)
+        return formatted_errors
+
     def set_env_var(self, key: str, value: str):
         self.envars[key] = value
         os.environ[key] = str(value)
@@ -587,7 +610,7 @@ class AgiEnv:
             venv_path = venv_path / ".venv"
 
         process_env["VIRTUAL_ENV"] = str(venv_path)
-        bin_dir = "Scripts" if os.name == "nt" else "bin"
+        bin_dir = "Scripts" if os.name == "nt" else "bin""bin"
         venv_bin = venv_path / bin_dir
         process_env["PATH"] = str(venv_bin) + os.pathsep + process_env.get("PATH", "")
 

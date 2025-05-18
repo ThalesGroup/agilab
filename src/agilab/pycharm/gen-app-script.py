@@ -22,6 +22,7 @@ template_paths = [
     'pycharm/_template_app_run_manager.xml',
     'pycharm/_template_app_run_worker.xml',
     'pycharm/_template_app_test.xml',
+    'pycharm/_template_app_postinstall.xml',
     'pycharm/_template_app_postinstall.xml'
 ]
 
