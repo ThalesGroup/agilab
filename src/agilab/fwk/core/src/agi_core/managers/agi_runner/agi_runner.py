@@ -1489,10 +1489,11 @@ class AGI:
         elif baseworker.startswith("AgiData"):
             packages += "data_worker"
 
-        wenv_abs = env.app_path
-        shutil.copy(env.setup_core, wenv)
-        cmd = f"cd {wenv} && uv run -p {pyvers} python setup bdist_egg --packages \"{packages}\" -d {env.wenv_abs}"
-        AgiEnv.run(cmd, wenv)
+        app_path = env.app_path
+        wenv_abs = env.wenv_abs
+        shutil.copy(env.setup_core, app_path)
+        cmd = f"cd {wenv} && uv run -p {pyvers} python setup bdist_egg --packages \"{packages}\" -d {wenv_abs}"
+        AgiEnv.run(cmd, app_path)
         # compile in cython when cython is requested
         if is_local:
 
@@ -1504,7 +1505,7 @@ class AGI:
                 shutil.copy(env.setup_core, wenv_abs)
                 cmd = f"cd {wenv_abs} && uv run -p {pyvers} python setup build_ext -b {wenv_abs}"
                 res = AgiEnv.run(cmd, wenv_abs)
-                worker_lib = next(iter(wenv_abs.glob("*_cy.*")), None)
+                worker_lib = next(iter(wenv.glob("*_cy.*")), None)
                 if not worker_lib:
                     raise FileNotFoundError(wenv_abs.name, "build_ext failed !")
 
