@@ -609,6 +609,18 @@ class AgiEnv:
                 logging.error(msg)
 
     @staticmethod
+    def _log(line):
+        RED = "\033[31m"
+        RESET = "\033[0m"
+        if line:
+            msg_type = line[10:14]
+            if  msg_type == 'INFO' or msg_type == 'ERRO':
+                print(line)
+            else:
+                msg = f"{RED}{line}{RESET}" if sys.stdout.isatty() else line
+                logging.log(level=1, msg=line)
+
+    @staticmethod
     def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
         """
         Run a shell command synchronously inside a virtual environment.
@@ -662,10 +674,16 @@ class AgiEnv:
 
                     if err_line:
                         line = err_line.rstrip("\n")
+                        msg_type = line[10:14]
                         if log_callback:
                             log_callback(line)
-                        else:
+                        elif msg_type == "INFO":
+                                AgiEnv._log_info(line)
+                        elif msg_type == "ERRO":
                             AgiEnv._log_error(line)
+                        else:
+                            AgiEnv._log(line)
+
 
                     if out_line == '' and err_line == '' and process.poll() is not None:
                         break
