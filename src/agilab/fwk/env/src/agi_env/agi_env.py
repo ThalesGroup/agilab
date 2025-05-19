@@ -304,7 +304,7 @@ class AgiEnv:
                     agilab_path = Path(install_path)
                     if install_path and agilab_path.exists():
                         if verbose:
-                            logging.info("Run Agilab:", install_path)
+                            logging.info(f"Run Agilab: {install_path}")
                         return agilab_path
                     else:
                         raise ValueError("Installation path file is empty or invalid.")
@@ -532,7 +532,7 @@ class AgiEnv:
         pyproject_file.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
         if self.verbose:
-            logging.info("Updated", pyproject_file)
+            logging.info(f"Update: {pyproject_file}")
 
         return agi_root / "fwk" / "core"
 
