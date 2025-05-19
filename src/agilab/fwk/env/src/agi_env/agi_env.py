@@ -24,7 +24,7 @@ class AgiEnv:
     init_done = False
 
     def __init__(self, install_type: int = None, apps_dir: Path = None,
-                 active_app: Path | str = None, active_module: Path = None, verbose: int = 0):
+                 active_app: Path | str = None, active_module: Path = None, verbose: int = 1):
         self.verbose = verbose
         AgiEnv.init_logging(verbose)  # Initialize logging here
 
@@ -601,6 +601,7 @@ class AgiEnv:
         Returns:
             str: Captured stdout if wait=True, else empty string.
         """
+        logging.info(f"Executing locally in venv: {venv}\n{cmd}")
         if not cwd:
             cwd = venv
         process_env = os.environ.copy()
@@ -617,7 +618,6 @@ class AgiEnv:
 
         if wait:
             try:
-                logging.info(f"Executing locally:\n{cmd}\nvenv{venv}", level=2)
                 process = subprocess.Popen(
                     cmd,
                     shell=True,
