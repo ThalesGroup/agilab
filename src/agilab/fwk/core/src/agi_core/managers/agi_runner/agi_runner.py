@@ -628,7 +628,7 @@ class AGI:
 
             # Otherwise, return whatever was on stdout and ignore stderr
             result = out_bytes.decode('iso-8859-1', errors='ignore')
-            logging.info(result)
+            AGI._handle_command_result(result)
             return result
 
     @staticmethod
@@ -2099,3 +2099,24 @@ class AGI:
                 raise RuntimeError(f"{w} workers AgiWorker.do_works failed")
 
         AGI._train_model(AGI.env.home_abs)
+
+    @staticmethod
+    def _handle_command_result(result):
+        """Handle the result of a command execution.
+
+        Args:
+            result (dict or str): A dictionary with keys "stdout" (standard output)
+                                  and "stdin" (standard input), or a string.
+        """
+        # ANSI escape codes for colors
+        GREEN = "\033[32m"
+        BLUE = "\033[34m"
+        RESET = "\033[0m"
+        if result:
+            if isinstance(result, dict):
+                stdout_output = result.get("stdout", "")
+                logging.info(f"{GREEN}{stdout_output}{RESET}")
+                stdin_output = result.get("stdin", "")
+                logging.info(f"{BLUE}{stdin_output}{RESET}")
+            elif isinstance(result, str):
+                logging.info(result)
