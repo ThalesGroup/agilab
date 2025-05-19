@@ -586,22 +586,38 @@ class AgiEnv:
         return proc_env
 
     @staticmethod
+    def _log_info(line):
+        GREEN = "\033[32m"
+        RESET = "\033[0m"
+        if line:
+            if line.startswith(GREEN):
+                print(line)
+            else:
+                msg = f"{GREEN}{line}{RESET}" if sys.stdout.isatty() else line
+                logging.info(msg)
+
+    @staticmethod
+    def _log_error(line):
+        RED = "\033[31m"
+        RESET = "\033[0m"
+        if line:
+            msg_type = line[10:14]
+            if  msg_type == 'INFO' or msg_type == 'ERRO':
+                print(line)
+            else:
+                msg = f"{RED}{line}{RESET}" if sys.stdout.isatty() else line
+                logging.error(msg)
+
+    @staticmethod
     def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
         """
         Run a shell command synchronously inside a virtual environment.
+        Log stdout lines as info, stderr lines as error.
 
-        Args:
-            cmd (str or list): Command to run.
-            venv (str or Path): Path to the virtual environment or project root.
-            cwd (str or Path): Working directory.
-            timeout (float): Timeout in seconds.
-            wait (bool): Wait for process to finish.
-            log_callback (callable): Function to receive stdout/stderr lines.
-
-        Returns:
-            str: Captured stdout if wait=True, else empty string.
+        Returns exit code.
         """
-        logging.info(f"Executing locally in venv: {venv}\n{cmd}")
+        AgiEnv._log_info(f"Executing locally in venv: {venv}\n{cmd}")
+
         if not cwd:
             cwd = venv
         process_env = os.environ.copy()
@@ -610,11 +626,11 @@ class AgiEnv:
             venv_path = venv_path / ".venv"
 
         process_env["VIRTUAL_ENV"] = str(venv_path)
-        bin_dir = "Scripts" if os.name == "nt" else "bin""bin"
+        bin_dir = "Scripts" if sys.platform == "win32" else "bin"
         venv_bin = venv_path / bin_dir
         process_env["PATH"] = str(venv_bin) + os.pathsep + process_env.get("PATH", "")
 
-        shell_executable = "/bin/bash" if os.name != "nt" else None
+        shell_executable = None if sys.platform == "win32" else "/bin/bash"
 
         if wait:
             try:
@@ -627,48 +643,97 @@ class AgiEnv:
                     executable=shell_executable,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
+                    bufsize=1,
+                    universal_newlines=True,
                 )
-                # Read stderr line by line and call log_callback or logging.info
+
+                result = ""
                 while True:
-                    if process.stderr:
-                        line = process.stderr.readline().rstrip()
-                        if line:
-                            if log_callback:
-                                log_callback(line)
-                            else:
-                                logging.info(line)
-                        if line == '' and process.poll() is not None:
-                            break
-                    else:
+                    out_line = process.stdout.readline()
+                    err_line = process.stderr.readline()
+                    result += out_line
+
+                    if out_line:
+                        line = out_line.rstrip("\n")
+                        if log_callback:
+                            log_callback(line)
+                        else:
+                            AgiEnv._log_info(line)
+
+                    if err_line:
+                        line = err_line.rstrip("\n")
+                        if log_callback:
+                            log_callback(line)
+                        else:
+                            AgiEnv._log_error(line)
+
+                    if out_line == '' and err_line == '' and process.poll() is not None:
                         break
+
                 process.wait(timeout=timeout)
-                result = process.stdout.read() if process.stdout else ""
-                AgiEnv._handle_result(result)
+                AgiEnv._log_info(f"Command completed with exit code {process.returncode}")
+                return result
+
+            except subprocess.TimeoutExpired:
+                process.kill()
+                raise RuntimeError(f"Command timed out after {timeout} seconds: {cmd}")
             except Exception as e:
                 logging.error(traceback.format_exc())
                 raise RuntimeError(f"Command execution error: {e}") from e
+        else:
+            subprocess.Popen(
+                cmd,
+                shell=True,
+                cwd=str(cwd),
+                env=process_env,
+                executable=shell_executable,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return 0
 
     @staticmethod
-    def _handle_result(result):
-        """Handle the result of a command execution.
-
-        Args:
-            result (dict or str): A dictionary with keys "stdout" (standard output)
-                                  and "stdin" (standard input), or a string.
+    async def _run_bg(cmd, cwd=".", venv=None, timeout=None, log_callback=None):
         """
-        # ANSI escape codes for colors
-        GREEN = "\033[32m"
-        BLUE = "\033[34m"
-        RESET = "\033[0m"
-        if result:
-            if isinstance(result, dict):
-                stdout_output = result.get("stdout", "")
-                logging.info(f"{GREEN}{stdout_output}{RESET}")
-                stdin_output = result.get("stdin", "")
-                logging.info(f"{BLUE}{stdin_output}{RESET}")
-            elif isinstance(result, str):
-                logging.info(result)
+        Run command asynchronously, log stdout as info, stderr as error.
+        """
+        proc_env = AgiEnv._build_env(venv)
+        proc_env["PYTHONUNBUFFERED"] = "1"
+        proc = await asyncio.create_subprocess_shell(
+            cmd,
+            cwd=os.path.abspath(cwd),
+            env=proc_env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            text=True,
+        )
 
+        async def read_stream(stream, log_func):
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                log_func(line.rstrip())
+
+        tasks = []
+        if proc.stdout:
+            tasks.append(asyncio.create_task(
+                read_stream(proc.stdout, log_callback if log_callback else AgiEnv._log_info)
+            ))
+        if proc.stderr:
+            tasks.append(asyncio.create_task(
+                read_stream(proc.stderr, log_callback if log_callback else AgiEnv._log_error)
+            ))
+
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=timeout)
+        except asyncio.TimeoutError as err:
+            proc.kill()
+            raise RuntimeError(f"Timeout expired for command: {cmd}") from err
+
+        await asyncio.gather(*tasks)
+        stdout, stderr = await proc.communicate()
+        return stdout, stderr
 
     @staticmethod
     def create_symlink(source: Path, dest: Path):
