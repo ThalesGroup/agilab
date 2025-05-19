@@ -992,6 +992,71 @@ class AGI:
         AGI._worker_init_error = False
 
     @staticmethod
+    def _install_env_local(src: Path, wenv_rel: Path, options: dict):
+        """Install packages and set up the environment on the local node.
+
+        Adds --config-file uv.toml to all `uv {run_type}` calls only when
+        os.name == 'nt' (Windows) AND hardware supports Rapids (nvidia-smi).
+        """
+        env = AGI.env
+        pyvers = env.python_version
+        run_type = AGI._run_type  # ["run","sync --upgrade","sync","simulate"]
+
+        def hardware_supports_rapids() -> bool:
+            try:
+                subprocess.run(
+                    ["nvidia-smi"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=True
+                )
+                return True
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                return False
+
+        # Paths
+        toml_local = src / "pyproject.toml"
+        toml_remote = wenv_rel.expanduser() / "pyproject.toml"
+        app_path = env.app_path.absolute()
+
+        # 1) Manager install
+        has_rapids_hw = hardware_supports_rapids()
+        if has_rapids_hw:
+            cmd = f"uv {run_type} {options['manager']} --extra managers --project {app_path}"
+        else:
+            cmd = f"uv --config-file uv.toml {run_type} {options['manager']} --extra managers --project {app_path}"
+
+        logging.info(f"Executing locally:\n{cmd}\nvenv {app_path}")
+        AgiEnv.run(cmd, app_path)
+
+        # 2) Worker wenv install
+        wenv_abs = env.wenv_abs
+        logging.info(f"Copying {toml_local} → {wenv_abs}")
+        shutil.copy2(toml_local, wenv_abs)
+        logging.info(f"Copying {env.setup_core_rel} → {wenv_abs}")
+        shutil.copy2(env.setup_core, wenv_abs)
+
+        if has_rapids_hw:
+            cmd = f"uv {run_type} --project {wenv_abs} {options['worker']} --extra workers"
+        else:
+            cmd = f"uv --config-file uv.toml {run_type} --project {wenv_abs} {options['worker']} --extra workers"
+
+        logging.info(f"Executing locally:\n{cmd}\nfrom {wenv_abs}")
+        AgiEnv.run(cmd, wenv_abs)
+
+        # 3) Worker lib install
+        wenv = AGI._build_worker_lib(is_local=True)
+
+        # 4) Post-install script
+        cmd = f"cd {wenv} && uv run -p {pyvers} python {env.post_install} {env.data_dir}"
+        logging.info(f"Executing locally:{cmd}")
+        AgiEnv.run(cmd, wenv)
+
+        # 5) Cleanup
+        AGI._uninstall_modules()
+        AGI._install_done_local = True
+
+    @staticmethod
     async def _install_env_remote(ip: str, env, wenv_rel: Path, option: str):
         """Install packages and set up the environment on a remote node."""
         pyvers = env.python_version
@@ -1097,69 +1162,6 @@ class AGI:
         cmd = f"cd {wenv_rel} && uv run -p {pyvers} python {setup} build_ext -b {out_dir}"
         AGI._exec_ssh(ip, cmd)
 
-    @staticmethod
-    def _install_env_local(src: Path, wenv_rel: Path, options: dict):
-        """Install packages and set up the environment on the local node.
-
-        Adds --config-file uv.toml to all `uv {run_type}` calls only when
-        os.name == 'nt' (Windows) AND hardware supports Rapids (nvidia-smi).
-        """
-        env = AGI.env
-        pyvers = env.python_version
-        run_type = AGI._run_type  # ["run","sync --upgrade","sync","simulate"]
-
-        def hardware_supports_rapids() -> bool:
-            try:
-                subprocess.run(
-                    ["nvidia-smi"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    check=True
-                )
-                return True
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                return False
-
-        # Paths
-        toml_local = src / "pyproject.toml"
-        toml_remote = wenv_rel.expanduser() / "pyproject.toml"
-        app_path = env.app_path.absolute()
-
-        # 1) Manager install
-        has_rapids_hw = hardware_supports_rapids()
-        if has_rapids_hw:
-            cmd = f"uv {run_type} {options['manager']} --extra managers --project {app_path}"
-        else:
-            cmd = f"uv --config-file uv.toml {run_type} {options['manager']} --extra managers --project {app_path}"
-
-        logging.info(f"Executing locally:\n{cmd}\nvenv {app_path}")
-        AgiEnv.run(cmd, app_path)
-
-        # 2) Worker wenv install
-        logging.info(f"Copying {toml_local} → {env.wenv_abs}")
-        shutil.copy2(toml_local, env.wenv_abs)
-        logging.info(f"Copying {env.setup_core_rel} → {env.wenv_abs}")
-        shutil.copy2(env.setup_core, env.wenv_abs)
-
-        if has_rapids_hw:
-            cmd = f"uv {run_type} --project {env.wenv_abs} {options['worker']} --extra workers"
-        else:
-            cmd = f"uv --config-file uv.toml {run_type} --project {env.wenv_abs} {options['worker']} --extra workers"
-
-        logging.info(f"Executing locally:\n{cmd}\nfrom {env.wenv_abs}")
-        AgiEnv.run(cmd, env.wenv_abs)
-
-        # 3) Worker lib install
-        wenv = AGI._build_worker_lib(is_local=True)
-
-        # 4) Post-install script
-        cmd = f"cd {wenv} && uv run -p {pyvers} python {env.post_install} {env.data_dir}"
-        logging.info(f"Executing locally:{cmd}")
-        AgiEnv.run(cmd, wenv)
-
-        # 5) Cleanup
-        AGI._uninstall_modules()
-        AGI._install_done_local = True
 
     @staticmethod
     def _should_install_pip():
@@ -1487,7 +1489,7 @@ class AGI:
         elif baseworker.startswith("AgiData"):
             packages += "data_worker"
 
-        wenv = env.app_path
+        wenv_abs = env.app_path
         shutil.copy(env.setup_core, wenv)
         cmd = f"cd {wenv} && uv run -p {pyvers} python setup bdist_egg --packages \"{packages}\" -d {env.wenv_abs}"
         AgiEnv.run(cmd, wenv)
