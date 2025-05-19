@@ -541,7 +541,7 @@ class AGI:
     def _read_stdout(output_stream):
         for line in output_stream:
             if line.strip():
-                AgiEnv._handle_result(line.strip())
+                AgiEnv._log_info(line.strip())
 
     @staticmethod
     def _read_stderr(output_stream):

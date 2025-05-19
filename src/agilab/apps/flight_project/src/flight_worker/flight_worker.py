@@ -20,6 +20,7 @@ import numpy as np
 import polars as pl
 from geopy.distance import geodesic
 import time
+import logging
 
 from numpy.linalg import norm  # Imported norm
 from agi_core.workers.data_worker import AgiDataWorker
@@ -84,7 +85,7 @@ class FlightWorker(AgiDataWorker):
         global global_vars
 
         if self.verbose > 0:
-            print(f"from: {__file__}\n", end="")
+            logging.info(f"from: {__file__}")
 
         if os.name == "nt" and not getpass.getuser().startswith("T0"):
             path = Path(self.args["path"])
@@ -96,10 +97,10 @@ class FlightWorker(AgiDataWorker):
             try:
                 # Your NFS account in order to mount it as net drive on Windows
                 cmd = f'net use Z: "{net_path}" /user:your-credentials'
-                print(cmd)
+                logging.info(cmd)
                 subprocess.run(cmd, shell=True, check=True)
             except Exception as e:
-                print(f"Failed to map network drive: {e}")
+                logging.info(f"Failed to map network drive: {e}")
 
         # Path to database on symlink Path.home()/data(symlink)
         self.home_rel = Path(self.args["path"]).expanduser()
@@ -114,19 +115,15 @@ class FlightWorker(AgiDataWorker):
             shutil.rmtree(self.data_out, ignore_errors=True, onerror=self.onerror)
             os.makedirs(self.data_out, exist_ok=True)
         except Exception as e:
-            print(f"Error removing directory: {e}")
+            logging.info(f"Error removing directory: {e}")
 
         self.args["path"] = path
 
         if self.verbose > 1:
-            print(f"Worker #{self.worker_id} dataframe root path = {self.data_out}")
+            logging.info(f"Worker #{self.worker_id} dataframe root path = {self.data_out}")
 
         if self.verbose > 0:
-            print(
-                f"FlightWorker.start on flight_worker {self.worker_id}\n",
-                end="",
-                flush=True,
-            )
+            logging.info(f"FlightWorker.start on flight_worker {self.worker_id}\n")
         args = self.args
 
         if args["data_source"] == "file":
@@ -236,10 +233,10 @@ class FlightWorker(AgiDataWorker):
                     plane_df.write_csv(str(filename))
 
                 if self.verbose > 0:
-                    print(f"Saved dataframe for plane {plane} with shape {plane_df.shape} in {filename}")
+                    logging.info(f"Saved dataframe for plane {plane} with shape {plane_df.shape} in {filename}")
             except Exception as e:
-                print(traceback.format_exc())
-                print(f"Error saving dataframe for plane {plane}: {e}")
+                logging.info(traceback.format_exc())
+                logging.info(f"Error saving dataframe for plane {plane}: {e}")
 
     def stop(self):
         try:
@@ -248,14 +245,14 @@ class FlightWorker(AgiDataWorker):
             df_files = [f for f in files if re.search(r"\.(csv|parquet)$", f)]
             n_df = len(df_files)
             if self.verbose > 0:
-                print(f"FlightWorker.worker_end - {n_df} dataframes:")
+                logging.info(f"FlightWorker.worker_end - {n_df} dataframes:")
                 for f in df_files:
-                    print(Path(f))
+                    logging.info(Path(f))
                 if not n_df:
-                    print("No dataframe created")
+                    logging.info("No dataframe created")
 
         except Exception as err:
-            print(f"Error while trying to find dataframes: {err}")
+            logging.info(f"Error while trying to find dataframes: {err}")
 
         # call the base class stop()
         super().stop()
