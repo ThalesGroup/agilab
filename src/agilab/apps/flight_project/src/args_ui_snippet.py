@@ -159,7 +159,7 @@ with c10:
 # Collect UI inputs into a dictionary and validate the path
 if st.session_state.data_source == "file":
     # Expand the user path
-    directory = Path(st.session_state.path).expanduser()
+    directory = st.session_state.env.home_abs / st.session_state.path
     if not directory.is_dir():
         st.error(f"The provided path '{directory}' is not a valid directory.")
         st.stop()
