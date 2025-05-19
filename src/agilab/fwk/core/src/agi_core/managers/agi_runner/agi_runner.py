@@ -1503,9 +1503,9 @@ class AGI:
             if is_cy:
                 # cython compilation of wenv/src into wenw
                 shutil.copy(env.setup_core, wenv_abs)
-                cmd = f"cd {wenv_abs} && uv run -p {pyvers} python setup build_ext -b {wenv_abs}"
-                res = AgiEnv.run(cmd, wenv_abs)
-                worker_lib = next(iter(wenv.glob("*_cy.*")), None)
+                cmd = f"cd {app_path} && uv run -p {pyvers} python setup build_ext -b {wenv_abs}"
+                res = AgiEnv.run(cmd, app_path)
+                worker_lib = next(iter(wenv_abs.glob("*_cy.*")), None)
                 if not worker_lib:
                     raise FileNotFoundError(wenv_abs.name, "build_ext failed !")
 
