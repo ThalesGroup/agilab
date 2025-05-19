@@ -45,7 +45,7 @@ class AgiEnv:
             install_type = 1 if ("site-packages" not in __file__ or sys.prefix.endswith("gui/.venv")) else 0
             self.install_type = install_type
 
-        logging.info(f"install_type: {}install_type}")
+        logging.info(f"install_type: {install_type}")
 
         self.agi_root = AgiEnv.locate_agi_installation(verbose)
 
