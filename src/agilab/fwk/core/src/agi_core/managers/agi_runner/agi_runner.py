@@ -581,7 +581,7 @@ class AGI:
                 decoded = decode_bytes(raw)
                 for part in decoded.splitlines():
                     line = part.strip()
-                    AgiEnv._handle_result(line)
+                    AgiEnv._log_info(line)
                     AGI._worker_init_error = line.endswith('[ProjectError]')
             elif chan.exit_status_ready():
                 break
@@ -1321,9 +1321,9 @@ class AGI:
                 time.sleep(1)
                 cmd = (f"uv run --project {env.wenv_abs} dask scheduler --port {AGI._scheduler_port} "
                        f"--host {AGI._scheduler_ip} --pid-file dask_pid")
-                logging.info("starting dask scheduler: ", cmd)
+                logging.info(f"starting dask scheduler: {cmd}")
                 result = AGI._exec_bg(cmd, env.app_path)
-                logging.info(f"{result}")
+                logging.info(result)
             else:
                 cmd = f"python3 -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
                 AGI._exec_ssh(AGI._scheduler_ip, cmd)
@@ -1460,10 +1460,10 @@ class AGI:
 
                 if count_runners <= n_workers:
                     nb_remaining_workers = n_workers - count_runners
-                    logging.info(f"waiting for workers to attach: {nb_remaining_workers}", end="\r", flush=True)
+                    logging.info(f"waiting for workers to attach: {nb_remaining_workers}")
             time.sleep(1)
 
-        logging.info(f"\nAll workers successfully attached to scheduler")
+        logging.info(f"All workers successfully attached to scheduler")
 
     @staticmethod
     def _build_worker_lib(is_local=True):
@@ -1547,9 +1547,7 @@ class AGI:
         # worker
         if (AGI._dask_client.scheduler.pool.open == 0) and AGI._verbose:
             runners = list(AGI._dask_client.scheduler_info()["workers"].keys())
-            logging.info(
-                "warning: no scheduler found but requested mode is dask=1 => switch to dask"
-            )
+            logging.info("warning: no scheduler found but requested mode is dask=1 => switch to dask")
 
     @staticmethod
     def _run_local():
@@ -1804,16 +1802,10 @@ class AGI:
         if len(weights) > 1:
             # if True: # bug a corriger sur chunk_fastest
             if nchunk2 < threshold:
-                logging.info(
-                    f"AGI.chunk_algo_optimal - workers capacities {capacities}"
-                    f" - {nchunk2} works to be done"
-                )
+                logging.info(f"AGI.chunk_algo_optimal - workers capacities {capacities} - {nchunk2} works to be done")
                 chunks = AGI._make_chunks_optimal(weights, capacities)
             else:
-                logging.info(
-                    f"AGI.load_algo_fastest - workers capacities {capacities}"
-                    f" - {nchunk2} works to be done"
-                )
+                logging.info(f"AGI.load_algo_fastest - workers capacities {capacities} - {nchunk2} works to be done")
                 chunks = AGI._make_chunks_fastest(weights, capacities)
 
             return chunks
