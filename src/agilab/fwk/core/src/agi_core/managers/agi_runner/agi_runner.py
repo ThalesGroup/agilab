@@ -1517,19 +1517,12 @@ class AGI:
 
                 # Copy the file while preserving metadata.
                 shutil.copy2(worker_lib, destination)
-                logging.info(res)
+                AgiEnv._handle_result(res)
             # os.remove(env.setup_app)
         else:
 
             # finally BUILD AND LOAD THE TARGET WORKER EGG ON all workers
             for worker in list(AGI._dask_client.scheduler_info()["workers"].keys()):
-                # ip = worker.split('/')[-1].split(':')[0]
-                # #finally BUILD THE TARGET WORKER LIB
-                # cmd = f"cd {wenv_rel} && uv run -p {pyvers} python setup build_ext -b '{wenv_rel}'"
-                # logging.info(f"Build worker lib on {ip}: {cmd}")
-                # result = AGI._exec_ssh(ip, cmd)
-                # AGI._handle_command_result(result)
-
                 AGI._dask_client.run(
                     AgiWorker.build,
                     env.target_worker,
@@ -1592,7 +1585,7 @@ class AGI:
 
         cmd = (f'uv run --project {env.wenv_abs} python -c "from agi_core.workers.agi_worker import AgiWorker;'
                f'print(AgiWorker.run(\'{AGI.env.app}\', {AGI.workers}, {AGI._mode}, {AGI._verbose}, {AGI._args}))"')
-        AgiEnv.run(cmd, env.wenv_abs)
+        res = AgiEnv.run(cmd, env.wenv_abs)
         return res.split('\n')[-2]
 
     @staticmethod
@@ -1950,9 +1943,7 @@ class AGI:
         infos = {}
 
         for res in res_workers_info:
-
             for worker, info in res.items():
-
                 if info[0]:
                     logging.info(worker, ":", info[0])
                 infos[worker] = info[1]
