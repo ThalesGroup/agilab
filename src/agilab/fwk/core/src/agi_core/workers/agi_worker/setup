@@ -114,7 +114,7 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
 
     dest = Path('src') / pck_src
     created_links: list[Path] = []
- try:
+    try:
         dest = dest.absolute()
     except FileNotFoundError:
         logging.error(f"Source path does not exist: {src_abs}")
