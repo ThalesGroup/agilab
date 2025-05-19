@@ -86,10 +86,7 @@ class AgiWorker(abc.ABC):
         """ """
         if self.verbose:
             AgiEnv._handle_result(
-                f"AgiWorker.start - worker #{AgiWorker.worker_id}: {AgiWorker.worker} - mode: {self.mode}\n",
-                end="",
-                flush=True,
-            )
+                f"AgiWorker.start - worker #{AgiWorker.worker_id}: {AgiWorker.worker} - mode: {self.mode}\n")
         self.start()
 
     def stop(self):
@@ -400,11 +397,9 @@ class AgiWorker(abc.ABC):
         Returns:
         """
         if verbose:
-            AgiEnv._handle_result("venv:", sys.prefix)
+            AgiEnv._handle_result(f"venv: {sys.prefix}")
             AgiEnv._handle_result(
-                f"AgiWorker.new - worker #{worker_id}: {worker} from: {os.path.relpath(__file__)}\n",
-                end="",
-                flush=True,
+                f"AgiWorker.new - worker #{worker_id}: {worker} from: {os.path.relpath(__file__)}",
             )
 
         # import of derived Class of AgiManager, name target_inst which is typically an instance of MyCode
