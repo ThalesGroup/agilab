@@ -670,62 +670,6 @@ class AgiEnv:
             elif isinstance(result, str):
                 logging.info(result)
 
-    @staticmethod
-    async def run_async(cmd, venv=None, cwd=None, timeout=None, log_callback=None):
-        """
-        Run a shell command asynchronously inside a virtual environment.
-
-        Args:
-            cmd (str or list): Command to run.
-            venv (str or Path): Virtual environment or project root.
-            cwd (str or Path): Working directory.
-            timeout (float): Timeout in seconds.
-            log_callback (callable): Function to receive stdout/stderr lines.
-        """
-        if not cwd:
-            cwd = venv
-        process_env = os.environ.copy()
-        venv_path = Path(venv) / ".venv"
-        process_env["VIRTUAL_ENV"] = str(venv_path)
-        bin_dir = "Scripts" if os.name == "nt" else "bin"
-        venv_bin = venv_path / bin_dir
-        process_env["PATH"] = str(venv_bin) + os.pathsep + process_env.get("PATH", "")
-        shell_executable = "/bin/bash" if os.name != "nt" else None
-
-        if isinstance(cmd, list):
-            cmd = " ".join(cmd)
-
-        process = await asyncio.create_subprocess_shell(
-            cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=str(cwd),
-            env=process_env,
-            executable=shell_executable
-        )
-
-        async def read_stream(stream, callback):
-            while True:
-                line = await stream.readline()
-                if not line:
-                    break
-                decoded_line = line.decode().rstrip()
-                callback(decoded_line)
-
-        stdout_task = asyncio.create_task(
-            read_stream(process.stdout, log_callback if log_callback else logging.info)
-        )
-        stderr_task = asyncio.create_task(
-            read_stream(process.stderr, log_callback if log_callback else logging.err)
-        )
-
-        try:
-            await asyncio.wait_for(process.wait(), timeout=timeout)
-        except asyncio.TimeoutError as err:
-            process.kill()
-            raise RuntimeError(f"Timeout expired for command: {cmd}") from err
-
-        await asyncio.gather(stdout_task, stderr_task)
 
     @staticmethod
     def create_symlink(source: Path, dest: Path):
@@ -775,3 +719,133 @@ class AgiEnv:
                 ) from e
             else:
                 raise OSError(f"Failed to create symlink: {e}") from e
+
+    @staticmethod
+    async def _run_bg(cmd, cwd=".", venv=None, timeout=None, log_callback=None):
+        """
+        Run the given command asynchronously, reading stdout and stderr line by line
+        and passing them to the log_callback.
+        """
+        proc_env = AgiEnv._build_env(venv)
+        proc_env["PYTHONUNBUFFERED"] = "1"
+        proc = await asyncio.create_subprocess_shell(
+            cmd,
+            cwd=os.path.abspath(cwd),
+            env=proc_env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        async def read_stream(stream, callback):
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                decoded_line = line.decode().rstrip()
+                if callback:
+                    callback(decoded_line)
+                else:
+                    print(decoded_line)
+
+        tasks = []
+        if proc.stdout:
+            tasks.append(asyncio.create_task(
+                read_stream(proc.stdout, lambda msg: log_callback(msg) if log_callback else print(msg))
+            ))
+        if proc.stderr:
+            tasks.append(asyncio.create_task(
+                read_stream(proc.stderr, lambda msg: log_callback(msg) if log_callback else print(msg))
+            ))
+
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=timeout)
+        except asyncio.TimeoutError as err:
+            proc.kill()
+            raise RuntimeError(f"Timeout expired for command: {cmd}") from err
+
+        await asyncio.gather(*tasks)
+        stdout, stderr = await proc.communicate()
+        return stdout.decode(), stderr.decode()
+
+    async def run_agi(self, code, log_callback=None, venv: Path = None, type=None):
+        """
+        Asynchronous version of run_agi for use within an async context.
+        """
+        pattern = r"await\s+(?:Agi\.)?([^\(]+)\("
+        matches = re.findall(pattern, code)
+        if not matches:
+            message = "Could not determine snippet name from code."
+            if log_callback:
+                log_callback(message)
+            else:
+                print(message)
+            return "", ""
+        snippet_file = os.path.join(self.runenv, f"{matches[0]}-{self.target}.py")
+        with open(snippet_file, "w") as file:
+            file.write(code)
+        cmd = f"uv run --project {str(venv)} python {snippet_file}"
+        # Await _run_bg directly without asyncio.run()
+        result = await AgiEnv._run_bg(cmd, venv=venv, log_callback=log_callback)
+        if log_callback:
+            log_callback(f"Process finished with output: {result}")
+        else:
+            print("test")
+        return result
+
+
+    @staticmethod
+    async def run_async(cmd, venv=None, cwd=None, timeout=None, log_callback=None):
+        """
+        Run a shell command asynchronously inside a virtual environment.
+
+        Args:
+            cmd (str or list): Command to run.
+            venv (str or Path): Virtual environment or project root.
+            cwd (str or Path): Working directory.
+            timeout (float): Timeout in seconds.
+            log_callback (callable): Function to receive stdout/stderr lines.
+        """
+        if not cwd:
+            cwd = venv
+        process_env = os.environ.copy()
+        venv_path = Path(venv) / ".venv"
+        process_env["VIRTUAL_ENV"] = str(venv_path)
+        bin_dir = "Scripts" if os.name == "nt" else "bin"
+        venv_bin = venv_path / bin_dir
+        process_env["PATH"] = str(venv_bin) + os.pathsep + process_env.get("PATH", "")
+        shell_executable = "/bin/bash" if os.name != "nt" else None
+
+        if isinstance(cmd, list):
+            cmd = " ".join(cmd)
+
+        process = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(cwd),
+            env=process_env,
+            executable=shell_executable
+        )
+
+        async def read_stream(stream, callback):
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                decoded_line = line.decode().rstrip()
+                callback(decoded_line)
+
+        stdout_task = asyncio.create_task(
+            read_stream(process.stdout, log_callback if log_callback else print)
+        )
+        stderr_task = asyncio.create_task(
+            read_stream(process.stderr, log_callback if log_callback else print)
+        )
+
+        try:
+            await asyncio.wait_for(process.wait(), timeout=timeout)
+        except asyncio.TimeoutError as err:
+            process.kill()
+            raise RuntimeError(f"Timeout expired for command: {cmd}") from err
+
+        await asyncio.gather(stdout_task, stderr_task)
