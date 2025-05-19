@@ -1026,7 +1026,6 @@ class AGI:
         else:
             cmd = f"uv --config-file uv.toml {run_type} {options['manager']} --extra managers --project {app_path}"
 
-        logging.info(f"Executing locally:\n{cmd}\nvenv {app_path}")
         AgiEnv.run(cmd, app_path)
 
         # 2) Worker wenv install
