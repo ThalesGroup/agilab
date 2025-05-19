@@ -541,7 +541,7 @@ class AGI:
     def _read_stdout(output_stream):
         for line in output_stream:
             if line.strip():
-                logging.info(line.strip())
+                AgiEnv._handle_result(line.strip())
 
     @staticmethod
     def _read_stderr(output_stream):
@@ -565,7 +565,7 @@ class AGI:
                 else:
                     decoded = decode_bytes(raw.encode('latin-1', errors='replace'))
                 line = decoded.strip()
-                logging.info(line)
+                AgiEnv._handle_result(line)
                 AGI._worker_init_error = line.endswith('[ProjectError]')
             return
 
@@ -581,7 +581,7 @@ class AGI:
                 decoded = decode_bytes(raw)
                 for part in decoded.splitlines():
                     line = part.strip()
-                    logging.info(line)
+                    AgiEnv._handle_result(line)
                     AGI._worker_init_error = line.endswith('[ProjectError]')
             elif chan.exit_status_ready():
                 break
