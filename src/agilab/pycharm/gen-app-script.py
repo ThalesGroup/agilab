@@ -17,12 +17,12 @@ if not app:
 print(f"Replacement name: {app}")
 
 template_paths = [
-    'pycharm/_template_app_lib.xml',
+    'pycharm/_template_app_lib_worker.xml',
     'pycharm/_template_app_run_manager.xml',
     'pycharm/_template_app_run_worker.xml',
     'pycharm/_template_app_test.xml',
-    'pycharm/_template_app_preinstall.xml',
-    'pycharm/_template_app_postinstall.xml'
+    'pycharm/_template_app_preinstall_manager.xml',
+    'pycharm/_template_app_postinstall_worker.xml'
 ]
 
 output_dir = os.path.join(os.getcwd(), '.idea', 'runConfigurations')

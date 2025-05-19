@@ -175,7 +175,7 @@ def main() -> None:
             logging.error("build_ext requires --build-dir/-b argument")
             sys.exit(1)
         try:
-            ext_path = truncate_path_at_segment(opts.build_dir, "_project")
+            ext_path = truncate_path_at_segment(opts.build_dir)
         except ValueError as e:
             logging.error(e)
             sys.exit(1)

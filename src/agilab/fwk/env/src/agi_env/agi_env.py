@@ -848,3 +848,14 @@ class AgiEnv:
             raise RuntimeError(f"Timeout expired for command: {cmd}") from err
 
         await asyncio.gather(stdout_task, stderr_task)
+
+    def change_active_app(self, app, install_type=1):
+        if isinstance(app, str):
+            app_name = app
+        elif isinstance(app, Path):
+            app_name = app.name
+        else:
+            raise TypeError(f"Invalid app type: {type(app)}\nSupported type are <str> and <Path>")
+
+        if app_name != self.app:
+            self.__init__(active_app=app_name, install_type=install_type, verbose=self.verbose)
