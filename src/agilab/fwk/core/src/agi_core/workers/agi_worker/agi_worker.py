@@ -85,7 +85,7 @@ class AgiWorker(abc.ABC):
         """
         """ """
         if self.verbose:
-            print(
+            AgiEnv._handle_result(
                 f"AgiWorker.start - worker #{AgiWorker.worker_id}: {AgiWorker.worker} - mode: {self.mode}\n",
                 end="",
                 flush=True,
@@ -97,7 +97,7 @@ class AgiWorker(abc.ABC):
         Returns:
         """
         if self.verbose:
-            print(
+            AgiEnv._handle_result(
                 f"stop - worker #{self.worker_id}: {self.worker} - mode: {self.mode}\n",
                 end="",
                 flush=True,
@@ -125,10 +125,10 @@ class AgiWorker(abc.ABC):
             try:
                 # your nfs account in order to mount it as net drive on windows
                 cmd = f'net use Z: "{net_path}" /user:your-name your-password'
-                print(cmd)
+                AgiEnv._handle_result(cmd)
                 subprocess.run(cmd, shell=True, check=True)
             except Exception as e:
-                print(f"Mount failed: {e}")
+                AgiEnv._handle_result(f"Mount failed: {e}")
         return AgiWorker.join(AgiWorker.expand(path1), path2)
 
     @staticmethod
@@ -225,8 +225,8 @@ class AgiWorker(abc.ABC):
         )
         if result.returncode != 0:
             if result.stderr.startswith("WARNING"):
-                print(f"warning: worker {worker} - {cmd}")
-                print(result.stderr)
+                AgiEnv._handle_result(f"warning: worker {worker} - {cmd}")
+                AgiEnv._handle_result(result.stderr)
             else:
                 raise RuntimeError(
                     f"error on agi_worker {worker} - {cmd}\n{result.stderr}"
@@ -264,19 +264,19 @@ class AgiWorker(abc.ABC):
 
         except ModuleNotFoundError as err:
             # Raise a more descriptive ImportError if the target class cannot be imported
-            print("file: ", __file__)
-            print(f"\t__import__('{module}', fromlist=['{target_class}'])")
-            print(f"\tgetattr('{target_module}', '{target_class}')")
-            print("sys.path:\n\t", sys.path)
+            AgiEnv._handle_result("file: ", __file__)
+            AgiEnv._handle_result(f"\t__import__('{module}', fromlist=['{target_class}'])")
+            AgiEnv._handle_result(f"\tgetattr('{target_module}', '{target_class}')")
+            AgiEnv._handle_result("sys.path:\n\t", sys.path)
             raise ImportError(
                 f"from {module} import {target_class} failed due to: {err}"
             ) from err
 
         except Exception as err:
-            print("file: ", __file__)
-            print(f"\t__import__('{module}', fromlist=['{target_class}'])")
-            print(f"\tgetattr('{target_module}', '{target_class}')")
-            print("sys.path:\n\t", sys.path)
+            AgiEnv._handle_result("file: ", __file__)
+            AgiEnv._handle_result(f"\t__import__('{module}', fromlist=['{target_class}'])")
+            AgiEnv._handle_result(f"\tgetattr('{target_module}', '{target_class}')")
+            AgiEnv._handle_result("sys.path:\n\t", sys.path)
             raise RuntimeError("something wrong happened in _class_loader") from err
 
     @staticmethod
@@ -329,7 +329,7 @@ class AgiWorker(abc.ABC):
                 if lib_path not in sys.path:
                     sys.path.insert(0, lib_path)
             else:
-                print(f"warning: no cython library found at {lib_path}")
+                AgiEnv._handle_result(f"warning: no cython library found at {lib_path}")
                 exit(0)
 
         target_worker = env.target_worker
@@ -345,8 +345,8 @@ class AgiWorker(abc.ABC):
             )
 
         except Exception as err:
-            print(traceback.format_exc())
-            print(f"error: {err}")
+            AgiEnv._handle_result(traceback.format_exc())
+            AgiEnv._handle_result(f"error: {err}")
             exit(1)
 
         target_class = AgiWorker._class_loader(
@@ -361,7 +361,7 @@ class AgiWorker(abc.ABC):
                 target_inst, env, workers
             )
         except Exception as err:
-            print(traceback.format_exc())
+            AgiEnv._handle_result(traceback.format_exc())
             exit(1)
 
         if mode == 48:
@@ -400,8 +400,8 @@ class AgiWorker(abc.ABC):
         Returns:
         """
         if verbose:
-            print("venv:", sys.prefix)
-            print(
+            AgiEnv._handle_result("venv:", sys.prefix)
+            AgiEnv._handle_result(
                 f"AgiWorker.new - worker #{worker_id}: {worker} from: {os.path.relpath(__file__)}\n",
                 end="",
                 flush=True,
@@ -504,7 +504,7 @@ class AgiWorker(abc.ABC):
         """
         if verbose > 1:
             sys.verbose = True
-            print(
+            AgiEnv._handle_result(
                 f"build - worker #{AgiWorker.worker_id}: {worker} from: {os.path.relpath(__file__)}\n",
                 end="",
                 flush=True,
@@ -544,56 +544,6 @@ class AgiWorker(abc.ABC):
                 extract_src = extract_path / "src"
 
                 if not mode & 2:
-
-                    # if verbose > 2:
-                    #     f.write(f"sys_prefix: {sys_prefix}\n")
-                    # # build the target extension
-                    # cmd = [
-                    #     "cd",
-                    #     str(extract_path),
-                    #     "&&",
-                    #     "uv",
-                    #     "run",
-                    #     "python",
-                    #     "setup",
-                    #     "build_ext",
-                    #     "--debug",
-                    #     "-d",
-                    #     str(extract_path)
-                    # ]
-                    #
-                    # # Fixing side effect: add extract_path as a string
-                    # extract_path_str = str(extract_path)
-                    # if extract_path_str not in sys.path:
-                    #     sys.path.append(extract_path_str)
-                    #
-                    # target_lib = next(
-                    #     (p for p in extract_path.iterdir() if p.suffix == f".{ext}"),
-                    #     None
-                    # )
-                    # if target_lib is None:
-                    #     raise FileNotFoundError(f"No file with extension '.{ext}' found in {extract_path}")
-                    #
-                    # lib_dir =os.path.join(sysconfig.get_path("platlib"), target_lib.name)
-                    # shutil.copyfile(target_lib, lib_dir)
-                    #
-                    # if verbose > 2:
-                    #     f.write(f"copy {target_lib}\n tp {lib_dir}\n")
-                    #     f.write(f"running cmd: {cmd}\nfrom path: {extract_path}\n")
-                    #
-                    # res = AgiWorker.exec(cmd, extract_path, worker)
-                    #
-                    # if verbose > 2:
-                    #     f.write(f"stdout: {res.stdout}")
-                    #     f.write("\n")
-                    #     f.write(f"stderr: {res.stderr}")
-                    #     f.write("\n")
-                    #     f.write(f" done!\n")
-                    #
-                    # AgiWorker._built = True
-
-                #else:
-                    # case worker egg need to be added to sys.path
                     egg_dest = os.path.join(
                         extract_path, os.path.basename(egg_src) + ".egg"
                     )
@@ -613,10 +563,9 @@ class AgiWorker(abc.ABC):
 
                     if verbose > 2:
                         f.write(f" done!\n")
-            # os.remove(AgiWorker.logs)
 
         except Exception as err:
-            print(
+            AgiEnv._handle_result(
                 f"worker<{worker}> - fail to build {target_worker} from {dask_home}, see {AgiWorker.logs} for details")
             raise err
 
@@ -633,12 +582,12 @@ class AgiWorker(abc.ABC):
         """
         worker_id = AgiWorker.worker_id
         if AgiWorker.verbose > 0:
-            print(
+            AgiEnv._handle_result(
                 f"do_works - worker #{worker_id}: {AgiWorker.worker} from {os.path.relpath(__file__)}\n",
                 end="",
                 flush=True,
             )
-            print(
+            AgiEnv._handle_result(
                 f"AgiWorker.work - #{worker_id + 1} / {len(workers_tree)}\n",
                 end="",
                 flush=True,
