@@ -175,7 +175,7 @@ def main() -> None:
             logging.error("build_ext requires --build-dir/-b argument")
             sys.exit(1)
         try:
-            ext_path = truncate_path_at_segment(opts.build_dir, "_worker")
+            ext_path = truncate_path_at_segment(opts.build_dir, "_project")
         except ValueError as e:
             logging.error(e)
             sys.exit(1)
@@ -225,8 +225,9 @@ def main() -> None:
     all_packages = found_pkgs + custom_modules
 
     # TO SUPPRESS WARNING
-    if not Path(README.md).exists():
-        with open("README.md", "w", encoding="utf-8") as f:
+    readme = "README.md"
+    if not Path(readme).exists():
+        with open(readme, "w", encoding="utf-8") as f:
             f.write("a README.md file is required")
 
     # Now call setup()
