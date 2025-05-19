@@ -744,16 +744,16 @@ class AgiEnv:
                 if callback:
                     callback(decoded_line)
                 else:
-                    print(decoded_line)
+                    logging.info(decoded_line)
 
         tasks = []
         if proc.stdout:
             tasks.append(asyncio.create_task(
-                read_stream(proc.stdout, lambda msg: log_callback(msg) if log_callback else print(msg))
+                read_stream(proc.stdout, lambda msg: log_callback(msg) if log_callback else logging.info(msg))
             ))
         if proc.stderr:
             tasks.append(asyncio.create_task(
-                read_stream(proc.stderr, lambda msg: log_callback(msg) if log_callback else print(msg))
+                read_stream(proc.stderr, lambda msg: log_callback(msg) if log_callback else logging.err(msg))
             ))
 
         try:
@@ -777,7 +777,7 @@ class AgiEnv:
             if log_callback:
                 log_callback(message)
             else:
-                print(message)
+                logging.info(message)
             return "", ""
         snippet_file = os.path.join(self.runenv, f"{matches[0]}-{self.target}.py")
         with open(snippet_file, "w") as file:
@@ -788,7 +788,7 @@ class AgiEnv:
         if log_callback:
             log_callback(f"Process finished with output: {result}")
         else:
-            print("test")
+            logging.info("test")
         return result
 
 
@@ -835,10 +835,10 @@ class AgiEnv:
                 callback(decoded_line)
 
         stdout_task = asyncio.create_task(
-            read_stream(process.stdout, log_callback if log_callback else print)
+            read_stream(process.stdout, log_callback if log_callback else logging.info)
         )
         stderr_task = asyncio.create_task(
-            read_stream(process.stderr, log_callback if log_callback else print)
+            read_stream(process.stderr, log_callback if log_callback else logging.error)
         )
 
         try:
