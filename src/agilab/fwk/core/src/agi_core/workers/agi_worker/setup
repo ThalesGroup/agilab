@@ -182,10 +182,10 @@ def main() -> None:
 
     # For bdist_egg, choose target_pkg/module differently:
     if outdir:
-        target_pkg = Path(outdir).name.removesuffix("_worker").removesuffix("_project")
+        target_pkg = Path(outdir).stem.removesuffix("_worker").removesuffix("_project")
     else:
         if packages:
-            target_pkg = packages[0].name.replace("_worker", "").replace("_project", "")
+            target_pkg = packages[0].replace("_worker", "").replace("_project", "")
         else:
             logging.error("Cannot determine target package name.")
             sys.exit(1)
@@ -195,6 +195,7 @@ def main() -> None:
 
     custom_modules = ["agi_worker", "agi_env"] + packages
     worker_module = target_module + "_worker"
+    links_created: list[Path] = []
     ext_modules = []
     copies = []
 
@@ -212,14 +213,11 @@ def main() -> None:
         ext_modules = cythonize([mod], language_level=3)
         logging.info(f"Cython extension configured: {worker_module}_cy")
 
-    elif not install_type:
-    # For bdist_egg copy modules under src
-    os.chdir(env.app_path)
-    for module in custom_modules:
-        links_created.extend(create_symlink_for_module(env, module))
-
-    for m in custom_modules:
-        copies += copy_module_into_src(env, m)
+    elif install_type != 2:
+        # For bdist_egg copy modules under src
+        os.chdir(env.app_path)
+        for module in custom_modules:
+            links_created.extend(create_symlink_for_module(env, module))
 
     # Discover packages and combine with custom modules
     package_dir = {'': 'src'}
@@ -227,8 +225,9 @@ def main() -> None:
     all_packages = found_pkgs + custom_modules
 
     # TO SUPPRESS WARNING
-    with open("README.md", "w", encoding="utf-8") as f:
-        f.write("build aborted")
+    if not Path(README.md).exists():
+        with open("README.md", "w", encoding="utf-8") as f:
+            f.write("a README.md file is required")
 
     # Now call setup()
     setup(
@@ -255,7 +254,7 @@ def main() -> None:
         worker_py = dest_src / worker_module / f"{worker_module}.py"
         cmd = (
             f"uv run python \"{env.pre_install}\" remove_decorators "
-            f"--worker_path \"{worker_py}\" --verbose"
+            f"--worker_path \"{env.worker_path}\" --verbose"
         )
         logging.info(f"Stripping decorators via:\n  {cmd}")
         os.system(cmd)
@@ -264,7 +263,6 @@ def main() -> None:
         for c in copies:
             shutil.rmtree(c, ignore_errors=True)
         logging.info("Cleanup complete.")
-    os.remove("README.md")
 
 if __name__ == "__main__":
     main()
