@@ -1584,7 +1584,7 @@ class AGI:
         # do distribut
 
         cmd = (f'uv run --project {env.wenv_abs} python -c "from agi_core.workers.agi_worker import AgiWorker;'
-               f'print(AgiWorker.run(\'{AGI.env.app}\', {AGI.workers}, {AGI._mode}, {AGI._verbose}, {AGI._args}))"')
+               f'print(AgiWorker.run(\'{env.app}\', {AGI.workers}, {AGI._mode}, {AGI._verbose}, {AGI._args}))"')
         res = AgiEnv.run(cmd, env.wenv_abs)
         return res.split('\n')[-2]
 
