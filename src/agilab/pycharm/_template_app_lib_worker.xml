@@ -14,7 +14,7 @@
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="$USER_HOME$/wenv/{APP}_worker/setup" />
-    <option name="PARAMETERS" value="build_ext --packages &quot;agi_worker, dag_worker&quot; -b $FilePrompt$" />
+    <option name="PARAMETERS" value="build_ext --packages &quot;agi_worker, dag_worker&quot; -b $USER_HOME$/wenv/{APP}_worker" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />
