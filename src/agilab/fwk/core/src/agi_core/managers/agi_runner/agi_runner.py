@@ -1067,14 +1067,17 @@ class AGI:
         # build agi_env*.egg locally
         env_path = env.wenv_abs
         wenv_path = env.wenv_abs
-        cmd = f"cd {env_path} && uv -p {pyvers} run python setup bdist_egg -d \"{wenv_path}\""
+        cmd = f"cd {env_path} && uv run python setup bdist_egg -d \"{wenv_path}\""
         AgiEnv.run(cmd, cwd=env_path, venv=env_path)
 
         # ────────────────────────────────────────────────────────────────
 
         # 3) Send egg
         egg_file = next(iter(wenv_path.glob(f"{env.app}*.egg")), None)
-        AGI._send_files(ip, [egg_file, env.pyproject, env.uvproject], wenv_rel)
+        if egg_file:
+            AGI._send_files(ip, [egg_file, env.pyproject, env.uvproject], wenv_rel)
+        else:
+            raise RuntimeError(cmd)
 
         # 1) Bootstrap ensurepip
         cmd = python + " -m ensurepip"
@@ -1140,7 +1143,10 @@ class AGI:
         AgiEnv.run(cmd, venv=wenv)
 
         whl = next(iter(dist.glob("agi_env*.whl")))
-        AGI._send_file(ip, whl, wenv_rel)
+        if whl:
+            AGI._send_file(ip, whl, wenv_rel)
+        else:
+            raise RuntimeError(cmd)
 
         cmd = f"cd {wenv_rel} && uv add {Path(whl).name}"
         AGI._exec_ssh(ip, cmd)
@@ -1152,14 +1158,17 @@ class AGI:
         AgiEnv.run(cmd, venv=wenv)
 
         whl = next(iter(dist.glob("agi_core*.whl" )))
-        AGI._send_file(ip, whl, wenv_rel)
+        if whl:
+            AGI._send_file(ip, whl, wenv_rel)
+        else:
+            raise RuntimeError(cmd)
 
         cmd = f"cd {wenv_rel} && uv add {Path(whl).name}"
         AGI._exec_ssh(ip, cmd)
         setup = wenv_rel / "setup"
         out_dir = Path('..') / wenv_path.name
         # build target_worker lib
-        cmd = f"cd {wenv_rel} && uv run -p {pyvers} python {setup} build_ext -b {out_dir}"
+        cmd = f"cd {wenv_rel} && uv run python {setup} build_ext -b {out_dir}"
         AGI._exec_ssh(ip, cmd)
 
 
@@ -1492,7 +1501,7 @@ class AGI:
         app_path = env.app_path
         wenv_abs = env.wenv_abs
         shutil.copy(env.setup_core, app_path)
-        cmd = f"cd {wenv} && uv run -p {pyvers} python setup bdist_egg --packages \"{packages}\" -d {wenv_abs}"
+        cmd = f"cd {wenv} && uv run python setup bdist_egg --packages \"{packages}\" -d {wenv_abs}"
         AgiEnv.run(cmd, app_path)
         # compile in cython when cython is requested
         if is_local:
@@ -1503,7 +1512,7 @@ class AGI:
             if is_cy:
                 # cython compilation of wenv/src into wenw
                 shutil.copy(env.setup_core, wenv_abs)
-                cmd = f"cd {app_path} && uv run -p {pyvers} python setup build_ext -b {wenv_abs}"
+                cmd = f"cd {app_path} && uv run python setup build_ext -b {wenv_abs}"
                 res = AgiEnv.run(cmd, app_path)
                 worker_lib = next(iter(wenv_abs.glob("*_cy.*")), None)
                 if not worker_lib:
