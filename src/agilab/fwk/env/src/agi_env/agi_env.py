@@ -611,7 +611,7 @@ class AgiEnv:
                 logging.error(msg, level)
 
     @staticmethod
-    def log(line, level):
+    def log(line, level=1):
         RED = "\033[31m"
         RESET = "\033[0m"
         if line:
@@ -665,56 +665,6 @@ class AgiEnv:
                 while True:
                     out_line = process.stdout.readline()
                     err_line = process.stderr.readline()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
                     result += out_line
 
