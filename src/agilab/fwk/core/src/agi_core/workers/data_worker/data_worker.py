@@ -72,7 +72,7 @@ class AgiDataWorker(AgiWorker):
         Returns:
             pl.DataFrame: A Polars DataFrame with the processed results.
         """
-        AgiEnv.log_info("work_pool", level=2)
+        AgiEnv.log_info("work_pool")
 
         # Call the actual work_pool method, which should return a Polars DataFrame.
         # Ensure that the original _actual_work_pool method is refactored accordingly.
@@ -88,7 +88,7 @@ class AgiDataWorker(AgiWorker):
         Raises:
             ValueError: If an unsupported output format is specified.
         """
-        AgiEnv.log_info("work_done", level=2)
+        AgiEnv.log_info("work_done")
 
         if df is None or df.is_empty():
             return
@@ -206,8 +206,7 @@ class AgiDataWorker(AgiWorker):
             list_df = []
             df = pl.DataFrame()
             AgiEnv.log_info(
-                f"AgiDataWorker.work - monoprocess work #{work_id} - work_pool x {len(work)}",
-                level=2
+                f"AgiDataWorker.work - monoprocess work #{work_id} - work_pool x {len(work)}"
             )
 
             if workers_tree:

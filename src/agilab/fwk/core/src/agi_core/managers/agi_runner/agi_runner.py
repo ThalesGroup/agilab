@@ -565,7 +565,7 @@ class AGI:
                 else:
                     decoded = decode_bytes(raw.encode('latin-1', errors='replace'))
                 line = decoded.strip()
-                AgiEnv._handle_result(line)
+                AgiEnv.log_info(line)
                 AGI._worker_init_error = line.endswith('[ProjectError]')
             return
 
@@ -967,6 +967,7 @@ class AGI:
         AGI._venv_todo(node_ips)
         start_time = time.time()
         logging.info(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1")
+
         AGI._install_env_local(app_path, Path(wenv_rel), options)
         # logging.info(AGI.run(cmd, wenv_abs))
         if AGI._mode & 4:
@@ -1517,7 +1518,7 @@ class AGI:
 
                 # Copy the file while preserving metadata.
                 shutil.copy2(worker_lib, destination)
-                AgiEnv._handle_result(res)
+                AgiEnv.log_info(res)
             # os.remove(env.setup_app)
         else:
 

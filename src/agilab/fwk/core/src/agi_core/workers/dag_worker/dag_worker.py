@@ -99,7 +99,7 @@ class AgiDagWorker(AgiWorker):
             # execute in order
             for fn in topo_order:
                 pname = function_info[fn]["partition_name"]
-                AgiEnv.log_info(f"Executing {fn} for partition {pname}",)
+                AgiEnv.log_info(f"Executing {fn} for partition {pname}")
                 try:
                     self.get_work(fn)
                 except Exception as e:
