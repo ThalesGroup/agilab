@@ -1,67 +1,45 @@
 import os
 import pytest
-import paramiko
+import subprocess
 from dotenv import load_dotenv
 
-# Load the .env file from your home directory
+# Load .env
 env_path = os.path.expanduser("~/agilab/.env")
 load_dotenv(env_path)
 
-
 @pytest.fixture(scope="module")
-def ssh_client():
+def ssh_base_command():
     """
-    Spins up an SSHClient, connects once for all tests in this module,
-    then closes it at the end.
+    Returns the base SSH command list to run remote commands.
+    Assumes key-based authentication or ssh-agent.
     """
     host = os.getenv("SSH_HOST", "192.168.20.222")
 
-    # Read the combined credentials and split into user / password
     creds = os.getenv("CLUSTER_CREDENTIALS")
-    if not creds or ":" not in creds:
+    if creds and ":" in creds:
+        user, _ = creds.split(":", 1)
+    else:
         pytest.skip("Please set CLUSTER_CREDENTIALS in ~/agilab/.env as USER:PASS")
-    user, pwd = creds.split(":", 1)
+    # Use user@host for SSH
+    return ["ssh", f"{user}@{host}"]
 
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(
-        hostname=host,
-        username=user,
-        password=pwd,
-        look_for_keys=True,
-        allow_agent=True
-    )
-    yield client
-    client.close()
-
-
-def test_hostname(ssh_client):
+def run_ssh_command(ssh_base_command, command):
     """
-    Verify that `hostname` returns something non-empty.
+    Runs an SSH command and returns (stdout, stderr) decoded strings.
+    Raises subprocess.CalledProcessError on failure.
     """
-    stdin, stdout, stderr = ssh_client.exec_command("hostname")
-    out = stdout.read().decode().strip()
-    stdout.close()
-    stderr.close()
+    full_cmd = ssh_base_command + [command]
+    result = subprocess.run(full_cmd, capture_output=True, text=True, check=True)
+    return result.stdout.strip(), result.stderr.strip()
+
+def test_hostname(ssh_base_command):
+    out, err = run_ssh_command(ssh_base_command, "hostname")
     assert out, "Expected a hostname string, got empty"
 
-
-def test_system_version(ssh_client):
-    """
-    Verify OS type: use uname for Unix, ver for Windows.
-    """
-    stdin, stdout, stderr = ssh_client.exec_command("uname -a")
-    out = stdout.read().decode().strip()
-    stdout.close()
-    stderr.close()
-
+def test_system_version(ssh_base_command):
+    out, err = run_ssh_command(ssh_base_command, "uname -a")
     if out:
-        assert any(tok in out for tok in ("Linux", "Darwin", "BSD")), \
-            f"Unexpected uname output: {out}"
+        assert any(tok in out for tok in ("Linux", "Darwin", "BSD")), f"Unexpected uname output: {out}"
     else:
-        stdin, stdout, stderr = ssh_client.exec_command("ver")
-        out2 = stdout.read().decode().strip()
-        stdout.close()
-        stderr.close()
-        assert any(tok in out2 for tok in ("Windows", "Microsoft")), \
-            f"Unexpected ver output: {out2}"
+        out2, err2 = run_ssh_command(ssh_base_command, "ver")
+        assert any(tok in out2 for tok in ("Windows", "Microsoft")), f"Unexpected ver output: {out2}"

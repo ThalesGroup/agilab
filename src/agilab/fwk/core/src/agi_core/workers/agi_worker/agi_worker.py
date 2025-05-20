@@ -92,11 +92,8 @@ class AgiWorker(abc.ABC):
         """
         Returns:
         """
-        AgiEnv.log_info(
-            f"stop - worker #{self.worker_id}: {self.worker} - mode: {self.mode}",
-            end="",
-            flush=True,
-        )
+        AgiEnv.log_info(f"stop - worker #{self.worker_id}: {self.worker} - mode: {self.mode}"
+                        )
 
     @staticmethod
     def expand_and_join(path1, path2):
