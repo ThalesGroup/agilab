@@ -610,7 +610,8 @@ class AGI:
         if not (AGI._mode & 4):
             return
         with closing(AGI._ssh_connect(ip)) as ssh_client:
-            logging.info(f"ssh {ip} {cmd}")
+            if AGI._verbose > 1:
+                logging.info(f"ssh {ip} {cmd}")
             stdin, stdout, stderr = ssh_client.exec_command(cmd)
             # Wait for command to finish and get its exit status
             exit_status = stdout.channel.recv_exit_status()
@@ -750,8 +751,6 @@ class AGI:
         for cmd in cmds:
             # choose working directory based on local vs remote
             cwd = env.manager_root if ip == localhost else str(env.wenv_abs)
-            logging.info(f"Executing in {cwd}: {cmd}")
-
             if AGI._is_local(ip):
                 AGI.run(cmd, cwd)
             else:
