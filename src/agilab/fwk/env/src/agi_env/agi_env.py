@@ -25,7 +25,7 @@ class AgiEnv:
 
     def __init__(self, install_type: int = None, apps_dir: Path = None,
                  active_app: Path | str = None, active_module: Path = None, verbose: int = 1):
-        self.verbose = verbose
+        AgiEnv.verbose = verbose
         AgiEnv.init_logging(verbose)  # Initialize logging here
 
         self.is_managed_pc = getpass.getuser().startswith("T0")
@@ -618,7 +618,8 @@ class AgiEnv:
 
         Returns exit code.
         """
-        AgiEnv.log_info(f"Executing in {venv}: {cmd}")
+        if AgiEnv.verbose > 1:
+            AgiEnv.log_info(f"Executing in {venv}: {cmd}")
 
         if not cwd:
             cwd = venv
