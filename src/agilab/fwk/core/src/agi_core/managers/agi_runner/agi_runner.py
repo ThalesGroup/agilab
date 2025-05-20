@@ -628,7 +628,7 @@ class AGI:
 
             # Otherwise, return whatever was on stdout and ignore stderr
             result = out_bytes.decode('iso-8859-1', errors='ignore')
-            AgiEnv.log_info(result)
+            AgiEnv.log_info(result.strip('\n'))
             return result
 
     @staticmethod
