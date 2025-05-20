@@ -148,7 +148,7 @@ class AgiDataWorker(AgiWorker):
 
         AgiEnv.log_info(
             f"AgiDataWorker.work - ncore {ncore} - my_code_worker #{self.worker_id}"
-            f" - work_pool x {len(works)}\n",
+            f" - work_pool x {len(works)}",
         )
 
         self.work_init()

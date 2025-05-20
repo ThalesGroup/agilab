@@ -571,11 +571,7 @@ class AgiWorker(abc.ABC):
         Returns:
         """
         worker_id = AgiWorker.worker_id
-        AgiEnv.log_info(
-            f"do_works - worker #{worker_id}: {AgiWorker.worker} from {os.path.relpath(__file__)}\n",
-            end="",
-            flush=True,
-        )
+        AgiEnv.log_info(f"do_works - worker #{worker_id}: {AgiWorker.worker} from {os.path.relpath(__file__)}\n")
         AgiEnv.log_info(
             f"AgiWorker.work - #{worker_id + 1} / {len(workers_tree)}\n",
             end="",

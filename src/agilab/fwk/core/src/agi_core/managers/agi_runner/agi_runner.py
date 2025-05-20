@@ -750,7 +750,7 @@ class AGI:
         for cmd in cmds:
             # choose working directory based on local vs remote
             cwd = env.manager_root if ip == localhost else str(env.wenv_abs)
-            logging.info(f"Executing: {cmd}\n  from {cwd}")
+            logging.info(f"Executing in {cwd}: {cmd}")
 
             if AGI._is_local(ip):
                 AGI.run(cmd, cwd)
@@ -1041,7 +1041,7 @@ class AGI:
         else:
             cmd = f"uv --config-file uv.toml {run_type} --project {wenv_abs} {options['worker']} --extra workers"
 
-        logging.info(f"Executing locally:\n{cmd}\nfrom {wenv_abs}")
+        logging.info(f"Executing in {wenv_abs}: {cmd}")
         AgiEnv.run(cmd, wenv_abs)
 
         # 3) Worker lib install
@@ -1049,7 +1049,7 @@ class AGI:
 
         # 4) Post-install script
         cmd = f"cd {wenv} && uv run -p {pyvers} python {env.post_install} {env.data_dir}"
-        logging.info(f"Executing locally:{cmd}")
+        logging.info(f"Executing in {wenv}: {cmd}")
         AgiEnv.run(cmd, wenv)
 
         # 5) Cleanup
@@ -1177,7 +1177,7 @@ class AGI:
         """Uninstall specified modules."""
         for module in AGI._module_to_clean:
             cmd = f"uv run python -m pip uninstall {module} -y"
-            logging.info(f"Executing locally: {cmd}")
+            logging.info(f"Executing: {cmd}")
             AgiEnv.run(cmd, AGI.env.core_root)
         AGI._module_to_clean.clear()
 
