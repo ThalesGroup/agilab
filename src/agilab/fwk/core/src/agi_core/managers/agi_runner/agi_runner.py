@@ -1061,16 +1061,14 @@ class AGI:
         """Install packages and set up the environment on a remote node."""
         pyvers = env.python_version
         python = f"uv run -p {pyvers} python"
-        env_path = env.env_path
+        env = AGI.env
         wenv_abs = env.wenv_abs
+        wenv_rel = env.wenv_rel
 
         AGI._send_file(ip, env.setup_core, wenv_rel)
 
-        # no need to build agi_env*.egg locally ?
-        # no need to build agi_core*.egg locally ?
-
-        # 3) Send egg
-        egg_file = next(iter(wenv_path.glob(f"{env.app}*.egg")), None)
+        # Send app source code
+        egg_file = next(iter(wenv_abs.glob(f"{env.app}*.egg")), None)
         if egg_file:
             AGI._send_files(ip, [egg_file, env.pyproject, env.uvproject], wenv_rel)
         else:
@@ -1125,6 +1123,7 @@ class AGI:
             "subprocess.run(['uv','init','--bare'], cwd=ROOT, check=True) "
             "if not os.path.exists(os.path.join(ROOT, 'pyproject.toml')) else None\""
         )
+        AGI._exec_ssh(ip, cmd);
 
         # Bootstrap ensurepip
         cmd = f"cd {wenv_rel} && uv run python -m ensurepip"
@@ -1163,7 +1162,7 @@ class AGI:
         cmd = f"cd {wenv_rel} && uv add {Path(whl).name}"
         AGI._exec_ssh(ip, cmd)
         setup = wenv_rel / "setup"
-        out_dir = Path('..') / wenv_path.name
+        out_dir = Path('..') / wenv_rel.name
         # build target_worker lib
         cmd = f"cd {wenv_rel} && uv run python {setup} build_ext -b {out_dir}"
         AGI._exec_ssh(ip, cmd)
