@@ -586,7 +586,7 @@ class AgiEnv:
         return proc_env
 
     @staticmethod
-    def log_info(line, level=1):
+    def log_info(line):
         GREEN = "\033[32m"
         RESET = "\033[0m"
         if line:
@@ -595,10 +595,10 @@ class AgiEnv:
                     print(line)
             else:
                 msg = f"{GREEN}{line}{RESET}" if sys.stdout.isatty() else line
-                logging.info(msg, level)
+                logging.info(msg)
 
     @staticmethod
-    def log_error(line, level=1):
+    def log_error(line):
         RED = "\033[31m"
         RESET = "\033[0m"
         if line:
@@ -608,19 +608,7 @@ class AgiEnv:
                     print(line)
             else:
                 msg = f"{RED}{line}{RESET}" if sys.stdout.isatty() else line
-                logging.error(msg, level)
-
-    @staticmethod
-    def log(line, level=1):
-        RED = "\033[31m"
-        RESET = "\033[0m"
-        if line:
-            msg_type = line[10:14]
-            if  msg_type == 'INFO' or msg_type == 'ERRO':
-                print(line)
-            else:
-                msg = f"{RED}{line}{RESET}" if sys.stdout.isatty() else line
-                logging.log(level, msg=line)
+                logging.error(msg)
 
     @staticmethod
     def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
@@ -685,7 +673,7 @@ class AgiEnv:
                         elif msg_type == "ERRO":
                             AgiEnv.log_error(line)
                         else:
-                            AgiEnv.log(line)
+                            AgiEnv.log_info(line)
 
 
                     if out_line == '' and err_line == '' and process.poll() is not None:
