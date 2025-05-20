@@ -1505,7 +1505,6 @@ class AGI:
         AgiEnv.run(cmd, app_path)
         # compile in cython when cython is requested
         if is_local:
-
             cmd = f"cd {wenv_abs} && uv pip install -e ."
             AgiEnv.run(cmd, wenv_abs)
 
@@ -1516,7 +1515,7 @@ class AGI:
                 res = AgiEnv.run(cmd, app_path)
                 worker_lib = next(iter(wenv_abs.glob("*_cy.*")), None)
                 if not worker_lib:
-                    raise FileNotFoundError(wenv_abs.name, "build_ext failed !")
+                    raise RuntimeError(cmd)
 
                 # Get the current interpreter's platlib path (e.g. '/usr/lib/python3.12/site-packages')
                 platlib = sysconfig.get_path("platlib")
