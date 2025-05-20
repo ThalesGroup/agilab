@@ -85,14 +85,18 @@ class AgiWorker(abc.ABC):
         """
         """ """
         AgiEnv.log_info(
-            f"AgiWorker.start - worker #{AgiWorker.worker_id}: {AgiWorker.worker} - mode: {self.mode}\n")
+            f"AgiWorker.start - worker #{AgiWorker.worker_id}: {AgiWorker.worker} - mode: {self.mode}")
         self.start()
 
     def stop(self):
         """
         Returns:
         """
-        AgiEnv.log_info( f"stop - worker #{self.worker_id}: {self.worker} - mode: {self.mode}")
+        AgiEnv.log_info(
+            f"stop - worker #{self.worker_id}: {self.worker} - mode: {self.mode}",
+            end="",
+            flush=True,
+        )
 
     @staticmethod
     def expand_and_join(path1, path2):
@@ -477,85 +481,86 @@ class AgiWorker(abc.ABC):
 
     @staticmethod
     def build(target_worker, dask_home, worker, mode=0, verbose=0):
-        """Function to build target code on a my_code_AgiWorker.
+        """
+        Function to build target code on a my_code_AgiWorker.
 
         Args:
-          app(str): app to build
-          target_worker(str): module to build
-          dask_home(str): path to dask home
-          worker: current worker
-          mode: (Default value = 0)
-          verbose: (Default value = 0)
-        Returns:
+            target_worker (str): module to build
+            dask_home (str): path to dask home
+            worker: current worker
+            mode: (Default value = 0)
+            verbose: (Default value = 0)
         """
-        if verbose > 1:
-            sys.verbose = True
-        AgiEnv.log_info(
-            f"build - worker #{AgiWorker.worker_id}: {worker} from: {os.path.relpath(__file__)}\n",
+        # Configurer le logging avec le niveau approprié
+        log_level = logging.WARNING
+        if verbose > 2:
+            log_level = logging.DEBUG
+        elif verbose > 1:
+            log_level = logging.INFO
 
-        )
-
+        # Log file dans le home_dir + nom du target_worker_trace.txt
         if str(getpass.getuser()).startswith("T0"):
             prefix = "~/MyApp/"
         else:
             prefix = "~/"
         AgiWorker.home_dir = Path(prefix).expanduser().absolute()
-        AgiWorker.logs = os.path.join(
-            AgiWorker.home_dir,
-            f"{target_worker}_trace.txt",
+        AgiWorker.logs = AgiWorker.home_dir / f"{target_worker}_trace.txt"
+
+        logging.basicConfig(
+            level=log_level,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(AgiWorker.logs, mode='w', encoding='utf-8'),
+                logging.StreamHandler(sys.stdout)  # pour voir aussi dans la console
+            ]
         )
+
         AgiWorker.dask_home = dask_home
         AgiWorker.worker = worker
 
+        AgiEnv.log_info(
+            f"build - worker #{AgiWorker.worker_id}: {worker} from: {os.path.relpath(__file__)}"
+        )
+
         try:
-            with open(AgiWorker.logs, "w") as f:
-                f.write("set verbose=3 to see something in this trace file ...\n")
-                if verbose > 2:
-                    f.write("starting worker_built ...\n")
-                    f.write(f"home_dir: {AgiWorker.home_dir}\n")
-                    f.write(
-                        f"worker_build(target_worker={target_worker},\n\t"
-                        f"dask_home={dask_home},\n\t"
-                        f"mode={mode},\n\t"
-                        f"verbose={verbose},\n\t"
-                        f"worker={worker})\n"
-                    )
+            logging.debug("set verbose=3 to see something in this trace file ...")
 
-                    for x in Path(dask_home).glob("*"):
-                        f.write(f"\t\t{x}\n")
+            if verbose > 2:
+                logging.debug("starting worker_build ...")
+                logging.debug(f"home_dir: {AgiWorker.home_dir}")
+                logging.debug(
+                    f"worker_build(target_worker={target_worker}, dask_home={dask_home}, mode={mode}, verbose={verbose}, worker={worker})"
+                )
+                for x in Path(dask_home).glob("*"):
+                    logging.debug(f"\t{x}")
 
-                # enabling to launch the build on another user account than the agi-core one
-                extract_path = Path(AgiWorker.home_dir) / "wenv" / target_worker
-                extract_src = extract_path / "src"
+            # Exemple supposé : définir egg_src (non défini dans ton code)
+            egg_src = dask_home + "/some_egg_file"  # adapte selon contexte réel
 
-                if not mode & 2:
-                    egg_dest = os.path.join(
-                        extract_path, os.path.basename(egg_src) + ".egg"
-                    )
+            extract_path = AgiWorker.home_dir / "wenv" / target_worker
+            extract_src = extract_path / "src"
 
-                    if verbose > 2:
-                        f.write(f"copy:\n{egg_src}\nto:\n{egg_dest}\n")
-                    shutil.copyfile(egg_src, egg_dest)
+            if not mode & 2:
+                egg_dest = extract_path / (os.path.basename(egg_src) + ".egg")
 
-                    if egg_dest in sys.path:
-                        sys.path.remove(egg_dest)
-                    sys.path.insert(0, egg_dest)
+                logging.debug(f"copy:\n{egg_src}\nto:\n{egg_dest}\n")
+                shutil.copyfile(egg_src, egg_dest)
 
-                    if verbose > 2:
-                        f.write("sys.path:\n")
-                        for x in sys.path:
-                            f.write(f"\t{x}\n")
+                if str(egg_dest) in sys.path:
+                    sys.path.remove(str(egg_dest))
+                sys.path.insert(0, str(egg_dest))
 
-                    if verbose > 2:
-                        f.write(f" done!\n")
+                logging.debug("sys.path:")
+                for x in sys.path:
+                    logging.debug(f"\t{x}")
+
+                logging.debug("done!")
 
         except Exception as err:
             AgiEnv.log_error(
-                f"worker<{worker}> - fail to build {target_worker} from {dask_home}, see {AgiWorker.logs} for details")
+                f"worker<{worker}> - fail to build {target_worker} from {dask_home}, see {AgiWorker.logs} for details"
+            )
             raise err
-
-        return
-
     @staticmethod
     def do_works(workers_tree, workers_tree_info):
         """run of workers
