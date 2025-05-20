@@ -84,7 +84,7 @@ class AgiWorker(abc.ABC):
             None
         """
         """ """
-        AgiEnv._log_info(
+        AgiEnv.log_info(
             f"AgiWorker.start - worker #{AgiWorker.worker_id}: {AgiWorker.worker} - mode: {self.mode}\n")
         self.start()
 
@@ -92,11 +92,7 @@ class AgiWorker(abc.ABC):
         """
         Returns:
         """
-        AgiEnv._log_info(
-            f"stop - worker #{self.worker_id}: {self.worker} - mode: {self.mode}\n",
-            end="",
-            flush=True,
-        )
+        AgiEnv.log_info( f"stop - worker #{self.worker_id}: {self.worker} - mode: {self.mode}")
 
     @staticmethod
     def expand_and_join(path1, path2):
@@ -120,10 +116,10 @@ class AgiWorker(abc.ABC):
             try:
                 # your nfs account in order to mount it as net drive on windows
                 cmd = f'net use Z: "{net_path}" /user:your-name your-password'
-                AgiEnv._log_info(cmd)
+                AgiEnv.log_info(cmd)
                 subprocess.run(cmd, shell=True, check=True)
             except Exception as e:
-                AgiEnv._log_error(f"Mount failed: {e}")
+                AgiEnv.log_error(f"Mount failed: {e}")
         return AgiWorker.join(AgiWorker.expand(path1), path2)
 
     @staticmethod
@@ -220,8 +216,8 @@ class AgiWorker(abc.ABC):
         )
         if result.returncode != 0:
             if result.stderr.startswith("WARNING"):
-                AgiEnv._log_error(f"warning: worker {worker} - {cmd}")
-                AgiEnv._log_error(result.stderr)
+                AgiEnv.log_error(f"warning: worker {worker} - {cmd}")
+                AgiEnv.log_error(result.stderr)
             else:
                 raise RuntimeError(
                     f"error on agi_worker {worker} - {cmd}\n{result.stderr}"
@@ -259,19 +255,19 @@ class AgiWorker(abc.ABC):
 
         except ModuleNotFoundError as err:
             # Raise a more descriptive ImportError if the target class cannot be imported
-            AgiEnv._log_error("file: ", __file__)
-            AgiEnv._log_error(f"\t__import__('{module}', fromlist=['{target_class}'])")
-            AgiEnv._log_error(f"\tgetattr('{target_module}', '{target_class}')")
-            AgiEnv._log_error("sys.path:\n\t", sys.path)
+            AgiEnv.log_error("file: ", __file__)
+            AgiEnv.log_error(f"\t__import__('{module}', fromlist=['{target_class}'])")
+            AgiEnv.log_error(f"\tgetattr('{target_module}', '{target_class}')")
+            AgiEnv.log_error("sys.path:\n\t", sys.path)
             raise ImportError(
                 f"from {module} import {target_class} failed due to: {err}"
             ) from err
 
         except Exception as err:
-            AgiEnv._log_error("file: ", __file__)
-            AgiEnv._log_error(f"\t__import__('{module}', fromlist=['{target_class}'])")
-            AgiEnv._log_error(f"\tgetattr('{target_module}', '{target_class}')")
-            AgiEnv._log_error("sys.path:\n\t", sys.path)
+            AgiEnv.log_error("file: ", __file__)
+            AgiEnv.log_error(f"\t__import__('{module}', fromlist=['{target_class}'])")
+            AgiEnv.log_error(f"\tgetattr('{target_module}', '{target_class}')")
+            AgiEnv.log_error("sys.path:\n\t", sys.path)
             raise RuntimeError("something wrong happened in _class_loader") from err
 
     @staticmethod
@@ -324,7 +320,7 @@ class AgiWorker(abc.ABC):
                 if lib_path not in sys.path:
                     sys.path.insert(0, lib_path)
             else:
-                AgiEnv._log_info(f"warning: no cython library found at {lib_path}")
+                AgiEnv.log_info(f"warning: no cython library found at {lib_path}")
                 exit(0)
 
         target_worker = env.target_worker
@@ -340,8 +336,8 @@ class AgiWorker(abc.ABC):
             )
 
         except Exception as err:
-            AgiEnv._log_error(traceback.format_exc())
-            AgiEnv._log_error(f"error: {err}")
+            AgiEnv.log_error(traceback.format_exc())
+            AgiEnv.log_error(f"error: {err}")
             exit(1)
 
         target_class = AgiWorker._class_loader(
@@ -356,7 +352,7 @@ class AgiWorker(abc.ABC):
                 target_inst, env, workers
             )
         except Exception as err:
-            AgiEnv._log_error(traceback.format_exc())
+            AgiEnv.log_error(traceback.format_exc())
             exit(1)
 
         if mode == 48:
@@ -394,8 +390,8 @@ class AgiWorker(abc.ABC):
           args: (Default value = None)
         Returns:
         """
-        AgiEnv._log_info(f"venv: {sys.prefix}")
-        AgiEnv._log_info(f"AgiWorker.new - worker #{worker_id}: {worker} from: {os.path.relpath(__file__)}")
+        AgiEnv.log_info(f"venv: {sys.prefix}")
+        AgiEnv.log_info(f"AgiWorker.new - worker #{worker_id}: {worker} from: {os.path.relpath(__file__)}")
 
         # import of derived Class of AgiManager, name target_inst which is typically an instance of MyCode
         worker_class = AgiWorker._class_loader(
@@ -494,7 +490,7 @@ class AgiWorker(abc.ABC):
         """
         if verbose > 1:
             sys.verbose = True
-        AgiEnv._log_info(
+        AgiEnv.log_info(
             f"build - worker #{AgiWorker.worker_id}: {worker} from: {os.path.relpath(__file__)}\n",
 
         )
@@ -554,7 +550,7 @@ class AgiWorker(abc.ABC):
                         f.write(f" done!\n")
 
         except Exception as err:
-            AgiEnv._log_error(
+            AgiEnv.log_error(
                 f"worker<{worker}> - fail to build {target_worker} from {dask_home}, see {AgiWorker.logs} for details")
             raise err
 
@@ -570,12 +566,12 @@ class AgiWorker(abc.ABC):
         Returns:
         """
         worker_id = AgiWorker.worker_id
-        AgiEnv._log_info(
+        AgiEnv.log_info(
             f"do_works - worker #{worker_id}: {AgiWorker.worker} from {os.path.relpath(__file__)}\n",
             end="",
             flush=True,
         )
-        AgiEnv._log_info(
+        AgiEnv.log_info(
             f"AgiWorker.work - #{worker_id + 1} / {len(workers_tree)}\n",
             end="",
             flush=True,

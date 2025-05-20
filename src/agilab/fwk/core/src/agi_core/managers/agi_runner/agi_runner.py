@@ -541,7 +541,7 @@ class AGI:
     def _read_stdout(output_stream):
         for line in output_stream:
             if line.strip():
-                AgiEnv._log_info(line.strip())
+                AgiEnv.log_info(line.strip())
 
     @staticmethod
     def _read_stderr(output_stream):
@@ -581,7 +581,7 @@ class AGI:
                 decoded = decode_bytes(raw)
                 for part in decoded.splitlines():
                     line = part.strip()
-                    AgiEnv._log_info(line)
+                    AgiEnv.log_info(line)
                     AGI._worker_init_error = line.endswith('[ProjectError]')
             elif chan.exit_status_ready():
                 break
@@ -622,13 +622,13 @@ class AGI:
             if exit_status != 0:
                 err_text = err_bytes.decode('iso-8859-1', errors='ignore').strip()
                 if "error" in err_text:
-                    logging.error(f"{cmd}\nRemote command failed on {ip} (exit {exit_status}):\n{err_text}")
+                    AgiEnv.log_error(f"{cmd}\nRemote command failed on {ip} (exit {exit_status}):\n{err_text}")
                 else:
-                    logging.warning(f"{cmd}\nRemote command failed on {ip} (exit {exit_status}):\n{err_text}")
+                    AgiEnv.log_info(f"{cmd}\nRemote command failed on {ip} (exit {exit_status}):\n{err_text}")
 
             # Otherwise, return whatever was on stdout and ignore stderr
             result = out_bytes.decode('iso-8859-1', errors='ignore')
-            AgiEnv._handle_result(result)
+            AgiEnv.log_info(result)
             return result
 
     @staticmethod

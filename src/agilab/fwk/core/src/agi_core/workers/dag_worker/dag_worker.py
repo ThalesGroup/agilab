@@ -24,6 +24,7 @@ import warnings
 
 # External Libraries:
 from concurrent.futures import ThreadPoolExecutor
+from agi_env import AgiEnv
 from agi_core.workers.agi_worker import AgiWorker
 
 warnings.filterwarnings("ignore")
@@ -65,8 +66,7 @@ class AgiDagWorker(AgiWorker):
             if idx % num_workers == worker_id
         ]
         if not assigned:
-            if self.verbose > 0:
-                print(f"No tasks for worker {worker_id}")
+            AgiEnv.log_info(f"No tasks for worker {worker_id}")
             return
 
         # execute each branch sequentially
@@ -79,34 +79,31 @@ class AgiDagWorker(AgiWorker):
             }
 
             # debug
-            if self.verbose > 0:
-                print(f"Complete dependency graph for worker {worker_id}:")
-                for fn, deps in dependency_graph.items():
-                    print(f"  {fn}: {deps}")
-                print("Function info:")
-                for fn, meta in function_info.items():
-                    print(
-                        f"  {fn}: algo={meta['partition_name']}, sequence={meta['weight']}"
-                    )
+            AgiEnv.log_info(f"Complete dependency graph for worker {worker_id}:")
+            for fn, deps in dependency_graph.items():
+                AgiEnv.log_info(f"  {fn}: {deps}")
+            AgiEnv.log_info("Function info:")
+            for fn, meta in function_info.items():
+                AgiEnv.log_info(
+                    f"  {fn}: algo={meta['partition_name']}, sequence={meta['weight']}"
+                )
 
             # topological sort
             try:
                 topo_order = self.topological_sort(dependency_graph)
-                if self.verbose > 0:
-                    print(f"Topological order: {topo_order}")
+                AgiEnv.log_info(f"Topological order: {topo_order}")
             except (KeyError, ValueError) as e:
-                print(f"Error during topological sort: {e}")
+                AgiEnv.log_error(f"Error during topological sort: {e}")
                 continue
 
             # execute in order
             for fn in topo_order:
                 pname = function_info[fn]["partition_name"]
-                if self.verbose > 0:
-                    print(f"Executing {fn} for partition {pname}", flush=True)
+                AgiEnv.log_info(f"Executing {fn} for partition {pname}",)
                 try:
                     self.get_work(fn)
                 except Exception as e:
-                    print(f"Error executing {fn}: {e}")
+                    AgiEnv.log_error(f"Error executing {fn}: {e}")
 
     def topological_sort(self, dependency_graph):
         """
@@ -155,8 +152,7 @@ class AgiDagWorker(AgiWorker):
                 assigned.append((fn, deps, pname, weight))
 
         if not assigned:
-            if self.verbose > 0:
-                print(f"No tasks for worker {worker_id}")
+            AgiEnv.log_info(f"No tasks for worker {worker_id}")
             return
 
         # build combined dependency graph & metadata
@@ -170,8 +166,7 @@ class AgiDagWorker(AgiWorker):
         try:
             topo_order = self.topological_sort(dependency_graph)
         except ValueError as e:
-            if self.verbose > 0:
-                print(f"Error in dependency graph: {e}")
+            AgiEnv.log_error(f"Error in dependency graph: {e}")
             return
 
         # execute in parallel
@@ -188,8 +183,7 @@ class AgiDagWorker(AgiWorker):
         for fn, (future, pname) in futures.items():
             try:
                 future.result()
-                if self.verbose > 0:
-                    print(f"Method {fn} for partition {pname} completed.")
+                AgiEnv.log_info(f"Method {fn} for partition {pname} completed.")
             except Exception as exc:
-                print(f"Method {fn} for partition {pname} generated an exception: {exc}")
+                AgiEnv.log_error(f"Method {fn} for partition {pname} generated an exception: {exc}")
 

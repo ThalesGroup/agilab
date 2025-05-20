@@ -586,18 +586,32 @@ class AgiEnv:
         return proc_env
 
     @staticmethod
-    def _log_info(line):
+    def log_info(line, level=1):
         GREEN = "\033[32m"
         RESET = "\033[0m"
         if line:
             if line.startswith(GREEN):
-                print(line)
+                if level:
+                    print(line)
             else:
                 msg = f"{GREEN}{line}{RESET}" if sys.stdout.isatty() else line
-                logging.info(msg)
+                logging.info(msg, level)
 
     @staticmethod
-    def _log_error(line):
+    def log_error(line, level=1):
+        RED = "\033[31m"
+        RESET = "\033[0m"
+        if line:
+            msg_type = line[10:14]
+            if  msg_type == 'INFO' or msg_type == 'ERRO':
+                if level:
+                    print(line)
+            else:
+                msg = f"{RED}{line}{RESET}" if sys.stdout.isatty() else line
+                logging.error(msg, level)
+
+    @staticmethod
+    def log(line, level):
         RED = "\033[31m"
         RESET = "\033[0m"
         if line:
@@ -606,19 +620,7 @@ class AgiEnv:
                 print(line)
             else:
                 msg = f"{RED}{line}{RESET}" if sys.stdout.isatty() else line
-                logging.error(msg)
-
-    @staticmethod
-    def _log(line):
-        RED = "\033[31m"
-        RESET = "\033[0m"
-        if line:
-            msg_type = line[10:14]
-            if  msg_type == 'INFO' or msg_type == 'ERRO':
-                print(line)
-            else:
-                msg = f"{RED}{line}{RESET}" if sys.stdout.isatty() else line
-                logging.log(level=1, msg=line)
+                logging.log(level, msg=line)
 
     @staticmethod
     def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
@@ -628,7 +630,7 @@ class AgiEnv:
 
         Returns exit code.
         """
-        AgiEnv._log_info(f"Executing locally in venv: {venv}\n{cmd}")
+        AgiEnv.log_info(f"Executing locally in venv: {venv}\n{cmd}")
 
         if not cwd:
             cwd = venv
@@ -663,6 +665,57 @@ class AgiEnv:
                 while True:
                     out_line = process.stdout.readline()
                     err_line = process.stderr.readline()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     result += out_line
 
                     if out_line:
@@ -670,7 +723,7 @@ class AgiEnv:
                         if log_callback:
                             log_callback(line)
                         else:
-                            AgiEnv._log_info(line)
+                            AgiEnv.log_info(line)
 
                     if err_line:
                         line = err_line.rstrip("\n")
@@ -678,18 +731,18 @@ class AgiEnv:
                         if log_callback:
                             log_callback(line)
                         elif msg_type == "INFO":
-                                AgiEnv._log_info(line)
+                                AgiEnv.log_info(line)
                         elif msg_type == "ERRO":
-                            AgiEnv._log_error(line)
+                            AgiEnv.log_error(line)
                         else:
-                            AgiEnv._log(line)
+                            AgiEnv.log(line)
 
 
                     if out_line == '' and err_line == '' and process.poll() is not None:
                         break
 
                 process.wait(timeout=timeout)
-                AgiEnv._log_info(f"Command completed with exit code {process.returncode}")
+                AgiEnv.log_info(f"Command completed with exit code {process.returncode}")
                 return result
 
             except subprocess.TimeoutExpired:
@@ -736,11 +789,11 @@ class AgiEnv:
         tasks = []
         if proc.stdout:
             tasks.append(asyncio.create_task(
-                read_stream(proc.stdout, log_callback if log_callback else AgiEnv._log_info)
+                read_stream(proc.stdout, log_callback if log_callback else AgiEnv.log_info)
             ))
         if proc.stderr:
             tasks.append(asyncio.create_task(
-                read_stream(proc.stderr, log_callback if log_callback else AgiEnv._log_error)
+                read_stream(proc.stderr, log_callback if log_callback else AgiEnv.log_error)
             ))
 
         try:
