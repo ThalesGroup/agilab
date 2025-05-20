@@ -27,7 +27,8 @@ Module my_code_worker extension of your_code
 
 import warnings
 
-from agi_core.workers.dag_worker import AgiDagWorker
+from agi_env import AgiEnv
+from agi_core.workers.dag_worker import DagWorker
 
 warnings.filterwarnings("ignore")
 
@@ -36,7 +37,7 @@ warnings.filterwarnings("ignore")
 #                      Agi Mandatory FUNCTIONS
 ###############################################################################
 # class MyCodeWorker:
-class MyCodeWorker(AgiDagWorker):
+class MyCodeWorker(DagWorker):
     """class derived from AgiDagWorker"""
 
     def start(self):
@@ -51,8 +52,7 @@ class MyCodeWorker(AgiDagWorker):
         Returns:
             None
         """
-        if self.verbose > 0:
-            print(f"from: {__file__}\n", end="")
+        AgiEnv.log_info(f"from: {__file__}")
         if(self.mode & 2 and "cy" not in __file__):
             raise RuntimeError("Cython requested but not executed")
 
@@ -62,8 +62,6 @@ class MyCodeWorker(AgiDagWorker):
         this is type string and not type function to avoid manager (e.g. My_code) to be dependant of MyCodeWorker
         :return:
         """
-        from agi_core.managers.agi_manager import AgiManager
-        self.args = AgiManager.args
         # if it comes in as "FlightSimWorker.work", turn it into "work"
         method = getattr(self, work, None)
         if method is None:
@@ -85,7 +83,7 @@ class MyCodeWorker(AgiDagWorker):
         Prints:
             str: Print statement indicating the execution of algorithm A.
         """
-        print(f"MyCodeWorker.algo_A")
+        AgiEnv.log_info(f"MyCodeWorker.algo_A")
 
     def algo_B(self):
         """
@@ -97,7 +95,7 @@ class MyCodeWorker(AgiDagWorker):
         Returns:
             None
         """
-        print(f"MyCodeWorker.algo_B")
+        AgiEnv.log_info(f"MyCodeWorker.algo_B")
 
     def algo_C(self):
         """
@@ -123,7 +121,7 @@ class MyCodeWorker(AgiDagWorker):
         Returns:
             None
         """
-        print(f"MyCodeWorker.algo_X")
+        AgiEnv.log_info(f"MyCodeWorker.algo_X")
 
     def algo_Y(self):
         """
@@ -148,7 +146,7 @@ class MyCodeWorker(AgiDagWorker):
         Returns:
             None
         """
-        print(f"MyCodeWorker.algo_Z")
+        AgiEnv.log_info(f"MyCodeWorker.algo_Z")
 
     def stop(self):
         """

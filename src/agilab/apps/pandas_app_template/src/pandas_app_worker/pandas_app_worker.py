@@ -1,19 +1,18 @@
 import warnings
 from agi_env import AgiEnv
-from agi_core.workers.data_worker import AgiDataWorker
+from agi_core.workers.pandas_worker import PandasWorker
 
 warnings.filterwarnings("ignore")
 
 
-class DataAppWorker(AgiDataWorker):
-    """class derived from AgiDataWorker"""
+class PandasAppWorker(PandasWorker):
+    """class derived from PandasWorker"""
 
     pool_vars = None
 
     def start(self):
         """init"""
-        if self.verbose > 0:
-            AgiEnv.log_info(f"from: {__file__}")
+        AgiEnv.log_info(f"from: {__file__}")
 
     def work_init(self):
         """work_init : read from space"""
@@ -59,14 +58,13 @@ class DataAppWorker(AgiDataWorker):
 
     def stop(self):
         """
-        Stop the DataAppWorker and print a message if verbose is greater than 0.
+        Stop the PandasAppWorker and print a message if verbose is greater than 0.
 
         No Args.
 
         No Returns.
         """
-        if self.verbose > 0:
-            print("DataAppWorker All done !\n", end="")
+        AgiEnv.log_info("PandasAppWorker All done !\n", end="")
         """
         pools_done
         """

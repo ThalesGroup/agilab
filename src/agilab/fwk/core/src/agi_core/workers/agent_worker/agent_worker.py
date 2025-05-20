@@ -17,7 +17,7 @@ from agi_worker.agi_worker import AgiWorker
 warnings.filterwarnings("ignore")
 
 
-class AgiAgentWorker(AgiWorker):
+class AgentWorker(AgiWorker):
     """
     AgiAgentWorker Class
 

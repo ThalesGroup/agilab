@@ -1,0 +1,51 @@
+[project]
+name = "polars_app_project"
+version = "0.1.8"
+description = ""
+[[project.authors]]
+name = "Jean-Pierre Morard"
+email = "focus@thalesgroup.com"
+license = { text = "Thales SIX GTS France SAS" }
+requires-python = ">=3.11"
+readme = "README.md"
+
+dependencies = [
+    "setuptools",
+    "cython",
+    "parso",
+    "py7zr",
+    "python-dotenv",
+    "ipython",
+]
+
+[dependency-groups]
+dev = ["black", "pytest", "licensecheck", "polars_app_project"]
+
+[project.optional-dependencies]
+polars-worker = ["polars"]
+workers = ["agi-core[polars-worker]", "agi-core[agi-worker]"]
+managers = ["agi-core[managers]"]
+
+# do not remove
+[tool.uv]
+default-groups = ["dev"]
+
+# do not remove
+[tool.uv.sources]
+agi-core = { path = "core", editable = true }
+polars-app-project = { workspace = true }
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.data-files]
+pyprojects = [
+    "src/*.ipynb",
+    "src/*.json",
+    "src/*.toml",
+]
+
+[tool.mypy]
+mypy_path = ["stubs"]
+disallow_untyped_defs = false
+ignore_missing_imports = true

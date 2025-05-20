@@ -126,7 +126,7 @@ class AgiEnv:
             module = apps_dir.name.replace("_project", "").replace("-", "_")
 
         if not self.module:
-            self.module = module
+            self.module = module.replace('-','_')
 
         AgiEnv.apps_dir = self.apps_dir
         self.app_path = self.apps_dir / active_app

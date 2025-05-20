@@ -23,7 +23,7 @@ import time
 import logging
 
 from numpy.linalg import norm  # Imported norm
-from agi_core.workers.data_worker import AgiDataWorker
+from agi_core.workers.polars_worker import PolarsWorker
 from agi_core.workers.agi_worker import AgiWorker
 
 warnings.filterwarnings("ignore")
@@ -32,7 +32,7 @@ import polars as pl
 from geopy.distance import geodesic
 
 
-class FlightWorker(AgiDataWorker):
+class FlightWorker(PolarsWorker):
     """Class derived from AgiDataWorker"""
 
     pool_vars = {}

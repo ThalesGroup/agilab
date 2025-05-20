@@ -16,7 +16,7 @@ text = "Thales SIX GTS France SAS"
 agi-worker = []
 agent-worker = []
 dag-worker = []
-data-worker = [ "polars",]
+polars-worker = [ "polars",]
 
 [tool.uv.sources]
 agi-core = {path = "/home/pcm/PycharmProjects/agilab/src/agilab/fwk/core", editable = true}

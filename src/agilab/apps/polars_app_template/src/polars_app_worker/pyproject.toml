@@ -1,5 +1,5 @@
 [project]
-name = "data-app-_project"
+name = "polars_app_project"
 version = "0.1.8"
 description = ""
 requires-python = ">=3.11"
@@ -17,10 +17,8 @@ text = "Thales SIX GTS France SAS"
 
 [project.optional-dependencies]
 agi-worker = []
-agent-worker = []
-dag-worker = []
-data-worker = ["polars", ]
-workers = ["agi-core[agi-worker]", "agi-core[data-worker]", ]
+polars-worker = ["polars", ]
+workers = ["agi-core[agi-worker]", "agi-core[polars-worker]", ]
 managers = ["agi-core[managers]", ]
 default-groups = ["dev", ]
 
@@ -29,5 +27,5 @@ mypy_path = ["stubs", ]
 disallow_untyped_defs = false
 ignore_missing_imports = true
 
-[tool.uv.sources.flight_project]
+[tool.uv.sources.polars_app_project]
 workspace = true
