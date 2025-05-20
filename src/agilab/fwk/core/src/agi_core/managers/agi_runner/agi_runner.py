@@ -1061,23 +1061,13 @@ class AGI:
         """Install packages and set up the environment on a remote node."""
         pyvers = env.python_version
         python = f"uv run -p {pyvers} python"
+        env_path = env.env_path
+        wenv_abs = env.wenv_abs
 
         AGI._send_file(ip, env.setup_core, wenv_rel)
 
         # no need to build agi_env*.egg locally ?
         # no need to build agi_core*.egg locally ?
-
-        # build app_worker*.egg locally
-        env_path = env.env_path
-        wenv_abs = env.wenv_abs
-
-        cmd = f"cd {env_path} && uv run python setup bdist_egg --packages \"{packages}\" -d {wenv_abs}"
-        AgiEnv.run(cmd, app_path)
-
-        #cmd = f"cd {env_path} && uv run python setup bdist_egg -d {wenv_path}"
-        #AgiEnv.run(cmd, venv=env_path)
-
-        # ────────────────────────────────────────────────────────────────
 
         # 3) Send egg
         egg_file = next(iter(wenv_path.glob(f"{env.app}*.egg")), None)
