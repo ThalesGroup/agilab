@@ -618,7 +618,7 @@ class AgiEnv:
 
         Returns exit code.
         """
-        AgiEnv.log_info(f"Executing locally in venv: {venv}\n{cmd}")
+        AgiEnv.log_info(f"Executing in {venv}: {cmd}")
 
         if not cwd:
             cwd = venv
