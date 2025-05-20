@@ -1,5 +1,5 @@
 import warnings
-
+from agi_env import AgiEnv
 from agi_core.workers.data_worker import AgiDataWorker
 
 warnings.filterwarnings("ignore")
@@ -13,7 +13,7 @@ class DataAppWorker(AgiDataWorker):
     def start(self):
         """init"""
         if self.verbose > 0:
-            print(f"from: {__file__}\n", end="")
+            AgiEnv.log_info(f"from: {__file__}")
 
     def work_init(self):
         """work_init : read from space"""
