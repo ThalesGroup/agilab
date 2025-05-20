@@ -166,7 +166,7 @@ def main() -> None:
 
     # Rebuild sys.argv for setuptools with correct flags
     flag = '-b' if cmd == 'build_ext' else '-d'
-    sys.argv = [sys.argv[0], cmd, flag, '.']
+    sys.argv = [sys.argv[0], cmd, flag, p]
 
     # ext_path only relevant for build_ext
     ext_path = None

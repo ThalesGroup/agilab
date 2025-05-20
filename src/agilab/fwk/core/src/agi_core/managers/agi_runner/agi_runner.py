@@ -1064,11 +1064,18 @@ class AGI:
 
         AGI._send_file(ip, env.setup_core, wenv_rel)
 
-        # build agi_env*.egg locally
-        env_path = env.wenv_abs
-        wenv_path = env.wenv_abs
-        cmd = f"cd {env_path} && uv run python setup bdist_egg -d \"{wenv_path}\""
-        AgiEnv.run(cmd, cwd=env_path, venv=env_path)
+        # no need to build agi_env*.egg locally ?
+        # no need to build agi_core*.egg locally ?
+
+        # build app_worker*.egg locally
+        env_path = env.env_path
+        wenv_abs = env.wenv_abs
+
+        cmd = f"cd {env_path} && uv run python setup bdist_egg --packages \"{packages}\" -d {wenv_abs}"
+        AgiEnv.run(cmd, app_path)
+
+        #cmd = f"cd {env_path} && uv run python setup bdist_egg -d {wenv_path}"
+        #AgiEnv.run(cmd, venv=env_path)
 
         # ────────────────────────────────────────────────────────────────
 
@@ -1501,7 +1508,7 @@ class AGI:
         app_path = env.app_path
         wenv_abs = env.wenv_abs
         shutil.copy(env.setup_core, app_path)
-        cmd = f"cd {wenv} && uv run python setup bdist_egg --packages \"{packages}\" -d {wenv_abs}"
+        cmd = f"cd {app_path} && uv run python setup bdist_egg --packages \"{packages}\" -d {wenv_abs}"
         AgiEnv.run(cmd, app_path)
         # compile in cython when cython is requested
         if is_local:
@@ -1589,7 +1596,6 @@ class AGI:
             else:
                 AGI._build_worker_lib(is_local=True)
         # do distribut
-
         cmd = (f'uv run --project {env.wenv_abs} python -c "from agi_core.workers.agi_worker import AgiWorker;'
                f'print(AgiWorker.run(\'{env.app}\', {AGI.workers}, {AGI._mode}, {AGI._verbose}, {AGI._args}))"')
         res = AgiEnv.run(cmd, env.wenv_abs)
