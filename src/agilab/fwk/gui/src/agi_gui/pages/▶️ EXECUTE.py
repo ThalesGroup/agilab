@@ -708,8 +708,12 @@ async def main():
     print(res)
     return res
 
-if __name__ == '__main__':
-    asyncio.run(main())
+if __name__ == '__main__': 
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        task = loop.create_task(main())
+    else:
+        loop.run_until_complete(main())
             """
             st.code(cmd, language="python")
         if st.button("INSTALL", key="install_btn", type="primary",
@@ -781,7 +785,11 @@ async def main():
     return res
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        task = loop.create_task(main())
+    else:
+        loop.run_until_complete(main())
             """
             st.code(cmd, language="python")
         if st.button("TEST DISTRIBUTE", key="preview_btn", type="secondary",
@@ -880,7 +888,11 @@ async def main():
     return res
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        task = loop.create_task(main())
+    else:
+        loop.run_until_complete(main())
             """
             st.code(cmd, language="python")
         if st.button("RUN", key="run_btn", type="primary", help="Run your snippet with your cluster and app settings"):

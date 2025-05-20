@@ -38,7 +38,6 @@ AGILab is intended for professionals and domain experts, offering a tool that si
 **Main Dependencies**
 ------------------------
 
-- `Paramiko <https://www.paramiko.org/>`_: Secure SSH connections for remote operations.
 - `uv <https://docs.astral.sh/uv/>`_: Advanced utilities to manage Python virtual environments.
 - `Cython <https://cython.org/>`_: Cython is an optimising static compiler for both the Python programming language and the extended Cython programming language (based on Pyrex). It makes writing C extensions for Python as easy as Python itself.
 - `Dask <https://www.dask.org/>`_: Parallel computing for handling large datasets and computations.

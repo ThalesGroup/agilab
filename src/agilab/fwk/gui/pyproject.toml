@@ -19,7 +19,6 @@ classifiers = [
 keywords = [
     "jupyter",
     "mlflow",
-    "paramiko",
     "asyncio",
     "dask",
     "rapids",
@@ -48,7 +47,6 @@ dependencies = [
     "mlflow",
     "numba",
     "openai",
-    "paramiko",
     "pathspec",
     "plotly",
     "polars",

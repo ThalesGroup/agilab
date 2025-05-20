@@ -19,7 +19,6 @@ classifiers = [
 keywords = [
     "jupyter",
     "mlflow",
-    "paramiko",
     "asyncio",
     "dask",
     "rapids",
@@ -37,7 +36,6 @@ keywords = [
     "datascience",
 ]
 dependencies = [
-    "paramiko",
     "scp",
     "scikit-learn",
     "parso",
@@ -49,7 +47,8 @@ dependencies = [
     "agi-env",
     "python-dotenv",
     "tomli",
-    "logging"
+    "logging",
+    "asyncssh",
 ]
 
 [project.urls]
