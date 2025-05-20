@@ -40,6 +40,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 import time
 
+from agi_env import AgiEnv
 from agi_core.workers.agi_worker import AgiWorker
 
 import polars as pl
@@ -71,8 +72,7 @@ class AgiDataWorker(AgiWorker):
         Returns:
             pl.DataFrame: A Polars DataFrame with the processed results.
         """
-        if self.verbose > 1:
-            print("work_pool\n", end="", flush=True)
+        AgiEnv.log_info("work_pool", level=2)
 
         # Call the actual work_pool method, which should return a Polars DataFrame.
         # Ensure that the original _actual_work_pool method is refactored accordingly.
@@ -88,8 +88,7 @@ class AgiDataWorker(AgiWorker):
         Raises:
             ValueError: If an unsupported output format is specified.
         """
-        if self.verbose > 1:
-            print("work_done\n", end="", flush=True)
+        AgiEnv.log_info("work_done", level=2)
 
         if df is None or df.is_empty():
             return
@@ -147,13 +146,10 @@ class AgiDataWorker(AgiWorker):
                 works += i
             ncore = max(min(len(works), int(os.cpu_count())), 1)
 
-        if AgiWorker.verbose > 0:
-            print(
-                f"AgiDataWorker.work - ncore {ncore} - my_code_worker #{self.worker_id}"
-                f" - work_pool x {len(works)}\n",
-                end="",
-                flush=True,
-            )
+        AgiEnv.log_info(
+            f"AgiDataWorker.work - ncore {ncore} - my_code_worker #{self.worker_id}"
+            f" - work_pool x {len(works)}\n",
+        )
 
         self.work_init()
         for work_id, work in enumerate(workers_tree[self.worker_id]):
@@ -209,12 +205,10 @@ class AgiDataWorker(AgiWorker):
         for work_id, work in enumerate(workers_tree[self.worker_id]):
             list_df = []
             df = pl.DataFrame()
-            if AgiWorker.verbose > 1:
-                print(
-                    f"AgiDataWorker.work - monoprocess work #{work_id} - work_pool x {len(work)}\n",
-                    end="",
-                    flush=True,
-                )
+            AgiEnv.log_info(
+                f"AgiDataWorker.work - monoprocess work #{work_id} - work_pool x {len(work)}",
+                level=2
+            )
 
             if workers_tree:
                 # Apply the work_pool function to each item in work.
