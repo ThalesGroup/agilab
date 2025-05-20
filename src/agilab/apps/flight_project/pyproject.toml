@@ -29,12 +29,12 @@ text = "Thales SIX GTS France SAS"
 agi-worker = []
 agent-worker = []
 dag-worker = []
-data-worker = [
+polars-worker = [
     "polars",
 ]
 workers = [
     "agi-core[agi-worker]",
-    "agi-core[data-worker]",
+    "agi-core[polars-worker]",
 ]
 managers = [
     "agi-core[managers]",

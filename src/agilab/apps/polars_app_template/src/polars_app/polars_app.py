@@ -11,23 +11,24 @@ from pydantic import BaseModel
 import py7zr  # Added import for py7zr
 from agi_env import AgiEnv   # Added import for Agienv
 
-from run-agi import AGI
+from agi_core.managers.agi_runner import AGI
 from agi_core.managers.agi_manager import AgiManager
+from agi_env import AgiEnv
 
 warnings.filterwarnings("ignore")
 
 
-class DataAppArgs(BaseModel):
+class PolarsAppArgs(BaseModel):
     """
-    A class representing DataAppArgs.
+    A class representing PolarsAppArgs.
 
     This class can be extended with configuration attributes as needed.
     """
 
-    data_dir: str = "~/data/DataApp"  # Added a default attribute
+    data_dir: str = "~/data/PolarsApp"  # Added a default attribute
 
 
-class DataApp(AgiManager):
+class Polars(AgiManager):
     """
     A class representing a data application.
 
@@ -37,23 +38,23 @@ class DataApp(AgiManager):
 
     def __init__(self, **args: dict):
         """
-        Initialize the DataApp object.
+        Initialize the PolarsApp object.
 
         Args:
-            **args (dict): Keyword arguments to configure the DataApp object.
-                - data_dir (str): Relative path to the data directory. Defaults to '~/data/DataApp'.
+            **args (dict): Keyword arguments to configure the PolarsApp object.
+                - data_dir (str): Relative path to the data directory. Defaults to '~/data/PolarsApp'.
 
         Returns:
             None
 
         Notes:
-            This constructor initializes the DataApp object with the given arguments, sets the home directory for data storage,
+            This constructor initializes the PolarsApp object with the given arguments, sets the home directory for data storage,
             and extracts data files if necessary. If running on a Thales-managed computer, the home directory is adjusted accordingly.
         """
         super().__init__()  # Ensure the parent class is properly initialized
 
         # Retrieve 'data_dir' from args or use default
-        home_rel = args.get("data_dir", os.path.join("~", "data", "DataApp"))
+        home_rel = args.get("data_dir", os.path.join("~", "data", "PolarsApp"))
 
         if env.is_managed_pc:
             home_rel = home_rel.replace("~", "~/MyApp")
@@ -94,7 +95,7 @@ class DataApp(AgiManager):
         """
         # It's recommended to avoid using global variables.
         # Instead, manage state within the class or pass it explicitly where needed.
-        DataApp.worker_vars = vars  # Changed to a class attribute
+        PolarsApp.worker_vars = vars  # Changed to a class attribute
 
     def work_pool(self, x: any = None) -> None:
         """
@@ -124,7 +125,7 @@ class DataApp(AgiManager):
 
     def stop(self) -> None:
         """
-        Stop the DataAppWorker and perform cleanup.
+        Stop the PolarsAppWorker and perform cleanup.
 
         Args:
             None
@@ -133,7 +134,7 @@ class DataApp(AgiManager):
             None
         """
         if self.verbose > 0:
-            print("DataAppWorker All done!\n", end="")
+            print("PolarsAppWorker All done!\n", end="")
         super().stop()
 
     def build_distribution(

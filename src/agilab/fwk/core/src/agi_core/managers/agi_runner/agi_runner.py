@@ -250,9 +250,10 @@ class AGI:
 
             # import of derived Class of AgiManager, name target_inst which is typically instance of Flight or MyCode
             AGI.agi_workers = {
-                "AgiDataWorker": "data-worker",
-                "AgiDagWorker": "dag-worker",
-                "AgiAgentWorker": "agent-worker",
+                "PolarsWorker": "polars-worker",
+                "PandasWorker": "pandas-worker",
+                "DagWorker": "dag-worker",
+                "AgentWorker": "agent-worker",
             }
             # AGI.install_worker_group = AGI.agi_workers[env.base_worker_cls]
             AGI.install_worker_group = ["agi-worker ", AGI.agi_workers[env.base_worker_cls]]
@@ -1481,12 +1482,14 @@ class AGI:
         is_cy = AGI._mode & AGI.CYTHON_MODE
         packages = "agi_worker, "
         baseworker = env.base_worker_cls
-        if baseworker.startswith("AgiAgent"):
+        if baseworker.startswith("Agent"):
             packages += "agent_worker"
-        elif baseworker.startswith("AgiDag"):
+        elif baseworker.startswith("Dag"):
             packages += "dag_worker"
-        elif baseworker.startswith("AgiData"):
-            packages += "data_worker"
+        elif baseworker.startswith("Pandas"):
+            packages += "pandas_worker"
+        elif baseworker.startswith("Polars"):
+            packages += "polars_worker"
 
         app_path = env.app_path
         wenv_abs = env.wenv_abs

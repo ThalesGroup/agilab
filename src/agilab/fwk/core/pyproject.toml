@@ -57,11 +57,14 @@ Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/fwk/core"
 Tracker = "https://github.com/ThalesGroup/agilab/issue"
 
 [project.optional-dependencies]
-agi-worker = []
 agent-worker = []
+agi-worker = []
 dag-worker = []
-data-worker = [
+polars-worker = [
     "polars",
+]
+pandas-worker = [
+    "pandas",
 ]
 managers = [
     "jupyter",
@@ -70,7 +73,6 @@ managers = [
     "pydantic",
     "requests",
     "wheel",
-    "polars",
     "dask[distributed]",
     "cython",
 ]
@@ -84,6 +86,9 @@ dev = [
     "licensecheck",
     "pytest-local-badge",
     "pytest-cov",
+    "polars",
+    "pandas",
+    "fastparquet",
 ]
 
 

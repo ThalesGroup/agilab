@@ -30,7 +30,7 @@ from agi_core.workers.agi_worker import AgiWorker
 warnings.filterwarnings("ignore")
 
 
-class AgiDagWorker(AgiWorker):
+class DagWorker(AgiWorker):
     """
     AgiDagWorker Class
 

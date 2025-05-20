@@ -9,12 +9,12 @@
 data_worker Framework Callback Functions Module
 ===============================================
 
-This module provides the `AgiDataWorker` class, which extends the foundational
+This module provides the `PolarsWorker` class, which extends the foundational
 functionalities of `AgiWorker` for processing data using multiprocessing or
 single-threaded approaches.
 
 Classes:
-    AgiDataWorker: Worker class for data processing tasks.
+    PolarsWorker: Worker class for data processing tasks.
 
 Internal Libraries:
     os, warnings
@@ -36,7 +36,7 @@ import warnings
 
 # External Libraries:
 import multiprocessing
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import time
 
@@ -48,9 +48,9 @@ import polars as pl
 warnings.filterwarnings("ignore")
 
 
-class AgiDataWorker(AgiWorker):
+class PolarsWorker(AgiWorker):
     """
-    AgiDataWorker Class
+    PolarsWorker Class
     --------------------
 
     Inherits from :class:`AgiWorker` to provide extended data processing functionalities.
@@ -147,7 +147,7 @@ class AgiDataWorker(AgiWorker):
             ncore = max(min(len(works), int(os.cpu_count())), 1)
 
         AgiEnv.log_info(
-            f"AgiDataWorker.work - ncore {ncore} - my_code_worker #{self.worker_id}"
+            f"PolarsWorker.work - ncore {ncore} - my_code_worker #{self.worker_id}"
             f" - work_pool x {len(works)}",
         )
 
@@ -206,7 +206,7 @@ class AgiDataWorker(AgiWorker):
             list_df = []
             df = pl.DataFrame()
             AgiEnv.log_info(
-                f"AgiDataWorker.work - monoprocess work #{work_id} - work_pool x {len(work)}"
+                f"PolarsWorker.work - monoprocess work #{work_id} - work_pool x {len(work)}"
             )
 
             if workers_tree:
