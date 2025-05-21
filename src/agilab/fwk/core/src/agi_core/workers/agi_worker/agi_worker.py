@@ -34,7 +34,6 @@ import sysconfig
 import warnings
 import abc
 import traceback
-import logging
 
 # External Libraries:
 from contextlib import redirect_stdout
@@ -42,6 +41,7 @@ from distutils.sysconfig import get_python_lib
 from pathlib import Path, PureWindowsPath, PurePosixPath
 from zipfile import ZipFile
 import psutil
+import logging
 import parso
 import humanize
 from datetime import timedelta
@@ -221,57 +221,52 @@ class AgiWorker(abc.ABC):
                 AgiEnv.log_error(result.stderr)
             else:
                 raise RuntimeError(
-                    f"error on agi_worker {worker} - {cmd}\n{result.stderr}"
+                    f"error on agi_worker {worker} - {cmd} {result.stderr}"
                 )
 
         return result
 
     @staticmethod
+    def _log_import_error(module, target_class, target_module):
+        AgiEnv.log_error(f"file:  {__file__}")
+        AgiEnv.log_error(f"__import__('{module}', fromlist=['{target_class}'])")
+        AgiEnv.log_error(f"getattr('{target_module} {target_class}')")
+        AgiEnv.log_error(f"sys.path: {sys.path}")
+
+    @staticmethod
     def _class_loader(module, target_class, mode, pck, env):
-        """load_target
+        """
+        Dynamically import target_class from module.
 
         Args:
-          module:
-          target_class:
-          mode:
-          pck:
+            module (str): module name
+            target_class (str): class name to import
+            mode (int): mode flags
+            pck (str): package prefix
+            env: environment object (unused here)
+
         Returns:
+            class object
         """
         if module in sys.modules:
             del sys.modules[module]
         if mode & 2 and module.endswith("_worker"):
-            # raise ImportError(f'trying to load {module} in cython but it is already loaded in python')
             module += "_cy"
-            pass
         else:
-            # raise ImportError(f'trying to load {module} in python but it is already loaded in cython')
-            # module = f"{pck}.{module}"
             module = f"{pck}.{module}"
 
-        target_module = None
         try:
-            # Dynamically import the target class from the module
             target_module = __import__(module, fromlist=[target_class])
             return getattr(target_module, target_class)
 
-        except ModuleNotFoundError as err:
-            # Raise a more descriptive ImportError if the target class cannot be imported
-            AgiEnv.log_error("file: ", __file__)
-            AgiEnv.log_error(f"\t__import__('{module}', fromlist=['{target_class}'])")
-            AgiEnv.log_error(f"\tgetattr('{target_module}', '{target_class}')")
-            AgiEnv.log_error("sys.path:\n\t", sys.path)
-            raise ImportError(
-                f"from {module} import {target_class} failed due to: {err}"
-            ) from err
-
         except Exception as err:
-            AgiEnv.log_error("file: ", __file__)
-            AgiEnv.log_error(f"\t__import__('{module}', fromlist=['{target_class}'])")
-            AgiEnv.log_error(f"\tgetattr('{target_module}', '{target_class}')")
-            AgiEnv.log_error("sys.path:\n\t", sys.path)
+            # Log only here, do not re-log elsewhere to avoid duplication
+            AgiEnv.log_error(f"file:  {__file__}")
+            AgiEnv.log_error(f"__import__('{module}', fromlist=['{target_class}'])")
+            AgiEnv.log_error(f"getattr('{target_module if 'target_module' in locals() else None} {target_class}')")
+            AgiEnv.log_error(f"sys.path: {sys.path}")
             raise RuntimeError("something wrong happened in _class_loader") from err
 
-    @staticmethod
     @staticmethod
     def onerror(func, path, exc_info):
         """
@@ -287,7 +282,7 @@ class AgiWorker(abc.ABC):
                 os.chmod(path, stat.S_IWUSR | stat.S_IREAD)
                 func(path)
             except Exception as e:
-                logging.warning(f"warning failed to grant write access to {path}: {e}")
+                AgiEnv.log_error(f"warning failed to grant write access to {path}: {e}")
         else:
             # not a permission problem—re-raise so you see real errors
             raise exc_value
@@ -488,12 +483,6 @@ class AgiWorker(abc.ABC):
             mode: (Default value = 0)
             verbose: (Default value = 0)
         """
-        # Configurer le logging avec le niveau approprié
-        log_level = logging.WARNING
-        if verbose > 2:
-            log_level = logging.DEBUG
-        elif verbose > 1:
-            log_level = logging.INFO
 
         # Log file dans le home_dir + nom du target_worker_trace.txt
         if str(getpass.getuser()).startswith("T0"):
@@ -502,16 +491,6 @@ class AgiWorker(abc.ABC):
             prefix = "~/"
         AgiWorker.home_dir = Path(prefix).expanduser().absolute()
         AgiWorker.logs = AgiWorker.home_dir / f"{target_worker}_trace.txt"
-
-        logging.basicConfig(
-            level=log_level,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(AgiWorker.logs, mode='w', encoding='utf-8'),
-                logging.StreamHandler(sys.stdout)  # pour voir aussi dans la console
-            ]
-        )
-
         AgiWorker.dask_home = dask_home
         AgiWorker.worker = worker
 
@@ -520,16 +499,16 @@ class AgiWorker(abc.ABC):
         )
 
         try:
-            logging.debug("set verbose=3 to see something in this trace file ...")
+            AgiEnv.log_debug("set verbose=3 to see something in this trace file ...")
 
             if verbose > 2:
-                logging.debug("starting worker_build ...")
-                logging.debug(f"home_dir: {AgiWorker.home_dir}")
-                logging.debug(
+                AgiEnv.log_debug("starting worker_build ...")
+                AgiEnv.log_debug(f"home_dir: {AgiWorker.home_dir}")
+                AgiEnv.log_debug(
                     f"worker_build(target_worker={target_worker}, dask_home={dask_home}, mode={mode}, verbose={verbose}, worker={worker})"
                 )
                 for x in Path(dask_home).glob("*"):
-                    logging.debug(f"\t{x}")
+                    AgiEnv.log_debug(f"{x}")
 
             # Exemple supposé : définir egg_src (non défini dans ton code)
             egg_src = dask_home + "/some_egg_file"  # adapte selon contexte réel
@@ -540,18 +519,18 @@ class AgiWorker(abc.ABC):
             if not mode & 2:
                 egg_dest = extract_path / (os.path.basename(egg_src) + ".egg")
 
-                logging.debug(f"copy:\n{egg_src}\nto:\n{egg_dest}\n")
+                AgiEnv.log_debug(f"copy: {egg_src} to {egg_dest}")
                 shutil.copyfile(egg_src, egg_dest)
 
                 if str(egg_dest) in sys.path:
                     sys.path.remove(str(egg_dest))
                 sys.path.insert(0, str(egg_dest))
 
-                logging.debug("sys.path:")
+                AgiEnv.log_debug("sys.path:")
                 for x in sys.path:
-                    logging.debug(f"\t{x}")
+                    AgiEnv.log_debug(f"{x}")
 
-                logging.debug("done!")
+                AgiEnv.log_debug("done!")
 
         except Exception as err:
             AgiEnv.log_error(
@@ -568,9 +547,9 @@ class AgiWorker(abc.ABC):
         Returns:
         """
         worker_id = AgiWorker.worker_id
-        AgiEnv.log_info(f"do_works - worker #{worker_id}: {AgiWorker.worker} from {os.path.relpath(__file__)}\n")
+        AgiEnv.log_info(f"do_works - worker #{worker_id}: {AgiWorker.worker} from {os.path.relpath(__file__)}")
         AgiEnv.log_info(
-            f"AgiWorker.work - #{worker_id + 1} / {len(workers_tree)}\n",
+            f"AgiWorker.work - #{worker_id + 1} / {len(workers_tree)}",
             end="",
             flush=True,
         )

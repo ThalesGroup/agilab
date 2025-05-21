@@ -67,7 +67,7 @@ class PandasApp(AgiManager):
                 logging.info(f"Creating data directory at {path_abs}")
                 path_abs.mkdir(parents=True, exist_ok=True)
 
-                data_src = Path(AGI.env.app_path) / "data.7z"
+                data_src = Path(AGI.env.app_rel) / "data.7z"
                 if not data_src.is_file():
                     logging.error(f"Data archive not found at {data_src}")
                     raise FileNotFoundError(f"Data archive not found at {data_src}")
