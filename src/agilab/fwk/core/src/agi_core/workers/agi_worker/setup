@@ -154,7 +154,7 @@ def main() -> None:
     install_type = opts.install_type
 
     # Determine out_dir (strip file to dir)
-    outdir = opts.build_dir
+    outdir = opts.build_dir if cmd == "build_ext" else opts.dist_dir
     p = Path(outdir)
     if p.suffix and not p.is_dir():
         logging.warning(f"'{outdir}' looks like a file; using its parent directory instead.")
