@@ -1459,7 +1459,7 @@
         <span class="k">if</span> <span class="n">egg_file</span><span class="p">:</span>
             <span class="n">AGI</span><span class="o">.</span><span class="n">_send_files</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="p">[</span><span class="n">egg_file</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">pyproject</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">uvproject</span><span class="p">],</span> <span class="n">wenv_rel</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">egg_file</span><span class="si">}</span><span class="s2"> not found.&quot;</span><span class="p">)</span>
 
         <span class="c1"># 1) Bootstrap ensurepip</span>
         <span class="n">cmd</span> <span class="o">=</span> <span class="n">python</span> <span class="o">+</span> <span class="s2">&quot; -m ensurepip&quot;</span>
