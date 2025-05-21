@@ -19,7 +19,8 @@ dependencies = [
     "fastparquet",
     "ipython",
     "polars",
-    "logging"
+    "logging",
+    "scipy==1.15.2",
 ]
 
 [project.license]

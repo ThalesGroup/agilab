@@ -50,6 +50,7 @@ dependencies = [
     "tomli",
     "logging",
     "asyncssh",
+    "scipy==1.15.2"
 ]
 
 [project.urls]
