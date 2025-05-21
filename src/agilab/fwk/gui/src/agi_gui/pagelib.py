@@ -674,7 +674,7 @@ def run_agi(code, path="."):
     )
     with open(snippet_file, "w") as file:
         file.write(code)
-    if (path == env.core_root) or (env.app_path / ".venv").exists():
+    if (path == env.core_root) or (env.app_abs / ".venv").exists():
         return run_with_output(env, f"uv run python {snippet_file}", path)
     else:
         st.info("Please do an install first")

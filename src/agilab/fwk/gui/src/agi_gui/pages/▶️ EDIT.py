@@ -281,7 +281,7 @@ def handle_export_project():
     Handle the export of a project to a zip file.
     """
     env = st.session_state["env"]
-    input_dir = env.app_path
+    input_dir = env.app_abs
     output_zip = (env.export_apps / env.app).with_suffix(".zip")
     gitignore_path = input_dir / ".gitignore"
 
@@ -1131,7 +1131,7 @@ def handle_project_selection():
 # helper functions
 
 def _render_python_env(env):
-    app_venv_file = env.app_path / "pyproject.toml"
+    app_venv_file = env.app_abs / "pyproject.toml"
     if app_venv_file.exists():
         app_venv = app_venv_file.read_text()
         if "-cu12" in app_venv:
@@ -1340,7 +1340,7 @@ def handle_project_delete():
             st.error("Please confirm that you want to delete the project.")
         else:
             try:
-                project_path = env.app_path
+                project_path = env.app_abs
                 if project_path.exists():
                     shutil.rmtree(project_path)
                     st.session_state["projects"] = [
