@@ -9,6 +9,6 @@
 | pydantic-core | MIT LICENSE |
 | python-dotenv | BSD LICENSE |
 | setuptools | MIT |
-| tomli-w | MIT LICENSE |
+| tomlkit | MIT LICENSE |
 | typing-extensions | PSF-2.0 |
 | typing-inspection | MIT LICENSE |

@@ -139,8 +139,6 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="agi-env.html#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.JumpToMain"><code class="docutils literal notranslate"><span class="pre">JumpToMain</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -165,7 +163,8 @@
 <li class="toctree-l4"><a class="reference internal" href="#agi-core-workers-agi-worker">agi_core.workers.agi-worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#agi-core-workers-agent-worker">agi_core.workers.agent-worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#agi-core-workers-dag-worker">agi_core.workers.dag-worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#agi-core-workers-data-worker">agi_core.workers.data-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#agi-core-workers-pandas-worker">agi_core.workers.pandas-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#agi-core-workers-polars-worker">agi_core.workers.polars-worker</a></li>
 </ul>
 </li>
 </ul>
@@ -449,12 +448,11 @@
 <p>class AgiWorker v1.0</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_core.workers.agi_worker.agi_worker.AgiWorker.build">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">build</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dask_home</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/agi_worker/agi_worker.html#AgiWorker.build"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.agi_worker.agi_worker.AgiWorker.build" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">build</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dask_home</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/agi_worker/agi_worker.html#AgiWorker.build"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.agi_worker.agi_worker.AgiWorker.build" title="Link to this definition"></a></dt>
 <dd><p>Function to build target code on a my_code_AgiWorker.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>app</strong> (<em>str</em>) – app to build</p></li>
 <li><p><strong>target_worker</strong> (<em>str</em>) – module to build</p></li>
 <li><p><strong>dask_home</strong> (<em>str</em>) – path to dask home</p></li>
 <li><p><strong>worker</strong> – current worker</p></li>
@@ -463,7 +461,6 @@
 </ul>
 </dd>
 </dl>
-<p>Returns:</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -632,22 +629,10 @@
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_core.workers.agi_worker.agi_worker.AgiWorker.onerror">
-<span class="sig-name descname"><span class="pre">onerror</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/agi_worker/agi_worker.html#AgiWorker.onerror"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.agi_worker.agi_worker.AgiWorker.onerror" title="Link to this definition"></a></dt>
-<dd><p>Error handler for <cite>shutil.rmtree</cite>.</p>
-<p>If the error is due to an access error (read only file)
-it attempts to add write permission and then retries.</p>
-<p>If the error is for another reason it re-raises the error.</p>
-<p>Usage : <cite>shutil.rmtree(path, onerror=onerror)</cite></p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>func</strong></p></li>
-<li><p><strong>path</strong></p></li>
-<li><p><strong>exc_info</strong></p></li>
-</ul>
-</dd>
-</dl>
-<p>Returns:</p>
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">onerror</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/agi_worker/agi_worker.html#AgiWorker.onerror"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.agi_worker.agi_worker.AgiWorker.onerror" title="Link to this definition"></a></dt>
+<dd><p>Error handler for <cite>shutil.rmtree</cite>.
+If it’s a permission error, make it writable and retry.
+Otherwise re-raise.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -737,22 +722,21 @@ it attempts to add write permission and then retries.</p>
 </a>
 <hr class="docutils" />
 <dl class="py class" id="module-agi_core.workers.dag_worker.dag_worker">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agi_core.workers.dag_worker.dag_worker.</span></span><span class="sig-name descname"><span class="pre">AgiDagWorker</span></span><a class="reference internal" href="_modules/agi_core/workers/dag_worker/dag_worker.html#AgiDagWorker"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agi_core.workers.dag_worker.dag_worker.</span></span><span class="sig-name descname"><span class="pre">DagWorker</span></span><a class="reference internal" href="_modules/agi_core/workers/dag_worker/dag_worker.html#DagWorker"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker" title="Link to this definition"></a></dt>
 <dd><p>Bases: <a class="reference internal" href="#agi_core.workers.agi_worker.agi_worker.AgiWorker" title="agi_core.workers.agi_worker.agi_worker.AgiWorker"><code class="xref py py-class docutils literal notranslate"><span class="pre">AgiWorker</span></code></a></p>
-<p>AgiDagWorker Class</p>
+<p>DagWorker Class</p>
 <dl class="simple">
 <dt>Inherits from:</dt><dd><p>AgiWorker: Provides foundational worker functionalities.</p>
 </dd>
 </dl>
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.build">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">build</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dask_home</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.build" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.build">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">build</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dask_home</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.build" title="Link to this definition"></a></dt>
 <dd><p>Function to build target code on a my_code_AgiWorker.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>app</strong> (<em>str</em>) – app to build</p></li>
 <li><p><strong>target_worker</strong> (<em>str</em>) – module to build</p></li>
 <li><p><strong>dask_home</strong> (<em>str</em>) – path to dask home</p></li>
 <li><p><strong>worker</strong> – current worker</p></li>
@@ -761,22 +745,21 @@ it attempts to add write permission and then retries.</p>
 </ul>
 </dd>
 </dl>
-<p>Returns:</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.cython_decorators">
-<span class="sig-name descname"><span class="pre">cython_decorators</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['njit']</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.cython_decorators" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.cython_decorators">
+<span class="sig-name descname"><span class="pre">cython_decorators</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['njit']</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.cython_decorators" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.dask_home">
-<span class="sig-name descname"><span class="pre">dask_home</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.dask_home" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.dask_home">
+<span class="sig-name descname"><span class="pre">dask_home</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.dask_home" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.do_works">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">do_works</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.do_works" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.do_works">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">do_works</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.do_works" title="Link to this definition"></a></dt>
 <dd><p>run of workers</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -790,8 +773,8 @@ it attempts to add write permission and then retries.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.exec">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.exec" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.exec">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.exec" title="Link to this definition"></a></dt>
 <dd><p>execute a command within a subprocess</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -806,22 +789,22 @@ it attempts to add write permission and then retries.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.exec_mono_process">
-<span class="sig-name descname"><span class="pre">exec_mono_process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/dag_worker/dag_worker.html#AgiDagWorker.exec_mono_process"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.exec_mono_process" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.exec_mono_process">
+<span class="sig-name descname"><span class="pre">exec_mono_process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/dag_worker/dag_worker.html#DagWorker.exec_mono_process"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.exec_mono_process" title="Link to this definition"></a></dt>
 <dd><p>Execute tasks in a single process, respecting dependencies,
 but only for branches assigned to this worker via round-robin.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.exec_multi_process">
-<span class="sig-name descname"><span class="pre">exec_multi_process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/dag_worker/dag_worker.html#AgiDagWorker.exec_multi_process"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.exec_multi_process" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.exec_multi_process">
+<span class="sig-name descname"><span class="pre">exec_multi_process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/dag_worker/dag_worker.html#DagWorker.exec_multi_process"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.exec_multi_process" title="Link to this definition"></a></dt>
 <dd><p>Execute tasks in multiple threads, distributing branches to workers in
 round‑robin, then honoring dependencies per worker.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.expand">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">expand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.expand" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.expand">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">expand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.expand" title="Link to this definition"></a></dt>
 <dd><p>Expand a given path to an absolute path.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -847,8 +830,8 @@ round‑robin, then honoring dependencies per worker.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.expand_and_join">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">expand_and_join</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.expand_and_join" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.expand_and_join">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">expand_and_join</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.expand_and_join" title="Link to this definition"></a></dt>
 <dd><p>Join two paths after expanding the first path.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -867,8 +850,8 @@ round‑robin, then honoring dependencies per worker.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.get_worker_info">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_worker_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">worker_id</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.get_worker_info" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.get_worker_info">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_worker_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">worker_id</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.get_worker_info" title="Link to this definition"></a></dt>
 <dd><p>def get_worker_info():</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -879,18 +862,18 @@ round‑robin, then honoring dependencies per worker.</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.home_dir">
-<span class="sig-name descname"><span class="pre">home_dir</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.home_dir" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.home_dir">
+<span class="sig-name descname"><span class="pre">home_dir</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.home_dir" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.is_managed_pc">
-<span class="sig-name descname"><span class="pre">is_managed_pc</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.is_managed_pc" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.is_managed_pc">
+<span class="sig-name descname"><span class="pre">is_managed_pc</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.is_managed_pc" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.join">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">join</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.join" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.join">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">join</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.join" title="Link to this definition"></a></dt>
 <dd><p>Join two file paths.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -912,18 +895,18 @@ round‑robin, then honoring dependencies per worker.</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.logs">
-<span class="sig-name descname"><span class="pre">logs</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.logs" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.logs">
+<span class="sig-name descname"><span class="pre">logs</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.logs" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.mode">
-<span class="sig-name descname"><span class="pre">mode</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.mode" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.mode">
+<span class="sig-name descname"><span class="pre">mode</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.mode" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.new">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">new</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_module</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_class</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_package</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'localhost'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.new" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.new">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">new</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_module</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_class</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_package</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'localhost'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.new" title="Link to this definition"></a></dt>
 <dd><p>new worker instance
 :param module: instanciate and load target my_code_worker module
 :param target_module:
@@ -938,33 +921,21 @@ round‑robin, then honoring dependencies per worker.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.normalize_path">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">normalize_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.normalize_path" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.normalize_path">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">normalize_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.normalize_path" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.onerror">
-<span class="sig-name descname"><span class="pre">onerror</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.onerror" title="Link to this definition"></a></dt>
-<dd><p>Error handler for <cite>shutil.rmtree</cite>.</p>
-<p>If the error is due to an access error (read only file)
-it attempts to add write permission and then retries.</p>
-<p>If the error is for another reason it re-raises the error.</p>
-<p>Usage : <cite>shutil.rmtree(path, onerror=onerror)</cite></p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>func</strong></p></li>
-<li><p><strong>path</strong></p></li>
-<li><p><strong>exc_info</strong></p></li>
-</ul>
-</dd>
-</dl>
-<p>Returns:</p>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.onerror">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">onerror</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.onerror" title="Link to this definition"></a></dt>
+<dd><p>Error handler for <cite>shutil.rmtree</cite>.
+If it’s a permission error, make it writable and retry.
+Otherwise re-raise.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.run">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'127.0.0.1':</span> <span class="pre">1}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.run" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.run">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'127.0.0.1':</span> <span class="pre">1}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.run" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -982,13 +953,13 @@ it attempts to add write permission and then retries.</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.share_path">
-<span class="sig-name descname"><span class="pre">share_path</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.share_path" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.share_path">
+<span class="sig-name descname"><span class="pre">share_path</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.share_path" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.start">
-<span class="sig-name descname"><span class="pre">start</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.start" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.start">
+<span class="sig-name descname"><span class="pre">start</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.start" title="Link to this definition"></a></dt>
 <dd><p>Start the worker and print out a message if verbose mode is enabled.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1001,41 +972,41 @@ it attempts to add write permission and then retries.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.stop">
-<span class="sig-name descname"><span class="pre">stop</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.stop" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.stop">
+<span class="sig-name descname"><span class="pre">stop</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.stop" title="Link to this definition"></a></dt>
 <dd><p>Returns:</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.t0">
-<span class="sig-name descname"><span class="pre">t0</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.t0" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.t0">
+<span class="sig-name descname"><span class="pre">t0</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.t0" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.topological_sort">
-<span class="sig-name descname"><span class="pre">topological_sort</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dependency_graph</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/dag_worker/dag_worker.html#AgiDagWorker.topological_sort"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.topological_sort" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.topological_sort">
+<span class="sig-name descname"><span class="pre">topological_sort</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dependency_graph</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/dag_worker/dag_worker.html#DagWorker.topological_sort"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.topological_sort" title="Link to this definition"></a></dt>
 <dd><p>Perform a topological sort on the dependency graph.
 Raises ValueError on cycles.</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.verbose">
-<span class="sig-name descname"><span class="pre">verbose</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.verbose" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.verbose">
+<span class="sig-name descname"><span class="pre">verbose</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.verbose" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.worker">
-<span class="sig-name descname"><span class="pre">worker</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.worker" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.worker">
+<span class="sig-name descname"><span class="pre">worker</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.worker" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.worker_id">
-<span class="sig-name descname"><span class="pre">worker_id</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.worker_id" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.worker_id">
+<span class="sig-name descname"><span class="pre">worker_id</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.worker_id" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.AgiDagWorker.works">
-<span class="sig-name descname"><span class="pre">works</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/dag_worker/dag_worker.html#AgiDagWorker.works"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.AgiDagWorker.works" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.dag_worker.dag_worker.DagWorker.works">
+<span class="sig-name descname"><span class="pre">works</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/dag_worker/dag_worker.html#DagWorker.works"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.dag_worker.dag_worker.DagWorker.works" title="Link to this definition"></a></dt>
 <dd><p>Run the worker tasks.</p>
 </dd></dl>
 
@@ -1043,42 +1014,42 @@ Raises ValueError on cycles.</p>
 
 </section>
 <hr class="docutils" />
-<section id="agi-core-workers-data-worker">
-<h3>agi_core.workers.data-worker<a class="headerlink" href="#agi-core-workers-data-worker" title="Link to this heading"></a></h3>
-<a class="reference internal image-reference" href="_images/packages_agi_core.workers.data_worker.png"><img alt="Packages diagram for agi_core.workers.data_workers" class="align-center" src="_images/packages_agi_core.workers.data_worker.png" style="width: 400px;" />
+<section id="agi-core-workers-pandas-worker">
+<h3>agi_core.workers.pandas-worker<a class="headerlink" href="#agi-core-workers-pandas-worker" title="Link to this heading"></a></h3>
+<a class="reference internal image-reference" href="_images/packages_agi_core.workers.pandas_worker.png"><img alt="Packages diagram for agi_core.workers.pandas_workers" class="align-center" src="_images/packages_agi_core.workers.pandas_worker.png" style="width: 400px;" />
 </a>
 <hr class="docutils" />
-<a class="reference internal image-reference" href="_images/classes_agi_core.workers.data_worker.png"><img alt="Classes diagram for agi_core.workers.data_worker" class="align-center" src="_images/classes_agi_core.workers.data_worker.png" style="width: 400px;" />
+<a class="reference internal image-reference" href="_images/classes_agi_core.workers.pandas_worker.png"><img alt="Classes diagram for agi_core.workers.pandas_worker" class="align-center" src="_images/classes_agi_core.workers.pandas_worker.png" style="width: 400px;" />
 </a>
 <hr class="docutils" />
-<section id="data-worker-framework-callback-functions-module">
-<span id="module-agi_core.workers.data_worker.data_worker"></span><h4>data_worker Framework Callback Functions Module<a class="headerlink" href="#data-worker-framework-callback-functions-module" title="Link to this heading"></a></h4>
-<p>This module provides the <cite>AgiDataWorker</cite> class, which extends the foundational
+<section id="pandas-worker-framework-callback-functions-module">
+<span id="module-agi_core.workers.pandas_worker.pandas_worker"></span><h4>pandas_worker Framework Callback Functions Module<a class="headerlink" href="#pandas-worker-framework-callback-functions-module" title="Link to this heading"></a></h4>
+<p>This module provides the <cite>PandasWorker</cite> class, which extends the foundational
 functionalities of <cite>AgiWorker</cite> for processing data using multiprocessing or
-single-threaded approaches.</p>
+single-threaded approaches with pandas.</p>
 <dl class="simple">
-<dt>Classes:</dt><dd><p>AgiDataWorker: Worker class for data processing tasks.</p>
+<dt>Classes:</dt><dd><p>PandasWorker: Worker class for data processing tasks using pandas.</p>
 </dd>
 <dt>Internal Libraries:</dt><dd><p>os, warnings</p>
 </dd>
 <dt>External Libraries:</dt><dd><p>concurrent.futures.ProcessPoolExecutor
 pathlib.Path
 time
-polars as pl
+pandas as pd
 AgiWorker from agi_worker.agi_worker</p>
 </dd>
 </dl>
 </section>
 <dl class="py class">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agi_core.workers.data_worker.data_worker.</span></span><span class="sig-name descname"><span class="pre">AgiDataWorker</span></span><a class="reference internal" href="_modules/agi_core/workers/data_worker/data_worker.html#AgiDataWorker"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agi_core.workers.pandas_worker.pandas_worker.</span></span><span class="sig-name descname"><span class="pre">PandasWorker</span></span><a class="reference internal" href="_modules/agi_core/workers/pandas_worker/pandas_worker.html#PandasWorker"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker" title="Link to this definition"></a></dt>
 <dd><p>Bases: <a class="reference internal" href="#agi_core.workers.agi_worker.agi_worker.AgiWorker" title="agi_core.workers.agi_worker.agi_worker.AgiWorker"><code class="xref py py-class docutils literal notranslate"><span class="pre">AgiWorker</span></code></a></p>
-<section id="agidataworker-class">
-<h4>AgiDataWorker Class<a class="headerlink" href="#agidataworker-class" title="Link to this heading"></a></h4>
-<p>Inherits from <code class="xref py py-class docutils literal notranslate"><span class="pre">AgiWorker</span></code> to provide extended data processing functionalities.</p>
+<section id="pandasworker-class">
+<h4>PandasWorker Class<a class="headerlink" href="#pandasworker-class" title="Link to this heading"></a></h4>
+<p>Inherits from <code class="xref py py-class docutils literal notranslate"><span class="pre">AgiWorker</span></code> to provide extended data processing functionalities using pandas.</p>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.verbose">
-<span class="sig-name descname"><span class="pre">verbose</span></span><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.verbose" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.verbose">
+<span class="sig-name descname"><span class="pre">verbose</span></span><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.verbose" title="Link to this definition"></a></dt>
 <dd><p>Verbosity level for logging.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
@@ -1088,8 +1059,8 @@ AgiWorker from agi_worker.agi_worker</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.data_out">
-<span class="sig-name descname"><span class="pre">data_out</span></span><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.data_out" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.data_out">
+<span class="sig-name descname"><span class="pre">data_out</span></span><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.data_out" title="Link to this definition"></a></dt>
 <dd><p>Path to the output directory.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
@@ -1099,8 +1070,8 @@ AgiWorker from agi_worker.agi_worker</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.worker_id">
-<span class="sig-name descname"><span class="pre">worker_id</span></span><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.worker_id" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.worker_id">
+<span class="sig-name descname"><span class="pre">worker_id</span></span><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.worker_id" title="Link to this definition"></a></dt>
 <dd><p>Identifier for the worker instance.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
@@ -1110,8 +1081,8 @@ AgiWorker from agi_worker.agi_worker</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.args">
-<span class="sig-name descname"><span class="pre">args</span></span><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.args" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.args">
+<span class="sig-name descname"><span class="pre">args</span></span><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.args" title="Link to this definition"></a></dt>
 <dd><p>Configuration arguments for the worker.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
@@ -1121,13 +1092,12 @@ AgiWorker from agi_worker.agi_worker</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.build">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">build</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dask_home</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.build" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.build">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">build</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dask_home</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.build" title="Link to this definition"></a></dt>
 <dd><p>Function to build target code on a my_code_AgiWorker.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>app</strong> (<em>str</em>) – app to build</p></li>
 <li><p><strong>target_worker</strong> (<em>str</em>) – module to build</p></li>
 <li><p><strong>dask_home</strong> (<em>str</em>) – path to dask home</p></li>
 <li><p><strong>worker</strong> – current worker</p></li>
@@ -1136,22 +1106,21 @@ AgiWorker from agi_worker.agi_worker</p>
 </ul>
 </dd>
 </dl>
-<p>Returns:</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.cython_decorators">
-<span class="sig-name descname"><span class="pre">cython_decorators</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['njit']</span></em><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.cython_decorators" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.cython_decorators">
+<span class="sig-name descname"><span class="pre">cython_decorators</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['njit']</span></em><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.cython_decorators" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.dask_home">
-<span class="sig-name descname"><span class="pre">dask_home</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.dask_home" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.dask_home">
+<span class="sig-name descname"><span class="pre">dask_home</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.dask_home" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.do_works">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">do_works</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.do_works" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.do_works">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">do_works</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.do_works" title="Link to this definition"></a></dt>
 <dd><p>run of workers</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1165,8 +1134,8 @@ AgiWorker from agi_worker.agi_worker</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.exec">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.exec" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.exec">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.exec" title="Link to this definition"></a></dt>
 <dd><p>execute a command within a subprocess</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1181,8 +1150,8 @@ AgiWorker from agi_worker.agi_worker</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.exec_mono_process">
-<span class="sig-name descname"><span class="pre">exec_mono_process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/data_worker/data_worker.html#AgiDataWorker.exec_mono_process"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.exec_mono_process" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.exec_mono_process">
+<span class="sig-name descname"><span class="pre">exec_mono_process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/pandas_worker/pandas_worker.html#PandasWorker.exec_mono_process"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.exec_mono_process" title="Link to this definition"></a></dt>
 <dd><p>Executes tasks in single-threaded mode.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
@@ -1198,8 +1167,8 @@ AgiWorker from agi_worker.agi_worker</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.exec_multi_process">
-<span class="sig-name descname"><span class="pre">exec_multi_process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/data_worker/data_worker.html#AgiDataWorker.exec_multi_process"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.exec_multi_process" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.exec_multi_process">
+<span class="sig-name descname"><span class="pre">exec_multi_process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/pandas_worker/pandas_worker.html#PandasWorker.exec_multi_process"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.exec_multi_process" title="Link to this definition"></a></dt>
 <dd><p>Executes tasks in multiprocessing mode.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
@@ -1215,8 +1184,8 @@ AgiWorker from agi_worker.agi_worker</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.expand">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">expand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.expand" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.expand">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">expand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.expand" title="Link to this definition"></a></dt>
 <dd><p>Expand a given path to an absolute path.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1242,8 +1211,8 @@ AgiWorker from agi_worker.agi_worker</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.expand_and_join">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">expand_and_join</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.expand_and_join" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.expand_and_join">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">expand_and_join</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.expand_and_join" title="Link to this definition"></a></dt>
 <dd><p>Join two paths after expanding the first path.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1262,8 +1231,8 @@ AgiWorker from agi_worker.agi_worker</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.get_worker_info">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_worker_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">worker_id</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.get_worker_info" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.get_worker_info">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_worker_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">worker_id</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.get_worker_info" title="Link to this definition"></a></dt>
 <dd><p>def get_worker_info():</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1274,18 +1243,18 @@ AgiWorker from agi_worker.agi_worker</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.home_dir">
-<span class="sig-name descname"><span class="pre">home_dir</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.home_dir" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.home_dir">
+<span class="sig-name descname"><span class="pre">home_dir</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.home_dir" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.is_managed_pc">
-<span class="sig-name descname"><span class="pre">is_managed_pc</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.is_managed_pc" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.is_managed_pc">
+<span class="sig-name descname"><span class="pre">is_managed_pc</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.is_managed_pc" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.join">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">join</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.join" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.join">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">join</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.join" title="Link to this definition"></a></dt>
 <dd><p>Join two file paths.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1307,18 +1276,18 @@ AgiWorker from agi_worker.agi_worker</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.logs">
-<span class="sig-name descname"><span class="pre">logs</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.logs" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.logs">
+<span class="sig-name descname"><span class="pre">logs</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.logs" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.mode">
-<span class="sig-name descname"><span class="pre">mode</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.mode" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.mode">
+<span class="sig-name descname"><span class="pre">mode</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.mode" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.new">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">new</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_module</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_class</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_package</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'localhost'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.new" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.new">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">new</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_module</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_class</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_package</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'localhost'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.new" title="Link to this definition"></a></dt>
 <dd><p>new worker instance
 :param module: instanciate and load target my_code_worker module
 :param target_module:
@@ -1333,33 +1302,21 @@ AgiWorker from agi_worker.agi_worker</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.normalize_path">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">normalize_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.normalize_path" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.normalize_path">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">normalize_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.normalize_path" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.onerror">
-<span class="sig-name descname"><span class="pre">onerror</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.onerror" title="Link to this definition"></a></dt>
-<dd><p>Error handler for <cite>shutil.rmtree</cite>.</p>
-<p>If the error is due to an access error (read only file)
-it attempts to add write permission and then retries.</p>
-<p>If the error is for another reason it re-raises the error.</p>
-<p>Usage : <cite>shutil.rmtree(path, onerror=onerror)</cite></p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>func</strong></p></li>
-<li><p><strong>path</strong></p></li>
-<li><p><strong>exc_info</strong></p></li>
-</ul>
-</dd>
-</dl>
-<p>Returns:</p>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.onerror">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">onerror</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.onerror" title="Link to this definition"></a></dt>
+<dd><p>Error handler for <cite>shutil.rmtree</cite>.
+If it’s a permission error, make it writable and retry.
+Otherwise re-raise.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.run">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'127.0.0.1':</span> <span class="pre">1}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.run" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.run">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'127.0.0.1':</span> <span class="pre">1}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.run" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -1377,13 +1334,13 @@ it attempts to add write permission and then retries.</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.share_path">
-<span class="sig-name descname"><span class="pre">share_path</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.share_path" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.share_path">
+<span class="sig-name descname"><span class="pre">share_path</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.share_path" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.start">
-<span class="sig-name descname"><span class="pre">start</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.start" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.start">
+<span class="sig-name descname"><span class="pre">start</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.start" title="Link to this definition"></a></dt>
 <dd><p>Start the worker and print out a message if verbose mode is enabled.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1396,14 +1353,14 @@ it attempts to add write permission and then retries.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.stop">
-<span class="sig-name descname"><span class="pre">stop</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.stop" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.stop">
+<span class="sig-name descname"><span class="pre">stop</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.stop" title="Link to this definition"></a></dt>
 <dd><p>Returns:</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.t0">
-<span class="sig-name descname"><span class="pre">t0</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.t0" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.t0">
+<span class="sig-name descname"><span class="pre">t0</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.t0" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -1412,8 +1369,437 @@ it attempts to add write permission and then retries.</p>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.work_done">
-<span class="sig-name descname"><span class="pre">work_done</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/data_worker/data_worker.html#AgiDataWorker.work_done"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.work_done" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.work_done">
+<span class="sig-name descname"><span class="pre">work_done</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/pandas_worker/pandas_worker.html#PandasWorker.work_done"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.work_done" title="Link to this definition"></a></dt>
+<dd><p>Handles the post-processing of the DataFrame after <cite>work_pool</cite> execution.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>df</strong> (<em>pd.DataFrame</em><em>, </em><em>optional</em>) – The pandas DataFrame to process. Defaults to None.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – If an unsupported output format is specified.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.work_pool">
+<span class="sig-name descname"><span class="pre">work_pool</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/pandas_worker/pandas_worker.html#PandasWorker.work_pool"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.work_pool" title="Link to this definition"></a></dt>
+<dd><p>Processes a single task.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataFrame</span></code></span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>x</strong> (<em>any</em><em>, </em><em>optional</em>) – The task to process. Defaults to None.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A pandas DataFrame with the processed results.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>pd.DataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.worker">
+<span class="sig-name descname"><span class="pre">worker</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.worker" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id1">
+<span class="sig-name descname"><span class="pre">worker_id</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id1" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.pandas_worker.pandas_worker.PandasWorker.works">
+<span class="sig-name descname"><span class="pre">works</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/pandas_worker/pandas_worker.html#PandasWorker.works"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.works" title="Link to this definition"></a></dt>
+<dd><p>Executes worker tasks based on the distribution tree.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>workers_tree</strong> (<em>any</em>) – Distribution tree structure.</p></li>
+<li><p><strong>workers_tree_info</strong> (<em>any</em>) – Additional information about the workers.</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Execution time in seconds.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</dd></dl>
+
+</section>
+<hr class="docutils" />
+<section id="agi-core-workers-polars-worker">
+<h3>agi_core.workers.polars-worker<a class="headerlink" href="#agi-core-workers-polars-worker" title="Link to this heading"></a></h3>
+<a class="reference internal image-reference" href="_images/packages_agi_core.workers.polars_worker.png"><img alt="Packages diagram for agi_core.workers.polars_workers" class="align-center" src="_images/packages_agi_core.workers.polars_worker.png" style="width: 400px;" />
+</a>
+<hr class="docutils" />
+<a class="reference internal image-reference" href="_images/classes_agi_core.workers.polars_worker.png"><img alt="Classes diagram for agi_core.workers.polars_worker" class="align-center" src="_images/classes_agi_core.workers.polars_worker.png" style="width: 400px;" />
+</a>
+<hr class="docutils" />
+<section id="data-worker-framework-callback-functions-module">
+<span id="module-agi_core.workers.polars_worker.polars_worker"></span><h4>data_worker Framework Callback Functions Module<a class="headerlink" href="#data-worker-framework-callback-functions-module" title="Link to this heading"></a></h4>
+<p>This module provides the <cite>PolarsWorker</cite> class, which extends the foundational
+functionalities of <cite>AgiWorker</cite> for processing data using multiprocessing or
+single-threaded approaches.</p>
+<dl class="simple">
+<dt>Classes:</dt><dd><p>PolarsWorker: Worker class for data processing tasks.</p>
+</dd>
+<dt>Internal Libraries:</dt><dd><p>os, warnings</p>
+</dd>
+<dt>External Libraries:</dt><dd><p>concurrent.futures.ProcessPoolExecutor
+pathlib.Path
+time
+polars as pl
+AgiWorker from agi_worker.agi_worker</p>
+</dd>
+</dl>
+</section>
+<dl class="py class">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agi_core.workers.polars_worker.polars_worker.</span></span><span class="sig-name descname"><span class="pre">PolarsWorker</span></span><a class="reference internal" href="_modules/agi_core/workers/polars_worker/polars_worker.html#PolarsWorker"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#agi_core.workers.agi_worker.agi_worker.AgiWorker" title="agi_core.workers.agi_worker.agi_worker.AgiWorker"><code class="xref py py-class docutils literal notranslate"><span class="pre">AgiWorker</span></code></a></p>
+<section id="polarsworker-class">
+<h4>PolarsWorker Class<a class="headerlink" href="#polarsworker-class" title="Link to this heading"></a></h4>
+<p>Inherits from <code class="xref py py-class docutils literal notranslate"><span class="pre">AgiWorker</span></code> to provide extended data processing functionalities.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.verbose">
+<span class="sig-name descname"><span class="pre">verbose</span></span><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.verbose" title="Link to this definition"></a></dt>
+<dd><p>Verbosity level for logging.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.data_out">
+<span class="sig-name descname"><span class="pre">data_out</span></span><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.data_out" title="Link to this definition"></a></dt>
+<dd><p>Path to the output directory.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.worker_id">
+<span class="sig-name descname"><span class="pre">worker_id</span></span><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.worker_id" title="Link to this definition"></a></dt>
+<dd><p>Identifier for the worker instance.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.args">
+<span class="sig-name descname"><span class="pre">args</span></span><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.args" title="Link to this definition"></a></dt>
+<dd><p>Configuration arguments for the worker.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.build">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">build</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dask_home</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.build" title="Link to this definition"></a></dt>
+<dd><p>Function to build target code on a my_code_AgiWorker.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>target_worker</strong> (<em>str</em>) – module to build</p></li>
+<li><p><strong>dask_home</strong> (<em>str</em>) – path to dask home</p></li>
+<li><p><strong>worker</strong> – current worker</p></li>
+<li><p><strong>mode</strong> – (Default value = 0)</p></li>
+<li><p><strong>verbose</strong> – (Default value = 0)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.cython_decorators">
+<span class="sig-name descname"><span class="pre">cython_decorators</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['njit']</span></em><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.cython_decorators" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.dask_home">
+<span class="sig-name descname"><span class="pre">dask_home</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.dask_home" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.do_works">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">do_works</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.do_works" title="Link to this definition"></a></dt>
+<dd><p>run of workers</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>chunk</strong> – distribution tree</p></li>
+<li><p><strong>chunks</strong></p></li>
+</ul>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.exec">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.exec" title="Link to this definition"></a></dt>
+<dd><p>execute a command within a subprocess</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cmd</strong> – the str of the command</p></li>
+<li><p><strong>path</strong> – the path where to lunch the command</p></li>
+<li><p><strong>worker</strong></p></li>
+</ul>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.exec_mono_process">
+<span class="sig-name descname"><span class="pre">exec_mono_process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/polars_worker/polars_worker.html#PolarsWorker.exec_mono_process"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.exec_mono_process" title="Link to this definition"></a></dt>
+<dd><p>Executes tasks in single-threaded mode.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>workers_tree</strong> (<em>any</em>) – Distribution tree structure.</p></li>
+<li><p><strong>workers_tree_info</strong> (<em>any</em>) – Additional information about the workers.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.exec_multi_process">
+<span class="sig-name descname"><span class="pre">exec_multi_process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/polars_worker/polars_worker.html#PolarsWorker.exec_multi_process"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.exec_multi_process" title="Link to this definition"></a></dt>
+<dd><p>Executes tasks in multiprocessing mode.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>workers_tree</strong> (<em>any</em>) – Distribution tree structure.</p></li>
+<li><p><strong>workers_tree_info</strong> (<em>any</em>) – Additional information about the workers.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.expand">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">expand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.expand" title="Link to this definition"></a></dt>
+<dd><p>Expand a given path to an absolute path.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> (<em>str</em>) – The path to expand.</p></li>
+<li><p><strong>base_directory</strong> (<em>str</em><em>, </em><em>optional</em>) – The base directory to use for expanding the path. Defaults to None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The expanded absolute path.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>None</strong> – </p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This method handles both Unix and Windows paths and expands ‘~’ notation to the user’s home directory.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.expand_and_join">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">expand_and_join</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.expand_and_join" title="Link to this definition"></a></dt>
+<dd><p>Join two paths after expanding the first path.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path1</strong> (<em>str</em>) – The first path to expand and join.</p></li>
+<li><p><strong>path2</strong> (<em>str</em>) – The second path to join with the expanded first path.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The joined path.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.get_worker_info">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_worker_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">worker_id</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.get_worker_info" title="Link to this definition"></a></dt>
+<dd><p>def get_worker_info():</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>worker_id</strong></p>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.home_dir">
+<span class="sig-name descname"><span class="pre">home_dir</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.home_dir" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.is_managed_pc">
+<span class="sig-name descname"><span class="pre">is_managed_pc</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.is_managed_pc" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.join">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">join</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.join" title="Link to this definition"></a></dt>
+<dd><p>Join two file paths.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path1</strong> (<em>str</em>) – The first file path.</p></li>
+<li><p><strong>path2</strong> (<em>str</em>) – The second file path.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The combined file path.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>None</strong> – </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.logs">
+<span class="sig-name descname"><span class="pre">logs</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.logs" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.mode">
+<span class="sig-name descname"><span class="pre">mode</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.mode" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.new">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">new</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_module</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_class</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_package</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'localhost'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.new" title="Link to this definition"></a></dt>
+<dd><p>new worker instance
+:param module: instanciate and load target my_code_worker module
+:param target_module:
+:param target_class:
+:param target_package:
+:param mode: (Default value = mode)
+:param verbose: (Default value = 0)
+:param worker_id: (Default value = 0)
+:param worker: (Default value = ‘localhost’)
+:param args: (Default value = None)</p>
+<p>Returns:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.normalize_path">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">normalize_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.normalize_path" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.onerror">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">onerror</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.onerror" title="Link to this definition"></a></dt>
+<dd><p>Error handler for <cite>shutil.rmtree</cite>.
+If it’s a permission error, make it writable and retry.
+Otherwise re-raise.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.run">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'127.0.0.1':</span> <span class="pre">1}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.run" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>app</strong></p></li>
+<li><p><strong>workers</strong></p></li>
+<li><p><strong>mode</strong></p></li>
+<li><p><strong>verbose</strong></p></li>
+<li><p><strong>args</strong></p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.share_path">
+<span class="sig-name descname"><span class="pre">share_path</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.share_path" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.start">
+<span class="sig-name descname"><span class="pre">start</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.start" title="Link to this definition"></a></dt>
+<dd><p>Start the worker and print out a message if verbose mode is enabled.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.stop">
+<span class="sig-name descname"><span class="pre">stop</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.stop" title="Link to this definition"></a></dt>
+<dd><p>Returns:</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.t0">
+<span class="sig-name descname"><span class="pre">t0</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.t0" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id2">
+<span class="sig-name descname"><span class="pre">verbose</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#id2" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.work_done">
+<span class="sig-name descname"><span class="pre">work_done</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/polars_worker/polars_worker.html#PolarsWorker.work_done"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.work_done" title="Link to this definition"></a></dt>
 <dd><p>Handles the post-processing of the DataFrame after <cite>work_pool</cite> execution.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
@@ -1429,8 +1815,8 @@ it attempts to add write permission and then retries.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.work_pool">
-<span class="sig-name descname"><span class="pre">work_pool</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/data_worker/data_worker.html#AgiDataWorker.work_pool"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.work_pool" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.work_pool">
+<span class="sig-name descname"><span class="pre">work_pool</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/polars_worker/polars_worker.html#PolarsWorker.work_pool"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.work_pool" title="Link to this definition"></a></dt>
 <dd><p>Processes a single task.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
@@ -1449,18 +1835,18 @@ it attempts to add write permission and then retries.</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.worker">
-<span class="sig-name descname"><span class="pre">worker</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.worker" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.worker">
+<span class="sig-name descname"><span class="pre">worker</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.worker" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="id1">
-<span class="sig-name descname"><span class="pre">worker_id</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id1" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="id3">
+<span class="sig-name descname"><span class="pre">worker_id</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id3" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.workers.data_worker.data_worker.AgiDataWorker.works">
-<span class="sig-name descname"><span class="pre">works</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/data_worker/data_worker.html#AgiDataWorker.works"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.data_worker.data_worker.AgiDataWorker.works" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_core.workers.polars_worker.polars_worker.PolarsWorker.works">
+<span class="sig-name descname"><span class="pre">works</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/workers/polars_worker/polars_worker.html#PolarsWorker.works"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.workers.polars_worker.polars_worker.PolarsWorker.works" title="Link to this definition"></a></dt>
 <dd><p>Executes worker tasks based on the distribution tree.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>

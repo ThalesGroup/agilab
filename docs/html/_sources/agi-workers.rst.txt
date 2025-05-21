@@ -78,24 +78,49 @@ agi_core.workers.dag-worker
 ----
 
 
-agi_core.workers.data-worker
+agi_core.workers.pandas-worker
 ~~~~~~~~~~~
 
-.. image:: diagrams/packages_agi_core.workers.data_worker.png
+.. image:: diagrams/packages_agi_core.workers.pandas_worker.png
    :width: 400
-   :alt: Packages diagram for agi_core.workers.data_workers
+   :alt: Packages diagram for agi_core.workers.pandas_workers
    :align: center
 
 ----
 
-.. image:: diagrams/classes_agi_core.workers.data_worker.png
+.. image:: diagrams/classes_agi_core.workers.pandas_worker.png
    :width: 400
-   :alt: Classes diagram for agi_core.workers.data_worker
+   :alt: Classes diagram for agi_core.workers.pandas_worker
    :align: center
 
 ----
 
-.. automodule:: agi_core.workers.data_worker.data_worker
+.. automodule:: agi_core.workers.pandas_worker.pandas_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----
+
+
+agi_core.workers.polars-worker
+~~~~~~~~~~~
+
+.. image:: diagrams/packages_agi_core.workers.polars_worker.png
+   :width: 400
+   :alt: Packages diagram for agi_core.workers.polars_workers
+   :align: center
+
+----
+
+.. image:: diagrams/classes_agi_core.workers.polars_worker.png
+   :width: 400
+   :alt: Classes diagram for agi_core.workers.polars_worker
+   :align: center
+
+----
+
+.. automodule:: agi_core.workers.polars_worker.polars_worker
    :members:
    :undoc-members:
    :show-inheritance:
