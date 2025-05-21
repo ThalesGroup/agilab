@@ -19,7 +19,7 @@ from agi_env import AgiEnv
 import warnings
 
 warnings.filterwarnings("ignore", category=SetuptoolsDeprecationWarning)
-logging.basicConfig(level=logging.INFO, format="BUILD: %(message)s")
+logging.basicConfig(level=logging.INFO, format="BUILD %(message)s")
 
 
 def parse_custom_args(raw_args: list[str], cwd) -> argparse.Namespace:

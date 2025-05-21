@@ -369,19 +369,43 @@ class AGI:
         """
         Initialize logging with a level based on verbosity:
         0 = WARNING, 1 = INFO, 2 or more = DEBUG
+        INFO and DEBUG levels go to stdout; WARNING and above go to stderr.
         """
-        level = logging.WARNING  # default
-
+        # Determine root log level
         if verbosity >= 2:
             level = logging.DEBUG
         elif verbosity == 1:
             level = logging.INFO
+        else:
+            level = logging.WARNING
 
-        logging.basicConfig(
-            level=level,
-            format="%(asctime)s %(levelname)s %(message)s",
-            datefmt="%H:%M:%S",
+        # Remove existing handlers
+        root = logging.getLogger()
+        for handler in root.handlers[:]:
+            root.removeHandler(handler)
+
+        # Formatter
+        fmt = logging.Formatter(
+            "%(asctime)s %(levelname)s %(message)s",
+            datefmt="%H:%M:%S"
         )
+
+        # Handler for INFO and below to stdout
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setLevel(logging.DEBUG)
+        stdout_handler.setFormatter(fmt)
+
+        # Handler for WARNING and above to stderr
+        stderr_handler = logging.StreamHandler(sys.stderr)
+        stderr_handler.setLevel(logging.WARNING)
+        stderr_handler.setFormatter(fmt)
+
+        # Add handlers to root logger
+        root.addHandler(stdout_handler)
+        root.addHandler(stderr_handler)
+        root.setLevel(level)
+
+        # Debug message about initialization
         logging.debug(f"Logging initialized at level {logging.getLevelName(level)}")
 
     @staticmethod
