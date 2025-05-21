@@ -655,9 +655,8 @@ async def page():
         st.session_state["project"] = current_project
     select_project(projects, current_project)
     env = st.session_state["env"]
-    project = env.app
     module = env.target
-    project_path = env.apps_dir / project
+    project_path = env.app_abs
     export_abs_module = env.AGILAB_EXPORT_ABS / module
     export_abs_module.mkdir(parents=True, exist_ok=True)
     pyproject_file = env.app_path / "pyproject.toml"

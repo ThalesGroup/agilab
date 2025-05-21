@@ -38,6 +38,7 @@ keywords = [
 dependencies = [
     "scp",
     "scikit-learn",
+    "lightgbm",
     "parso",
     "cython",
     "setuptools",

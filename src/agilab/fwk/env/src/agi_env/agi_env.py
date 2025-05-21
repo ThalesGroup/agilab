@@ -129,8 +129,8 @@ class AgiEnv:
             self.module = module.replace('-','_')
 
         AgiEnv.apps_dir = self.apps_dir
-        self.app_path = self.apps_dir / active_app
-        self.app_src = self.app_path / "src"
+        self.app_rel = self.apps_dir / active_app
+        self.app_src = self.app_rel / "src"
         self.target_worker = f"{self.module}_worker"
         self.worker_path = self.app_src / self.target_worker / f"{self.target_worker}.py"
         self.module_path = self.app_src / self.module / f"{self.module}.py"
@@ -161,7 +161,7 @@ class AgiEnv:
         self.agi_core = self.core_src / "agi_core"
         self.workers_root = self.agi_core / "workers"
         self.manager_root = self.agi_core / "managers"
-        self.setup_app = self.app_path / "setup"
+        self.setup_app = self.app_rel / "setup"
         self.setup_core_rel = "agi_worker/setup"
         self.setup_core = self.workers_root / self.setup_core_rel
 
@@ -206,12 +206,13 @@ class AgiEnv:
             logging.info(f"Missing {self.target_worker_class} definition; should be in {self.worker_path} but it does not exist")
             exit(1)
 
-        app_src_path = self.app_src
-        app_src = str(app_src_path)
-        if app_src not in sys.path:
-            sys.path.insert(0, app_src)
-        app_src_path.mkdir(parents=True, exist_ok=True)
-        self.app_src_path = self.core_root.parent.parent / app_src_path
+        app_src = self.app_src
+        app_src.mkdir(parents=True, exist_ok=True)
+        app_src_str = str(app_src)
+        if app_src_str not in sys.path:
+            sys.path.insert(0, app_src_str)
+        self.app_src = self.core_root.parent.parent / app_src
+        self.app_abs = self.app_src.parent
 
         wenv_rel = Path("wenv") / self.target_worker
         self.wenv_rel = wenv_rel
@@ -237,24 +238,48 @@ class AgiEnv:
             self.export_local_bin = 'export PATH="$HOME/.local/bin:$PATH";'
 
     @staticmethod
-    def init_logging(verbosity: int = 0):
+    def init_logging(verbosity: int = 1):
         """
-        Initialize logging based on verbosity:
-        0 = WARNING (default),
-        1 = INFO,
-        2 or more = DEBUG
+        Initialize logging with a level based on verbosity:
+        0 = WARNING, 1 = INFO, 2 or more = DEBUG
+        INFO and DEBUG levels go to stdout; WARNING and above go to stderr.
         """
-        level = logging.WARNING
+
+        # Determine root log level
         if verbosity >= 2:
             level = logging.DEBUG
         elif verbosity == 1:
             level = logging.INFO
+        else:
+            level = logging.WARNING
 
-        logging.basicConfig(
-            level=level,
-            format="%(asctime)s [%(levelname)s] %(message)s",
+        # Remove existing handlers
+        root = logging.getLogger()
+        for handler in root.handlers[:]:
+            root.removeHandler(handler)
+
+        # Formatter
+        fmt = logging.Formatter(
+            "%(asctime)s %(levelname)s %(message)s",
             datefmt="%H:%M:%S"
         )
+
+        # Handler for INFO and below to stdout
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setLevel(logging.DEBUG)
+        stdout_handler.setFormatter(fmt)
+
+        # Handler for WARNING and above to stderr
+        stderr_handler = logging.StreamHandler(sys.stderr)
+        stderr_handler.setLevel(logging.WARNING)
+        stderr_handler.setFormatter(fmt)
+
+        # Add handlers to root logger
+        root.addHandler(stdout_handler)
+        root.addHandler(stderr_handler)
+        root.setLevel(level)
+
+        # Debug message about initialization
         logging.debug(f"Logging initialized at level {logging.getLevelName(level)}")
 
     def active(self, target, install_type):
@@ -280,7 +305,7 @@ class AgiEnv:
             user_message = f"❌ **{field}**: {message}"
             if input_value is not None:
                 user_message += f" (Received: `{input_value}`)"
-            user_message += f"\n*Error Type:* `{error_type}`\n"
+            user_message += f"*Error Type:* `{error_type}`"
             formatted_errors.append(user_message)
         return formatted_errors
 
@@ -365,7 +390,7 @@ class AgiEnv:
         self.projects = self.get_projects(self.apps_dir)
         for idx, project in enumerate(self.projects):
             if self.target == project[:-8].replace("-", "_"):
-                self.app_path = AgiEnv.apps_dir / project
+                self.app_rel = AgiEnv.apps_dir / project
                 self.project_index = idx
                 self.app = project
                 break
@@ -506,7 +531,7 @@ class AgiEnv:
         agi_root = self.agi_root
         pyproject_file = self.pyproject
         if not pyproject_file.exists():
-            raise FileNotFoundError(f"pyproject.toml not found in {self.app_path}")
+            raise FileNotFoundError(f"pyproject.toml not found in {self.app_rel}")
 
         text = pyproject_file.read_text(encoding="utf-8")
         doc = tomlkit.parse(text)
@@ -547,15 +572,15 @@ class AgiEnv:
                     shutil.copy2(src_item, dst_item)
 
     def _init_apps(self):
-        app_settings_file = self.app_src_path / "app_settings.toml"
+        app_settings_file = self.app_src / "app_settings.toml"
         app_settings_file.touch(exist_ok=True)
         self.app_settings_file = app_settings_file
 
-        args_ui_snippet = self.app_src_path / "args_ui_snippet.py"
+        args_ui_snippet = self.app_src / "args_ui_snippet.py"
         args_ui_snippet.touch(exist_ok=True)
         self.args_ui_snippet = args_ui_snippet
 
-        self.gitignore_file = self.app_path / ".gitignore"
+        self.gitignore_file = self.app_rel / ".gitignore"
         dest = self.resource_path
         if self.install_type:
             shutil.copytree(self.core_root.parent / "gui/src/agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
@@ -757,7 +782,7 @@ class AgiEnv:
         try:
             source_resolved = source.resolve(strict=True)
         except FileNotFoundError as e:
-            raise FileNotFoundError(f"Source path does not exist: {source}\n{e}") from e
+            raise FileNotFoundError(f"Source path does not exist: {source} {e}") from e
 
         if dest.exists() or dest.is_symlink():
             if dest.is_symlink():
@@ -930,7 +955,7 @@ class AgiEnv:
         elif isinstance(app, Path):
             app_name = app.name
         else:
-            raise TypeError(f"Invalid app type: {type(app)}\nSupported type are <str> and <Path>")
+            raise TypeError(f"Invalid app type (<str>|<Path>): {type(app)}")
 
         if app_name != self.app:
             self.__init__(active_app=app_name, install_type=install_type, verbose=self.verbose)
