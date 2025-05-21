@@ -3,6 +3,7 @@ import sys
 import argparse
 from pathlib import Path
 import parso
+from agi_env import AgiEnv
 
 
 def get_decorator_name(decorator_node):
@@ -32,11 +33,9 @@ def process_decorators(node, decorator_names, verbose=False):
     decorators = node.get_decorators()
     for decorator in list(decorators):
         name = get_decorator_name(decorator)
-        if verbose:
-            print(f"Found decorator: @{name} on {node.type} '{node.name.value}'")
+        AgiEnv.log_info(f"Found decorator: @{name} on {node.type} '{node.name.value}'")
         if name in decorator_names:
-            if verbose:
-                print(f"Removing decorator: @{name} from {node.type} '{node.name.value}'")
+            AgiEnv.log_info(f"Removing decorator: @{name} from {node.type} '{node.name.value}'")
             parent = decorator.parent  # The decorator list node
             try:
                 index = parent.children.index(decorator)
@@ -44,11 +43,9 @@ def process_decorators(node, decorator_names, verbose=False):
                 # Remove trailing newline if present
                 if index < len(parent.children) and parent.children[index].type == "newline":
                     parent.children.pop(index)
-                if verbose:
-                    print(f"Decorator @{name} removed.")
+                AgiEnv.log_info(f"Decorator @{name} removed.")
             except ValueError:
-                if verbose:
-                    print(f"Decorator @{name} not found in parent's children.")
+                AgiEnv.log_error(f"Decorator @{name} not found in parent's children.")
 
 
 def remove_decorators(source_code, decorator_names=None, verbose=True):
@@ -65,7 +62,7 @@ def remove_decorators(source_code, decorator_names=None, verbose=True):
         for child in list(node.children):
             if child.type in ("funcdef", "async_funcdef", "classdef"):
                 if verbose>2:
-                    print(f"Processing {child.type} '{child.name.value}'")
+                    AgiEnv.log_info(f"Processing {child.type} '{child.name.value}'")
                 process_decorators(child, decorator_names, verbose)
                 traverse(child)
             elif hasattr(child, "children"):
@@ -93,13 +90,12 @@ def prepare_for_cython(args):
     with open(cython_out, "w") as file:
         file.write(modified_source)
 
-    if args.verbose:
-        print(f"Processed {cython_src} and generated {cython_out}")
+    AgiEnv.log_info(f"Processed {cython_src} and generated {cython_out}")
 
 
 def main():
-    print("Within venv", sys.prefix)
-    print("run Cython preprocessing...\n", __file__)
+    # AgiEnv.log_info("Within venv", sys.prefix)
+    # AgiEnv.log_info("run Cython preprocessing...\n", __file__)
     parser = argparse.ArgumentParser(description="Utility for Cython preparation.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 

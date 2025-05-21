@@ -379,7 +379,7 @@ class AGI:
 
         logging.basicConfig(
             level=level,
-            format="%(asctime)s [%(levelname)s] %(message)s",
+            format="%(asctime)s %(levelname)s %(message)s",
             datefmt="%H:%M:%S",
         )
         logging.debug(f"Logging initialized at level {logging.getLevelName(level)}")
@@ -524,19 +524,6 @@ class AGI:
         with redirect_stdout(f):
             result = func(*args, **kwargs)
         return f.getvalue(), result
-
-    @staticmethod
-    def _get_stderr(func, *args, **kwargs):
-        f = io.StringIO()
-        with redirect_stderr(f):
-            result = func(*args, **kwargs)
-        return f.getvalue(), result
-
-    @staticmethod
-    def _read_stdout(output_stream):
-        for line in output_stream:
-            if line.strip():
-                AgiEnv.log_info(line.strip())
 
     @staticmethod
     def _read_stderr(output_stream):
@@ -1491,7 +1478,7 @@ class AGI:
         elif baseworker.startswith("Polars"):
             packages += "polars_worker"
 
-        app_path = env.app_path
+        app_path = env.app_src_path.parent
         wenv_abs = env.wenv_abs
         shutil.copy(env.setup_core, app_path)
         cmd = f"cd {app_path} && uv run python setup bdist_egg --packages \"{packages}\" -d {wenv_abs}"
@@ -1522,7 +1509,6 @@ class AGI:
                 AgiEnv.log_info(res)
             # os.remove(env.setup_app)
         else:
-
             # finally BUILD AND LOAD THE TARGET WORKER EGG ON all workers
             for worker in list(AGI._dask_client.scheduler_info()["workers"].keys()):
                 AGI._dask_client.run(

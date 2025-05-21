@@ -19,7 +19,7 @@ from agi_env import AgiEnv
 import warnings
 
 warnings.filterwarnings("ignore", category=SetuptoolsDeprecationWarning)
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logging.basicConfig(level=logging.INFO, format="BUILD: %(message)s")
 
 
 def parse_custom_args(raw_args: list[str], cwd) -> argparse.Namespace:
@@ -154,7 +154,7 @@ def main() -> None:
     install_type = opts.install_type
 
     # Determine out_dir (strip file to dir)
-    outdir = opts.dist_dir if opts.dist_dir else opts.build_dir
+    outdir = opts.build_dir
     p = Path(outdir)
     if p.suffix and not p.is_dir():
         logging.warning(f"'{outdir}' looks like a file; using its parent directory instead.")
@@ -201,7 +201,9 @@ def main() -> None:
 
     # Change directory to build_dir BEFORE setup if build_ext
     if cmd == 'build_ext':
-        os.chdir(opts.build_dir)  # <--- here!
+        AgiEnv.log_info(f"cwd: {cwd}")
+        #os.chdir(opts.build_dir)
+        AgiEnv.log_info(f"build_dir: {opts.build_dir}")
         src_rel = Path("src") / worker_module / f"{worker_module}.pyx"
         prefix = Path(find_sys_prefix("~/MyApp"))
         mod = Extension(
