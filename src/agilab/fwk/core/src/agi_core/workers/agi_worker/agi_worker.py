@@ -235,19 +235,6 @@ class AgiWorker(abc.ABC):
 
     @staticmethod
     def _class_loader(module, target_class, mode, pck, env):
-        """
-        Dynamically import target_class from module.
-
-        Args:
-            module (str): module name
-            target_class (str): class name to import
-            mode (int): mode flags
-            pck (str): package prefix
-            env: environment object (unused here)
-
-        Returns:
-            class object
-        """
         if module in sys.modules:
             del sys.modules[module]
         if mode & 2 and module.endswith("_worker"):
@@ -255,37 +242,9 @@ class AgiWorker(abc.ABC):
         else:
             module = f"{pck}.{module}"
 
-        try:
-            target_module = __import__(module, fromlist=[target_class])
-            return getattr(target_module, target_class)
-
-        except Exception as err:
-            # Log only here, do not re-log elsewhere to avoid duplication
-            AgiEnv.log_error(f"file:  {__file__}")
-            AgiEnv.log_error(f"__import__('{module}', fromlist=['{target_class}'])")
-            AgiEnv.log_error(f"getattr('{target_module if 'target_module' in locals() else None} {target_class}')")
-            AgiEnv.log_error(f"sys.path: {sys.path}")
-            raise RuntimeError("something wrong happened in _class_loader") from err
-
-    @staticmethod
-    def onerror(func, path, exc_info):
-        """
-        Error handler for `shutil.rmtree`.
-        If it’s a permission error, make it writable and retry.
-        Otherwise re-raise.
-        """
-        exc_type, exc_value, _ = exc_info
-
-        # handle permission errors or any non-writable path
-        if exc_type is PermissionError or not os.access(path, os.W_OK):
-            try:
-                os.chmod(path, stat.S_IWUSR | stat.S_IREAD)
-                func(path)
-            except Exception as e:
-                AgiEnv.log_error(f"warning failed to grant write access to {path}: {e}")
-        else:
-            # not a permission problem—re-raise so you see real errors
-            raise exc_value
+        # Simply raise exception on failure, no logging here
+        target_module = __import__(module, fromlist=[target_class])
+        return getattr(target_module, target_class)
 
     @staticmethod
     def run(app, workers={"127.0.0.1": 1}, mode=0, verbose=3, args=None):
@@ -360,6 +319,26 @@ class AgiWorker(abc.ABC):
         env._run_time = runtime
 
         return f"{env.mode2str(mode)} {humanize.precisedelta(timedelta(seconds=runtime))}"
+
+    @staticmethod
+    def onerror(func, path, exc_info):
+        """
+        Error handler for `shutil.rmtree`.
+        If it’s a permission error, make it writable and retry.
+        Otherwise re-raise.
+        """
+        exc_type, exc_value, _ = exc_info
+
+        # handle permission errors or any non-writable path
+        if exc_type is PermissionError or not os.access(path, os.W_OK):
+            try:
+                os.chmod(path, stat.S_IWUSR | stat.S_IREAD)
+                func(path)
+            except Exception as e:
+                AgiEnv.log_error(f"warning failed to grant write access to {path}: {e}")
+        else:
+            # not a permission problem—re-raise so you see real errors
+            raise exc_value
 
     @staticmethod
     def new(
@@ -548,11 +527,7 @@ class AgiWorker(abc.ABC):
         """
         worker_id = AgiWorker.worker_id
         AgiEnv.log_info(f"do_works - worker #{worker_id}: {AgiWorker.worker} from {os.path.relpath(__file__)}")
-        AgiEnv.log_info(
-            f"AgiWorker.work - #{worker_id + 1} / {len(workers_tree)}",
-            end="",
-            flush=True,
-        )
+        AgiEnv.log_info(f"AgiWorker.work - #{worker_id + 1} / {len(workers_tree)}")
 
         AgiWorker._insts[worker_id].works(workers_tree, workers_tree_info)
 

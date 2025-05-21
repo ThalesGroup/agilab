@@ -497,6 +497,32 @@ class AgiEnv:
             return self.get_full_attribute_name(node.value) + "." + node.attr
         return ""
 
+    def mode2str(self, mode):
+        import tomli  # Use tomli for reading TOML files
+
+        chars = ["p", "c", "d", "r"]
+        reversed_chars = reversed(list(enumerate(chars)))
+        # Open in binary mode for tomli
+        with open(self.pyproject, "rb") as file:
+            pyproject_data = tomli.load(file)
+
+        dependencies = pyproject_data.get("project", {}).get("dependencies", [])
+        if len([dep for dep in dependencies if dep.lower().startswith("cu")]) > 0:
+            mode += 8
+        mode_str = "".join(
+            "_" if (mode & (1 << i)) == 0 else v for i, v in reversed_chars
+        )
+        return mode_str
+
+    @staticmethod
+    def mode2int(mode):
+        mode_int = 0
+        set_rm = set(mode)
+        for i, v in enumerate(["p", "c", "d"]):
+            if v in set_rm:
+                mode_int += 2 ** (len(["p", "c", "d"]) - 1 - i)
+        return mode_int
+
     def is_valid_ip(self, ip: str) -> bool:
         pattern = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
         if pattern.match(ip):
@@ -597,6 +623,7 @@ class AgiEnv:
             return str(PureWindowsPath(p))
         else:
             return str(PurePosixPath(p))
+
 
     @staticmethod
     def _build_env(venv=None):
