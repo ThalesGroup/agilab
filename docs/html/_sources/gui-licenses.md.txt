@@ -145,6 +145,7 @@
 | langchain-openai | MIT |
 | langchain-text-splitters | MIT |
 | langsmith | MIT LICENSE |
+| lightgbm | MIT LICENSE |
 | llvmlite | BSD |
 | locket | BSD LICENSE |
 | logging | COPYRIGHT _C_ 2001-2005 BY VINAY SAJIP. ALL RIGHTS RESERVED. SEE LICENSE FOR LICENSE. |
@@ -208,7 +209,6 @@
 | psutil | BSD LICENSE |
 | ptyprocess | ISC LICENSE _ISCL_ |
 | pure-eval | MIT LICENSE |
-| puremagic | MIT LICENSE |
 | py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pyarrow | APACHE SOFTWARE LICENSE |
 | pyasn1 | BSD LICENSE |

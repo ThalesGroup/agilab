@@ -23,6 +23,7 @@
 | pandas | BSD LICENSE |
 | parso | MIT LICENSE |
 | pexpect | ISC LICENSE _ISCL_ |
+| polars | MIT LICENSE |
 | prompt-toolkit | BSD LICENSE |
 | psutil | BSD LICENSE |
 | ptyprocess | ISC LICENSE _ISCL_ |
@@ -36,6 +37,7 @@
 | python-dotenv | BSD LICENSE |
 | pytz | MIT LICENSE |
 | pyzstd | BSD LICENSE |
+| scipy | BSD LICENSE |
 | setuptools | MIT |
 | six | MIT LICENSE |
 | stack-data | MIT LICENSE |

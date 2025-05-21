@@ -173,7 +173,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#d-agilab-run-vs-lab-run">D - agilab_run vs lab_run:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#d-agilab-run-vs-gui-run">D - agilab_run vs gui_run:</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting.html#known-bugs">Known Bugs</a><ul>
@@ -557,8 +557,8 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">module</span> <span class="o">=</span> <span class="n">module</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">,</span><span class="s1">&#39;_&#39;</span><span class="p">)</span>
 
         <span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">app_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">active_app</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_path</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_rel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">active_app</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_rel</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">target_worker</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="si">}</span><span class="s2">_worker&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_worker</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">target_worker</span><span class="si">}</span><span class="s2">.py&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">module_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="si">}</span><span class="s2">.py&quot;</span>
@@ -589,7 +589,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">agi_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">core_src</span> <span class="o">/</span> <span class="s2">&quot;agi_core&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">workers_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_core</span> <span class="o">/</span> <span class="s2">&quot;workers&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">manager_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_core</span> <span class="o">/</span> <span class="s2">&quot;managers&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">setup_app</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_path</span> <span class="o">/</span> <span class="s2">&quot;setup&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setup_app</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_rel</span> <span class="o">/</span> <span class="s2">&quot;setup&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">setup_core_rel</span> <span class="o">=</span> <span class="s2">&quot;agi_worker/setup&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">setup_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">workers_root</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">setup_core_rel</span>
 
@@ -634,12 +634,13 @@
             <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Missing </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">target_worker_class</span><span class="si">}</span><span class="s2"> definition; should be in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="si">}</span><span class="s2"> but it does not exist&quot;</span><span class="p">)</span>
             <span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
-        <span class="n">app_src_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span>
-        <span class="n">app_src</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">app_src_path</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">app_src</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
-            <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">app_src</span><span class="p">)</span>
-        <span class="n">app_src_path</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">app_src_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">core_root</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="n">app_src_path</span>
+        <span class="n">app_src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span>
+        <span class="n">app_src</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">app_src_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">app_src</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">app_src_str</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">app_src_str</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">core_root</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="n">app_src</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_abs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span><span class="o">.</span><span class="n">parent</span>
 
         <span class="n">wenv_rel</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;wenv&quot;</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_worker</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">wenv_rel</span> <span class="o">=</span> <span class="n">wenv_rel</span>
@@ -656,8 +657,9 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">init_envars_app</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">envars</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_init_apps</span><span class="p">()</span>
 
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">))</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;nt&quot;</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">export_local_bin</span> <span class="o">=</span> <span class="s1">&#39;set PATH=%USERPROFILE%</span><span class="se">\\</span><span class="s1">.local</span><span class="se">\\</span><span class="s1">bin;%PATH% &amp;&amp;&#39;</span>
@@ -668,24 +670,48 @@
 <div class="viewcode-block" id="AgiEnv.init_logging">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.init_logging">[docs]</a>
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">init_logging</span><span class="p">(</span><span class="n">verbosity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">init_logging</span><span class="p">(</span><span class="n">verbosity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Initialize logging based on verbosity:</span>
-<span class="sd">        0 = WARNING (default),</span>
-<span class="sd">        1 = INFO,</span>
-<span class="sd">        2 or more = DEBUG</span>
+<span class="sd">        Initialize logging with a level based on verbosity:</span>
+<span class="sd">        0 = WARNING, 1 = INFO, 2 or more = DEBUG</span>
+<span class="sd">        INFO and DEBUG levels go to stdout; WARNING and above go to stderr.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span>
+
+        <span class="c1"># Determine root log level</span>
         <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">:</span>
             <span class="n">level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span>
         <span class="k">elif</span> <span class="n">verbosity</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
             <span class="n">level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span>
 
-        <span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
-            <span class="n">level</span><span class="o">=</span><span class="n">level</span><span class="p">,</span>
-            <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%(asctime)s</span><span class="s2"> [</span><span class="si">%(levelname)s</span><span class="s2">] </span><span class="si">%(message)s</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="c1"># Remove existing handlers</span>
+        <span class="n">root</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">handler</span> <span class="ow">in</span> <span class="n">root</span><span class="o">.</span><span class="n">handlers</span><span class="p">[:]:</span>
+            <span class="n">root</span><span class="o">.</span><span class="n">removeHandler</span><span class="p">(</span><span class="n">handler</span><span class="p">)</span>
+
+        <span class="c1"># Formatter</span>
+        <span class="n">fmt</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span>
+            <span class="s2">&quot;</span><span class="si">%(asctime)s</span><span class="s2"> </span><span class="si">%(levelname)s</span><span class="s2"> </span><span class="si">%(message)s</span><span class="s2">&quot;</span><span class="p">,</span>
             <span class="n">datefmt</span><span class="o">=</span><span class="s2">&quot;%H:%M:%S&quot;</span>
         <span class="p">)</span>
+
+        <span class="c1"># Handler for INFO and below to stdout</span>
+        <span class="n">stdout_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">)</span>
+        <span class="n">stdout_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+        <span class="n">stdout_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">fmt</span><span class="p">)</span>
+
+        <span class="c1"># Handler for WARNING and above to stderr</span>
+        <span class="n">stderr_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
+        <span class="n">stderr_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)</span>
+        <span class="n">stderr_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">fmt</span><span class="p">)</span>
+
+        <span class="c1"># Add handlers to root logger</span>
+        <span class="n">root</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">stdout_handler</span><span class="p">)</span>
+        <span class="n">root</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">stderr_handler</span><span class="p">)</span>
+        <span class="n">root</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
+
+        <span class="c1"># Debug message about initialization</span>
         <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Logging initialized at level </span><span class="si">{</span><span class="n">logging</span><span class="o">.</span><span class="n">getLevelName</span><span class="p">(</span><span class="n">level</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
 
 
@@ -720,7 +746,7 @@
             <span class="n">user_message</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;❌ **</span><span class="si">{</span><span class="n">field</span><span class="si">}</span><span class="s2">**: </span><span class="si">{</span><span class="n">message</span><span class="si">}</span><span class="s2">&quot;</span>
             <span class="k">if</span> <span class="n">input_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">user_message</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot; (Received: `</span><span class="si">{</span><span class="n">input_value</span><span class="si">}</span><span class="s2">`)&quot;</span>
-            <span class="n">user_message</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">*Error Type:* `</span><span class="si">{</span><span class="n">error_type</span><span class="si">}</span><span class="s2">`</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="n">user_message</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;*Error Type:* `</span><span class="si">{</span><span class="n">error_type</span><span class="si">}</span><span class="s2">`&quot;</span>
             <span class="n">formatted_errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">user_message</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">formatted_errors</span></div>
 
@@ -812,7 +838,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">projects</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_projects</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">project</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">projects</span><span class="p">):</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">target</span> <span class="o">==</span> <span class="n">project</span><span class="p">[:</span><span class="o">-</span><span class="mi">8</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">):</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">app_path</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">project</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">app_rel</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">project</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">project_index</span> <span class="o">=</span> <span class="n">idx</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">app</span> <span class="o">=</span> <span class="n">project</span>
                 <span class="k">break</span>
@@ -940,6 +966,38 @@
         <span class="k">return</span> <span class="s2">&quot;&quot;</span></div>
 
 
+<div class="viewcode-block" id="AgiEnv.mode2str">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.mode2str">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">mode2str</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="p">):</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">tomli</span>  <span class="c1"># Use tomli for reading TOML files</span>
+
+        <span class="n">chars</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">,</span> <span class="s2">&quot;d&quot;</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">]</span>
+        <span class="n">reversed_chars</span> <span class="o">=</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">enumerate</span><span class="p">(</span><span class="n">chars</span><span class="p">)))</span>
+        <span class="c1"># Open in binary mode for tomli</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pyproject</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+            <span class="n">pyproject_data</span> <span class="o">=</span> <span class="n">tomli</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+
+        <span class="n">dependencies</span> <span class="o">=</span> <span class="n">pyproject_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;project&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dependencies&quot;</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">([</span><span class="n">dep</span> <span class="k">for</span> <span class="n">dep</span> <span class="ow">in</span> <span class="n">dependencies</span> <span class="k">if</span> <span class="n">dep</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;cu&quot;</span><span class="p">)])</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">mode</span> <span class="o">+=</span> <span class="mi">8</span>
+        <span class="n">mode_str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="s2">&quot;_&quot;</span> <span class="k">if</span> <span class="p">(</span><span class="n">mode</span> <span class="o">&amp;</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">i</span><span class="p">))</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">v</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">reversed_chars</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">mode_str</span></div>
+
+
+<div class="viewcode-block" id="AgiEnv.mode2int">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.mode2int">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">mode2int</span><span class="p">(</span><span class="n">mode</span><span class="p">):</span>
+        <span class="n">mode_int</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">set_rm</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">mode</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">([</span><span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">,</span> <span class="s2">&quot;d&quot;</span><span class="p">]):</span>
+            <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">set_rm</span><span class="p">:</span>
+                <span class="n">mode_int</span> <span class="o">+=</span> <span class="mi">2</span> <span class="o">**</span> <span class="p">(</span><span class="nb">len</span><span class="p">([</span><span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">,</span> <span class="s2">&quot;d&quot;</span><span class="p">])</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">i</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mode_int</span></div>
+
+
 <div class="viewcode-block" id="AgiEnv.is_valid_ip">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.is_valid_ip">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">is_valid_ip</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ip</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
@@ -982,7 +1040,7 @@
         <span class="n">agi_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_root</span>
         <span class="n">pyproject_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pyproject</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">pyproject_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;pyproject.toml not found in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">app_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;pyproject.toml not found in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">app_rel</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="n">text</span> <span class="o">=</span> <span class="n">pyproject_file</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
         <span class="n">doc</span> <span class="o">=</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
@@ -1027,15 +1085,15 @@
 
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_init_apps</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">app_settings_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src_path</span> <span class="o">/</span> <span class="s2">&quot;app_settings.toml&quot;</span>
+        <span class="n">app_settings_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">/</span> <span class="s2">&quot;app_settings.toml&quot;</span>
         <span class="n">app_settings_file</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">app_settings_file</span> <span class="o">=</span> <span class="n">app_settings_file</span>
 
-        <span class="n">args_ui_snippet</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src_path</span> <span class="o">/</span> <span class="s2">&quot;args_ui_snippet.py&quot;</span>
+        <span class="n">args_ui_snippet</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">/</span> <span class="s2">&quot;args_ui_snippet.py&quot;</span>
         <span class="n">args_ui_snippet</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">args_ui_snippet</span> <span class="o">=</span> <span class="n">args_ui_snippet</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">gitignore_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_path</span> <span class="o">/</span> <span class="s2">&quot;.gitignore&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gitignore_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_rel</span> <span class="o">/</span> <span class="s2">&quot;.gitignore&quot;</span>
         <span class="n">dest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">resource_path</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">install_type</span><span class="p">:</span>
             <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">core_root</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;gui/src/agi_gui&quot;</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span><span class="p">,</span> <span class="n">dest</span><span class="p">,</span> <span class="n">dirs_exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -1056,6 +1114,7 @@
             <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">PurePosixPath</span><span class="p">(</span><span class="n">p</span><span class="p">))</span></div>
 
 
+
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_build_env</span><span class="p">(</span><span class="n">venv</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Build environment dict for subprocesses, with activated virtualenv paths.&quot;&quot;&quot;</span>
@@ -1074,13 +1133,21 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">log_info</span><span class="p">(</span><span class="n">line</span><span class="p">):</span>
         <span class="n">GREEN</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[32m&quot;</span>
         <span class="n">RESET</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[0m&quot;</span>
-        <span class="k">if</span> <span class="n">line</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">GREEN</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">line</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">line</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">14</span><span class="p">:</span>
+            <span class="n">msg_type</span> <span class="o">=</span> <span class="n">line</span><span class="p">[</span><span class="mi">10</span><span class="p">:</span><span class="mi">14</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;INFO&#39;</span> <span class="ow">or</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;ERRO&#39;</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">level</span><span class="p">:</span>
                     <span class="nb">print</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">GREEN</span><span class="si">}{</span><span class="n">line</span><span class="si">}{</span><span class="n">RESET</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">isatty</span><span class="p">()</span> <span class="k">else</span> <span class="n">line</span>
-                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">GREEN</span><span class="si">}{</span><span class="n">line</span><span class="si">}{</span><span class="n">RESET</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">isatty</span><span class="p">()</span> <span class="k">else</span> <span class="n">line</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.log_error">
@@ -1089,14 +1156,22 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">log_error</span><span class="p">(</span><span class="n">line</span><span class="p">):</span>
         <span class="n">RED</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[31m&quot;</span>
         <span class="n">RESET</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[0m&quot;</span>
-        <span class="k">if</span> <span class="n">line</span><span class="p">:</span>
+
+        <span class="c1"># If input is exception or not string, convert to string safely</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">line</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">line</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">14</span><span class="p">:</span>
             <span class="n">msg_type</span> <span class="o">=</span> <span class="n">line</span><span class="p">[</span><span class="mi">10</span><span class="p">:</span><span class="mi">14</span><span class="p">]</span>
-            <span class="k">if</span>  <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;INFO&#39;</span> <span class="ow">or</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;ERRO&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;INFO&#39;</span> <span class="ow">or</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;ERRO&#39;</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">level</span><span class="p">:</span>
                     <span class="nb">print</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">RED</span><span class="si">}{</span><span class="n">line</span><span class="si">}{</span><span class="n">RESET</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">isatty</span><span class="p">()</span> <span class="k">else</span> <span class="n">line</span>
-                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
+                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">RED</span><span class="si">}{</span><span class="n">line</span><span class="si">}{</span><span class="n">RESET</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">isatty</span><span class="p">()</span> <span class="k">else</span> <span class="n">line</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.run">
@@ -1251,7 +1326,7 @@
         <span class="k">try</span><span class="p">:</span>
             <span class="n">source_resolved</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">FileNotFoundError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Source path does not exist: </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="se">\n</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
+            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Source path does not exist: </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
 
         <span class="k">if</span> <span class="n">dest</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">or</span> <span class="n">dest</span><span class="o">.</span><span class="n">is_symlink</span><span class="p">():</span>
             <span class="k">if</span> <span class="n">dest</span><span class="o">.</span><span class="n">is_symlink</span><span class="p">():</span>
@@ -1433,7 +1508,7 @@
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">Path</span><span class="p">):</span>
             <span class="n">app_name</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">name</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid app type: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">app</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">Supported type are &lt;str&gt; and &lt;Path&gt;&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid app type (&lt;str&gt;|&lt;Path&gt;): </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">app</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">app_name</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">app_name</span><span class="p">,</span> <span class="n">install_type</span><span class="o">=</span><span class="n">install_type</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">)</span></div>
