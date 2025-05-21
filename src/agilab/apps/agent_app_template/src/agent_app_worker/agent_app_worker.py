@@ -16,11 +16,6 @@ from agi_core.workers.agent_worker import AgiAgentWorker  # Corrected import
 
 warnings.filterwarnings("ignore")
 
-# Initialize logging configuration
-logging.basicConfig(
-    level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s"
-)
-
 
 class AgentAppArgs(BaseModel):
     """

@@ -13,11 +13,6 @@ warnings.filterwarnings("ignore")
 
 from agim.agim import AgiManager
 
-# Initialize logging configuration
-logging.basicConfig(
-    level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s"
-)
-
 
 class AgentAppArgs(BaseModel):
     """

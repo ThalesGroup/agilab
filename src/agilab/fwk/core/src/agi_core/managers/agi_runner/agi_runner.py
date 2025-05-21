@@ -583,7 +583,7 @@ class AGI:
             raise RuntimeError(f"running {cmd} at {cwd}")
 
     @staticmethod
-    def _kill(ip: str | None = None, current_pid: int | None = None, force: bool = True):
+    async def _kill(ip: str | None = None, current_pid: int | None = None, force: bool = True):
         """
         Terminate 'uv' and Dask processes on the given host and clean up pid files.
 
@@ -644,7 +644,7 @@ class AGI:
             if AGI._is_local(ip):
                 AGI.run(cmd, cwd)
             else:
-                AGI._exec_ssh(ip, cmd)
+                await AGI._exec_ssh(ip, cmd)
 
             # handle tuple or dict result
             if isinstance(last_res, dict):
@@ -678,7 +678,7 @@ class AGI:
                     pass
 
     @staticmethod
-    def _clean_dirs(ip):
+    async def _clean_dirs(ip):
         """Clean up remote worker
 
         Args:
@@ -690,7 +690,7 @@ class AGI:
         env = AGI.env
         wenv = env.wenv_rel
 
-        AGI._exec_ssh(
+        await AGI._exec_ssh(
             ip,
             cmd=(
                 "uv run python -c \"import os, glob, shutil\n"
@@ -726,7 +726,7 @@ class AGI:
 
 
     @staticmethod
-    def _install_cluster(scheduler):
+    async def _install_cluster(scheduler):
         """
         Validate and prepare each remote node in the cluster:
         - Verify each IP is valid and reachable.
@@ -760,20 +760,20 @@ class AGI:
 
                 # 1) Check uv
                 try:
-                    AGI._exec_ssh(ip, 'uv --version')
+                    await AGI._exec_ssh(ip, 'uv --version')
                 except Exception:
                     # Try Windows installer
                     try:
-                        AGI._exec_ssh(ip,
+                        await AGI._exec_ssh(ip,
                                       'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"'
                                       )
                     except Exception:
                         # Fallback to Unix installer
-                        AGI._exec_ssh(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
-                        AGI._exec_ssh(ip, 'source $HOME/.local/bin/env')
+                        await AGI._exec_ssh(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
+                        await AGI._exec_ssh(ip, 'source $HOME/.local/bin/env')
 
                 # 2) Install Python
-                AGI._exec_ssh(ip, f"uv python install {pyvers}")
+                await AGI._exec_ssh(ip, f"uv python install {pyvers}")
 
                 # 3) Bootstrap the uv environment
                 cmd = (
@@ -781,10 +781,10 @@ class AGI:
                     f"subprocess.run(['uv','init','--bare'], cwd=r'{wenv_rel}', check=True) "
                     "if not os.path.exists('pyproject.toml') else None\""
                 )
-                AGI._exec_ssh(ip, cmd)
+                await AGI._exec_ssh(ip, cmd)
 
                 # 4) Make remote wenv dir
-                AGI._exec_ssh(
+                await AGI._exec_ssh(
                     ip,
                     f"uv run -p {pyvers} python -c "
                     f"\"import os; os.makedirs(r'{wenv_rel}', exist_ok=True)\""
@@ -1018,7 +1018,8 @@ class AGI:
         if egg_file:
             AGI._send_files(ip, [egg_file, env.pyproject, env.uvproject], wenv_rel)
         else:
-            raise FileNotFoundError(f"{egg_file} not found.")
+            AgiEnv.log_error(f"searching for {wenv_abs / env.app}*.egg")
+            raise FileNotFoundError("no existing egg file")
 
         # 1) Bootstrap ensurepip
         cmd = python + " -m ensurepip"
@@ -1033,7 +1034,7 @@ class AGI:
             f"  for e in pathlib.Path(root).glob('*.egg')]\""
         )
 
-        AGI._exec_ssh(ip, cmd)
+        await AGI._exec_ssh(ip, cmd)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
         check_rapids = (f"cd {wenv_rel} && {python} -c \"import subprocess, sys, shutil;"
@@ -1041,7 +1042,7 @@ class AGI:
                         "sys.exit(0 if r.returncode == 0 else 1)\""
                         )
 
-        result = AGI._exec_ssh(ip, check_rapids)
+        result = await AGI._exec_ssh(ip, check_rapids)
         has_rapids_hw = (result != "")
         AgiEnv.log_info(f"Remote Rapids-capable GPU: {has_rapids_hw}")
 
@@ -1051,11 +1052,11 @@ class AGI:
         else:
             sync_cmd = f"cd {wenv_rel} && uv --config-file uv.toml sync --upgrade {option}"
 
-        AGI._exec_ssh(ip, sync_cmd);
+        await AGI._exec_ssh(ip, sync_cmd);
 
         # 7) Post-install script
         cmd= f"cd {wenv_rel} && uv run -p {pyvers} python {env.post_install} {env.data_dir}"
-        AGI._exec_ssh(ip, cmd)
+        await AGI._exec_ssh(ip, cmd)
 
         #####################################################
         # install env & core for enabling dask worker spawn
@@ -1069,14 +1070,14 @@ class AGI:
             "subprocess.run(['uv','init','--bare'], cwd=ROOT, check=True) "
             "if not os.path.exists(os.path.join(ROOT, 'pyproject.toml')) else None\""
         )
-        AGI._exec_ssh(ip, cmd);
+        await AGI._exec_ssh(ip, cmd);
 
         # Bootstrap ensurepip
         cmd = f"cd {wenv_rel} && uv run python -m ensurepip"
-        AGI._exec_ssh(ip, cmd);
+        await AGI._exec_ssh(ip, cmd);
 
         cmd = f"cd {wenv_rel} && uv pip install -e ."
-        AGI._exec_ssh(ip, cmd)
+        await AGI._exec_ssh(ip, cmd)
 
         # build agi_env*.whl
         wenv = env.agi_fwk_env_path
@@ -1091,7 +1092,7 @@ class AGI:
             raise RuntimeError(cmd)
 
         cmd = f"cd {wenv_rel} && uv add {Path(whl).name}"
-        AGI._exec_ssh(ip, cmd)
+        await AGI._exec_ssh(ip, cmd)
 
         # build agi_core*.whl
         wenv = env.core_root
@@ -1106,12 +1107,12 @@ class AGI:
             raise RuntimeError(cmd)
 
         cmd = f"cd {wenv_rel} && uv add {Path(whl).name}"
-        AGI._exec_ssh(ip, cmd)
+        await AGI._exec_ssh(ip, cmd)
         setup = wenv_rel / "setup"
         out_dir = Path('..') / wenv_rel.name
         # build target_worker lib
         cmd = f"cd {wenv_rel} && uv run python {setup} build_ext -b {out_dir}"
-        AGI._exec_ssh(ip, cmd)
+        await AGI._exec_ssh(ip, cmd)
 
 
     @staticmethod
@@ -1299,7 +1300,7 @@ class AGI:
                     f"--host {AGI._scheduler_ip} --pid-file dask_pid"
                 )
                 # Run scheduler asynchronously over SSH without awaiting completion (fire and forget)
-                asyncio.create_task(AGI._exec_ssh_async(AGI._scheduler_ip, cmd))
+                asyncio.create_task(await AGI._exec_ssh_async(AGI._scheduler_ip, cmd))
 
             try:
                 await asyncio.sleep(1)  # Give scheduler a moment to start

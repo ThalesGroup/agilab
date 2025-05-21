@@ -17,11 +17,6 @@ from agim.agim import AgiManager
 
 warnings.filterwarnings("ignore")
 
-# Initialize logging configuration
-logging.basicConfig(
-    level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s"
-)
-
 
 class DagArgs(BaseModel):
     """

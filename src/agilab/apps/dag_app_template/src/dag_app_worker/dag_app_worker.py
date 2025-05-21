@@ -16,11 +16,6 @@ from agi_core.workers.dag_worker import DagWorker  # Corrected import
 
 warnings.filterwarnings("ignore")
 
-# Initialize logging configuration
-logging.basicConfig(
-    level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s"
-)
-
 
 class DagArgs(BaseModel):
     """
