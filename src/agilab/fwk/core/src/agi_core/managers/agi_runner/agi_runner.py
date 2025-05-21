@@ -1018,7 +1018,7 @@ class AGI:
         if egg_file:
             AGI._send_files(ip, [egg_file, env.pyproject, env.uvproject], wenv_rel)
         else:
-            raise RuntimeError(cmd)
+            raise FileNotFoundError(f"{egg_file} not found.")
 
         # 1) Bootstrap ensurepip
         cmd = python + " -m ensurepip"
