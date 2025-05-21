@@ -45,7 +45,7 @@ class AgiEnv:
             install_type = 1 if ("site-packages" not in __file__ or sys.prefix.endswith("gui/.venv")) else 0
             self.install_type = install_type
 
-        logging.info(f"install_type: {install_type}")
+        #logging.info(f"install_type: {install_type}")
 
         self.agi_root = AgiEnv.locate_agi_installation(verbose)
 
@@ -302,8 +302,8 @@ class AgiEnv:
                     install_path = f.read().strip()
                     agilab_path = Path(install_path)
                     if install_path and agilab_path.exists():
-                        if verbose:
-                            logging.info(f"Run Agilab: {install_path}")
+                        #if verbose:
+                        #    logging.info(f"Run Agilab: {install_path}")
                         return agilab_path
                     else:
                         raise ValueError("Installation path file is empty or invalid.")
@@ -530,8 +530,8 @@ class AgiEnv:
 
         pyproject_file.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
-        if self.verbose:
-            logging.info(f"Update: {pyproject_file}")
+        #if self.verbose:
+        #    logging.info(f"Update: {pyproject_file}")
 
         return agi_root / "fwk" / "core"
 
@@ -666,13 +666,13 @@ class AgiEnv:
 
                     if err_line:
                         line = err_line.rstrip("\n")
-                        msg_type = line[10:14]
+                        msg_type = line[:4]
                         if log_callback:
                             log_callback(line)
                         elif msg_type == "INFO":
-                                AgiEnv.log_info(line)
+                                AgiEnv.log_info(line[6:])
                         elif msg_type == "ERRO":
-                            AgiEnv.log_error(line)
+                            AgiEnv.log_error(line[7:])
                         else:
                             AgiEnv.log_info(line)
 
