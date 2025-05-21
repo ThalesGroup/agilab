@@ -38,7 +38,7 @@ warnings.filterwarnings("ignore")
 ###############################################################################
 # class MyCodeWorker:
 class MyCodeWorker(DagWorker):
-    """class derived from AgiDagWorker"""
+    """class derived from DagWorker"""
 
     def start(self):
         """

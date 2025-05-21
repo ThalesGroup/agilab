@@ -2,7 +2,7 @@ import time
 import pytest
 
 from agi_core.workers.agi_worker import AgiWorker
-from agi_core.workers.dag_worker import AgiDagWorker
+from agi_core.workers.dag_worker import DagWorker
 
 # --- Dummy functions for testing ---
 def f1():
@@ -17,10 +17,10 @@ def f3():
     f3.executed.append("f3")
 f3.executed = []
 
-# --- Dummy subclass of AgiDagWorker for testing ---
-class DummyAgiDagWorker(AgiDagWorker):
+# --- Dummy subclass of DagWorker for testing ---
+class DummyDagWorker(DagWorker):
     """
-    A dummy subclass of AgiDagWorker for testing purposes.
+    A dummy subclass of DagWorker for testing purposes.
     We override the exec method to simulate function execution.
     """
     def __init__(self, mode=0, verbose=0, worker_id=0):
@@ -56,7 +56,7 @@ def test_topological_sort_normal():
         f2: [f1],     # f2 depends on f1.
         f3: [f1, f2]  # f3 depends on f1 and f2.
     }
-    worker = DummyAgiDagWorker(verbose=0)
+    worker = DummyDagWorker(verbose=0)
     topo_order = worker.topological_sort(dependency_graph)
     # The first function must be f1; f2 must come before f3.
     assert topo_order[0] == f1
@@ -68,7 +68,7 @@ def test_topological_sort_cycle():
         f1: [f2],
         f2: [f1]
     }
-    worker = DummyAgiDagWorker(verbose=0)
+    worker = DummyDagWorker(verbose=0)
     with pytest.raises(ValueError, match="Circular dependency detected"):
         worker.topological_sort(dependency_graph)
 
@@ -87,7 +87,7 @@ def test_exec_mono_process():
             ("p2", 0)
         ]
     ]
-    worker = DummyAgiDagWorker(mode=0, verbose=0, worker_id=0)
+    worker = DummyDagWorker(mode=0, verbose=0, worker_id=0)
     worker.exec_mono_process(workers_tree, workers_tree_info)
     # Expected topological order: f1 then f2.
     assert worker.execution_order == ["f1", "f2"]
@@ -106,7 +106,7 @@ def test_exec_multi_process():
             ("p2", 0)
         ]
     ]
-    worker = DummyAgiDagWorker(mode=1, verbose=0, worker_id=0)
+    worker = DummyDagWorker(mode=1, verbose=0, worker_id=0)
     worker.exec_multi_process(workers_tree, workers_tree_info)
     # Even with threading, the implementation waits for dependencies.
     assert worker.execution_order == ["f1", "f2"]
@@ -120,7 +120,7 @@ def test_works_method():
     workers_tree_info = [
         []  # Worker 0 info: empty.
     ]
-    worker = DummyAgiDagWorker(mode=0, verbose=0, worker_id=0)
+    worker = DummyDagWorker(mode=0, verbose=0, worker_id=0)
     exec_time = worker.works(workers_tree, workers_tree_info)
     assert isinstance(exec_time, float)
     assert exec_time >= 0

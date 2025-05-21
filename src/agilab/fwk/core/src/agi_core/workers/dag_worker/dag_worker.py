@@ -32,7 +32,7 @@ warnings.filterwarnings("ignore")
 
 class DagWorker(AgiWorker):
     """
-    AgiDagWorker Class
+    DagWorker Class
 
     Inherits from:
         AgiWorker: Provides foundational worker functionalities.

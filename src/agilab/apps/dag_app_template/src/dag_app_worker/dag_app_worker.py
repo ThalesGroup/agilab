@@ -12,7 +12,7 @@ from pydantic import BaseModel
 import env  # Added import for environment-specific checks
 import py7zr  # Added import for handling .7z archives
 
-from agi_core.workers.dag_worker import AgiDagWorker  # Corrected import
+from agi_core.workers.dag_worker import DagWorker  # Corrected import
 
 warnings.filterwarnings("ignore")
 
@@ -33,11 +33,11 @@ class DagArgs(BaseModel):
     data_dir: str = "~/data/DagApp"  # Added a default attribute
 
 
-class DagAppWorker(AgiDagWorker):
+class DagAppWorker(DagWorker):
     """
     A class representing a DagAppWorker.
 
-    Inherits from AgiDagWorker.
+    Inherits from DagWorker.
 
     Attributes:
         worker_vars (dict): Variables required for initializing the work pool.
@@ -76,7 +76,7 @@ class DagAppWorker(AgiDagWorker):
                 logging.info(f"Creating data directory at {path_abs}")
                 path_abs.mkdir(parents=True, exist_ok=True)
 
-                # Assuming AGI.env.app_path is defined in AgiDagWorker or its parents
+                # Assuming AGI.env.app_path is defined in DagWorker or its parents
                 data_src = Path(self.env.app_path) / "data.7z"
                 if not data_src.is_file():
                     logging.error(f"Data archive not found at {data_src}")
