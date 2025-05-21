@@ -136,8 +136,6 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../agi-env.html#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../agi-env.html#agi_env.agi_env.JumpToMain"><code class="docutils literal notranslate"><span class="pre">JumpToMain</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -162,7 +160,8 @@
 <li class="toctree-l4"><a class="reference internal" href="../../agi-workers.html#agi-core-workers-agi-worker">agi_core.workers.agi-worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../agi-workers.html#agi-core-workers-agent-worker">agi_core.workers.agent-worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../agi-workers.html#agi-core-workers-dag-worker">agi_core.workers.dag-worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../agi-workers.html#agi-core-workers-data-worker">agi_core.workers.data-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../agi-workers.html#agi-core-workers-pandas-worker">agi_core.workers.pandas-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../agi-workers.html#agi-core-workers-polars-worker">agi_core.workers.polars-worker</a></li>
 </ul>
 </li>
 </ul>
@@ -174,6 +173,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#d-agilab-run-vs-lab-run">D - agilab_run vs lab_run:</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting.html#known-bugs">Known Bugs</a><ul>
@@ -182,7 +182,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#pycharm-run-debug-configuration-is-broken">&lt;PYCHARM&gt; Run/Debug Configuration is Broken</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../../license.html">Licences</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">Licenses</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../gui-licenses.html">Gui Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../core-licenses.html">Core Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../env-licenses.html">Env Licenses</a></li>
@@ -391,6 +391,11 @@
 </ul>
 </li>
 </ul>
+<p class="caption" role="heading"><span class="caption-text">Hosting Sites</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../agilab-github.html"><strong>Agilab project</strong></a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../agilab-github.html#agilab-components"><strong>Agilab components</strong></a></li>
+</ul>
 
         </div>
       </div>
@@ -446,7 +451,8 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">agi_core.workers.dag_worker</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiDagWorker</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_core.workers.dag_worker</span><span class="w"> </span><span class="kn">import</span> <span class="n">DagWorker</span>
 
 <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">)</span>
 
@@ -457,8 +463,8 @@
 <span class="c1"># class MyCodeWorker:</span>
 <div class="viewcode-block" id="MyCodeWorker">
 <a class="viewcode-back" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">MyCodeWorker</span><span class="p">(</span><span class="n">AgiDagWorker</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;class derived from AgiDagWorker&quot;&quot;&quot;</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyCodeWorker</span><span class="p">(</span><span class="n">DagWorker</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;class derived from DagWorker&quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="MyCodeWorker.start">
 <a class="viewcode-back" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.start">[docs]</a>
@@ -474,8 +480,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            None</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;from: </span><span class="si">{</span><span class="vm">__file__</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;from: </span><span class="si">{</span><span class="vm">__file__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">if</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="o">&amp;</span> <span class="mi">2</span> <span class="ow">and</span> <span class="s2">&quot;cy&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="vm">__file__</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Cython requested but not executed&quot;</span><span class="p">)</span></div>
 
@@ -488,8 +493,6 @@
 <span class="sd">        this is type string and not type function to avoid manager (e.g. My_code) to be dependant of MyCodeWorker</span>
 <span class="sd">        :return:</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">agi_core.managers.agi_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiManager</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">args</span> <span class="o">=</span> <span class="n">AgiManager</span><span class="o">.</span><span class="n">args</span>
         <span class="c1"># if it comes in as &quot;FlightSimWorker.work&quot;, turn it into &quot;work&quot;</span>
         <span class="n">method</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">work</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">method</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -514,7 +517,7 @@
 <span class="sd">        Prints:</span>
 <span class="sd">            str: Print statement indicating the execution of algorithm A.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MyCodeWorker.algo_A&quot;</span><span class="p">)</span></div>
+        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MyCodeWorker.algo_A&quot;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="MyCodeWorker.algo_B">
@@ -529,7 +532,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            None</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MyCodeWorker.algo_B&quot;</span><span class="p">)</span></div>
+        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MyCodeWorker.algo_B&quot;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="MyCodeWorker.algo_C">
@@ -561,7 +564,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            None</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MyCodeWorker.algo_X&quot;</span><span class="p">)</span></div>
+        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MyCodeWorker.algo_X&quot;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="MyCodeWorker.algo_Y">
@@ -592,7 +595,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            None</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MyCodeWorker.algo_Z&quot;</span><span class="p">)</span></div>
+        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MyCodeWorker.algo_Z&quot;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="MyCodeWorker.stop">

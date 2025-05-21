@@ -136,8 +136,6 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../agi-env.html#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../agi-env.html#agi_env.agi_env.JumpToMain"><code class="docutils literal notranslate"><span class="pre">JumpToMain</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -162,7 +160,8 @@
 <li class="toctree-l4"><a class="reference internal" href="../../agi-workers.html#agi-core-workers-agi-worker">agi_core.workers.agi-worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../agi-workers.html#agi-core-workers-agent-worker">agi_core.workers.agent-worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../agi-workers.html#agi-core-workers-dag-worker">agi_core.workers.dag-worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../agi-workers.html#agi-core-workers-data-worker">agi_core.workers.data-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../agi-workers.html#agi-core-workers-pandas-worker">agi_core.workers.pandas-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../agi-workers.html#agi-core-workers-polars-worker">agi_core.workers.polars-worker</a></li>
 </ul>
 </li>
 </ul>
@@ -439,7 +438,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">traceback</span>
-
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">validator</span><span class="p">,</span> <span class="n">conint</span><span class="p">,</span> <span class="n">confloat</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
@@ -580,18 +579,9 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">data_source</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="s2">&quot;data_source&quot;</span><span class="p">]</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_source</span> <span class="o">==</span> <span class="s2">&quot;file&quot;</span><span class="p">:</span>
             <span class="n">args</span><span class="p">[</span><span class="s2">&quot;files&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;files&quot;</span><span class="p">,</span> <span class="s2">&quot;*&quot;</span><span class="p">)</span>
-            <span class="n">path</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;path&quot;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;~/data&quot;</span><span class="p">,</span> <span class="s2">&quot;flight&quot;</span><span class="p">))</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;path&quot;</span><span class="p">,</span> <span class="s2">&quot;data/flight&quot;</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">is_managed_pc</span><span class="p">:</span>
                 <span class="n">path</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;~&quot;</span><span class="p">,</span> <span class="s2">&quot;~/MyApp&quot;</span><span class="p">)</span>
-            <span class="c1"># path_abs = AgiEnv.normalize_path(os.path.expanduser(path))</span>
-            <span class="c1"># if not os.path.exists(path_abs):</span>
-            <span class="c1"># this is not working on Thales managed PC</span>
-            <span class="c1"># os.link(src=os.path.join(AGI.env.app_path, &quot;data&quot;), dst=path_abs)</span>
-            <span class="c1"># os.makedirs(path_abs, exist_ok=True)</span>
-            <span class="c1"># data_src = os.path.join(AGI.env.app_path, &quot;data.7z&quot;)</span>
-            <span class="c1"># Extract contents of src_archive directly to path_abs</span>
-            <span class="c1"># with py7zr.SevenZipFile(data_src, mode=&quot;r&quot;) as archive:</span>
-            <span class="c1"># archive.extractall(path_abs)</span>
             <span class="n">args</span><span class="p">[</span><span class="s2">&quot;nfile&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;nfile&quot;</span><span class="p">,</span> <span class="mi">999_999_999_999</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="s2">&quot;nfile&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
                 <span class="n">args</span><span class="p">[</span><span class="s2">&quot;nfile&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">999_999_999_999</span>
@@ -601,19 +591,19 @@
             <span class="c1"># implement another logic</span>
             <span class="k">pass</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">normalize_path</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">())</span>
+        <span class="n">base_path</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">/</span> <span class="n">path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">normalize_path</span><span class="p">(</span><span class="n">base_path</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">files</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="s2">&quot;files&quot;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nfile</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="s2">&quot;nfile&quot;</span><span class="p">]</span>
         <span class="n">AgiManager</span><span class="o">.</span><span class="n">args</span> <span class="o">=</span> <span class="n">args</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">data_out</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="s2">&quot;dataframes&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data_out</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">normalize_path</span><span class="p">(</span><span class="n">base_path</span> <span class="o">/</span> <span class="s2">&quot;dataframe&quot;</span><span class="p">)</span>
+
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">          remove dataframe files from previous run</span>
 <span class="sd">          &quot;&quot;&quot;</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="p">):</span>
-                <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="p">,</span> <span class="n">ignore_errors</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">onerror</span><span class="o">=</span><span class="n">AgiManager</span><span class="o">.</span><span class="n">onerror</span>
-                <span class="p">)</span>
+                <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="p">,</span> <span class="n">ignore_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">onerror</span><span class="o">=</span><span class="n">AgiManager</span><span class="o">.</span><span class="n">onerror</span><span class="p">)</span>
             <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;warning issue while trying to remove directory: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>

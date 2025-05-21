@@ -139,8 +139,6 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="agi-env.html#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.JumpToMain"><code class="docutils literal notranslate"><span class="pre">JumpToMain</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -165,7 +163,8 @@
 <li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-agi-worker">agi_core.workers.agi-worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-agent-worker">agi_core.workers.agent-worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-dag-worker">agi_core.workers.dag-worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-data-worker">agi_core.workers.data-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-pandas-worker">agi_core.workers.pandas-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-polars-worker">agi_core.workers.polars-worker</a></li>
 </ul>
 </li>
 </ul>
@@ -438,27 +437,33 @@ it will create a file (~/xxx-project_trace.txt) that shows what happened in duri
 <p>These scripts are provided to debug your app with the PyCharm IDE, which best matches Agilab troubleshooting.</p>
 <div class="code text highlight-default notranslate"><div class="highlight"><pre><span></span>.
 ├── agilab_run.xml
-├── agi_manager_test.xml
-├── agi_runner_test.xml
 ├── app_install_local.xml
 ├── app_install.xml
 ├── app_script_gen.xml
-├── core_test_agi_worker.xml
-├── core_test_dag_worker.xml
-├── core_test_data_worker.xml
-├── cython_preprocessing.xml
-├── env_test.xml
-├── _flight_egg.xml
-├── _flight_lib.xml
-├── _flight_postinstall.xml
-├── _flight_run_manager.xml
-├── _flight_run_worker.xml
+├── flight_egg.xml
+├── _flight_lib_worker.xml
+├── flight_postinstall.xml
+├── flight_preinstall.xml
+├── _flight_run.xml
+├── _flight_test.xml
 ├── flight_test.xml
 ├── fwk_test.xml
 ├── lab_run.xml
+├── _my_code_egg_manager.xml
+├── _my_code_lib_worker.xml
+├── _my_code_postinstall_worker.xml
+├── _my_code_preinstall_manager.xml
+├── _my_code_run.xml
+├── _my_code_test.xml
+├── test_agi_env.xml
+├── test_agi_manager.xml
+├── test_agi_runner.xml
+├── test_agi_worker.xml
+├── test_dag_worker.xml
+├── test_pandas_worker.xml
 └── zip_all.xml
 
-1 directory, 20 files
+1 directory, 26 files
 </pre></div>
 </div>
 </section>

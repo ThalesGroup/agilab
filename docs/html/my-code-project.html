@@ -139,8 +139,6 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="agi-env.html#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.JumpToMain"><code class="docutils literal notranslate"><span class="pre">JumpToMain</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -165,7 +163,8 @@
 <li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-agi-worker">agi_core.workers.agi-worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-agent-worker">agi_core.workers.agent-worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-dag-worker">agi_core.workers.dag-worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-data-worker">agi_core.workers.data-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-pandas-worker">agi_core.workers.pandas-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-polars-worker">agi_core.workers.polars-worker</a></li>
 </ul>
 </li>
 </ul>
@@ -1042,8 +1041,8 @@ If rebuilding _was_ required, returns <cite>True</cite> if rebuilding was succes
 <dl class="py class">
 <dt class="sig sig-object py" id="my_code_worker.my_code_worker.MyCodeWorker">
 <em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">my_code_worker.my_code_worker.</span></span><span class="sig-name descname"><span class="pre">MyCodeWorker</span></span><a class="reference internal" href="_modules/my_code_worker/my_code_worker.html#MyCodeWorker"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#my_code_worker.my_code_worker.MyCodeWorker" title="Link to this definition"></a></dt>
-<dd><p>Bases: <a class="reference internal" href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.AgiDagWorker" title="agi_core.workers.dag_worker.dag_worker.AgiDagWorker"><code class="xref py py-class docutils literal notranslate"><span class="pre">AgiDagWorker</span></code></a></p>
-<p>class derived from AgiDagWorker</p>
+<dd><p>Bases: <a class="reference internal" href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker" title="agi_core.workers.dag_worker.dag_worker.DagWorker"><code class="xref py py-class docutils literal notranslate"><span class="pre">DagWorker</span></code></a></p>
+<p>class derived from DagWorker</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="my_code_worker.my_code_worker.MyCodeWorker.algo_A">
 <span class="sig-name descname"><span class="pre">algo_A</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/my_code_worker/my_code_worker.html#MyCodeWorker.algo_A"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#my_code_worker.my_code_worker.MyCodeWorker.algo_A" title="Link to this definition"></a></dt>
@@ -1135,12 +1134,11 @@ If rebuilding _was_ required, returns <cite>True</cite> if rebuilding was succes
 
 <dl class="py method">
 <dt class="sig sig-object py" id="my_code_worker.my_code_worker.MyCodeWorker.build">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">build</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dask_home</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#my_code_worker.my_code_worker.MyCodeWorker.build" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">build</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dask_home</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#my_code_worker.my_code_worker.MyCodeWorker.build" title="Link to this definition"></a></dt>
 <dd><p>Function to build target code on a my_code_AgiWorker.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>app</strong> (<em>str</em>) – app to build</p></li>
 <li><p><strong>target_worker</strong> (<em>str</em>) – module to build</p></li>
 <li><p><strong>dask_home</strong> (<em>str</em>) – path to dask home</p></li>
 <li><p><strong>worker</strong> – current worker</p></li>
@@ -1149,7 +1147,6 @@ If rebuilding _was_ required, returns <cite>True</cite> if rebuilding was succes
 </ul>
 </dd>
 </dl>
-<p>Returns:</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1344,22 +1341,10 @@ round‑robin, then honoring dependencies per worker.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="my_code_worker.my_code_worker.MyCodeWorker.onerror">
-<span class="sig-name descname"><span class="pre">onerror</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#my_code_worker.my_code_worker.MyCodeWorker.onerror" title="Link to this definition"></a></dt>
-<dd><p>Error handler for <cite>shutil.rmtree</cite>.</p>
-<p>If the error is due to an access error (read only file)
-it attempts to add write permission and then retries.</p>
-<p>If the error is for another reason it re-raises the error.</p>
-<p>Usage : <cite>shutil.rmtree(path, onerror=onerror)</cite></p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>func</strong></p></li>
-<li><p><strong>path</strong></p></li>
-<li><p><strong>exc_info</strong></p></li>
-</ul>
-</dd>
-</dl>
-<p>Returns:</p>
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">onerror</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#my_code_worker.my_code_worker.MyCodeWorker.onerror" title="Link to this definition"></a></dt>
+<dd><p>Error handler for <cite>shutil.rmtree</cite>.
+If it’s a permission error, make it writable and retry.
+Otherwise re-raise.</p>
 </dd></dl>
 
 <dl class="py method">

@@ -3,32 +3,24 @@
 |--------------|---------|
 | annotated-types | MIT LICENSE |
 | astor | BSD LICENSE |
+| asyncssh | EPL-2.0;; GPL-2.0-OR-LATER |
 | bcrypt | APACHE SOFTWARE LICENSE |
 | brotli | MIT LICENSE |
 | cffi | MIT LICENSE |
-| click | BSD LICENSE |
-| cloudpickle | BSD LICENSE |
-| cryptography | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| cryptography | APACHE-2.0;; BSD-3-CLAUSE |
 | cython | APACHE SOFTWARE LICENSE |
-| dask | BSD LICENSE |
-| distributed | BSD LICENSE |
 | env | BSD LICENSE |
-| fsspec | BSD LICENSE |
 | humanize | MIT License |
 | inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| jinja2 | BSD LICENSE |
 | joblib | BSD LICENSE |
 | llvmlite | BSD |
-| locket | BSD LICENSE |
-| markupsafe | BSD LICENSE |
+| logging | COPYRIGHT _C_ 2001-2005 BY VINAY SAJIP. ALL RIGHTS RESERVED. SEE LICENSE FOR LICENSE. |
 | msgpack | APACHE SOFTWARE LICENSE |
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | numba | BSD LICENSE |
 | numpy | BSD LICENSE |
-| packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | paramiko | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
 | parso | MIT LICENSE |
-| partd | BSD |
 | pathspec | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | psutil | BSD LICENSE |
 | py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
@@ -40,21 +32,14 @@
 | pynacl | APACHE LICENSE 2.0 |
 | pyppmd | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | python-dotenv | BSD LICENSE |
-| pyyaml | MIT LICENSE |
 | pyzstd | BSD LICENSE |
 | scikit-learn | BSD LICENSE |
 | scipy | BSD LICENSE |
 | scp | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
 | setuptools | MIT |
-| sortedcontainers | APACHE SOFTWARE LICENSE |
-| tblib | BSD-2-CLAUSE |
 | texttable | MIT LICENSE |
 | threadpoolctl | BSD LICENSE |
 | tomli | MIT LICENSE |
-| tomli-w | MIT LICENSE |
-| toolz | BSD LICENSE |
-| tornado | APACHE SOFTWARE LICENSE |
+| tomlkit | MIT LICENSE |
 | typing-extensions | PSF-2.0 |
 | typing-inspection | MIT LICENSE |
-| urllib3 | MIT |
-| zict | BSD LICENSE |
