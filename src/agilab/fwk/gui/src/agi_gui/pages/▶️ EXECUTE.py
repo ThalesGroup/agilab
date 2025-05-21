@@ -659,7 +659,7 @@ async def page():
     project_path = env.app_abs
     export_abs_module = env.AGILAB_EXPORT_ABS / module
     export_abs_module.mkdir(parents=True, exist_ok=True)
-    pyproject_file = env.app_path / "pyproject.toml"
+    pyproject_file = env.app_abs / "pyproject.toml"
     if pyproject_file.exists():
         pyproject_content = pyproject_file.read_text()
         st.session_state["rapids_default"] = ("-cu12" in pyproject_content) and os.name != "nt"
