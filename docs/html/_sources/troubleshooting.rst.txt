@@ -20,50 +20,51 @@ These scripts are provided to debug your app with the PyCharm IDE, which best ma
 C - Exemple of Tests Sequence:
 ----------------------
 
-- **1. zip-all**
+- ** zip-all gen**
 
-  Tests the zip of the whole agi project directory with .gitignore filtration. A agi.zip file should created at the root dir of your projectu
+  TGenerate the zip of the whole agi project directory with .gitignore filtration. A agi.zip file should created at the root dir of your projectu
 
-- **2. fwk-test**
+- ** fwk test**
 
   This will lunch unitary test for both agi-env and agi-core components and display the pytest result
 
-- **3. cython_preprocessing** (if cyprepro.py error)
-
-  This will prompt for your worker source file <your_code_worker.py> to convert into a your_code_worker.pyx transformable into Cython compilable source code.
-  A file <your_code_worker.pyx> should appear in your wenv
-
-- **4. app-install-local**
-
-  This will prompt for your module name <your_code> to be installed. This will install your code manager venv and your code worker wenv.
-
-- **5. app_script-gen**
+- ** app_script gen**
 
   This will generate the script below
 
-- **6. <your app>_egg**
+- ** <your app>-preinstall**
 
-  This will prompt for a worker module file <www_worker.py> to build in wenv the egg file for remote worker.
-  Creates a project egg file containing all the required files to compile the worker Cython library.
+  This will test the conversion of <your_code>_worker.py into <your_code>_worker.pyx to check if your code is transformable into Cython compilable source code.
+  A file <your_code_worker.pyx> should appear in your wenv
 
-- **7. <your app>_lib>**
+- ** <your app>-postinstall test**
 
-  This will prompt for the directory where you build your egg file in wenv to build your lib file for remote worker.
-  Creates a project lib file your_code_worker_cy.cpython-xxx-yyy-zzz.so containing the worker Cython library.
+  This will test the test your worker post_install.py.
 
-- **8. <your app>_test>**
+- ** app-manager install**
+
+  This will install the venv in your fwk/apps/<your app>.
+
+- ** app install**
+
+  This will install the venv in your fwk/apps/<your app> and in your <home>/wenv/<your app>_worker.
+
+- ** <your app>_egg gen **
+
+  Generate your project egg file containing all the required files to compile the worker Cython library.
+
+- ** <your app>_lib gen **
+
+  Generate your project lib file by compiling <your_code>_worker.pyx and add its dependencies into a Cython library.
+
+- ** <your app> test**
 
   This will test your app in a minimalistic way.
 
-- **9. app_install**
+- ** <your app>  run**
 
-  This will prompt for a file selection to select your AGI install snippet <AGI.xxx-install.py> source code you want to run
-  If it does not work, you can restore from the agilab.zip before starting a new investigation.
-
-- **10. app-run**
-
-  This will prompt for a file selection to select your AGI snippet <AGI.xxx.py> source code you want to run
-  If it does not work, you can restore from the agilab.zip before starting a new investigation.
+  In the contexte of  apps/<your app>/.venv it will run the log/AGI.<snippet> you have selected which should only be a distribute or a run one.
+  Remark: use script "app install" to test your app install as it has to be run under fwk/core/.venv virtual environnement.
 
 D - agilab_run vs gui_run:
 --------------------------

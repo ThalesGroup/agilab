@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="app-script-gen" type="PythonConfigurationType" factoryName="Python" show_console_on_std_err="true" show_console_on_std_out="true">
+  <configuration default="false" name="app-script gen" type="PythonConfigurationType" factoryName="Python" show_console_on_std_err="true" show_console_on_std_out="true">
     <module name="core" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
