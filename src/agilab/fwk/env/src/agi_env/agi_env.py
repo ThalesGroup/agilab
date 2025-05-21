@@ -229,8 +229,9 @@ class AgiEnv:
             self.init_envars_app(self.envars)
             self._init_apps()
 
-        if not self.wenv_abs.exists():
-            os.makedirs(self.wenv_abs)
+        if self.wenv_abs.exists():
+            shutil.rmtree(str(self.wenv_abs))
+        os.makedirs(self.wenv_abs)
 
         if os.name == "nt":
             self.export_local_bin = 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
@@ -641,26 +642,42 @@ class AgiEnv:
     def log_info(line):
         GREEN = "\033[32m"
         RESET = "\033[0m"
-        if line:
-            if line.startswith(GREEN):
+
+        if not isinstance(line, str):
+            line = str(line)
+
+        if line and len(line) >= 14:
+            msg_type = line[10:14]
+            if msg_type == 'INFO' or msg_type == 'ERRO':
                 if level:
                     print(line)
             else:
                 msg = f"{GREEN}{line}{RESET}" if sys.stdout.isatty() else line
                 logging.info(msg)
+        else:
+            msg = f"{GREEN}{line}{RESET}" if sys.stdout.isatty() else line
+            logging.info(msg)
 
     @staticmethod
     def log_error(line):
         RED = "\033[31m"
         RESET = "\033[0m"
-        if line:
+
+        # If input is exception or not string, convert to string safely
+        if not isinstance(line, str):
+            line = str(line)
+
+        if line and len(line) >= 14:
             msg_type = line[10:14]
-            if  msg_type == 'INFO' or msg_type == 'ERRO':
+            if msg_type == 'INFO' or msg_type == 'ERRO':
                 if level:
                     print(line)
             else:
                 msg = f"{RED}{line}{RESET}" if sys.stdout.isatty() else line
                 logging.error(msg)
+        else:
+            msg = f"{RED}{line}{RESET}" if sys.stdout.isatty() else line
+            logging.error(msg)
 
     @staticmethod
     def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):

@@ -1483,6 +1483,8 @@ class AGI:
                 destination = os.path.join(target_platlib, os.path.basename(worker_lib))
 
                 # Copy the file while preserving metadata.
+                destination_dir = os.path.dirname(destination)
+                os.makedirs(destination_dir, exist_ok=True)  # create directory if missing
                 shutil.copy2(worker_lib, destination)
                 AgiEnv.log_info(res)
             # os.remove(env.setup_app)
