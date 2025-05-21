@@ -176,7 +176,7 @@
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#d-agilab-run-vs-lab-run">D - agilab_run vs lab_run:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#d-agilab-run-vs-gui-run">D - agilab_run vs gui_run:</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html#known-bugs">Known Bugs</a><ul>
@@ -491,6 +491,9 @@
 │   │   └── test
 │   │       └── test_df.ipynb
 │   ├── flight_project
+│   │   ├── data
+│   │   │   └── flight
+│   │   │       └── dataframes
 │   │   ├── MANIFEST.in
 │   │   ├── PycharmProjects
 │   │   │   └── agilab
@@ -756,22 +759,15 @@
 │   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── src
-│   │   │   ├── agi_gui
-│   │   │   │   ├── agi_copilot.py
-│   │   │   │   ├── AGILAB.py
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── lab_run.py
-│   │   │   │   ├── pagelib.py
-│   │   │   │   ├── pages
-│   │   │   │   ├── resources
-│   │   │   │   └── steps.toml
-│   │   │   └── agi_gui.egg-info
-│   │   │       ├── dependency_links.txt
-│   │   │       ├── entry_points.txt
-│   │   │       ├── PKG-INFO
-│   │   │       ├── requires.txt
-│   │   │       ├── SOURCES.txt
-│   │   │       └── top_level.txt
+│   │   │   └── agi_gui
+│   │   │       ├── agi_copilot.py
+│   │   │       ├── AGILAB.py
+│   │   │       ├── __init__.py
+│   │   │       ├── lab_run.py
+│   │   │       ├── pagelib.py
+│   │   │       ├── pages
+│   │   │       ├── resources
+│   │   │       └── steps.toml
 │   │   ├── test
 │   │   │   ├── __init__.py
 │   │   │   └── test-streamlit.sh
@@ -821,7 +817,7 @@
     ├── pyproject.toml
     └── README.md
 
-107 directories, 286 files
+109 directories, 280 files
 </pre></div>
 </div>
 </section>

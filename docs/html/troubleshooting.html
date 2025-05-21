@@ -176,7 +176,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#a-prerequisite">A - Prerequisite:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#d-agilab-run-vs-lab-run">D - agilab_run vs lab_run:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#d-agilab-run-vs-gui-run">D - agilab_run vs gui_run:</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="#known-bugs">Known Bugs</a><ul>
@@ -437,8 +437,8 @@ it will create a file (~/xxx-project_trace.txt) that shows what happened in duri
 <p>These scripts are provided to debug your app with the PyCharm IDE, which best matches Agilab troubleshooting.</p>
 <div class="code text highlight-default notranslate"><div class="highlight"><pre><span></span>.
 ├── agilab_run.xml
-├── app_install_local.xml
-├── app_install.xml
+├── app_install_all.xml
+├── app_install_manager.xml
 ├── app_script_gen.xml
 ├── flight_egg.xml
 ├── _flight_lib_worker.xml
@@ -448,7 +448,7 @@ it will create a file (~/xxx-project_trace.txt) that shows what happened in duri
 ├── _flight_test.xml
 ├── flight_test.xml
 ├── fwk_test.xml
-├── lab_run.xml
+├── gui_run.xml
 ├── _my_code_egg_manager.xml
 ├── _my_code_lib_worker.xml
 ├── _my_code_postinstall_worker.xml
@@ -507,14 +507,16 @@ If it does not work, you can restore from the agilab.zip before starting a new i
 </li>
 </ul>
 </section>
-<section id="d-agilab-run-vs-lab-run">
-<h2>D - agilab_run vs lab_run:<a class="headerlink" href="#d-agilab-run-vs-lab-run" title="Link to this heading"></a></h2>
+<section id="d-agilab-run-vs-gui-run">
+<h2>D - agilab_run vs gui_run:<a class="headerlink" href="#d-agilab-run-vs-gui-run" title="Link to this heading"></a></h2>
 <ul>
 <li><p><strong>1. agilab_run</strong></p>
-<p>This will run streamlit module which will run AGILAB.py in run/debug mode</p>
+<p>Main script to lunch agilab
+This will run streamlit module which will run AGILAB.py in run/debug mode</p>
 </li>
-<li><p><strong>12. lab-run</strong></p>
-<p>This will directly lunch run_lab.py in run/debug mode</p>
+<li><p><strong>12. gui-run</strong></p>
+<p>Only for enabling run_lab.py debugging
+This will directly lunch run_lab.py in run/debug mode</p>
 </li>
 </ul>
 </section>
