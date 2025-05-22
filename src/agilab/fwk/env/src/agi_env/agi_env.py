@@ -1,3 +1,4 @@
+from IPython.core.ultratb import FormattedTB
 import ast
 import asyncio
 import getpass
@@ -6,12 +7,26 @@ import re
 import shutil
 import subprocess
 import sys
+import asyncssh
 import traceback
 from pathlib import Path, PureWindowsPath, PurePosixPath
 from dotenv import dotenv_values, set_key
 from pathspec import PathSpec
 import tomlkit
 import logging
+import inspect
+import errno
+import scp
+
+# Patch for IPython ≥8.37 (theme_name) vs ≤8.36 (color_scheme)
+_sig = inspect.signature(FormattedTB.__init__).parameters
+_tb_kwargs = dict(mode='Verbose', call_pdb=True)
+if 'color_scheme' in _sig:
+    _tb_kwargs['color_scheme'] = 'Linux'
+else:
+    _tb_kwargs['theme_name'] = 'Linux'
+
+sys.excepthook = FormattedTB(**_tb_kwargs)
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +38,63 @@ class AgiEnv:
     GUI_NROW = None
     GUI_SAMPLING = None
     init_done = False
+
+    @staticmethod
+    def init_logging(verbosity: int = 1):
+        """
+        Initialize logging with a level based on verbosity:
+        0 = WARNING, 1 = INFO, 2 or more = DEBUG
+        INFO and DEBUG levels go to stdout; WARNING and above go to stderr.
+        """
+
+        # Determine root log level
+        if verbosity >= 2:
+            level = logging.DEBUG
+        elif verbosity == 1:
+            level = logging.INFO
+        else:
+            level = logging.WARNING
+
+        # Remove existing handlers
+        root = logging.getLogger()
+        root.setLevel(logging.WARNING)
+        # root logger
+        logging.getLogger('asyncssh').setLevel(logging.ERROR)
+        logging.getLogger("agi_runner").setLevel(logging.INFO)
+        logging.getLogger("agi_worker").setLevel(logging.INFO)
+        logging.getLogger("agi_manager").setLevel(logging.INFO)
+        logging.getLogger("agi_env").setLevel(logging.WARNING)
+        logging.getLogger("dag_worker").setLevel(logging.INFO)
+        logging.getLogger("pandas_worker").setLevel(logging.INFO)
+        logging.getLogger("polars_worker").setLevel(logging.INFO)
+        logging.getLogger("agent_worker").setLevel(logging.INFO)
+
+        for handler in root.handlers[:]:
+            root.removeHandler(handler)
+
+        # Formatter
+        fmt = logging.Formatter(
+            "%(asctime)s %(levelname)s %(message)s",
+            datefmt="%H:%M:%S"
+        )
+
+        # Handler for INFO and below to stdout
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setLevel(logging.DEBUG)
+        stdout_handler.setFormatter(fmt)
+
+        # Handler for WARNING and above to stderr
+        stderr_handler = logging.StreamHandler(sys.stderr)
+        stderr_handler.setLevel(logging.WARNING)
+        stderr_handler.setFormatter(fmt)
+
+        # Add handlers to root logger
+        root.addHandler(stdout_handler)
+        root.addHandler(stderr_handler)
+        root.setLevel(level)
+
+        # Debug message about initialization
+        logging.debug(f"Logging initialized at level {logging.getLevelName(level)}")
 
     def __init__(self, install_type: int = None, apps_dir: Path = None,
                  active_app: Path | str = None, active_module: Path = None, verbose: int = 1):
@@ -238,63 +310,6 @@ class AgiEnv:
             self.export_local_bin = 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
         else:
             self.export_local_bin = 'export PATH="$HOME/.local/bin:$PATH";'
-
-    @staticmethod
-    def init_logging(verbosity: int = 1):
-        """
-        Initialize logging with a level based on verbosity:
-        0 = WARNING, 1 = INFO, 2 or more = DEBUG
-        INFO and DEBUG levels go to stdout; WARNING and above go to stderr.
-        """
-
-        # Determine root log level
-        if verbosity >= 2:
-            level = logging.DEBUG
-        elif verbosity == 1:
-            level = logging.INFO
-        else:
-            level = logging.WARNING
-
-        # Remove existing handlers
-        root = logging.getLogger()
-        root.setLevel(logging.WARNING)  # root logger
-        logging.getLogger('asyncssh').setLevel(logging.WARNING)
-        logging.getLogger("agi_runner").setLevel(logging.INFO)
-        logging.getLogger("agi_worker").setLevel(logging.INFO)
-        logging.getLogger("agi_manager").setLevel(logging.INFO)
-        logging.getLogger("agi_env").setLevel(logging.WARNING)
-        logging.getLogger("dag_worker").setLevel(logging.INFO)
-        logging.getLogger("pandas_worker").setLevel(logging.INFO)
-        logging.getLogger("polars_worker").setLevel(logging.INFO)
-        logging.getLogger("agent_worker").setLevel(logging.INFO)
-
-
-        for handler in root.handlers[:]:
-            root.removeHandler(handler)
-
-        # Formatter
-        fmt = logging.Formatter(
-            "%(asctime)s %(levelname)s %(message)s",
-            datefmt="%H:%M:%S"
-        )
-
-        # Handler for INFO and below to stdout
-        stdout_handler = logging.StreamHandler(sys.stdout)
-        stdout_handler.setLevel(logging.DEBUG)
-        stdout_handler.setFormatter(fmt)
-
-        # Handler for WARNING and above to stderr
-        stderr_handler = logging.StreamHandler(sys.stderr)
-        stderr_handler.setLevel(logging.WARNING)
-        stderr_handler.setFormatter(fmt)
-
-        # Add handlers to root logger
-        root.addHandler(stdout_handler)
-        root.addHandler(stderr_handler)
-        root.setLevel(level)
-
-        # Debug message about initialization
-        logging.debug(f"Logging initialized at level {logging.getLevelName(level)}")
 
     def active(self, target, install_type):
         if self.module != target:
@@ -828,55 +843,6 @@ class AgiEnv:
         return stdout, stderr
 
     @staticmethod
-    def create_symlink(source: Path, dest: Path):
-        """
-        Create a symlink from dest to source if not already existing.
-
-        Args:
-            source (Path): Source path.
-            dest (Path): Destination symlink path.
-        """
-        try:
-            source_resolved = source.resolve(strict=True)
-        except FileNotFoundError as e:
-            raise FileNotFoundError(f"Source path does not exist: {source} {e}") from e
-
-        if dest.exists() or dest.is_symlink():
-            if dest.is_symlink():
-                try:
-                    existing_target = dest.resolve(strict=True)
-                    if existing_target == source_resolved:
-                        logging.info(f"Symlink already exists and is correct: {dest} -> {source_resolved}")
-                        return
-                    else:
-                        logging.info(f"Warning: Symlink at {dest} points to {existing_target}, expected {source_resolved}.")
-                        return
-                except RecursionError:
-                    raise RecursionError(f"Detected symlink loop while resolving {dest}.")
-                except FileNotFoundError:
-                    logging.info(f"Warning: Symlink at {dest} is broken.")
-                    return
-            else:
-                logging.info(f"Warning: Destination already exists and is not a symlink: {dest}")
-                return
-
-        try:
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            if os.name == "nt":
-                is_dir = source_resolved.is_dir()
-                os.symlink(str(source_resolved), str(dest), target_is_directory=is_dir)
-            else:
-                os.symlink(str(source_resolved), str(dest))
-            logging.info(f"Symlink created: {dest} -> {source_resolved}")
-        except OSError as e:
-            if os.name == "nt":
-                raise OSError(
-                    "Failed to create symlink on Windows. Ensure admin rights or Developer Mode enabled."
-                ) from e
-            else:
-                raise OSError(f"Failed to create symlink: {e}") from e
-
-    @staticmethod
     async def _run_bg(cmd, cwd=".", venv=None, timeout=None, log_callback=None):
         """
         Run the given command asynchronously, reading stdout and stderr line by line
@@ -1006,6 +972,56 @@ class AgiEnv:
 
         await asyncio.gather(stdout_task, stderr_task)
 
+    @staticmethod
+    def create_symlink(source: Path, dest: Path):
+        """
+        Create a symlink from dest to source if not already existing.
+
+        Args:
+            source (Path): Source path.
+            dest (Path): Destination symlink path.
+        """
+        try:
+            source_resolved = source.resolve(strict=True)
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"Source path does not exist: {source} {e}") from e
+
+        if dest.exists() or dest.is_symlink():
+            if dest.is_symlink():
+                try:
+                    existing_target = dest.resolve(strict=True)
+                    if existing_target == source_resolved:
+                        logging.info(f"Symlink already exists and is correct: {dest} -> {source_resolved}")
+                        return
+                    else:
+                        logging.info(
+                            f"Warning: Symlink at {dest} points to {existing_target}, expected {source_resolved}.")
+                        return
+                except RecursionError:
+                    raise RecursionError(f"Detected symlink loop while resolving {dest}.")
+                except FileNotFoundError:
+                    logging.info(f"Warning: Symlink at {dest} is broken.")
+                    return
+            else:
+                logging.info(f"Warning: Destination already exists and is not a symlink: {dest}")
+                return
+
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if os.name == "nt":
+                is_dir = source_resolved.is_dir()
+                os.symlink(str(source_resolved), str(dest), target_is_directory=is_dir)
+            else:
+                os.symlink(str(source_resolved), str(dest))
+            logging.info(f"Symlink created: {dest} -> {source_resolved}")
+        except OSError as e:
+            if os.name == "nt":
+                raise OSError(
+                    "Failed to create symlink on Windows. Ensure admin rights or Developer Mode enabled."
+                ) from e
+            else:
+                raise OSError(f"Failed to create symlink: {e}") from e
+
     def change_active_app(self, app, install_type=1):
         if isinstance(app, str):
             app_name = app
@@ -1016,3 +1032,122 @@ class AgiEnv:
 
         if app_name != self.app:
             self.__init__(active_app=app_name, install_type=install_type, verbose=self.verbose)
+
+    async def get_ssh_connection(self, ip: str, timeout_sec: int = 5):
+        user = self.user
+        password = self.password
+
+        if not user:
+            raise ValueError("SSH username is not configured. Please set 'user' in your .env file.")
+
+        try:
+            conn = await asyncio.wait_for(
+                asyncssh.connect(
+                    ip,
+                    username=user,
+                    password=password,
+                    known_hosts=None,
+                    client_keys=None,
+                ),
+                timeout=timeout_sec
+            )
+            return conn
+
+        except asyncio.TimeoutError:
+            err_msg = f"Connection to {ip} timed out after {timeout_sec} seconds."
+            self.log_error(err_msg)
+            raise ConnectionError(err_msg)
+
+        except asyncssh.PermissionDenied:
+            err_msg = f"Authentication failed for SSH user '{user}' on host {ip}."
+            self.log_error(err_msg)
+            raise ConnectionError(err_msg)
+
+        except OSError as e:
+            if e.errno == errno.EHOSTUNREACH or e.errno == 113:
+                err_msg = (
+                    f"Unable to connect to {ip} on SSH port 22. "
+                    "Please check that the device is powered on, the network cable is connected, "
+                    "and the SSH service is running."
+                )
+                #self.log_error(err_msg)
+                raise ConnectionError(err_msg)
+            else:
+                raise
+
+        except asyncssh.Error:
+            err_msg = (
+                f"Could not connect to {ip}. Please check the device is reachable, "
+                "network cable connected, and SSH service running."
+            )
+            self.log_error(err_msg)
+            raise ConnectionError(err_msg)
+
+
+    async def exec_ssh(self, ip: str, cmd: str) -> str:
+        """Run remote command asynchronously via SSH using asyncssh."""
+        try:
+            conn = await self.get_ssh_connection(ip)
+            result = await conn.run(cmd, check=True)
+            self.log_info(f"[{ip}] {cmd}: {result.stdout.strip()}")
+            return result.stdout.strip()
+        except (asyncssh.Error, OSError) as e:
+            self.log_error(f"[{ip}] SSH command failed: {e}")
+            raise
+
+    async def send_file(
+            self,
+            ip: str,
+            local_path: Path,
+            remote_path: Path,
+            user: str = None,
+            password: str = None
+    ):
+        """
+        Send a single file asynchronously to remote host via SCP command.
+        Uses sshpass if password is provided.
+        """
+        if not user:
+            user = self.user
+        if not password:
+            password = self.password
+
+        user_at_ip = f"{user}@{ip}" if user else ip
+        remote = f"{user_at_ip}:{remote_path}"
+
+        cmd = []
+        if password:
+            # Use sshpass to pass password non-interactively
+            cmd += ["sshpass", "-p", password]
+
+        cmd += ["scp", str(local_path), remote]
+
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await process.communicate()
+
+            if process.returncode != 0:
+                self.log_error(f"SCP failed sending {local_path} to {remote}: {stderr.decode().strip()}")
+                raise ConnectionError(f"SCP error: {stderr.decode().strip()}")
+
+            self.log_info(f"Sent file {local_path} to {remote}")
+
+        except Exception as e:
+            self.log_error(f"Unexpected error during SCP of {local_path} to {remote}: {e}")
+            raise
+
+    async def send_files(self, ip: str, files: list[Path], remote_dir: Path, user: str = None):
+        """
+        Send multiple files asynchronously to remote host via SCP command in parallel.
+        """
+        tasks = []
+        for f in files:
+            remote_path = f"{remote_dir}/{f.name}"
+            tasks.append(self.send_file(ip, f, remote_path, user=user))
+        await asyncio.gather(*tasks)
+        self.log_info(f"Sent {len(files)} files to {user}@{ip}:{remote_dir}")
+

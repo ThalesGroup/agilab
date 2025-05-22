@@ -12,7 +12,6 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from IPython.lib import backgroundjobs as bg
-from IPython.core.ultratb import FormattedTB
 import asyncio
 import getpass
 import glob
@@ -44,30 +43,17 @@ import polars as pl
 import psutil
 from dask.distributed import Client
 import json
-import asyncssh
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 import subprocess
-import inspect
 import logging
-
-# Patch for IPython ≥8.37 (theme_name) vs ≤8.36 (color_scheme)
-_sig = inspect.signature(FormattedTB.__init__).parameters
-_tb_kwargs = dict(mode='Verbose', call_pdb=True)
-if 'color_scheme' in _sig:
-    _tb_kwargs['color_scheme'] = 'Linux'
-else:
-    _tb_kwargs['theme_name'] = 'Linux'
-
-sys.excepthook = FormattedTB(**_tb_kwargs)
 
 # Project Libraries:
 from agi_env import AgiEnv
 from agi_core.managers.agi_manager import AgiManager
 from agi_core.workers.agi_worker import AgiWorker
-import logging
-logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 workers_default = {socket.gethostbyname("localhost"): 1}
 
@@ -273,6 +259,10 @@ class AGI:
 
             try:
                 return await AGI.main(scheduler)
+
+            except ConnectionError as e:
+                pass
+
             except Exception as err:
                 AgiEnv.log_error(err)
                 if verbose > 1:
@@ -551,40 +541,6 @@ class AGI:
             else:
                 time.sleep(0.1)
 
-
-    @staticmethod
-    async def _exec_ssh_async(ip: str, cmd: str):
-        """
-        Execute a remote SSH command asynchronously using asyncssh.
-
-        Usage:
-            async with AGI._ssh_connect(ip) as conn:
-                result = await conn.run(cmd, check=True)
-        """
-        try:
-            async with AGI._ssh_connect(ip) as conn:
-                result = await conn.run(cmd, check=True)
-                AgiEnv.log_info(f"Command on {ip} {cmd}: {result.stdout.strip()}")
-                return result.stdout.strip()
-        except Exception as e:
-            AgiEnv.log_error(f"Failed to execute SSH command on {ip}: {e}")
-            raise
-
-    @staticmethod
-    def _exec_bg(cmd, cwd):
-        """
-        Execute background command
-        Args:
-            cmd: the command to be run
-            cwd: the current working directory
-
-        Returns:
-            """
-        AGI._jobs.new("subprocess.Popen(cmd, shell=True)", cwd=cwd)
-
-        if not AGI._jobs.result(0):
-            raise RuntimeError(f"running {cmd} at {cwd}")
-
     @staticmethod
     async def _kill(ip: str | None = None, current_pid: int | None = None, force: bool = True):
         """
@@ -647,7 +603,7 @@ class AGI:
             if AGI._is_local(ip):
                 AGI.run(cmd, cwd)
             else:
-                await AGI._exec_ssh(ip, cmd)
+                await env.exec_ssh(ip, cmd)
 
             # handle tuple or dict result
             if isinstance(last_res, dict):
@@ -693,7 +649,7 @@ class AGI:
         env = AGI.env
         wenv = env.wenv_rel
 
-        await AGI._exec_ssh(
+        await env.exec_ssh(
             ip,
             cmd=(
                 "uv run python -c \"import os, glob, shutil\n"
@@ -763,20 +719,20 @@ class AGI:
 
                 # 1) Check uv
                 try:
-                    await AGI._exec_ssh(ip, 'uv --version')
+                    await env.exec_ssh(ip, 'uv --version')
                 except Exception:
                     # Try Windows installer
                     try:
-                        await AGI._exec_ssh(ip,
+                        await env.exec_ssh(ip,
                                       'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"'
                                       )
                     except Exception:
                         # Fallback to Unix installer
-                        await AGI._exec_ssh(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
-                        await AGI._exec_ssh(ip, 'source $HOME/.local/bin/env')
+                        await env.exec_ssh(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
+                        await env.exec_ssh(ip, 'source $HOME/.local/bin/env')
 
                 # 2) Install Python
-                await AGI._exec_ssh(ip, f"uv python install {pyvers}")
+                await env.exec_ssh(ip, f"uv python install {pyvers}")
 
                 # 3) Bootstrap the uv environment
                 cmd = (
@@ -784,10 +740,10 @@ class AGI:
                     f"subprocess.run(['uv','init','--bare'], cwd=r'{wenv_rel}', check=True) "
                     "if not os.path.exists('pyproject.toml') else None\""
                 )
-                await AGI._exec_ssh(ip, cmd)
+                await env.exec_ssh(ip, cmd)
 
                 # 4) Make remote wenv dir
-                await AGI._exec_ssh(
+                await env.exec_ssh(
                     ip,
                     f"uv run -p {pyvers} python -c "
                     f"\"import os; os.makedirs(r'{wenv_rel}', exist_ok=True)\""
@@ -911,101 +867,6 @@ class AGI:
         AGI._install_done_local = True
 
     @staticmethod
-    async def _exec_ssh(ip: str, cmd: str) -> str:
-        """Run remote command asynchronously via SSH using asyncssh."""
-        try:
-            conn = await AGI.get_ssh_connection(ip)
-            result = await conn.run(cmd, check=True)
-            AgiEnv.log_info(f"[{ip}] {cmd}: {result.stdout.strip()}")
-            return result.stdout.strip()
-        except (asyncssh.Error, OSError) as e:
-            AgiEnv.log_error(f"[{ip}] SSH command failed on {ip}: {e}")
-            raise
-
-    @staticmethod
-    async def get_ssh_connection(ip: str) -> asyncssh.SSHClientConnection:
-        """
-        Establish an SSH connection asynchronously using asyncssh.
-        The caller is responsible for closing the connection.
-
-        Raises:
-            ValueError: if SSH username is not set.
-            ConnectionError: on connection failures.
-        """
-        user = AGI.env.user
-        password = AGI.env.password
-
-        if not user:
-            raise ValueError("SSH username is not configured. Please set 'user' in your .env file.")
-
-        try:
-            conn = await asyncssh.connect(
-                ip,
-                username=user,
-                password=password,
-                known_hosts=None,
-                client_keys=None,
-                # You can add other asyncssh.connect params here if needed
-            )
-            return conn
-
-        except asyncssh.PermissionDenied:
-            err_msg = f"Authentication failed for SSH user '{user}' on host {ip}."
-            AgiEnv.log_error(err_msg)
-            raise ConnectionError(err_msg)
-
-        except (asyncssh.ConnectionLost, asyncssh.ConnectionError):
-            err_msg = f"Could not connect to {ip}. Host unreachable or no SSH service running."
-            AgiEnv.log_error(err_msg)
-            raise ConnectionError(err_msg)
-
-        except Exception as e:
-            err_msg = f"SSH connection to {ip} failed: {e.__class__.__name__}: {e}"
-            AgiEnv.log_error(err_msg)
-            raise ConnectionError(err_msg)
-
-    @staticmethod
-    async def _send_file(ip: str, local_path: Path, remote_path: Path):
-        """
-        Send a single file asynchronously to remote host via SFTP.
-        Opens and closes connection for each call.
-        """
-        try:
-            conn = await AGI.get_ssh_connection(ip)
-            try:
-                async with conn.start_sftp_client() as sftp:
-                    await sftp.put(str(local_path), str(remote_path))
-                    AgiEnv.log_info(f"Sent file {local_path} to {ip}:{remote_path}")
-            finally:
-                conn.close()
-                await conn.wait_closed()
-        except (asyncssh.Error, OSError) as e:
-            AgiEnv.log_error(f"Failed to send file {local_path} to {ip}: {e}")
-            raise
-
-    @staticmethod
-    async def _send_files(ip: str, files: list[Path], remote_dir: Path):
-        """
-        Send multiple files asynchronously to remote host, opening one connection reused for all files.
-        """
-        try:
-            conn = await AGI.get_ssh_connection(ip)
-            try:
-                async with conn.start_sftp_client() as sftp:
-                    tasks = []
-                    for f in files:
-                        remote_path = remote_dir / f.name
-                        tasks.append(sftp.put(str(f), str(remote_path)))
-                    await asyncio.gather(*tasks)
-                    AgiEnv.log_info(f"Sent {len(files)} files to {ip}:{remote_dir}")
-            finally:
-                conn.close()
-                await conn.wait_closed()
-        except (asyncssh.Error, OSError) as e:
-            AgiEnv.log_error(f"Failed to send files to {ip}:{remote_dir}: {e}")
-            raise
-
-    @staticmethod
     async def _install_env_remote(ip: str, env, wenv_rel: Path, option: str):
         """Install packages and set up the environment on a remote node."""
         pyvers = env.python_version
@@ -1014,21 +875,22 @@ class AGI:
         wenv_abs = env.wenv_abs
         wenv_rel = env.wenv_rel
 
-        await AGI._send_file(ip, env.setup_core, wenv_rel)
 
-        # Send app source code
+        cmd = f"{python} -c \"import os; os.makedirs('{wenv_rel}')"
+        await env.exec_ssh(ip, cmd)
+
+        # Then send the files to the remote directory
         egg_file = next(iter(wenv_abs.glob(f"{env.app}*.egg")), None)
         if egg_file:
-            await AGI._send_files(ip, [egg_file, env.pyproject, env.uvproject], wenv_rel)
+            await env.send_files(ip, [env.setup_core, egg_file, env.pyproject, env.uvproject], wenv_rel)
         else:
             AgiEnv.log_error(f"searching for {wenv_abs / env.app}*.egg")
             raise FileNotFoundError("no existing egg file")
 
-        # 1) Bootstrap ensurepip
+        # continue with bootstrap and unzip...
         cmd = python + " -m ensurepip"
-        await AGI._exec_ssh(ip, cmd)
+        await env.exec_ssh(ip, cmd)
 
-        # 4) Unzip egg into remote venv src/
         cmd = (
             f"{python} -c \"import os, pathlib, zipfile;"
             f" root = '{wenv_rel}';"
@@ -1036,8 +898,9 @@ class AGI:
             f" [zipfile.ZipFile(str(e)).extractall(os.path.join(root,'src'))"
             f"  for e in pathlib.Path(root).glob('*.egg')]\""
         )
+        await env.exec_ssh(ip, cmd)
 
-        await AGI._exec_ssh(ip, cmd)
+        await env.exec_ssh(ip, cmd)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
         check_rapids = (f"cd {wenv_rel} && {python} -c \"import subprocess, sys, shutil;"
@@ -1045,7 +908,7 @@ class AGI:
                         "sys.exit(0 if r.returncode == 0 else 1)\""
                         )
 
-        result = await AGI._exec_ssh(ip, check_rapids)
+        result = await env.exec_ssh(ip, check_rapids)
         has_rapids_hw = (result != "")
         AgiEnv.log_info(f"Remote Rapids-capable GPU: {has_rapids_hw}")
 
@@ -1055,11 +918,11 @@ class AGI:
         else:
             sync_cmd = f"cd {wenv_rel} && uv --config-file uv.toml sync --upgrade {option}"
 
-        await AGI._exec_ssh(ip, sync_cmd);
+        await env.exec_ssh(ip, sync_cmd);
 
         # 7) Post-install script
-        cmd= f"cd {wenv_rel} && uv run -p {pyvers} python {env.post_install} {env.data_dir}"
-        await AGI._exec_ssh(ip, cmd)
+        cmd = f"cd {wenv_rel} && uv run -p {pyvers} python {env.post_install} {env.data_dir}"
+        await env.exec_ssh(ip, cmd)
 
         #####################################################
         # install env & core for enabling dask worker spawn
@@ -1073,14 +936,14 @@ class AGI:
             "subprocess.run(['uv','init','--bare'], cwd=ROOT, check=True) "
             "if not os.path.exists(os.path.join(ROOT, 'pyproject.toml')) else None\""
         )
-        await AGI._exec_ssh(ip, cmd);
+        await env.exec_ssh(ip, cmd);
 
         # Bootstrap ensurepip
         cmd = f"cd {wenv_rel} && uv run python -m ensurepip"
-        await AGI._exec_ssh(ip, cmd);
+        await env.exec_ssh(ip, cmd)
 
         cmd = f"cd {wenv_rel} && uv pip install -e ."
-        await AGI._exec_ssh(ip, cmd)
+        await env.exec_ssh(ip, cmd)
 
         # build agi_env*.whl
         wenv = env.agi_fwk_env_path
@@ -1090,12 +953,12 @@ class AGI:
 
         whl = next(iter(dist.glob("agi_env*.whl")))
         if whl:
-            await AGI._send_file(ip, whl, wenv_rel)
+            await env.send_file(ip, whl, wenv_rel)
         else:
             raise RuntimeError(cmd)
 
         cmd = f"cd {wenv_rel} && uv add {Path(whl).name}"
-        await AGI._exec_ssh(ip, cmd)
+        await env.exec_ssh(ip, cmd)
 
         # build agi_core*.whl
         wenv = env.core_root
@@ -1105,17 +968,17 @@ class AGI:
 
         whl = next(iter(dist.glob("agi_core*.whl" )))
         if whl:
-            await AGI._send_file(ip, whl, wenv_rel)
+            await env.send_file(ip, whl, wenv_rel)
         else:
             raise RuntimeError(cmd)
 
         cmd = f"cd {wenv_rel} && uv add {Path(whl).name}"
-        await AGI._exec_ssh(ip, cmd)
+        await env.exec_ssh(ip, cmd)
         setup = wenv_rel / "setup"
         out_dir = Path('..') / wenv_rel.name
         # build target_worker lib
         cmd = f"cd {wenv_rel} && uv run python {setup} build_ext -b {out_dir}"
-        await AGI._exec_ssh(ip, cmd)
+        await env.exec_ssh(ip, cmd)
 
 
     @staticmethod
@@ -1293,17 +1156,17 @@ class AGI:
             else:
                 # Create remote directory
                 cmd = f"python3 -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
-                await AGI._exec_ssh(AGI._scheduler_ip, cmd)
+                await env.exec_ssh(AGI._scheduler_ip, cmd)
 
                 toml_wenv = wenv_rel / "pyproject.toml"
-                await AGI._send_file(AGI._scheduler_ip, toml_local, toml_wenv)
+                await env.send_file(AGI._scheduler_ip, toml_local, toml_wenv)
 
                 cmd = (
                     f"uv run --project {wenv_rel} dask scheduler --port {AGI._scheduler_port} "
                     f"--host {AGI._scheduler_ip} --pid-file dask_pid"
                 )
                 # Run scheduler asynchronously over SSH without awaiting completion (fire and forget)
-                asyncio.create_task(await AGI._exec_ssh_async(AGI._scheduler_ip, cmd))
+                asyncio.create_task(await env.exec_ssh_async(AGI._scheduler_ip, cmd))
 
             try:
                 await asyncio.sleep(1)  # Give scheduler a moment to start
@@ -1384,7 +1247,7 @@ class AGI:
                 if AGI._is_local(ip):
                     AGI._exec_bg(cmd, env.wenv_abs)
                 else:
-                    await AGI._exec_ssh_async(ip, cmd)
+                    await env.exec_ssh_async(ip, cmd)
 
                 if AGI._worker_init_error:
                     raise FileNotFoundError(f"Please run AGI.install([{ip}])")
@@ -2048,3 +1911,18 @@ class AGI:
                 raise RuntimeError(f"{w} workers AgiWorker.do_works failed")
 
         AGI._train_model(AGI.env.home_abs)
+
+    @staticmethod
+    def _exec_bg(cmd, cwd):
+        """
+        Execute background command
+        Args:
+            cmd: the command to be run
+            cwd: the current working directory
+
+        Returns:
+            """
+        AGI._jobs.new("subprocess.Popen(cmd, shell=True)", cwd=cwd)
+
+        if not AGI._jobs.result(0):
+            raise RuntimeError(f"running {cmd} at {cwd}")
