@@ -25,7 +25,7 @@ import logging
 from numpy.linalg import norm  # Imported norm
 from agi_core.workers.polars_worker import PolarsWorker
 from agi_core.workers.agi_worker import AgiWorker
-
+logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
 import polars as pl

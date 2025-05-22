@@ -49,6 +49,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 import subprocess
 import inspect
+import logging
 
 # Patch for IPython ≥8.37 (theme_name) vs ≤8.36 (color_scheme)
 _sig = inspect.signature(FormattedTB.__init__).parameters
@@ -64,6 +65,8 @@ sys.excepthook = FormattedTB(**_tb_kwargs)
 from agi_env import AgiEnv
 from agi_core.managers.agi_manager import AgiManager
 from agi_core.workers.agi_worker import AgiWorker
+import logging
+logger = logging.getLogger(__name__)
 
 warnings.filterwarnings("ignore")
 workers_default = {socket.gethostbyname("localhost"): 1}
@@ -911,12 +914,12 @@ class AGI:
     async def _exec_ssh(ip: str, cmd: str) -> str:
         """Run remote command asynchronously via SSH using asyncssh."""
         try:
-            async with asyncssh.connect(ip) as conn:
-                result = await conn.run(cmd, check=True)
-                AgiEnv.log_info(f"Command on {ip}: {cmd}: {result.stdout.strip()}")
-                return result.stdout.strip()
+            conn = await AGI.get_ssh_connection(ip)
+            result = await conn.run(cmd, check=True)
+            AgiEnv.log_info(f"[{ip}] {cmd}: {result.stdout.strip()}")
+            return result.stdout.strip()
         except (asyncssh.Error, OSError) as e:
-            AgiEnv.log_error(f"SSH command failed on {ip}: {e}")
+            AgiEnv.log_error(f"[{ip}] SSH command failed on {ip}: {e}")
             raise
 
     @staticmethod
@@ -1011,19 +1014,19 @@ class AGI:
         wenv_abs = env.wenv_abs
         wenv_rel = env.wenv_rel
 
-        AGI._send_file(ip, env.setup_core, wenv_rel)
+        await AGI._send_file(ip, env.setup_core, wenv_rel)
 
         # Send app source code
         egg_file = next(iter(wenv_abs.glob(f"{env.app}*.egg")), None)
         if egg_file:
-            AGI._send_files(ip, [egg_file, env.pyproject, env.uvproject], wenv_rel)
+            await AGI._send_files(ip, [egg_file, env.pyproject, env.uvproject], wenv_rel)
         else:
             AgiEnv.log_error(f"searching for {wenv_abs / env.app}*.egg")
             raise FileNotFoundError("no existing egg file")
 
         # 1) Bootstrap ensurepip
         cmd = python + " -m ensurepip"
-        AGI._exec_ssh(ip, cmd)
+        await AGI._exec_ssh(ip, cmd)
 
         # 4) Unzip egg into remote venv src/
         cmd = (
@@ -1087,7 +1090,7 @@ class AGI:
 
         whl = next(iter(dist.glob("agi_env*.whl")))
         if whl:
-            AGI._send_file(ip, whl, wenv_rel)
+            await AGI._send_file(ip, whl, wenv_rel)
         else:
             raise RuntimeError(cmd)
 
@@ -1102,7 +1105,7 @@ class AGI:
 
         whl = next(iter(dist.glob("agi_core*.whl" )))
         if whl:
-            AGI._send_file(ip, whl, wenv_rel)
+            await AGI._send_file(ip, whl, wenv_rel)
         else:
             raise RuntimeError(cmd)
 

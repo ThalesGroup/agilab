@@ -44,9 +44,9 @@ from agi_env import AgiEnv
 from agi_core.workers.agi_worker import AgiWorker
 
 import polars as pl
-
+import logging
 warnings.filterwarnings("ignore")
-
+logger = logging.getLogger(__name__)
 
 class PolarsWorker(AgiWorker):
     """

@@ -8,7 +8,7 @@ from typing import Any, Dict
 from pydantic import BaseModel
 
 # Removed unused imports: validator, conint, confloat, Literal, Unpack
-
+logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
 from agim.agim import AgiManager

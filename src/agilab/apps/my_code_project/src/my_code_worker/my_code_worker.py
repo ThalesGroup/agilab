@@ -26,10 +26,11 @@ Module my_code_worker extension of your_code
 # cython:cdivision True
 
 import warnings
-
+import logging
 from agi_env import AgiEnv
 from agi_core.workers.dag_worker import DagWorker
 
+logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
 
