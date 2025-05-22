@@ -465,15 +465,15 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span><span class="p">,</span> <span class="n">PureWindowsPath</span><span class="p">,</span> <span class="n">PurePosixPath</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">zipfile</span><span class="w"> </span><span class="kn">import</span> <span class="n">ZipFile</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">psutil</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">parso</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">humanize</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">timedelta</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">agi_core.managers.agi_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiManager</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 
 <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">)</span>
-
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 <div class="viewcode-block" id="AgiWorker">
 <a class="viewcode-back" href="../../../../agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker">[docs]</a>

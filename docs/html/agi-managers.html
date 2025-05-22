@@ -709,24 +709,6 @@ It offers a command-line interface in Python and an optional LAB with Streamlit,
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.get_ssh_connection">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_ssh_connection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ip</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI.get_ssh_connection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.get_ssh_connection" title="Link to this definition"></a></dt>
-<dd><p>Establish an SSH connection asynchronously using asyncssh.
-The caller is responsible for closing the connection.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">SSHClientConnection</span></code></span></p>
-</dd>
-<dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><ul class="simple">
-<li><p><strong>ValueError</strong> – if SSH username is not set.</p></li>
-<li><p><strong>ConnectionError</strong> – on connection failures.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
 <dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.install">
 <em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">install</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">module_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modes_enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI.install"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.install" title="Link to this definition"></a></dt>
 <dd><p>Update the cluster’s virtual environment.</p>

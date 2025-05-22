@@ -33,6 +33,8 @@ dependencies = [
     "setuptools",
     "tomlkit",
     "astor",
+    "ipython",
+    "scp",
 ]
 
 [project.urls]

@@ -38,7 +38,6 @@ keywords = [
 dependencies = [
     "scp",
     "scikit-learn",
-    "lightgbm",
     "parso",
     "cython",
     "setuptools",
@@ -49,7 +48,6 @@ dependencies = [
     "python-dotenv",
     "tomli",
     "logging",
-    "asyncssh",
     "scipy==1.15.2"
 ]
 
