@@ -267,10 +267,7 @@ class AgiEnv:
         logging.getLogger("pandas_worker").setLevel(logging.INFO)
         logging.getLogger("polars_worker").setLevel(logging.INFO)
         logging.getLogger("agent_worker").setLevel(logging.INFO)
-        logging.getLogger("my_code_worker").setLevel(logging.INFO)
-        logging.getLogger("my_code").setLevel(logging.INFO)
-        logging.getLogger("flight_worker").setLevel(logging.INFO)
-        logging.getLogger("flight").setLevel(logging.INFO)
+
 
         for handler in root.handlers[:]:
             root.removeHandler(handler)
