@@ -37,11 +37,11 @@ def print_emoticon(result, success_check=lambda r: r.strip().lower() == "ok"):
 
 
 # uv sync
-cmd = "uv sync"
+cmd = "uv -q sync"
 res = exec(cmd, ".", "localhost")
 print_emoticon(res)
 
-test_manager = "uv run test/test_flight_manager.py "
+test_manager = "uv -q run test/test_flight_manager.py "
 
 # uv run test/test_flight_manager.py install
 cmd = test_manager + "install"
@@ -54,7 +54,7 @@ res = exec(cmd, ".", "localhost")
 print_emoticon(res)
 
 # uv pip list from current directory (.venv)
-cmd = "uv pip list"
+cmd = "uv -q pip list"
 res = exec(cmd, ".", "localhost")
 # Count lines containing "agilab-"
 lines = sum(1 for line in res.stdout.splitlines() if "agi-" in line)
@@ -65,7 +65,7 @@ if res.stderr.strip():
 wenv = "../../wenv/flight_worker"
 
 # uv pip list from ../../wenv/flight_worker
-cmd = "uv pip list"
+cmd = "uv -q pip list"
 res = exec(cmd, wenv, "localhost")
 # Count lines containing "agi-"
 lines2 = sum(1 for line in res.stdout.splitlines() if "agi-" in line)
@@ -74,11 +74,11 @@ if res.stderr.strip():
     print(res.stderr.strip())
 
 # uv build
-cmd = "uv build"
+cmd = "uv -q build"
 res = exec(cmd, ".", "localhost")
 print_emoticon(res)
 
 # uv run test/test_flight_worker.py
-cmd = "uv run test/test_flight_worker.py"
+cmd = "uv -q run test/test_flight_worker.py"
 res = exec(cmd, wenv, "localhost")
 print_emoticon(res)

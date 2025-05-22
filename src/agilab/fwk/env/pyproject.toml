@@ -34,7 +34,7 @@ dependencies = [
     "tomlkit",
     "astor",
     "ipython",
-    "scp",
+    "asyncssh",
 ]
 
 [project.urls]
