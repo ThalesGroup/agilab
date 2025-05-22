@@ -27,7 +27,6 @@ import sys
 import time
 import traceback
 import warnings
-from contextlib import asynccontextmanager
 from copy import deepcopy
 from datetime import timedelta
 from ipaddress import ip_address as is_ip
@@ -260,14 +259,16 @@ class AGI:
             try:
                 return await AGI.main(scheduler)
 
+            except ProcessError as e:
+                return 1
+
             except ConnectionError as e:
-                pass
+                return 1
 
             except Exception as err:
                 AgiEnv.log_error(err)
-                if verbose > 1:
-                    AgiEnv.log_error(traceback.format_exc())
-                raise
+                AgiEnv.log_error(traceback.format_exc())
+
 
     @staticmethod
     async def _run_all_modes(
@@ -974,10 +975,9 @@ class AGI:
 
         cmd = f"cd {wenv_rel} && uv add {Path(whl).name}"
         await env.exec_ssh(ip, cmd)
-        setup = wenv_rel / "setup"
         out_dir = Path('..') / wenv_rel.name
         # build target_worker lib
-        cmd = f"cd {wenv_rel} && uv run python {setup} build_ext -b {out_dir}"
+        cmd = f"cd {wenv_rel} && uv run python setup build_ext -b {out_dir}"
         await env.exec_ssh(ip, cmd)
 
 

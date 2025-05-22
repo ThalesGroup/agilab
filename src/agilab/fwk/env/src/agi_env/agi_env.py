@@ -8,6 +8,8 @@ import shutil
 import subprocess
 import sys
 import asyncssh
+from asyncssh.process import ProcessError
+from contextlib import asynccontextmanager
 import traceback
 from pathlib import Path, PureWindowsPath, PurePosixPath
 from dotenv import dotenv_values, set_key
@@ -57,17 +59,16 @@ class AgiEnv:
 
         # Remove existing handlers
         root = logging.getLogger()
-        root.setLevel(logging.WARNING)
-        # root logger
-        logging.getLogger('asyncssh').setLevel(logging.ERROR)
-        logging.getLogger("agi_runner").setLevel(logging.INFO)
-        logging.getLogger("agi_worker").setLevel(logging.INFO)
-        logging.getLogger("agi_manager").setLevel(logging.INFO)
-        logging.getLogger("agi_env").setLevel(logging.WARNING)
-        logging.getLogger("dag_worker").setLevel(logging.INFO)
-        logging.getLogger("pandas_worker").setLevel(logging.INFO)
-        logging.getLogger("polars_worker").setLevel(logging.INFO)
-        logging.getLogger("agent_worker").setLevel(logging.INFO)
+
+        logging.getLogger('asyncssh').setLevel(level)
+        logging.getLogger("agi_runner").setLevel(level)
+        logging.getLogger("agi_worker").setLevel(level)
+        logging.getLogger("agi_manager").setLevel(level)
+        logging.getLogger("agi_env").setLevel(level)
+        logging.getLogger("dag_worker").setLevel(level)
+        logging.getLogger("pandas_worker").setLevel(level)
+        logging.getLogger("polars_worker").setLevel(level)
+        logging.getLogger("agent_worker").setLevel(level)
 
         for handler in root.handlers[:]:
             root.removeHandler(handler)
@@ -1033,6 +1034,7 @@ class AgiEnv:
         if app_name != self.app:
             self.__init__(active_app=app_name, install_type=install_type, verbose=self.verbose)
 
+    @asynccontextmanager
     async def get_ssh_connection(self, ip: str, timeout_sec: int = 5):
         user = self.user
         password = self.password
@@ -1040,6 +1042,7 @@ class AgiEnv:
         if not user:
             raise ValueError("SSH username is not configured. Please set 'user' in your .env file.")
 
+        conn = None
         try:
             conn = await asyncio.wait_for(
                 asyncssh.connect(
@@ -1051,7 +1054,7 @@ class AgiEnv:
                 ),
                 timeout=timeout_sec
             )
-            return conn
+            yield conn
 
         except asyncio.TimeoutError:
             err_msg = f"Connection to {ip} timed out after {timeout_sec} seconds."
@@ -1070,7 +1073,7 @@ class AgiEnv:
                     "Please check that the device is powered on, the network cable is connected, "
                     "and the SSH service is running."
                 )
-                #self.log_error(err_msg)
+                self.log_error(err_msg)
                 raise ConnectionError(err_msg)
             else:
                 raise
@@ -1083,14 +1086,24 @@ class AgiEnv:
             self.log_error(err_msg)
             raise ConnectionError(err_msg)
 
+        finally:
+            if conn is not None:
+                conn.close()
+                await conn.wait_closed()
 
     async def exec_ssh(self, ip: str, cmd: str) -> str:
         """Run remote command asynchronously via SSH using asyncssh."""
         try:
-            conn = await self.get_ssh_connection(ip)
-            result = await conn.run(cmd, check=True)
-            self.log_info(f"[{ip}] {cmd}: {result.stdout.strip()}")
-            return result.stdout.strip()
+            async with self.get_ssh_connection(ip) as conn:
+                result = await conn.run(cmd, check=True)
+                self.log_info(f"[{ip}] {cmd}: {result.stdout.strip()}")
+                return result.stdout.strip()
+
+        except ProcessError as e:
+            self.log_info(f"[{ip}] SSH command stdout: {e.stdout.strip()}")
+            self.log_error(f"[{ip}] SSH command stderr: {e.stderr.strip()}")
+            raise
+
         except (asyncssh.Error, OSError) as e:
             self.log_error(f"[{ip}] SSH command failed: {e}")
             raise
@@ -1103,10 +1116,6 @@ class AgiEnv:
             user: str = None,
             password: str = None
     ):
-        """
-        Send a single file asynchronously to remote host via SCP command.
-        Uses sshpass if password is provided.
-        """
         if not user:
             user = self.user
         if not password:
@@ -1116,8 +1125,10 @@ class AgiEnv:
         remote = f"{user_at_ip}:{remote_path}"
 
         cmd = []
-        if password:
-            # Use sshpass to pass password non-interactively
+
+        # os.name is 'nt' on Windows, 'posix' on Linux/macOS
+        if password and os.name != "nt":
+            # Use sshpass only on non-Windows systems
             cmd += ["sshpass", "-p", password]
 
         cmd += ["scp", str(local_path), remote]

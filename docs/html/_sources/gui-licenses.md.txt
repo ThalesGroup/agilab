@@ -20,7 +20,6 @@
 | asn1crypto | MIT LICENSE |
 | astor | BSD LICENSE |
 | asttokens | APACHE 2.0 |
-| asyncssh | EPL-2.0;; GPL-2.0-OR-LATER |
 | attrs | MIT LICENSE |
 | bce-python-sdk | APACHE LICENSE 2.0 |
 | bcrypt | APACHE SOFTWARE LICENSE |
@@ -145,7 +144,6 @@
 | langchain-openai | MIT |
 | langchain-text-splitters | MIT |
 | langsmith | MIT LICENSE |
-| lightgbm | MIT LICENSE |
 | llvmlite | BSD |
 | locket | BSD LICENSE |
 | logging | COPYRIGHT _C_ 2001-2005 BY VINAY SAJIP. ALL RIGHTS RESERVED. SEE LICENSE FOR LICENSE. |
