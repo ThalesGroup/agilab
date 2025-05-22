@@ -954,7 +954,7 @@ class AGI:
             AgiEnv.log_error(err_msg)
             raise ConnectionError(err_msg)
 
-        except (asyncssh.ConnectionLost, asyncssh.ConnectionFailed):
+        except (asyncssh.ConnectionLost, asyncssh.ConnectionError):
             err_msg = f"Could not connect to {ip}. Host unreachable or no SSH service running."
             AgiEnv.log_error(err_msg)
             raise ConnectionError(err_msg)
