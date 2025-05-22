@@ -260,7 +260,17 @@ class AgiEnv:
         root.setLevel(logging.WARNING)  # root logger
         logging.getLogger('asyncssh').setLevel(logging.WARNING)
         logging.getLogger("agi_runner").setLevel(logging.INFO)
+        logging.getLogger("agi_worker").setLevel(logging.INFO)
+        logging.getLogger("agi_manager").setLevel(logging.INFO)
         logging.getLogger("agi_env").setLevel(logging.WARNING)
+        logging.getLogger("dag_worker").setLevel(logging.INFO)
+        logging.getLogger("pandas_worker").setLevel(logging.INFO)
+        logging.getLogger("polars_worker").setLevel(logging.INFO)
+        logging.getLogger("agent_worker").setLevel(logging.INFO)
+        logging.getLogger("my_code_worker").setLevel(logging.INFO)
+        logging.getLogger("my_code").setLevel(logging.INFO)
+        logging.getLogger("flight_worker").setLevel(logging.INFO)
+        logging.getLogger("flight").setLevel(logging.INFO)
 
         for handler in root.handlers[:]:
             root.removeHandler(handler)
