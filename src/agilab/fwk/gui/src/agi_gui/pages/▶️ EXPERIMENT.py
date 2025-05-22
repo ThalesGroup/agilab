@@ -312,7 +312,7 @@ def on_nb_change(module, query, file_step_path, project, notebook_file, env):
     save_step(module, query[1:5], query[0], query[-1], file_step_path)
     project_path = env.apps_dir / project
     if notebook_file.exists():
-        cmd = f"uv run jupyter notebook {notebook_file}"
+        cmd = f"uv -q run jupyter notebook {notebook_file}"
         output = run_agi(cmd, venv=project_path, wait=True)
         if output is None:
             open_notebook_in_browser()

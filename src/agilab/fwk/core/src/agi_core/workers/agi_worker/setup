@@ -256,7 +256,7 @@ def main() -> None:
 
         worker_py = dest_src / worker_module / f"{worker_module}.py"
         cmd = (
-            f"uv run python \"{env.pre_install}\" remove_decorators "
+            f"uv -q run python \"{env.pre_install}\" remove_decorators "
             f"--worker_path \"{env.worker_path}\" --verbose"
         )
         logging.info(f"Stripping decorators via:\n  {cmd}")

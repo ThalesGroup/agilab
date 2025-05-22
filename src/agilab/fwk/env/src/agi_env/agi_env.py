@@ -716,8 +716,7 @@ class AgiEnv:
 
         Returns exit code.
         """
-        if AgiEnv.verbose > 1:
-            AgiEnv.log_info(f"Executing in {venv}: {cmd}")
+        AgiEnv.log_info(f"Executing in {venv}: {cmd}")
 
         if not cwd:
             cwd = venv
@@ -769,10 +768,8 @@ class AgiEnv:
                             log_callback(line)
                         elif msg_type == "INFO":
                                 AgiEnv.log_info(line[6:])
-                        elif msg_type == "ERRO":
-                            AgiEnv.log_error(line[7:])
                         else:
-                            AgiEnv.log_info(line)
+                            AgiEnv.log_error(line)
 
 
                     if out_line == '' and err_line == '' and process.poll() is not None:
@@ -906,7 +903,7 @@ class AgiEnv:
         snippet_file = os.path.join(self.runenv, f"{matches[0]}-{self.target}.py")
         with open(snippet_file, "w") as file:
             file.write(code)
-        cmd = f"uv run --project {str(venv)} python {snippet_file}"
+        cmd = f"uv -q run --project {str(venv)} python {snippet_file}"
         # Await _run_bg directly without asyncio.run()
         result = await AgiEnv._run_bg(cmd, venv=venv, log_callback=log_callback)
         if log_callback:
@@ -1100,7 +1097,7 @@ class AgiEnv:
                 return result.stdout.strip()
 
         except ProcessError as e:
-            self.log_info(f"[{ip}] SSH command stdout: {e.stdout.strip()}")
+            self.log_error(f"[{ip}] SSH command stdout: {e.stdout.strip()}")
             self.log_error(f"[{ip}] SSH command stderr: {e.stderr.strip()}")
             raise
 

@@ -675,7 +675,7 @@ def run_agi(code, path="."):
     with open(snippet_file, "w") as file:
         file.write(code)
     if (path == env.core_root) or (env.app_abs / ".venv").exists():
-        return run_with_output(env, f"uv run python {snippet_file}", path)
+        return run_with_output(env, f"uv -q run python {snippet_file}", path)
     else:
         st.info("Please do an install first")
         st.stop()
@@ -1148,7 +1148,7 @@ def activate_mlflow(env=None):
     while is_port_in_use(port):
         port = get_random_port()
 
-    cmd = f"uv run mlflow ui --backend-store-uri file://{env.MLFLOW_TRACKING_DIR} --port {port}"
+    cmd = f"uv -q run mlflow ui --backend-store-uri file://{env.MLFLOW_TRACKING_DIR} --port {port}"
     try:
         res = subproc(cmd, os.getcwd())
         st.session_state.server_started = True

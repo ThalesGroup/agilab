@@ -52,7 +52,6 @@ dependencies = [
     "polars",
     "py7zr",
     "seaborn",
-    "scp",
     "streamlit",
     "streamlit-modal",
     "streamlit-pandas-profiling",
@@ -62,6 +61,7 @@ dependencies = [
     "ydata",
     "ydata-profiling",
     "tomli_w",
+    "asyncssh"
 ]
 
 [project.urls]

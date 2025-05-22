@@ -9,7 +9,7 @@ set -e
 #source "$HOME/.local/bin/env"
 source "$HOME/.local/share/agilab/.env"
 
-APP_INSTALL="uv run -p $AGI_PYTHON_VERSION --project ../fwk/core/managers python install.py"
+APP_INSTALL="uv -q run -p $AGI_PYTHON_VERSION --project ../fwk/core/managers python install.py"
 
 # List only the apps that you want to install
 INCLUDED_APPS=(
