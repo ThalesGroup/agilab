@@ -26,9 +26,9 @@ import warnings
 from concurrent.futures import ThreadPoolExecutor
 from agi_env import AgiEnv
 from agi_core.workers.agi_worker import AgiWorker
-
+import logging
 warnings.filterwarnings("ignore")
-
+logger = logging.getLogger(__name__)
 
 class DagWorker(AgiWorker):
     """

@@ -13,6 +13,7 @@ from pathspec import PathSpec
 import tomlkit
 import logging
 
+logger = logging.getLogger(__name__)
 
 class AgiEnv:
     install_type = None
@@ -256,6 +257,11 @@ class AgiEnv:
 
         # Remove existing handlers
         root = logging.getLogger()
+        root.setLevel(logging.WARNING)  # root logger
+        logging.getLogger('asyncssh').setLevel(logging.WARNING)
+        logging.getLogger("agi_runner").setLevel(logging.INFO)
+        logging.getLogger("agi_env").setLevel(logging.WARNING)
+
         for handler in root.handlers[:]:
             root.removeHandler(handler)
 

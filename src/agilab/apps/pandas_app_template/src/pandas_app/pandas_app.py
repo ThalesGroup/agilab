@@ -14,7 +14,7 @@ from agi_env import AgiEnv   # Added import for Agienv
 from agi_core.managers.agi_runner import AGI
 from agi_core.managers.agi_manager import AgiManager
 from agi_env import AgiEnv
-
+logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
 

@@ -41,15 +41,15 @@ from distutils.sysconfig import get_python_lib
 from pathlib import Path, PureWindowsPath, PurePosixPath
 from zipfile import ZipFile
 import psutil
-import logging
 import parso
 import humanize
 from datetime import timedelta
 from agi_env import AgiEnv
 from agi_core.managers.agi_manager import AgiManager
+import logging
 
 warnings.filterwarnings("ignore")
-
+logger = logging.getLogger(__name__)
 
 class AgiWorker(abc.ABC):
     """
