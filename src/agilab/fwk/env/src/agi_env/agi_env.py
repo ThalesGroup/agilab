@@ -1081,7 +1081,7 @@ class AgiEnv:
 
     async def exec_ssh(self, ip: str, cmd: str) -> str:
         """
-        Exécute une commande SSH sur la connexion réutilisable.
+        execute an ssh command by reusing existing connection
         """
         try:
             async with self.get_ssh_connection(ip) as conn:
@@ -1099,16 +1099,6 @@ class AgiEnv:
             raise
 
     async def exec_ssh_async(self, ip: str, cmd: str):
-        """
-        Execute une commande SSH de manière asynchrone avec logging intégré.
-
-        Args:
-            ip (str): adresse IP cible.
-            cmd (str): commande à exécuter.
-
-        Returns:
-            None
-        """
         async with self.get_ssh_connection(ip) as conn:
             process = await conn.create_process(cmd)
 
@@ -1124,8 +1114,7 @@ class AgiEnv:
 
     async def close_all_connections(self):
         """
-        Ferme proprement toutes les connexions SSH ouvertes.
-        À appeler à la fin de ton programme ou avant arrêt.
+        close ssh connections.
         """
         for conn in self._ssh_connections.values():
             conn.close()

@@ -48,6 +48,9 @@ dependencies = [
     "python-dotenv",
     "tomli",
     "logging",
+    "dask[distributed]",
+    "cython",
+    "wheel",
     "scipy==1.15.2"
 ]
 
@@ -72,9 +75,6 @@ managers = [
     "numba",
     "pydantic",
     "requests",
-    "wheel",
-    "dask[distributed]",
-    "cython",
 ]
 workers = []
 
