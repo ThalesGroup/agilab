@@ -1098,6 +1098,30 @@ class AgiEnv:
             self.log_error(f"[{ip}] SSH command failed: {e}")
             raise
 
+    async def exec_ssh_async(self, ip: str, cmd: str):
+        """
+        Execute une commande SSH de manière asynchrone avec logging intégré.
+
+        Args:
+            ip (str): adresse IP cible.
+            cmd (str): commande à exécuter.
+
+        Returns:
+            None
+        """
+        async with self.get_ssh_connection(ip) as conn:
+            process = await conn.create_process(cmd)
+
+            async def read_stream(stream, log_func):
+                async for line in stream:
+                    line = line.rstrip()
+                    log_func(f"[{ip}] {line}")
+
+            await asyncio.gather(
+                read_stream(process.stdout, self.log_info),
+                read_stream(process.stderr, self.log_error)
+            )
+
     async def close_all_connections(self):
         """
         Ferme proprement toutes les connexions SSH ouvertes.
