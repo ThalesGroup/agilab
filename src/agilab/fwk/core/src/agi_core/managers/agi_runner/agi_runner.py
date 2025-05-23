@@ -78,7 +78,7 @@ class AGI:
     """
 
     # Constants as class attributes
-    TIMEOUT = 10
+    TIMEOUT = 20
     PYTHON_MODE = 1
     CYTHON_MODE = 2
     DASK_MODE = 4
@@ -1175,7 +1175,7 @@ class AGI:
                 await env.send_file(AGI._scheduler_ip, toml_local, toml_wenv)
 
                 cmd = (
-                    f"uv -q run --project {wenv_rel} dask scheduler --port {AGI._scheduler_port} "
+                    f"cd {wenv_rel}  && uv -q run dask scheduler --port {AGI._scheduler_port} "
                     f"--host {AGI._scheduler_ip} --pid-file dask_pid"
                 )
                 # Run scheduler asynchronously over SSH without awaiting completion (fire and forget)
@@ -1184,13 +1184,13 @@ class AGI:
             try:
                 await asyncio.sleep(1)  # Give scheduler a moment to start
                 AGI._dask_client = await Client(AGI._scheduler, timeout=AGI.TIMEOUT)
+
             except Exception as e:
                 AgiEnv.log_error("Dask Client instantiation trouble, run aborted due to:")
                 AgiEnv.log_info(e)
                 exit(1)
 
             AGI._install_done = True
-
             if AGI._worker_init_error:
                 raise FileNotFoundError(f"Please run AGI.install([{AGI._scheduler_ip}])")
 
@@ -1224,49 +1224,49 @@ class AGI:
         if not await AGI._start_scheduler(scheduler):
             return
 
+        workers_started = []
         for i, (ip, n) in enumerate(AGI.workers.items()):
             export_cmd = await AGI._detect_export_cmd(ip)
             is_local = AGI._is_local(ip)
 
             for j in range(n):
-                AgiEnv.log_info(f"Starting worker #{i}.{j} on {ip}")
-
-                if is_local:
-                    pid_file = env.wenv_abs / f"dask-pid-{i}.{j}"
-                    proj_dir = env.wenv_abs
-                else:
-                    pid_file = (env.wenv_abs / f"dask-pid-{i}.{j}").resolve()
-                    proj_dir = env.wenv_abs.resolve()
-
-                pid_file_str = str(pid_file)
-                proj_dir_str = str(proj_dir)
-
-                cmd = (
-                    f'{export_cmd} '
-                    f'uv -q --project {proj_dir_str} run dask worker {AGI._scheduler} --no-nanny '
-                    f'--pid-file {pid_file_str}'
-                )
-
-                AgiEnv.log_info(f"Running command: {cmd}")
-
                 try:
+                    AgiEnv.log_info(f"Starting worker #{i}.{j} on [{ip}]")
                     if is_local:
-                        AGI._exec_bg(cmd, proj_dir_str)
+                        wenv_abs = env.wenv_abs
+                        pid_file = str(wenv_abs / f"dask-pid-{i}.{j}")
+                        cmd = (
+                            f'{export_cmd} '
+                            f'cd {str(wenv_abs)} && uv -q run dask worker {AGI._scheduler} --no-nanny '
+                            f'--pid-file {pid_file}'
+                        )
+                        AGI._exec_bg(cmd, str(wenv_abs))  # no await, local run
                     else:
-                        await env.exec_ssh_async(ip, cmd)
+                        wenv_rel = env.wenv_rel
+                        pid_file = str(wenv_rel / f"dask-pid-{i}.{j}")
+                        cmd = (
+                            f'cd {str(wenv_rel)} && '
+                            f'{export_cmd} uv -q run dask worker {AGI._scheduler} --no-nanny --pid-file ~/{pid_file}'
+                        )
+                        workers_started.append(env.exec_ssh_async(ip, cmd))
+
                 except Exception as e:
                     AgiEnv.log_error(f"Failed to start worker on {ip}: {e}")
-                    # Optionally: retry or raise
+                    raise
 
-                if AGI._worker_init_error:
-                    raise FileNotFoundError(f"Please run AGI.install([{ip}])")
+        if workers_started:
+            await asyncio.gather(*workers_started)
+
+        if AGI._worker_init_error:
+            raise FileNotFoundError(f"Please run AGI.install([{', '.join(AGI.workers.keys())}])")
 
         await AGI._sync(AGI.TIMEOUT)
+
         if (not AGI._mode_auto) or (AGI._mode < 6) or (AGI._mode & AGI.CYTHON_MODE):
             await AGI._build_lib_remote()
 
     @staticmethod
-    async def _sync(timeout=10):
+    async def _sync(timeout=60):
         if not isinstance(AGI._dask_client, Client):
             return
         start = time.time()
@@ -1276,11 +1276,16 @@ class AGI:
             runners = list(AGI._dask_client.scheduler_info()["workers"].keys())
             current_count = len(runners)
             remaining = expected_workers - current_count
+            AgiEnv.log_info(f"Current workers connected: {runners}")
+            AgiEnv.log_info(f"Waiting for workers to attach: {remaining} remaining...")
+
+            if current_count >= expected_workers:
+                break
+
             if remaining <= 0:
                 break
             if time.time() - start > timeout:
                 raise TimeoutError(f"Timeout waiting for all workers. {remaining} workers missing.")
-            AgiEnv.log_info(f"Waiting for workers to attach: {remaining} remaining...")
             await asyncio.sleep(1)
 
         AgiEnv.log_info("All workers successfully attached to scheduler")

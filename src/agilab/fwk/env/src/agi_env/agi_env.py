@@ -1109,7 +1109,7 @@ class AgiEnv:
 
             await asyncio.gather(
                 read_stream(process.stdout, self.log_info),
-                read_stream(process.stderr, self.log_error)
+                read_stream(process.stderr, self.log_info)
             )
 
     async def close_all_connections(self):
