@@ -400,7 +400,7 @@ def sidebar_controls():
     steps_file_name = st.session_state["steps_file_name"]
     lab_dir = Agi_export_abs / st.session_state["lab_dir_selectbox"]
     st.session_state.df_dir = Agi_export_abs / lab_dir
-    steps_file = env.app_src_path / steps_file_name
+    steps_file = env.app_abs / steps_file_name
     st.session_state["steps_file"] = steps_file
     steps_files = find_files(lab_dir, ".toml")
     st.session_state.steps_files = steps_files
@@ -483,7 +483,7 @@ def page():
         env = st.session_state['env']
 
     # load preprompt
-    with open(env.app_src_path / "pre_prompt.json") as f:
+    with open(env.app_abs / "pre_prompt.json") as f:
         st.session_state["lab_prompt"] = json.load(f)
     sidebar_controls()
     lab_dir = st.session_state["lab_dir"]
@@ -646,7 +646,7 @@ def main():
 
         df_dir_def = env.AGILAB_EXPORT_ABS / env.target
 
-        st.session_state.setdefault("steps_file", env.app_src_path / steps_file_name)
+        st.session_state.setdefault("steps_file", env.app_abs / steps_file_name)
         st.session_state.setdefault(
             "df_file_out", df_dir_def / ("lab_" + default_df.replace(".csv", "_out.csv"))
         )

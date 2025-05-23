@@ -1193,7 +1193,7 @@ def _render_args_ui(env):
         st.warning("Args UI snippet file not found.")
 
 def _render_pre_prompt(env):
-    pre_prompt_file = env.app_src_path / "pre_prompt.json"
+    pre_prompt_file = env.app_abs / "pre_prompt.json"
     if pre_prompt_file.exists():
         with open(pre_prompt_file, "r", encoding="utf-8") as f:
             pre_prompt_content = json.load(f)
