@@ -931,11 +931,11 @@ class AGI:
         await env.exec_ssh(ip, cmd)
 
         # continue with bootstrap and unzip...
-        cmd = python + " -m ensurepip"
+        cmd = f"cd {wenv_rel} && uv -q run -p {pyvers} python -m ensurepip"
         await env.exec_ssh(ip, cmd)
 
         # upgrade dask
-        cmd = f"cd {wenv_rel} && uv -q run python -m pip install --upgrade dask[distributed]"
+        cmd = f"cd {wenv_rel} && uv -q run -p {pyvers} python -m pip install --upgrade dask[distributed]"
         AgiEnv.log_info(f"Upgrading dask[distributed] on {ip}...")
         await env.exec_ssh(ip, cmd)
 
