@@ -191,7 +191,7 @@ class AGI:
         AGI.target_path = env.module_path
         AGI._target = env.target
         AGI._rapids_install = rapids_enabled
-        AgiEnv.log_info(f"AGI instance created for target {target} with verbosity {verbose}")
+        AgiEnv.log_info(f"AGI instance created for target {target} with verbosity {env.verbose}")
 
         if mode is None or isinstance(mode, list):
             mode_range = range(8) if mode is None else sorted(mode)
@@ -254,7 +254,7 @@ class AGI:
             if not AGI._target_module:
                 raise RuntimeError(f"failed to load {AGI._target}")
 
-            target_class = getattr(AGI._target_module, env.target_class)
+            target_class = getattr(await AGI._target_module, env.target_class)
             AGI._target_inst = target_class(env, **args)
 
             try:
@@ -445,7 +445,7 @@ class AGI:
         return ip, port
 
     @staticmethod
-    def _load_module(module, package=None, path=None):
+    async def _load_module(module, package=None, path=None):
         """load a module
 
         Args:
@@ -475,7 +475,7 @@ class AGI:
             app_path = AGI.env.app_rel
             cmd = f"uv -q add {module_to_install}"
             AgiEnv.log_info(f"{cmd} from {app_path}")
-            AgiEnv.run(cmd, app_path)
+            await AgiEnv.run(cmd, app_path)
             AGI._module_to_clean.append(module_to_install)
             return AGI._load_module(module, package, path)
 
@@ -649,16 +649,21 @@ class AGI:
 
         """
         env = AGI.env
-        wenv = env.wenv_rel
+        wenv_rel = env.wenv_rel
+        wenv_abs = env.wenv_ab
+        if wenv_abs.exists():
+            env.remove_dir_forcefully(str(wenv_abs))
+        os.makedirs(wenv_abs / "src", exist_ok=True)
 
         await env.exec_ssh(
             ip,
             cmd=(
-                "uv -q run python -c \"import os, glob, shutil\n"
-                "from tempfile import gettempdir\n"
-                "wenv_path = os.path.abspath(os.path.expanduser('$wenv'))\n"
-                "patterns = [os.path.join(gettempdir(), 'dask-scratch-space'), os.path.join(wenv_path, '*y')]\n"
-                "[shutil.rmtree(path, ignore_errors=True) for pat in patterns for path in glob.glob(pat)]\""
+                f"uv -q run python -c \"import os, glob, shutil\n"
+                f"from tempfile import gettempdir\n"
+                f"wenv_path = os.path.abspath(os.path.expanduser('{wenv_rel}'))\n"
+                f"patterns = [os.path.join(gettempdir(), 'dask-scratch-space'), os.path.join(wenv_path, '*y')]\n"
+                f"[shutil.rmtree(path, ignore_errors=True) for pat in patterns for path in glob.glob(pat)]\n"
+                f"os.makedirs(os.path.join(wenv_path, 'src'))\n\""
             )
         )
 
@@ -744,12 +749,13 @@ class AGI:
                 )
                 await env.exec_ssh(ip, cmd)
 
+                # already done when cleaning dir
                 # 4) Make remote wenv dir
-                await env.exec_ssh(
-                    ip,
-                    f"uv -q run -p {pyvers} python -c "
-                    f"\"import os; os.makedirs(r'{wenv_rel}', exist_ok=True)\""
-                )
+                # await env.exec_ssh(
+                #     ip,
+                #     f"uv -q run -p {pyvers} python -c "
+                #     f"\"import os; os.makedirs(r'{dist}', exist_ok=True)\""
+                # )
 
             except Exception as e:
                 msg = str(e).splitlines()[0]
@@ -770,13 +776,13 @@ class AGI:
         if isinstance(env.base_worker_cls, str):
             options["worker"] += " --extra " + " --extra ".join(AGI.install_worker_group)
         if AGI._mode & 4:
-            AGI._install_cluster(scheduler)
+            await AGI._install_cluster(scheduler)
         node_ips = AGI._get_clean_nodes(scheduler)
         AGI._venv_todo(node_ips)
         start_time = time.time()
         AgiEnv.log_info(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1")
 
-        AGI._install_env_local(app_path, Path(wenv_rel), options)
+        await AGI._install_env_local(app_path, Path(wenv_rel), options)
         # AgiEnv.log_info(AGI.run(cmd, wenv_abs))
         if AGI._mode & 4:
             tasks = []
@@ -784,7 +790,7 @@ class AGI:
                 AgiEnv.log_info(f"********   Starting {AGI._run_type} for Agi_worker in .venv on {ip}")
                 if not AGI._is_local(ip):
                     tasks.append(asyncio.create_task(
-                        AGI._install_env_remote(ip, env, wenv_rel, options["worker"])
+                    AGI._install_env_remote(ip, env, wenv_rel, options["worker"])
                     ))
             await asyncio.gather(*tasks)
 
@@ -815,7 +821,7 @@ class AGI:
             return False
 
     @staticmethod
-    def _install_env_local(src: Path, wenv_rel: Path, options: dict):
+    async def _install_env_local(src: Path, wenv_rel: Path, options: dict):
         """
         Installe l’environnement localement.
 
@@ -838,7 +844,7 @@ class AGI:
             cmd_manager = f"uv -q --config-file uv.toml {run_type} {options['manager']} --extra managers --project {app_path}"
 
         AgiEnv.log_info(f"Installing manager: {cmd_manager}")
-        AgiEnv.run(cmd_manager, app_path)
+        await AgiEnv.run(cmd_manager, app_path)
 
         # Copier les fichiers pyproject.toml et setup_core dans wenv_abs
         wenv_abs = env.wenv_abs
@@ -854,18 +860,18 @@ class AGI:
             cmd_worker = f"uv -q --config-file uv.toml {run_type} --project {wenv_abs} {options['worker']} --extra workers"
 
         AgiEnv.log_info(f"Installing workers: {cmd_worker}")
-        AgiEnv.run(cmd_worker, wenv_abs)
+        await AgiEnv.run(cmd_worker, wenv_abs)
 
         # Build worker lib local
-        wenv = AGI._build_worker_lib(is_local=True)
+        wenv = await AGI._build_lib_local(is_local=True)
 
         # Lancer le script post_install
-        cmd_post = f"cd {wenv} && uv -q run -p {pyvers} python {env.post_install} {env.data_dir}"
+        cmd_post = f"cd {wenv} && uv -q run -p {pyvers} python {env.app_abs / env.post_install} {env.data_dir}"
         AgiEnv.log_info(f"Running post-install script: {cmd_post}")
-        AgiEnv.run(cmd_post, wenv)
+        await AgiEnv.run(cmd_post, wenv)
 
         # Cleanup modules
-        AGI._uninstall_modules()
+        await AGI._uninstall_modules()
         AGI._install_done_local = True
 
     @staticmethod
@@ -873,18 +879,19 @@ class AGI:
         """Install packages and set up the environment on a remote node."""
         pyvers = env.python_version
         python = f"uv -q run -p {pyvers} python"
-        env = AGI.env
         wenv_abs = env.wenv_abs
         wenv_rel = env.wenv_rel
+        dist_rel = wenv_rel / "dist"
+        dist_abs = wenv_abs / "dist"
 
-
-        cmd = f"{python} -c \"import os; os.makedirs('{wenv_rel}')"
+        cmd = f"{python} -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
         await env.exec_ssh(ip, cmd)
 
         # Then send the files to the remote directory
-        egg_file = next(iter(wenv_abs.glob(f"{env.app}*.egg")), None)
+        egg_file = next(iter(dist_abs.glob(f"{env.app}*.egg")), None)
         if egg_file:
-            await env.send_files(ip, [env.setup_core, egg_file, env.pyproject, env.uvproject], wenv_rel)
+            await env.send_files(ip, [env.setup_core, env.pyproject, env.uvproject], wenv_rel)
+            await env.send_file(ip, egg_file, dist_rel)
         else:
             AgiEnv.log_error(f"searching for {wenv_abs / env.app}*.egg")
             raise FileNotFoundError("no existing egg file")
@@ -895,13 +902,11 @@ class AGI:
 
         cmd = (
             f"{python} -c \"import os, pathlib, zipfile;"
-            f" root = '{wenv_rel}';"
-            f" os.makedirs(os.path.join(root,'src'), exist_ok=True);"
-            f" [zipfile.ZipFile(str(e)).extractall(os.path.join(root,'src'))"
-            f"  for e in pathlib.Path(root).glob('*.egg')]\""
+            f"root = pathlib.Path('{wenv_rel}');"
+            f"root_src = root / 'src';"
+            f"[zipfile.ZipFile(str(e)).extractall(str(root_src))"
+            f"for e in (root / 'dist').glob('*.egg')]\""
         )
-        await env.exec_ssh(ip, cmd)
-
         await env.exec_ssh(ip, cmd)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
@@ -920,7 +925,7 @@ class AGI:
         else:
             sync_cmd = f"cd {wenv_rel} && uv -q --config-file uv.toml sync --upgrade {option}"
 
-        await env.exec_ssh(ip, sync_cmd);
+        await env.exec_ssh(ip, sync_cmd)
 
         # 7) Post-install script
         cmd = f"cd {wenv_rel} && uv -q run -p {pyvers} python {env.post_install} {env.data_dir}"
@@ -949,32 +954,30 @@ class AGI:
 
         # build agi_env*.whl
         wenv = env.agi_fwk_env_path
-        dist = wenv / "dist"
         cmd = f"cd {wenv} && uv -q build --wheel"
-        AgiEnv.run(cmd, venv=wenv)
-
+        await AgiEnv.run(cmd, venv=wenv)
+        dist = wenv / "dist"
         whl = next(iter(dist.glob("agi_env*.whl")))
         if whl:
-            await env.send_file(ip, whl, wenv_rel)
+            await env.send_file(ip, whl, dist_rel)
         else:
             raise RuntimeError(cmd)
 
-        cmd = f"cd {wenv_rel} && uv -q add {Path(whl).name}"
+        cmd = f"cd {dist_rel} && uv -q add {Path(whl).name}"
         await env.exec_ssh(ip, cmd)
 
         # build agi_core*.whl
         wenv = env.core_root
-        dist = wenv / "dist"
         cmd = f"cd {wenv} && uv -q build --wheel"
-        AgiEnv.run(cmd, venv=wenv)
-
+        await AgiEnv.run(cmd, venv=wenv)
+        dist = wenv / "dist"
         whl = next(iter(dist.glob("agi_core*.whl" )))
         if whl:
-            await env.send_file(ip, whl, wenv_rel)
+            await env.send_file(ip, whl, dist_rel)
         else:
             raise RuntimeError(cmd)
 
-        cmd = f"cd {wenv_rel} && uv -q add {Path(whl).name}"
+        cmd = f"cd {dist_rel} && uv -q add {Path(whl).name}"
         await env.exec_ssh(ip, cmd)
         out_dir = Path('..') / wenv_rel.name
         # build target_worker lib
@@ -987,12 +990,12 @@ class AGI:
         return str(getpass.getuser()).startswith("T0") and not (Path(sys.prefix) / "Scripts/pip.exe").exists()
 
     @staticmethod
-    def _uninstall_modules():
+    async def _uninstall_modules():
         """Uninstall specified modules."""
         for module in AGI._module_to_clean:
             cmd = f"uv -q run python -m pip uninstall {module} -y"
             AgiEnv.log_info(f"Executing: {cmd}")
-            AgiEnv.run(cmd, AGI.env.core_root)
+            await AgiEnv.run(cmd, AGI.env.core_root)
         AGI._module_to_clean.clear()
 
     @staticmethod
@@ -1258,7 +1261,7 @@ class AGI:
 
         # optionally build Cython/cluster libs
         if (not AGI._mode_auto) or (AGI._mode < 6) or (AGI._mode & AGI.CYTHON_MODE):
-            await AGI._build_cluster_libs()
+            await AGI._build_lib_remote()
 
 
     @staticmethod
@@ -1300,7 +1303,7 @@ class AGI:
         AgiEnv.log_info(f"All workers successfully attached to scheduler")
 
     @staticmethod
-    def _build_worker_lib(is_local=True):
+    async def _build_lib_local(is_local=True):
         """
 
         Args:
@@ -1313,6 +1316,7 @@ class AGI:
         wenv = AgiEnv.normalize_path(str(env.wenv_abs))
         is_cy = AGI._mode & AGI.CYTHON_MODE
         packages = "agi_worker, "
+
         baseworker = env.base_worker_cls
         if baseworker.startswith("Agent"):
             packages += "agent_worker"
@@ -1327,17 +1331,18 @@ class AGI:
         wenv_abs = env.wenv_abs
         shutil.copy(env.setup_core, app_path)
         cmd = f"cd {app_path} && uv -q run python setup bdist_egg --packages \"{packages}\" -d {wenv_abs}"
-        AgiEnv.run(cmd, app_path)
+        await AgiEnv.run(cmd, app_path)
+
         # compile in cython when cython is requested
         if is_local:
             cmd = f"cd {wenv_abs} && uv -q pip install -e ."
-            AgiEnv.run(cmd, wenv_abs)
+            await AgiEnv.run(cmd, wenv_abs)
 
             if is_cy:
                 # cython compilation of wenv/src into wenw
                 shutil.copy(env.setup_core, wenv_abs)
                 cmd = f"cd {app_path} && uv -q run python setup build_ext -b {wenv_abs}"
-                res = AgiEnv.run(cmd, app_path)
+                res = await AgiEnv.run(cmd, app_path)
                 worker_lib = next(iter(wenv_abs.glob("*_cy.*")), None)
                 if not worker_lib:
                     raise RuntimeError(cmd)
@@ -1373,11 +1378,11 @@ class AGI:
         return wenv
 
     @staticmethod
-    async def _build_cluster_libs():
+    async def _build_lib_remote():
         """
         workers init
         """
-        AGI._build_worker_lib(is_local=False)
+        await AGI._build_lib_local(is_local=False)
 
         # worker
         if (AGI._dask_client.scheduler.pool.open == 0) and AGI._verbose:
@@ -1385,7 +1390,7 @@ class AGI:
             AgiEnv.log_info("warning: no scheduler found but requested mode is dask=1 => switch to dask")
 
     @staticmethod
-    def _run_local():
+    async def _run_local():
         """
 
         Returns:
@@ -1413,11 +1418,11 @@ class AGI:
             if cython_libs:
                 lib_path = AgiEnv.normalize_path(cython_libs[0])
             else:
-                AGI._build_worker_lib(is_local=True)
+                AGI._build_lib_local(is_local=True)
         # do distribut
         cmd = (f'uv -q run --project {env.wenv_abs} python -c "from agi_core.workers.agi_worker import AgiWorker;'
                f'print(AgiWorker.run(\'{env.app}\', {AGI.workers}, {AGI._mode}, {AGI._verbose}, {AGI._args}))"')
-        res = AgiEnv.run(cmd, env.wenv_abs)
+        res = await AgiEnv.run(cmd, env.wenv_abs)
         return res.split('\n')[-2]
 
     @staticmethod
@@ -1430,7 +1435,7 @@ class AGI:
 
         if (AGI._mode & AGI.DEPLOYEMENT_MASK) == AGI.SIMULATE_MODE:
             # case simulate mode #0b11xxxx
-            res = AGI._run_local()
+            res = await AGI._run_local()
 
         elif AGI._mode >= AGI.INSTALL_MODE:
             # case install modes
@@ -1460,7 +1465,7 @@ class AGI:
             AGI._update_model()
 
             # stop the cluster
-            AGI._stop()
+            await AGI._stop()
         else:
             # case local run
             res = AGI._run_local()
@@ -1580,9 +1585,10 @@ class AGI:
         return f"{env.mode2str(AGI._mode)} {runtime}"
 
     @staticmethod
-    def _stop():
+    async def _stop():
         """Stop the Dask workers and scheduler"""
-        AgiEnv.log_info(f"stop Agi fwk")
+        env = AGI.env
+        env.log_info(f"stop Agi fwk")
 
         # AGI._dask_client.retire_workers() # causing comm close error on ubuntu
 
@@ -1596,6 +1602,8 @@ class AGI:
                 AGI._mode_auto and (AGI._mode == 7 or AGI._mode == 15)
         ) or not AGI._mode_auto:
             AGI._dask_client.shutdown()
+
+        await env.close_all_connections()
 
     @staticmethod
     def make_chunks(nchunk2, weights: list, capacities=None, verbose=0, threshold=12):
