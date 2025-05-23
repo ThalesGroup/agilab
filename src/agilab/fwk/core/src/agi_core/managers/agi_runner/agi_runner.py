@@ -924,11 +924,19 @@ class AGI:
             sync_cmd = f"cd {wenv_rel} && uv -q sync --upgrade {option}"
         else:
             sync_cmd = f"cd {wenv_rel} && uv -q --config-file uv.toml sync --upgrade {option}"
-
         await env.exec_ssh(ip, sync_cmd)
 
         # 7) Post-install script
         cmd = f"cd {wenv_rel} && uv -q run -p {pyvers} python {env.post_install} {env.data_dir}"
+        await env.exec_ssh(ip, cmd)
+
+        # continue with bootstrap and unzip...
+        cmd = python + " -m ensurepip"
+        await env.exec_ssh(ip, cmd)
+
+        # upgrade dask
+        cmd = f"cd {wenv_rel} && uv -q run python -m pip install --upgrade dask[distributed]"
+        AgiEnv.log_info(f"Upgrading dask[distributed] on {ip}...")
         await env.exec_ssh(ip, cmd)
 
         #####################################################
@@ -1155,6 +1163,7 @@ class AGI:
                     f"--host {AGI._scheduler_ip} --pid-file dask_pid"
                 )
                 AgiEnv.log_info(f"Starting dask scheduler locally: {cmd}")
+                AgiEnv.log_info(f"Starting dask scheduler locally: {cmd}")
                 result = AGI._exec_bg(cmd, env.app_rel)  # assuming _exec_bg is sync
                 AgiEnv.log_info(result)
             else:
@@ -1211,96 +1220,70 @@ class AGI:
 
     @staticmethod
     async def _start(scheduler):
-        """
-        Start Dask workers on local and remote hosts,
-        setting PATH correctly for each OS.
-        """
-        # helper to pick export_local_bin for a given host
-
         env = AGI.env
-        # start the scheduler first
         if not await AGI._start_scheduler(scheduler):
             return
 
-        # launch each worker
         for i, (ip, n) in enumerate(AGI.workers.items()):
             export_cmd = await AGI._detect_export_cmd(ip)
+            is_local = AGI._is_local(ip)
 
             for j in range(n):
-                AgiEnv.log_info(f"starting worker #{i}.{j} on {ip}")
+                AgiEnv.log_info(f"Starting worker #{i}.{j} on {ip}")
 
-                # choose absolute vs. relative paths
-                if AGI._is_local(ip):
-                    pid_file = env.wenv_abs / "dask-pid"
+                if is_local:
+                    pid_file = env.wenv_abs / f"dask-pid-{i}.{j}"
                     proj_dir = env.wenv_abs
                 else:
-                    AGI._install_done = True
-                    pid_file = Path(env.wenv_rel) / "dask-pid"
-                    wenv_rel = env.wenv_rel
+                    pid_file = (env.wenv_abs / f"dask-pid-{i}.{j}").resolve()
+                    proj_dir = env.wenv_abs.resolve()
 
-                # build the command
+                pid_file_str = str(pid_file)
+                proj_dir_str = str(proj_dir)
+
                 cmd = (
                     f'{export_cmd} '
-                    f'uv -q --project {env.wenv_abs} run dask worker {AGI._scheduler} --no-nanny '
-                    f'--pid-file {pid_file}#{i}.{j}'
+                    f'uv -q --project {proj_dir_str} run dask worker {AGI._scheduler} --no-nanny '
+                    f'--pid-file {pid_file_str}'
                 )
 
-                AgiEnv.log_info(cmd)
+                AgiEnv.log_info(f"Running command: {cmd}")
 
-                # execute locally or over SSH
-                if AGI._is_local(ip):
-                    AGI._exec_bg(cmd, env.wenv_abs)
-                else:
-                    await env.exec_ssh_async(ip, cmd)
+                try:
+                    if is_local:
+                        AGI._exec_bg(cmd, proj_dir_str)
+                    else:
+                        await env.exec_ssh_async(ip, cmd)
+                except Exception as e:
+                    AgiEnv.log_error(f"Failed to start worker on {ip}: {e}")
+                    # Optionally: retry or raise
 
                 if AGI._worker_init_error:
                     raise FileNotFoundError(f"Please run AGI.install([{ip}])")
 
-        # wait for all workers to sync
-        await AGI._sync()
-
-        # optionally build Cython/cluster libs
+        await AGI._sync(AGI.TIMEOUT)
         if (not AGI._mode_auto) or (AGI._mode < 6) or (AGI._mode & AGI.CYTHON_MODE):
             await AGI._build_lib_remote()
 
-
     @staticmethod
-    async def _sync():
-        """
-        wait for all dask workers started
-        """
+    async def _sync(timeout=10):
         if not isinstance(AGI._dask_client, Client):
             return
-        runners = list(AGI._dask_client.scheduler_info()["workers"].keys())
-        ip_counts = {}
-
-        # initialize ip_counts list with 0 workers per IP
-        for i, (ip_worker, n_workers) in enumerate(AGI.workers.items()):
-            ip_counts[ip_worker] = 0
-
-        for runner in runners:
-            # Split the worker_key using ":" to separate the IP and port
-            ip_runner = runner.split(":")[1][
-                        2:
-                        ]  # retrieve IP address of runner, ignore port number
-            ip_counts[ip_runner] += 1
+        start = time.time()
+        expected_workers = sum(AGI.workers.values())
 
         while True:
             runners = list(AGI._dask_client.scheduler_info()["workers"].keys())
-            worker_to_start = sum(AGI.workers.values()) - len(runners)
-
-            if not worker_to_start:
+            current_count = len(runners)
+            remaining = expected_workers - current_count
+            if remaining <= 0:
                 break
+            if time.time() - start > timeout:
+                raise TimeoutError(f"Timeout waiting for all workers. {remaining} workers missing.")
+            AgiEnv.log_info(f"Waiting for workers to attach: {remaining} remaining...")
+            await asyncio.sleep(1)
 
-            for i, (ip_worker, n_workers) in enumerate(AGI.workers.items(), start=1):
-                count_runners = ip_counts[ip_worker]
-
-                if count_runners <= n_workers:
-                    nb_remaining_workers = n_workers - count_runners
-                    AgiEnv.log_info(f"waiting for workers to attach: {nb_remaining_workers}")
-            time.sleep(1)
-
-        AgiEnv.log_info(f"All workers successfully attached to scheduler")
+        AgiEnv.log_info("All workers successfully attached to scheduler")
 
     @staticmethod
     async def _build_lib_local(is_local=True):
