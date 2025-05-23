@@ -1220,11 +1220,15 @@ class AGI:
 
     @staticmethod
     async def _start(scheduler):
+        """
+        Start Dask workers on local and remote hosts,
+        setting PATH correctly for each OS.
+        """
         env = AGI.env
+        # Start the scheduler first
         if not await AGI._start_scheduler(scheduler):
             return
 
-        workers_started = []
         for i, (ip, n) in enumerate(AGI.workers.items()):
             export_cmd = await AGI._detect_export_cmd(ip)
             is_local = AGI._is_local(ip)
@@ -1232,36 +1236,44 @@ class AGI:
             for j in range(n):
                 try:
                     AgiEnv.log_info(f"Starting worker #{i}.{j} on [{ip}]")
+
                     if is_local:
                         wenv_abs = env.wenv_abs
                         pid_file = str(wenv_abs / f"dask-pid-{i}.{j}")
                         cmd = (
                             f'{export_cmd} '
-                            f'cd {str(wenv_abs)} && uv -q run dask worker {AGI._scheduler} --no-nanny '
-                            f'--pid-file {pid_file}'
+                            f'cd {wenv_abs} && uv -q run dask worker {AGI._scheduler} --no-nanny '
+                            f'--pid-file ~/{pid_file}'
                         )
-                        AGI._exec_bg(cmd, str(wenv_abs))  # no await, local run
+                        # Run locally in background (non-blocking)
+                        AGI._exec_bg(cmd, str(wenv_abs))
+
                     else:
                         wenv_rel = env.wenv_rel
-                        pid_file = str(wenv_rel / f"dask-pid-{i}.{j}")
+                        # Assure que le dossier distant existe
+                        cmd = (f"uv run python -c \"import pathlib, os;"
+                               f"os.makedirs(pathlib.Path().home() / '{wenv_rel}', exist_ok=True)\"")
+                        await env.exec_ssh(ip, cmd)
+                        pid_file = f"dask-pid-{i}.{j}"
                         cmd = (
-                            f'cd {str(wenv_rel)} && '
-                            f'{export_cmd} uv -q run dask worker {AGI._scheduler} --no-nanny --pid-file ~/{pid_file}'
+                            f'cd {wenv_rel} && {export_cmd} uv -q run dask worker {AGI._scheduler} --no-nanny '
+                            f'--pid-file ~/{pid_file}'
                         )
-                        workers_started.append(env.exec_ssh_async(ip, cmd))
+                        # Lancer la commande distamment sans attendre la fin (fire-and-forget)
+                        env.exec_ssh_async(ip, cmd)
 
                 except Exception as e:
                     AgiEnv.log_error(f"Failed to start worker on {ip}: {e}")
                     raise
 
-        if workers_started:
-            await asyncio.gather(*workers_started)
+                if AGI._worker_init_error:
+                    raise FileNotFoundError(f"Please run AGI.install([{ip}])")
 
-        if AGI._worker_init_error:
-            raise FileNotFoundError(f"Please run AGI.install([{', '.join(AGI.workers.keys())}])")
+        # Ne PAS await sur l’exécution des commandes distantes
+        # Attendre que les workers se connectent effectivement
+        await AGI._sync(timeout=60)
 
-        await AGI._sync(AGI.TIMEOUT)
-
+        # Optionnel : construire les libs distantes si nécessaire
         if (not AGI._mode_auto) or (AGI._mode < 6) or (AGI._mode & AGI.CYTHON_MODE):
             await AGI._build_lib_remote()
 
