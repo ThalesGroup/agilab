@@ -144,6 +144,18 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
 
     return created_links
 
+def cleanup_links(links: list[Path]) -> None:
+    for link in links:
+        try:
+            if link.is_symlink() or link.exists():
+                logging.info(f"Removing link or file: {link}")
+                if link.is_dir() and not link.is_symlink():
+                    shutil.rmtree(link)
+                else:
+                    link.unlink()
+        except Exception as e:
+            logging.warning(f"Failed to remove {link}: {e}")
+
 def main() -> None:
 
     cwd = Path(__file__).parent
@@ -166,7 +178,7 @@ def main() -> None:
 
     # Rebuild sys.argv for setuptools with correct flags
     flag = '-b' if cmd == 'build_ext' else '-d'
-    sys.argv = [sys.argv[0], cmd, flag, p]
+    sys.argv = [sys.argv[0], cmd, flag, p / "dist"]
 
     # ext_path only relevant for build_ext
     ext_path = None
@@ -193,11 +205,9 @@ def main() -> None:
     target_module = target_pkg.replace("-", "_")
     env = AgiEnv(active_app=target_pkg + "_project", install_type=install_type)
 
-    custom_modules = ["agi_worker", "agi_env"] + packages
     worker_module = target_module + "_worker"
     links_created: list[Path] = []
     ext_modules = []
-    copies = []
 
     # Change directory to build_dir BEFORE setup if build_ext
     if cmd == 'build_ext':
@@ -218,13 +228,13 @@ def main() -> None:
     elif install_type != 2:
         # For bdist_egg copy modules under src
         os.chdir(env.app_rel)
-        for module in custom_modules:
+        for module in packages:
             links_created.extend(create_symlink_for_module(env, module))
 
     # Discover packages and combine with custom modules
     package_dir = {'': 'src'}
     found_pkgs = find_packages(where='src')
-    all_packages = found_pkgs + custom_modules
+    all_pkgs = found_pkgs + packages
 
     # TO SUPPRESS WARNING
     readme = "README.md"
@@ -237,7 +247,7 @@ def main() -> None:
         name=worker_module,
         version="0.1.0",
         package_dir=package_dir,
-        packages=all_packages,
+        packages=all_pkgs,
         include_package_data=True,
         package_data={'': ['*.7z']},
         ext_modules=ext_modules,
@@ -263,9 +273,9 @@ def main() -> None:
         os.system(cmd)
 
         # Cleanup copied modules
-        for c in copies:
-            shutil.rmtree(c, ignore_errors=True)
-        logging.info("Cleanup complete.")
+        if links_created:
+            cleanup_links(links_created)
+            logging.info("Cleanup of created symlinks/files done.")
 
 if __name__ == "__main__":
     main()

@@ -97,6 +97,7 @@ class AgiEnv:
         # Debug message about initialization
         logging.debug(f"Logging initialized at level {logging.getLevelName(level)}")
 
+
     def __init__(self, install_type: int = None, apps_dir: Path = None,
                  active_app: Path | str = None, active_module: Path = None, verbose: int = 1):
         AgiEnv.verbose = verbose
@@ -210,9 +211,7 @@ class AgiEnv:
         self.module_path = self.app_src / self.module / f"{self.module}.py"
         self.pyproject = self.worker_path.parent / "pyproject.toml"
         self.uvproject = self.worker_path.parent / "uv.toml"
-
         self.agi_core = self.resolve_packages_path_in_toml()
-
         self.projects = self.get_projects(self.apps_dir)
 
         if not self.projects:
@@ -248,11 +247,9 @@ class AgiEnv:
         else:
             self.module_path = self._determine_module_path(self.module)
         self.target = self.module_path.stem
-
         self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", "data"))
         self.data_dir = self.AGILAB_SHARE / self.target
         self.dataframes_path = self.data_dir / "dataframes"
-
         self._init_projects()
 
         self.scheduler_ip = envars.get("AGI_SCHEDULER_IP", "127.0.0.1")
@@ -303,14 +300,11 @@ class AgiEnv:
             self.init_envars_app(self.envars)
             self._init_apps()
 
-        if self.wenv_abs.exists():
-            shutil.rmtree(str(self.wenv_abs))
-        os.makedirs(self.wenv_abs)
-
         if os.name == "nt":
             self.export_local_bin = 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
         else:
             self.export_local_bin = 'export PATH="$HOME/.local/bin:$PATH";'
+        self._ssh_connections = {}  # cache connexions par IP
 
     def active(self, target, install_type):
         if self.module != target:
@@ -709,7 +703,7 @@ class AgiEnv:
             logging.error(msg)
 
     @staticmethod
-    def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
+    async def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
         """
         Run a shell command synchronously inside a virtual environment.
         Log stdout lines as info, stderr lines as error.
@@ -1033,24 +1027,28 @@ class AgiEnv:
 
     @asynccontextmanager
     async def get_ssh_connection(self, ip: str, timeout_sec: int = 5):
-        user = self.user
-        password = self.password
-
-        if not user:
+        if not self.user:
             raise ValueError("SSH username is not configured. Please set 'user' in your .env file.")
 
-        conn = None
+        conn = self._ssh_connections.get(ip)
+        if conn and not conn.is_closed():
+            # Connexion existante valide, réutilisation
+            yield conn
+            return
+
+        # Sinon, créer une nouvelle connexion
         try:
             conn = await asyncio.wait_for(
                 asyncssh.connect(
                     ip,
-                    username=user,
-                    password=password,
+                    username=self.user,
+                    password=self.password,
                     known_hosts=None,
                     client_keys=None,
                 ),
                 timeout=timeout_sec
             )
+            self._ssh_connections[ip] = conn
             yield conn
 
         except asyncio.TimeoutError:
@@ -1059,16 +1057,15 @@ class AgiEnv:
             raise ConnectionError(err_msg)
 
         except asyncssh.PermissionDenied:
-            err_msg = f"Authentication failed for SSH user '{user}' on host {ip}."
+            err_msg = f"Authentication failed for SSH user '{self.user}' on host {ip}."
             self.log_error(err_msg)
             raise ConnectionError(err_msg)
 
         except OSError as e:
-            if e.errno == errno.EHOSTUNREACH or e.errno == 113:
+            if e.errno in (errno.EHOSTUNREACH, 113):
                 err_msg = (
                     f"Unable to connect to {ip} on SSH port 22. "
-                    "Please check that the device is powered on, the network cable is connected, "
-                    "and the SSH service is running."
+                    "Please check that the device is powered on, network cable connected, and SSH service running."
                 )
                 self.log_error(err_msg)
                 raise ConnectionError(err_msg)
@@ -1077,19 +1074,15 @@ class AgiEnv:
 
         except asyncssh.Error:
             err_msg = (
-                f"Could not connect to {ip}. Please check the device is reachable, "
-                "network cable connected, and SSH service running."
+                f"Could not connect to {ip}. Please check device is reachable, network cable connected, and SSH service running."
             )
             self.log_error(err_msg)
             raise ConnectionError(err_msg)
 
-        finally:
-            if conn is not None:
-                conn.close()
-                await conn.wait_closed()
-
     async def exec_ssh(self, ip: str, cmd: str) -> str:
-        """Run remote command asynchronously via SSH using asyncssh."""
+        """
+        Exécute une commande SSH sur la connexion réutilisable.
+        """
         try:
             async with self.get_ssh_connection(ip) as conn:
                 result = await conn.run(cmd, check=True)
@@ -1104,6 +1097,22 @@ class AgiEnv:
         except (asyncssh.Error, OSError) as e:
             self.log_error(f"[{ip}] SSH command failed: {e}")
             raise
+
+    async def close_all_connections(self):
+        """
+        Ferme proprement toutes les connexions SSH ouvertes.
+        À appeler à la fin de ton programme ou avant arrêt.
+        """
+        for conn in self._ssh_connections.values():
+            conn.close()
+            await conn.wait_closed()
+        self._ssh_connections.clear()
+
+    def log_info(self, msg):
+        print("INFO:", msg)  # Ou ta méthode de log
+
+    def log_error(self, msg):
+        print("ERROR:", msg)  # Ou ta méthode de log
 
     async def send_file(
             self,
@@ -1159,3 +1168,67 @@ class AgiEnv:
         await asyncio.gather(*tasks)
         self.log_info(f"Sent {len(files)} files to {user}@{ip}:{remote_dir}")
 
+    def remove_dir_forcefully(self, path):
+        import shutil
+        import os
+
+        def onerror(func, path, exc_info):
+            import stat
+            if not os.access(path, os.W_OK):
+                os.chmod(path, stat.S_IWUSR)
+                func(path)
+            else:
+                logging.error(f"Failed to remove {path} due to {exc_info[1]}")
+
+        try:
+            shutil.rmtree(path, onerror=onerror)
+        except Exception as e:
+            logging.error(f"Exception while deleting {path}: {e}")
+            # Optionally, retry after delay
+            time.sleep(1)
+            try:
+                shutil.rmtree(path, onerror=onerror)
+            except Exception as e2:
+                logging.error(f"Second failure deleting {path}: {e2}")
+                raise
+
+    @staticmethod
+    def log_info(line):
+        GREEN = "\033[32m"
+        RESET = "\033[0m"
+
+        if not isinstance(line, str):
+            line = str(line)
+
+        if line and len(line) >= 14:
+            msg_type = line[10:14]
+            if msg_type == 'INFO' or msg_type == 'ERRO':
+                if level:
+                    print(line)
+            else:
+                msg = f"{GREEN}{line}{RESET}" if sys.stdout.isatty() else line
+                logging.info(msg)
+        else:
+            msg = f"{GREEN}{line}{RESET}" if sys.stdout.isatty() else line
+            logging.info(msg)
+
+    @staticmethod
+    def log_error(line):
+        RED = "\033[31m"
+        RESET = "\033[0m"
+
+        # If input is exception or not string, convert to string safely
+        if not isinstance(line, str):
+            line = str(line)
+
+        if line and len(line) >= 14:
+            msg_type = line[10:14]
+            if msg_type == 'INFO' or msg_type == 'ERRO':
+                if level:
+                    print(line)
+            else:
+                msg = f"{RED}{line}{RESET}" if sys.stdout.isatty() else line
+                logging.error(msg)
+        else:
+            msg = f"{RED}{line}{RESET}" if sys.stdout.isatty() else line
+            logging.error(msg)
