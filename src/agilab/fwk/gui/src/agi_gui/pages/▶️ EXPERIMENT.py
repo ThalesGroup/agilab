@@ -483,7 +483,7 @@ def page():
         env = st.session_state['env']
 
     # load preprompt
-    with open(env.app_abs / "pre_prompt.json") as f:
+    with open(env.app_src / "pre_prompt.json") as f:
         st.session_state["lab_prompt"] = json.load(f)
     sidebar_controls()
     lab_dir = st.session_state["lab_dir"]
