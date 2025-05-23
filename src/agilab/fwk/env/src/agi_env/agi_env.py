@@ -761,7 +761,7 @@ class AgiEnv:
                         if log_callback:
                             log_callback(line)
                         elif msg_type == "INFO":
-                                AgiEnv.log_info(line[6:])
+                                AgiEnv.log_info(line)
                         else:
                             AgiEnv.log_error(line)
 
