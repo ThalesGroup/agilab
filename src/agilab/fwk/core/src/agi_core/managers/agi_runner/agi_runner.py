@@ -782,7 +782,7 @@ class AGI:
         start_time = time.time()
         AgiEnv.log_info(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1")
 
-        await AGI._install_env_local(app_path, Path(wenv_rel), options)
+        await AGI._install_app_local(app_path, Path(wenv_rel), options)
         # AgiEnv.log_info(AGI.run(cmd, wenv_abs))
         if AGI._mode & 4:
             tasks = []
@@ -790,7 +790,7 @@ class AGI:
                 AgiEnv.log_info(f"********   Starting {AGI._run_type} for Agi_worker in .venv on {ip}")
                 if not AGI._is_local(ip):
                     tasks.append(asyncio.create_task(
-                    AGI._install_env_remote(ip, env, wenv_rel, options["worker"])
+                    AGI._install_app_remote(ip, env, wenv_rel, options["worker"])
                     ))
             await asyncio.gather(*tasks)
 
@@ -821,7 +821,7 @@ class AGI:
             return False
 
     @staticmethod
-    async def _install_env_local(src: Path, wenv_rel: Path, options: dict):
+    async def _install_app_local(src: Path, wenv_rel: Path, options: dict):
         """
         Installe l’environnement localement.
 
@@ -875,7 +875,7 @@ class AGI:
         AGI._install_done_local = True
 
     @staticmethod
-    async def _install_env_remote(ip: str, env, wenv_rel: Path, option: str):
+    async def _install_app_remote(ip: str, env, wenv_rel: Path, option: str):
         """Install packages and set up the environment on a remote node."""
         pyvers = env.python_version
         python = f"uv -q run -p {pyvers} python"
@@ -1187,27 +1187,27 @@ class AGI:
 
         return True
 
-        @staticmethod
-        async def _detect_export_cmd(ip: str) -> str:
-            if AGI._is_local(ip):
-                return AGI.env.export_local_bin
+    @staticmethod
+    async def _detect_export_cmd(ip: str) -> str:
+        if AGI._is_local(ip):
+            return AGI.env.export_local_bin
 
-            # probe remote OS via SSH
-            try:
-                proc = await asyncio.create_subprocess_shell(
-                    f'ssh {ip} uname -s',
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.DEVNULL
-                )
-                out, _ = await proc.communicate()
-                os_id = out.decode().strip().lower()
-            except Exception:
-                os_id = ''
+        # probe remote OS via SSH
+        try:
+            proc = await asyncio.create_subprocess_shell(
+                f'ssh {ip} uname -s',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL
+            )
+            out, _ = await proc.communicate()
+            os_id = out.decode().strip().lower()
+        except Exception:
+            os_id = ''
 
-            if any(x in os_id for x in ('linux', 'darwin', 'bsd')):
-                return 'export PATH="$HOME/.local/bin:$PATH";'
-            else:
-                return 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
+        if any(x in os_id for x in ('linux', 'darwin', 'bsd')):
+            return 'export PATH="$HOME/.local/bin:$PATH";'
+        else:
+            return 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
 
     @staticmethod
     async def _start(scheduler):
