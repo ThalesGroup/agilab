@@ -35,6 +35,7 @@ from tempfile import gettempdir
 from typing import Any, Dict, List, Optional, Union
 import sysconfig
 from asyncssh import ProcessError
+from contextlib import redirect_stdout, redirect_stderr
 
 # External Libraries
 import humanize
@@ -575,26 +576,33 @@ class AGI:
             except Exception as e:
                 AgiEnv.log_warning(f"Failed to remove pid file {pid_file}: {e}")
 
-        python_exe = "uv -q run python"
         cmds: list[str] = []
 
         # 2) If force, kill by process name
         if force:
-            cmds.append(
-                python_exe
-                + ' -c "import psutil, getpass; me=getpass.getuser(); '
-                  "[p.terminate() for p in psutil.process_iter(attrs=['name','username']) "
-                  "if p.info['username']==me and p.info['name'].startswith('dask')]"
-                  '"'
+            cmd = (
+                'uv run python -c "'
+                'import getpass, os, psutil; '
+                'me = getpass.getuser(); '
+                'self_pid = os.getpid(); '
+                'for p in psutil.process_iter([\'pid\', \'username\', \'cmdline\']): '
+                '    try: '
+                '        if (p.info[\'username\'] and p.info[\'username\'].endswith(me) '
+                '            and p.info[\'pid\'] != self_pid '
+                '            and p.info[\'cmdline\'] '
+                '            and any(\'dask\' in s.lower() for s in p.info[\'cmdline\'])): '
+                '            p.kill() '
+                '    except (psutil.NoSuchProcess, psutil.AccessDenied): '
+                '        pass"'
             )
+            cmds.append(cmd)
 
         # 3) If we found any explicit pid files, terminate those PIDs
         if pids_to_kill:
             cmds.append(
-                python_exe
-                + ' -c "import os, psutil; '
+                  'uv -q run python -c "import os, psutil; '
                   f"pids={pids_to_kill}; "
-                  "[psutil.Process(pid).terminate() for pid in pids if pid!=os.getpid()]"
+                  "[psutil.Process(p).terminate() for p in pids if p!=os.getpid()]"
                   '"'
             )
 
@@ -605,7 +613,7 @@ class AGI:
             if AGI._is_local(ip):
                 AGI.run(cmd, cwd)
             else:
-                await env.exec_ssh(ip, cmd)
+                last_res = await env.exec_ssh(ip, cmd)
 
             # handle tuple or dict result
             if isinstance(last_res, dict):
@@ -668,7 +676,7 @@ class AGI:
         )
 
     @staticmethod
-    def _get_clean_nodes(scheduler):
+    async def _get_clean_nodes(scheduler):
         list_ip = set(list(AGI.workers) + [AGI._get_scheduler(scheduler)[0]])
         localhost_ip = socket.gethostbyname("localhost")
         if not list_ip:
@@ -676,20 +684,32 @@ class AGI:
         for ip in list_ip:
             if not AGI._is_local(ip) and not is_ip(ip):
                 raise ValueError("error: invalid ip address")
-        for ip in list_ip:
-            try:
-                if not AGI._is_local(ip) and (AGI._mode & 4):
-                    AGI._kill(ip, os.getpid(), force=True)
-            except:
-                pass
 
-                # remove the dask tempdir, the build dirs and the wenv dirs
+        for ip in list_ip:                # remove the dask tempdir, the build dirs and the wenv dirs
             if AGI._is_local(ip):
+                me = getpass.getuser()
+                self_pid = os.getpid()
+
+                for p in psutil.process_iter(['pid', 'username', 'cmdline']):
+                    try:
+                        if (
+                                p.info['username'].endswith(me)
+                                and p.info['pid'] != self_pid
+                                and p.info['cmdline']
+                                and any('dask' in s.lower() for s in p.info['cmdline'])
+                        ):
+                            p.kill()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
                 AGI._clean_dirs_local()
             else:
+                try:
+                    await AGI._kill(ip, os.getpid(), force=True)
+                except:
+                    pass
                 AGI._clean_dirs(ip)
-        return list_ip
 
+        return list_ip
 
     @staticmethod
     async def _install_cluster(scheduler):
@@ -777,7 +797,7 @@ class AGI:
             options["worker"] += " --extra " + " --extra ".join(AGI.install_worker_group)
         if AGI._mode & 4:
             await AGI._install_cluster(scheduler)
-        node_ips = AGI._get_clean_nodes(scheduler)
+        node_ips = await AGI._get_clean_nodes(scheduler)
         AGI._venv_todo(node_ips)
         start_time = time.time()
         AgiEnv.log_info(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1")
@@ -884,7 +904,7 @@ class AGI:
         dist_rel = wenv_rel / "dist"
         dist_abs = wenv_abs / "dist"
 
-        cmd = f"{python} -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
+        cmd = f"python3 -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
         await env.exec_ssh(ip, cmd)
 
         # Then send the files to the remote directory
@@ -1079,8 +1099,8 @@ class AGI:
 
     @staticmethod
     async def update(
-            module_name, module_path, scheduler: Optional[str] = None, workers: Optional[Dict[str, int]] = None,
-            modes_enabled=RUN_MASK, verbose=1, **args
+            module_name, scheduler: Optional[str]=None, workers: Optional[Dict[str, int]]=None,
+            env=None, modes_enabled=RUN_MASK, verbose=1, **args
     ):
         """
         install cluster virtual environment
@@ -1097,8 +1117,8 @@ class AGI:
 
         """
         AGI._run_type = "upgrade"
-        await AGI.run(module_name_or_path, scheduler=scheduler, workers=workers,
-                      mode=(AGI.UPDATE_MODE | modes_enabled) & AGI.DASK_RESET,
+        await AGI.run(module_name, scheduler=scheduler, workers=workers,
+                      env=env, mode=(AGI.UPDATE_MODE | modes_enabled) & AGI.DASK_RESET,
                       rapids_enabled=AGI.UPDATE_MODE & modes_enabled,
                       verbose=verbose, **args)
 
@@ -1149,7 +1169,7 @@ class AGI:
             # Clean cluster environment by killing old processes
             for ip in set(list(AGI.workers) + [AGI._scheduler_ip]):
                 try:
-                    AGI._kill(ip, os.getpid(), force=True)
+                    await AGI._kill(ip, os.getpid(), force=True)
                 except Exception:
                     pass
 
@@ -1158,7 +1178,7 @@ class AGI:
 
             if AGI._is_local(AGI._scheduler_ip):
                 await asyncio.sleep(1)  # non-blocking sleep
-                cmd = (
+                cmd = (f"export DASK_DISTRIBUTED__LOGGING__DISTRIBUTED=DEBUG &&"
                     f"uv -q run --project {env.wenv_abs} dask scheduler --port {AGI._scheduler_port} "
                     f"--host {AGI._scheduler_ip} --pid-file dask_pid"
                 )
@@ -1221,13 +1241,14 @@ class AGI:
     @staticmethod
     async def _start(scheduler):
         """
-        Start Dask workers on local and remote hosts,
-        setting PATH correctly for each OS.
+        Start Dask workers locally and remotely,
+        launching remote workers detached in background,
+        compatible with Windows and POSIX.
         """
         env = AGI.env
-        # Start the scheduler first
+        # Start scheduler first
         if not await AGI._start_scheduler(scheduler):
-            return
+            return False
 
         for i, (ip, n) in enumerate(AGI.workers.items()):
             export_cmd = await AGI._detect_export_cmd(ip)
@@ -1237,30 +1258,25 @@ class AGI:
                 try:
                     AgiEnv.log_info(f"Starting worker #{i}.{j} on [{ip}]")
 
+                    pid_file_name = f"dask-pid-{i}.{j}"
+
                     if is_local:
                         wenv_abs = env.wenv_abs
-                        pid_file = str(wenv_abs / f"dask-pid-{i}.{j}")
+                        pid_file = str(wenv_abs / pid_file_name)
                         cmd = (
                             f'{export_cmd} '
-                            f'cd {wenv_abs} && uv -q run dask worker {AGI._scheduler} --no-nanny '
-                            f'--pid-file ~/{pid_file}'
+                            f'cd {wenv_abs} && uv -q run dask worker tcp://{AGI._scheduler} --no-nanny '
+                            f'--pid-file {pid_file}'
                         )
                         # Run locally in background (non-blocking)
                         AGI._exec_bg(cmd, str(wenv_abs))
 
                     else:
                         wenv_rel = env.wenv_rel
-                        # Assure que le dossier distant existe
-                        cmd = (f"uv run python -c \"import pathlib, os;"
-                               f"os.makedirs(pathlib.Path().home() / '{wenv_rel}', exist_ok=True)\"")
-                        await env.exec_ssh(ip, cmd)
-                        pid_file = f"dask-pid-{i}.{j}"
-                        cmd = (
-                            f'cd {wenv_rel} && {export_cmd} uv -q run dask worker {AGI._scheduler} --no-nanny '
-                            f'--pid-file ~/{pid_file}'
-                        )
-                        # Lancer la commande distamment sans attendre la fin (fire-and-forget)
-                        env.exec_ssh_async(ip, cmd)
+                        pid_file = wenv_rel / pid_file_name
+                        cmd = f'cd {wenv_rel} && uv -q run dask worker tcp://{AGI._scheduler} --no-nanny --pid-file ~/{pid_file}'
+                        asyncio.create_task(env.exec_ssh_async(ip, cmd))
+                        env.log_info(f"Launched remote worker in background on {ip}: {cmd}")
 
                 except Exception as e:
                     AgiEnv.log_error(f"Failed to start worker on {ip}: {e}")
@@ -1269,13 +1285,14 @@ class AGI:
                 if AGI._worker_init_error:
                     raise FileNotFoundError(f"Please run AGI.install([{ip}])")
 
-        # Ne PAS await sur l’exécution des commandes distantes
-        # Attendre que les workers se connectent effectivement
         await AGI._sync(timeout=60)
 
-        # Optionnel : construire les libs distantes si nécessaire
         if (not AGI._mode_auto) or (AGI._mode < 6) or (AGI._mode & AGI.CYTHON_MODE):
             await AGI._build_lib_remote()
+
+        # load lib
+        for egg_file in (AGI.env.wenv_abs / "dist").glob("*.egg"):
+            AGI._dask_client.upload_file(str(egg_file))
 
     @staticmethod
     async def _sync(timeout=60):
@@ -1288,8 +1305,9 @@ class AGI:
             runners = list(AGI._dask_client.scheduler_info()["workers"].keys())
             current_count = len(runners)
             remaining = expected_workers - current_count
-            AgiEnv.log_info(f"Current workers connected: {runners}")
-            AgiEnv.log_info(f"Waiting for workers to attach: {remaining} remaining...")
+            if runners:
+                AgiEnv.log_info(f"Current workers connected: {runners}")
+            AgiEnv.log_info(f"wating for number of workers to attach: {remaining} remaining...")
 
             if current_count >= expected_workers:
                 break
@@ -1332,7 +1350,11 @@ class AGI:
         shutil.copy(env.setup_core, app_path)
         cmd = f"cd {app_path} && uv -q run python setup bdist_egg --packages \"{packages}\" -d {wenv_abs}"
         await AgiEnv.run(cmd, app_path)
-
+        dask_client = AGI._dask_client
+        if dask_client:
+            egg_files = list((wenv_abs / "dist").glob("*.egg"))
+            for egg_file in egg_files:
+                dask_client.upload_file(str(egg_file))
         # compile in cython when cython is requested
         if is_local:
             cmd = f"cd {wenv_abs} && uv -q pip install -e ."
@@ -1360,21 +1382,6 @@ class AGI:
                 shutil.copy2(worker_lib, destination)
                 AgiEnv.log_info(res)
             # os.remove(env.setup_app)
-        else:
-            # finally BUILD AND LOAD THE TARGET WORKER EGG ON all workers
-            for worker in list(AGI._dask_client.scheduler_info()["workers"].keys()):
-                AGI._dask_client.run(
-                    AgiWorker.build,
-                    env.target_worker,
-                    AGI._dask_client.scheduler_info()["workers"][worker][
-                        "local_directory"
-                    ],
-                    worker,
-                    mode=AGI._mode,
-                    verbose=AGI._verbose,
-                    workers=[worker],
-                )
-
         return wenv
 
     @staticmethod
@@ -1382,7 +1389,7 @@ class AGI:
         """
         workers init
         """
-        await AGI._build_lib_local(is_local=False)
+        # await AGI._build_lib_local(is_local=False)
 
         # worker
         if (AGI._dask_client.scheduler.pool.open == 0) and AGI._verbose:
@@ -1407,7 +1414,7 @@ class AGI:
         with open(pid_file, "w") as f:
             f.write(str(current_pid))
 
-        AGI._kill(current_pid=current_pid, force=True)
+        await AGI._kill(current_pid=current_pid, force=True)
 
         if AGI._mode & AGI.CYTHON_MODE:
             wenv_abs = env.wenv_abs
@@ -1453,14 +1460,15 @@ class AGI:
 
         elif (AGI._mode & AGI.DEPLOYEMENT_MASK) == AGI.SIMULATE_MODE:
             # case simulate mode #0b11xxxx
-            res = AGI._run_local()
+            res = await AGI._run_local()
 
         elif AGI._mode & AGI.DASK_MODE:
+
+            # clean both proc and dir
+            await AGI._get_clean_nodes(scheduler)
             # case distributed run
             # start the cluster
             await AGI._start(scheduler)
-
-            # do the run
             res = await AGI._run_by_mode()
             AGI._update_model()
 
@@ -1468,7 +1476,7 @@ class AGI:
             await AGI._stop()
         else:
             # case local run
-            res = AGI._run_local()
+            res = await AGI._run_local()
 
         AGI._clean_job(cond_clean)
 
@@ -1541,6 +1549,7 @@ class AGI:
 
         if AGI._mode == AGI.INSTALL_MODE:
             workers_tree
+
         AGI._dask_client.gather(
             [
                 AGI._dask_client.submit(
@@ -1559,16 +1568,18 @@ class AGI:
             ]
         )
 
+
         await AGI._calibration()
 
         t = time.time()
 
-        if AGI._verbose > 2:
+        if AGI._verbose != 1:
             AGI._run_time = AGI._dask_client.run(
-                AgiWorker._get_stdout,
+                AgiWorker.get_logs_and_result,
                 AgiWorker.do_works,
                 workers_tree,
                 workers_tree_info,
+                verbosity=AGI._verbose,
                 workers=AGI._dask_workers,
             )
             raise SystemExit(AGI._run_time)
@@ -1588,7 +1599,7 @@ class AGI:
     async def _stop():
         """Stop the Dask workers and scheduler"""
         env = AGI.env
-        env.log_info(f"stop Agi fwk")
+        env.log_info("stop Agi fwk")
 
         # AGI._dask_client.retire_workers() # causing comm close error on ubuntu
 
@@ -1759,7 +1770,7 @@ class AGI:
         res_workers_info = AGI._dask_client.gather(
             [
                 AGI._dask_client.run(
-                    AgiWorker._get_stdout,
+                    AgiWorker.get_logs_and_result,
                     AgiWorker.get_worker_info,
                     AgiWorker.worker_id,
                     workers=AGI._dask_workers,

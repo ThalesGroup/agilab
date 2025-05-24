@@ -247,7 +247,7 @@ class FlightWorker(PolarsWorker):
             if self.verbose > 0:
                 logging.info(f"FlightWorker.worker_end - {n_df} dataframes:")
                 for f in df_files:
-                    logging.info(Path(f))
+                    logging.info('\t' + str(Path(f)))
                 if not n_df:
                     logging.info("No dataframe created")
 
