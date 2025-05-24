@@ -1573,23 +1573,20 @@ class AGI:
 
         t = time.time()
 
-        if AGI._verbose != 1:
-            AGI._run_time = AGI._dask_client.run(
-                AgiWorker.get_logs_and_result,
-                AgiWorker.do_works,
-                workers_tree,
-                workers_tree_info,
-                verbosity=AGI._verbose,
-                workers=AGI._dask_workers,
-            )
-            raise SystemExit(AGI._run_time)
-        else:
-            AGI._run_time = AGI._dask_client.run(
-                AgiWorker.do_works,
-                workers_tree,
-                workers_tree_info,
-                workers=AGI._dask_workers,
-            )
+        # AGI._run_time = AGI._dask_client.run(
+        #     AgiWorker.get_logs_and_result,
+        #     AgiWorker.do_works,
+        #     workers_tree,
+        #     workers_tree_info,
+        #     verbosity=AGI._verbose,
+        #     workers=AGI._dask_workers,
+
+        AGI._run_time = AGI._dask_client.run(
+            AgiWorker.do_works,
+            workers_tree,
+            workers_tree_info,
+            workers=AGI._dask_workers,
+        )
 
         runtime = time.time() - t
 
