@@ -31,6 +31,7 @@ import stat
 import tempfile
 import time
 import sysconfig
+import subprocess
 import warnings
 import abc
 import traceback
@@ -108,7 +109,7 @@ class AgiWorker(abc.ABC):
             str: The joined path.
         """
         if os.name == "nt" and not AgiWorker.is_managed_pc:
-            path = Path(self.args["path"])
+            path = Path(path1)
             parts = path.parts
             if "Users" in parts:
                 index = parts.index("Users") + 2
@@ -184,19 +185,28 @@ class AgiWorker(abc.ABC):
         return path
 
     @staticmethod
-    def _get_stdout(func, *args, **kwargs):
-        """
+    def get_logs_and_result(func, *args, verbosity=logging.CRITICAL, **kwargs):
+        log_stream = io.StringIO()
+        handler = logging.StreamHandler(log_stream)
+        logger = logging.getLogger()  # root logger or specify your logger name
 
-        Args:
-          func:
-          *args:
-          **kwargs:
-        Returns:
-        """
-        f = io.StringIO()
-        with redirect_stdout(f):
+        if verbosity >= 2:
+            level = logging.DEBUG
+        elif verbosity == 1:
+            level = logging.INFO
+        else:
+            level = logging.WARNING
+
+        # Set the logger level based on verbosity argument
+        logger.setLevel(level)
+        logger.addHandler(handler)
+
+        try:
             result = func(*args, **kwargs)
-        return f.getvalue(), result
+        finally:
+            logger.removeHandler(handler)
+
+        return log_stream.getvalue(), result
 
     @staticmethod
     def exec(cmd, path, worker):
@@ -365,33 +375,36 @@ class AgiWorker(abc.ABC):
           args: (Default value = None)
         Returns:
         """
-        AgiEnv.log_info(f"venv: {sys.prefix}")
-        AgiEnv.log_info(f"AgiWorker.new - worker #{worker_id}: {worker} from: {os.path.relpath(__file__)}")
+        try:
+            AgiEnv.log_info(f"venv: {sys.prefix}")
+            AgiEnv.log_info(f"AgiWorker.new - worker #{worker_id}: {worker} from: {os.path.relpath(__file__)}")
 
-        # import of derived Class of AgiManager, name target_inst which is typically an instance of MyCode
-        worker_class = AgiWorker._class_loader(
-            target_module, target_class, mode, target_package, env
-        )
+            # import of derived Class of AgiManager, name target_inst which is typically an instance of MyCode
+            worker_class = AgiWorker._class_loader(
+                target_module, target_class, mode, target_package, env
+            )
 
-        # Instantiate the class with arguments
-        worker_inst = worker_class()
-        worker_inst.mode = mode
-        worker_inst.args = args
-        worker_inst.verbose = verbose
-        worker_inst.target = target_package
+            # Instantiate the class with arguments
+            worker_inst = worker_class()
+            worker_inst.mode = mode
+            worker_inst.args = args
+            worker_inst.verbose = verbose
+            worker_inst.target = target_package
 
-        # Instantiate the base class
-        AgiWorker.verbose = verbose
-        # AgiWorker._pool_init = worker_inst.pool_init
-        # AgiWorker._work_pool = worker_inst.work_pool
-        AgiWorker._insts[worker_id] = worker_inst
-        AgiWorker._built = False
-        AgiWorker.worker = Path(worker).name
-        AgiWorker.worker_id = worker_id
-        AgiWorker.t0 = time.time()
-        AgiWorker.start(worker_inst)
+            # Instantiate the base class
+            AgiWorker.verbose = verbose
+            # AgiWorker._pool_init = worker_inst.pool_init
+            # AgiWorker._work_pool = worker_inst.work_pool
+            AgiWorker._insts[worker_id] = worker_inst
+            AgiWorker._built = False
+            AgiWorker.worker = Path(worker).name
+            AgiWorker.worker_id = worker_id
+            AgiWorker.t0 = time.time()
+            AgiWorker.start(worker_inst)
 
-        return
+        except Exception as e:
+            traceback.print_exc()
+            raise
 
     @staticmethod
     def get_worker_info(worker_id):
@@ -453,7 +466,7 @@ class AgiWorker(abc.ABC):
     @staticmethod
     def build(target_worker, dask_home, worker, mode=0, verbose=0):
         """
-        Function to build target code on a my_code_AgiWorker.
+        Function to build target code on a target Worker.
 
         Args:
             target_worker (str): module to build
@@ -478,16 +491,16 @@ class AgiWorker(abc.ABC):
         )
 
         try:
-            AgiEnv.log_debug("set verbose=3 to see something in this trace file ...")
+            AgiEnv.log_info("set verbose=3 to see something in this trace file ...")
 
             if verbose > 2:
-                AgiEnv.log_debug("starting worker_build ...")
-                AgiEnv.log_debug(f"home_dir: {AgiWorker.home_dir}")
-                AgiEnv.log_debug(
+                AgiEnv.log_info("starting worker_build ...")
+                AgiEnv.log_info(f"home_dir: {AgiWorker.home_dir}")
+                AgiEnv.log_info(
                     f"worker_build(target_worker={target_worker}, dask_home={dask_home}, mode={mode}, verbose={verbose}, worker={worker})"
                 )
                 for x in Path(dask_home).glob("*"):
-                    AgiEnv.log_debug(f"{x}")
+                    AgiEnv.log_info(f"{x}")
 
             # Exemple supposé : définir egg_src (non défini dans ton code)
             egg_src = dask_home + "/some_egg_file"  # adapte selon contexte réel
@@ -498,24 +511,25 @@ class AgiWorker(abc.ABC):
             if not mode & 2:
                 egg_dest = extract_path / (os.path.basename(egg_src) + ".egg")
 
-                AgiEnv.log_debug(f"copy: {egg_src} to {egg_dest}")
+                AgiEnv.log_info(f"copy: {egg_src} to {egg_dest}")
                 shutil.copyfile(egg_src, egg_dest)
 
                 if str(egg_dest) in sys.path:
                     sys.path.remove(str(egg_dest))
                 sys.path.insert(0, str(egg_dest))
 
-                AgiEnv.log_debug("sys.path:")
+                AgiEnv.log_info("sys.path:")
                 for x in sys.path:
-                    AgiEnv.log_debug(f"{x}")
+                    AgiEnv.log_info(f"{x}")
 
-                AgiEnv.log_debug("done!")
+                AgiEnv.log_info("done!")
 
         except Exception as err:
             AgiEnv.log_error(
                 f"worker<{worker}> - fail to build {target_worker} from {dask_home}, see {AgiWorker.logs} for details"
             )
             raise err
+
     @staticmethod
     def do_works(workers_tree, workers_tree_info):
         """run of workers
@@ -525,13 +539,17 @@ class AgiWorker(abc.ABC):
           chunks:
         Returns:
         """
-        worker_id = AgiWorker.worker_id
-        AgiEnv.log_info(f"do_works - worker #{worker_id}: {AgiWorker.worker} from {os.path.relpath(__file__)}")
-        AgiEnv.log_info(f"AgiWorker.work - #{worker_id + 1} / {len(workers_tree)}")
+        try:
+            worker_id = AgiWorker.worker_id
+            AgiEnv.log_info(f"do_works - worker #{worker_id}: {AgiWorker.worker} from {os.path.relpath(__file__)}")
+            AgiEnv.log_info(f"AgiWorker.work - #{worker_id + 1} / {len(workers_tree)}")
 
-        AgiWorker._insts[worker_id].works(workers_tree, workers_tree_info)
+            AgiWorker._insts[worker_id].works(workers_tree, workers_tree_info)
 
-        return
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise
 
     @staticmethod
     def normalize_path(path):

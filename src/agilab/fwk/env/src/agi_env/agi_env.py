@@ -13,12 +13,13 @@ from contextlib import asynccontextmanager
 import traceback
 from pathlib import Path, PureWindowsPath, PurePosixPath
 from dotenv import dotenv_values, set_key
-from pathspec import PathSpec
 import tomlkit
 import logging
 import inspect
 import errno
-import scp
+
+# Compile regex once globally
+LOG_LEVEL_RE = re.compile(r'\b(INFO|ERROR|WARNING|DEBUG|CRITICAL)\b')
 
 # Patch for IPython ≥8.37 (theme_name) vs ≤8.36 (color_scheme)
 _sig = inspect.signature(FormattedTB.__init__).parameters
@@ -32,6 +33,7 @@ sys.excepthook = FormattedTB(**_tb_kwargs)
 
 logger = logging.getLogger(__name__)
 
+
 class AgiEnv:
     install_type = None
     apps_dir = None
@@ -41,67 +43,77 @@ class AgiEnv:
     GUI_SAMPLING = None
     init_done = False
 
-    @staticmethod
-    def init_logging(verbosity: int = 1):
+    def init_logging(self, verbosity: int = None):
         """
         Initialize logging with a level based on verbosity:
         0 = WARNING, 1 = INFO, 2 or more = DEBUG
         INFO and DEBUG levels go to stdout; WARNING and above go to stderr.
         """
+        if verbosity is None:
+            verbosity = 0
 
-        # Determine root log level
-        if verbosity >= 2:
-            level = logging.DEBUG
-        elif verbosity == 1:
-            level = logging.INFO
-        else:
-            level = logging.WARNING
 
-        # Remove existing handlers
+        # Root logger level based on verbosity
+        root_level = logging.DEBUG if verbosity >= 2 else logging.INFO if verbosity == 1 else logging.WARNING
+
+        # Cap distributed logs at CRITICAL (silent)
+        distributed_level = logging.DEBUG if verbosity >= 2 else logging.INFO if verbosity == 1 else logging.WARNING
+
+        # Use root_level for your app-specific loggers as well
+        app_level = root_level
+
         root = logging.getLogger()
+        root.setLevel(root_level)
 
-        logging.getLogger('asyncssh').setLevel(level)
-        logging.getLogger("agi_runner").setLevel(level)
-        logging.getLogger("agi_worker").setLevel(level)
-        logging.getLogger("agi_manager").setLevel(level)
-        logging.getLogger("agi_env").setLevel(level)
-        logging.getLogger("dag_worker").setLevel(level)
-        logging.getLogger("pandas_worker").setLevel(level)
-        logging.getLogger("polars_worker").setLevel(level)
-        logging.getLogger("agent_worker").setLevel(level)
+        # Set distributed logger levels explicitly to suppress debug/info noise
+        logging.getLogger("distributed").setLevel(distributed_level)
+        logging.getLogger("distributed.worker").setLevel(distributed_level)
+        logging.getLogger("distributed.scheduler").setLevel(distributed_level)
 
+        logging.getLogger("distributed").setLevel(logging.WARNING)
+        logging.getLogger("distributed.worker").setLevel(logging.WARNING)
+        logging.getLogger("distributed.scheduler").setLevel(logging.WARNING)
+        logging.getLogger("distributed.comm").setLevel(logging.WARNING)
+        logging.getLogger("distributed.comm.tcp").setLevel(logging.WARNING)
+        logging.getLogger("distributed.active_memory_manager").setLevel(logging.WARNING)
+
+        # Set asyncssh and other custom loggers to app_level (verbosity controlled)
+        logging.getLogger('asyncssh').setLevel(app_level)
+        logging.getLogger("agi_runner").setLevel(app_level)
+        logging.getLogger("agi_worker").setLevel(app_level)
+        logging.getLogger("agi_manager").setLevel(app_level)
+        logging.getLogger("agi_env").setLevel(app_level)
+        logging.getLogger("dag_worker").setLevel(app_level)
+        logging.getLogger("pandas_worker").setLevel(app_level)
+        logging.getLogger("polars_worker").setLevel(app_level)
+        logging.getLogger("agent_worker").setLevel(app_level)
+
+        # Remove existing handlers to avoid duplicate logs
         for handler in root.handlers[:]:
             root.removeHandler(handler)
 
-        # Formatter
         fmt = logging.Formatter(
             "%(asctime)s %(levelname)s %(message)s",
             datefmt="%H:%M:%S"
         )
 
-        # Handler for INFO and below to stdout
         stdout_handler = logging.StreamHandler(sys.stdout)
-        stdout_handler.setLevel(logging.DEBUG)
+        stdout_handler.setLevel(logging.DEBUG)  # always capture debug and above on stdout
         stdout_handler.setFormatter(fmt)
 
-        # Handler for WARNING and above to stderr
         stderr_handler = logging.StreamHandler(sys.stderr)
-        stderr_handler.setLevel(logging.WARNING)
+        stderr_handler.setLevel(logging.WARNING)  # warnings and errors on stderr
         stderr_handler.setFormatter(fmt)
 
-        # Add handlers to root logger
         root.addHandler(stdout_handler)
         root.addHandler(stderr_handler)
-        root.setLevel(level)
 
-        # Debug message about initialization
-        logging.debug(f"Logging initialized at level {logging.getLevelName(level)}")
-
+        logging.debug(f"Logging initialized at level {logging.getLevelName(root_level)}")
 
     def __init__(self, install_type: int = None, apps_dir: Path = None,
-                 active_app: Path | str = None, active_module: Path = None, verbose: int = 1):
+                 active_app: Path | str = None, active_module: Path = None, verbose: int = None):
         AgiEnv.verbose = verbose
-        AgiEnv.init_logging(verbose)  # Initialize logging here
+        self.init_logging(verbose)
 
         self.is_managed_pc = getpass.getuser().startswith("T0")
         self.agi_resources = Path("resources/.agilab")
@@ -119,8 +131,6 @@ class AgiEnv:
         else:
             install_type = 1 if ("site-packages" not in __file__ or sys.prefix.endswith("gui/.venv")) else 0
             self.install_type = install_type
-
-        #logging.info(f"install_type: {install_type}")
 
         self.agi_root = AgiEnv.locate_agi_installation(verbose)
 
@@ -174,7 +184,7 @@ class AgiEnv:
             else:
                 os.makedirs(str(apps_dir), exist_ok=True)
         except FileNotFoundError:
-            logging.err("apps_dir not found:", apps_dir)
+            logging.error("apps_dir not found: %s", apps_dir)
             exit(1)
 
         self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
@@ -201,7 +211,7 @@ class AgiEnv:
             module = apps_dir.name.replace("_project", "").replace("-", "_")
 
         if not self.module:
-            self.module = module.replace('-','_')
+            self.module = module.replace('-', '_')
 
         AgiEnv.apps_dir = self.apps_dir
         self.app_rel = self.apps_dir / active_app
@@ -304,7 +314,7 @@ class AgiEnv:
             self.export_local_bin = 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
         else:
             self.export_local_bin = 'export PATH="$HOME/.local/bin:$PATH";'
-        self._ssh_connections = {}  # cache connexions par IP
+        self._ssh_connections = {}
 
     def active(self, target, install_type):
         if self.module != target:
@@ -351,17 +361,15 @@ class AgiEnv:
                     install_path = f.read().strip()
                     agilab_path = Path(install_path)
                     if install_path and agilab_path.exists():
-                        #if verbose:
-                        #    logging.info(f"Run Agilab: {install_path}")
                         return agilab_path
                     else:
                         raise ValueError("Installation path file is empty or invalid.")
             except FileNotFoundError:
-                logging.err(f"File {where_is_agi} does not exist.")
+                logging.error(f"File {where_is_agi} does not exist.")
             except PermissionError:
-                logging.err(f"Permission denied when accessing {where_is_agi}.")
+                logging.error(f"Permission denied when accessing {where_is_agi}.")
             except Exception as e:
-                logging.err(f"An error occurred: {e}")
+                logging.error(f"An error occurred: {e}")
 
         for p in sys.path_importer_cache:
             if p.endswith("AGILAB.py"):
@@ -408,7 +416,6 @@ class AgiEnv:
                 dest_file.parent.mkdir(parents=True, exist_ok=True)
                 if not dest_file.exists():
                     shutil.copy(src_file, dest_file)
-
 
     def _init_projects(self):
         self.projects = self.get_projects(self.apps_dir)
@@ -461,14 +468,14 @@ class AgiEnv:
             with open(module_path, "r", encoding="utf-8") as file:
                 source = file.read()
         except (IOError, FileNotFoundError) as e:
-            logging.err(f"Error reading module file {module_path}: {e}")
+            logging.error(f"Error reading module file {module_path}: {e}")
             return []
 
         try:
             tree = ast.parse(source)
         except SyntaxError as e:
             if self.verbose:
-                logging.err(f"Syntax error parsing {module_path}: {e}")
+                logging.error(f"Syntax error parsing {module_path}: {e}")
             raise RuntimeError(f"Syntax error parsing {module_path}: {e}")
 
         import_mapping = self.get_import_mapping(source)
@@ -488,7 +495,7 @@ class AgiEnv:
             tree = ast.parse(source)
         except SyntaxError as e:
             if self.verbose:
-                logging.err(f"Syntax error during import mapping: {e}")
+                logging.error(f"Syntax error during import mapping: {e}")
             raise
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
@@ -526,7 +533,6 @@ class AgiEnv:
 
         chars = ["p", "c", "d", "r"]
         reversed_chars = reversed(list(enumerate(chars)))
-        # Open in binary mode for tomli
         with open(self.pyproject, "rb") as file:
             pyproject_data = tomli.load(file)
 
@@ -605,9 +611,6 @@ class AgiEnv:
 
         pyproject_file.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
-        #if self.verbose:
-        #    logging.info(f"Update: {pyproject_file}")
-
         return agi_root / "fwk" / "core"
 
     def copy_missing(self, src: Path, dst: Path):
@@ -648,7 +651,6 @@ class AgiEnv:
         else:
             return str(PurePosixPath(p))
 
-
     @staticmethod
     def _build_env(venv=None):
         """Build environment dict for subprocesses, with activated virtualenv paths."""
@@ -669,38 +671,19 @@ class AgiEnv:
         if not isinstance(line, str):
             line = str(line)
 
-        if line and len(line) >= 14:
-            msg_type = line[10:14]
-            if msg_type == 'INFO' or msg_type == 'ERRO':
-                if level:
-                    print(line)
-            else:
-                msg = f"{GREEN}{line}{RESET}" if sys.stdout.isatty() else line
-                logging.info(msg)
-        else:
-            msg = f"{GREEN}{line}{RESET}" if sys.stdout.isatty() else line
-            logging.info(msg)
+        msg = f"{GREEN}{line}{RESET}" if sys.stdout.isatty() else line
+        logging.info(msg)
 
     @staticmethod
     def log_error(line):
         RED = "\033[31m"
         RESET = "\033[0m"
 
-        # If input is exception or not string, convert to string safely
         if not isinstance(line, str):
             line = str(line)
 
-        if line and len(line) >= 14:
-            msg_type = line[10:14]
-            if msg_type == 'INFO' or msg_type == 'ERRO':
-                if level:
-                    print(line)
-            else:
-                msg = f"{RED}{line}{RESET}" if sys.stdout.isatty() else line
-                logging.error(msg)
-        else:
-            msg = f"{RED}{line}{RESET}" if sys.stdout.isatty() else line
-            logging.error(msg)
+        msg = f"{RED}{line}{RESET}" if sys.stdout.isatty() else line
+        logging.error(msg)
 
     @staticmethod
     async def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
@@ -708,7 +691,7 @@ class AgiEnv:
         Run a shell command synchronously inside a virtual environment.
         Log stdout lines as info, stderr lines as error.
 
-        Returns exit code.
+        Returns full stdout string.
         """
         AgiEnv.log_info(f"Executing in {venv}: {cmd}")
 
@@ -761,10 +744,9 @@ class AgiEnv:
                         if log_callback:
                             log_callback(line)
                         elif msg_type == "INFO":
-                                AgiEnv.log_info(line)
+                            AgiEnv.log_info(line)
                         else:
                             AgiEnv.log_error(line)
-
 
                     if out_line == '' and err_line == '' and process.poll() is not None:
                         break
@@ -794,49 +776,6 @@ class AgiEnv:
     @staticmethod
     async def _run_bg(cmd, cwd=".", venv=None, timeout=None, log_callback=None):
         """
-        Run command asynchronously, log stdout as info, stderr as error.
-        """
-        proc_env = AgiEnv._build_env(venv)
-        proc_env["PYTHONUNBUFFERED"] = "1"
-        proc = await asyncio.create_subprocess_shell(
-            cmd,
-            cwd=os.path.abspath(cwd),
-            env=proc_env,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            text=True,
-        )
-
-        async def read_stream(stream, log_func):
-            while True:
-                line = await stream.readline()
-                if not line:
-                    break
-                log_func(line.rstrip())
-
-        tasks = []
-        if proc.stdout:
-            tasks.append(asyncio.create_task(
-                read_stream(proc.stdout, log_callback if log_callback else AgiEnv.log_info)
-            ))
-        if proc.stderr:
-            tasks.append(asyncio.create_task(
-                read_stream(proc.stderr, log_callback if log_callback else AgiEnv.log_error)
-            ))
-
-        try:
-            await asyncio.wait_for(proc.wait(), timeout=timeout)
-        except asyncio.TimeoutError as err:
-            proc.kill()
-            raise RuntimeError(f"Timeout expired for command: {cmd}") from err
-
-        await asyncio.gather(*tasks)
-        stdout, stderr = await proc.communicate()
-        return stdout, stderr
-
-    @staticmethod
-    async def _run_bg(cmd, cwd=".", venv=None, timeout=None, log_callback=None):
-        """
         Run the given command asynchronously, reading stdout and stderr line by line
         and passing them to the log_callback.
         """
@@ -850,25 +789,23 @@ class AgiEnv:
             stderr=asyncio.subprocess.PIPE,
         )
 
-        async def read_stream(stream, callback):
-            while True:
-                line = await stream.readline()
-                if not line:
-                    break
-                decoded_line = line.decode().rstrip()
-                if callback:
-                    callback(decoded_line)
+        async def read_stream(stream):
+            async for line in stream:
+                if isinstance(line, bytes):
+                    decoded_line = line.decode('utf-8', errors='replace').rstrip()
                 else:
-                    logging.info(decoded_line)
+                    decoded_line = line.rstrip()
+                if decoded_line:
+                    AgiEnv.log_info(decoded_line)
 
         tasks = []
         if proc.stdout:
             tasks.append(asyncio.create_task(
-                read_stream(proc.stdout, lambda msg: log_callback(msg) if log_callback else logging.info(msg))
+                read_stream(proc.stdout, log_callback if log_callback else logging.info)
             ))
         if proc.stderr:
             tasks.append(asyncio.create_task(
-                read_stream(proc.stderr, lambda msg: log_callback(msg) if log_callback else logging.err(msg))
+                read_stream(proc.stderr, log_callback if log_callback else logging.error)
             ))
 
         try:
@@ -898,26 +835,17 @@ class AgiEnv:
         with open(snippet_file, "w") as file:
             file.write(code)
         cmd = f"uv -q run --project {str(venv)} python {snippet_file}"
-        # Await _run_bg directly without asyncio.run()
         result = await AgiEnv._run_bg(cmd, venv=venv, log_callback=log_callback)
         if log_callback:
             log_callback(f"Process finished with output: {result}")
         else:
-            logging.info("test")
+            logging.info("Process finished")
         return result
-
 
     @staticmethod
     async def run_async(cmd, venv=None, cwd=None, timeout=None, log_callback=None):
         """
         Run a shell command asynchronously inside a virtual environment.
-
-        Args:
-            cmd (str or list): Command to run.
-            venv (str or Path): Virtual environment or project root.
-            cwd (str or Path): Working directory.
-            timeout (float): Timeout in seconds.
-            log_callback (callable): Function to receive stdout/stderr lines.
         """
         if not cwd:
             cwd = venv
@@ -968,10 +896,6 @@ class AgiEnv:
     def create_symlink(source: Path, dest: Path):
         """
         Create a symlink from dest to source if not already existing.
-
-        Args:
-            source (Path): Source path.
-            dest (Path): Destination symlink path.
         """
         try:
             source_resolved = source.resolve(strict=True)
@@ -986,8 +910,7 @@ class AgiEnv:
                         logging.info(f"Symlink already exists and is correct: {dest} -> {source_resolved}")
                         return
                     else:
-                        logging.info(
-                            f"Warning: Symlink at {dest} points to {existing_target}, expected {source_resolved}.")
+                        logging.info(f"Warning: Symlink at {dest} points to {existing_target}, expected {source_resolved}.")
                         return
                 except RecursionError:
                     raise RecursionError(f"Detected symlink loop while resolving {dest}.")
@@ -1032,11 +955,9 @@ class AgiEnv:
 
         conn = self._ssh_connections.get(ip)
         if conn and not conn.is_closed():
-            # Connexion existante valide, réutilisation
             yield conn
             return
 
-        # Sinon, créer une nouvelle connexion
         try:
             conn = await asyncio.wait_for(
                 asyncssh.connect(
@@ -1080,18 +1001,24 @@ class AgiEnv:
             raise ConnectionError(err_msg)
 
     async def exec_ssh(self, ip: str, cmd: str) -> str:
-        """
-        execute an ssh command by reusing existing connection
-        """
         try:
             async with self.get_ssh_connection(ip) as conn:
                 result = await conn.run(cmd, check=True)
-                self.log_info(f"[{ip}] {cmd}: {result.stdout.strip()}")
-                return result.stdout.strip()
+                stdout = result.stdout
+                if isinstance(stdout, bytes):
+                    stdout = stdout.decode('utf-8', errors='replace')
+                self.log_info(f"[{ip}] {cmd}: {stdout.strip()}")
+                return stdout.strip()
 
         except ProcessError as e:
-            self.log_error(f"[{ip}] SSH command stdout: {e.stdout.strip()}")
-            self.log_error(f"[{ip}] SSH command stderr: {e.stderr.strip()}")
+            stdout = e.stdout
+            stderr = e.stderr
+            if isinstance(stdout, bytes):
+                stdout = stdout.decode('utf-8', errors='replace')
+            if isinstance(stderr, bytes):
+                stderr = stderr.decode('utf-8', errors='replace')
+            self.log_error(f"[{ip}] SSH command stdout: {stdout.strip()}")
+            self.log_error(f"[{ip}] SSH command stderr: {stderr.strip()}")
             raise
 
         except (asyncssh.Error, OSError) as e:
@@ -1102,30 +1029,19 @@ class AgiEnv:
         async with self.get_ssh_connection(ip) as conn:
             process = await conn.create_process(cmd)
 
-            async def read_stream(stream, log_func):
-                async for line in stream:
-                    line = line.rstrip()
-                    log_func(f"[{ip}] {line}")
+        async def read_stream(stream):
+            async for line in stream:
+                if isinstance(line, bytes):
+                    decoded_line = line.decode('utf-8', errors='replace').rstrip()
+                else:
+                    decoded_line = line.rstrip()
+                if decoded_line:
+                    self.log_remote_line(ip, decoded_line)
 
             await asyncio.gather(
                 read_stream(process.stdout, self.log_info),
-                read_stream(process.stderr, self.log_info)
+                read_stream(process.stderr, self.log_error)
             )
-
-    async def close_all_connections(self):
-        """
-        close ssh connections.
-        """
-        for conn in self._ssh_connections.values():
-            conn.close()
-            await conn.wait_closed()
-        self._ssh_connections.clear()
-
-    def log_info(self, msg):
-        print("INFO:", msg)  # Ou ta méthode de log
-
-    def log_error(self, msg):
-        print("ERROR:", msg)  # Ou ta méthode de log
 
     async def send_file(
             self,
@@ -1145,9 +1061,7 @@ class AgiEnv:
 
         cmd = []
 
-        # os.name is 'nt' on Windows, 'posix' on Linux/macOS
         if password and os.name != "nt":
-            # Use sshpass only on non-Windows systems
             cmd += ["sshpass", "-p", password]
 
         cmd += ["scp", str(local_path), remote]
@@ -1171,9 +1085,6 @@ class AgiEnv:
             raise
 
     async def send_files(self, ip: str, files: list[Path], remote_dir: Path, user: str = None):
-        """
-        Send multiple files asynchronously to remote host via SCP command in parallel.
-        """
         tasks = []
         for f in files:
             remote_path = f"{remote_dir}/{f.name}"
@@ -1184,6 +1095,7 @@ class AgiEnv:
     def remove_dir_forcefully(self, path):
         import shutil
         import os
+        import time
 
         def onerror(func, path, exc_info):
             import stat
@@ -1197,7 +1109,6 @@ class AgiEnv:
             shutil.rmtree(path, onerror=onerror)
         except Exception as e:
             logging.error(f"Exception while deleting {path}: {e}")
-            # Optionally, retry after delay
             time.sleep(1)
             try:
                 shutil.rmtree(path, onerror=onerror)
@@ -1205,43 +1116,32 @@ class AgiEnv:
                 logging.error(f"Second failure deleting {path}: {e2}")
                 raise
 
-    @staticmethod
-    def log_info(line):
-        GREEN = "\033[32m"
-        RESET = "\033[0m"
+    async def close_all_connections(self):
+        """
+        Ferme proprement toutes les connexions SSH ouvertes.
+        À appeler à la fin de ton programme ou avant arrêt.
+        """
+        for conn in self._ssh_connections.values():
+            conn.close()
+            await conn.wait_closed()
+        self._ssh_connections.clear()
 
-        if not isinstance(line, str):
-            line = str(line)
-
-        if line and len(line) >= 14:
-            msg_type = line[10:14]
-            if msg_type == 'INFO' or msg_type == 'ERRO':
-                if level:
-                    print(line)
-            else:
-                msg = f"{GREEN}{line}{RESET}" if sys.stdout.isatty() else line
-                logging.info(msg)
-        else:
-            msg = f"{GREEN}{line}{RESET}" if sys.stdout.isatty() else line
-            logging.info(msg)
 
     @staticmethod
-    def log_error(line):
-        RED = "\033[31m"
-        RESET = "\033[0m"
+    def log_remote_line(ip: str, line: str):
+        """
+        Log a line from remote SSH output with the proper log level.
 
-        # If input is exception or not string, convert to string safely
-        if not isinstance(line, str):
-            line = str(line)
-
-        if line and len(line) >= 14:
-            msg_type = line[10:14]
-            if msg_type == 'INFO' or msg_type == 'ERRO':
-                if level:
-                    print(line)
-            else:
-                msg = f"{RED}{line}{RESET}" if sys.stdout.isatty() else line
-                logging.error(msg)
+        Args:
+            ip (str): IP address of remote host.
+            line (str): One line of output from remote process.
+        """
+        match = LOG_LEVEL_RE.search(line)
+        if match:
+            level_name = match.group(1)
+            level = getattr(logging, level_name, logging.INFO)
         else:
-            msg = f"{RED}{line}{RESET}" if sys.stdout.isatty() else line
-            logging.error(msg)
+            # Default to INFO if no level found
+            level = logging.INFO
+
+        logging.log(level, f"[{ip}] {line}")
