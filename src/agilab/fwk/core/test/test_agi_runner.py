@@ -1,7 +1,7 @@
 import os
 import socket
 from pathlib import Path, PurePosixPath, PureWindowsPath
-
+import asyncio
 import pytest
 from agi_core.managers.agi_runner import AGI
 from agi_env import AgiEnv
@@ -52,8 +52,6 @@ def test_is_local():
 
 
 def test_load_module():
-    # Test the _load_module static method by loading a standard module.
-    # Here we load the built-in math module.
-    module = AGI._load_module("math", package=None, path="")
+    module = asyncio.run(AGI._load_module("math", package=None, path=""))
     import math
     assert module == math, "Loaded module does not match the built-in math module."
