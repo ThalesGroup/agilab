@@ -171,7 +171,6 @@ class FlightWorker(PolarsWorker):
 
             if not Path(file).is_file():
                 raise FileNotFoundError(f"FlightWorker.work_pool({file})\n")
-                return pl.DataFrame()
 
         # Read the CSV file using Polars.
         df = pl.read_csv(file)
