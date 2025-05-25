@@ -582,19 +582,16 @@ class AGI:
         # 2) If force, kill by process name
         if force:
             cmd = (
-                'python3 -c "'
-                'import getpass, os, psutil; '
-                'me = getpass.getuser(); '
-                'self_pid = os.getpid(); '
-                'for p in psutil.process_iter([\'pid\', \'username\', \'cmdline\']): '
-                '    try: '
-                '        if (p.info[\'username\'] and p.info[\'username\'].endswith(me) '
-                '            and p.info[\'pid\'] != self_pid '
-                '            and p.info[\'cmdline\'] '
-                '            and any(\'dask\' in s.lower() for s in p.info[\'cmdline\'])): '
-                '            p.kill() '
-                '    except (psutil.NoSuchProcess, psutil.AccessDenied): '
-                '        pass"'
+                'python3 -c "import getpass, psutil;'
+                'me = getpass.getuser();\n'
+                'for p in psutil.process_iter(["name", "username", "cmdline"]):\n'            
+                '  try:\n'
+                '    if p.info.get("username") and me in p.info["username"] and ('
+                '      (p.info.get("name") and "uv" in p.info["name"]) or'
+                '      (p.info.get("cmdline") and any("uv" in s.lower() for s in p.info["cmdline"]))):\n'
+                '      p.kill()\n'
+                '  except (psutil.NoSuchProcess, psutil.AccessDenied):\n'
+                '    pass"'
             )
             cmds.append(cmd)
 
@@ -942,9 +939,9 @@ class AGI:
 
         # 6) Build and run uv -q sync, adding --config-file only when has_rapids_hw
         if has_rapids_hw:
-            sync_cmd = f"cd {wenv_rel} && uv -q sync --upgrade {option}"
+            sync_cmd = f"cd {wenv_rel} && uv -q sync {option}"
         else:
-            sync_cmd = f"cd {wenv_rel} && uv -q --config-file uv.toml sync --upgrade {option}"
+            sync_cmd = f"cd {wenv_rel} && uv -q --config-file uv.toml sync {option}"
         await env.exec_ssh(ip, sync_cmd)
 
         # 7) Post-install script
@@ -956,7 +953,7 @@ class AGI:
         await env.exec_ssh(ip, cmd)
 
         # upgrade dask
-        cmd = f"cd {wenv_rel} && uv -q run -p {pyvers} python -m pip install --upgrade dask[distributed]"
+        cmd = f"cd {wenv_rel} && uv -q run -p {pyvers} python -m pip install dask[distributed]"
         AgiEnv.log_info(f"Upgrading dask[distributed] on {ip}...")
         await env.exec_ssh(ip, cmd)
 
@@ -1452,13 +1449,11 @@ class AGI:
             # case install modes
             t = time.time()
 
+            # clean both proc and dir
+            await AGI._get_clean_nodes(scheduler)
+
             # clean local env
             AGI._clean_dirs_local()
-
-            await AGI._install(scheduler)
-
-            # clean both proc and dir
-            AGI._get_clean_nodes(scheduler)
 
             res = time.time() - t
 
