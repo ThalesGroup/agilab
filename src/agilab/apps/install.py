@@ -54,8 +54,12 @@ async def main():
         parser.add_argument(
             "--install-type", type=str, help="Install type", required=True
         )
+        parser.add_argument(
+            "--verbose", type=int, default=3, help="Verbosity level (default: 3)"
+        )
+
         args, unknown = parser.parse_known_args()
-        #print(args.apps_dir)
+        # print(args.apps_dir)
         env = AgiEnv(active_app=args.app, apps_dir=args.apps_dir, install_type=int(args.install_type))
 
     except Exception as e:
@@ -66,9 +70,11 @@ async def main():
         env=env,
         type=int(args.install_type),
         scheduler="127.0.0.1",
-        verbose=3,
+        verbose=args.verbose,
         modes_enabled=AGI.DASK_MODE | AGI.CYTHON_MODE
     )
 
+
 if __name__ == '__main__':
     asyncio.run(main())
+
