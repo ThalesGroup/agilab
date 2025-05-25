@@ -75,7 +75,7 @@ class Main(AgiManager):
 
                 # Example of additional setup: copying default config or data files
                 # Replace the following lines with actual setup logic as needed
-                # config_src = Path(self.env.app_rel) / "default_config.yaml"
+                # config_src = Path(self.env.app_abs) / "default_config.yaml"
                 # config_dst = path_abs / "config.yaml"
                 # config_src.copy(config_dst)
         except Exception as e:

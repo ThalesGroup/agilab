@@ -62,8 +62,8 @@ class AgentAppWorker(AgiAgentWorker):
                 logging.info(f"Creating data directory at {path_abs}")
                 path_abs.mkdir(parents=True, exist_ok=True)
 
-                # Assuming AGI.env.app_rel is defined in AgiAgentWorker or its parents
-                data_src = Path(self.env.app_rel) / "data.7z"
+                # Assuming AGI.env.app_abs is defined in AgiAgentWorker or its parents
+                data_src = Path(self.env.app_abs) / "data.7z"
                 if not data_src.is_file():
                     logging.error(f"Data archive not found at {data_src}")
                     raise FileNotFoundError(f"Data archive not found at {data_src}")

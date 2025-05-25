@@ -54,7 +54,7 @@ from agi_env import AgiEnv
 from agi_core.managers.agi_manager import AgiManager
 from agi_core.workers.agi_worker import AgiWorker
 
-os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"
+# os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 workers_default = {socket.gethostbyname("localhost"): 1}
@@ -474,7 +474,7 @@ class AGI:
 
         except ModuleNotFoundError as e:
             module_to_install = (str(e).replace("No module named ", "").lower().replace("'", ""))
-            app_path = AGI.env.app_rel
+            app_path = AGI.env.app_abs
             cmd = f"uv -q add {module_to_install}"
             AgiEnv.log_info(f"{cmd} from {app_path}")
             await AgiEnv.run(cmd, app_path)
@@ -1174,7 +1174,7 @@ class AGI:
                 except Exception:
                     pass
 
-            toml_local = env.app_rel / "pyproject.toml"
+            toml_local = env.app_abs / "pyproject.toml"
             wenv_rel = env.wenv_rel
 
             if AGI._is_local(AGI._scheduler_ip):
@@ -1185,7 +1185,7 @@ class AGI:
                 )
                 AgiEnv.log_info(f"Starting dask scheduler locally: {cmd}")
                 AgiEnv.log_info(f"Starting dask scheduler locally: {cmd}")
-                result = AGI._exec_bg(cmd, env.app_rel)  # assuming _exec_bg is sync
+                result = AGI._exec_bg(cmd, env.app_abs)  # assuming _exec_bg is sync
                 AgiEnv.log_info(result)
             else:
                 # Create remote directory
