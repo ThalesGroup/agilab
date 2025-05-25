@@ -1106,7 +1106,7 @@ class AgiEnv:
                 os.chmod(path, stat.S_IWUSR)
                 func(path)
             else:
-                logging.error(f"Failed to remove {path} due to {exc_info[1]}")
+                logging.info(f"{path} not removed due to {exc_info[1]}")
 
         try:
             shutil.rmtree(path, onerror=onerror)
