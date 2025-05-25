@@ -57,7 +57,7 @@ class AgiEnv:
         root_level = logging.DEBUG if verbosity >= 2 else logging.INFO if verbosity == 1 else logging.WARNING
 
         # Cap distributed logs at CRITICAL (silent)
-        sys_level = logging.CRITICAL
+        sys_level = logging.INFO
 
         # Use root_level for your app-specific loggers as well
         app_level = root_level
