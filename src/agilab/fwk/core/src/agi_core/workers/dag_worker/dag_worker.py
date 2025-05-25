@@ -41,7 +41,7 @@ class DagWorker(AgiWorker):
     def works(self, workers_tree, workers_tree_info):
         """Run the worker tasks."""
         if workers_tree:
-            if self.mode % 2 == 1:
+            if self.mode & 4:
                 self.exec_multi_process(workers_tree, workers_tree_info)
             else:
                 self.exec_mono_process(workers_tree, workers_tree_info)

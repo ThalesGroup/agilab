@@ -184,11 +184,14 @@ class AgiWorker(abc.ABC):
             path = path.replace("\\", "/")
         return path
 
-    @staticmethod
+       # dans agi_worker.py (en dehors de la classe AgiWorker)
     def get_logs_and_result(func, *args, verbosity=logging.CRITICAL, **kwargs):
+        import io
+        import logging
+
         log_stream = io.StringIO()
         handler = logging.StreamHandler(log_stream)
-        logger = logging.getLogger()  # root logger or specify your logger name
+        logger = logging.getLogger()
 
         if verbosity >= 2:
             level = logging.DEBUG
@@ -197,7 +200,6 @@ class AgiWorker(abc.ABC):
         else:
             level = logging.WARNING
 
-        # Set the logger level based on verbosity argument
         logger.setLevel(level)
         logger.addHandler(handler)
 
@@ -207,6 +209,7 @@ class AgiWorker(abc.ABC):
             logger.removeHandler(handler)
 
         return log_stream.getvalue(), result
+
 
     @staticmethod
     def exec(cmd, path, worker):

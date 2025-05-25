@@ -6,8 +6,6 @@
 
 import getpass
 import glob
-import io
-import logging
 import os
 import re
 import shutil
@@ -16,10 +14,6 @@ import traceback
 import warnings
 from datetime import datetime as dt
 from pathlib import Path
-import numpy as np
-import polars as pl
-from geopy.distance import geodesic
-import time
 import logging
 
 from numpy.linalg import norm  # Imported norm
@@ -84,8 +78,7 @@ class FlightWorker(PolarsWorker):
         """Initialize global variables and setup paths."""
         global global_vars
 
-        if self.verbose > 0:
-            logging.info(f"from: {__file__}")
+        logging.info(f"from: {__file__}")
 
         if os.name == "nt" and not getpass.getuser().startswith("T0"):
             path = Path(self.args["path"])
