@@ -165,7 +165,10 @@ class AgiEnv:
                 logging.info("active_module must be of type 'Path'")
                 exit(1)
         else:
-            self.module = None
+            if active_app:
+                self.module = active_app.replace("_project", "")
+            else:
+                self.module = None
 
         if not apps_dir:
             apps_dir = envars.get("APPS_DIR", 'apps')
@@ -212,8 +215,8 @@ class AgiEnv:
             self.module = module.replace('-', '_')
 
         AgiEnv.apps_dir = self.apps_dir
-        self.app_rel = self.apps_dir / active_app
-        self.app_src = self.app_rel / "src"
+        self.app_abs = self.apps_dir / active_app
+        self.app_src = self.app_abs / "src"
         self.target_worker = f"{self.module}_worker"
         self.worker_path = self.app_src / self.target_worker / f"{self.target_worker}.py"
         self.module_path = self.app_src / self.module / f"{self.module}.py"
@@ -242,7 +245,7 @@ class AgiEnv:
         self.agi_core = self.core_src / "agi_core"
         self.workers_root = self.agi_core / "workers"
         self.manager_root = self.agi_core / "managers"
-        self.setup_app = self.app_rel / "setup"
+        self.setup_app = self.app_abs / "setup"
         self.setup_core_rel = "agi_worker/setup"
         self.setup_core = self.workers_root / self.setup_core_rel
 
@@ -296,6 +299,8 @@ class AgiEnv:
         wenv_rel = Path("wenv") / self.target_worker
         self.wenv_rel = wenv_rel
         self.wenv_abs = self.home_abs / wenv_rel
+        if not self.wenv_abs.exists():
+            os.makedirs(self.wenv_abs, exist_ok=True)
         self.wenv_target_worker = self.wenv_abs
         distribution_tree = self.wenv_abs / "distribution_tree.json"
         self.post_install = Path("src") / self.target_worker / "post_install.py"
@@ -419,7 +424,7 @@ class AgiEnv:
         self.projects = self.get_projects(self.apps_dir)
         for idx, project in enumerate(self.projects):
             if self.target == project[:-8].replace("-", "_"):
-                self.app_rel = AgiEnv.apps_dir / project
+                self.app_abs = AgiEnv.apps_dir / project
                 self.project_index = idx
                 self.app = project
                 break
@@ -585,7 +590,7 @@ class AgiEnv:
         agi_root = self.agi_root
         pyproject_file = self.pyproject
         if not pyproject_file.exists():
-            raise FileNotFoundError(f"pyproject.toml not found in {self.app_rel}")
+            raise FileNotFoundError(f"pyproject.toml not found in {self.app_abs}")
 
         text = pyproject_file.read_text(encoding="utf-8")
         doc = tomlkit.parse(text)
@@ -631,7 +636,7 @@ class AgiEnv:
         args_ui_snippet.touch(exist_ok=True)
         self.args_ui_snippet = args_ui_snippet
 
-        self.gitignore_file = self.app_rel / ".gitignore"
+        self.gitignore_file = self.app_abs / ".gitignore"
         dest = self.resource_path
         if self.install_type:
             shutil.copytree(self.core_root.parent / "gui/src/agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)

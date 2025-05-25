@@ -54,6 +54,7 @@ from agi_env import AgiEnv
 from agi_core.managers.agi_manager import AgiManager
 from agi_core.workers.agi_worker import AgiWorker
 
+os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 workers_default = {socket.gethostbyname("localhost"): 1}
@@ -247,7 +248,7 @@ class AGI:
             base_worker_dir = str(env.workers_root / "src")
             if base_worker_dir not in sys.path:
                 sys.path.insert(0, base_worker_dir)
-            AGI._target_module = AGI._load_module(
+            AGI._target_module = await AGI._load_module(
                 AGI._target,
                 env.module,
                 path=env.app_src,
@@ -255,7 +256,7 @@ class AGI:
             if not AGI._target_module:
                 raise RuntimeError(f"failed to load {AGI._target}")
 
-            target_class = getattr(await AGI._target_module, env.target_class)
+            target_class = getattr(AGI._target_module, env.target_class)
             AGI._target_inst = target_class(env, **args)
 
             try:
@@ -786,7 +787,7 @@ class AGI:
     async def _install(scheduler):
         AGI._initialize_installation()
         env = AGI.env
-        app_path = env.app_rel
+        app_path = env.app_abs
         wenv_rel = env.wenv_rel
         wenv_abs = env.wenv_abs
         pyvers = env.python_version
@@ -857,7 +858,7 @@ class AGI:
         has_rapids_hw = AGI._hardware_supports_rapids()
 
         # Commande pour manager selon si rapids supporté
-        app_path = env.app_rel.absolute()
+        app_path = env.app_abs
         if has_rapids_hw:
             cmd_manager = f"uv -q {run_type} {options['manager']} --extra managers --project {app_path}"
         else:
@@ -1178,7 +1179,7 @@ class AGI:
 
             if AGI._is_local(AGI._scheduler_ip):
                 await asyncio.sleep(1)  # non-blocking sleep
-                cmd = (f"export DASK_DISTRIBUTED__LOGGING__DISTRIBUTED=DEBUG &&"
+                cmd = (
                     f"uv -q run --project {env.wenv_abs} dask scheduler --port {AGI._scheduler_port} "
                     f"--host {AGI._scheduler_ip} --pid-file dask_pid"
                 )
