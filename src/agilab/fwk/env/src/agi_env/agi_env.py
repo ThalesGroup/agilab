@@ -57,7 +57,7 @@ class AgiEnv:
         root_level = logging.DEBUG if verbosity >= 2 else logging.INFO if verbosity == 1 else logging.WARNING
 
         # Cap distributed logs at CRITICAL (silent)
-        distributed_level = logging.DEBUG if verbosity >= 2 else logging.INFO if verbosity == 1 else logging.WARNING
+        sys_level = logging.CRITICAL
 
         # Use root_level for your app-specific loggers as well
         app_level = root_level
@@ -66,19 +66,17 @@ class AgiEnv:
         root.setLevel(root_level)
 
         # Set distributed logger levels explicitly to suppress debug/info noise
-        logging.getLogger("distributed").setLevel(distributed_level)
-        logging.getLogger("distributed.worker").setLevel(distributed_level)
-        logging.getLogger("distributed.scheduler").setLevel(distributed_level)
-
-        logging.getLogger("distributed").setLevel(logging.WARNING)
-        logging.getLogger("distributed.worker").setLevel(logging.WARNING)
-        logging.getLogger("distributed.scheduler").setLevel(logging.WARNING)
-        logging.getLogger("distributed.comm").setLevel(logging.WARNING)
-        logging.getLogger("distributed.comm.tcp").setLevel(logging.WARNING)
-        logging.getLogger("distributed.active_memory_manager").setLevel(logging.WARNING)
+        logging.getLogger("distributed").setLevel(sys_level)
+        logging.getLogger("distributed.worker").setLevel(sys_level)
+        logging.getLogger("distributed.scheduler").setLevel(sys_level)
+        logging.getLogger("distributed.comm").setLevel(sys_level)
+        logging.getLogger("distributed.comm.tcp").setLevel(sys_level)
+        logging.getLogger("distributed.active_memory_manager").setLevel(sys_level)
 
         # Set asyncssh and other custom loggers to app_level (verbosity controlled)
-        logging.getLogger('asyncssh').setLevel(app_level)
+        logging.getLogger('asyncssh').setLevel(sys_level)
+
+        # agilab fwk
         logging.getLogger("agi_runner").setLevel(app_level)
         logging.getLogger("agi_worker").setLevel(app_level)
         logging.getLogger("agi_manager").setLevel(app_level)

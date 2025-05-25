@@ -645,6 +645,7 @@ async def page():
 
     init_session_state(defaults)
     initialize_app_settings()
+    verbose = cluster_params.get('verbose', 2)
     projects = env.projects
     st.session_state["projects"] = projects
     current_project = env.app
@@ -700,9 +701,9 @@ from agi_core.managers.agi_runner import AGI
 from agi_env import AgiEnv
 
 async def main():
-    env = AgiEnv(install_type={env.install_type})
+    env = AgiEnv(install_type={env.install_type}, verbose={verbose})
     res = await AGI.install('{module}', env, modes_enabled={st.session_state.mode},
-                            verbose={cluster_params.get('verbose', 2)}, 
+                            verbose={verbose}, 
                             scheduler={scheduler}, workers={workers})
     print(res)
     return res
@@ -777,8 +778,8 @@ from agi_core.managers.agi_runner import AGI
 from agi_env import AgiEnv
 
 async def main():
-    env = AgiEnv(install_type={env.install_type})
-    res = await AGI.distribute('{module}', env, verbose={cluster_params.get('verbose', 2)}, 
+    env = AgiEnv(install_type={env.install_type}, verbose={verbose})
+    res = await AGI.distribute('{module}', env, verbose={verbose}, 
                                 scheduler={scheduler}, workers={workers}, {st.session_state.args_serialized})
     print(res)
     return res
@@ -879,10 +880,10 @@ from agi_core.managers.agi_runner import AGI
 from agi_env import AgiEnv
 
 async def main():
-    env = AgiEnv(install_type={env.install_type})
+    env = AgiEnv(install_type={env.install_type}, verbose={verbose}) 
     res = await AGI.run('{module}', env, mode={st.session_state["mode"]}, 
                         scheduler={scheduler}, workers={workers}, 
-                        verbose={cluster_params.get('verbose', 2)}, {st.session_state.args_serialized})
+                        verbose={verbose}, {st.session_state.args_serialized})
     print(res)
     return res
 

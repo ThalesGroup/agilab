@@ -42,7 +42,7 @@ import humanize
 import numpy as np
 import polars as pl
 import psutil
-from dask.distributed import Client
+from dask.distributed import Client, print
 import json
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
@@ -1203,8 +1203,11 @@ class AGI:
 
             try:
                 await asyncio.sleep(1)  # Give scheduler a moment to start
-                AGI._dask_client = await Client(AGI._scheduler, timeout=AGI.TIMEOUT)
-
+                client = await Client(AGI._scheduler,
+                                            heartbeat_interval=5000,
+                                            timeout=AGI.TIMEOUT)
+                client.forward_logging()
+                AGI._dask_client = client
             except Exception as e:
                 AgiEnv.log_error("Dask Client instantiation trouble, run aborted due to:")
                 AgiEnv.log_info(e)
@@ -1365,7 +1368,7 @@ class AGI:
                 shutil.copy(env.setup_core, wenv_abs)
                 cmd = f"cd {app_path} && uv -q run python setup build_ext -b {wenv_abs}"
                 res = await AgiEnv.run(cmd, app_path)
-                worker_lib = next(iter(wenv_abs.glob("*_cy.*")), None)
+                worker_lib = next(iter((wenv_abs / 'dist').glob("*_cy.*")), None)
                 if not worker_lib:
                     raise RuntimeError(cmd)
 
@@ -1767,7 +1770,8 @@ class AGI:
         res_workers_info = AGI._dask_client.gather(
             [
                 AGI._dask_client.run(
-                    AgiWorker.get_logs_and_result,
+                    #AgiWorker.get_logs_and_result,
+
                     AgiWorker.get_worker_info,
                     AgiWorker.worker_id,
                     workers=AGI._dask_workers,
@@ -1779,9 +1783,9 @@ class AGI:
 
         for res in res_workers_info:
             for worker, info in res.items():
-                if info[0]:
-                    AgiEnv.log_info(worker, ":", info[0])
-                infos[worker] = info[1]
+                if info:
+                    AgiEnv.log_info(f"{worker}:{info}")
+                infos[worker] = info
 
         AGI.workers_info = infos
         AGI._capacity = {}

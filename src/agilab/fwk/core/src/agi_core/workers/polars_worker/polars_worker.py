@@ -119,7 +119,7 @@ class PolarsWorker(AgiWorker):
             float: Execution time in seconds.
         """
         if workers_tree:
-            if self.mode % 2 == 1:
+            if self.mode & 4:
                 self.exec_multi_process(workers_tree, workers_tree_info)
             else:
                 self.exec_mono_process(workers_tree, workers_tree_info)
