@@ -581,7 +581,7 @@ class AGI:
         # 2) If force, kill by process name
         if force:
             cmd = (
-                'uv run python -c "'
+                'python3 -c "'
                 'import getpass, os, psutil; '
                 'me = getpass.getuser(); '
                 'self_pid = os.getpid(); '
@@ -600,9 +600,9 @@ class AGI:
         # 3) If we found any explicit pid files, terminate those PIDs
         if pids_to_kill:
             cmds.append(
-                  'uv -q run python -c "import os, psutil; '
+                  'python3 -c "import os, psutil; '
                   f"pids={pids_to_kill}; "
-                  "[psutil.Process(p).terminate() for p in pids if p!=os.getpid()]"
+                  "[psutil.Process(p).kill() for p in pids if p!=os.getpid()]"
                   '"'
             )
 
