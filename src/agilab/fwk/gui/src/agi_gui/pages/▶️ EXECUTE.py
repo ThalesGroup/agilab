@@ -645,7 +645,6 @@ async def page():
 
     init_session_state(defaults)
     initialize_app_settings()
-    verbose = cluster_params.get('verbose', 2)
     projects = env.projects
     st.session_state["projects"] = projects
     current_project = env.app
@@ -690,6 +689,7 @@ async def page():
             render_cluster_settings_ui()
         with st.expander("Install snippet"):
             cluster_params = st.session_state.app_settings["cluster"]
+            verbose = cluster_params.get('verbose', 2)
             enabled = cluster_params.get("cluster_enabled", False)
             scheduler = cluster_params.get("scheduler", "")
             scheduler = f'"{str(scheduler)}"' if enabled and scheduler else "None"
