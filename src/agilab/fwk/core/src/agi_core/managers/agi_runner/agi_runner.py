@@ -666,7 +666,7 @@ class AGI:
         await env.exec_ssh(
             ip,
             cmd=(
-                f"uv -q run python -c \"import os, glob, shutil\n"
+                f"python3 -c \"import os, glob, shutil\n"
                 f"from tempfile import gettempdir\n"
                 f"wenv_path = os.path.abspath(os.path.expanduser('{wenv_rel}'))\n"
                 f"patterns = [os.path.join(gettempdir(), 'dask-scratch-space'), os.path.join(wenv_path, '*y')]\n"
