@@ -792,14 +792,13 @@ class AgiEnv:
             stderr=asyncio.subprocess.PIPE,
         )
 
-        async def read_stream(stream):
-            async for line in stream:
-                if isinstance(line, bytes):
-                    decoded_line = line.decode('utf-8', errors='replace').rstrip()
-                else:
-                    decoded_line = line.rstrip()
-                if decoded_line:
-                    AgiEnv.log_info(decoded_line)
+        async def read_stream(stream, callback):
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                decoded_line = line.decode().rstrip()
+                callback(decoded_line)
 
         tasks = []
         if proc.stdout:

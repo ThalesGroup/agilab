@@ -681,6 +681,8 @@ async def page():
 
     show_export = st.sidebar.checkbox("EXPORT DATA", value=False,help="")
 
+    cluster_params = st.session_state.app_settings["cluster"]
+    verbose = cluster_params.get('verbose', 2)
     # ------------------
     # INSTALL Section
     # ------------------
@@ -688,8 +690,6 @@ async def page():
         with st.expander("Cluster settings:", expanded=True):
             render_cluster_settings_ui()
         with st.expander("Install snippet"):
-            cluster_params = st.session_state.app_settings["cluster"]
-            verbose = cluster_params.get('verbose', 2)
             enabled = cluster_params.get("cluster_enabled", False)
             scheduler = cluster_params.get("scheduler", "")
             scheduler = f'"{str(scheduler)}"' if enabled and scheduler else "None"
