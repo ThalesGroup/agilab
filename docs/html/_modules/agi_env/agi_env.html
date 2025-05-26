@@ -257,6 +257,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_multi_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_logs_and_result()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_work"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_work()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_worker_info()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.home_dir</span></code></a></li>
@@ -360,6 +361,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_multi_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.expand"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_logs_and_result()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_worker_info()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">FlightWorker.home_dir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">FlightWorker.is_managed_pc</span></code></a></li>
@@ -437,12 +439,13 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">traceback</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span><span class="p">,</span> <span class="n">PureWindowsPath</span><span class="p">,</span> <span class="n">PurePosixPath</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dotenv</span><span class="w"> </span><span class="kn">import</span> <span class="n">dotenv_values</span><span class="p">,</span> <span class="n">set_key</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pathspec</span><span class="w"> </span><span class="kn">import</span> <span class="n">PathSpec</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">tomlkit</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">errno</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">scp</span>
+
+<span class="c1"># Compile regex once globally</span>
+<span class="n">LOG_LEVEL_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;\b(INFO|ERROR|WARNING|DEBUG|CRITICAL)\b&#39;</span><span class="p">)</span>
 
 <span class="c1"># Patch for IPython ≥8.37 (theme_name) vs ≤8.36 (color_scheme)</span>
 <span class="n">_sig</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">signature</span><span class="p">(</span><span class="n">FormattedTB</span><span class="o">.</span><span class="fm">__init__</span><span class="p">)</span><span class="o">.</span><span class="n">parameters</span>
@@ -455,6 +458,7 @@
 <span class="n">sys</span><span class="o">.</span><span class="n">excepthook</span> <span class="o">=</span> <span class="n">FormattedTB</span><span class="p">(</span><span class="o">**</span><span class="n">_tb_kwargs</span><span class="p">)</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
 
 <div class="viewcode-block" id="AgiEnv">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv">[docs]</a>
@@ -469,69 +473,78 @@
 
 <div class="viewcode-block" id="AgiEnv.init_logging">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.init_logging">[docs]</a>
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">init_logging</span><span class="p">(</span><span class="n">verbosity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">init_logging</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">verbosity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Initialize logging with a level based on verbosity:</span>
 <span class="sd">        0 = WARNING, 1 = INFO, 2 or more = DEBUG</span>
 <span class="sd">        INFO and DEBUG levels go to stdout; WARNING and above go to stderr.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">verbosity</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">verbosity</span> <span class="o">=</span> <span class="mi">0</span>
 
-        <span class="c1"># Determine root log level</span>
-        <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">:</span>
-            <span class="n">level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span>
-        <span class="k">elif</span> <span class="n">verbosity</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="n">level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span>
 
-        <span class="c1"># Remove existing handlers</span>
+        <span class="c1"># Root logger level based on verbosity</span>
+        <span class="n">root_level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span> <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span> <span class="k">if</span> <span class="n">verbosity</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span>
+
+        <span class="c1"># Cap distributed logs at CRITICAL (silent)</span>
+        <span class="n">sys_level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span>
+
+        <span class="c1"># Use root_level for your app-specific loggers as well</span>
+        <span class="n">app_level</span> <span class="o">=</span> <span class="n">root_level</span>
+
         <span class="n">root</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">()</span>
+        <span class="n">root</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">root_level</span><span class="p">)</span>
 
-        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;asyncssh&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;agi_runner&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;agi_worker&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;agi_manager&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;agi_env&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;dag_worker&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;pandas_worker&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;polars_worker&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;agent_worker&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
+        <span class="c1"># Set distributed logger levels explicitly to suppress debug/info noise</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;distributed&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">sys_level</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;distributed.worker&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">sys_level</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;distributed.scheduler&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">sys_level</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;distributed.comm&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">sys_level</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;distributed.comm.tcp&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">sys_level</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;distributed.active_memory_manager&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">sys_level</span><span class="p">)</span>
 
+        <span class="c1"># Set asyncssh and other custom loggers to app_level (verbosity controlled)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;asyncssh&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">sys_level</span><span class="p">)</span>
+
+        <span class="c1"># agilab fwk</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;agi_runner&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">app_level</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;agi_worker&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">app_level</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;agi_manager&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">app_level</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;agi_env&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">app_level</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;dag_worker&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">app_level</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;pandas_worker&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">app_level</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;polars_worker&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">app_level</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;agent_worker&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">app_level</span><span class="p">)</span>
+
+        <span class="c1"># Remove existing handlers to avoid duplicate logs</span>
         <span class="k">for</span> <span class="n">handler</span> <span class="ow">in</span> <span class="n">root</span><span class="o">.</span><span class="n">handlers</span><span class="p">[:]:</span>
             <span class="n">root</span><span class="o">.</span><span class="n">removeHandler</span><span class="p">(</span><span class="n">handler</span><span class="p">)</span>
 
-        <span class="c1"># Formatter</span>
         <span class="n">fmt</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span>
             <span class="s2">&quot;</span><span class="si">%(asctime)s</span><span class="s2"> </span><span class="si">%(levelname)s</span><span class="s2"> </span><span class="si">%(message)s</span><span class="s2">&quot;</span><span class="p">,</span>
             <span class="n">datefmt</span><span class="o">=</span><span class="s2">&quot;%H:%M:%S&quot;</span>
         <span class="p">)</span>
 
-        <span class="c1"># Handler for INFO and below to stdout</span>
         <span class="n">stdout_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">)</span>
-        <span class="n">stdout_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+        <span class="n">stdout_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>  <span class="c1"># always capture debug and above on stdout</span>
         <span class="n">stdout_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">fmt</span><span class="p">)</span>
 
-        <span class="c1"># Handler for WARNING and above to stderr</span>
         <span class="n">stderr_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
-        <span class="n">stderr_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)</span>
+        <span class="n">stderr_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)</span>  <span class="c1"># warnings and errors on stderr</span>
         <span class="n">stderr_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">fmt</span><span class="p">)</span>
 
-        <span class="c1"># Add handlers to root logger</span>
         <span class="n">root</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">stdout_handler</span><span class="p">)</span>
         <span class="n">root</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">stderr_handler</span><span class="p">)</span>
-        <span class="n">root</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
 
-        <span class="c1"># Debug message about initialization</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Logging initialized at level </span><span class="si">{</span><span class="n">logging</span><span class="o">.</span><span class="n">getLevelName</span><span class="p">(</span><span class="n">level</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Logging initialized at level </span><span class="si">{</span><span class="n">logging</span><span class="o">.</span><span class="n">getLevelName</span><span class="p">(</span><span class="n">root_level</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.__init__">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.__init__">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">install_type</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">apps_dir</span><span class="p">:</span> <span class="n">Path</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-                 <span class="n">active_app</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">active_module</span><span class="p">:</span> <span class="n">Path</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">verbose</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">):</span>
+                 <span class="n">active_app</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">active_module</span><span class="p">:</span> <span class="n">Path</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">verbose</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">init_logging</span><span class="p">(</span><span class="n">verbose</span><span class="p">)</span>  <span class="c1"># Initialize logging here</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_logging</span><span class="p">(</span><span class="n">verbose</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">is_managed_pc</span> <span class="o">=</span> <span class="n">getpass</span><span class="o">.</span><span class="n">getuser</span><span class="p">()</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;T0&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;resources/.agilab&quot;</span><span class="p">)</span>
@@ -549,8 +562,6 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">install_type</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="p">(</span><span class="s2">&quot;site-packages&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="vm">__file__</span> <span class="ow">or</span> <span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;gui/.venv&quot;</span><span class="p">))</span> <span class="k">else</span> <span class="mi">0</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">install_type</span> <span class="o">=</span> <span class="n">install_type</span>
-
-        <span class="c1">#logging.info(f&quot;install_type: {install_type}&quot;)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">agi_root</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">locate_agi_installation</span><span class="p">(</span><span class="n">verbose</span><span class="p">)</span>
 
@@ -587,7 +598,10 @@
                 <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;active_module must be of type &#39;Path&#39;&quot;</span><span class="p">)</span>
                 <span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">module</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">if</span> <span class="n">active_app</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">module</span> <span class="o">=</span> <span class="n">active_app</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_project&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">module</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">apps_dir</span><span class="p">:</span>
             <span class="n">apps_dir</span> <span class="o">=</span> <span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;APPS_DIR&quot;</span><span class="p">,</span> <span class="s1">&#39;apps&#39;</span><span class="p">)</span>
@@ -604,7 +618,7 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">apps_dir</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
-            <span class="n">logging</span><span class="o">.</span><span class="n">err</span><span class="p">(</span><span class="s2">&quot;apps_dir not found:&quot;</span><span class="p">,</span> <span class="n">apps_dir</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;apps_dir not found: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">apps_dir</span><span class="p">)</span>
             <span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">GUI_NROW</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;GUI_NROW&quot;</span><span class="p">,</span> <span class="mi">1000</span><span class="p">))</span>
@@ -631,19 +645,18 @@
             <span class="n">module</span> <span class="o">=</span> <span class="n">apps_dir</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_project&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">module</span> <span class="o">=</span> <span class="n">module</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">,</span><span class="s1">&#39;_&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">module</span> <span class="o">=</span> <span class="n">module</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="s1">&#39;_&#39;</span><span class="p">)</span>
 
         <span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">app_rel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">active_app</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_rel</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_abs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">active_app</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_abs</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">target_worker</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="si">}</span><span class="s2">_worker&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_pyproject</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_abs</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_worker</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">target_worker</span><span class="si">}</span><span class="s2">.py&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">module_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="si">}</span><span class="s2">.py&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pyproject</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">worker_pyproject</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">uvproject</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;uv.toml&quot;</span>
-
         <span class="bp">self</span><span class="o">.</span><span class="n">agi_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">resolve_packages_path_in_toml</span><span class="p">()</span>
-
         <span class="bp">self</span><span class="o">.</span><span class="n">projects</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_projects</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">projects</span><span class="p">:</span>
@@ -666,7 +679,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">agi_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">core_src</span> <span class="o">/</span> <span class="s2">&quot;agi_core&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">workers_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_core</span> <span class="o">/</span> <span class="s2">&quot;workers&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">manager_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_core</span> <span class="o">/</span> <span class="s2">&quot;managers&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">setup_app</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_rel</span> <span class="o">/</span> <span class="s2">&quot;setup&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setup_app</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_abs</span> <span class="o">/</span> <span class="s2">&quot;setup&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">setup_core_rel</span> <span class="o">=</span> <span class="s2">&quot;agi_worker/setup&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">setup_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">workers_root</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">setup_core_rel</span>
 
@@ -679,11 +692,9 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">module_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_determine_module_path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">target</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">module_path</span><span class="o">.</span><span class="n">stem</span>
-
         <span class="bp">self</span><span class="o">.</span><span class="n">AGILAB_SHARE</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;AGI_SHARE_DIR&quot;</span><span class="p">,</span> <span class="s2">&quot;data&quot;</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">data_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">AGILAB_SHARE</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">target</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dataframes_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_dir</span> <span class="o">/</span> <span class="s2">&quot;dataframes&quot;</span>
-
         <span class="bp">self</span><span class="o">.</span><span class="n">_init_projects</span><span class="p">()</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">scheduler_ip</span> <span class="o">=</span> <span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;AGI_SCHEDULER_IP&quot;</span><span class="p">,</span> <span class="s2">&quot;127.0.0.1&quot;</span><span class="p">)</span>
@@ -722,6 +733,8 @@
         <span class="n">wenv_rel</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;wenv&quot;</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_worker</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">wenv_rel</span> <span class="o">=</span> <span class="n">wenv_rel</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">/</span> <span class="n">wenv_rel</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">wenv_target_worker</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span>
         <span class="n">distribution_tree</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span> <span class="o">/</span> <span class="s2">&quot;distribution_tree.json&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">post_install</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;src&quot;</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_worker</span> <span class="o">/</span> <span class="s2">&quot;post_install.py&quot;</span>
@@ -734,14 +747,11 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">init_envars_app</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">envars</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_init_apps</span><span class="p">()</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">))</span>
-        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">)</span>
-
         <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;nt&quot;</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">export_local_bin</span> <span class="o">=</span> <span class="s1">&#39;set PATH=%USERPROFILE%</span><span class="se">\\</span><span class="s1">.local</span><span class="se">\\</span><span class="s1">bin;%PATH% &amp;&amp;&#39;</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">export_local_bin</span> <span class="o">=</span> <span class="s1">&#39;export PATH=&quot;$HOME/.local/bin:$PATH&quot;;&#39;</span></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">export_local_bin</span> <span class="o">=</span> <span class="s1">&#39;export PATH=&quot;$HOME/.local/bin:$PATH&quot;;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ssh_connections</span> <span class="o">=</span> <span class="p">{}</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.active">
@@ -803,17 +813,15 @@
                     <span class="n">install_path</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
                     <span class="n">agilab_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">install_path</span><span class="p">)</span>
                     <span class="k">if</span> <span class="n">install_path</span> <span class="ow">and</span> <span class="n">agilab_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-                        <span class="c1">#if verbose:</span>
-                        <span class="c1">#    logging.info(f&quot;Run Agilab: {install_path}&quot;)</span>
                         <span class="k">return</span> <span class="n">agilab_path</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Installation path file is empty or invalid.&quot;</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
-                <span class="n">logging</span><span class="o">.</span><span class="n">err</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;File </span><span class="si">{</span><span class="n">where_is_agi</span><span class="si">}</span><span class="s2"> does not exist.&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;File </span><span class="si">{</span><span class="n">where_is_agi</span><span class="si">}</span><span class="s2"> does not exist.&quot;</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">PermissionError</span><span class="p">:</span>
-                <span class="n">logging</span><span class="o">.</span><span class="n">err</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Permission denied when accessing </span><span class="si">{</span><span class="n">where_is_agi</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Permission denied when accessing </span><span class="si">{</span><span class="n">where_is_agi</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="n">logging</span><span class="o">.</span><span class="n">err</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;An error occurred: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;An error occurred: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path_importer_cache</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;AGILAB.py&quot;</span><span class="p">):</span>
@@ -862,12 +870,11 @@
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">dest_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
                     <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">src_file</span><span class="p">,</span> <span class="n">dest_file</span><span class="p">)</span>
 
-
     <span class="k">def</span><span class="w"> </span><span class="nf">_init_projects</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">projects</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_projects</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">project</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">projects</span><span class="p">):</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">target</span> <span class="o">==</span> <span class="n">project</span><span class="p">[:</span><span class="o">-</span><span class="mi">8</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">):</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">app_rel</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">project</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">app_abs</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">project</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">project_index</span> <span class="o">=</span> <span class="n">idx</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">app</span> <span class="o">=</span> <span class="n">project</span>
                 <span class="k">break</span>
@@ -925,14 +932,14 @@
             <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">module_path</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
                 <span class="n">source</span> <span class="o">=</span> <span class="n">file</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
         <span class="k">except</span> <span class="p">(</span><span class="ne">IOError</span><span class="p">,</span> <span class="ne">FileNotFoundError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="n">logging</span><span class="o">.</span><span class="n">err</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error reading module file </span><span class="si">{</span><span class="n">module_path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error reading module file </span><span class="si">{</span><span class="n">module_path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="k">return</span> <span class="p">[]</span>
 
         <span class="k">try</span><span class="p">:</span>
             <span class="n">tree</span> <span class="o">=</span> <span class="n">ast</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">SyntaxError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">:</span>
-                <span class="n">logging</span><span class="o">.</span><span class="n">err</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Syntax error parsing </span><span class="si">{</span><span class="n">module_path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Syntax error parsing </span><span class="si">{</span><span class="n">module_path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Syntax error parsing </span><span class="si">{</span><span class="n">module_path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="n">import_mapping</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_import_mapping</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
@@ -955,7 +962,7 @@
             <span class="n">tree</span> <span class="o">=</span> <span class="n">ast</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">SyntaxError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">:</span>
-                <span class="n">logging</span><span class="o">.</span><span class="n">err</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Syntax error during import mapping: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Syntax error during import mapping: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="k">raise</span>
         <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">ast</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="n">tree</span><span class="p">):</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Import</span><span class="p">):</span>
@@ -1002,8 +1009,7 @@
 
         <span class="n">chars</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">,</span> <span class="s2">&quot;d&quot;</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">]</span>
         <span class="n">reversed_chars</span> <span class="o">=</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">enumerate</span><span class="p">(</span><span class="n">chars</span><span class="p">)))</span>
-        <span class="c1"># Open in binary mode for tomli</span>
-        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pyproject</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_pyproject</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
             <span class="n">pyproject_data</span> <span class="o">=</span> <span class="n">tomli</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
 
         <span class="n">dependencies</span> <span class="o">=</span> <span class="n">pyproject_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;project&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dependencies&quot;</span><span class="p">,</span> <span class="p">[])</span>
@@ -1067,35 +1073,34 @@
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.resolve_packages_path_in_toml">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">resolve_packages_path_in_toml</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">agi_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_root</span>
-        <span class="n">pyproject_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pyproject</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">pyproject_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;pyproject.toml not found in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">app_rel</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_pyproject</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_pyproject</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">file</span><span class="si">}</span><span class="s2"> not found in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">app_abs</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-        <span class="n">text</span> <span class="o">=</span> <span class="n">pyproject_file</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
-        <span class="n">doc</span> <span class="o">=</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+            <span class="n">text</span> <span class="o">=</span> <span class="n">file</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+            <span class="n">doc</span> <span class="o">=</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
 
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">uv</span> <span class="o">=</span> <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;tool&quot;</span><span class="p">][</span><span class="s2">&quot;uv&quot;</span><span class="p">]</span>
-        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Could not find [tool.uv] section in the TOML&quot;</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">uv</span> <span class="o">=</span> <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;tool&quot;</span><span class="p">][</span><span class="s2">&quot;uv&quot;</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Could not find [tool.uv] section in the TOML&quot;</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="s2">&quot;sources&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">uv</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">uv</span><span class="p">[</span><span class="s2">&quot;sources&quot;</span><span class="p">],</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">items</span><span class="o">.</span><span class="n">Table</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Could not find [tool.uv.sources] in the TOML&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="s2">&quot;sources&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">uv</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">uv</span><span class="p">[</span><span class="s2">&quot;sources&quot;</span><span class="p">],</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">items</span><span class="o">.</span><span class="n">Table</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Could not find [tool.uv.sources] in the TOML&quot;</span><span class="p">)</span>
 
-        <span class="n">sources</span> <span class="o">=</span> <span class="n">uv</span><span class="p">[</span><span class="s2">&quot;sources&quot;</span><span class="p">]</span>
+            <span class="n">sources</span> <span class="o">=</span> <span class="n">uv</span><span class="p">[</span><span class="s2">&quot;sources&quot;</span><span class="p">]</span>
 
-        <span class="n">agi_core_path</span> <span class="o">=</span> <span class="nb">str</span><span class="p">((</span><span class="n">agi_root</span> <span class="o">/</span> <span class="s2">&quot;fwk&quot;</span> <span class="o">/</span> <span class="s2">&quot;core&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">())</span>
-        <span class="n">tbl</span> <span class="o">=</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">inline_table</span><span class="p">()</span>
-        <span class="n">tbl</span><span class="p">[</span><span class="s2">&quot;path&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">agi_core_path</span>
-        <span class="n">tbl</span><span class="p">[</span><span class="s2">&quot;editable&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">agi_core_path</span> <span class="o">=</span> <span class="nb">str</span><span class="p">((</span><span class="n">agi_root</span> <span class="o">/</span> <span class="s2">&quot;fwk&quot;</span> <span class="o">/</span> <span class="s2">&quot;core&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">())</span>
+            <span class="n">tbl</span> <span class="o">=</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">inline_table</span><span class="p">()</span>
+            <span class="n">tbl</span><span class="p">[</span><span class="s2">&quot;path&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">agi_core_path</span>
+            <span class="n">tbl</span><span class="p">[</span><span class="s2">&quot;editable&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
 
-        <span class="n">sources</span><span class="p">[</span><span class="s2">&quot;agi-core&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tbl</span>
+            <span class="n">sources</span><span class="p">[</span><span class="s2">&quot;agi-core&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tbl</span>
 
-        <span class="n">pyproject_file</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">tomlkit</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">doc</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
-
-        <span class="c1">#if self.verbose:</span>
-        <span class="c1">#    logging.info(f&quot;Update: {pyproject_file}&quot;)</span>
-
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">file</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">tomlkit</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">doc</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error writing file: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">agi_root</span> <span class="o">/</span> <span class="s2">&quot;fwk&quot;</span> <span class="o">/</span> <span class="s2">&quot;core&quot;</span></div>
 
 
@@ -1122,7 +1127,7 @@
         <span class="n">args_ui_snippet</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">args_ui_snippet</span> <span class="o">=</span> <span class="n">args_ui_snippet</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">gitignore_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_rel</span> <span class="o">/</span> <span class="s2">&quot;.gitignore&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gitignore_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_abs</span> <span class="o">/</span> <span class="s2">&quot;.gitignore&quot;</span>
         <span class="n">dest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">resource_path</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">install_type</span><span class="p">:</span>
             <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">core_root</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;gui/src/agi_gui&quot;</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span><span class="p">,</span> <span class="n">dest</span><span class="p">,</span> <span class="n">dirs_exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -1141,7 +1146,6 @@
             <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">PureWindowsPath</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">PurePosixPath</span><span class="p">(</span><span class="n">p</span><span class="p">))</span></div>
-
 
 
     <span class="nd">@staticmethod</span>
@@ -1166,17 +1170,8 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="n">line</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="n">line</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">line</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">14</span><span class="p">:</span>
-            <span class="n">msg_type</span> <span class="o">=</span> <span class="n">line</span><span class="p">[</span><span class="mi">10</span><span class="p">:</span><span class="mi">14</span><span class="p">]</span>
-            <span class="k">if</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;INFO&#39;</span> <span class="ow">or</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;ERRO&#39;</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">level</span><span class="p">:</span>
-                    <span class="nb">print</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">GREEN</span><span class="si">}{</span><span class="n">line</span><span class="si">}{</span><span class="n">RESET</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">isatty</span><span class="p">()</span> <span class="k">else</span> <span class="n">line</span>
-                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">GREEN</span><span class="si">}{</span><span class="n">line</span><span class="si">}{</span><span class="n">RESET</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">isatty</span><span class="p">()</span> <span class="k">else</span> <span class="n">line</span>
-            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
+        <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">GREEN</span><span class="si">}{</span><span class="n">line</span><span class="si">}{</span><span class="n">RESET</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">isatty</span><span class="p">()</span> <span class="k">else</span> <span class="n">line</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.log_error">
@@ -1186,35 +1181,24 @@
         <span class="n">RED</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[31m&quot;</span>
         <span class="n">RESET</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[0m&quot;</span>
 
-        <span class="c1"># If input is exception or not string, convert to string safely</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="n">line</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="n">line</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">line</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">14</span><span class="p">:</span>
-            <span class="n">msg_type</span> <span class="o">=</span> <span class="n">line</span><span class="p">[</span><span class="mi">10</span><span class="p">:</span><span class="mi">14</span><span class="p">]</span>
-            <span class="k">if</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;INFO&#39;</span> <span class="ow">or</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;ERRO&#39;</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">level</span><span class="p">:</span>
-                    <span class="nb">print</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">RED</span><span class="si">}{</span><span class="n">line</span><span class="si">}{</span><span class="n">RESET</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">isatty</span><span class="p">()</span> <span class="k">else</span> <span class="n">line</span>
-                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">RED</span><span class="si">}{</span><span class="n">line</span><span class="si">}{</span><span class="n">RESET</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">isatty</span><span class="p">()</span> <span class="k">else</span> <span class="n">line</span>
-            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
+        <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">RED</span><span class="si">}{</span><span class="n">line</span><span class="si">}{</span><span class="n">RESET</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">isatty</span><span class="p">()</span> <span class="k">else</span> <span class="n">line</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.run">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.run">[docs]</a>
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">venv</span><span class="p">,</span> <span class="n">cwd</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">wait</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">log_callback</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">venv</span><span class="p">,</span> <span class="n">cwd</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">wait</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">log_callback</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Run a shell command synchronously inside a virtual environment.</span>
 <span class="sd">        Log stdout lines as info, stderr lines as error.</span>
 
-<span class="sd">        Returns exit code.</span>
+<span class="sd">        Returns full stdout string.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Executing in </span><span class="si">{</span><span class="n">venv</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Executing in </span><span class="si">{</span><span class="n">venv</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">cwd</span><span class="p">:</span>
             <span class="n">cwd</span> <span class="o">=</span> <span class="n">venv</span>
@@ -1265,12 +1249,9 @@
                         <span class="k">if</span> <span class="n">log_callback</span><span class="p">:</span>
                             <span class="n">log_callback</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
                         <span class="k">elif</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s2">&quot;INFO&quot;</span><span class="p">:</span>
-                                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="n">line</span><span class="p">[</span><span class="mi">6</span><span class="p">:])</span>
-                        <span class="k">elif</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s2">&quot;ERRO&quot;</span><span class="p">:</span>
-                            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="n">line</span><span class="p">[</span><span class="mi">7</span><span class="p">:])</span>
-                        <span class="k">else</span><span class="p">:</span>
                             <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
-
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
 
                     <span class="k">if</span> <span class="n">out_line</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span> <span class="ow">and</span> <span class="n">err_line</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span> <span class="ow">and</span> <span class="n">process</span><span class="o">.</span><span class="n">poll</span><span class="p">()</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                         <span class="k">break</span>
@@ -1301,49 +1282,6 @@
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_run_bg</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">cwd</span><span class="o">=</span><span class="s2">&quot;.&quot;</span><span class="p">,</span> <span class="n">venv</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">log_callback</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Run command asynchronously, log stdout as info, stderr as error.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">proc_env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">_build_env</span><span class="p">(</span><span class="n">venv</span><span class="p">)</span>
-        <span class="n">proc_env</span><span class="p">[</span><span class="s2">&quot;PYTHONUNBUFFERED&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;1&quot;</span>
-        <span class="n">proc</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">create_subprocess_shell</span><span class="p">(</span>
-            <span class="n">cmd</span><span class="p">,</span>
-            <span class="n">cwd</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">cwd</span><span class="p">),</span>
-            <span class="n">env</span><span class="o">=</span><span class="n">proc_env</span><span class="p">,</span>
-            <span class="n">stdout</span><span class="o">=</span><span class="n">asyncio</span><span class="o">.</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
-            <span class="n">stderr</span><span class="o">=</span><span class="n">asyncio</span><span class="o">.</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
-            <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-        <span class="p">)</span>
-
-        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">read_stream</span><span class="p">(</span><span class="n">stream</span><span class="p">,</span> <span class="n">log_func</span><span class="p">):</span>
-            <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-                <span class="n">line</span> <span class="o">=</span> <span class="k">await</span> <span class="n">stream</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="p">:</span>
-                    <span class="k">break</span>
-                <span class="n">log_func</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">rstrip</span><span class="p">())</span>
-
-        <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">if</span> <span class="n">proc</span><span class="o">.</span><span class="n">stdout</span><span class="p">:</span>
-            <span class="n">tasks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span>
-                <span class="n">read_stream</span><span class="p">(</span><span class="n">proc</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">log_callback</span> <span class="k">if</span> <span class="n">log_callback</span> <span class="k">else</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">)</span>
-            <span class="p">))</span>
-        <span class="k">if</span> <span class="n">proc</span><span class="o">.</span><span class="n">stderr</span><span class="p">:</span>
-            <span class="n">tasks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span>
-                <span class="n">read_stream</span><span class="p">(</span><span class="n">proc</span><span class="o">.</span><span class="n">stderr</span><span class="p">,</span> <span class="n">log_callback</span> <span class="k">if</span> <span class="n">log_callback</span> <span class="k">else</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">)</span>
-            <span class="p">))</span>
-
-        <span class="k">try</span><span class="p">:</span>
-            <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">wait_for</span><span class="p">(</span><span class="n">proc</span><span class="o">.</span><span class="n">wait</span><span class="p">(),</span> <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span>
-        <span class="k">except</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">TimeoutError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
-            <span class="n">proc</span><span class="o">.</span><span class="n">kill</span><span class="p">()</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Timeout expired for command: </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">err</span>
-
-        <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="n">tasks</span><span class="p">)</span>
-        <span class="n">stdout</span><span class="p">,</span> <span class="n">stderr</span> <span class="o">=</span> <span class="k">await</span> <span class="n">proc</span><span class="o">.</span><span class="n">communicate</span><span class="p">()</span>
-        <span class="k">return</span> <span class="n">stdout</span><span class="p">,</span> <span class="n">stderr</span>
-
-    <span class="nd">@staticmethod</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_run_bg</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">cwd</span><span class="o">=</span><span class="s2">&quot;.&quot;</span><span class="p">,</span> <span class="n">venv</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">log_callback</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Run the given command asynchronously, reading stdout and stderr line by line</span>
 <span class="sd">        and passing them to the log_callback.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -1363,19 +1301,16 @@
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="p">:</span>
                     <span class="k">break</span>
                 <span class="n">decoded_line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
-                <span class="k">if</span> <span class="n">callback</span><span class="p">:</span>
-                    <span class="n">callback</span><span class="p">(</span><span class="n">decoded_line</span><span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">decoded_line</span><span class="p">)</span>
+                <span class="n">callback</span><span class="p">(</span><span class="n">decoded_line</span><span class="p">)</span>
 
         <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">if</span> <span class="n">proc</span><span class="o">.</span><span class="n">stdout</span><span class="p">:</span>
             <span class="n">tasks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span>
-                <span class="n">read_stream</span><span class="p">(</span><span class="n">proc</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">msg</span><span class="p">:</span> <span class="n">log_callback</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span> <span class="k">if</span> <span class="n">log_callback</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">msg</span><span class="p">))</span>
+                <span class="n">read_stream</span><span class="p">(</span><span class="n">proc</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">log_callback</span> <span class="k">if</span> <span class="n">log_callback</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">)</span>
             <span class="p">))</span>
         <span class="k">if</span> <span class="n">proc</span><span class="o">.</span><span class="n">stderr</span><span class="p">:</span>
             <span class="n">tasks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span>
-                <span class="n">read_stream</span><span class="p">(</span><span class="n">proc</span><span class="o">.</span><span class="n">stderr</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">msg</span><span class="p">:</span> <span class="n">log_callback</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span> <span class="k">if</span> <span class="n">log_callback</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">err</span><span class="p">(</span><span class="n">msg</span><span class="p">))</span>
+                <span class="n">read_stream</span><span class="p">(</span><span class="n">proc</span><span class="o">.</span><span class="n">stderr</span><span class="p">,</span> <span class="n">log_callback</span> <span class="k">if</span> <span class="n">log_callback</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">)</span>
             <span class="p">))</span>
 
         <span class="k">try</span><span class="p">:</span>
@@ -1406,15 +1341,13 @@
         <span class="n">snippet_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">runenv</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">matches</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">target</span><span class="si">}</span><span class="s2">.py&quot;</span><span class="p">)</span>
         <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">snippet_file</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
             <span class="n">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">code</span><span class="p">)</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv run --project </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">venv</span><span class="p">)</span><span class="si">}</span><span class="s2"> python </span><span class="si">{</span><span class="n">snippet_file</span><span class="si">}</span><span class="s2">&quot;</span>
-        <span class="c1"># Await _run_bg directly without asyncio.run()</span>
-        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">_run_bg</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">venv</span><span class="o">=</span><span class="n">venv</span><span class="p">,</span> <span class="n">log_callback</span><span class="o">=</span><span class="n">log_callback</span><span class="p">)</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q run --project </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">venv</span><span class="p">)</span><span class="si">}</span><span class="s2"> python </span><span class="si">{</span><span class="n">snippet_file</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">_run_bg</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">cwd</span><span class="o">=</span><span class="n">venv</span><span class="p">,</span> <span class="n">log_callback</span><span class="o">=</span><span class="n">log_callback</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">log_callback</span><span class="p">:</span>
             <span class="n">log_callback</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Process finished with output: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;test&quot;</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Process finished&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">result</span></div>
-
 
 
 <div class="viewcode-block" id="AgiEnv.run_async">
@@ -1423,13 +1356,6 @@
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_async</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">venv</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cwd</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">log_callback</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Run a shell command asynchronously inside a virtual environment.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            cmd (str or list): Command to run.</span>
-<span class="sd">            venv (str or Path): Virtual environment or project root.</span>
-<span class="sd">            cwd (str or Path): Working directory.</span>
-<span class="sd">            timeout (float): Timeout in seconds.</span>
-<span class="sd">            log_callback (callable): Function to receive stdout/stderr lines.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">cwd</span><span class="p">:</span>
             <span class="n">cwd</span> <span class="o">=</span> <span class="n">venv</span>
@@ -1483,10 +1409,6 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">create_symlink</span><span class="p">(</span><span class="n">source</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">dest</span><span class="p">:</span> <span class="n">Path</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Create a symlink from dest to source if not already existing.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            source (Path): Source path.</span>
-<span class="sd">            dest (Path): Destination symlink path.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">source_resolved</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -1501,8 +1423,7 @@
                         <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Symlink already exists and is correct: </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">source_resolved</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                         <span class="k">return</span>
                     <span class="k">else</span><span class="p">:</span>
-                        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-                            <span class="sa">f</span><span class="s2">&quot;Warning: Symlink at </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2"> points to </span><span class="si">{</span><span class="n">existing_target</span><span class="si">}</span><span class="s2">, expected </span><span class="si">{</span><span class="n">source_resolved</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+                        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Warning: Symlink at </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2"> points to </span><span class="si">{</span><span class="n">existing_target</span><span class="si">}</span><span class="s2">, expected </span><span class="si">{</span><span class="n">source_resolved</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
                         <span class="k">return</span>
                 <span class="k">except</span> <span class="ne">RecursionError</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="ne">RecursionError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Detected symlink loop while resolving </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
@@ -1548,24 +1469,26 @@
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.get_ssh_connection">[docs]</a>
     <span class="nd">@asynccontextmanager</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_ssh_connection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ip</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout_sec</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">):</span>
-        <span class="n">user</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">user</span>
-        <span class="n">password</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">password</span>
-
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">user</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;SSH username is not configured. Please set &#39;user&#39; in your .env file.&quot;</span><span class="p">)</span>
 
-        <span class="n">conn</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">conn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ssh_connections</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ip</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">conn</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">conn</span><span class="o">.</span><span class="n">is_closed</span><span class="p">():</span>
+            <span class="k">yield</span> <span class="n">conn</span>
+            <span class="k">return</span>
+
         <span class="k">try</span><span class="p">:</span>
             <span class="n">conn</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">wait_for</span><span class="p">(</span>
                 <span class="n">asyncssh</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span>
                     <span class="n">ip</span><span class="p">,</span>
-                    <span class="n">username</span><span class="o">=</span><span class="n">user</span><span class="p">,</span>
-                    <span class="n">password</span><span class="o">=</span><span class="n">password</span><span class="p">,</span>
+                    <span class="n">username</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="p">,</span>
+                    <span class="n">password</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">password</span><span class="p">,</span>
                     <span class="n">known_hosts</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                     <span class="n">client_keys</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                 <span class="p">),</span>
                 <span class="n">timeout</span><span class="o">=</span><span class="n">timeout_sec</span>
             <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_ssh_connections</span><span class="p">[</span><span class="n">ip</span><span class="p">]</span> <span class="o">=</span> <span class="n">conn</span>
             <span class="k">yield</span> <span class="n">conn</span>
 
         <span class="k">except</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">TimeoutError</span><span class="p">:</span>
@@ -1574,16 +1497,15 @@
             <span class="k">raise</span> <span class="ne">ConnectionError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
 
         <span class="k">except</span> <span class="n">asyncssh</span><span class="o">.</span><span class="n">PermissionDenied</span><span class="p">:</span>
-            <span class="n">err_msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Authentication failed for SSH user &#39;</span><span class="si">{</span><span class="n">user</span><span class="si">}</span><span class="s2">&#39; on host </span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Authentication failed for SSH user &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="si">}</span><span class="s2">&#39; on host </span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">.&quot;</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
             <span class="k">raise</span> <span class="ne">ConnectionError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
 
         <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">errno</span> <span class="o">==</span> <span class="n">errno</span><span class="o">.</span><span class="n">EHOSTUNREACH</span> <span class="ow">or</span> <span class="n">e</span><span class="o">.</span><span class="n">errno</span> <span class="o">==</span> <span class="mi">113</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">errno</span> <span class="ow">in</span> <span class="p">(</span><span class="n">errno</span><span class="o">.</span><span class="n">EHOSTUNREACH</span><span class="p">,</span> <span class="mi">113</span><span class="p">):</span>
                 <span class="n">err_msg</span> <span class="o">=</span> <span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;Unable to connect to </span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2"> on SSH port 22. &quot;</span>
-                    <span class="s2">&quot;Please check that the device is powered on, the network cable is connected, &quot;</span>
-                    <span class="s2">&quot;and the SSH service is running.&quot;</span>
+                    <span class="s2">&quot;Please check that the device is powered on, network cable connected, and SSH service running.&quot;</span>
                 <span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
                 <span class="k">raise</span> <span class="ne">ConnectionError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
@@ -1592,36 +1514,59 @@
 
         <span class="k">except</span> <span class="n">asyncssh</span><span class="o">.</span><span class="n">Error</span><span class="p">:</span>
             <span class="n">err_msg</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Could not connect to </span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">. Please check the device is reachable, &quot;</span>
-                <span class="s2">&quot;network cable connected, and SSH service running.&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Could not connect to </span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">. Please check device is reachable, network cable connected, and SSH service running.&quot;</span>
             <span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
-            <span class="k">raise</span> <span class="ne">ConnectionError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
-
-        <span class="k">finally</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">conn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">conn</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-                <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">wait_closed</span><span class="p">()</span></div>
+            <span class="k">raise</span> <span class="ne">ConnectionError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.exec_ssh">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.exec_ssh">[docs]</a>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">exec_ssh</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ip</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cmd</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Run remote command asynchronously via SSH using asyncssh.&quot;&quot;&quot;</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="k">async</span> <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_ssh_connection</span><span class="p">(</span><span class="n">ip</span><span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
                 <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">check</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="n">stdout</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">stdout</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stdout</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
+                    <span class="n">stdout</span> <span class="o">=</span> <span class="n">stdout</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;replace&#39;</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
 
         <span class="k">except</span> <span class="n">ProcessError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] SSH command stdout: </span><span class="si">{</span><span class="n">e</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] SSH command stderr: </span><span class="si">{</span><span class="n">e</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">stdout</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">stdout</span>
+            <span class="n">stderr</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">stderr</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stdout</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
+                <span class="n">stdout</span> <span class="o">=</span> <span class="n">stdout</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;replace&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
+                <span class="n">stderr</span> <span class="o">=</span> <span class="n">stderr</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;replace&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] SSH command stdout: </span><span class="si">{</span><span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] SSH command stderr: </span><span class="si">{</span><span class="n">stderr</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="k">raise</span>
 
         <span class="k">except</span> <span class="p">(</span><span class="n">asyncssh</span><span class="o">.</span><span class="n">Error</span><span class="p">,</span> <span class="ne">OSError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] SSH command failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="k">raise</span></div>
+
+
+<div class="viewcode-block" id="AgiEnv.exec_ssh_async">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.exec_ssh_async">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">exec_ssh_async</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ip</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cmd</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_ssh_connection</span><span class="p">(</span><span class="n">ip</span><span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+            <span class="n">process</span> <span class="o">=</span> <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">create_process</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
+
+        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">read_stream</span><span class="p">(</span><span class="n">stream</span><span class="p">):</span>
+            <span class="k">async</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">stream</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
+                    <span class="n">decoded_line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;replace&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">decoded_line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">decoded_line</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">log_remote_line</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">decoded_line</span><span class="p">)</span>
+
+            <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span>
+                <span class="n">read_stream</span><span class="p">(</span><span class="n">process</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_info</span><span class="p">),</span>
+                <span class="n">read_stream</span><span class="p">(</span><span class="n">process</span><span class="o">.</span><span class="n">stderr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_error</span><span class="p">)</span>
+            <span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.send_file">
@@ -1644,9 +1589,7 @@
 
         <span class="n">cmd</span> <span class="o">=</span> <span class="p">[]</span>
 
-        <span class="c1"># os.name is &#39;nt&#39; on Windows, &#39;posix&#39; on Linux/macOS</span>
         <span class="k">if</span> <span class="n">password</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="s2">&quot;nt&quot;</span><span class="p">:</span>
-            <span class="c1"># Use sshpass only on non-Windows systems</span>
             <span class="n">cmd</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;sshpass&quot;</span><span class="p">,</span> <span class="s2">&quot;-p&quot;</span><span class="p">,</span> <span class="n">password</span><span class="p">]</span>
 
         <span class="n">cmd</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;scp&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">local_path</span><span class="p">),</span> <span class="n">remote</span><span class="p">]</span>
@@ -1673,17 +1616,76 @@
 <div class="viewcode-block" id="AgiEnv.send_files">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.send_files">[docs]</a>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">send_files</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ip</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">files</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Path</span><span class="p">],</span> <span class="n">remote_dir</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">user</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Send multiple files asynchronously to remote host via SCP command in parallel.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
             <span class="n">remote_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">remote_dir</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span>
             <span class="n">tasks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">remote_path</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">))</span>
         <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="n">tasks</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Sent </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">)</span><span class="si">}</span><span class="s2"> files to </span><span class="si">{</span><span class="n">user</span><span class="si">}</span><span class="s2">@</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">remote_dir</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
-</div>
 
+
+<div class="viewcode-block" id="AgiEnv.remove_dir_forcefully">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.remove_dir_forcefully">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">remove_dir_forcefully</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">onerror</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">exc_info</span><span class="p">):</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">stat</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">access</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">W_OK</span><span class="p">):</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">chmod</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_IWUSR</span><span class="p">)</span>
+                <span class="n">func</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2"> not removed due to </span><span class="si">{</span><span class="n">exc_info</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">onerror</span><span class="o">=</span><span class="n">onerror</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Exception while deleting </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">onerror</span><span class="o">=</span><span class="n">onerror</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e2</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Second failure deleting </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e2</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">raise</span></div>
+
+
+<div class="viewcode-block" id="AgiEnv.close_all_connections">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.close_all_connections">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">close_all_connections</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Ferme proprement toutes les connexions SSH ouvertes.</span>
+<span class="sd">        À appeler à la fin de ton programme ou avant arrêt.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">conn</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ssh_connections</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">conn</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">wait_closed</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ssh_connections</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="AgiEnv.log_remote_line">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.log_remote_line">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">log_remote_line</span><span class="p">(</span><span class="n">ip</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">line</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Log a line from remote SSH output with the proper log level.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            ip (str): IP address of remote host.</span>
+<span class="sd">            line (str): One line of output from remote process.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">LOG_LEVEL_RE</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+            <span class="n">level_name</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">level</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">logging</span><span class="p">,</span> <span class="n">level_name</span><span class="p">,</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Default to INFO if no level found</span>
+            <span class="n">level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span>
+
+        <span class="n">logging</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">line</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+</div>
 
 </pre></div>
 

@@ -260,6 +260,7 @@
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_multi_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_logs_and_result()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_work"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_work()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_worker_info()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.home_dir</span></code></a></li>
@@ -363,6 +364,7 @@
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_multi_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_logs_and_result()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_worker_info()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">FlightWorker.home_dir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">FlightWorker.is_managed_pc</span></code></a></li>
@@ -491,24 +493,18 @@
 │   │   └── test
 │   │       └── test_df.ipynb
 │   ├── flight_project
+│   │   ├── dask_pid
 │   │   ├── data
 │   │   │   └── flight
 │   │   │       └── dataframes
 │   │   ├── MANIFEST.in
-│   │   ├── PycharmProjects
-│   │   │   └── agilab
-│   │   │       └── src
 │   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── run_test.sh
 │   │   ├── setup
 │   │   ├── src
-│   │   │   ├── agi_env -&gt; /home/pcm/PycharmProjects/agilab/src/agilab/fwk/env/src/agi_env
-│   │   │   ├── agi_worker -&gt; /home/pcm/PycharmProjects/agilab/src/agilab/fwk/core/src/agi_core/workers/agi_worker
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
-│   │   │   ├── dag_worker -&gt; /home/pcm/PycharmProjects/agilab/src/agilab/fwk/core/src/agi_core/workers/dag_worker
-│   │   │   ├── data_worker -&gt; /home/pcm/PycharmProjects/agilab/src/agilab/fwk/core/src/agi_core/workers/data_worker
 │   │   │   ├── flight
 │   │   │   │   ├── flight.py
 │   │   │   │   └── __init__.py
@@ -531,7 +527,6 @@
 │   │   │   │   └── uv.toml
 │   │   │   ├── lab_steps.ipynb
 │   │   │   ├── lab_steps.toml
-│   │   │   ├── polars_worker -&gt; /home/pcm/PycharmProjects/agilab/src/agilab/fwk/core/src/agi_core/workers/polars_worker
 │   │   │   └── pre_prompt.json
 │   │   ├── test
 │   │   │   ├── __init__.py
@@ -588,11 +583,8 @@
 │   │   ├── README.md
 │   │   ├── setup
 │   │   ├── src
-│   │   │   ├── agi_env -&gt; /home/pcm/PycharmProjects/agilab/src/agilab/fwk/env/src/agi_env
-│   │   │   ├── agi_worker -&gt; /home/pcm/PycharmProjects/agilab/src/agilab/fwk/core/src/agi_core/workers/agi_worker
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
-│   │   │   ├── dag_worker -&gt; /home/pcm/PycharmProjects/agilab/src/agilab/fwk/core/src/agi_core/workers/dag_worker
 │   │   │   ├── my_code
 │   │   │   │   ├── __init__.py
 │   │   │   │   └── my_code.py
@@ -617,7 +609,10 @@
 │   │   │   ├── __init__.py
 │   │   │   ├── test_my_code_manager.py
 │   │   │   └── test_my_code_worker.py
-│   │   └── uv.lock
+│   │   ├── uv.lock
+│   │   └── wenv
+│   │       └── my_code_worker
+│   │           └── src
 │   ├── pandas_app_template
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
@@ -718,8 +713,7 @@
 │   │   │   ├── test_agi_worker.py
 │   │   │   ├── test_dag_worker.py
 │   │   │   ├── test_pandas_worker.py
-│   │   │   ├── test_polars_worker.py
-│   │   │   └── _test_ssh.py
+│   │   │   └── test_polars_worker.py
 │   │   ├── uv.lock
 │   │   └── uv.toml
 │   ├── coverage.xml
@@ -747,7 +741,9 @@
 │   │   ├── test
 │   │   │   ├── clean_csv.py
 │   │   │   ├── __init__.py
-│   │   │   └── test_agi_env.py
+│   │   │   ├── test_agi_env.py
+│   │   │   ├── _test_ssh_cmd.py
+│   │   │   └── test_ssh.py
 │   │   ├── uv.lock
 │   │   └── uv.toml
 │   ├── gen-app-script.py
@@ -757,15 +753,22 @@
 │   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── src
-│   │   │   └── agi_gui
-│   │   │       ├── agi_copilot.py
-│   │   │       ├── AGILAB.py
-│   │   │       ├── __init__.py
-│   │   │       ├── lab_run.py
-│   │   │       ├── pagelib.py
-│   │   │       ├── pages
-│   │   │       ├── resources
-│   │   │       └── steps.toml
+│   │   │   ├── agi_gui
+│   │   │   │   ├── agi_copilot.py
+│   │   │   │   ├── AGILAB.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── lab_run.py
+│   │   │   │   ├── pagelib.py
+│   │   │   │   ├── pages
+│   │   │   │   ├── resources
+│   │   │   │   └── steps.toml
+│   │   │   └── agi_gui.egg-info
+│   │   │       ├── dependency_links.txt
+│   │   │       ├── entry_points.txt
+│   │   │       ├── PKG-INFO
+│   │   │       ├── requires.txt
+│   │   │       ├── SOURCES.txt
+│   │   │       └── top_level.txt
 │   │   ├── test
 │   │   │   ├── __init__.py
 │   │   │   └── test-streamlit.sh
@@ -781,41 +784,44 @@
 │   ├── _template_app_preinstall_manager.xml
 │   ├── _template_app_run.xml
 │   └── _template_app_test.xml
-└── views
-    ├── autoencoder-latentspace
-    │   ├── __init__.py
-    │   └── src
-    │       ├── autoencoder_latentspace
-    │       │   ├── autoencoder_latentspace.py
-    │       │   └── __init__.py
-    │       └── __init__.py
-    ├── barycentric-graph
-    │   ├── __init__.py
-    │   └── src
-    │       ├── barycentric_graph
-    │       │   ├── barycentric_graph.py
-    │       │   └── __init__.py
-    │       └── __init__.py
-    ├── maps
-    │   └── src
-    │       └── maps
-    │           ├── __init__.py
-    │           └── maps.py
-    ├── maps-3d
-    │   └── src
-    │       └── maps_3d
-    │           ├── __init__.py
-    │           └── maps_3d.py
-    ├── maps-network-graph
-    │   └── src
-    │       └── maps_network_graph
-    │           ├── __init__.py
-    │           └── maps_network_graph.py
-    ├── maps-network-graph.7z
-    ├── pyproject.toml
-    └── README.md
+├── views
+│   ├── autoencoder-latentspace
+│   │   ├── __init__.py
+│   │   └── src
+│   │       ├── autoencoder_latentspace
+│   │       │   ├── autoencoder_latentspace.py
+│   │       │   └── __init__.py
+│   │       └── __init__.py
+│   ├── barycentric-graph
+│   │   ├── __init__.py
+│   │   └── src
+│   │       ├── barycentric_graph
+│   │       │   ├── barycentric_graph.py
+│   │       │   └── __init__.py
+│   │       └── __init__.py
+│   ├── maps
+│   │   └── src
+│   │       └── maps
+│   │           ├── __init__.py
+│   │           └── maps.py
+│   ├── maps-3d
+│   │   └── src
+│   │       └── maps_3d
+│   │           ├── __init__.py
+│   │           └── maps_3d.py
+│   ├── maps-network-graph
+│   │   └── src
+│   │       └── maps_network_graph
+│   │           ├── __init__.py
+│   │           └── maps_network_graph.py
+│   ├── maps-network-graph.7z
+│   ├── pyproject.toml
+│   └── README.md
+└── wenv
+    ├── flight_worker
+    └── my_code_worker
 
-105 directories, 282 files
+102 directories, 289 files
 </pre></div>
 </div>
 </section>

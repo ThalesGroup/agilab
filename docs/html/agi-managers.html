@@ -260,6 +260,7 @@
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_multi_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_logs_and_result()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_work"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_work()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_worker_info()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.home_dir</span></code></a></li>
@@ -363,6 +364,7 @@
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_multi_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_logs_and_result()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_worker_info()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">FlightWorker.home_dir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">FlightWorker.is_managed_pc</span></code></a></li>
@@ -556,7 +558,7 @@ It offers a command-line interface in Python and an optional LAB with Streamlit,
 <dt><strong>To run on a cluster:</strong></dt><dd><ol class="arabic simple">
 <li><p>Create a Agi account on each host with SSH access.</p></li>
 <li><p>Copy your project’s <cite>pyproject.toml</cite> to each host.</p></li>
-<li><p>Run <cite>uv sync</cite> before using AGI.</p></li>
+<li><p>Run <cite>uv -q sync</cite> before using AGI.</p></li>
 <li><p>To run with output data, provide a shared directory accessible from all hosts. Use this directory in your Python target code as both input and output.</p></li>
 </ol>
 </dd>
@@ -628,7 +630,7 @@ It offers a command-line interface in Python and an optional LAB with Streamlit,
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.TIMEOUT">
-<span class="sig-name descname"><span class="pre">TIMEOUT</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.TIMEOUT" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">TIMEOUT</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">20</span></em><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.TIMEOUT" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -673,7 +675,7 @@ It offers a command-line interface in Python and an optional LAB with Streamlit,
 :param package:
 :type package: any Agi target apps or project created by AGILAB
 :param list_ip:
-:type list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv synced
+:type list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv -q synced
 :param verbose:
 :type verbose: verbosity [0-3]
 :param Returns:
@@ -815,12 +817,12 @@ chunks and chunks_sizes must be left to None</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.update">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">update</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">module_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">module_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modes_enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI.update"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.update" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">update</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">module_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modes_enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI.update"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.update" title="Link to this definition"></a></dt>
 <dd><p>install cluster virtual environment
 :param package:
 :type package: any Agi target apps or project created with AGILAB
 :param list_ip:
-:type list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv synced
+:type list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv -q synced
 :param mode_enabled:
 :type mode_enabled: this is typically a mode mask to know for example if cython or rapids are required
 :param force_update:

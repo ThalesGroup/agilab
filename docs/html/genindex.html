@@ -257,6 +257,7 @@
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_multi_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_logs_and_result()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_work"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_work()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_worker_info()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.home_dir</span></code></a></li>
@@ -360,6 +361,7 @@
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_multi_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_logs_and_result()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_worker_info()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">FlightWorker.home_dir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">FlightWorker.is_managed_pc</span></code></a></li>
@@ -610,6 +612,8 @@
 </li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.check_valid_regex">check_valid_regex() (flight.flight.FlightArgs class method)</a>
 </li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.close_all_connections">close_all_connections() (agi_env.agi_env.AgiEnv method)</a>
+</li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.construct">construct() (flight.flight.FlightArgs class method)</a>
 
       <ul>
@@ -778,6 +782,8 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.exec_ssh">exec_ssh() (agi_env.agi_env.AgiEnv method)</a>
 </li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.exec_ssh_async">exec_ssh_async() (agi_env.agi_env.AgiEnv method)</a>
+</li>
       <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.expand">expand() (agi_core.workers.agi_worker.agi_worker.AgiWorker static method)</a>
 
       <ul>
@@ -868,14 +874,28 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.get_import_mapping">get_import_mapping() (agi_env.agi_env.AgiEnv method)</a>
 </li>
+      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.get_logs_and_result">get_logs_and_result() (agi_core.workers.agi_worker.agi_worker.AgiWorker method)</a>
+
+      <ul>
+        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.get_logs_and_result">(agi_core.workers.dag_worker.dag_worker.DagWorker method)</a>
+</li>
+        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.get_logs_and_result">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker method)</a>
+</li>
+        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.get_logs_and_result">(agi_core.workers.polars_worker.polars_worker.PolarsWorker method)</a>
+</li>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_logs_and_result">(flight_worker.flight_worker.FlightWorker method)</a>
+</li>
+        <li><a href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_logs_and_result">(my_code_worker.my_code_worker.MyCodeWorker method)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.get_modules">get_modules() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.Flight.get_partition_by_planes">get_partition_by_planes() (flight.flight.Flight method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.get_projects">get_projects() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.get_ssh_connection">get_ssh_connection() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_work">get_work() (my_code_worker.my_code_worker.MyCodeWorker method)</a>
@@ -932,7 +952,7 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.init_envars_app">init_envars_app() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.init_logging">init_logging() (agi_env.agi_env.AgiEnv static method)</a>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.init_logging">init_logging() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.install">install() (agi_core.managers.agi_runner.agi_runner.AGI static method)</a>
 </li>
@@ -1001,6 +1021,8 @@
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.log_error">log_error() (agi_env.agi_env.AgiEnv static method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.log_info">log_info() (agi_env.agi_env.AgiEnv static method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.log_remote_line">log_remote_line() (agi_env.agi_env.AgiEnv static method)</a>
 </li>
       <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.logs">logs (agi_core.workers.agi_worker.agi_worker.AgiWorker attribute)</a>
 
@@ -1318,6 +1340,8 @@
       <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.RAPIDS_RESET">RAPIDS_RESET (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
 </li>
       <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.RAPIDS_SET">RAPIDS_SET (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.remove_dir_forcefully">remove_dir_forcefully() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.resolve_packages_path_in_toml">resolve_packages_path_in_toml() (agi_env.agi_env.AgiEnv method)</a>
 </li>

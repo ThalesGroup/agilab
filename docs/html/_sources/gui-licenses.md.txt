@@ -5,10 +5,10 @@
 | ai21 | Apache License 2.0 |
 | ai21-tokenizer | Apache License 2.0 |
 | aiohappyeyeballs | PYTHON SOFTWARE FOUNDATION LICENSE |
-| aiohttp | APACHE SOFTWARE LICENSE |
+| aiohttp | APACHE-2.0 |
 | aiolimiter | MIT LICENSE |
 | aiosignal | APACHE SOFTWARE LICENSE |
-| alembic | MIT LICENSE |
+| alembic | MIT |
 | altair | BSD LICENSE |
 | annotated-types | MIT LICENSE |
 | anthropic | MIT LICENSE |
@@ -20,6 +20,7 @@
 | asn1crypto | MIT LICENSE |
 | astor | BSD LICENSE |
 | asttokens | APACHE 2.0 |
+| asyncssh | EPL-2.0;; GPL-2.0-OR-LATER |
 | attrs | MIT LICENSE |
 | bce-python-sdk | APACHE LICENSE 2.0 |
 | bcrypt | APACHE SOFTWARE LICENSE |
@@ -94,6 +95,7 @@
 | gunicorn | MIT LICENSE |
 | h11 | MIT LICENSE |
 | h5py | BSD LICENSE |
+| hf-xet | APACHE-2.0 |
 | htbuilder | APACHE SOFTWARE LICENSE |
 | htmlmin | BSD LICENSE |
 | httpcore | BSD LICENSE |
@@ -308,7 +310,7 @@
 | types-requests | APACHE-2.0 |
 | typing-extensions | PSF-2.0 |
 | typing-inspect | MIT LICENSE |
-| typing-inspection | MIT LICENSE |
+| typing-inspection | MIT |
 | tzdata | APACHE SOFTWARE LICENSE |
 | tzlocal | MIT LICENSE |
 | uri-template | MIT LICENSE |
