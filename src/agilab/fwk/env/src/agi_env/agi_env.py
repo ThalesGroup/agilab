@@ -218,9 +218,10 @@ class AgiEnv:
         self.app_abs = self.apps_dir / active_app
         self.app_src = self.app_abs / "src"
         self.target_worker = f"{self.module}_worker"
+        self.app_pyproject = self.app_abs / "pyproject.toml"
         self.worker_path = self.app_src / self.target_worker / f"{self.target_worker}.py"
         self.module_path = self.app_src / self.module / f"{self.module}.py"
-        self.pyproject = self.worker_path.parent / "pyproject.toml"
+        self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
         self.uvproject = self.worker_path.parent / "uv.toml"
         self.agi_core = self.resolve_packages_path_in_toml()
         self.projects = self.get_projects(self.apps_dir)
@@ -536,7 +537,7 @@ class AgiEnv:
 
         chars = ["p", "c", "d", "r"]
         reversed_chars = reversed(list(enumerate(chars)))
-        with open(self.pyproject, "rb") as file:
+        with open(self.worker_pyproject, "rb") as file:
             pyproject_data = tomli.load(file)
 
         dependencies = pyproject_data.get("project", {}).get("dependencies", [])
@@ -588,32 +589,34 @@ class AgiEnv:
 
     def resolve_packages_path_in_toml(self):
         agi_root = self.agi_root
-        pyproject_file = self.pyproject
-        if not pyproject_file.exists():
-            raise FileNotFoundError(f"pyproject.toml not found in {self.app_abs}")
+        for file in [self.worker_pyproject, self.app_pyproject]:
+            if not file.exists():
+                raise FileNotFoundError(f"{file} not found in {self.app_abs}")
 
-        text = pyproject_file.read_text(encoding="utf-8")
-        doc = tomlkit.parse(text)
+            text = file.read_text(encoding="utf-8")
+            doc = tomlkit.parse(text)
 
-        try:
-            uv = doc["tool"]["uv"]
-        except KeyError:
-            raise RuntimeError("Could not find [tool.uv] section in the TOML")
+            try:
+                uv = doc["tool"]["uv"]
+            except KeyError:
+                raise RuntimeError("Could not find [tool.uv] section in the TOML")
 
-        if "sources" not in uv or not isinstance(uv["sources"], tomlkit.items.Table):
-            raise RuntimeError("Could not find [tool.uv.sources] in the TOML")
+            if "sources" not in uv or not isinstance(uv["sources"], tomlkit.items.Table):
+                raise RuntimeError("Could not find [tool.uv.sources] in the TOML")
 
-        sources = uv["sources"]
+            sources = uv["sources"]
 
-        agi_core_path = str((agi_root / "fwk" / "core").resolve())
-        tbl = tomlkit.inline_table()
-        tbl["path"] = agi_core_path
-        tbl["editable"] = True
+            agi_core_path = str((agi_root / "fwk" / "core").resolve())
+            tbl = tomlkit.inline_table()
+            tbl["path"] = agi_core_path
+            tbl["editable"] = True
 
-        sources["agi-core"] = tbl
+            sources["agi-core"] = tbl
 
-        pyproject_file.write_text(tomlkit.dumps(doc), encoding="utf-8")
-
+            try:
+                file.write_text(tomlkit.dumps(doc), encoding="utf-8")
+            except Exception as e:
+                print(f"Error writing file: {e}")
         return agi_root / "fwk" / "core"
 
     def copy_missing(self, src: Path, dst: Path):

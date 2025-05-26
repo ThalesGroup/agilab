@@ -1,14 +1,8 @@
-import os
-import shutil
 import sys
-import tempfile
-import time
 from pathlib import Path
-import subprocess
 import pandas as pd
 import pytest
 import multiprocessing
-multiprocessing.set_start_method("spawn", force=True)
 
 data_src = Path(__file__).parent.parent
 worker_root = data_src.parent
@@ -123,3 +117,6 @@ def test_works_method(worker_csv):
     exec_time = worker_csv.works(dummy_tree, dummy_info)
     assert isinstance(exec_time, float), "works() should return a float."
     assert exec_time > 0, f"Expected execution time > 0, got {exec_time}."
+
+if __name__ == "__main__":
+    multiprocessing.set_start_method("spawn", force=True)

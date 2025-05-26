@@ -908,7 +908,7 @@ class AGI:
         # Then send the files to the remote directory
         egg_file = next(iter(dist_abs.glob(f"{env.app}*.egg")), None)
         if egg_file:
-            await env.send_files(ip, [env.setup_core, env.pyproject, env.uvproject], wenv_rel)
+            await env.send_files(ip, [env.setup_core, env.worker_pyproject, env.uvproject], wenv_rel)
             await env.send_file(ip, egg_file, dist_rel)
         else:
             AgiEnv.log_error(f"searching for {wenv_abs / env.app}*.egg")
