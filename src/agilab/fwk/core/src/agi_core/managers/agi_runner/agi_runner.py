@@ -1455,6 +1455,11 @@ class AGI:
             # clean local env
             AGI._clean_dirs_local()
 
+            await AGI._install(scheduler)
+
+            # clean both proc and dir
+            AGI._get_clean_nodes(scheduler)
+
             res = time.time() - t
 
         elif (AGI._mode & AGI.DEPLOYEMENT_MASK) == AGI.SIMULATE_MODE:
