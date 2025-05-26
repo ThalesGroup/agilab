@@ -544,10 +544,13 @@ class AgiWorker(abc.ABC):
         """
         try:
             worker_id = AgiWorker.worker_id
-            AgiEnv.log_info(f"do_works - worker #{worker_id}: {AgiWorker.worker} from {os.path.relpath(__file__)}")
-            AgiEnv.log_info(f"AgiWorker.work - #{worker_id + 1} / {len(workers_tree)}")
-
-            AgiWorker._insts[worker_id].works(workers_tree, workers_tree_info)
+            if worker_id:
+                AgiEnv.log_info(f"do_works - worker #{worker_id}: {AgiWorker.worker} from {os.path.relpath(__file__)}")
+                AgiEnv.log_info(f"AgiWorker.work - #{worker_id + 1} / {len(workers_tree)}")
+                AgiWorker._insts[worker_id].works(workers_tree, workers_tree_info)
+            else:
+                AgiEnv.log_error(f"this worker is not initialized")
+                raise Exception(f"failed to do_works")
 
         except Exception as e:
             import traceback
