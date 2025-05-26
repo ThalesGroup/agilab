@@ -37,6 +37,7 @@ workers = [
     "agi-core[agi-worker]",
     "agi-core[polars-worker]",
 ]
+]
 managers = [
     "agi-core[managers]",
 ]

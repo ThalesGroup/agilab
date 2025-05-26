@@ -582,7 +582,7 @@ class AGI:
         # 2) If force, kill by process name
         if force:
             cmd = (
-                'uv run python -c "import getpass, psutil;'
+                'python3 -c "import getpass, psutil;'
                 'me = getpass.getuser();\n'
                 'for p in psutil.process_iter(["name", "username", "cmdline"]):\n'            
                 '  try:\n'
@@ -598,7 +598,7 @@ class AGI:
         # 3) If we found any explicit pid files, terminate those PIDs
         if pids_to_kill:
             cmds.append(
-                  'uv run python -c "import os, psutil; '
+                  'python3 -c "import os, psutil; '
                   f"pids={pids_to_kill}; "
                   "[psutil.Process(p).kill() for p in pids if p!=os.getpid()]"
                   '"'
@@ -664,7 +664,7 @@ class AGI:
         await env.exec_ssh(
             ip,
             cmd=(
-                f"uv run python -c \"import os, glob, shutil\n"
+                f"python3 -c \"import os, glob, shutil\n"
                 f"from tempfile import gettempdir\n"
                 f"wenv_path = os.path.abspath(os.path.expanduser('{wenv_rel}'))\n"
                 f"patterns = [os.path.join(gettempdir(), 'dask-scratch-space'), os.path.join(wenv_path, '*y')]\n"
@@ -793,8 +793,8 @@ class AGI:
         options = {"manager": extras, "worker": extras}
         if isinstance(env.base_worker_cls, str):
             options["worker"] += " --extra " + " --extra ".join(AGI.install_worker_group)
-        #if AGI._mode & 4:
-        #    await AGI._install_cluster(scheduler)
+        if AGI._mode & 4:
+            await AGI._install_cluster(scheduler)
         node_ips = await AGI._get_clean_nodes(scheduler)
         AGI._venv_todo(node_ips)
         start_time = time.time()
@@ -1251,7 +1251,6 @@ class AGI:
         if not await AGI._start_scheduler(scheduler):
             return False
 
-
         for i, (ip, n) in enumerate(AGI.workers.items()):
             export_cmd = await AGI._detect_export_cmd(ip)
             is_local = AGI._is_local(ip)
@@ -1463,9 +1462,11 @@ class AGI:
             res = await AGI._run_local()
 
         elif AGI._mode & AGI.DASK_MODE:
-            # case distributed run
-            await AGI._install_cluster(scheduler)
+
+            # clean both proc and dir
             await AGI._get_clean_nodes(scheduler)
+            # case distributed run
+            # start the cluster
             await AGI._start(scheduler)
 
             res = await AGI._run_by_mode()
