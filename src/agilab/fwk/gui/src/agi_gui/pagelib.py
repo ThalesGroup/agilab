@@ -790,10 +790,10 @@ def load_df(path: Path, nrows=None, with_index=True):
         col_name,keyword = get_first_match_and_keyword(df.columns.tolist(),["time","date"])
         if col_name:
             if keyword == "time":
-                df[col_name] = pd.to_timedelta(df[col_name], unit='s')
+                df[f"{col_name}_temp"] = pd.to_timedelta(df[col_name], unit='s')
             elif keyword == "date":
-                df[col_name] = pd.to_datetime(df[col_name], errors="coerce")
-            df.set_index(col_name, inplace=True,drop=False)
+                df[f"{col_name}_temp"] = pd.to_datetime(df[col_name], errors="coerce")
+            df.set_index(f"{col_name}_temp", inplace=True,drop=True)
             print(f"found keyword: {keyword} in col name: {col_name}")
         else:
             df.set_index(df.columns[0], inplace=True, drop=False)
@@ -828,7 +828,7 @@ def save_csv(df, path: Path, sep=","):
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     if df.shape[1] > 0:
-        df.to_csv(path, sep=sep)
+        df.to_csv(path, sep=sep,index=False)
 
 
 def get_df_index(df_files, df_file):
