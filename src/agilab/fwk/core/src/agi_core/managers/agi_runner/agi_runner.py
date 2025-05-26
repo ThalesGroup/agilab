@@ -1566,6 +1566,7 @@ class AGI:
                     verbose=AGI._verbose,
                     worker_id=list(AGI._dask_workers).index(worker),
                     worker=worker,
+                    env=env,
                     args=AGI._args,
                     workers=[worker],
                 )
@@ -1573,18 +1574,9 @@ class AGI:
             ]
         )
 
-
         await AGI._calibration()
 
         t = time.time()
-
-        # AGI._run_time = AGI._dask_client.run(
-        #     AgiWorker.get_logs_and_result,
-        #     AgiWorker.do_works,
-        #     workers_tree,
-        #     workers_tree_info,
-        #     verbosity=AGI._verbose,
-        #     workers=AGI._dask_workers,
 
         AGI._run_time = AGI._dask_client.run(
             AgiWorker.do_works,
