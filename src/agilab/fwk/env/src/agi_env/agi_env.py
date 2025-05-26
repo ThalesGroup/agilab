@@ -838,7 +838,7 @@ class AgiEnv:
         with open(snippet_file, "w") as file:
             file.write(code)
         cmd = f"uv -q run --project {str(venv)} python {snippet_file}"
-        result = await AgiEnv._run_bg(cmd, venv=venv, log_callback=log_callback)
+        result = await AgiEnv._run_bg(cmd, cwd=venv, log_callback=log_callback)
         if log_callback:
             log_callback(f"Process finished with output: {result}")
         else:
