@@ -277,7 +277,7 @@ class AgiWorker(abc.ABC):
             wenv_abs = env.wenv_abs
 
             # Look for any files or directories in the Cython lib path that match the "*cy*" pattern.
-            cython_libs = list(wenv_abs.glob("*cy*"))
+            cython_libs = list((wenv_abs / "dist").glob("*cy*"))
 
             # If a Cython library is found, normalize its path and set it as lib_path.
             lib_path = (
