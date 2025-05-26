@@ -902,7 +902,7 @@ class AGI:
         dist_rel = wenv_rel / "dist"
         dist_abs = wenv_abs / "dist"
 
-        cmd = f"python3 -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
+        cmd = f"uv run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
         await env.exec_ssh(ip, cmd)
 
         # Then send the files to the remote directory
