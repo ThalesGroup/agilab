@@ -142,5 +142,5 @@ The following message appears when you try to [debug] `<gen-docstings>`:
 
 **Solution:**
 
-Delete your "Run/Debug configuration" (named `<gen-docstings>` in this example) and create it again.
-This should resolve the issue.
+This is because your Pycharm script is pointing an a venv but the project containing this venv is not attach to your current project.
+So you have to attach this project to your currrent project for enabling your script to be runnable again.
