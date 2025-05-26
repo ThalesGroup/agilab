@@ -7,6 +7,8 @@ from pathlib import Path
 import subprocess
 import pandas as pd
 import pytest
+import multiprocessing
+multiprocessing.set_start_method("spawn", force=True)
 
 data_src = Path(__file__).parent.parent
 worker_root = data_src.parent
