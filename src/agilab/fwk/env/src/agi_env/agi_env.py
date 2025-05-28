@@ -17,7 +17,9 @@ import tomlkit
 import logging
 import inspect
 import errno
-import
+import astor
+from pathspec import PathSpec
+from pathspec.patterns import GitWildMatchPattern
 
 # Compile regex once globally
 LOG_LEVEL_RE = re.compile(r'\b(INFO|ERROR|WARNING|DEBUG|CRITICAL)\b')
@@ -1164,10 +1166,6 @@ class AgiEnv:
             target_project: Path under self.apps_dir (e.g. Path("flight_project"))
             dest_project:   Path under self.apps_dir (e.g. Path("tata_project"))
         """
-        # Lazy import heavy deps
-        import shutil, ast, os, astor
-        from pathspec import PathSpec
-        from pathspec.patterns import GitWildMatchPattern
 
         # normalize names
         if not target_project.name.endswith("_project"):
@@ -1212,46 +1210,47 @@ class AgiEnv:
                         spec: PathSpec,
                         source_root: Path):
         """
-        Recursively copy + rename directories, files, and contents.
+        Recursively copy + rename directories, files, and contents,
+        applying renaming only on exact path segments.
         """
-        import astor
-
         for item in source_dir.iterdir():
-            # inside your clone_directory loop, after you've computed `rel`
             rel = item.relative_to(source_root).as_posix()
+
+            # Skip files/directories matched by .gitignore spec
             if spec.match_file(rel + ("/" if item.is_dir() else "")):
                 continue
 
-            # split into segments
+            # Rename only full segments of the relative path
             parts = rel.split("/")
+            for i, seg in enumerate(parts):
+                # Sort rename_map by key length descending to avoid partial conflicts
+                for old, new in sorted(rename_map.items(), key=lambda kv: -len(kv[0])):
+                    if seg == old:
+                        parts[i] = new
+                        break
 
-            # map each segment exactly via your rename_map (falling back to itself)
-            parts = [rename_map.get(seg, seg) for seg in parts]
-
-            # now reconstruct the destination path
-            dst_item = dest_dir.joinpath(*parts)
-            dst_item.parent.mkdir(parents=True, exist_ok=True)
+            new_rel = "/".join(parts)
+            dst = dest_dir / new_rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
 
             if item.is_dir():
                 if item.name == ".venv":
-                    # keep venv as a symlink
-                    os.symlink(item, dst_item, target_is_directory=True)
+                    # Keep virtual env directory as a symlink
+                    os.symlink(item, dst, target_is_directory=True)
                 else:
                     self.clone_directory(item, dest_dir, rename_map, spec, source_root)
 
             elif item.is_file():
                 suf = item.suffix.lower()
-
-                # first, if the **basename** matches an old→new, rename the file itself
                 base = item.stem
+
+                # Rename file if its basename is in rename_map
                 if base in rename_map:
-                    dst_item = dst_item.with_name(rename_map[base] + item.suffix)
+                    dst = dst.with_name(rename_map[base] + item.suffix)
 
-                # archives
                 if suf in (".7z", ".zip"):
-                    shutil.copy2(item, dst_item)
+                    shutil.copy2(item, dst)
 
-                # Python → AST rename + whole‑word replace
                 elif suf == ".py":
                     src = item.read_text(encoding="utf-8")
                     try:
@@ -1262,26 +1261,23 @@ class AgiEnv:
                         out = astor.to_source(new_tree)
                     except SyntaxError:
                         out = src
-                    # apply any leftover whole‑word replaces
+                    # Whole word replacements in Python source text
                     for old, new in rename_map.items():
                         out = re.sub(rf"\b{re.escape(old)}\b", new, out)
-                    dst_item.write_text(out, encoding="utf-8")
+                    dst.write_text(out, encoding="utf-8")
 
-                # text files → whole‑word replace
                 elif suf in (".toml", ".md", ".txt", ".json", ".yaml", ".yml"):
                     txt = item.read_text(encoding="utf-8")
                     for old, new in rename_map.items():
                         txt = re.sub(rf"\b{re.escape(old)}\b", new, txt)
-                    dst_item.write_text(txt, encoding="utf-8")
+                    dst.write_text(txt, encoding="utf-8")
 
-                # everything else
                 else:
-                    shutil.copy2(item, dst_item)
+                    shutil.copy2(item, dst)
 
             elif item.is_symlink():
                 target = os.readlink(item)
-                os.symlink(target, dst_item, target_is_directory=item.is_dir())
-
+                os.symlink(target, dst, target_is_directory=item.is_dir())
 
     def _cleanup_rename(self, root: Path, rename_map: dict):
         """
