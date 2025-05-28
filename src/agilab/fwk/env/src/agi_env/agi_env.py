@@ -495,13 +495,12 @@ class AgiEnv:
                     shutil.copytree(src_apps, apps_dir)
                 else:
                     self.copy_missing(src_apps, Path(os.getcwd()) / apps_dir)
-            module = active_app.replace("_project", "").replace("-", "_")
+            if not self.module:
+                self.module = active_app.replace("_project", "").replace("-", "_")
         else:
             apps_dir = self._determine_apps_dir(active_app)
-            module = apps_dir.name.replace("_project", "").replace("-", "_")
-
-        if not self.module:
-            self.module = module.replace('-', '_')
+            if not self.module:
+                self.module = apps_dir.name.replace("_project", "").replace("-", "_")
 
         AgiEnv.apps_dir = self.apps_dir
         self.app_abs = self.apps_dir / active_app

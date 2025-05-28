@@ -1091,8 +1091,8 @@ def handle_project_selection():
     Handle the 'Select' tab in the sidebar for project selection,
     but render each section only if its checkbox is checked.
     """
-    projects = st.session_state["projects"]
     env = st.session_state["env"]
+    projects = env.projects
 
     if not projects:
         st.warning("No projects available.")
@@ -1351,6 +1351,7 @@ def handle_project_delete():
                     if env.projects:
                         on_project_change(env.projects[0])
                     st.success(f"Project '{env.app}' has been deleted.")
+                    del st.session_state.env
 
                     # If the deleted project was the current project, switch to another
                     del st.session_state["templates"]
@@ -1484,8 +1485,6 @@ def page():
     # Initialize session state variables
     session_defaults = {
         "orchest_functions": ["build_distribution"],
-        "project": env.app,
-        "projects": env.projects,
         "templates": get_templates(),
         "archives": ["-- Select a file --"] + get_projects_zip(),
         "export_message": "",

@@ -88,13 +88,11 @@ def render_main_page():
         st.session_state["server_started"] = True
 
     projects = env.projects
-    st.session_state["projects"] = projects
 
     # Determine current project
     current_project = env.app
     if current_project not in projects:
         current_project = projects[0] if projects else None
-        st.session_state["project"] = current_project
 
     # Sidebar project selection
     select_project(projects, current_project)

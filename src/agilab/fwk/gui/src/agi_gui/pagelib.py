@@ -373,8 +373,6 @@ def on_project_change(project, switch_to_select=True):
         session_state.datadir = env.AGILAB_EXPORT_ABS / module
         session_state.datadir_str = str(session_state.datadir)
         st.session_state.df_export_file = session_state.datadir / "export.csv"
-        # Synchronize session state with the new project
-        session_state.project = project
 
         # Optional: Set a flag to switch the sidebar tab if needed
         session_state.switch_to_select = switch_to_select
@@ -913,7 +911,8 @@ def update_views(project, views):
         bool: True if an update was required, False otherwise.
     """
     update_required = False
-    st.session_state["project"] = project
+    env = st.session_state.env
+    env.change_active_app(project, env.install_type),
     st.session_state.preview_tree = False
 
     pages_root = Path(os.getcwd()) / "src/gui/pages"
