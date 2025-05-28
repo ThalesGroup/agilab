@@ -1,13 +1,12 @@
 [project]
-name = "dag-app_project"
+name = "your_dag_project"
 version = "0.1.8"
 description = ""
-authors = [
-    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
-]
-license = { text = "Thales SIX GTS France SAS" }
-requires-python = ">=3.11"
 readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    {name = "your name", email = "your email"}
+]
 
 dependencies = [
  "setuptools",
@@ -19,25 +18,35 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["black", "pytest", "licensecheck", "dag_app_project"]
+dev = [
+    "black",
+    "pytest",
+    "licensecheck",
+    "your_dag_project",
+]
 
 [project.optional-dependencies]
 agi-worker = []
-agent-worker = []
 dag-worker = []
-data-worker = [ "polars",]
-workers = ["agi-core[dag-worker]", "agi-core[agi-worker]"]
-managers = ["agi-core[managers]"]
+workers = [
+    "agi-core[dag-worker]",
+    "agi-core[agi-worker]"]
+managers = [
+    "agi-core[managers]"
+]
 
 
+# do not remove
+[tool.uv.sources]
+agi-core = {path = "/path/to/agilab/src/agilab/fwk/core", editable = true}
 
 # do not remove
 [tool.uv.sources.agi-core]
-path = "/home/pcm/PycharmProjects/agilab/src/agilab/fwk/core"
+path = "/path/to/agilab/fwk/core"
 editable = true
 
-# do not remove
-[tool.uv.sources.dag_app_project]
+
+[tool.uv.sources.your_dag_project]
 workspace = true
 
 [tool.setuptools]
@@ -48,9 +57,12 @@ pyprojects = [
     "src/*.ipynb",
     "src/*.json",
     "src/*.toml",
+    "src/*/*.py*",
 ]
 
 [tool.mypy]
-mypy_path = ["stubs"]
+mypy_path = [
+    "stubs",
+]
 disallow_untyped_defs = false
 ignore_missing_imports = true

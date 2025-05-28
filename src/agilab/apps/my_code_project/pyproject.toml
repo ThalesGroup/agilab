@@ -20,7 +20,6 @@ text = "Thales SIX GTS France SAS"
 
 [project.optional-dependencies]
 agi-worker = []
-agent-worker = []
 dag-worker = [
     "polars",
 ]
