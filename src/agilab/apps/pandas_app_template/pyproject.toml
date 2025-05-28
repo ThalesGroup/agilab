@@ -1,16 +1,15 @@
 [project]
-name = "pandas_app_project"
+name = "your_pandas_project"
 version = "0.1.8"
 description = ""
-[[project.authors]]
-name = "Jean-Pierre Morard"
-email = "focus@thalesgroup.com"
-license = { text = "Thales SIX GTS France SAS" }
-requires-python = ">=3.11"
 readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    {name = "your name", email = "your email"}
+]
 
 dependencies = [
-    "setuptools",
+ "setuptools",
     "cython",
     "parso",
     "py7zr",
@@ -19,21 +18,36 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["black", "pytest", "licensecheck", "pandas_app_project"]
+dev = [
+    "black",
+    "pytest",
+    "licensecheck",
+    "your_pandas_project",
+]
 
 [project.optional-dependencies]
-pandas-worker = ["pandas"]
-workers = ["agi-core[pandas-worker]", "agi-core[agi-worker]"]
-managers = ["agi-core[managers]"]
+agi-worker = []
+pandas-worker = []
+workers = [
+    "agi-core[pandas-worker]",
+    "agi-core[agi-worker]"]
+managers = [
+    "agi-core[managers]"
+]
 
-# do not remove
-[tool.uv]
-default-groups = ["dev"]
 
 # do not remove
 [tool.uv.sources]
-agi-core = { path = "core", editable = true }
-data-app_project = { workspace = true }
+agi-core = {path = "/path/to/agilab/src/agilab/fwk/core", editable = true}
+
+# do not remove
+[tool.uv.sources.agi-core]
+path = "/path/to/agilab/fwk/core"
+editable = true
+
+
+[tool.uv.sources.your_pandas_project]
+workspace = true
 
 [tool.setuptools]
 include-package-data = true
@@ -43,9 +57,12 @@ pyprojects = [
     "src/*.ipynb",
     "src/*.json",
     "src/*.toml",
+    "src/*/*.py*",
 ]
 
 [tool.mypy]
-mypy_path = ["stubs"]
+mypy_path = [
+    "stubs",
+]
 disallow_untyped_defs = false
 ignore_missing_imports = true
