@@ -1156,6 +1156,138 @@ class AgiEnv:
 
         logging.log(level, f"[{ip}] {line}")
 
+    def set_cluster_credentials(self, credentials: str):
+        """Set the AGI_CREDENTIALS environment variable."""
+        self.CLUSTER_CREDENTIALS = credentials  # maintain internal state
+        self.set_env_var("CLUSTER_CREDENTIALS", credentials)
+
+    def set_openai_api_key(self, api_key: str):
+        """Set the OPENAI_API_KEY environment variable."""
+        self.OPENAI_API_KEY = api_key
+        self.set_env_var("OPENAI_API_KEY", api_key)
+
+    def set_install_type(self, install_type: int):
+        self.install_type = install_type
+        self.set_env_var("INSTALL_TYPE", str(install_type))
+
+    def set_apps_dir(self, apps_dir: Path):
+        self.apps_dir =apps_dir
+        self.set_env_var("APPS_DIR", apps_dir)
+
+    def has_admin_rights():
+        """
+        Check if the current process has administrative rights on Windows.
+
+        Returns:
+            bool: True if admin, False otherwise.
+        """
+        try:
+            return ctypes.windll.shell32.IsUserAnAdmin()
+        except:
+            return False
+
+    def create_junction_windows(source: Path, dest: Path):
+        """
+        Create a directory junction on Windows.
+
+        Args:
+            source (Path): The target directory path.
+            dest (Path): The destination junction path.
+        """
+        try:
+            # Using the mklink command to create a junction (/J) which doesn't require admin rights.
+            subprocess.check_call(['cmd', '/c', 'mklink', '/J', str(dest), str(source)])
+            print(f"Created junction: {dest} -> {source}")
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to create junction. Error: {e}")
+
+    def create_symlink_windows(source: Path, dest: Path):
+    """
+    Create a symbolic link on Windows, handling permissions and types.
+
+    Args:
+        source (Path): Source directory path.
+        dest (Path): Destination symlink path.
+    """
+        # Define necessary Windows API functions and constants
+        CreateSymbolicLink = ctypes.windll.kernel32.CreateSymbolicLinkW
+        CreateSymbolicLink.restype = wintypes.BOOL
+        CreateSymbolicLink.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
+
+        SYMBOLIC_LINK_FLAG_DIRECTORY = 0x1
+
+        # Check if Developer Mode is enabled or if the process has admin rights
+        if not has_admin_rights():
+            print(
+                "Creating symbolic links on Windows requires administrative privileges or Developer Mode enabled."
+            )
+            return
+
+        flags = SYMBOLIC_LINK_FLAG_DIRECTORY
+
+        success = CreateSymbolicLink(str(dest), str(source), flags)
+        if success:
+            print(f"Created symbolic link for .venv: {dest} -> {source}")
+        else:
+            error_code = ctypes.GetLastError()
+            print(
+                f"Failed to create symbolic link for .venv. Error code: {error_code}"
+            )
+
+    def handle_venv_directory(self, source_venv: Path, dest_venv: Path):
+        """
+        Create a symbolic link for the .venv directory instead of copying it.
+
+        Args:
+            source_venv (Path): Source .venv directory path.
+            dest_venv (Path): Destination .venv symbolic link path.
+        """
+        try:
+            if os.name == "nt":
+                create_symlink_windows(source_venv, dest_venv)
+            else:
+                # For Unix-like systems
+                os.symlink(source_venv, dest_venv, target_is_directory=True)
+                print(f"Created symbolic link for .venv: {dest_venv} -> {source_venv}")
+        except OSError as e:
+            print(f"Failed to create symbolic link for .venv: {e}")
+
+    def create_rename_map(self, target_project: Path, dest_project: Path) -> dict:
+        """
+        Create a mapping of old → new names for cloning.
+        Includes project names, top-level src folders, worker folders,
+        in-file identifiers and class names.
+        """
+        def cap(s: str) -> str:
+            return "".join(p.capitalize() for p in s.split("_"))
+
+        name_tp = target_project.name      # e.g. "flight_project"
+        name_dp = dest_project.name        # e.g. "tata_project"
+        tp = name_tp[:-8]                  # strip "_project" → "flight"
+        dp = name_dp[:-8]                  # → "tata"
+
+        tm = tp.replace("-", "_")
+        dm = dp.replace("-", "_")
+        tc = cap(tm)                       # "Flight"
+        dc = cap(dm)                       # "Tata"
+
+        return {
+            # project-level
+            name_tp:              name_dp,
+
+            # folder-level (longest keys first)
+            f"src/{tm}_worker": f"src/{dm}_worker",
+            f"src/{tm}":        f"src/{dm}",
+
+            # sibling-level
+            f"{tm}_worker":      f"{dm}_worker",
+            tm:                    dm,
+
+            # class-level
+            f"{tc}Worker":       f"{dc}Worker",
+            f"{tc}Args":         f"{dc}Args",
+            tc:                    dc,
+        }
 
     def clone_project(self, target_project: Path, dest_project: Path):
         """
@@ -1328,3 +1460,116 @@ class AgiEnv:
         from pathspec.patterns import GitWildMatchPattern
         lines = gitignore_path.read_text(encoding="utf-8").splitlines()
         return PathSpec.from_lines(GitWildMatchPattern, lines)
+
+    def is_valid_ip(self, ip: str) -> bool:
+        pattern = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
+        if pattern.match(ip):
+            parts = ip.split(".")
+            return all(0 <= int(part) <= 255 for part in parts)
+        return False
+
+    @property
+    def scheduler_ip_address(self):
+        return self.scheduler_ip
+
+    @staticmethod
+    def create_symlink(source: Path, dest: Path):
+        try:
+            source_resolved = source.resolve(strict=True)
+        except FileNotFoundError as e:
+            raise FileNotFoundError(
+                f"Error: Source path does not exist: {source}\n{e}"
+            ) from e
+        if dest.exists() or dest.is_symlink():
+            if dest.is_symlink():
+                try:
+                    existing_target = dest.resolve(strict=True)
+                    if existing_target == source_resolved:
+                        print(f"Symlink already exists and is correct: {dest} -> {source_resolved}")
+                        return
+                    else:
+                        print(f"Warning: Symlink at {dest} points to {existing_target}, expected {source_resolved}.")
+                        return
+                except RecursionError:
+                    raise RecursionError(f"Error: Detected a symlink loop while resolving existing symlink at {dest}.")
+                except FileNotFoundError:
+                    print(f"Warning: Symlink at {dest} is broken.")
+                    return
+            else:
+                print(f"Warning: Destination already exists and is not a symlink: {dest}")
+                return
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            raise OSError(f"Error: Failed to create parent directories for {dest}: {e}") from e
+        try:
+            if os.name == "nt":
+                is_dir = source_resolved.is_dir()
+                os.symlink(str(source_resolved), str(dest), target_is_directory=is_dir)
+            else:
+                os.symlink(str(source_resolved), str(dest))
+            print(f"Symlink created: {dest} -> {source_resolved}")
+        except OSError as e:
+            if os.name == "nt":
+                raise OSError(
+                    "Error: Failed to create symlink on Windows.\nEnsure you have the necessary permissions or Developer Mode is enabled."
+                ) from e
+            else:
+                raise OSError(f"Error: Failed to create symlink: {e}") from e
+
+    @staticmethod
+    def normalize_path(path):
+        return (
+            str(PureWindowsPath(Path(path)))
+            if os.name == "nt"
+            else str(PurePosixPath(Path(path)))
+        )
+
+    import tomlkit
+    from pathlib import Path
+
+    @staticmethod
+    def resolve_packages_path_in_toml(module: str,
+                                      agi_root: Path,
+                                      apps_dir: Path,
+                                      verbose: bool):
+        """
+        Updates the 'agi-core' package path under [tool.uv.sources] in the
+        project's pyproject.toml, preserving all comments and formatting.
+        """
+        module_path = agi_root / apps_dir / (module + "_project")
+        pyproject_file = module_path / "pyproject.toml"
+        if not pyproject_file.exists():
+            raise FileNotFoundError(f"pyproject.toml not found in {module_path}")
+
+        text = pyproject_file.read_text(encoding="utf-8")
+        doc = tomlkit.parse(text)
+
+        # Navigate to tool.uv.sources
+        try:
+            uv = doc["tool"]["uv"]
+        except KeyError:
+            raise RuntimeError("Could not find [tool.uv] section in the TOML")
+
+        if "sources" not in uv or not isinstance(uv["sources"], tomlkit.items.Table):
+            raise RuntimeError("Could not find [tool.uv.sources] in the TOML")
+
+        sources = uv["sources"]
+
+        # Compute and insert the local path for agi-core
+        agi_core_path = str((agi_root / "fwk" / "core").resolve())
+        # Use an inline table so it stays on one line, matching most TOML styles
+        tbl = tomlkit.inline_table()
+        tbl["path"] = agi_core_path
+        tbl["editable"] = True
+
+        sources["agi-core"] = tbl
+
+        # Write back, preserving comments
+        pyproject_file.write_text(tomlkit.dumps(doc), encoding="utf-8")
+
+        if verbose:
+            print("Updated", pyproject_file)
+
+        return agi_root / "fwk" / "core"
+
