@@ -633,7 +633,7 @@ def main():
 
         # Initialize session state variables if not present
         st.session_state.setdefault("help_path", env.agi_root / "src/fwk/gui/help")
-        st.session_state.setdefault("projects", env.projects)
+        st.session_state.setdefault("projects", env.apps)
         st.session_state.setdefault("snippet_file", env.AGILAB_LOG_ABS / "lab_snippet.py")
         st.session_state.setdefault("server_started", False)
         st.session_state.setdefault("mlflow_port", 5000)

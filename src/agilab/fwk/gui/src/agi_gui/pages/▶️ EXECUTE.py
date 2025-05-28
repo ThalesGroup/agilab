@@ -300,6 +300,8 @@ def render_generic_ui():
         st.session_state.app_settings["args"] = args_input
 
 def render_cluster_settings_ui():
+
+    env = st.session_state["env"]
     cluster_params = st.session_state.app_settings["cluster"]
 
     cluster_enabled = st.checkbox(
@@ -342,7 +344,6 @@ def render_cluster_settings_ui():
         cluster_params.pop("workers", None)
 
     boolean_params = ["verbose", "cython", "pool"]
-    env = st.session_state["env"]
     if env.is_managed_pc:
         cluster_params["rapids"] = False
     else:
@@ -615,7 +616,7 @@ async def page():
         st.rerun()
 
     else:
-        env = st.session_state['env']
+        env = st.session_state["env"]
 
     # Set page configuration and render logo
     st.set_page_config(layout="wide", menu_items=get_about_content())
@@ -646,15 +647,12 @@ async def page():
     init_session_state(defaults)
     initialize_app_settings()
     projects = env.projects
-    st.session_state["projects"] = projects
     current_project = env.app
     if "args_serialized" not in st.session_state:
         st.session_state["args_serialized"] = ""
     if current_project not in projects:
         current_project = projects[0] if projects else None
-        st.session_state["project"] = current_project
     select_project(projects, current_project)
-    env = st.session_state["env"]
     module = env.target
     project_path = env.app_abs
     export_abs_module = env.AGILAB_EXPORT_ABS / module
@@ -953,10 +951,10 @@ if __name__ == '__main__':
 
         # Check if we need to update the session state for export tab
         if ("export_tab_previous_project" not in st.session_state or
-                st.session_state.export_tab_previous_project != st.session_state.get("project") or
+                st.session_state.export_tab_previous_project != env.app or
                 st.session_state.get("df_cols") != (loaded_df.columns.tolist() if loaded_df is not None else [])):
 
-            st.session_state.export_tab_previous_project = st.session_state.get("project")
+            st.session_state.export_tab_previous_project = env.app
             if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
                 st.session_state.df_cols = loaded_df.columns.tolist()
                 st.session_state.selected_cols = loaded_df.columns.tolist()
