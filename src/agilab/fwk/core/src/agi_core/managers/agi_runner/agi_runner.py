@@ -609,7 +609,7 @@ class AGI:
             # choose working directory based on local vs remote
             cwd = env.manager_root if ip == localhost else str(env.wenv_abs)
             if AGI._is_local(ip):
-                AGI.run(cmd, cwd)
+                AgiEnv.run(cmd, cwd)
             else:
                 last_res = await env.exec_ssh(ip, cmd)
 
