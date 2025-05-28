@@ -1329,7 +1329,7 @@ def handle_project_delete():
 
     # Confirmation checkbox
     confirm_delete = st.checkbox(
-        f"I confirm that I want to delete {st.session_state['project']}.",
+        f"I confirm that I want to delete {env.app}.",
         key="confirm_delete",
     )
 
@@ -1343,13 +1343,13 @@ def handle_project_delete():
                 project_path = env.app_abs
                 if project_path.exists():
                     shutil.rmtree(project_path)
-                    st.session_state["projects"] = [
+                    env.projects = [
                         p
-                        for p in st.session_state["projects"]
-                        if p != st.session_state["project"]
+                        for p in env.projects
+                        if p != env.app
                     ]
-                    if st.session_state["projects"]:
-                        on_project_change(st.session_state["projects"][0])
+                    if env.projects:
+                        on_project_change(env.projects[0])
                     st.success(f"Project '{env.app}' has been deleted.")
 
                     # If the deleted project was the current project, switch to another
@@ -1357,7 +1357,7 @@ def handle_project_delete():
                     st.session_state["switch_to_select"] = True
                     st.rerun()
                 else:
-                    st.error(f"Project '{st.session_state['project']}' does not exist.")
+                    st.error(f"Project '{env.app}' does not exist.")
             except Exception as e:
                 st.error(f"An error occurred while deleting the project: {e}")
     else:
