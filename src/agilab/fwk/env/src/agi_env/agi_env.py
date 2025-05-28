@@ -17,6 +17,7 @@ import tomlkit
 import logging
 import inspect
 import errno
+import
 
 # Compile regex once globally
 LOG_LEVEL_RE = re.compile(r'\b(INFO|ERROR|WARNING|DEBUG|CRITICAL)\b')
