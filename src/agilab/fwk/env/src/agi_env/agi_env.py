@@ -1202,13 +1202,13 @@ class AgiEnv:
             print(f"Failed to create junction. Error: {e}")
 
     def create_symlink_windows(source: Path, dest: Path):
-    """
-    Create a symbolic link on Windows, handling permissions and types.
+        """
+        Create a symbolic link on Windows, handling permissions and types.
 
-    Args:
-        source (Path): Source directory path.
-        dest (Path): Destination symlink path.
-    """
+        Args:
+            source (Path): Source directory path.
+            dest (Path): Destination symlink path.
+        """
         # Define necessary Windows API functions and constants
         CreateSymbolicLink = ctypes.windll.kernel32.CreateSymbolicLinkW
         CreateSymbolicLink.restype = wintypes.BOOL
