@@ -37,8 +37,8 @@ def test_clone_directory_and_cleanup(tmp_path, env):
     # Setup dummy source project with files for clone_directory
     source = tmp_path / "source_project"
     source.mkdir()
-    (source / "file.py").write_text("class FlightWorker:\n    pass")
-    (source / "README.md").write_text("flight_project readme")
+    (source / "file.py").write_text("class SourceWorker:\n    pass")
+    (source / "README.md").write_text("source_project readme")
     (source / ".gitignore").write_text("*.pyc\n")
     dest = tmp_path / "dest_project"
 
@@ -57,14 +57,14 @@ def test_clone_directory_and_cleanup(tmp_path, env):
 def test_change_active_app_reinitializes(monkeypatch, env):
     # Patch __init__ to track call
     called = {}
-    orig_init = env.__init__
+    orig_init = AgiEnv.__init__
     def fake_init(self, **kwargs):
         called['called'] = True
         orig_init(self, **kwargs)
     monkeypatch.setattr(AgiEnv, "__init__", fake_init)
 
     env.app = "flight_project"
-    env.change_active_app("tata_project", install_type=1)
+    env.change_active_app("my_code_project", install_type=1)
     assert called.get('called', False)
 
 @pytest.mark.asyncio
