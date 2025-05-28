@@ -33,6 +33,7 @@ dependencies = [
     "setuptools",
     "tomlkit",
     "astor",
+    "pathspec",
     "ipython",
     "asyncssh",
 ]
