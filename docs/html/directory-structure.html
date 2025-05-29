@@ -256,6 +256,7 @@
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.cython_decorators</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.dask_home</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.do_works"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.env"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.env</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_mono_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_multi_process()</span></code></a></li>
@@ -360,6 +361,7 @@
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">FlightWorker.cython_decorators</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">FlightWorker.dask_home</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.do_works"><code class="docutils literal notranslate"><span class="pre">FlightWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.env"><code class="docutils literal notranslate"><span class="pre">FlightWorker.env</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_mono_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_multi_process()</span></code></a></li>
@@ -684,8 +686,6 @@
 │       └── uv.toml
 ├── fwk
 │   ├── core
-│   │   ├── dist
-│   │   │   └── agi_core-0.3.12-py3-none-any.whl
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
@@ -717,8 +717,6 @@
 │   ├── coverage.xml
 │   ├── env
 │   │   ├── coverage.xml
-│   │   ├── dist
-│   │   │   └── agi_env-0.3.12-py3-none-any.whl
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
@@ -776,44 +774,41 @@
 │   ├── _template_app_preinstall_manager.xml
 │   ├── _template_app_run.xml
 │   └── _template_app_test.xml
-├── views
-│   ├── autoencoder-latentspace
-│   │   ├── __init__.py
-│   │   └── src
-│   │       ├── autoencoder_latentspace
-│   │       │   ├── autoencoder_latentspace.py
-│   │       │   └── __init__.py
-│   │       └── __init__.py
-│   ├── barycentric-graph
-│   │   ├── __init__.py
-│   │   └── src
-│   │       ├── barycentric_graph
-│   │       │   ├── barycentric_graph.py
-│   │       │   └── __init__.py
-│   │       └── __init__.py
-│   ├── maps
-│   │   └── src
-│   │       └── maps
-│   │           ├── __init__.py
-│   │           └── maps.py
-│   ├── maps-3d
-│   │   └── src
-│   │       └── maps_3d
-│   │           ├── __init__.py
-│   │           └── maps_3d.py
-│   ├── maps-network-graph
-│   │   └── src
-│   │       └── maps_network_graph
-│   │           ├── __init__.py
-│   │           └── maps_network_graph.py
-│   ├── maps-network-graph.7z
-│   ├── pyproject.toml
-│   └── README.md
-└── wenv
-    ├── flight_worker
-    └── my_code_worker
+└── views
+    ├── autoencoder-latentspace
+    │   ├── __init__.py
+    │   └── src
+    │       ├── autoencoder_latentspace
+    │       │   ├── autoencoder_latentspace.py
+    │       │   └── __init__.py
+    │       └── __init__.py
+    ├── barycentric-graph
+    │   ├── __init__.py
+    │   └── src
+    │       ├── barycentric_graph
+    │       │   ├── barycentric_graph.py
+    │       │   └── __init__.py
+    │       └── __init__.py
+    ├── maps
+    │   └── src
+    │       └── maps
+    │           ├── __init__.py
+    │           └── maps.py
+    ├── maps-3d
+    │   └── src
+    │       └── maps_3d
+    │           ├── __init__.py
+    │           └── maps_3d.py
+    ├── maps-network-graph
+    │   └── src
+    │       └── maps_network_graph
+    │           ├── __init__.py
+    │           └── maps_network_graph.py
+    ├── maps-network-graph.7z
+    ├── pyproject.toml
+    └── README.md
 
-98 directories, 284 files
+93 directories, 282 files
 </pre></div>
 </div>
 </section>

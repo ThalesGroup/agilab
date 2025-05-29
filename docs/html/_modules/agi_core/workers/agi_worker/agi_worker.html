@@ -253,6 +253,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.cython_decorators</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.dask_home</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.do_works"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.env"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.env</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_mono_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_multi_process()</span></code></a></li>
@@ -357,6 +358,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../../../flight-project.html#flight_worker.flight_worker.FlightWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">FlightWorker.cython_decorators</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../flight-project.html#flight_worker.flight_worker.FlightWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">FlightWorker.dask_home</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../flight-project.html#flight_worker.flight_worker.FlightWorker.do_works"><code class="docutils literal notranslate"><span class="pre">FlightWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../flight-project.html#flight_worker.flight_worker.FlightWorker.env"><code class="docutils literal notranslate"><span class="pre">FlightWorker.env</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../flight-project.html#flight_worker.flight_worker.FlightWorker.exec"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../flight-project.html#flight_worker.flight_worker.FlightWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_mono_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../flight-project.html#flight_worker.flight_worker.FlightWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_multi_process()</span></code></a></li>
@@ -493,6 +495,7 @@
     <span class="n">share_path</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">verbose</span> <span class="o">=</span> <span class="mi">1</span>
     <span class="n">mode</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">worker_id</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">worker</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">home_dir</span> <span class="o">=</span> <span class="kc">None</span>
@@ -569,7 +572,6 @@
         <span class="c1"># Normalize Windows-style backslashes to POSIX forward slashes</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Expand a given path to an absolute path.</span>
-
 <span class="sd">        Args:</span>
 <span class="sd">            path (str): The path to expand.</span>
 <span class="sd">            base_directory (str, optional): The base directory to use for expanding the path. Defaults to None.</span>
@@ -697,17 +699,30 @@
         <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;sys.path: </span><span class="si">{</span><span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_class_loader</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">target_class</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">pck</span><span class="p">,</span> <span class="n">env</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">:</span>
-            <span class="k">del</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">module</span><span class="p">]</span>
-        <span class="k">if</span> <span class="n">mode</span> <span class="o">&amp;</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">module</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;_worker&quot;</span><span class="p">):</span>
-            <span class="n">module</span> <span class="o">+=</span> <span class="s2">&quot;_cy&quot;</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">module</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">pck</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">module</span><span class="si">}</span><span class="s2">&quot;</span>
-
+    <span class="k">def</span><span class="w"> </span><span class="nf">_load_module</span><span class="p">(</span><span class="n">module_name</span><span class="p">,</span> <span class="n">module_class</span><span class="p">):</span>
         <span class="c1"># Simply raise exception on failure, no logging here</span>
-        <span class="n">target_module</span> <span class="o">=</span> <span class="nb">__import__</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">fromlist</span><span class="o">=</span><span class="p">[</span><span class="n">target_class</span><span class="p">])</span>
-        <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">target_module</span><span class="p">,</span> <span class="n">target_class</span><span class="p">)</span>
+        <span class="n">module</span> <span class="o">=</span> <span class="nb">__import__</span><span class="p">(</span><span class="n">module_name</span><span class="p">,</span> <span class="n">fromlist</span><span class="o">=</span><span class="p">[</span><span class="n">module_class</span><span class="p">])</span>
+        <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">module_class</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_load_manager</span><span class="p">():</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">env</span>
+        <span class="n">module_name</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">target</span>
+        <span class="n">module_class</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">target_class</span>
+        <span class="k">if</span> <span class="n">module_name</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">:</span>
+            <span class="k">del</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">module_name</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">_load_module</span><span class="p">(</span><span class="n">module_name</span><span class="p">,</span> <span class="n">module_class</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_load_worker</span><span class="p">(</span><span class="n">mode</span><span class="p">):</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">env</span>
+        <span class="n">module_name</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">target_worker</span>
+        <span class="n">module_class</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">target_worker_class</span>
+        <span class="k">if</span> <span class="n">module_name</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">:</span>
+            <span class="k">del</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">module_name</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">mode</span> <span class="o">&amp;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">module_name</span> <span class="o">+=</span> <span class="s2">&quot;_cy&quot;</span>
+        <span class="k">return</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">_load_module</span><span class="p">(</span><span class="n">module_name</span><span class="p">,</span> <span class="n">module_class</span><span class="p">)</span>
 
 <div class="viewcode-block" id="AgiWorker.run">
 <a class="viewcode-back" href="../../../../agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.run">[docs]</a>
@@ -722,7 +737,7 @@
 <span class="sd">        :return:</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
-        <span class="n">env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">app</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">env</span>
         <span class="n">module</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">module</span>
 
         <span class="k">if</span> <span class="n">mode</span> <span class="o">&amp;</span> <span class="mi">2</span><span class="p">:</span>
@@ -743,26 +758,7 @@
                 <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;warning: no cython library found at </span><span class="si">{</span><span class="n">lib_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
 
-        <span class="n">target_worker</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">target_worker</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">AgiWorker</span><span class="o">.</span><span class="n">new</span><span class="p">(</span>
-                <span class="n">target_worker</span><span class="p">,</span>
-                <span class="n">env</span><span class="o">.</span><span class="n">target_worker_class</span><span class="p">,</span>
-                <span class="n">target_worker</span><span class="p">,</span>
-                <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span>
-                <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span>
-                <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">,</span>
-                <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span>
-            <span class="p">)</span>
-
-        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
-            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">())</span>
-            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;error: </span><span class="si">{</span><span class="n">err</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-
-        <span class="n">target_class</span> <span class="o">=</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">_class_loader</span><span class="p">(</span>
-            <span class="n">module</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">target_class</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">env</span>
-        <span class="p">)</span>
+        <span class="n">target_class</span> <span class="o">=</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">_load_manager</span><span class="p">()</span>
 
         <span class="c1"># Instantiate the class with arguments</span>
         <span class="n">target_inst</span> <span class="o">=</span> <span class="n">target_class</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span>
@@ -813,21 +809,18 @@
 <a class="viewcode-back" href="../../../../agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.new">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">new</span><span class="p">(</span>
-            <span class="n">target_module</span><span class="p">,</span>
-            <span class="n">target_class</span><span class="p">,</span>
-            <span class="n">target_package</span><span class="p">,</span>
+            <span class="n">app</span><span class="p">,</span>
             <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span>
             <span class="n">verbose</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
             <span class="n">worker_id</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
             <span class="n">worker</span><span class="o">=</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span>
-            <span class="n">env</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
             <span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;new worker instance</span>
 <span class="sd">        Args:</span>
 <span class="sd">          module: instanciate and load target my_code_worker module</span>
-<span class="sd">          target_module:</span>
-<span class="sd">          target_class:</span>
+<span class="sd">          target_worker:</span>
+<span class="sd">          target_worker_class:</span>
 <span class="sd">          target_package:</span>
 <span class="sd">          mode: (Default value = mode)</span>
 <span class="sd">          verbose: (Default value = 0)</span>
@@ -837,20 +830,18 @@
 <span class="sd">        Returns:</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">try</span><span class="p">:</span>
+            <span class="n">AgiWorker</span><span class="o">.</span><span class="n">env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">app</span><span class="p">,</span> <span class="n">install_type</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
             <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;venv: </span><span class="si">{</span><span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;AgiWorker.new - worker #</span><span class="si">{</span><span class="n">worker_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">worker</span><span class="si">}</span><span class="s2"> from: </span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
             <span class="c1"># import of derived Class of AgiManager, name target_inst which is typically an instance of MyCode</span>
-            <span class="n">worker_class</span> <span class="o">=</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">_class_loader</span><span class="p">(</span>
-                <span class="n">target_module</span><span class="p">,</span> <span class="n">target_class</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">target_package</span><span class="p">,</span> <span class="n">env</span>
-            <span class="p">)</span>
+            <span class="n">worker_class</span> <span class="o">=</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">_load_worker</span><span class="p">(</span><span class="n">mode</span><span class="p">)</span>
 
             <span class="c1"># Instantiate the class with arguments</span>
             <span class="n">worker_inst</span> <span class="o">=</span> <span class="n">worker_class</span><span class="p">()</span>
             <span class="n">worker_inst</span><span class="o">.</span><span class="n">mode</span> <span class="o">=</span> <span class="n">mode</span>
             <span class="n">worker_inst</span><span class="o">.</span><span class="n">args</span> <span class="o">=</span> <span class="n">args</span>
             <span class="n">worker_inst</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
-            <span class="n">worker_inst</span><span class="o">.</span><span class="n">target</span> <span class="o">=</span> <span class="n">target_package</span>
 
             <span class="c1"># Instantiate the base class</span>
             <span class="n">AgiWorker</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
@@ -1011,7 +1002,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">worker_id</span> <span class="o">=</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">worker_id</span>
-            <span class="k">if</span> <span class="n">worker_id</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">worker_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;do_works - worker #</span><span class="si">{</span><span class="n">worker_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">AgiWorker</span><span class="o">.</span><span class="n">worker</span><span class="si">}</span><span class="s2"> from </span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;AgiWorker.work - #</span><span class="si">{</span><span class="n">worker_id</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> / </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="n">AgiWorker</span><span class="o">.</span><span class="n">_insts</span><span class="p">[</span><span class="n">worker_id</span><span class="p">]</span><span class="o">.</span><span class="n">works</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">)</span>
