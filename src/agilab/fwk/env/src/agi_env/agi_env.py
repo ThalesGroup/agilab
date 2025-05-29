@@ -344,7 +344,7 @@ class AgiEnv:
         root_level = logging.DEBUG if verbosity >= 2 else logging.INFO if verbosity == 1 else logging.WARNING
 
         # Cap distributed logs at CRITICAL (silent)
-        sys_level = logging.INFO
+        sys_level = logging.ERROR if verbosity < 2 else logging.INFO if verbosity > 3  else logging.DEBUG
 
         # Use root_level for your app-specific loggers as well
         app_level = root_level
@@ -434,7 +434,7 @@ class AgiEnv:
         if install_type == 2:
             return
 
-        if not self.agi_fwk_env_path.exists():
+        if self.install_type < 2 and  self.agi_fwk_env_path.exists():
             raise RuntimeError("Your Agilab installation is not valid")
 
         self._init_resources(resource_path)
@@ -987,7 +987,8 @@ class AgiEnv:
 
         Returns full stdout string.
         """
-        AgiEnv.log_info(f"Executing in {venv}: {cmd}")
+        if AgiEnv.verbose > 1:
+            AgiEnv.log_info(f"Executing in {venv}: {cmd}")
 
         if not cwd:
             cwd = venv
@@ -1046,7 +1047,8 @@ class AgiEnv:
                         break
 
                 process.wait(timeout=timeout)
-                AgiEnv.log_info(f"Command completed with exit code {process.returncode}")
+                if AgiEnv.verbose > 1:
+                    AgiEnv.log_info(f"Command completed with exit code {process.returncode}")
                 return result
 
             except subprocess.TimeoutExpired:
@@ -1300,7 +1302,8 @@ class AgiEnv:
                 stdout = result.stdout
                 if isinstance(stdout, bytes):
                     stdout = stdout.decode('utf-8', errors='replace')
-                self.log_info(f"[{ip}] {cmd}: {stdout.strip()}")
+                if self.verbose > 1:
+                    self.log_info(f"[{ip}] {cmd}: {stdout.strip()}")
                 return stdout.strip()
 
         except ProcessError as e:
