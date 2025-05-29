@@ -370,7 +370,7 @@ class AgiWorker(abc.ABC):
         Returns:
         """
         try:
-            AgiWorker.env = AgiEnv(active_app=app, install_type=1, verbose=verbose)
+            AgiWorker.env = AgiEnv(active_app=app, install_type=2, verbose=verbose)
             AgiEnv.log_info(f"venv: {sys.prefix}")
             AgiEnv.log_info(f"AgiWorker.new - worker #{worker_id}: {worker} from: {os.path.relpath(__file__)}")
 

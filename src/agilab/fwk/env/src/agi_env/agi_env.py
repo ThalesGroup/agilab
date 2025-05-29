@@ -410,33 +410,26 @@ class AgiEnv:
         self.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
         envars = self.envars
 
-        if install_type:
-            if isinstance(install_type, str):
-                install_type = int(install_type)
-            self.install_type = install_type
-        else:
+        if install_type is None:
             install_type = 1 if ("site-packages" not in __file__ or sys.prefix.endswith("gui/.venv")) else 0
-            self.install_type = install_type
+        elif isinstance(install_type, str):
+            install_type = int(install_type)
 
+        self.install_type = install_type
         self.agi_root = AgiEnv.locate_agi_installation(verbose)
 
         if install_type:
-            self.agi_fwk_env_path = self.agi_root / "fwk/env"
-            resource_path = self.agi_fwk_env_path / "src/agi_env" / self.agi_resources
+            if install_type < 2:
+                self.agi_fwk_env_path = self.agi_root / "fwk/env"
+                resource_path = self.agi_fwk_env_path / "src/agi_env" / self.agi_resources
+                if not self.agi_fwk_env_path.exists():
+                    raise RuntimeError("Your Agilab installation is not valid")
+                self._init_resources(resource_path)
         else:
             head, sep, _ = __file__.partition("site-packages")
             if not sep:
                 raise ValueError("site-packages not in", __file__)
             self.agi_fwk_env_path = Path(head + sep)
-            resource_path = self.agi_fwk_env_path / "agi_env" / self.agi_resources
-
-        if install_type == 2:
-            return
-
-        # if self.agi_fwk_env_path.exists():
-        # raise RuntimeError("Your Agilab installation is not valid")
-
-        self._init_resources(resource_path)
 
         if active_module:
             if isinstance(active_module, Path):
@@ -512,6 +505,9 @@ class AgiEnv:
         self.uvproject = self.worker_path.parent / "uv.toml"
         self.agi_core = self.resolve_packages_path_in_toml()
         self.projects = self.get_projects(self.apps_dir)
+
+        if install_type == 2:
+            return
 
         if not self.projects:
             logging.info(f"Could not find any target project app in {self.agi_root / 'apps'}.")
