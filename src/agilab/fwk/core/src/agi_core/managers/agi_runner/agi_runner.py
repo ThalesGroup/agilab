@@ -1560,9 +1560,7 @@ class AGI:
             [
                 AGI._dask_client.submit(
                     AgiWorker.new,
-                    env.target_worker,
-                    env.target_worker_class,
-                    env.target_worker,
+                    env.app,
                     mode=AGI._mode,
                     verbose=AGI._verbose,
                     worker_id=list(AGI._dask_workers).index(worker),

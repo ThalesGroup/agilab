@@ -64,6 +64,7 @@ class AgiWorker(abc.ABC):
     share_path = None
     verbose = 1
     mode = None
+    env = None
     worker_id = None
     worker = None
     home_dir = None
@@ -129,7 +130,6 @@ class AgiWorker(abc.ABC):
         # Normalize Windows-style backslashes to POSIX forward slashes
         """
         Expand a given path to an absolute path.
-
         Args:
             path (str): The path to expand.
             base_directory (str, optional): The base directory to use for expanding the path. Defaults to None.
@@ -247,17 +247,30 @@ class AgiWorker(abc.ABC):
         AgiEnv.log_error(f"sys.path: {sys.path}")
 
     @staticmethod
-    def _class_loader(module, target_class, mode, pck, env):
-        if module in sys.modules:
-            del sys.modules[module]
-        if mode & 2 and module.endswith("_worker"):
-            module += "_cy"
-        else:
-            module = f"{pck}.{module}"
-
+    def _load_module(module_name, module_class):
         # Simply raise exception on failure, no logging here
-        target_module = __import__(module, fromlist=[target_class])
-        return getattr(target_module, target_class)
+        module = __import__(module_name, fromlist=[module_class])
+        return getattr(module, module_class)
+
+    @staticmethod
+    def _load_manager():
+        env = AgiWorker.env
+        module_name = env.target
+        module_class = env.target_class
+        if module_name in sys.modules:
+            del sys.modules[module_name]
+        return AgiWorker._load_module(module_name, module_class)
+
+    @staticmethod
+    def _load_worker(mode):
+        env = AgiWorker.env
+        module_name = env.target_worker
+        module_class = env.target_worker_class
+        if module_name in sys.modules:
+            del sys.modules[module_name]
+        if mode & 2:
+            module_name += "_cy"
+        return AgiWorker._load_module(module_name, module_class)
 
     @staticmethod
     def run(app, workers={"127.0.0.1": 1}, mode=0, verbose=3, args=None):
@@ -270,7 +283,7 @@ class AgiWorker(abc.ABC):
         :return:
         """
 
-        env = AgiEnv(active_app=app, verbose=verbose)
+        env = AgiWorker.env
         module = env.module
 
         if mode & 2:
@@ -291,26 +304,7 @@ class AgiWorker(abc.ABC):
                 AgiEnv.log_info(f"warning: no cython library found at {lib_path}")
                 exit(0)
 
-        target_worker = env.target_worker
-        try:
-            AgiWorker.new(
-                target_worker,
-                env.target_worker_class,
-                target_worker,
-                mode=mode,
-                verbose=verbose,
-                env=env,
-                args=args,
-            )
-
-        except Exception as err:
-            AgiEnv.log_error(traceback.format_exc())
-            AgiEnv.log_error(f"error: {err}")
-            exit(1)
-
-        target_class = AgiWorker._class_loader(
-            module, env.target_class, mode, module, env
-        )
+        target_class = AgiWorker._load_manager()
 
         # Instantiate the class with arguments
         target_inst = target_class(env, **args)
@@ -355,21 +349,18 @@ class AgiWorker(abc.ABC):
 
     @staticmethod
     def new(
-            target_module,
-            target_class,
-            target_package,
+            app,
             mode=mode,
             verbose=0,
             worker_id=0,
             worker="localhost",
-            env=None,
             args=None,
     ):
         """new worker instance
         Args:
           module: instanciate and load target my_code_worker module
-          target_module:
-          target_class:
+          target_worker:
+          target_worker_class:
           target_package:
           mode: (Default value = mode)
           verbose: (Default value = 0)
@@ -379,20 +370,18 @@ class AgiWorker(abc.ABC):
         Returns:
         """
         try:
+            AgiWorker.env = AgiEnv(active_app=app, install_type=1, verbose=verbose)
             AgiEnv.log_info(f"venv: {sys.prefix}")
             AgiEnv.log_info(f"AgiWorker.new - worker #{worker_id}: {worker} from: {os.path.relpath(__file__)}")
 
             # import of derived Class of AgiManager, name target_inst which is typically an instance of MyCode
-            worker_class = AgiWorker._class_loader(
-                target_module, target_class, mode, target_package, env
-            )
+            worker_class = AgiWorker._load_worker(mode)
 
             # Instantiate the class with arguments
             worker_inst = worker_class()
             worker_inst.mode = mode
             worker_inst.args = args
             worker_inst.verbose = verbose
-            worker_inst.target = target_package
 
             # Instantiate the base class
             AgiWorker.verbose = verbose
@@ -544,7 +533,7 @@ class AgiWorker(abc.ABC):
         """
         try:
             worker_id = AgiWorker.worker_id
-            if worker_id:
+            if worker_id is not None:
                 AgiEnv.log_info(f"do_works - worker #{worker_id}: {AgiWorker.worker} from {os.path.relpath(__file__)}")
                 AgiEnv.log_info(f"AgiWorker.work - #{worker_id + 1} / {len(workers_tree)}")
                 AgiWorker._insts[worker_id].works(workers_tree, workers_tree_info)
