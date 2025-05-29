@@ -1008,9 +1008,8 @@ class AGI:
         await env.exec_ssh(ip, cmd)
 
         # build target_worker lib
-        cmd = f"uv -q --project {wenv_rel / 'setup'} run python build_ext -i 2 -b {dist_rel}"
+        cmd = f"uv -q --project {wenv_rel} run python  {wenv_rel / 'setup'} build_ext -i 2 -b {wenv_rel}"
         await env.exec_ssh(ip, cmd)
-
 
     @staticmethod
     def _should_install_pip():
