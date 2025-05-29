@@ -1275,7 +1275,7 @@ class AGI:
                     else:
                         wenv_rel = env.wenv_rel
                         pid_file = wenv_rel / pid_file_name
-                        cmd = f'uv -q --project {wenv_rel} run dask worker tcp://{AGI._scheduler} --no-nanny --pid-file ~/{wenv_rel / id_file}'
+                        cmd = f'uv -q --project {wenv_rel} run dask worker tcp://{AGI._scheduler} --no-nanny --pid-file ~/{wenv_rel / pid_file}'
                         asyncio.create_task(env.exec_ssh_async(ip, cmd))
                         env.log_info(f"Launched remote worker in background on {ip}: {cmd}")
 
