@@ -503,11 +503,12 @@ class AgiEnv:
         self.module_path = self.app_src / self.module / f"{self.module}.py"
         self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
         self.uvproject = self.worker_path.parent / "uv.toml"
-        self.agi_core = self.resolve_packages_path_in_toml()
-        self.projects = self.get_projects(self.apps_dir)
 
         if install_type == 2:
             return
+
+        self.agi_core = self.resolve_packages_path_in_toml()
+        self.projects = self.get_projects(self.apps_dir)
 
         if not self.projects:
             logging.info(f"Could not find any target project app in {self.agi_root / 'apps'}.")
