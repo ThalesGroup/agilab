@@ -139,6 +139,7 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="agi-env.html#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -442,19 +443,25 @@ it will create a file (~/xxx-project_trace.txt) that shows what happened in duri
 ├── app_install.xml
 ├── app_manager_install.xml
 ├── app_script_gen.xml
+├── core_test.xml
 ├── flight_egg_gen.xml
 ├── flight_lib_gen.xml
 ├── flight_postinstall_test.xml
 ├── flight_preinstall_test.xml
 ├── flight_run.xml
 ├── flight_test.xml
-├── fwk_test.xml
 ├── gui_run_test.xml
 ├── my_code_egg_gen.xml
+├── _my_code_egg_manager.xml
 ├── my_code_lib_gen.xml
+├── _my_code_lib_worker.xml
 ├── my_code_postinstall_test.xml
+├── _my_code_postinstall_worker.xml
+├── _my_code_preinstall_manager.xml
 ├── my_code_preinstall_test.xml
+├── _my_code_run.xml
 ├── my_code_run.xml
+├── _my_code_test.xml
 ├── my_code_test.xml
 ├── run_ssh_cmd.xml
 ├── test_agi_env.xml
@@ -465,7 +472,7 @@ it will create a file (~/xxx-project_trace.txt) that shows what happened in duri
 ├── test_pandas_worker.xml
 └── zip_all_gen.xml
 
-1 directory, 26 files
+1 directory, 32 files
 </pre></div>
 </div>
 </section>
@@ -475,9 +482,14 @@ it will create a file (~/xxx-project_trace.txt) that shows what happened in duri
 <li><p>** zip-all gen**</p>
 <p>TGenerate the zip of the whole agi project directory with .gitignore filtration. A agi.zip file should created at the root dir of your projectu</p>
 </li>
-<li><p>** fwk test**</p>
-<p>This will lunch unitary test for both agi-env and agi-core components and display the pytest result</p>
-</li>
+<li><p>** zgi_env test**</p></li>
+</ul>
+<p>v
+- ** core test**</p>
+<blockquote>
+<div><p>This will lunch unitary test for agi_core components and display the pytest result</p>
+</div></blockquote>
+<ul>
 <li><p>** app_script gen**</p>
 <p>This will generate the script below</p>
 </li>
@@ -492,7 +504,7 @@ A file &lt;your_code_worker.pyx&gt; should appear in your wenv</p>
 <p>This will install the venv in your fwk/apps/&lt;your app&gt;.</p>
 </li>
 <li><p>** app install**</p>
-<p>This will install the venv in your fwk/apps/&lt;your app&gt; and in your &lt;home&gt;/wenv/&lt;your app&gt;_worker.</p>
+<p>This will install the venv in your fwk/apps/&lt;your app&gt; and in your &lt;home&gt;/wenv/&lt;your worker&gt;.</p>
 </li>
 <li><p>** &lt;your app&gt;_egg gen **</p>
 <p>Generate your project egg file containing all the required files to compile the worker Cython library.</p>

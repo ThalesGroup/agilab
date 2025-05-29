@@ -136,6 +136,7 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../agi-env.html#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../../agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -1049,7 +1050,7 @@
             <span class="c1"># choose working directory based on local vs remote</span>
             <span class="n">cwd</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">manager_root</span> <span class="k">if</span> <span class="n">ip</span> <span class="o">==</span> <span class="n">localhost</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_is_local</span><span class="p">(</span><span class="n">ip</span><span class="p">):</span>
-                <span class="n">AGI</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">cwd</span><span class="p">)</span>
+                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">cwd</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">last_res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
@@ -2018,6 +2019,7 @@
                     <span class="n">verbose</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_verbose</span><span class="p">,</span>
                     <span class="n">worker_id</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_dask_workers</span><span class="p">)</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">worker</span><span class="p">),</span>
                     <span class="n">worker</span><span class="o">=</span><span class="n">worker</span><span class="p">,</span>
+                    <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">,</span>
                     <span class="n">args</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_args</span><span class="p">,</span>
                     <span class="n">workers</span><span class="o">=</span><span class="p">[</span><span class="n">worker</span><span class="p">],</span>
                 <span class="p">)</span>
@@ -2025,24 +2027,15 @@
             <span class="p">]</span>
         <span class="p">)</span>
 
-
         <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_calibration</span><span class="p">()</span>
 
         <span class="n">t</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
 
-        <span class="c1"># AGI._run_time = AGI._dask_client.run(</span>
-        <span class="c1">#     AgiWorker.get_logs_and_result,</span>
-        <span class="c1">#     AgiWorker.do_works,</span>
-        <span class="c1">#     workers_tree,</span>
-        <span class="c1">#     workers_tree_info,</span>
-        <span class="c1">#     verbosity=AGI._verbose,</span>
-        <span class="c1">#     workers=AGI._dask_workers,</span>
-
-        <span class="c1">#AGI._run_time = AGI._dask_client.run(</span>
-        <span class="n">AgiWorker</span><span class="o">.</span><span class="n">do_works</span><span class="p">(</span>
+        <span class="n">AGI</span><span class="o">.</span><span class="n">_run_time</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_dask_client</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+            <span class="n">AgiWorker</span><span class="o">.</span><span class="n">do_works</span><span class="p">,</span>
             <span class="n">workers_tree</span><span class="p">,</span>
             <span class="n">workers_tree_info</span><span class="p">,</span>
-            <span class="c1">#    workers=AGI._dask_workers,</span>
+            <span class="n">workers</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_dask_workers</span><span class="p">,</span>
         <span class="p">)</span>
 
         <span class="n">runtime</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">t</span>

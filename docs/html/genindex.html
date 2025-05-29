@@ -136,6 +136,7 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="agi-env.html#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -460,6 +461,8 @@
 </li>
         <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.__init__">(agi_env.agi_env.AgiEnv method)</a>
 </li>
+        <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.__init__">(agi_env.agi_env.ContentRenamer method)</a>
+</li>
         <li><a href="flight-project.html#flight.flight.Flight.__init__">(flight.flight.Flight method)</a>
 </li>
         <li><a href="flight-project.html#flight.flight.FlightArgs.__init__">(flight.flight.FlightArgs method)</a>
@@ -612,6 +615,10 @@
 </li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.check_valid_regex">check_valid_regex() (flight.flight.FlightArgs class method)</a>
 </li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.clone_directory">clone_directory() (agi_env.agi_env.AgiEnv method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.clone_project">clone_project() (agi_env.agi_env.AgiEnv method)</a>
+</li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.close_all_connections">close_all_connections() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.construct">construct() (flight.flight.FlightArgs class method)</a>
@@ -620,6 +627,8 @@
         <li><a href="my-code-project.html#my_code.my_code.MyCodeArgs.construct">(my_code.my_code.MyCodeArgs class method)</a>
 </li>
       </ul></li>
+      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer">ContentRenamer (class in agi_env.agi_env)</a>
+</li>
       <li><a href="agi-managers.html#agi_core.managers.agi_manager.agi_manager.AgiManager.convert_functions_to_names">convert_functions_to_names() (agi_core.managers.agi_manager.agi_manager.AgiManager static method)</a>
 
       <ul>
@@ -638,7 +647,13 @@
       </ul></li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.copy_missing">copy_missing() (agi_env.agi_env.AgiEnv method)</a>
 </li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.create_junction_windows">create_junction_windows() (agi_env.agi_env.AgiEnv method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.create_rename_map">create_rename_map() (agi_env.agi_env.AgiEnv method)</a>
+</li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.create_symlink">create_symlink() (agi_env.agi_env.AgiEnv static method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.create_symlink_windows">create_symlink_windows() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.cython_decorators">cython_decorators (agi_core.workers.agi_worker.agi_worker.AgiWorker attribute)</a>
 
@@ -860,6 +875,8 @@
 <h2 id="G">G</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.generic_visit">generic_visit() (agi_env.agi_env.ContentRenamer method)</a>
+</li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.get_base_classes">get_base_classes() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.get_base_worker_cls">get_base_worker_cls() (agi_env.agi_env.AgiEnv method)</a>
@@ -924,6 +941,10 @@
 <h2 id="H">H</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.handle_venv_directory">handle_venv_directory() (agi_env.agi_env.AgiEnv method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.has_admin_rights">has_admin_rights() (agi_env.agi_env.AgiEnv method)</a>
+</li>
       <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.home_dir">home_dir (agi_core.workers.agi_worker.agi_worker.AgiWorker attribute)</a>
 
       <ul>
@@ -1341,7 +1362,11 @@
 </li>
       <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.RAPIDS_SET">RAPIDS_SET (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
 </li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.read_gitignore">read_gitignore() (agi_env.agi_env.AgiEnv method)</a>
+</li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.remove_dir_forcefully">remove_dir_forcefully() (agi_env.agi_env.AgiEnv method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.replace_content">replace_content() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.resolve_packages_path_in_toml">resolve_packages_path_in_toml() (agi_env.agi_env.AgiEnv method)</a>
 </li>
@@ -1379,6 +1404,8 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="flight-project.html#flight.flight.FlightArgs.sampling_rate">sampling_rate (flight.flight.FlightArgs attribute)</a>
 </li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.scheduler_ip_address">scheduler_ip_address (agi_env.agi_env.AgiEnv property)</a>
+</li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.schema">schema() (flight.flight.FlightArgs class method)</a>
 
       <ul>
@@ -1395,7 +1422,15 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.send_files">send_files() (agi_env.agi_env.AgiEnv method)</a>
 </li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.set_apps_dir">set_apps_dir() (agi_env.agi_env.AgiEnv method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.set_cluster_credentials">set_cluster_credentials() (agi_env.agi_env.AgiEnv method)</a>
+</li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.set_env_var">set_env_var() (agi_env.agi_env.AgiEnv method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.set_install_type">set_install_type() (agi_env.agi_env.AgiEnv method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.set_openai_api_key">set_openai_api_key() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.share_path">share_path (agi_core.workers.agi_worker.agi_worker.AgiWorker attribute)</a>
 
@@ -1523,6 +1558,36 @@
         <li><a href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.verbose">(my_code_worker.my_code_worker.MyCodeWorker attribute)</a>
 </li>
       </ul></li>
+      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit">visit() (agi_env.agi_env.ContentRenamer method)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_AnnAssign">visit_AnnAssign() (agi_env.agi_env.ContentRenamer method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_arg">visit_arg() (agi_env.agi_env.ContentRenamer method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_Assign">visit_Assign() (agi_env.agi_env.ContentRenamer method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_Attribute">visit_Attribute() (agi_env.agi_env.ContentRenamer method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_ClassDef">visit_ClassDef() (agi_env.agi_env.ContentRenamer method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_Constant">visit_Constant() (agi_env.agi_env.ContentRenamer method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_For">visit_For() (agi_env.agi_env.ContentRenamer method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_FunctionDef">visit_FunctionDef() (agi_env.agi_env.ContentRenamer method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_Global">visit_Global() (agi_env.agi_env.ContentRenamer method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_Import">visit_Import() (agi_env.agi_env.ContentRenamer method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_ImportFrom">visit_ImportFrom() (agi_env.agi_env.ContentRenamer method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_Name">visit_Name() (agi_env.agi_env.ContentRenamer method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_nonlocal">visit_nonlocal() (agi_env.agi_env.ContentRenamer method)</a>
+</li>
   </ul></td>
 </tr></table>
 

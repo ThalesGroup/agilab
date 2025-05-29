@@ -136,6 +136,7 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../agi-env.html#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../../agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -1010,7 +1011,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">worker_id</span> <span class="o">=</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">worker_id</span>
-            <span class="k">if</span> <span class="n">worker_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">workers_tree</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">worker_id</span><span class="p">:</span>
                 <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;do_works - worker #</span><span class="si">{</span><span class="n">worker_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">AgiWorker</span><span class="o">.</span><span class="n">worker</span><span class="si">}</span><span class="s2"> from </span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;AgiWorker.work - #</span><span class="si">{</span><span class="n">worker_id</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> / </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="n">AgiWorker</span><span class="o">.</span><span class="n">_insts</span><span class="p">[</span><span class="n">worker_id</span><span class="p">]</span><span class="o">.</span><span class="n">works</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">)</span>
