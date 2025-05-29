@@ -884,7 +884,7 @@ class AGI:
         wenv = await AGI._build_lib_local(is_local=True)
 
         # Lancer le script post_install
-        cmd_post = f"cd {wenv} && uv -q run -p {pyvers} python {env.app_abs / env.post_install} {env.data_dir}"
+        cmd_post = f"uv -q --project {wenv} run -p {pyvers} python {env.app_abs / env.post_install} {env.data_dir}"
         AgiEnv.log_info(f"Running post-install script: {cmd_post}")
         await AgiEnv.run(cmd_post, wenv)
 
@@ -906,11 +906,12 @@ class AGI:
         await env.exec_ssh(ip, cmd)
 
         # Then send the files to the remote directory
-        egg_file = next(iter(dist_abs.glob(f"{env.app}*.egg")), None)
-        if egg_file:
+        try:
+            egg_file = next(iter(dist_abs.glob(f"{env.app}*.egg")), None)
             await env.send_files(ip, [env.setup_core, env.worker_pyproject, env.uvproject], wenv_rel)
             await env.send_file(ip, egg_file, dist_rel)
-        else:
+
+        except StopIteration:
             AgiEnv.log_error(f"searching for {wenv_abs / env.app}*.egg")
             raise FileNotFoundError("no existing egg file")
 
@@ -928,7 +929,7 @@ class AGI:
         await env.exec_ssh(ip, cmd)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
-        check_rapids = (f"cd {wenv_rel} && {python} -c \"import subprocess, sys, shutil;"
+        check_rapids = (f"uv -q --project {wenv_rel} run -p {pyvers} python -c \"import subprocess, sys, shutil;"
                         "r = subprocess.run(['nvidia-smi'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); "
                         "sys.exit(0 if r.returncode == 0 else 1)\""
                         )
@@ -939,23 +940,23 @@ class AGI:
 
         # 6) Build and run uv -q sync, adding --config-file only when has_rapids_hw
         if has_rapids_hw:
-            sync_cmd = f"cd {wenv_rel} && uv -q sync {option}"
+            sync_cmd = f"uv -q --project {wenv_rel} sync {option} --refresh-package dask "
         else:
-            sync_cmd = f"cd {wenv_rel} && uv -q --config-file uv.toml sync {option}"
+            sync_cmd = f"uv -q --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} sync {option} --refresh-package dask"
         await env.exec_ssh(ip, sync_cmd)
 
         # 7) Post-install script
-        cmd = f"cd {wenv_rel} && uv -q run -p {pyvers} python {env.post_install} {env.data_dir}"
+        cmd = f"uv -q --project {wenv_rel} run -p {pyvers} python {wenv_rel / env.post_install} {env.data_dir}"
         await env.exec_ssh(ip, cmd)
 
         # continue with bootstrap and unzip...
-        cmd = f"cd {wenv_rel} && uv -q run -p {pyvers} python -m ensurepip"
+        cmd = f"uv -q --project {wenv_rel} run -p {pyvers} python -m ensurepip"
         await env.exec_ssh(ip, cmd)
 
-        # upgrade dask
-        cmd = f"cd {wenv_rel} && uv -q run -p {pyvers} python -m pip install dask[distributed]"
-        AgiEnv.log_info(f"Upgrading dask[distributed] on {ip}...")
-        await env.exec_ssh(ip, cmd)
+        # # upgrade dask
+        # cmd = f"uv -q --project {wenv_rel} run -p {pyvers} python -m pip install dask[distributed]"
+        # AgiEnv.log_info(f"Upgrading dask[distributed] on {ip}...")
+        # await env.exec_ssh(ip, cmd)
 
         #####################################################
         # install env & core for enabling dask worker spawn
@@ -972,42 +973,42 @@ class AGI:
         await env.exec_ssh(ip, cmd);
 
         # Bootstrap ensurepip
-        cmd = f"cd {wenv_rel} && uv -q run python -m ensurepip"
+        cmd = f"uv -q --project {wenv_rel} run python -m ensurepip"
         await env.exec_ssh(ip, cmd)
 
-        cmd = f"cd {wenv_rel} && uv -q pip install -e ."
+        cmd = f"uv -q --project {wenv_rel} pip install -e {wenv_rel}"
         await env.exec_ssh(ip, cmd)
 
         # build agi_env*.whl
         wenv = env.agi_fwk_env_path
-        cmd = f"cd {wenv} && uv -q build --wheel"
+        cmd = f"uv -q --project {wenv} build --wheel"
         await AgiEnv.run(cmd, venv=wenv)
         dist = wenv / "dist"
-        whl = next(iter(dist.glob("agi_env*.whl")))
-        if whl:
+        try:
+            whl = next(iter(dist.glob("agi_env*.whl")))
             await env.send_file(ip, whl, dist_rel)
-        else:
+        except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"cd {dist_rel} && uv -q add {Path(whl).name}"
+        cmd = f"uv -q --project {dist_rel} add {dist_rel / Path(whl).name}"
         await env.exec_ssh(ip, cmd)
 
         # build agi_core*.whl
         wenv = env.core_root
-        cmd = f"cd {wenv} && uv -q build --wheel"
-        await AgiEnv.run(cmd, venv=wenv)
         dist = wenv / "dist"
-        whl = next(iter(dist.glob("agi_core*.whl" )))
-        if whl:
+        cmd = f"uv -q --project {wenv} build --wheel"
+        await AgiEnv.run(cmd, venv=wenv)
+        try:
+            whl = next(iter(dist.glob("agi_core*.whl" )))
             await env.send_file(ip, whl, dist_rel)
-        else:
+        except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"cd {dist_rel} && uv -q add {Path(whl).name}"
+        cmd = f"uv -q --project {dist_rel} add {dist_rel / Path(whl).name}"
         await env.exec_ssh(ip, cmd)
-        out_dir = Path('..') / wenv_rel.name
+
         # build target_worker lib
-        cmd = f"cd {wenv_rel} && uv -q run python setup build_ext -b {out_dir}"
+        cmd = f"uv -q --project {wenv_rel / 'setup'} run python build_ext -i 2 -b {dist_rel}"
         await env.exec_ssh(ip, cmd)
 
 
@@ -1193,8 +1194,8 @@ class AGI:
                 await env.send_file(AGI._scheduler_ip, toml_local, toml_wenv)
 
                 cmd = (
-                    f"cd {wenv_rel}  && uv -q run dask scheduler --port {AGI._scheduler_port} "
-                    f"--host {AGI._scheduler_ip} --pid-file dask_pid"
+                    f"uv -q --project {wenv_rel} run dask scheduler --port {AGI._scheduler_port} "
+                    f"--host {AGI._scheduler_ip} --pid-file {wenv_rel / dask_pid}"
                 )
                 # Run scheduler asynchronously over SSH without awaiting completion (fire and forget)
                 asyncio.create_task(await env.exec_ssh_async(AGI._scheduler_ip, cmd))
@@ -1252,7 +1253,7 @@ class AGI:
             return False
 
         for i, (ip, n) in enumerate(AGI.workers.items()):
-            export_cmd = await AGI._detect_export_cmd(ip)
+            #export_cmd = await AGI._detect_export_cmd(ip)
             is_local = AGI._is_local(ip)
 
             for j in range(n):
@@ -1265,9 +1266,9 @@ class AGI:
                         wenv_abs = env.wenv_abs
                         pid_file = str(wenv_abs / pid_file_name)
                         cmd = (
-                            f'{export_cmd} '
-                            f'cd {wenv_abs} && uv -q run dask worker tcp://{AGI._scheduler} --no-nanny '
-                            f'--pid-file {pid_file}'
+                            #f'{export_cmd} '
+                            f'uv -q --project {wenv_abs} run dask worker tcp://{AGI._scheduler} --no-nanny '
+                            f'--pid-file {wenv_abs / pid_file}'
                         )
                         # Run locally in background (non-blocking)
                         AGI._exec_bg(cmd, str(wenv_abs))
@@ -1275,7 +1276,7 @@ class AGI:
                     else:
                         wenv_rel = env.wenv_rel
                         pid_file = wenv_rel / pid_file_name
-                        cmd = f'cd {wenv_rel} && uv -q run dask worker tcp://{AGI._scheduler} --no-nanny --pid-file ~/{pid_file}'
+                        cmd = f'uv -q --project {wenv_rel} run dask worker tcp://{AGI._scheduler} --no-nanny --pid-file ~/{wenv_rel / id_file}'
                         asyncio.create_task(env.exec_ssh_async(ip, cmd))
                         env.log_info(f"Launched remote worker in background on {ip}: {cmd}")
 
@@ -1349,7 +1350,7 @@ class AGI:
         app_path = env.app_abs
         wenv_abs = env.wenv_abs
         shutil.copy(env.setup_core, app_path)
-        cmd = f"cd {app_path} && uv -q run python setup bdist_egg --packages \"{packages}\" -d {wenv_abs}"
+        cmd = f"uv -q --project {app_path} run python {app_path / 'setup'} bdist_egg --packages \"{packages}\" -d {wenv_abs}"
         await AgiEnv.run(cmd, app_path)
         dask_client = AGI._dask_client
         if dask_client:
@@ -1358,16 +1359,17 @@ class AGI:
                 dask_client.upload_file(str(egg_file))
         # compile in cython when cython is requested
         if is_local:
-            cmd = f"cd {wenv_abs} && uv -q pip install -e ."
+            cmd = f"uv -q --project {wenv_abs} pip install -e {wenv_abs}"
             await AgiEnv.run(cmd, wenv_abs)
 
             if is_cy:
                 # cython compilation of wenv/src into wenw
                 shutil.copy(env.setup_core, wenv_abs)
-                cmd = f"cd {app_path} && uv -q run python setup build_ext -b {wenv_abs}"
+                cmd = f"uv -q --project {app_path} run python {app_path / 'setup'} build_ext -b {wenv_abs}"
                 res = await AgiEnv.run(cmd, app_path)
-                worker_lib = next(iter((wenv_abs / 'dist').glob("*_cy.*")), None)
-                if not worker_lib:
+                try:
+                    worker_lib = next(iter((wenv_abs / 'dist').glob("*_cy.*")), None)
+                except StopIteration:
                     raise RuntimeError(cmd)
 
                 # Get the current interpreter's platlib path (e.g. '/usr/lib/python3.12/site-packages')
