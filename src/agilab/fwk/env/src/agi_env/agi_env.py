@@ -396,7 +396,7 @@ class AgiEnv:
         logging.debug(f"Logging initialized at level {logging.getLevelName(root_level)}")
 
     def __init__(self, install_type: int = None, apps_dir: Path = None,
-                 active_app: Path | str = None, active_module: Path = None, verbose: int = None):
+                 active_app: Path | str = None, verbose: int = None):
 
         AgiEnv.verbose = verbose
         self.init_logging(verbose)
@@ -431,25 +431,10 @@ class AgiEnv:
                 raise ValueError("site-packages not in", __file__)
             self.agi_fwk_env_path = Path(head + sep)
 
-        if active_module:
-            if isinstance(active_module, Path):
-                self.module = active_module.stem
-                appsdir = self._determine_apps_dir(active_module)
-                if apps_dir:
-                    logging.info("Warning: apps_dir will be determined from active_module path")
-                apps_dir = appsdir
-                app = apps_dir.name
-                if active_app:
-                    logging.info("Warning: active_app will be determined from active_module path")
-                active_app = app
-            else:
-                logging.info("active_module must be of type 'Path'")
-                exit(1)
+        if active_app:
+            self.module = active_app.replace("_project", "")
         else:
-            if active_app:
-                self.module = active_app.replace("_project", "")
-            else:
-                self.module = None
+            self.module = None
 
         if not apps_dir:
             apps_dir = envars.get("APPS_DIR", 'apps')
@@ -503,6 +488,18 @@ class AgiEnv:
         self.module_path = self.app_src / self.module / f"{self.module}.py"
         self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
         self.uvproject = self.worker_path.parent / "uv.toml"
+
+        target_class = "".join(x.title() for x in self.module.split("_"))
+        worker_class = target_class + "Worker"
+        self.target_class = target_class
+        self.target_worker_class = worker_class
+        self.base_worker_cls, self.base_worker_module = self.get_base_worker_cls(
+            self.worker_path, worker_class
+        )
+        self.workers_packages_prefix = "agi_core.workers."
+        if not self.worker_path.exists():
+            logging.info(f"Missing {self.target_worker_class} definition; should be in {self.worker_path} but it does not exist")
+            exit(1)
 
         if install_type == 2:
             return
@@ -558,20 +555,6 @@ class AgiEnv:
             self.help_path = "https://thalesgroup.github.io/agilab"
 
         self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", self.home_abs / "data"))
-
-        target_class = "".join(x.title() for x in self.target.split("_"))
-        worker_class = target_class + "Worker"
-        self.target_class = target_class
-        self.target_worker_class = worker_class
-
-        self.base_worker_cls, self.base_worker_module = self.get_base_worker_cls(
-            self.worker_path, worker_class
-        )
-        self.workers_packages_prefix = "agi_core.workers."
-
-        if not self.worker_path.exists():
-            logging.info(f"Missing {self.target_worker_class} definition; should be in {self.worker_path} but it does not exist")
-            exit(1)
 
         app_src = self.app_src
         app_src.mkdir(parents=True, exist_ok=True)
