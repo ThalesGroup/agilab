@@ -414,7 +414,6 @@ class AgiEnv:
             if isinstance(install_type, str):
                 install_type = int(install_type)
             self.install_type = install_type
-
         else:
             install_type = 1 if ("site-packages" not in __file__ or sys.prefix.endswith("gui/.venv")) else 0
             self.install_type = install_type
@@ -434,8 +433,8 @@ class AgiEnv:
         if install_type == 2:
             return
 
-        if self.install_type < 2 and  self.agi_fwk_env_path.exists():
-            raise RuntimeError("Your Agilab installation is not valid")
+        # if self.agi_fwk_env_path.exists():
+        # raise RuntimeError("Your Agilab installation is not valid")
 
         self._init_resources(resource_path)
 
@@ -1298,12 +1297,14 @@ class AgiEnv:
     async def exec_ssh(self, ip: str, cmd: str) -> str:
         try:
             async with self.get_ssh_connection(ip) as conn:
+                if self.verbose > 1:
+                    self.log_info(f"[{ip}] {cmd}")
                 result = await conn.run(cmd, check=True)
                 stdout = result.stdout
                 if isinstance(stdout, bytes):
                     stdout = stdout.decode('utf-8', errors='replace')
                 if self.verbose > 1:
-                    self.log_info(f"[{ip}] {cmd}: {stdout.strip()}")
+                    self.log_info(f"[{ip}] {stdout.strip()}")
                 return stdout.strip()
 
         except ProcessError as e:
