@@ -419,9 +419,9 @@ class AgiEnv:
         self.agi_root = AgiEnv.locate_agi_installation(verbose)
 
         if install_type:
+            self.agi_fwk_env_path = self.agi_root / "fwk/env"
+            resource_path = self.agi_fwk_env_path / "src/agi_env" / self.agi_resources
             if install_type < 2:
-                self.agi_fwk_env_path = self.agi_root / "fwk/env"
-                resource_path = self.agi_fwk_env_path / "src/agi_env" / self.agi_resources
                 if not self.agi_fwk_env_path.exists():
                     raise RuntimeError("Your Agilab installation is not valid")
                 self._init_resources(resource_path)
