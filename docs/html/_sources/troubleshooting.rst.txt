@@ -24,9 +24,12 @@ C - Exemple of Tests Sequence:
 
   TGenerate the zip of the whole agi project directory with .gitignore filtration. A agi.zip file should created at the root dir of your projectu
 
-- ** fwk test**
+- ** zgi_env test**
 
-  This will lunch unitary test for both agi-env and agi-core components and display the pytest result
+v
+- ** core test**
+
+  This will lunch unitary test for agi_core components and display the pytest result
 
 - ** app_script gen**
 
@@ -47,7 +50,7 @@ C - Exemple of Tests Sequence:
 
 - ** app install**
 
-  This will install the venv in your fwk/apps/<your app> and in your <home>/wenv/<your app>_worker.
+  This will install the venv in your fwk/apps/<your app> and in your <home>/wenv/<your worker>.
 
 - ** <your app>_egg gen **
 

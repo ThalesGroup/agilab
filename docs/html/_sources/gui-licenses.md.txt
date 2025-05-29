@@ -120,12 +120,12 @@
 | jsonpatch | BSD LICENSE |
 | jsonpath-ng | APACHE SOFTWARE LICENSE |
 | jsonpointer | BSD LICENSE |
-| jsonschema | MIT LICENSE |
+| jsonschema | MIT |
 | jsonschema-specifications | MIT |
 | jupyter-ai | BSD LICENSE |
 | jupyter-ai-magics | BSD LICENSE |
 | jupyter-client | BSD LICENSE |
-| jupyter-core | BSD LICENSE |
+| jupyter-core | BSD-3-CLAUSE |
 | jupyter-events | BSD LICENSE |
 | jupyter-server | BSD LICENSE |
 | jupyter-server-terminals | BSD LICENSE |
@@ -177,12 +177,12 @@
 | networkx | BSD LICENSE |
 | numba | BSD LICENSE |
 | numpy | BSD LICENSE |
-| ollama | MIT LICENSE |
+| ollama |  |
 | openai | APACHE SOFTWARE LICENSE |
 | opentelemetry-api | APACHE SOFTWARE LICENSE |
 | opentelemetry-sdk | APACHE SOFTWARE LICENSE |
 | opentelemetry-semantic-conventions | APACHE SOFTWARE LICENSE |
-| optree | APACHE SOFTWARE LICENSE |
+| optree | APACHE-2.0 |
 | orjson | APACHE SOFTWARE LICENSE;; MIT LICENSE |
 | overrides | APACHE LICENSE_ VERSION 2.0 |
 | packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
@@ -332,5 +332,5 @@
 | ydata | MIT LICENSE |
 | ydata-profiling | MIT LICENSE |
 | zict | BSD LICENSE |
-| zipp | MIT LICENSE |
+| zipp | MIT |
 | zstandard | BSD LICENSE |
