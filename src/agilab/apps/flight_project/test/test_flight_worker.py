@@ -15,6 +15,7 @@ args = {
 
 # AgiWorker.run flight command
 for i in range(4):
+    AgiWorker.new("flight_project", mode=i, verbose=3,  args=args)
     result = AgiWorker.run('flight', mode=i, verbose=3, workers={"192.168.20.222":2}, args=args)
 
 print(result)
