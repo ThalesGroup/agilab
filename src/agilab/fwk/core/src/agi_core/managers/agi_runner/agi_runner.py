@@ -1565,7 +1565,6 @@ class AGI:
                     verbose=AGI._verbose,
                     worker_id=list(AGI._dask_workers).index(worker),
                     worker=worker,
-                    env=env,
                     args=AGI._args,
                     workers=[worker],
                 )
