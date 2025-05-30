@@ -436,63 +436,69 @@ class AgiEnv:
         else:
             self.module = None
 
-        if not apps_dir:
-            apps_dir = envars.get("APPS_DIR", 'apps')
-        else:
-            set_key(dotenv_path=env_path, key_to_set="APPS_DIR", value_to_set=str(apps_dir))
-
-        apps_dir = Path(apps_dir)
-
-        try:
-            if apps_dir.exists():
-                self.apps_dir = apps_dir
-            elif install_type:
-                self.apps_dir = self.agi_root / apps_dir
+        if install_type < 2:
+            if not apps_dir:
+                apps_dir = envars.get("APPS_DIR", 'apps')
             else:
-                os.makedirs(str(apps_dir), exist_ok=True)
-        except FileNotFoundError:
-            logging.error("apps_dir not found: %s", apps_dir)
-            exit(1)
+                set_key(dotenv_path=env_path, key_to_set="APPS_DIR", value_to_set=str(apps_dir))
 
-        self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
-        self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
+            apps_dir = Path(apps_dir)
 
-        if not active_app:
-            active_app = envars.get("APP_DEFAULT", 'flight_project')
-
-        if isinstance(active_app, str):
-            if not active_app.endswith('_project'):
-                active_app = active_app + '_project'
-            app_path = apps_dir / active_app
-            if app_path.exists():
-                self.app = active_app
-            src_apps = self.agi_root / "apps"
-            if not install_type:
-                if not apps_dir.exists():
-                    shutil.copytree(src_apps, apps_dir)
+            try:
+                if apps_dir.exists():
+                    self.apps_dir = apps_dir
+                elif install_type:
+                    self.apps_dir = self.agi_root / apps_dir
                 else:
-                    self.copy_missing(src_apps, Path(os.getcwd()) / apps_dir)
-            if not self.module:
-                self.module = active_app.replace("_project", "").replace("-", "_")
-        else:
-            apps_dir = self._determine_apps_dir(active_app)
-            if not self.module:
-                self.module = apps_dir.name.replace("_project", "").replace("-", "_")
+                    os.makedirs(str(apps_dir), exist_ok=True)
+            except FileNotFoundError:
+                logging.error("apps_dir not found: %s", apps_dir)
+                exit(1)
 
-        AgiEnv.apps_dir = self.apps_dir
-        self.app_abs = self.apps_dir / active_app
-        self.app_src = self.app_abs / "src"
+            self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
+            self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
+
+            if not active_app:
+                active_app = envars.get("APP_DEFAULT", 'flight_project')
+
+            if isinstance(active_app, str):
+                if not active_app.endswith('_project'):
+                    active_app = active_app + '_project'
+                app_path = apps_dir / active_app
+                if app_path.exists():
+                    self.app = active_app
+                src_apps = self.agi_root / "apps"
+                if not install_type:
+                    if not apps_dir.exists():
+                        shutil.copytree(src_apps, apps_dir)
+                    else:
+                        self.copy_missing(src_apps, Path(os.getcwd()) / apps_dir)
+                if not self.module:
+                    self.module = active_app.replace("_project", "").replace("-", "_")
+            else:
+                apps_dir = self._determine_apps_dir(active_app)
+                if not self.module:
+                    self.module = apps_dir.name.replace("_project", "").replace("-", "_")
+
+            AgiEnv.apps_dir = self.apps_dir
+            self.app_abs = self.apps_dir / active_app
+            self.app_src = self.app_abs / "src"
+            self.app_pyproject = self.app_abs / "pyproject.toml"
+            self.target_worker = f"{self.module}_worker"
+            self.worker_path = self.app_src / self.target_worker / f"{self.target_worker}.py"
+            self.module_path = self.app_src / self.module / f"{self.module}.py"
+            self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
+            self.uvproject = self.worker_path.parent / "uv.toml"
+
         self.target_worker = f"{self.module}_worker"
-        self.app_pyproject = self.app_abs / "pyproject.toml"
-        self.worker_path = self.app_src / self.target_worker / f"{self.target_worker}.py"
-        self.module_path = self.app_src / self.module / f"{self.module}.py"
-        self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
-        self.uvproject = self.worker_path.parent / "uv.toml"
-
         target_class = "".join(x.title() for x in self.module.split("_"))
-        worker_class = target_class + "Worker"
         self.target_class = target_class
+        worker_class = target_class + "Worker"
         self.target_worker_class = worker_class
+
+        if install_type == 2:
+            return
+
         self.base_worker_cls, self.base_worker_module = self.get_base_worker_cls(
             self.worker_path, worker_class
         )
