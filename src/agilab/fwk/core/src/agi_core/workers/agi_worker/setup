@@ -256,10 +256,10 @@ def main() -> None:
 
     # Post bdist_egg steps: unpack, decorator stripping, cleanup
     if cmd == 'bdist_egg' and install_type != 2:
-        out_dir = Path(out_arg)
-        dest_src = out_dir / "src"
+        out_dir = env.home_abs / out_arg
+        dest_src =  out_dir / "src"
         dest_src.mkdir(exist_ok=True, parents=True)
-        for egg in out_dir.glob("*.egg"):
+        for egg in (out_dir / 'dist').glob("*.egg"):
             logging.info(f"Unpacking {egg} → {dest_src}")
             with ZipFile(egg, 'r') as zf:
                 zf.extractall(dest_src)
