@@ -983,9 +983,9 @@ class AGI:
         wenv = env.agi_fwk_env_path
         cmd = f"uv -q --project {wenv} build --wheel"
         await AgiEnv.run(cmd, venv=wenv)
-        dist = wenv / "dist"
+        src = wenv / "dist"
         try:
-            whl = next(iter(dist.glob("agi_env*.whl")))
+            whl = next(iter(src.glob("agi_env*.whl")))
             await env.send_file(ip, whl, dist_rel)
         except StopIteration:
             raise RuntimeError(cmd)
@@ -995,11 +995,11 @@ class AGI:
 
         # build agi_core*.whl
         wenv = env.core_root
-        dist = wenv / "dist"
+        src = wenv / "dist"
         cmd = f"uv -q --project {wenv} build --wheel"
         await AgiEnv.run(cmd, venv=wenv)
         try:
-            whl = next(iter(dist.glob("agi_core*.whl" )))
+            whl = next(iter(src.glob("agi_core*.whl" )))
             await env.send_file(ip, whl, dist_rel)
         except StopIteration:
             raise RuntimeError(cmd)
@@ -1008,7 +1008,7 @@ class AGI:
         await env.exec_ssh(ip, cmd)
 
         # build target_worker lib
-        cmd = f"uv -q --project {wenv_rel} run python  {wenv_rel / 'setup'} build_ext -i 2 -b {wenv_rel}"
+        cmd = f"uv -q --project {wenv_rel} run python {wenv_rel / 'setup'} build_ext -i 2 -b {wenv_rel}"
         await env.exec_ssh(ip, cmd)
 
     @staticmethod
@@ -1358,7 +1358,7 @@ class AGI:
                 dask_client.upload_file(str(egg_file))
         # compile in cython when cython is requested
         if is_local:
-            cmd = f"uv -q --project {wenv_abs} pip install -e {wenv_abs}"
+            cmd = f"uv -q --project {wenv_abs} pip install -e ."
             await AgiEnv.run(cmd, wenv_abs)
 
             if is_cy:
