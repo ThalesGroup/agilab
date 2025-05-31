@@ -15,14 +15,6 @@ class DummyWorker(AgiWorker):
         pass
 
 
-# def test_normalize_path():
-#     # Test that normalize_path returns an absolute, resolved path.
-#     test_path = ""
-#     normalized = AgiEnv.normalize_path(test_path)
-#     assert os.path.isabs(normalized), "normalize_path should return an absolute path."
-#     expected = str(Path(test_path).resolve())
-#     assert normalized == expected, f"Expected {expected} but got {normalized}"
-
 def test_expand():
     # Test expansion of a path starting with '~'
     expanded = AgiWorker.expand("~")
