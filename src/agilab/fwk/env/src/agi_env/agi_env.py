@@ -436,6 +436,7 @@ class AgiEnv:
         else:
             self.module = None
 
+
         if install_type < 2:
             if not apps_dir:
                 apps_dir = envars.get("APPS_DIR", 'apps')
@@ -480,18 +481,39 @@ class AgiEnv:
                 if not self.module:
                     self.module = apps_dir.name.replace("_project", "").replace("-", "_")
 
+        self.target_worker = f"{self.module}_worker"
+        wenv_root = Path("wenv")
+        wenv_rel =  wenv_root / self.target_worker
+        
+        if install_type < 2:
             AgiEnv.apps_dir = self.apps_dir
             self.app_abs = self.apps_dir / active_app
             self.app_src = self.app_abs / "src"
-            self.app_pyproject = self.app_abs / "pyproject.toml"
-            self.target_worker = f"{self.module}_worker"
-            self.worker_path = self.app_src / self.target_worker / f"{self.target_worker}.py"
-            self.module_path = self.app_src / self.module / f"{self.module}.py"
-            self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
-            self.uvproject = self.worker_path.parent / "uv.toml"
+        else:
+            AgiEnv.apps_dir = self.home_abs / wenv_root
+            self.app_abs = self.apps_dir / self.target_worker
+            self.app_src = self.app_abs / "src"
 
-        self.target_worker = f"{self.module}_worker"
+        self.app_pyproject = self.app_abs / "pyproject.toml"
+        self.worker_path = self.app_src / self.target_worker / f"{self.target_worker}.py"
+        self.module_path = self.app_src / self.module / f"{self.module}.py"
+        self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
+        self.uvproject = self.worker_path.parent / "uv.toml"
+
         target_class = "".join(x.title() for x in self.module.split("_"))
+
+        self.wenv_rel = wenv_rel
+        self.wenv_abs = self.home_abs / wenv_rel
+        if not self.wenv_abs.exists():
+            os.makedirs(self.wenv_abs, exist_ok=True)
+        self.wenv_target_worker = self.wenv_abs
+        self.post_install = Path("src") / self.target_worker / "post_install.py"
+        self.pre_install = Path("src") / self.target_worker / "pre_install.py"
+
+        distribution_tree = self.wenv_abs / "distribution_tree.json"
+        if distribution_tree.exists():
+            distribution_tree.unlink()
+        self.distribution_tree = distribution_tree
         self.target_class = target_class
         worker_class = target_class + "Worker"
         self.target_worker_class = worker_class
@@ -506,9 +528,6 @@ class AgiEnv:
         if not self.worker_path.exists():
             logging.info(f"Missing {self.target_worker_class} definition; should be in {self.worker_path} but it does not exist")
             exit(1)
-
-        if install_type == 2:
-            return
 
         self.agi_core = self.resolve_packages_path_in_toml()
         self.projects = self.get_projects(self.apps_dir)
@@ -571,19 +590,6 @@ class AgiEnv:
             sys.path.insert(0, app_src_str)
         self.app_src = self.core_root.parent.parent / app_src
         self.app_abs = self.app_src.parent
-
-        wenv_rel = Path("wenv") / self.target_worker
-        self.wenv_rel = wenv_rel
-        self.wenv_abs = self.home_abs / wenv_rel
-        if not self.wenv_abs.exists():
-            os.makedirs(self.wenv_abs, exist_ok=True)
-        self.wenv_target_worker = self.wenv_abs
-        distribution_tree = self.wenv_abs / "distribution_tree.json"
-        self.post_install = Path("src") / self.target_worker / "post_install.py"
-        self.pre_install = Path("src") / self.target_worker / "pre_install.py"
-        if distribution_tree.exists():
-            distribution_tree.unlink()
-        self.distribution_tree = distribution_tree
 
         if AgiEnv.install_type != 3:
             self.init_envars_app(self.envars)
@@ -1274,8 +1280,9 @@ class AgiEnv:
     async def exec_ssh(self, ip: str, cmd: str) -> str:
         try:
             async with self.get_ssh_connection(ip) as conn:
+                msg = f"[{ip}] {cmd}"
                 if self.verbose > 1:
-                    self.log_info(f"[{ip}] {cmd}")
+                    self.log_info(msg)
                 result = await conn.run(cmd, check=True)
                 stdout = result.stdout
                 if isinstance(stdout, bytes):
@@ -1296,8 +1303,8 @@ class AgiEnv:
             raise
 
         except (asyncssh.Error, OSError) as e:
-            self.log_error(f"[{ip}] SSH command failed: {e}")
-            raise
+            self.log_error(msg)
+            exit(1)
 
     async def exec_ssh_async(self, ip: str, cmd: str):
         async with self.get_ssh_connection(ip) as conn:
@@ -1364,7 +1371,7 @@ class AgiEnv:
             remote_path = f"{remote_dir / f.name}"
             tasks.append(self.send_file(ip, f, remote_path, user=user))
         await asyncio.gather(*tasks)
-        self.log_info(f"Sent {len(files)} files to {user if user else self.user}@{ip}:{remote_dir}")
+        # self.log_info(f"Sent {len(files)} files to {user if user else self.user}@{ip}:{remote_dir}")
 
     def remove_dir_forcefully(self, path):
         import shutil

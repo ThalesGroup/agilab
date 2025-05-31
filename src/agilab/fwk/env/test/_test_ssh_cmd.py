@@ -1,4 +1,6 @@
 import asyncio
+from pathlib import Path
+import os
 from agi_env import AgiEnv, normalize_path
 
 async def test_ssh_cmd(env, ip, usr, cmd):
@@ -8,17 +10,16 @@ async def test_ssh_cmd(env, ip, usr, cmd):
 async def main():
     env = AgiEnv(install_type=1, verbose=1)
 
+    cwd = Path().home()
+    os.chdir(cwd)
+    module='flight'
+    wenv =  env.wenv_rel
+    dist = wenv / "dist"
     cmd = (
-        'python3 -c "import getpass, os, psutil;'
-        'me = getpass.getuser();\n'
-        'for p in psutil.process_iter(["name", "username", "cmdline"]):\n'
-        '    try:\n'
-        '        if p.info["username"] and me in p.info["username"]\n'
-        '            and ("dask" in p.info["name"] or (p.info["cmdline"]\n'
-        '            and any("dask" in s.lower() for s in p.info["cmdline"])))'
-        '                p.kill()\n'
-        '    except (psutil.NoSuchProcess, psutil.AccessDenied):\n'
-        '        pass"'
+        f"uv -q --project {wenv} run python -c "
+        f"\"from pathlib import Path; "
+        f"whl = list((Path().home() / '{dist}').glob('{module}*.whl')); "
+        f"print(whl)\""
     )
     # Safe quoting for remote shell execution:
     #cmd = f"cd {env.wenv_rel} && uv run python -c \"import os; print(os.getcwd())\""

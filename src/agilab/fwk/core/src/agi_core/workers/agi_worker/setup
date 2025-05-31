@@ -178,7 +178,6 @@ def main() -> None:
 
     # Rebuild sys.argv for setuptools with correct flags
     flag = '-b' if cmd == 'build_ext' else '-d'
-    sys.argv = [sys.argv[0], cmd, flag, p / "dist"]
 
     # ext_path only relevant for build_ext
     ext_path = None
@@ -204,7 +203,7 @@ def main() -> None:
 
     target_module = target_pkg.replace("-", "_")
     env = AgiEnv(active_app=target_pkg + "_project", install_type=install_type)
-
+    sys.argv = [sys.argv[0], cmd, flag, env.home_abs / out_arg / "dist"]
     worker_module = target_module + "_worker"
     links_created: list[Path] = []
     ext_modules = []
