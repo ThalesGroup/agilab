@@ -16,10 +16,12 @@ args = {
 }
 
 sys.path.insert(0,'/home/pcm/PycharmProjects/agilab/src/agilab/apps/flight_project/src')
+sys.path.insert(0,'/home/pcm/wenv/flight_worker/dist')
+
 # AgiWorker.run flight command
-for i in  range(1):
+for i in  range(4):
     env = AgiEnv(install_type=1, verbose=True)
-    AgiWorker.new("flight_project", mode=i, env=env, verbose=3,   args=args)
-    result = AgiWorker.run(  workers={"192.168.20.222":2}, mode=i, args=args)
+    AgiWorker.new("flight_project", mode=i, env=env, verbose=3, args=args)
+    result = AgiWorker.test(workers={"192.168.20.123":2}, mode=i, args=args)
 
 print(result)
