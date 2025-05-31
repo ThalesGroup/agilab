@@ -1,9 +1,22 @@
+import sys
 from agi_core.workers.agi_worker import AgiWorker
+from agi_env import AgiEnv
 
-args = {'param1': 0, 'param2': "some text", 'param3': 3.14, 'param4': True}
+args = {
+    'param1': 0,
+    'param2': "some text",
+    'param3': 3.14,
+    'param4': True
+}
 
-AgiWorker.run('my_code', mode=0, verbose=3, args=args)
-# AgiWorker.run('my_code', mode=1, verbose=3, args=args)
+sys.path.insert(0,'/home/pcm/PycharmProjects/agilab/src/agilab/apps/my_code_project/src')
+sys.path.insert(0,'/home/pcm/wenv/my_code_worker/dist')
 
-# compilation cython and dask are managed by Agi so mode > 1 iare not available for unary test
-# AgiWorker.run('my_code', mode=2, verbose=3, args=args)
+
+# AgiWorker.run flight command
+for i in  range(4):
+    env = AgiEnv(install_type=1, verbose=True)
+    AgiWorker.new('my_code', mode=i, env=env, verbose=3, args=args)
+    result = AgiWorker.test(workers={"192.168.20.222":2}, mode=i, args=args)
+
+print(result)
