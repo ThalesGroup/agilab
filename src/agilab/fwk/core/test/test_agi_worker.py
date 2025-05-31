@@ -5,7 +5,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import pytest
 from agi_core.workers.agi_worker import AgiWorker
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 
 
 # DummyWorker can be defined if needed for instance methods test.

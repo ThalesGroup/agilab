@@ -51,7 +51,7 @@ from agi_gui.pagelib import (
     render_logo
 )
 
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 
 class JumpToMain(Exception):
     """

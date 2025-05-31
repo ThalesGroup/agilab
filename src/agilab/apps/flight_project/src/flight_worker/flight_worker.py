@@ -19,6 +19,8 @@ import logging
 from numpy.linalg import norm  # Imported norm
 from agi_core.workers.polars_worker import PolarsWorker
 from agi_core.workers.agi_worker import AgiWorker
+from agi_env import normalize_path
+
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
@@ -86,7 +88,7 @@ class FlightWorker(PolarsWorker):
             if "Users" in parts:
                 index = parts.index("Users") + 2
                 path = Path(*parts[index:])
-            net_path = AgiWorker.normalize_path("\\\\127.0.0.1\\" + str(path))
+            net_path = normalize_path("\\\\127.0.0.1\\" + str(path))
             try:
                 # Your NFS account in order to mount it as net drive on Windows
                 cmd = f'net use Z: "{net_path}" /user:your-credentials'
@@ -97,8 +99,8 @@ class FlightWorker(PolarsWorker):
 
         # Path to database on symlink Path.home()/data(symlink)
         self.home_rel = Path(self.args["path"]).expanduser()
-        path = AgiWorker.normalize_path(self.home_rel)
-        self.data_out = AgiWorker.normalize_path(self.home_rel.parent / "dataframes")
+        path = normalize_path(self.home_rel)
+        self.data_out = normalize_path(self.home_rel.parent / "dataframes")
 
         if os.name != "nt":
             self.data_out = self.data_out.replace("\\", "/")
@@ -167,7 +169,7 @@ class FlightWorker(PolarsWorker):
                     "\\", "/"
                 )
             else:
-                file = AgiWorker.normalize_path(os.path.expanduser(prefix + file))
+                file = normalize_path(os.path.expanduser(prefix + file))
 
             if not Path(file).is_file():
                 raise FileNotFoundError(f"FlightWorker.work_pool({file})\n")

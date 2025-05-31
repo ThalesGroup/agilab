@@ -25,7 +25,7 @@ import polars as pl
 from datetime import date
 from agi_core.managers.agi_runner import AGI
 from agi_core.managers.agi_manager import AgiManager
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
@@ -151,11 +151,11 @@ class Flight(AgiManager):
             pass
 
         base_path = env.home_abs / path
-        self.path = AgiEnv.normalize_path(base_path)
+        self.path = normalize_path(base_path)
         self.files = args["files"]
         self.nfile = args["nfile"]
         AgiManager.args = args
-        self.data_out = AgiEnv.normalize_path(base_path / "dataframe")
+        self.data_out = normalize_path(base_path / "dataframe")
 
         """
           remove dataframe files from previous run
@@ -238,7 +238,7 @@ class Flight(AgiManager):
     def get_data_from_files(self):
         """get output-data slices from files or from ELK/HAWK"""
         if self.data_source == "file":
-            path = AgiEnv.normalize_path(self.path)
+            path = normalize_path(self.path)
             home_dir = Path.home()
 
             # Assuming 'self.path' is the base directory and 'self.files' is the pattern for the files you're interested in

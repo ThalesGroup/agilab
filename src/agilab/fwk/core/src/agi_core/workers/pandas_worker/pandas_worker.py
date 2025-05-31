@@ -39,7 +39,7 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 import time
 
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 from agi_core.workers.agi_worker import AgiWorker
 
 import pandas as pd

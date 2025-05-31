@@ -922,17 +922,6 @@ class AgiEnv:
             shutil.copytree(self.agi_root.parent / "agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
 
     @staticmethod
-    def normalize_path(path):
-        from pathlib import Path, PureWindowsPath, PurePosixPath
-        import os
-
-        p = Path(path)
-        if os.name == "nt":
-            return str(PureWindowsPath(p))
-        else:
-            return str(PurePosixPath(p))
-
-    @staticmethod
     def _build_env(venv=None):
         """Build environment dict for subprocesses, with activated virtualenv paths."""
         proc_env = os.environ.copy()
@@ -1792,11 +1781,10 @@ class AgiEnv:
             else:
                 raise OSError(f"Error: Failed to create symlink: {e}") from e
 
-    @staticmethod
-    def normalize_path(path):
-        return (
-            str(PureWindowsPath(Path(path)))
-            if os.name == "nt"
-            else str(PurePosixPath(Path(path)))
-        )
+def normalize_path(path):
+    return (
+        str(PureWindowsPath(Path(path)))
+        if os.name == "nt"
+        else str(PurePosixPath(Path(path)))
+    )
 

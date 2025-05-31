@@ -35,7 +35,7 @@ from agi_gui.pagelib import (
     cached_load_df
 )
 
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 
 # ===========================
 # Session State Initialization
@@ -696,7 +696,7 @@ async def page():
             cmd = f"""
 import asyncio
 from agi_core.managers.agi_runner import AGI
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 
 async def main():
     env = AgiEnv(install_type={env.install_type}, verbose={verbose})
@@ -770,7 +770,7 @@ if __name__ == '__main__':
             cmd = f"""
 import asyncio
 from agi_core.managers.agi_runner import AGI
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 
 async def main():
     env = AgiEnv(install_type={env.install_type}, verbose={verbose})
@@ -869,7 +869,7 @@ if __name__ == '__main__':
             cmd = f"""
 import asyncio
 from agi_core.managers.agi_runner import AGI
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 
 async def main():
     env = AgiEnv(install_type={env.install_type}, verbose={verbose}) 

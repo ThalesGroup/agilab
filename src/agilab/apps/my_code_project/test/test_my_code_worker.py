@@ -1,6 +1,6 @@
 import sys
 from agi_core.workers.agi_worker import AgiWorker
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 
 args = {
     'param1': 0,

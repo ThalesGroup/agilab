@@ -20,7 +20,7 @@ import argparse
 
 # -------------------- Import Statements -------------------- #
 from agi_gui.pagelib import get_about_content, open_docs, get_base64_of_image, activate_mlflow
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 
 # -------------------- Helper Functions -------------------- #
 def load_file_content(file_path: Path) -> str:

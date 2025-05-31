@@ -3,7 +3,7 @@ import sys
 import argparse
 from pathlib import Path
 import parso
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 
 def get_decorator_name(decorator_node):
     """

@@ -45,7 +45,7 @@ import psutil
 import parso
 import humanize
 from datetime import timedelta
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 from agi_core.managers.agi_manager import AgiManager
 import logging
 
@@ -160,7 +160,7 @@ class AgiWorker(abc.ABC):
         if os.name != "nt":
             return str(expanded_path)
         else:
-            return AgiEnv.normalize_path(expanded_path)
+            return normalize_path(expanded_path)
 
     @staticmethod
     def join(path1, path2):
@@ -223,7 +223,7 @@ class AgiWorker(abc.ABC):
         """
         import subprocess
 
-        path = AgiEnv.normalize_path(path)
+        path = normalize_path(path)
 
         result = subprocess.run(
             cmd, shell=True, capture_output=True, text=True, check=True, cwd=path
@@ -276,16 +276,19 @@ class AgiWorker(abc.ABC):
         return AgiWorker._load_module(module_name, module_class)
 
     @staticmethod
-    def run(workers={"127.0.0.1": 1}, mode=0, args=None):
+    def run(workers={"127.0.0.1": 1}, mode=0, env=None, verbose=None, args=None):
         """
         :param app:
         :param workers:
         :param mode:
+        :param verbose:
         :param args:
         :return:
         """
-
-        env = AgiWorker.env
+        if not env:
+            env = AgiWorker.env
+        else:
+            AgiWorker.env = env
 
         if mode & 2:
             wenv_abs = env.wenv_abs
@@ -430,7 +433,7 @@ class AgiWorker(abc.ABC):
         if not AgiWorker.share_path:
             path = tempfile.gettempdir()
         else:
-            path = AgiEnv.normalize_path(AgiWorker.share_path)
+            path = normalize_path(AgiWorker.share_path)
         if not os.path.exists(path):
             os.makedirs(path, exist_ok=True)
 
@@ -550,11 +553,3 @@ class AgiWorker(abc.ABC):
             import traceback
             traceback.print_exc()
             raise
-
-    @staticmethod
-    def normalize_path(path):
-        return (
-            str(PureWindowsPath(Path(path)))
-            if os.name == "nt"
-            else str(PurePosixPath(Path(path)))
-        )
