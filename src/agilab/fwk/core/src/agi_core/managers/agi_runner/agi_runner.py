@@ -50,7 +50,7 @@ import subprocess
 import logging
 
 # Project Libraries:
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path, normalize_path
 from agi_core.managers.agi_manager import AgiManager
 from agi_core.workers.agi_worker import AgiWorker
 
@@ -459,7 +459,7 @@ class AGI:
           : the instance of the module
 
         """
-        path = AgiEnv.normalize_path(path)
+        path = normalize_path(path)
         if path not in sys.path:
             sys.path.insert(0, path)
             AGI._sys_path_to_clean.append(path)
@@ -1332,7 +1332,7 @@ class AGI:
 
         """
         env = AGI.env
-        wenv = AgiEnv.normalize_path(str(env.wenv_abs))
+        wenv = normalize_path(str(env.wenv_abs))
         is_cy = AGI._mode & AGI.CYTHON_MODE
         packages = "agi_worker, "
 
@@ -1399,7 +1399,7 @@ class AGI:
             AgiEnv.log_info("warning: no scheduler found but requested mode is dask=1 => switch to dask")
 
     @staticmethod
-    async def _run_local():
+    async def _run_local(debug=True):
         """
 
         Returns:
@@ -1425,13 +1425,61 @@ class AGI:
             # Look for any files or directories in the Cython lib path that match the "*cy*" pattern.
             cython_libs = list(cython_lib_path.glob("*cy*"))
             if cython_libs:
-                lib_path = AgiEnv.normalize_path(cython_libs[0])
+                lib_path = normalize_path(cython_libs[0])
             else:
                 AGI._build_lib_local(is_local=True)
+
+        if debug:
+            AgiWorker.new(env.app, mode=AGI._mode, env=env, verbose=AGI._verbose, args=AGI._args)
+            res = AgiWorker.run(AGI.workers, mode=AGI._mode, env=env, verbose=AGI._verbose, args=AGI._args)
+        else:
+            cmd = (f'uv -q run --project {env.wenv_abs} python -c "from agi_core.workers.agi_worker import AgiWorker;'
+                   f'AgiWorker.new({AGI.module}, mode={AGI._mode}, env={env}, verbose={AGI._verbose}, args={AGI._args})'
+                   f'res = AgiWorker.run({AGI.workers}, mode={AGI._mode}, env={env}, verbose={AGI._verbose}, args={AGI._args})"'
+                   f'print(res)')
+            res = await AgiEnv.run(cmd, env.wenv_abs)
+        if isinstance(res, list):
+            return res
+        else:
+            res_lines = res.split('\n')
+            if len(res_lines) < 2:
+                return res
+            else:
+                return res.split('\n')[-2]
+
+    @staticmethod
+    async def _run_debug():
+        """
+
+        Returns:
+
+        """
+        env = AGI.env
+        # check first that install is done
+        if not (env.wenv_abs / ".venv").exists():
+            AgiEnv.log_info("Worker installlation not found")
+            exit(1)
+
+        pid_file = env.wenv_abs / "dask-pid-0"
+        current_pid = os.getpid()
+        with open(pid_file, "w") as f:
+            f.write(str(current_pid))
+
+        await AGI._kill(current_pid=current_pid, force=True)
+
+        if AGI._mode & AGI.CYTHON_MODE:
+            wenv_abs = env.wenv_abs
+            cython_lib_path = Path(wenv_abs)
+
+            # Look for any files or directories in the Cython lib path that match the "*cy*" pattern.
+            cython_libs = list(cython_lib_path.glob("*cy*"))
+            if cython_libs:
+                lib_path = normalize_path(cython_libs[0])
+            else:
+                AGI._build_lib_local(is_local=True)
+
         # do distribut
-        cmd = (f'uv -q run --project {env.wenv_abs} python -c "from agi_core.workers.agi_worker import AgiWorker;'
-               f'print(AgiWorker.run(\'{env.app}\', {AGI.workers}, {AGI._mode}, {AGI._verbose}, {AGI._args}))"')
-        res = await AgiEnv.run(cmd, env.wenv_abs)
+        res = AgiWorker.run(AGI.workers, AGI._mode, AGI._verbose, AGI._args)
         return res.split('\n')[-2]
 
     @staticmethod

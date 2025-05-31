@@ -24,7 +24,7 @@ import warnings
 
 # External Libraries:
 from concurrent.futures import ThreadPoolExecutor
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 from agi_core.workers.agi_worker import AgiWorker
 import logging
 warnings.filterwarnings("ignore")

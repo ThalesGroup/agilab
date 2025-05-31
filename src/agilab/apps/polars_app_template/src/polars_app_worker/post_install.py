@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 
 def exec(cmd, cwd=".", timeout=None):
     """Execute a command within a subprocess

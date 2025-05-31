@@ -2,7 +2,7 @@ import os
 import pytest
 import asyncio
 from pathlib import Path
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 from unittest import mock
 import tempfile
 

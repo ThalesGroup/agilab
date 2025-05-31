@@ -4,7 +4,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 import asyncio
 import pytest
 from agi_core.managers.agi_runner import AGI
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 
 # Set AGI verbosity low to avoid extra prints during test.
 AGI._verbose = 0
@@ -13,7 +13,7 @@ AGI._verbose = 0
 def test_normalize_path():
     # Given a relative path "."
     input_path = ""
-    normalized = AgiEnv.normalize_path(input_path)
+    normalized = normalize_path(input_path)
     if os.name == "nt":
         assert os.path.isabs(normalized), "On Windows the normalized path should be absolute."
     else:

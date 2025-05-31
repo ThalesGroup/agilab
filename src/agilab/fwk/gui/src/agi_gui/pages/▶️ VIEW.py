@@ -30,7 +30,7 @@ import tomli         # For reading TOML files
 import tomli_w       # For writing TOML files
 from agi_gui.pagelib import activate_mlflow, list_views, get_about_content, render_logo, select_project
 
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 
 # Set page configuration - Must be the first Streamlit command
 st.set_page_config(

@@ -41,7 +41,7 @@ from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 from streamlit_modal import Modal
 from code_editor import code_editor
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 
 
 # -------------------- Source Extractor Class -------------------- #

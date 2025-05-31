@@ -1,5 +1,5 @@
 import asyncio
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 
 async def test_ssh_cmd(env, ip, usr, cmd):
     env.user = usr

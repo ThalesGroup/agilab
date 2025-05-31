@@ -9,11 +9,11 @@ from pydantic import BaseModel
 # Removed unused imports: validator, conint, confloat, Literal
 
 import py7zr  # Added import for py7zr
-from agi_env import AgiEnv   # Added import for Agienv
+from agi_env import AgiEnv, normalize_path   # Added import for Agienv
 
 from agi_core.managers.agi_runner import AGI
 from agi_core.managers.agi_manager import AgiManager
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
