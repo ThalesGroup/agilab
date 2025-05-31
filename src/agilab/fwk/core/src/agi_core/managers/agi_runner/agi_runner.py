@@ -760,10 +760,11 @@ class AGI:
                 await env.exec_ssh(ip, f"uv -q python install {pyvers}")
 
                 # 3) Bootstrap the uv -q environment
+                pyproject = wenv_rel / 'pyproject.toml'
                 cmd = (
-                    f"{python} -c \"import os, subprocess; "
+                    f"uv -q --project {wenv_rel} run -p {pyvers} python -c \"import os, subprocess; "
                     f"subprocess.run(['uv','init','--bare'], cwd=r'{wenv_rel}', check=True) "
-                    "if not os.path.exists('pyproject.toml') else None\""
+                    f"if not os.path.exists('{pyproject}') else None\""
                 )
                 await env.exec_ssh(ip, cmd)
 
@@ -916,11 +917,11 @@ class AGI:
             raise FileNotFoundError("no existing egg file")
 
         # continue with bootstrap and unzip...
-        cmd = python + " -m ensurepip"
+        cmd = f"uv run -q --project {wenv_rel} python -m ensurepip"
         await env.exec_ssh(ip, cmd)
 
         cmd = (
-            f"{python} -c \"import os, pathlib, zipfile;"
+            f"uv run python -c \"import os, pathlib, zipfile;"
             f"root = pathlib.Path('{wenv_rel}');"
             f"root_src = root / 'src';"
             f"[zipfile.ZipFile(str(e)).extractall(str(root_src))"
@@ -940,18 +941,18 @@ class AGI:
 
         # 6) Build and run uv -q sync, adding --config-file only when has_rapids_hw
         if has_rapids_hw:
-            sync_cmd = f"uv -q --project {wenv_rel} sync {option} --refresh-package dask "
+            sync_cmd = f"uv sync -q --project {wenv_rel} {option} --refresh-package dask "
         else:
-            sync_cmd = f"uv -q --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} sync {option} --refresh-package dask"
+            sync_cmd = f"uv sync -q --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option} --refresh-package dask"
         await env.exec_ssh(ip, sync_cmd)
 
         # 7) Post-install script
-        cmd = f"uv -q --project {wenv_rel} run -p {pyvers} python {wenv_rel / env.post_install} {env.data_dir}"
+        cmd = f"uv run -q --project {wenv_rel} -p {pyvers} python {wenv_rel / env.post_install} {env.data_dir}"
         await env.exec_ssh(ip, cmd)
 
         # continue with bootstrap and unzip...
-        cmd = f"uv -q --project {wenv_rel} run -p {pyvers} python -m ensurepip"
-        await env.exec_ssh(ip, cmd)
+        #cmd = f"uv run -q --project {wenv_rel} -p {pyvers} python -m ensurepip"
+        #await env.exec_ssh(ip, cmd)
 
         # # upgrade dask
         # cmd = f"uv -q --project {wenv_rel} run -p {pyvers} python -m pip install dask[distributed]"
@@ -962,7 +963,7 @@ class AGI:
         # install env & core for enabling dask worker spawn
         ##################################################
 
-        # init venv
+        #init venv
         cmd = (
             f"{python} -c "
             "\"import os, subprocess; "
@@ -970,13 +971,13 @@ class AGI:
             "subprocess.run(['uv','init','--bare'], cwd=ROOT, check=True) "
             "if not os.path.exists(os.path.join(ROOT, 'pyproject.toml')) else None\""
         )
-        await env.exec_ssh(ip, cmd);
+        await env.exec_ssh(ip, cmd)
 
         # Bootstrap ensurepip
         cmd = f"uv -q --project {wenv_rel} run python -m ensurepip"
         await env.exec_ssh(ip, cmd)
 
-        cmd = f"uv -q --project {wenv_rel} pip install -e {wenv_rel}"
+        cmd = f"uv -q --project {wenv_rel} run python -m pip install -e {wenv_rel}"
         await env.exec_ssh(ip, cmd)
 
         # build agi_env*.whl
@@ -1009,6 +1010,10 @@ class AGI:
 
         # build target_worker lib
         cmd = f"uv -q --project {wenv_rel} run python {wenv_rel / 'setup'} build_ext -i 2 -b {wenv_rel}"
+        await env.exec_ssh(ip, cmd)
+
+        # ajouter le wheel dans le projet de destination
+        cmd = f"uv -q --project {dist_rel} add {whl}"
         await env.exec_ssh(ip, cmd)
 
     @staticmethod
@@ -1241,7 +1246,7 @@ class AGI:
 
     @staticmethod
     async def _start(scheduler):
-        """
+        """_start(
         Start Dask workers locally and remotely,
         launching remote workers detached in background,
         compatible with Windows and POSIX.
@@ -1292,8 +1297,8 @@ class AGI:
             await AGI._build_lib_remote()
 
         # load lib
-        for egg_file in (AGI.env.wenv_abs / "dist").glob("*.egg"):
-            AGI._dask_client.upload_file(str(egg_file))
+        #for egg_file in (AGI.env.wenv_abs / "dist").glob("*.egg"):
+        #    AGI._dask_client.upload_file(str(egg_file))
 
     @staticmethod
     async def _sync(timeout=60):
@@ -1430,13 +1435,16 @@ class AGI:
                 AGI._build_lib_local(is_local=True)
 
         if debug:
-            AgiWorker.new(env.app, mode=AGI._mode, env=env, verbose=AGI._verbose, args=AGI._args)
-            res = AgiWorker.run(AGI.workers, mode=AGI._mode, env=env, verbose=AGI._verbose, args=AGI._args)
+            AgiWorker.new(env.app, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
+            res = AgiWorker.run(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
         else:
-            cmd = (f'uv -q run --project {env.wenv_abs} python -c "from agi_core.workers.agi_worker import AgiWorker;'
-                   f'AgiWorker.new({AGI.module}, mode={AGI._mode}, env={env}, verbose={AGI._verbose}, args={AGI._args})'
-                   f'res = AgiWorker.run({AGI.workers}, mode={AGI._mode}, env={env}, verbose={AGI._verbose}, args={AGI._args})"'
-                   f'print(res)')
+            cmd = (
+                f"uv -q run --project {env.wenv_abs} python -c \"from agi_core.workers.agi_worker import AgiWorker;"
+                f"AgiWorker.new({env.app}, mode={AGI._mode}, env=env, verbose={AGI._verbose}, args={AGI._args});"
+                f"res = AgiWorker.run({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
+                f"print(res)\""
+            )
+
             res = await AgiEnv.run(cmd, env.wenv_abs)
         if isinstance(res, list):
             return res
