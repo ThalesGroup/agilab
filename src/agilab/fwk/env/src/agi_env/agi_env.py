@@ -524,16 +524,18 @@ class AgiEnv:
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.12.9")
 
         os.makedirs(AgiEnv.apps_dir, exist_ok=True)
-        if self.install_type:
-            self.core_src = self.agi_root / "fwk/core/src"
-        else:
-            self.core_src = self.agi_root
-        self.core_root = self.core_src.parent
+        base = self.agi_root / ("fwk/core/src" if self.install_type else "")
+        self.core_src = base
+        self.core_root = base.parent
         self.env_src = self.core_root.parent / "env/src"
+        self.env_root = self.env_src.parent
+
         self.agi_core = self.core_src / "agi_core"
         self.workers_root = self.agi_core / "workers"
         self.manager_root = self.agi_core / "managers"
+
         self.setup_app = self.app_abs / "setup"
+
         self.setup_core_rel = "agi_worker/setup"
         self.setup_core = self.workers_root / self.setup_core_rel
 
@@ -1370,10 +1372,10 @@ class AgiEnv:
     async def send_files(self, ip: str, files: list[Path], remote_dir: Path, user: str = None):
         tasks = []
         for f in files:
-            remote_path = f"{remote_dir}/{f.name}"
+            remote_path = f"{remote_dir / f.name}"
             tasks.append(self.send_file(ip, f, remote_path, user=user))
         await asyncio.gather(*tasks)
-        self.log_info(f"Sent {len(files)} files to {user}@{ip}:{remote_dir}")
+        self.log_info(f"Sent {len(files)} files to {user if user else self.user}@{ip}:{remote_dir}")
 
     def remove_dir_forcefully(self, path):
         import shutil
