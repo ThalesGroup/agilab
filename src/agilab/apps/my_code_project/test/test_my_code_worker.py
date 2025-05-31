@@ -17,6 +17,6 @@ sys.path.insert(0,'/home/pcm/wenv/my_code_worker/dist')
 for i in  range(4):
     env = AgiEnv(install_type=1, verbose=True)
     AgiWorker.new('my_code', mode=i, env=env, verbose=3, args=args)
-    result = AgiWorker.test(workers={"192.168.20.222":2}, mode=i, args=args)
+    result = AgiWorker.run(workers={"192.168.20.222":2}, mode=i, args=args)
 
 print(result)
