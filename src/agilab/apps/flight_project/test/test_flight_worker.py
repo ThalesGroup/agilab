@@ -1,4 +1,6 @@
+import sys
 from agi_core.workers.agi_worker import AgiWorker
+from agi_env import AgiEnv
 
 args = {
     'data_source': "file",
@@ -13,9 +15,11 @@ args = {
     'output_format': "csv"
 }
 
+sys.path.insert(0,'/home/pcm/PycharmProjects/agilab/src/agilab/apps/flight_project/src')
 # AgiWorker.run flight command
-for i in range(4):
-    AgiWorker.new("flight_project", mode=i, verbose=3,  args=args)
-    result = AgiWorker.run('flight', mode=i, verbose=3, workers={"192.168.20.222":2}, args=args)
+for i in  range(1):
+    env = AgiEnv(install_type=1, verbose=True)
+    AgiWorker.new("flight_project", mode=i, env=env, verbose=3,   args=args)
+    result = AgiWorker.run(  workers={"192.168.20.222":2}, mode=i, args=args)
 
 print(result)
