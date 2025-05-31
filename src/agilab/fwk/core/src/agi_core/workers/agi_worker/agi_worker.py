@@ -248,15 +248,15 @@ class AgiWorker(abc.ABC):
 
     @staticmethod
     def _load_module(module_name, module_class):
-        # Simply raise exception on failure, no logging here
         module = __import__(module_name, fromlist=[module_class])
         return getattr(module, module_class)
 
     @staticmethod
     def _load_manager():
         env = AgiWorker.env
-        module_name = env.target
+        module_name = env.module
         module_class = env.target_class
+        module_name += '.' + module_name
         if module_name in sys.modules:
             del sys.modules[module_name]
         return AgiWorker._load_module(module_name, module_class)
@@ -270,21 +270,22 @@ class AgiWorker(abc.ABC):
             del sys.modules[module_name]
         if mode & 2:
             module_name += "_cy"
+        else:
+            module_name += '.' + module_name
+
         return AgiWorker._load_module(module_name, module_class)
 
     @staticmethod
-    def run(app, workers={"127.0.0.1": 1}, mode=0, verbose=3, args=None):
+    def run(workers={"127.0.0.1": 1}, mode=0, args=None):
         """
         :param app:
         :param workers:
         :param mode:
-        :param verbose:
         :param args:
         :return:
         """
 
         env = AgiWorker.env
-        module = env.module
 
         if mode & 2:
             wenv_abs = env.wenv_abs
@@ -351,6 +352,7 @@ class AgiWorker(abc.ABC):
     def new(
             app,
             mode=mode,
+            env=None,
             verbose=0,
             worker_id=0,
             worker="localhost",
@@ -370,7 +372,10 @@ class AgiWorker(abc.ABC):
         Returns:
         """
         try:
-            AgiWorker.env = AgiEnv(active_app=app, install_type=2, verbose=verbose)
+            if not env:
+                AgiWorker.env = AgiEnv(active_app=app, install_type=2, verbose=verbose)
+            else:
+                AgiWorker.env = env
             AgiEnv.log_info(f"venv: {sys.prefix}")
             AgiEnv.log_info(f"AgiWorker.new - worker #{worker_id}: {worker} from: {os.path.relpath(__file__)}")
 
