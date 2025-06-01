@@ -1575,12 +1575,6 @@ class AGI:
         if AGI._mode == AGI.INSTALL_MODE:
             workers_tree
 
-        AgiWorker.new("flight_project", mode=4,
-                       verbose=3, args=AGI._args)
-        AgiWorker.do_works(
-             workers_tree,
-             workers_tree_info)
-
         AGI._dask_client.gather(
             [
                 AGI._dask_client.submit(
