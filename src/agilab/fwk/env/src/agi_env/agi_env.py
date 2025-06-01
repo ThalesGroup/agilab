@@ -403,9 +403,9 @@ class AgiEnv:
 
         self.is_managed_pc = getpass.getuser().startswith("T0")
         self.agi_resources = Path("resources/.agilab")
-        self.home_abs = Path.home() / "MyApp" if self.is_managed_pc else Path.home()
+        home_abs = Path.home() / "MyApp" if self.is_managed_pc else Path.home()
 
-        self.resource_path = self.home_abs / self.agi_resources.name
+        self.resource_path = home_abs / self.agi_resources.name
         env_path = self.resource_path / ".env"
         self.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
         envars = self.envars
@@ -420,7 +420,7 @@ class AgiEnv:
         if install_type < 2:
             self.agi_root = AgiEnv.locate_agi_installation(verbose)
         else:
-            self.agi_root = self.home_abs / "wenv" / active_app.replace("_project", "") / "src"
+            self.agi_root = home_abs / "wenv" / active_app.replace("_project", "") / "src"
 
         if install_type == 1:
             self.agi_fwk_env_path = self.agi_root / "fwk/env"
@@ -475,24 +475,22 @@ class AgiEnv:
                     shutil.copytree(src_apps, apps_dir)
                 else:
                     self.copy_missing(src_apps, Path(os.getcwd()) / apps_dir)
-            if not self.module:
-                self.module = active_app.replace("_project", "").replace("-", "_")
+            module = active_app.replace("_project", "").replace("-", "_")
         else:
             apps_dir = self._determine_apps_dir(active_app)
-            if not self.module:
-                self.module = apps_dir.name.replace("_project", "").replace("-", "_")
+            module = apps_dir.name.replace("_project", "").replace("-", "_")
 
         wenv_root = Path("wenv")
-        self.target_worker = f"{self.module}_worker"
-        wenv_rel = wenv_root / self.target_worker
-        target_class = "".join(x.title() for x in self.module.split("_"))
+        target_worker = f"{module}_worker"
+        wenv_rel = wenv_root / target_worker
+        target_class = "".join(x.title() for x in module.split("_"))
         self.target_class = target_class
         worker_class = target_class + "Worker"
         self.target_worker_class = worker_class
 
         self.wenv_rel = wenv_rel
         self.dist_rel = wenv_rel / 'dist'
-        wenv_abs = self.home_abs / wenv_rel
+        wenv_abs = home_abs / wenv_rel
         self.wenv_abs = wenv_abs
         if not self.wenv_abs.exists():
             os.makedirs(self.wenv_abs, exist_ok=True)
@@ -503,27 +501,28 @@ class AgiEnv:
             sys.path.insert(0, dist)
         self.dist_abs = dist_abs
         self.wenv_target_worker = self.wenv_abs
-        self.post_install = Path("src") / self.target_worker / "post_install.py"
-        self.pre_install = Path("src") / self.target_worker / "pre_install.py"
+        self.post_install = Path("src") / target_worker / "post_install.py"
+        self.pre_install = Path("src") / target_worker / "pre_install.py"
 
         if install_type < 2:
-            self.app_abs = self.agi_root / apps_dir / (active_app if install_type < 2 else self.target_worker)
+            self.app_abs = self.agi_root / apps_dir / (active_app if install_type < 2 else target_worker)
             self.app_src = self.app_abs / "src"
             src_path = normalize_path(self.app_src)
             if not src_path in sys.path:
                 sys.path.insert(0, src_path)
 
             self.app_pyproject = self.app_abs / "pyproject.toml"
-            self.worker_path = self.app_src / self.target_worker / f"{self.target_worker}.py"
-            self.module_path = self.app_src / self.module / f"{self.module}.py"
+            self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
+            self.module_path = self.app_src / module / f"{self.module}.py"
             self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
             self.uvproject = self.worker_path.parent / "uv.toml"
         else:
-            self.worker_path = self.wenv_rel / 'src' / self.target_worker / f"{self.target_worker}.py"
-            self.module_path = self.wenv_rel / 'src' / self.module / f"{self.module}.py"
+            self.worker_path = self.wenv_rel / 'src' / target_worker / f"{target_worker}.py"
+            self.module_path = self.wenv_rel / 'src' / module / f"{self.module}.py"
             self.worker_pyproject = self.wenv_rel  / "pyproject.toml"
             self.uvproject = self.wenv_rel / "uv.toml"
 
+        self.target_worker = target_worker
         AgiEnv.apps_dir = apps_dir
         distribution_tree = self.wenv_abs / "distribution_tree.json"
         if distribution_tree.exists():
@@ -556,15 +555,17 @@ class AgiEnv:
 
         os.makedirs(AgiEnv.apps_dir, exist_ok=True)
         base = self.agi_root / ("fwk/core/src" if self.install_type else "")
-        self.core_src = base
+        core_src = base
         self.core_root = base.parent
-        self.env_src = self.core_root.parent / "env/src"
-        self.env_root = self.env_src.parent
+        env_src = self.core_root.parent / "env/src"
+        self.env_root = env_src.parent
+        self.env_src =  env_src
 
-        self.agi_core = self.core_src / "agi_core"
-        self.workers_root = self.agi_core / "workers"
-        self.manager_root = self.agi_core / "managers"
-
+        agi_core = core_src / "agi_core"
+        self.core_src = core_src
+        self.workers_root = agi_core / "workers"
+        self.manager_root = agi_core / "managers"
+        self.agi_core = agi_core
         self.setup_app = self.app_abs / "setup"
 
         self.setup_core_rel = "agi_worker/setup"
@@ -574,14 +575,17 @@ class AgiEnv:
         if path not in sys.path:
             sys.path.insert(0, path)
 
-        if isinstance(self.module, Path):
-            self.module_path = self.module.expanduser().resolve()
+        if isinstance(module, Path):
+            module_path = module.expanduser().resolve()
         else:
-            self.module_path = self._determine_module_path(self.module)
-        self.target = self.module_path.stem
+            module_path = self._determine_module_path(module)
+        self.module = module
+        self.target = module_path.stem
+        self.module_path = module_path
         self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", "data"))
-        self.data_dir = self.AGILAB_SHARE / self.target
-        self.dataframes_path = self.data_dir / "dataframes"
+        data_dir = self.AGILAB_SHARE / self.target
+        self.dataframes_path = data_dir / "dataframes"
+        self.data_dir = data_dir
         self._init_projects()
 
         self.scheduler_ip = envars.get("AGI_SCHEDULER_IP", "127.0.0.1")
@@ -593,8 +597,9 @@ class AgiEnv:
         else:
             self.help_path = "https://thalesgroup.github.io/agilab"
 
-        self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", self.home_abs / "data"))
+        self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", home_abs / "data"))
 
+        self.home_abs = home_abs
         app_src = self.app_src
         app_src.mkdir(parents=True, exist_ok=True)
         app_src_str = str(app_src)
