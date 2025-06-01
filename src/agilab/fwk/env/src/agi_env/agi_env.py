@@ -438,7 +438,9 @@ class AgiEnv:
                 self.agi_fwk_env_path = Path(head + sep)
 
         if not apps_dir:
-            apps_dir = envars.get("APPS_DIR", 'apps')
+            apps_dir = 'apps'
+            if install_type != 2:
+                apps_dir = envars.get("APPS_DIR", apps_dir)
         else:
             set_key(dotenv_path=env_path, key_to_set="APPS_DIR", value_to_set=str(apps_dir))
 
@@ -447,7 +449,7 @@ class AgiEnv:
         try:
             if apps_dir.exists():
                 self.apps_dir = apps_dir
-            elif install_type:
+            elif install_type < 2:
                 self.apps_dir = self.agi_root / apps_dir
             else:
                 os.makedirs(str(apps_dir), exist_ok=True)
@@ -481,35 +483,21 @@ class AgiEnv:
                 self.module = apps_dir.name.replace("_project", "").replace("-", "_")
 
         wenv_root = Path("wenv")
-
-        AgiEnv.apps_dir = self.apps_dir
-
         self.target_worker = f"{self.module}_worker"
-        self.app_abs = self.apps_dir / (active_app if install_type < 2 else self.target_worker)
-        self.app_src = self.app_abs / "src"
-
-        src_path = normalize_path(self.app_src)
-        if not src_path in sys.path:
-            sys.path.insert(0, src_path)
-        wenv_rel =  wenv_root / self.target_worker
-
-        self.app_pyproject = self.app_abs / "pyproject.toml"
-        self.worker_path = self.app_src / self.target_worker / f"{self.target_worker}.py"
-        self.module_path = self.app_src / self.module / f"{self.module}.py"
-        self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
-        self.uvproject = self.worker_path.parent / "uv.toml"
-
+        wenv_rel = wenv_root / self.target_worker
         target_class = "".join(x.title() for x in self.module.split("_"))
+        self.target_class = target_class
+        worker_class = target_class + "Worker"
+        self.target_worker_class = worker_class
 
         self.wenv_rel = wenv_rel
         self.dist_rel = wenv_rel / 'dist'
-
         wenv_abs = self.home_abs / wenv_rel
         self.wenv_abs = wenv_abs
         if not self.wenv_abs.exists():
             os.makedirs(self.wenv_abs, exist_ok=True)
 
-        dist_abs =  wenv_abs / 'dist'
+        dist_abs = wenv_abs / 'dist'
         dist = normalize_path(dist_abs)
         if not dist in sys.path:
             sys.path.insert(0, dist)
@@ -518,13 +506,29 @@ class AgiEnv:
         self.post_install = Path("src") / self.target_worker / "post_install.py"
         self.pre_install = Path("src") / self.target_worker / "pre_install.py"
 
+        if install_type < 2:
+            self.app_abs = self.agi_root / apps_dir / (active_app if install_type < 2 else self.target_worker)
+            self.app_src = self.app_abs / "src"
+            src_path = normalize_path(self.app_src)
+            if not src_path in sys.path:
+                sys.path.insert(0, src_path)
+
+            self.app_pyproject = self.app_abs / "pyproject.toml"
+            self.worker_path = self.app_src / self.target_worker / f"{self.target_worker}.py"
+            self.module_path = self.app_src / self.module / f"{self.module}.py"
+            self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
+            self.uvproject = self.worker_path.parent / "uv.toml"
+        else:
+            self.worker_path = self.wenv_rel / 'src' / self.target_worker / f"{self.target_worker}.py"
+            self.module_path = self.wenv_rel / 'src' / self.module / f"{self.module}.py"
+            self.worker_pyproject = self.wenv_rel  / "pyproject.toml"
+            self.uvproject = self.wenv_rel / "uv.toml"
+
+        AgiEnv.apps_dir = apps_dir
         distribution_tree = self.wenv_abs / "distribution_tree.json"
         if distribution_tree.exists():
             distribution_tree.unlink()
         self.distribution_tree = distribution_tree
-        self.target_class = target_class
-        worker_class = target_class + "Worker"
-        self.target_worker_class = worker_class
 
         if install_type == 2:
             return
