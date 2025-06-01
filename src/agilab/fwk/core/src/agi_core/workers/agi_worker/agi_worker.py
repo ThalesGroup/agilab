@@ -379,6 +379,7 @@ class AgiWorker(abc.ABC):
                 AgiWorker.env = AgiEnv(active_app=app, install_type=2, verbose=verbose)
             else:
                 AgiWorker.env = env
+
             AgiEnv.log_info(f"venv: {sys.prefix}")
             AgiEnv.log_info(f"AgiWorker.new - worker #{worker_id}: {worker} from: {os.path.relpath(__file__)}")
 
