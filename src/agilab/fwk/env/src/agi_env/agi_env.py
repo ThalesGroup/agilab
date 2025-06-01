@@ -416,83 +416,82 @@ class AgiEnv:
             install_type = int(install_type)
 
         self.install_type = install_type
-        self.agi_root = AgiEnv.locate_agi_installation(verbose)
 
-        if install_type:
+        if install_type < 2:
+            self.agi_root = AgiEnv.locate_agi_installation(verbose)
+        else:
+            self.agi_root = self.home_abs / "wenv" / active_app.replace("_project", "") / "src"
+
+        if install_type == 1:
             self.agi_fwk_env_path = self.agi_root / "fwk/env"
             resource_path = self.agi_fwk_env_path / "src/agi_env" / self.agi_resources
-            if install_type < 2:
-                if not self.agi_fwk_env_path.exists():
-                    raise RuntimeError("Your Agilab installation is not valid")
-                self._init_resources(resource_path)
+            if not self.agi_fwk_env_path.exists():
+                raise RuntimeError("Your Agilab installation is not valid")
+            self._init_resources(resource_path)
         else:
-            head, sep, _ = __file__.partition("site-packages")
-            if not sep:
-                raise ValueError("site-packages not in", __file__)
-            self.agi_fwk_env_path = Path(head + sep)
-
-        if active_app:
-            self.module = active_app.replace("_project", "")
-        else:
-            self.module = None
-
-
-        if install_type < 2:
-            if not apps_dir:
-                apps_dir = envars.get("APPS_DIR", 'apps')
+            if install_type == 2:
+                self.agi_fwk_env_path = list(Path(sys.prefix).rglob('agi_env'))[0]
             else:
-                set_key(dotenv_path=env_path, key_to_set="APPS_DIR", value_to_set=str(apps_dir))
+                head, sep, _ = __file__.partition("site-packages")
+                if not sep:
+                    raise ValueError("site-packages not in", __file__)
+                self.agi_fwk_env_path = Path(head + sep)
 
-            apps_dir = Path(apps_dir)
+        if not apps_dir:
+            apps_dir = envars.get("APPS_DIR", 'apps')
+        else:
+            set_key(dotenv_path=env_path, key_to_set="APPS_DIR", value_to_set=str(apps_dir))
 
-            try:
-                if apps_dir.exists():
-                    self.apps_dir = apps_dir
-                elif install_type:
-                    self.apps_dir = self.agi_root / apps_dir
+        apps_dir = Path(apps_dir)
+
+        try:
+            if apps_dir.exists():
+                self.apps_dir = apps_dir
+            elif install_type:
+                self.apps_dir = self.agi_root / apps_dir
+            else:
+                os.makedirs(str(apps_dir), exist_ok=True)
+        except FileNotFoundError:
+            logging.error("apps_dir not found: %s", apps_dir)
+            exit(1)
+
+        self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
+        self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
+
+        if not active_app:
+            active_app = envars.get("APP_DEFAULT", 'flight_project')
+
+        if isinstance(active_app, str):
+            if not active_app.endswith('_project'):
+                active_app = active_app + '_project'
+            app_path = apps_dir / active_app
+            if app_path.exists():
+                self.app = active_app
+            src_apps = self.agi_root / "apps"
+            if not install_type:
+                if not apps_dir.exists():
+                    shutil.copytree(src_apps, apps_dir)
                 else:
-                    os.makedirs(str(apps_dir), exist_ok=True)
-            except FileNotFoundError:
-                logging.error("apps_dir not found: %s", apps_dir)
-                exit(1)
+                    self.copy_missing(src_apps, Path(os.getcwd()) / apps_dir)
+            if not self.module:
+                self.module = active_app.replace("_project", "").replace("-", "_")
+        else:
+            apps_dir = self._determine_apps_dir(active_app)
+            if not self.module:
+                self.module = apps_dir.name.replace("_project", "").replace("-", "_")
 
-            self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
-            self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
+        wenv_root = Path("wenv")
 
-            if not active_app:
-                active_app = envars.get("APP_DEFAULT", 'flight_project')
-
-            if isinstance(active_app, str):
-                if not active_app.endswith('_project'):
-                    active_app = active_app + '_project'
-                app_path = apps_dir / active_app
-                if app_path.exists():
-                    self.app = active_app
-                src_apps = self.agi_root / "apps"
-                if not install_type:
-                    if not apps_dir.exists():
-                        shutil.copytree(src_apps, apps_dir)
-                    else:
-                        self.copy_missing(src_apps, Path(os.getcwd()) / apps_dir)
-                if not self.module:
-                    self.module = active_app.replace("_project", "").replace("-", "_")
-            else:
-                apps_dir = self._determine_apps_dir(active_app)
-                if not self.module:
-                    self.module = apps_dir.name.replace("_project", "").replace("-", "_")
+        AgiEnv.apps_dir = self.apps_dir
 
         self.target_worker = f"{self.module}_worker"
-        wenv_root = Path("wenv")
+        self.app_abs = self.apps_dir / (active_app if install_type < 2 else self.target_worker)
+        self.app_src = self.app_abs / "src"
+
+        src_path = normalize_path(self.app_src)
+        if not src_path in sys.path:
+            sys.path.insert(0, src_path)
         wenv_rel =  wenv_root / self.target_worker
-        
-        if install_type < 2:
-            AgiEnv.apps_dir = self.apps_dir
-            self.app_abs = self.apps_dir / active_app
-            self.app_src = self.app_abs / "src"
-        else:
-            AgiEnv.apps_dir = self.home_abs / wenv_root
-            self.app_abs = self.apps_dir / self.target_worker
-            self.app_src = self.app_abs / "src"
 
         self.app_pyproject = self.app_abs / "pyproject.toml"
         self.worker_path = self.app_src / self.target_worker / f"{self.target_worker}.py"
@@ -503,9 +502,18 @@ class AgiEnv:
         target_class = "".join(x.title() for x in self.module.split("_"))
 
         self.wenv_rel = wenv_rel
-        self.wenv_abs = self.home_abs / wenv_rel
+        self.dist_rel = wenv_rel / 'dist'
+
+        wenv_abs = self.home_abs / wenv_rel
+        self.wenv_abs = wenv_abs
         if not self.wenv_abs.exists():
             os.makedirs(self.wenv_abs, exist_ok=True)
+
+        dist_abs =  wenv_abs / 'dist'
+        dist = normalize_path(dist_abs)
+        if not dist in sys.path:
+            sys.path.insert(0, dist)
+        self.dist_abs = dist_abs
         self.wenv_target_worker = self.wenv_abs
         self.post_install = Path("src") / self.target_worker / "post_install.py"
         self.pre_install = Path("src") / self.target_worker / "pre_install.py"

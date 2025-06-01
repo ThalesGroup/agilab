@@ -80,7 +80,7 @@ class AGI:
     """
 
     # Constants as class attributes
-    TIMEOUT = 20
+    TIMEOUT = 10
     PYTHON_MODE = 1
     CYTHON_MODE = 2
     DASK_MODE = 4
@@ -564,7 +564,7 @@ class AGI:
 
         # 1) Collect PIDs from any pid files and remove those files
         pids_to_kill: list[int] = []
-        for pid_file in env.wenv_abs.glob("dask-pid*"):
+        for pid_file in Path().home().glob("dask-pid*"):
             try:
                 text = pid_file.read_text().strip()
                 pid = int(text)
@@ -900,8 +900,8 @@ class AGI:
         python = f"uv -q run -p {pyvers} python"
         wenv_abs = env.wenv_abs
         wenv_rel = env.wenv_rel
-        dist_rel = wenv_rel / "dist"
-        dist_abs = wenv_abs / "dist"
+        dist_rel = env.dist_rel
+        dist_abs = env.dist_abs
 
         cmd = f"uv run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
         await env.exec_ssh(ip, cmd)
@@ -909,12 +909,12 @@ class AGI:
         # Then send the files to the remote directory
         try:
             egg_file = next(iter(dist_abs.glob(f"{env.app}*.egg")), None)
-            await env.send_files(ip, [env.setup_core, env.worker_pyproject, env.uvproject], wenv_rel)
-            await env.send_file(ip, egg_file, dist_rel)
-
         except StopIteration:
             AgiEnv.log_error(f"searching for {wenv_abs / env.app}*.egg")
             raise FileNotFoundError("no existing egg file")
+
+        await env.send_files(ip, [env.setup_core, env.worker_pyproject, env.uvproject], wenv_rel)
+        await env.send_file(ip, egg_file, dist_rel)
 
         # continue with bootstrap and unzip...
         cmd = f"uv run -q --project {wenv_rel} python -m ensurepip"
@@ -937,7 +937,7 @@ class AGI:
 
         result = await env.exec_ssh(ip, check_rapids)
         has_rapids_hw = (result != "")
-        AgiEnv.log_info(f"Remote Rapids-capable GPU: {has_rapids_hw}")
+        AgiEnv.log_info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
         # 6) Build and run uv -q sync, adding --config-file only when has_rapids_hw
         if has_rapids_hw:
@@ -991,7 +991,7 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"uv -q --project {dist_rel} add {dist_rel / Path(whl).name}"
+        cmd = f"uv -q --project {dist_rel} add {dist_rel / whl.name}"
         await env.exec_ssh(ip, cmd)
 
         # build agi_core*.whl
@@ -1005,7 +1005,7 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"uv -q --project {dist_rel} add {dist_rel / Path(whl).name}"
+        cmd = f"uv -q --project {dist_rel} add {dist_rel / whl.name}"
         await env.exec_ssh(ip, cmd)
 
         # build target_worker lib
@@ -1013,8 +1013,8 @@ class AGI:
         await env.exec_ssh(ip, cmd)
 
         # ajouter le wheel dans le projet de destination
-        cmd = f"uv -q --project {dist_rel} add {whl}"
-        await env.exec_ssh(ip, cmd)
+        #cmd = f"uv -q --project {dist_rel} add {dist_rel / whl.name}"
+        #await env.exec_ssh(ip, cmd)
 
     @staticmethod
     def _should_install_pip():
@@ -1063,7 +1063,7 @@ class AGI:
     @staticmethod
     async def install(
             module_name, env, scheduler: Optional[str] = None, workers: Optional[Dict[str, int]] = None,
-            modes_enabled=RUN_MASK, verbose=1, **args
+            modes_enabled=RUN_MASK, verbose=None, **args
     ):
         """
         Update the cluster's virtual environment.
@@ -1103,7 +1103,7 @@ class AGI:
     @staticmethod
     async def update(
             module_name, scheduler: Optional[str]=None, workers: Optional[Dict[str, int]]=None,
-            env=None, modes_enabled=RUN_MASK, verbose=1, **args
+            env=None, modes_enabled=RUN_MASK, verbose=None, **args
     ):
         """
         install cluster virtual environment
@@ -1264,23 +1264,21 @@ class AGI:
                 try:
                     AgiEnv.log_info(f"Starting worker #{i}.{j} on [{ip}]")
 
-                    pid_file_name = f"dask-pid-{i}.{j}"
+                    pid_file = f"dask-pid-{i}.{j}"
 
                     if is_local:
                         wenv_abs = env.wenv_abs
-                        pid_file = str(wenv_abs / pid_file_name)
                         cmd = (
                             #f'{export_cmd} '
                             f'uv -q --project {wenv_abs} run dask worker tcp://{AGI._scheduler} --no-nanny '
-                            f'--pid-file {wenv_abs / pid_file}'
+                            f'--pid-file {pid_file}'
                         )
                         # Run locally in background (non-blocking)
                         AGI._exec_bg(cmd, str(wenv_abs))
 
                     else:
                         wenv_rel = env.wenv_rel
-                        pid_file = wenv_rel / pid_file_name
-                        cmd = f'uv -q --project {wenv_rel} run dask worker tcp://{AGI._scheduler} --no-nanny --pid-file ~/{wenv_rel / pid_file}'
+                        cmd = f'uv -q --project {wenv_rel} run dask worker tcp://{AGI._scheduler} --no-nanny --pid-file {pid_file}'
                         asyncio.create_task(env.exec_ssh_async(ip, cmd))
                         env.log_info(f"Launched remote worker in background on {ip}: {cmd}")
 
@@ -1291,10 +1289,10 @@ class AGI:
                 if AGI._worker_init_error:
                     raise FileNotFoundError(f"Please run AGI.install([{ip}])")
 
-        await AGI._sync(timeout=60)
+        await AGI._sync(timeout=AGI.TIMEOUT)
 
-        if (not AGI._mode_auto) or (AGI._mode < 6) or (AGI._mode & AGI.CYTHON_MODE):
-            await AGI._build_lib_remote()
+        #if (not AGI._mode_auto) or (AGI._mode < 6) or (AGI._mode & AGI.CYTHON_MODE):
+        #    await AGI._build_lib_remote()
 
         # load lib
         #for egg_file in (AGI.env.wenv_abs / "dist").glob("*.egg"):
@@ -1416,7 +1414,7 @@ class AGI:
             AgiEnv.log_info("Worker installlation not found")
             exit(1)
 
-        pid_file = env.wenv_abs / "dask-pid-0"
+        pid_file = "dask-pid-0"
         current_pid = os.getpid()
         with open(pid_file, "w") as f:
             f.write(str(current_pid))
@@ -1435,7 +1433,7 @@ class AGI:
                 AGI._build_lib_local(is_local=True)
 
         if debug:
-            AgiWorker.new(env.app, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
+            AgiWorker.new(env.app, mode=AGI._mode, env=env, verbose=AGI._verbose, args=AGI._args)
             res = AgiWorker.run(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
         else:
             cmd = (
@@ -1454,41 +1452,6 @@ class AGI:
                 return res
             else:
                 return res.split('\n')[-2]
-
-    @staticmethod
-    async def _run_debug():
-        """
-
-        Returns:
-
-        """
-        env = AGI.env
-        # check first that install is done
-        if not (env.wenv_abs / ".venv").exists():
-            AgiEnv.log_info("Worker installlation not found")
-            exit(1)
-
-        pid_file = env.wenv_abs / "dask-pid-0"
-        current_pid = os.getpid()
-        with open(pid_file, "w") as f:
-            f.write(str(current_pid))
-
-        await AGI._kill(current_pid=current_pid, force=True)
-
-        if AGI._mode & AGI.CYTHON_MODE:
-            wenv_abs = env.wenv_abs
-            cython_lib_path = Path(wenv_abs)
-
-            # Look for any files or directories in the Cython lib path that match the "*cy*" pattern.
-            cython_libs = list(cython_lib_path.glob("*cy*"))
-            if cython_libs:
-                lib_path = normalize_path(cython_libs[0])
-            else:
-                AGI._build_lib_local(is_local=True)
-
-        # do distribut
-        res = AgiWorker.run(AGI.workers, AGI._mode, AGI._verbose, AGI._args)
-        return res.split('\n')[-2]
 
     @staticmethod
     async def main(scheduler):
@@ -1611,6 +1574,12 @@ class AGI:
 
         if AGI._mode == AGI.INSTALL_MODE:
             workers_tree
+
+        # AgiWorker.new("flight_project", mode=4,
+        #               verbose=3, args=AGI._args)
+        # AgiWorker.do_works(
+        #     workers_tree,
+        #     workers_tree_info)
 
         AGI._dask_client.gather(
             [
