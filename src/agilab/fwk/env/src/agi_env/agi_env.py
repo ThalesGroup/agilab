@@ -500,7 +500,7 @@ class AgiEnv:
         dist_abs = wenv_abs / 'dist'
         dist = normalize_path(dist_abs)
         if not dist in sys.path:
-            sys.path.insert(0, dist)
+            sys.path.append(dist)
         self.dist_abs = dist_abs
         self.wenv_target_worker = self.wenv_abs
         self.post_install = Path("src") / target_worker / "post_install.py"
@@ -511,7 +511,7 @@ class AgiEnv:
             self.app_src = self.app_abs / "src"
             src_path = normalize_path(self.app_src)
             if not src_path in sys.path:
-                sys.path.insert(0, src_path)
+                sys.path.append(src_path)
 
             self.app_pyproject = self.app_abs / "pyproject.toml"
             self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
@@ -574,7 +574,7 @@ class AgiEnv:
 
         path = str(self.core_src)
         if path not in sys.path:
-            sys.path.insert(0, path)
+            sys.path.append(path)
 
         if isinstance(module, Path):
             module_path = module.expanduser().resolve()
@@ -604,7 +604,7 @@ class AgiEnv:
         app_src.mkdir(parents=True, exist_ok=True)
         app_src_str = str(app_src)
         if app_src_str not in sys.path:
-            sys.path.insert(0, app_src_str)
+            sys.path.append(app_src_str)
         self.app_src = self.core_root.parent.parent / app_src
         self.app_abs = self.app_src.parent
 

@@ -1294,6 +1294,7 @@ class AGI:
         if (not AGI._mode_auto) or (AGI._mode < 6) or (AGI._mode & AGI.CYTHON_MODE):
             await AGI._build_lib_remote()
 
+
         # load lib
         for egg_file in (AGI.env.wenv_abs / "dist").glob("*.egg"):
             AGI._dask_client.upload_file(str(egg_file))
@@ -1394,8 +1395,6 @@ class AGI:
         """
         workers init
         """
-        # await AGI._build_lib_local(is_local=False)
-
         # worker
         if (AGI._dask_client.scheduler.pool.open == 0) and AGI._verbose:
             runners = list(AGI._dask_client.scheduler_info()["workers"].keys())
@@ -1557,6 +1556,10 @@ class AGI:
         workers run calibration and targets job
         """
         env = AGI.env
+
+        # in case of core src has changed
+        AGI._build_lib_local(is_local=True)
+
         # AGI distribute work on cluster
         AGI._dask_workers = [
             worker.split("/")[-1]
@@ -1574,18 +1577,6 @@ class AGI:
 
         if AGI._mode == AGI.INSTALL_MODE:
             workers_tree
-
-#debug start
-        # res = AGI._dask_client.run(
-        #     AgiWorker.new,
-        #     env.app,
-        #     mode=AGI._mode,
-        #     verbose=AGI._verbose,
-        #     worker_id=0,
-        #     args=AGI._args
-        # )
-# debug end
-
 
         AGI._dask_client.gather(
             [
