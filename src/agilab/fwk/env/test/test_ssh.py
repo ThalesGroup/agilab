@@ -1,45 +1,19 @@
-import os
 import pytest
-import subprocess
-from dotenv import load_dotenv
-
-# Load .env
-env_path = os.path.expanduser("~/agilab/.env")
-load_dotenv(env_path)
+from agi_env import AgiEnv
 
 @pytest.fixture(scope="module")
-def ssh_base_command():
-    """
-    Returns the base SSH command list to run remote commands.
-    Assumes key-based authentication or ssh-agent.
-    """
-    host = os.getenv("SSH_HOST", "192.168.20.222")
+def env():
+    agipath = AgiEnv.locate_agi_installation(verbose=0)
+    return AgiEnv(active_app="flight", apps_dir=agipath / "apps", install_type=1, verbose=1)
 
-    creds = os.getenv("CLUSTER_CREDENTIALS")
-    if creds and ":" in creds:
-        user, _ = creds.split(":", 1)
-    else:
-        pytest.skip("Please set CLUSTER_CREDENTIALS in ~/agilab/.env as USER:PASS")
-    # Use user@host for SSH
-    return ["ssh", f"{user}@{host}"]
+async def exec_ssh_cmd(env, ip, cmd):
+    return await env.exec_ssh(ip, cmd)
 
-def run_ssh_command(ssh_base_command, command):
-    """
-    Runs an SSH command and returns (stdout, stderr) decoded strings.
-    Raises subprocess.CalledProcessError on failure.
-    """
-    full_cmd = ssh_base_command + [command]
-    result = subprocess.run(full_cmd, capture_output=True, text=True, check=True)
-    return result.stdout.strip(), result.stderr.strip()
+@pytest.mark.asyncio
+async def test_exec_ssh_1(env):
+    # Safe quoting for remote shell execution:
+    cmd = f"cd {env.wenv_rel} && uv run python -c \"import os; print(os.getcwd())\""
+    ip = '192.168.20.122'
 
-def test_hostname(ssh_base_command):
-    out, err = run_ssh_command(ssh_base_command, "hostname")
-    assert out, "Expected a hostname string, got empty"
-
-def test_system_version(ssh_base_command):
-    out, err = run_ssh_command(ssh_base_command, "uname -a")
-    if out:
-        assert any(tok in out for tok in ("Linux", "Darwin", "BSD")), f"Unexpected uname output: {out}"
-    else:
-        out2, err2 = run_ssh_command(ssh_base_command, "ver")
-        assert any(tok in out2 for tok in ("Windows", "Microsoft")), f"Unexpected ver output: {out2}"
+    res = await exec_ssh_cmd(env, ip,cmd)
+    print(res)

@@ -1,10 +1,9 @@
-import os
+import io
 import pytest
 import asyncio
-from pathlib import Path
-from agi_env import AgiEnv, normalize_path
+from agi_env import AgiEnv
 from unittest import mock
-import tempfile
+import subprocess
 
 @pytest.fixture
 def env():
@@ -68,22 +67,30 @@ def test_change_active_app_reinitializes(monkeypatch, env):
     assert called.get('called', False)
 
 @pytest.mark.asyncio
-async def test_run_timeout_and_exception(monkeypatch):
+async def test_run_timeout_and_exception(env, monkeypatch):
+
     async def raise_timeout(*args, **kwargs):
         raise asyncio.TimeoutError()
+
     monkeypatch.setattr("subprocess.Popen", mock.Mock())
-    env = AgiEnv(active_app="flight", apps_dir=Path("."), install_type=1)
 
     # Patch subprocess.Popen to raise TimeoutExpired when communicate called
     class DummyProcess:
+
         def __init__(self):
             self.returncode = None
-            self.stdout = mock.Mock()
-            self.stderr = mock.Mock()
+            self.stdout = io.StringIO("partial output\n")
+            self.stderr = io.StringIO("error output\n")
+
         def poll(self):
             return 1
+
+        def kill(self):
+            return 2
+
         def wait(self, timeout=None):
             raise subprocess.TimeoutExpired(cmd="sleep", timeout=timeout)
+
     monkeypatch.setattr("subprocess.Popen", lambda *a, **k: DummyProcess())
     with pytest.raises(RuntimeError):
         await env.run("sleep 1", venv=".", wait=True)
@@ -110,7 +117,13 @@ async def test_exec_ssh_async_reads(monkeypatch, env):
         def is_closed(self):
             return False
 
-    monkeypatch.setattr(env, "get_ssh_connection", mock.AsyncMock(return_value=DummyConn()))
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    monkeypatch.setattr(env, "get_ssh_connection", lambda ip: DummyConn())
 
     await env.exec_ssh_async("1.2.3.4", "ls")
 
