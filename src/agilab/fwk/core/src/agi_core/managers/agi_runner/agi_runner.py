@@ -1292,8 +1292,9 @@ class AGI:
         await AGI._sync(timeout=AGI.TIMEOUT)
 
         if (not AGI._mode_auto) or (AGI._mode < 6) or (AGI._mode & AGI.CYTHON_MODE):
+            # in case of core src has changed
+            AGI._build_lib_local(is_local=True)
             await AGI._build_lib_remote()
-
 
         # load lib
         for egg_file in (AGI.env.wenv_abs / "dist").glob("*.egg"):
@@ -1453,6 +1454,62 @@ class AGI:
                 return res.split('\n')[-2]
 
     @staticmethod
+    async def _run_by_mode():
+        """
+        workers run calibration and targets job
+        """
+        env = AGI.env
+
+        # AGI distribute work on cluster
+        AGI._dask_workers = [
+            worker.split("/")[-1]
+            for worker in list(AGI._dask_client.scheduler_info()["workers"].keys())
+        ]
+        AgiEnv.log_info(f"AGI run mode={AGI._mode} on {list(AGI._dask_workers)} ... ")
+
+        AGI.workers, workers_tree, workers_tree_info = AgiManager.do_distrib(
+            AGI._target_inst, env, AGI.workers
+        )
+        AGI.workers_tree = workers_tree
+        AGI.workers_tree_info = workers_tree_info
+
+        AGI._scale_cluster()
+
+        if AGI._mode == AGI.INSTALL_MODE:
+            workers_tree
+
+        AGI._dask_client.gather(
+            [
+                AGI._dask_client.submit(
+                    AgiWorker.new,
+                    env.app,
+                    mode=AGI._mode,
+                    verbose=AGI._verbose,
+                    worker_id=list(AGI._dask_workers).index(worker),
+                    worker=worker,
+                    args=AGI._args,
+                    workers=[worker],
+                )
+                for worker in AGI._dask_workers
+            ]
+        )
+
+        await AGI._calibration()
+
+        t = time.time()
+
+        AGI._run_time = AGI._dask_client.run(
+            AgiWorker.do_works,
+            workers_tree,
+            workers_tree_info,
+            workers=AGI._dask_workers,
+        )
+
+        runtime = time.time() - t
+
+        return f"{env.mode2str(AGI._mode)} {runtime}"
+
+    @staticmethod
     async def main(scheduler):
         cond_clean = (
             True
@@ -1549,65 +1606,6 @@ class AGI:
                 AgiEnv.log_info(f"unused workers: {len(workers_to_remove)}")
                 for worker in workers_to_remove:
                     AGI._dask_workers.remove(worker)
-
-    @staticmethod
-    async def _run_by_mode():
-        """
-        workers run calibration and targets job
-        """
-        env = AGI.env
-
-        # in case of core src has changed
-        AGI._build_lib_local(is_local=True)
-
-        # AGI distribute work on cluster
-        AGI._dask_workers = [
-            worker.split("/")[-1]
-            for worker in list(AGI._dask_client.scheduler_info()["workers"].keys())
-        ]
-        AgiEnv.log_info(f"AGI run mode={AGI._mode} on {list(AGI._dask_workers)} ... ")
-
-        AGI.workers, workers_tree, workers_tree_info = AgiManager.do_distrib(
-            AGI._target_inst, env, AGI.workers
-        )
-        AGI.workers_tree = workers_tree
-        AGI.workers_tree_info = workers_tree_info
-
-        AGI._scale_cluster()
-
-        if AGI._mode == AGI.INSTALL_MODE:
-            workers_tree
-
-        AGI._dask_client.gather(
-            [
-                AGI._dask_client.submit(
-                    AgiWorker.new,
-                    env.app,
-                    mode=AGI._mode,
-                    verbose=AGI._verbose,
-                    worker_id=list(AGI._dask_workers).index(worker),
-                    worker=worker,
-                    args=AGI._args,
-                    workers=[worker],
-                )
-                for worker in AGI._dask_workers
-            ]
-        )
-
-        await AGI._calibration()
-
-        t = time.time()
-
-        AGI._run_time = AGI._dask_client.run(
-            AgiWorker.do_works,
-            workers_tree,
-            workers_tree_info,
-            workers=AGI._dask_workers,
-        )
-
-        runtime = time.time() - t
-
-        return f"{env.mode2str(AGI._mode)} {runtime}"
 
     @staticmethod
     async def _stop():
