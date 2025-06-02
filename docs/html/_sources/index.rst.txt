@@ -23,6 +23,7 @@ You’ll find everything from quickstarts to API references, as well as example 
    view
    framework-api
    directory-structure
+   install-usecase
    troubleshooting
    license
 
