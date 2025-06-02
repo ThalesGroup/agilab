@@ -429,7 +429,7 @@ class AgiEnv:
         if install_type < 2:
             self.agi_root = AgiEnv.locate_agi_installation(verbose)
         else:
-            self.agi_root = home_abs / "wenv" / active_app.replace("_project", "") / "src"
+            self.agi_root = home_abs / "wenv" / active_app
 
         if install_type == 1:
             self.agi_fwk_env_path = self.agi_root / "fwk/env"
@@ -475,9 +475,8 @@ class AgiEnv:
         if isinstance(active_app, str):
             if not active_app.endswith('_project'):
                 active_app = active_app + '_project'
-            app_path = apps_dir / active_app
-            if app_path.exists():
-                self.app = active_app
+            # app_path = apps_dir / active_app
+            self.app = active_app
             src_apps = self.agi_root / "apps"
             if not install_type:
                 if not apps_dir.exists():
@@ -521,8 +520,8 @@ class AgiEnv:
             worker_module_path = self.worker_path.parent
 
         else:
-            self.app_abs = self.agi_root / apps_dir / target_worker
-            self.app_src = self.app_abs / "src"
+            self.app_abs = self.agi_root
+            self.app_src = self.agi_root / "src"
             self.worker_path = self.wenv_rel / 'src' / target_worker / f"{target_worker}.py"
             self.module_path = self.wenv_rel / 'src' / module / f"{self.module}.py"
             worker_module_path = self.worker_path.parent
