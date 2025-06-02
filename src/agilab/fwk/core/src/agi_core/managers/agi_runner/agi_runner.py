@@ -852,8 +852,15 @@ class AGI:
         env = AGI.env
         pyvers = env.python_version
         run_type = AGI._run_type
-
+        ip = "127.0.0.1"
         has_rapids_hw = AGI._hardware_supports_rapids()
+        env.has_rapids_hw = has_rapids_hw
+        if has_rapids_hw:
+            env.set_env_var(ip, "has_rapids_hw")
+        else:
+            env.set_env_var(ip, "no_rapids_hw")
+
+        AgiEnv.log_info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
         # Commande pour manager selon si rapids supporté
         app_path = env.app_abs
@@ -937,6 +944,10 @@ class AGI:
 
         result = await env.exec_ssh(ip, check_rapids)
         has_rapids_hw = (result != "")
+        env.has_rapids_hw = has_rapids_hw
+        if has_rapids_hw:
+            env.set_env_var(ip, "has_rapids_hw")
+
         AgiEnv.log_info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
         # 6) Build and run uv -q sync, adding --config-file only when has_rapids_hw
@@ -947,7 +958,7 @@ class AGI:
         await env.exec_ssh(ip, sync_cmd)
 
         # 7) Post-install script
-        cmd = f"uv run -q --project {wenv_rel} -p {pyvers} python {wenv_rel / env.post_install} {env.data_dir}"
+        cmd = f"uv run -q --project {wenv_rel} -p {pyvers} python {env.post_install_rel} {env.data_dir}"
         await env.exec_ssh(ip, cmd)
 
         # continue with bootstrap and unzip...
@@ -1157,6 +1168,7 @@ class AGI:
             SystemExit: on fatal error starting scheduler or Dask client.
         """
         env = AGI.env
+        env.has_rapids_hw = True
 
         if (AGI._mode_auto and AGI._mode == AGI.DASK_MODE) or not AGI._mode_auto:
             if AGI._mode & AGI.DASK_MODE:
@@ -1170,11 +1182,18 @@ class AGI:
                 AGI._scheduler_ip, AGI._scheduler_port = AGI._get_scheduler(scheduler)
 
             # Clean cluster environment by killing old processes
-            for ip in set(list(AGI.workers) + [AGI._scheduler_ip]):
+            for ip in list(AGI.workers):
+                if not env.envars.get(ip, None):
+                    env.has_rapids_hw = False
                 try:
                     await AGI._kill(ip, os.getpid(), force=True)
                 except Exception:
                     pass
+
+            try:
+                await AGI._kill(AGI._scheduler_ip, os.getpid(), force=True)
+            except Exception:
+                pass
 
             toml_local = env.app_abs / "pyproject.toml"
             wenv_rel = env.wenv_rel
@@ -1402,13 +1421,15 @@ class AGI:
             AgiEnv.log_info("warning: no scheduler found but requested mode is dask=1 => switch to dask")
 
     @staticmethod
-    async def _run_local(debug=False):
+    async def _run_local(debug=True):
         """
 
         Returns:
 
         """
         env = AGI.env
+        env.has_rapids_hw = env.envars.get("127.0.0.1" ,"HAS_RAPIDS_HW")
+
         # check first that install is done
         if not (env.wenv_abs / ".venv").exists():
             AgiEnv.log_info("Worker installlation not found")
@@ -1443,7 +1464,7 @@ class AGI:
                 f"print(res)\""
             )
 
-            res = await AgiEnv.run(cmd, env.wenv_abs)
+            res = await AgiEnv.run_async(cmd, env.wenv_abs)
         if isinstance(res, list):
             return res
         else:
