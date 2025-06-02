@@ -1291,12 +1291,12 @@ class AGI:
 
         await AGI._sync(timeout=AGI.TIMEOUT)
 
-        #if (not AGI._mode_auto) or (AGI._mode < 6) or (AGI._mode & AGI.CYTHON_MODE):
-        #    await AGI._build_lib_remote()
+        if (not AGI._mode_auto) or (AGI._mode < 6) or (AGI._mode & AGI.CYTHON_MODE):
+            await AGI._build_lib_remote()
 
         # load lib
-        #for egg_file in (AGI.env.wenv_abs / "dist").glob("*.egg"):
-        #    AGI._dask_client.upload_file(str(egg_file))
+        for egg_file in (AGI.env.wenv_abs / "dist").glob("*.egg"):
+            AGI._dask_client.upload_file(str(egg_file))
 
     @staticmethod
     async def _sync(timeout=60):
@@ -1574,6 +1574,18 @@ class AGI:
 
         if AGI._mode == AGI.INSTALL_MODE:
             workers_tree
+
+#debug start
+        # res = AGI._dask_client.run(
+        #     AgiWorker.new,
+        #     env.app,
+        #     mode=AGI._mode,
+        #     verbose=AGI._verbose,
+        #     worker_id=0,
+        #     args=AGI._args
+        # )
+# debug end
+
 
         AGI._dask_client.gather(
             [
