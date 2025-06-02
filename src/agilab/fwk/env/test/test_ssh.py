@@ -13,7 +13,7 @@ async def exec_ssh_cmd(env, ip, cmd):
 async def test_exec_ssh_1(env):
     # Safe quoting for remote shell execution:
     cmd = f"cd {env.wenv_rel} && uv run python -c \"import os; print(os.getcwd())\""
-    ip = '192.168.20.122'
+    ip = '192.168.20.222'
 
     res = await exec_ssh_cmd(env, ip,cmd)
     print(res)
