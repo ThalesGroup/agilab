@@ -1438,7 +1438,7 @@ class AGI:
         else:
             cmd = (
                 f"uv -q run --project {env.wenv_abs} python -c \"from agi_core.workers.agi_worker import AgiWorker;"
-                f"AgiWorker.new({env.app}, mode={AGI._mode}, env=env, verbose={AGI._verbose}, args={AGI._args});"
+                f"AgiWorker.new('{env.app}', mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
                 f"res = AgiWorker.run({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
                 f"print(res)\""
             )
