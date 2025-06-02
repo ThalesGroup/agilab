@@ -86,6 +86,7 @@ dev = [
     "licensecheck",
     "pytest-local-badge",
     "pytest-cov",
+    "pytest-asyncio",
     "polars",
     "pandas",
     "fastparquet",

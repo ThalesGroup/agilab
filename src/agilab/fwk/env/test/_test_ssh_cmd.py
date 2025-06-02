@@ -1,33 +1,34 @@
-import asyncio
-from pathlib import Path
 import os
-from agi_env import AgiEnv, normalize_path
+import subprocess
+from pathlib import Path
+from agi_env import AgiEnv
 
-async def test_ssh_cmd(env, ip, usr, cmd):
-    env.user = usr
-    return await env.exec_ssh(ip, cmd)
-
-async def main():
-    env = AgiEnv(install_type=1, verbose=1)
+def run_ssh_command():
+    """
+    Runs an SSH command and returns (stdout, stderr) decoded strings.
+    Raises subprocess.CalledProcessError on failure.
+    """
+    host = "192.168.20.222"
+    user = "nsbl"
+    agipath = AgiEnv.locate_agi_installation(verbose=0)
+    env = AgiEnv(active_app="flight", apps_dir=agipath / "apps", install_type=1, verbose=1)
+    cmd = f"ssh {user}@{host} "
 
     cwd = Path().home()
     os.chdir(cwd)
-    module='flight'
-    wenv =  env.wenv_rel
+    module = 'flight'
+    wenv = env.wenv_rel
     dist = wenv / "dist"
-    cmd = (
+    cmd += (
         f"uv -q --project {wenv} run python -c "
         f"\"from pathlib import Path; "
         f"whl = list((Path().home() / '{dist}').glob('{module}*.whl')); "
         f"print(whl)\""
     )
-    # Safe quoting for remote shell execution:
-    #cmd = f"cd {env.wenv_rel} && uv run python -c \"import os; print(os.getcwd())\""
-    ip = '192.168.20.222'
-    usr = 'nsbl'
 
-    res = await test_ssh_cmd(env, ip, usr, cmd)
-    print(res)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    print("Stdout: " + result.stdout.strip())
+    print("Stderr: " + result.stderr.strip())
 
-if __name__ == '__main__':
-    asyncio.run(main())
+if __name__ == "__main__":
+    run_ssh_command()

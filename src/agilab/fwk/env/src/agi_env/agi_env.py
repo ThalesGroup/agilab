@@ -1297,12 +1297,13 @@ class AgiEnv:
             else:
                 raise
 
-        except asyncssh.Error:
-            err_msg = (
-                f"Could not connect to {ip}. Please check device is reachable, network cable connected, and SSH service running."
-            )
-            self.log_error(err_msg)
-            raise ConnectionError(err_msg)
+        except asyncssh.Error as e:
+            raise e
+            # err_msg = (
+            #     f"Could not connect to {ip}. Please check device is reachable, network cable connected, and SSH service running."
+            # )
+            # self.log_error(err_msg)
+            # raise ConnectionError(err_msg)
 
     async def exec_ssh(self, ip: str, cmd: str) -> str:
         try:
@@ -1310,6 +1311,8 @@ class AgiEnv:
                 msg = f"[{ip}] {cmd}"
                 if self.verbose > 1:
                     self.log_info(msg)
+                if sys.platform == "linux":
+                    cmd = f"bash -l -c '{cmd}'"
                 result = await conn.run(cmd, check=True)
                 stdout = result.stdout
                 if isinstance(stdout, bytes):
@@ -1330,11 +1333,13 @@ class AgiEnv:
             raise
 
         except (asyncssh.Error, OSError) as e:
-            self.log_error(msg)
+            self.log_error(e)
             exit(1)
 
     async def exec_ssh_async(self, ip: str, cmd: str):
         async with self.get_ssh_connection(ip) as conn:
+            if sys.platform == "linux":
+                cmd = f"bash -l -c '{cmd}'"
             process = await conn.create_process(cmd)
 
         async def read_stream(stream):
