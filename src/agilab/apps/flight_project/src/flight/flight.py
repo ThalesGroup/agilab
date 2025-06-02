@@ -155,7 +155,7 @@ class Flight(AgiManager):
         self.files = args["files"]
         self.nfile = args["nfile"]
         AgiManager.args = args
-        self.data_out = normalize_path(base_path / "dataframe")
+        self.data_out = normalize_path(base_path / "dataframes")
 
         """
           remove dataframe files from previous run
