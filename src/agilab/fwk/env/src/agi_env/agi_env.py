@@ -36,6 +36,13 @@ sys.excepthook = FormattedTB(**_tb_kwargs)
 
 logger = logging.getLogger(__name__)
 
+def normalize_path(path):
+    return (
+        str(PureWindowsPath(Path(path)))
+        if os.name == "nt"
+        else str(PurePosixPath(Path(path)))
+    )
+
 class ContentRenamer(ast.NodeTransformer):
     """
     A class that renames identifiers in an abstract syntax tree (AST).
@@ -329,6 +336,7 @@ class AgiEnv:
     GUI_NROW = None
     GUI_SAMPLING = None
     init_done = False
+    has_rapids_hw = None
 
     def init_logging(self, verbosity: int = None):
         """
@@ -503,26 +511,33 @@ class AgiEnv:
             sys.path.append(dist)
         self.dist_abs = dist_abs
         self.wenv_target_worker = self.wenv_abs
-        self.post_install = Path("src") / target_worker / "post_install.py"
-        self.pre_install = Path("src") / target_worker / "pre_install.py"
 
         if install_type < 2:
-            self.app_abs = self.agi_root / apps_dir / (active_app if install_type < 2 else target_worker)
+            self.app_abs = self.agi_root / apps_dir / active_app
             self.app_src = self.app_abs / "src"
-            src_path = normalize_path(self.app_src)
-            if not src_path in sys.path:
-                sys.path.append(src_path)
-
             self.app_pyproject = self.app_abs / "pyproject.toml"
             self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
             self.module_path = self.app_src / module / f"{self.module}.py"
-            self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
-            self.uvproject = self.worker_path.parent / "uv.toml"
+            worker_module_path = self.worker_path.parent
+
         else:
+            self.app_abs = self.agi_root / apps_dir / target_worker
+            self.app_src = self.app_abs / "src"
             self.worker_path = self.wenv_rel / 'src' / target_worker / f"{target_worker}.py"
             self.module_path = self.wenv_rel / 'src' / module / f"{self.module}.py"
-            self.worker_pyproject = self.wenv_rel  / "pyproject.toml"
-            self.uvproject = self.wenv_rel / "uv.toml"
+            worker_module_path = self.worker_path.parent
+
+        self.worker_pyproject = worker_module_path / "pyproject.toml"
+        self.uvproject = worker_module_path / "uv.toml"
+        self.post_install = worker_module_path / "post_install.py"
+        self.pre_install = worker_module_path / "pre_install.py"
+        self.post_install_rel = self.wenv_rel / 'src' / target_worker / "post_install.py"
+
+
+        src_path = normalize_path(self.app_src)
+        if not src_path in sys.path:
+            sys.path.append(src_path)
+
 
         AgiEnv.apps_dir = apps_dir
         distribution_tree = self.wenv_abs / "distribution_tree.json"
@@ -831,15 +846,11 @@ class AgiEnv:
         return ""
 
     def mode2str(self, mode):
-        import tomli  # Use tomli for reading TOML files
 
         chars = ["p", "c", "d", "r"]
         reversed_chars = reversed(list(enumerate(chars)))
-        with open(self.worker_pyproject, "rb") as file:
-            pyproject_data = tomli.load(file)
 
-        dependencies = pyproject_data.get("project", {}).get("dependencies", [])
-        if len([dep for dep in dependencies if dep.lower().startswith("cu")]) > 0:
+        if self.has_rapids_hw:
             mode += 8
         mode_str = "".join(
             "_" if (mode & (1 << i)) == 0 else v for i, v in reversed_chars
@@ -1804,11 +1815,4 @@ class AgiEnv:
                 ) from e
             else:
                 raise OSError(f"Error: Failed to create symlink: {e}") from e
-
-def normalize_path(path):
-    return (
-        str(PureWindowsPath(Path(path)))
-        if os.name == "nt"
-        else str(PurePosixPath(Path(path)))
-    )
 
