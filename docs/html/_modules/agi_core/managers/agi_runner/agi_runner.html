@@ -137,6 +137,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../../../../agi-env.html#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../../agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../agi-env.html#agi_env.agi_env.normalize_path"><code class="docutils literal notranslate"><span class="pre">normalize_path()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -268,7 +269,6 @@
 <li class="toctree-l4"><a class="reference internal" href="../../../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.logs"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.logs</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.mode"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.new"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.new()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.normalize_path"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.normalize_path()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.onerror"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.onerror()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.run"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.run()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.share_path"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.share_path</span></code></a></li>
@@ -372,7 +372,6 @@
 <li class="toctree-l4"><a class="reference internal" href="../../../../flight-project.html#flight_worker.flight_worker.FlightWorker.logs"><code class="docutils literal notranslate"><span class="pre">FlightWorker.logs</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../flight-project.html#flight_worker.flight_worker.FlightWorker.mode"><code class="docutils literal notranslate"><span class="pre">FlightWorker.mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../flight-project.html#flight_worker.flight_worker.FlightWorker.new"><code class="docutils literal notranslate"><span class="pre">FlightWorker.new()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../flight-project.html#flight_worker.flight_worker.FlightWorker.normalize_path"><code class="docutils literal notranslate"><span class="pre">FlightWorker.normalize_path()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../flight-project.html#flight_worker.flight_worker.FlightWorker.onerror"><code class="docutils literal notranslate"><span class="pre">FlightWorker.onerror()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../flight-project.html#flight_worker.flight_worker.FlightWorker.pool_init"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_init()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../flight-project.html#flight_worker.flight_worker.FlightWorker.pool_vars"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_vars</span></code></a></li>
@@ -479,7 +478,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 
 <span class="c1"># Project Libraries:</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span><span class="p">,</span> <span class="n">normalize_path</span><span class="p">,</span> <span class="n">normalize_path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">agi_core.managers.agi_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiManager</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">agi_core.workers.agi_worker</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiWorker</span>
 
@@ -511,7 +510,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1"># Constants as class attributes</span>
-    <span class="n">TIMEOUT</span> <span class="o">=</span> <span class="mi">20</span>
+    <span class="n">TIMEOUT</span> <span class="o">=</span> <span class="mi">10</span>
     <span class="n">PYTHON_MODE</span> <span class="o">=</span> <span class="mi">1</span>
     <span class="n">CYTHON_MODE</span> <span class="o">=</span> <span class="mi">2</span>
     <span class="n">DASK_MODE</span> <span class="o">=</span> <span class="mi">4</span>
@@ -902,7 +901,7 @@
 <span class="sd">          : the instance of the module</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">path</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">normalize_path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">normalize_path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">path</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
             <span class="n">AGI</span><span class="o">.</span><span class="n">_sys_path_to_clean</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
@@ -1007,7 +1006,7 @@
 
         <span class="c1"># 1) Collect PIDs from any pid files and remove those files</span>
         <span class="n">pids_to_kill</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">pid_file</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">&quot;dask-pid*&quot;</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">pid_file</span> <span class="ow">in</span> <span class="n">Path</span><span class="p">()</span><span class="o">.</span><span class="n">home</span><span class="p">()</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">&quot;dask-pid*&quot;</span><span class="p">):</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">text</span> <span class="o">=</span> <span class="n">pid_file</span><span class="o">.</span><span class="n">read_text</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
                 <span class="n">pid</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
@@ -1203,10 +1202,11 @@
                 <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;uv -q python install </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
                 <span class="c1"># 3) Bootstrap the uv -q environment</span>
+                <span class="n">pyproject</span> <span class="o">=</span> <span class="n">wenv_rel</span> <span class="o">/</span> <span class="s1">&#39;pyproject.toml&#39;</span>
                 <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">python</span><span class="si">}</span><span class="s2"> -c </span><span class="se">\&quot;</span><span class="s2">import os, subprocess; &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> run -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python -c </span><span class="se">\&quot;</span><span class="s2">import os, subprocess; &quot;</span>
                     <span class="sa">f</span><span class="s2">&quot;subprocess.run([&#39;uv&#39;,&#39;init&#39;,&#39;--bare&#39;], cwd=r&#39;</span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2">&#39;, check=True) &quot;</span>
-                    <span class="s2">&quot;if not os.path.exists(&#39;pyproject.toml&#39;) else None</span><span class="se">\&quot;</span><span class="s2">&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;if not os.path.exists(&#39;</span><span class="si">{</span><span class="n">pyproject</span><span class="si">}</span><span class="s2">&#39;) else None</span><span class="se">\&quot;</span><span class="s2">&quot;</span>
                 <span class="p">)</span>
                 <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
@@ -1294,8 +1294,15 @@
         <span class="n">env</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">env</span>
         <span class="n">pyvers</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">python_version</span>
         <span class="n">run_type</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_run_type</span>
-
+        <span class="n">ip</span> <span class="o">=</span> <span class="s2">&quot;127.0.0.1&quot;</span>
         <span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_hardware_supports_rapids</span><span class="p">()</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="n">has_rapids_hw</span>
+        <span class="k">if</span> <span class="n">has_rapids_hw</span><span class="p">:</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">set_env_var</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="s2">&quot;has_rapids_hw&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">set_env_var</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="s2">&quot;no_rapids_hw&quot;</span><span class="p">)</span>
+
+        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Rapids-capable GPU[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">]: </span><span class="si">{</span><span class="n">has_rapids_hw</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="c1"># Commande pour manager selon si rapids supporté</span>
         <span class="n">app_path</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">app_abs</span>
@@ -1342,8 +1349,8 @@
         <span class="n">python</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q run -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python&quot;</span>
         <span class="n">wenv_abs</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span>
         <span class="n">wenv_rel</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span>
-        <span class="n">dist_rel</span> <span class="o">=</span> <span class="n">wenv_rel</span> <span class="o">/</span> <span class="s2">&quot;dist&quot;</span>
-        <span class="n">dist_abs</span> <span class="o">=</span> <span class="n">wenv_abs</span> <span class="o">/</span> <span class="s2">&quot;dist&quot;</span>
+        <span class="n">dist_rel</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">dist_rel</span>
+        <span class="n">dist_abs</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">dist_abs</span>
 
         <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv run python -c </span><span class="se">\&quot;</span><span class="s2">import os; os.makedirs(&#39;</span><span class="si">{</span><span class="n">dist_rel</span><span class="si">}</span><span class="s2">&#39;, exist_ok=True)</span><span class="se">\&quot;</span><span class="s2">&quot;</span>
         <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
@@ -1351,19 +1358,19 @@
         <span class="c1"># Then send the files to the remote directory</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">egg_file</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">dist_abs</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">app</span><span class="si">}</span><span class="s2">*.egg&quot;</span><span class="p">)),</span> <span class="kc">None</span><span class="p">)</span>
-            <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_files</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="p">[</span><span class="n">env</span><span class="o">.</span><span class="n">setup_core</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">worker_pyproject</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">uvproject</span><span class="p">],</span> <span class="n">wenv_rel</span><span class="p">)</span>
-            <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">egg_file</span><span class="p">,</span> <span class="n">dist_rel</span><span class="p">)</span>
-
         <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
             <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;searching for </span><span class="si">{</span><span class="n">wenv_abs</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">env</span><span class="o">.</span><span class="n">app</span><span class="si">}</span><span class="s2">*.egg&quot;</span><span class="p">)</span>
             <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="s2">&quot;no existing egg file&quot;</span><span class="p">)</span>
 
+        <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_files</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="p">[</span><span class="n">env</span><span class="o">.</span><span class="n">setup_core</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">worker_pyproject</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">uvproject</span><span class="p">],</span> <span class="n">wenv_rel</span><span class="p">)</span>
+        <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">egg_file</span><span class="p">,</span> <span class="n">dist_rel</span><span class="p">)</span>
+
         <span class="c1"># continue with bootstrap and unzip...</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="n">python</span> <span class="o">+</span> <span class="s2">&quot; -m ensurepip&quot;</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv run -q --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> python -m ensurepip&quot;</span>
         <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
         <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">python</span><span class="si">}</span><span class="s2"> -c </span><span class="se">\&quot;</span><span class="s2">import os, pathlib, zipfile;&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;uv run python -c </span><span class="se">\&quot;</span><span class="s2">import os, pathlib, zipfile;&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;root = pathlib.Path(&#39;</span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2">&#39;);&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;root_src = root / &#39;src&#39;;&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;[zipfile.ZipFile(str(e)).extractall(str(root_src))&quot;</span>
@@ -1379,22 +1386,26 @@
 
         <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">check_rapids</span><span class="p">)</span>
         <span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="p">(</span><span class="n">result</span> <span class="o">!=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Remote Rapids-capable GPU: </span><span class="si">{</span><span class="n">has_rapids_hw</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="n">has_rapids_hw</span>
+        <span class="k">if</span> <span class="n">has_rapids_hw</span><span class="p">:</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">set_env_var</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="s2">&quot;has_rapids_hw&quot;</span><span class="p">)</span>
+
+        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Rapids-capable GPU[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">]: </span><span class="si">{</span><span class="n">has_rapids_hw</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="c1"># 6) Build and run uv -q sync, adding --config-file only when has_rapids_hw</span>
         <span class="k">if</span> <span class="n">has_rapids_hw</span><span class="p">:</span>
-            <span class="n">sync_cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> sync </span><span class="si">{</span><span class="n">option</span><span class="si">}</span><span class="s2"> --refresh-package dask &quot;</span>
+            <span class="n">sync_cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv sync -q --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">option</span><span class="si">}</span><span class="s2"> --refresh-package dask &quot;</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">sync_cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> --config-file </span><span class="si">{</span><span class="n">wenv_rel</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="s1">&#39;uv.toml&#39;</span><span class="si">}</span><span class="s2"> sync </span><span class="si">{</span><span class="n">option</span><span class="si">}</span><span class="s2"> --refresh-package dask&quot;</span>
+            <span class="n">sync_cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv sync -q --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> --config-file </span><span class="si">{</span><span class="n">wenv_rel</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="s1">&#39;uv.toml&#39;</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">option</span><span class="si">}</span><span class="s2"> --refresh-package dask&quot;</span>
         <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">sync_cmd</span><span class="p">)</span>
 
         <span class="c1"># 7) Post-install script</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> run -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python </span><span class="si">{</span><span class="n">wenv_rel</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">env</span><span class="o">.</span><span class="n">post_install</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">data_dir</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv run -q --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">post_install_rel</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">data_dir</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
         <span class="c1"># continue with bootstrap and unzip...</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> run -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python -m ensurepip&quot;</span>
-        <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
+        <span class="c1">#cmd = f&quot;uv run -q --project {wenv_rel} -p {pyvers} python -m ensurepip&quot;</span>
+        <span class="c1">#await env.exec_ssh(ip, cmd)</span>
 
         <span class="c1"># # upgrade dask</span>
         <span class="c1"># cmd = f&quot;uv -q --project {wenv_rel} run -p {pyvers} python -m pip install dask[distributed]&quot;</span>
@@ -1405,7 +1416,7 @@
         <span class="c1"># install env &amp; core for enabling dask worker spawn</span>
         <span class="c1">##################################################</span>
 
-        <span class="c1"># init venv</span>
+        <span class="c1">#init venv</span>
         <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">python</span><span class="si">}</span><span class="s2"> -c &quot;</span>
             <span class="s2">&quot;</span><span class="se">\&quot;</span><span class="s2">import os, subprocess; &quot;</span>
@@ -1413,46 +1424,50 @@
             <span class="s2">&quot;subprocess.run([&#39;uv&#39;,&#39;init&#39;,&#39;--bare&#39;], cwd=ROOT, check=True) &quot;</span>
             <span class="s2">&quot;if not os.path.exists(os.path.join(ROOT, &#39;pyproject.toml&#39;)) else None</span><span class="se">\&quot;</span><span class="s2">&quot;</span>
         <span class="p">)</span>
-        <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">);</span>
+        <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
         <span class="c1"># Bootstrap ensurepip</span>
         <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> run python -m ensurepip&quot;</span>
         <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
-        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> pip install -e </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> run python -m pip install -e </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
         <span class="c1"># build agi_env*.whl</span>
         <span class="n">wenv</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">agi_fwk_env_path</span>
         <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">wenv</span><span class="si">}</span><span class="s2"> build --wheel&quot;</span>
         <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">venv</span><span class="o">=</span><span class="n">wenv</span><span class="p">)</span>
-        <span class="n">dist</span> <span class="o">=</span> <span class="n">wenv</span> <span class="o">/</span> <span class="s2">&quot;dist&quot;</span>
+        <span class="n">src</span> <span class="o">=</span> <span class="n">wenv</span> <span class="o">/</span> <span class="s2">&quot;dist&quot;</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">whl</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">dist</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">&quot;agi_env*.whl&quot;</span><span class="p">)))</span>
+            <span class="n">whl</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">src</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">&quot;agi_env*.whl&quot;</span><span class="p">)))</span>
             <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">whl</span><span class="p">,</span> <span class="n">dist_rel</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
 
-        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">dist_rel</span><span class="si">}</span><span class="s2"> add </span><span class="si">{</span><span class="n">dist_rel</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">Path</span><span class="p">(</span><span class="n">whl</span><span class="p">)</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">dist_rel</span><span class="si">}</span><span class="s2"> add </span><span class="si">{</span><span class="n">dist_rel</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">whl</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
         <span class="c1"># build agi_core*.whl</span>
         <span class="n">wenv</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">core_root</span>
-        <span class="n">dist</span> <span class="o">=</span> <span class="n">wenv</span> <span class="o">/</span> <span class="s2">&quot;dist&quot;</span>
+        <span class="n">src</span> <span class="o">=</span> <span class="n">wenv</span> <span class="o">/</span> <span class="s2">&quot;dist&quot;</span>
         <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">wenv</span><span class="si">}</span><span class="s2"> build --wheel&quot;</span>
         <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">venv</span><span class="o">=</span><span class="n">wenv</span><span class="p">)</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">whl</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">dist</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">&quot;agi_core*.whl&quot;</span> <span class="p">)))</span>
+            <span class="n">whl</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">src</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">&quot;agi_core*.whl&quot;</span> <span class="p">)))</span>
             <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">whl</span><span class="p">,</span> <span class="n">dist_rel</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
 
-        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">dist_rel</span><span class="si">}</span><span class="s2"> add </span><span class="si">{</span><span class="n">dist_rel</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">Path</span><span class="p">(</span><span class="n">whl</span><span class="p">)</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">dist_rel</span><span class="si">}</span><span class="s2"> add </span><span class="si">{</span><span class="n">dist_rel</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">whl</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
         <span class="c1"># build target_worker lib</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> run python  </span><span class="si">{</span><span class="n">wenv_rel</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="s1">&#39;setup&#39;</span><span class="si">}</span><span class="s2"> build_ext -i 2 -b </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> run python </span><span class="si">{</span><span class="n">wenv_rel</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="s1">&#39;setup&#39;</span><span class="si">}</span><span class="s2"> build_ext -i 2 -b </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
+
+        <span class="c1"># ajouter le wheel dans le projet de destination</span>
+        <span class="c1">#cmd = f&quot;uv -q --project {dist_rel} add {dist_rel / whl.name}&quot;</span>
+        <span class="c1">#await env.exec_ssh(ip, cmd)</span>
 
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_should_install_pip</span><span class="p">():</span>
@@ -1503,7 +1518,7 @@
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">install</span><span class="p">(</span>
             <span class="n">module_name</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">scheduler</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">workers</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-            <span class="n">modes_enabled</span><span class="o">=</span><span class="n">RUN_MASK</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span>
+            <span class="n">modes_enabled</span><span class="o">=</span><span class="n">RUN_MASK</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span>
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Update the cluster&#39;s virtual environment.</span>
@@ -1546,7 +1561,7 @@
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span>
             <span class="n">module_name</span><span class="p">,</span> <span class="n">scheduler</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">workers</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-            <span class="n">env</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">modes_enabled</span><span class="o">=</span><span class="n">RUN_MASK</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span>
+            <span class="n">env</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">modes_enabled</span><span class="o">=</span><span class="n">RUN_MASK</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span>
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        install cluster virtual environment</span>
@@ -1604,6 +1619,7 @@
 <span class="sd">            SystemExit: on fatal error starting scheduler or Dask client.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">env</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">env</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="kc">True</span>
 
         <span class="k">if</span> <span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode_auto</span> <span class="ow">and</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span> <span class="o">==</span> <span class="n">AGI</span><span class="o">.</span><span class="n">DASK_MODE</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode_auto</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span> <span class="o">&amp;</span> <span class="n">AGI</span><span class="o">.</span><span class="n">DASK_MODE</span><span class="p">:</span>
@@ -1617,11 +1633,18 @@
                 <span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler_ip</span><span class="p">,</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler_port</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_get_scheduler</span><span class="p">(</span><span class="n">scheduler</span><span class="p">)</span>
 
             <span class="c1"># Clean cluster environment by killing old processes</span>
-            <span class="k">for</span> <span class="n">ip</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">workers</span><span class="p">)</span> <span class="o">+</span> <span class="p">[</span><span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler_ip</span><span class="p">]):</span>
+            <span class="k">for</span> <span class="n">ip</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">workers</span><span class="p">):</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">env</span><span class="o">.</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
+                    <span class="n">env</span><span class="o">.</span><span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="kc">False</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_kill</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">(),</span> <span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
                 <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
                     <span class="k">pass</span>
+
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_kill</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler_ip</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">(),</span> <span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">pass</span>
 
             <span class="n">toml_local</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">app_abs</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span>
             <span class="n">wenv_rel</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span>
@@ -1693,7 +1716,7 @@
 
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_start</span><span class="p">(</span><span class="n">scheduler</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;_start(</span>
 <span class="sd">        Start Dask workers locally and remotely,</span>
 <span class="sd">        launching remote workers detached in background,</span>
 <span class="sd">        compatible with Windows and POSIX.</span>
@@ -1710,24 +1733,20 @@
             <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Starting worker #</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">j</span><span class="si">}</span><span class="s2"> on [</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">]&quot;</span><span class="p">)</span>
-
-                    <span class="n">pid_file_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;dask-pid-</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">j</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="n">pid_file</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;dask-pid-</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">j</span><span class="si">}</span><span class="s2">&quot;</span>
 
                     <span class="k">if</span> <span class="n">is_local</span><span class="p">:</span>
                         <span class="n">wenv_abs</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span>
-                        <span class="n">pid_file</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">wenv_abs</span> <span class="o">/</span> <span class="n">pid_file_name</span><span class="p">)</span>
                         <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span>
                             <span class="c1">#f&#39;{export_cmd} &#39;</span>
                             <span class="sa">f</span><span class="s1">&#39;uv -q --project </span><span class="si">{</span><span class="n">wenv_abs</span><span class="si">}</span><span class="s1"> run dask worker tcp://</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler</span><span class="si">}</span><span class="s1"> --no-nanny &#39;</span>
-                            <span class="sa">f</span><span class="s1">&#39;--pid-file </span><span class="si">{</span><span class="n">wenv_abs</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">pid_file</span><span class="si">}</span><span class="s1">&#39;</span>
+                            <span class="sa">f</span><span class="s1">&#39;--pid-file </span><span class="si">{</span><span class="n">pid_file</span><span class="si">}</span><span class="s1">&#39;</span>
                         <span class="p">)</span>
                         <span class="c1"># Run locally in background (non-blocking)</span>
                         <span class="n">AGI</span><span class="o">.</span><span class="n">_exec_bg</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">wenv_abs</span><span class="p">))</span>
-
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">wenv_rel</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span>
-                        <span class="n">pid_file</span> <span class="o">=</span> <span class="n">wenv_rel</span> <span class="o">/</span> <span class="n">pid_file_name</span>
-                        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;uv -q --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s1"> run dask worker tcp://</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler</span><span class="si">}</span><span class="s1"> --no-nanny --pid-file ~/</span><span class="si">{</span><span class="n">wenv_rel</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">pid_file</span><span class="si">}</span><span class="s1">&#39;</span>
+                        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;uv -q --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s1"> run dask worker tcp://</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler</span><span class="si">}</span><span class="s1"> --no-nanny --pid-file </span><span class="si">{</span><span class="n">pid_file</span><span class="si">}</span><span class="s1">&#39;</span>
                         <span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">exec_ssh_async</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">))</span>
                         <span class="n">env</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Launched remote worker in background on </span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
@@ -1738,9 +1757,11 @@
                 <span class="k">if</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_worker_init_error</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Please run AGI.install([</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">])&quot;</span><span class="p">)</span>
 
-        <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_sync</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>
+        <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_sync</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">TIMEOUT</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode_auto</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span> <span class="o">&lt;</span> <span class="mi">6</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span> <span class="o">&amp;</span> <span class="n">AGI</span><span class="o">.</span><span class="n">CYTHON_MODE</span><span class="p">):</span>
+            <span class="c1"># in case of core src has changed</span>
+            <span class="n">AGI</span><span class="o">.</span><span class="n">_build_lib_local</span><span class="p">(</span><span class="n">is_local</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_build_lib_remote</span><span class="p">()</span>
 
         <span class="c1"># load lib</span>
@@ -1784,7 +1805,7 @@
 
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">env</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">env</span>
-        <span class="n">wenv</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">normalize_path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">))</span>
+        <span class="n">wenv</span> <span class="o">=</span> <span class="n">normalize_path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">))</span>
         <span class="n">is_cy</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span> <span class="o">&amp;</span> <span class="n">AGI</span><span class="o">.</span><span class="n">CYTHON_MODE</span>
         <span class="n">packages</span> <span class="o">=</span> <span class="s2">&quot;agi_worker, &quot;</span>
 
@@ -1810,7 +1831,7 @@
                 <span class="n">dask_client</span><span class="o">.</span><span class="n">upload_file</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">egg_file</span><span class="p">))</span>
         <span class="c1"># compile in cython when cython is requested</span>
         <span class="k">if</span> <span class="n">is_local</span><span class="p">:</span>
-            <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">wenv_abs</span><span class="si">}</span><span class="s2"> pip install -e </span><span class="si">{</span><span class="n">wenv_abs</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q --project </span><span class="si">{</span><span class="n">wenv_abs</span><span class="si">}</span><span class="s2"> pip install -e .&quot;</span>
             <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">wenv_abs</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="n">is_cy</span><span class="p">:</span>
@@ -1843,27 +1864,27 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        workers init</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># await AGI._build_lib_local(is_local=False)</span>
-
         <span class="c1"># worker</span>
         <span class="k">if</span> <span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_dask_client</span><span class="o">.</span><span class="n">scheduler</span><span class="o">.</span><span class="n">pool</span><span class="o">.</span><span class="n">open</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">and</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_verbose</span><span class="p">:</span>
             <span class="n">runners</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_dask_client</span><span class="o">.</span><span class="n">scheduler_info</span><span class="p">()[</span><span class="s2">&quot;workers&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
             <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="s2">&quot;warning: no scheduler found but requested mode is dask=1 =&gt; switch to dask&quot;</span><span class="p">)</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_run_local</span><span class="p">():</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_run_local</span><span class="p">(</span><span class="n">debug</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 
 <span class="sd">        Returns:</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">env</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">env</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;127.0.0.1&quot;</span> <span class="p">,</span><span class="s2">&quot;HAS_RAPIDS_HW&quot;</span><span class="p">)</span>
+
         <span class="c1"># check first that install is done</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span> <span class="o">/</span> <span class="s2">&quot;.venv&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
             <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="s2">&quot;Worker installlation not found&quot;</span><span class="p">)</span>
             <span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
-        <span class="n">pid_file</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span> <span class="o">/</span> <span class="s2">&quot;dask-pid-0&quot;</span>
+        <span class="n">pid_file</span> <span class="o">=</span> <span class="s2">&quot;dask-pid-0&quot;</span>
         <span class="n">current_pid</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">()</span>
         <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">pid_file</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
             <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">current_pid</span><span class="p">))</span>
@@ -1877,14 +1898,86 @@
             <span class="c1"># Look for any files or directories in the Cython lib path that match the &quot;*cy*&quot; pattern.</span>
             <span class="n">cython_libs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">cython_lib_path</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">&quot;*cy*&quot;</span><span class="p">))</span>
             <span class="k">if</span> <span class="n">cython_libs</span><span class="p">:</span>
-                <span class="n">lib_path</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">normalize_path</span><span class="p">(</span><span class="n">cython_libs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                <span class="n">lib_path</span> <span class="o">=</span> <span class="n">normalize_path</span><span class="p">(</span><span class="n">cython_libs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">AGI</span><span class="o">.</span><span class="n">_build_lib_local</span><span class="p">(</span><span class="n">is_local</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="c1"># do distribut</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;uv -q run --project </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="si">}</span><span class="s1"> python -c &quot;from agi_core.workers.agi_worker import AgiWorker;&#39;</span>
-               <span class="sa">f</span><span class="s1">&#39;print(AgiWorker.run(</span><span class="se">\&#39;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">app</span><span class="si">}</span><span class="se">\&#39;</span><span class="s1">, </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">workers</span><span class="si">}</span><span class="s1">, </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="si">}</span><span class="s1">, </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_verbose</span><span class="si">}</span><span class="s1">, </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_args</span><span class="si">}</span><span class="s1">))&quot;&#39;</span><span class="p">)</span>
-        <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">res</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+            <span class="n">AgiWorker</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">app</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_verbose</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_args</span><span class="p">)</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">workers</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_verbose</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_args</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;uv -q run --project </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="si">}</span><span class="s2"> python -c </span><span class="se">\&quot;</span><span class="s2">from agi_core.workers.agi_worker import AgiWorker;&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;AgiWorker.new(&#39;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">app</span><span class="si">}</span><span class="s2">&#39;, mode=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="si">}</span><span class="s2">, verbose=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_verbose</span><span class="si">}</span><span class="s2">, args=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_args</span><span class="si">}</span><span class="s2">);&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;res = AgiWorker.run(</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">workers</span><span class="si">}</span><span class="s2">, mode=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="si">}</span><span class="s2">, verbose=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_verbose</span><span class="si">}</span><span class="s2">, args=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_args</span><span class="si">}</span><span class="s2">);&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;print(res)</span><span class="se">\&quot;</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+            <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run_async</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">res</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">res_lines</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">res_lines</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">res</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">res</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_run_by_mode</span><span class="p">():</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        workers run calibration and targets job</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">env</span>
+
+        <span class="c1"># AGI distribute work on cluster</span>
+        <span class="n">AGI</span><span class="o">.</span><span class="n">_dask_workers</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">worker</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">worker</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_dask_client</span><span class="o">.</span><span class="n">scheduler_info</span><span class="p">()[</span><span class="s2">&quot;workers&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="p">]</span>
+        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;AGI run mode=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="si">}</span><span class="s2"> on </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_dask_workers</span><span class="p">)</span><span class="si">}</span><span class="s2"> ... &quot;</span><span class="p">)</span>
+
+        <span class="n">AGI</span><span class="o">.</span><span class="n">workers</span><span class="p">,</span> <span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span> <span class="o">=</span> <span class="n">AgiManager</span><span class="o">.</span><span class="n">do_distrib</span><span class="p">(</span>
+            <span class="n">AGI</span><span class="o">.</span><span class="n">_target_inst</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">AGI</span><span class="o">.</span><span class="n">workers</span>
+        <span class="p">)</span>
+        <span class="n">AGI</span><span class="o">.</span><span class="n">workers_tree</span> <span class="o">=</span> <span class="n">workers_tree</span>
+        <span class="n">AGI</span><span class="o">.</span><span class="n">workers_tree_info</span> <span class="o">=</span> <span class="n">workers_tree_info</span>
+
+        <span class="n">AGI</span><span class="o">.</span><span class="n">_scale_cluster</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span> <span class="o">==</span> <span class="n">AGI</span><span class="o">.</span><span class="n">INSTALL_MODE</span><span class="p">:</span>
+            <span class="n">workers_tree</span>
+
+        <span class="n">AGI</span><span class="o">.</span><span class="n">_dask_client</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="n">AGI</span><span class="o">.</span><span class="n">_dask_client</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span>
+                    <span class="n">AgiWorker</span><span class="o">.</span><span class="n">new</span><span class="p">,</span>
+                    <span class="n">env</span><span class="o">.</span><span class="n">app</span><span class="p">,</span>
+                    <span class="n">mode</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="p">,</span>
+                    <span class="n">verbose</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_verbose</span><span class="p">,</span>
+                    <span class="n">worker_id</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_dask_workers</span><span class="p">)</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">worker</span><span class="p">),</span>
+                    <span class="n">worker</span><span class="o">=</span><span class="n">worker</span><span class="p">,</span>
+                    <span class="n">args</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_args</span><span class="p">,</span>
+                    <span class="n">workers</span><span class="o">=</span><span class="p">[</span><span class="n">worker</span><span class="p">],</span>
+                <span class="p">)</span>
+                <span class="k">for</span> <span class="n">worker</span> <span class="ow">in</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_dask_workers</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_calibration</span><span class="p">()</span>
+
+        <span class="n">t</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+
+        <span class="n">AGI</span><span class="o">.</span><span class="n">_run_time</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_dask_client</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+            <span class="n">AgiWorker</span><span class="o">.</span><span class="n">do_works</span><span class="p">,</span>
+            <span class="n">workers_tree</span><span class="p">,</span>
+            <span class="n">workers_tree_info</span><span class="p">,</span>
+            <span class="n">workers</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_dask_workers</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">runtime</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">t</span>
+
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">mode2str</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">runtime</span><span class="si">}</span><span class="s2">&quot;</span>
 
 <div class="viewcode-block" id="AGI.main">
 <a class="viewcode-back" href="../../../../agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.main">[docs]</a>
@@ -1986,61 +2079,6 @@
                 <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;unused workers: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">workers_to_remove</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="k">for</span> <span class="n">worker</span> <span class="ow">in</span> <span class="n">workers_to_remove</span><span class="p">:</span>
                     <span class="n">AGI</span><span class="o">.</span><span class="n">_dask_workers</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">worker</span><span class="p">)</span>
-
-    <span class="nd">@staticmethod</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_run_by_mode</span><span class="p">():</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        workers run calibration and targets job</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">env</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">env</span>
-        <span class="c1"># AGI distribute work on cluster</span>
-        <span class="n">AGI</span><span class="o">.</span><span class="n">_dask_workers</span> <span class="o">=</span> <span class="p">[</span>
-            <span class="n">worker</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-            <span class="k">for</span> <span class="n">worker</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_dask_client</span><span class="o">.</span><span class="n">scheduler_info</span><span class="p">()[</span><span class="s2">&quot;workers&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
-        <span class="p">]</span>
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;AGI run mode=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="si">}</span><span class="s2"> on </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_dask_workers</span><span class="p">)</span><span class="si">}</span><span class="s2"> ... &quot;</span><span class="p">)</span>
-
-        <span class="n">AGI</span><span class="o">.</span><span class="n">workers</span><span class="p">,</span> <span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span> <span class="o">=</span> <span class="n">AgiManager</span><span class="o">.</span><span class="n">do_distrib</span><span class="p">(</span>
-            <span class="n">AGI</span><span class="o">.</span><span class="n">_target_inst</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">AGI</span><span class="o">.</span><span class="n">workers</span>
-        <span class="p">)</span>
-        <span class="n">AGI</span><span class="o">.</span><span class="n">workers_tree</span> <span class="o">=</span> <span class="n">workers_tree</span>
-        <span class="n">AGI</span><span class="o">.</span><span class="n">workers_tree_info</span> <span class="o">=</span> <span class="n">workers_tree_info</span>
-
-        <span class="n">AGI</span><span class="o">.</span><span class="n">_scale_cluster</span><span class="p">()</span>
-
-        <span class="k">if</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span> <span class="o">==</span> <span class="n">AGI</span><span class="o">.</span><span class="n">INSTALL_MODE</span><span class="p">:</span>
-            <span class="n">workers_tree</span>
-
-        <span class="n">AGI</span><span class="o">.</span><span class="n">_dask_client</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span>
-            <span class="p">[</span>
-                <span class="n">AGI</span><span class="o">.</span><span class="n">_dask_client</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span>
-                    <span class="n">AgiWorker</span><span class="o">.</span><span class="n">new</span><span class="p">,</span>
-                    <span class="n">env</span><span class="o">.</span><span class="n">app</span><span class="p">,</span>
-                    <span class="n">mode</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="p">,</span>
-                    <span class="n">verbose</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_verbose</span><span class="p">,</span>
-                    <span class="n">worker_id</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_dask_workers</span><span class="p">)</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">worker</span><span class="p">),</span>
-                    <span class="n">worker</span><span class="o">=</span><span class="n">worker</span><span class="p">,</span>
-                    <span class="n">args</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_args</span><span class="p">,</span>
-                    <span class="n">workers</span><span class="o">=</span><span class="p">[</span><span class="n">worker</span><span class="p">],</span>
-                <span class="p">)</span>
-                <span class="k">for</span> <span class="n">worker</span> <span class="ow">in</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_dask_workers</span>
-            <span class="p">]</span>
-        <span class="p">)</span>
-
-        <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_calibration</span><span class="p">()</span>
-
-        <span class="n">t</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
-
-        <span class="n">AGI</span><span class="o">.</span><span class="n">_run_time</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_dask_client</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
-            <span class="n">AgiWorker</span><span class="o">.</span><span class="n">do_works</span><span class="p">,</span>
-            <span class="n">workers_tree</span><span class="p">,</span>
-            <span class="n">workers_tree_info</span><span class="p">,</span>
-            <span class="n">workers</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_dask_workers</span><span class="p">,</span>
-        <span class="p">)</span>
-
-        <span class="n">runtime</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">t</span>
-
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">mode2str</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">runtime</span><span class="si">}</span><span class="s2">&quot;</span>
 
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_stop</span><span class="p">():</span>

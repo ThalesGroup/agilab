@@ -1299,11 +1299,7 @@ class AgiEnv:
 
         except asyncssh.Error as e:
             raise e
-            # err_msg = (
-            #     f"Could not connect to {ip}. Please check device is reachable, network cable connected, and SSH service running."
-            # )
-            # self.log_error(err_msg)
-            # raise ConnectionError(err_msg)
+
 
     async def exec_ssh(self, ip: str, cmd: str) -> str:
         try:

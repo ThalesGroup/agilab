@@ -24,7 +24,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Troubleshooting" href="troubleshooting.html" />
+    <link rel="next" title="Installation Principle" href="install-usecase.html" />
     <link rel="prev" title="agi_core.workers API" href="agi-workers.html" /> 
 </head>
 
@@ -140,6 +140,7 @@
 <li class="toctree-l3"><a class="reference internal" href="agi-env.html#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.normalize_path"><code class="docutils literal notranslate"><span class="pre">normalize_path()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -173,6 +174,7 @@
 </ul>
 </li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Project Files Structure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-usecase.html">Installation Principle</a></li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
@@ -271,7 +273,6 @@
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.logs"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.logs</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.mode"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.new"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.new()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.normalize_path"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.normalize_path()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.onerror"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.onerror()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.run"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.run()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.share_path"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.share_path</span></code></a></li>
@@ -375,7 +376,6 @@
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.logs"><code class="docutils literal notranslate"><span class="pre">FlightWorker.logs</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.mode"><code class="docutils literal notranslate"><span class="pre">FlightWorker.mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.new"><code class="docutils literal notranslate"><span class="pre">FlightWorker.new()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.normalize_path"><code class="docutils literal notranslate"><span class="pre">FlightWorker.normalize_path()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.onerror"><code class="docutils literal notranslate"><span class="pre">FlightWorker.onerror()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.pool_init"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_init()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.pool_vars"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_vars</span></code></a></li>
@@ -496,15 +496,23 @@
 │   │   └── test
 │   │       └── test_df.ipynb
 │   ├── flight_project
+│   │   ├── apps
 │   │   ├── dask_pid
+│   │   ├── dask-pid-0
+│   │   ├── data
+│   │   │   └── flight
+│   │   │       └── dataframes
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── run_test.sh
 │   │   ├── setup
 │   │   ├── src
+│   │   │   ├── apps
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
+│   │   │   ├── data
+│   │   │   │   └── flight
 │   │   │   ├── flight
 │   │   │   │   ├── flight.py
 │   │   │   │   └── __init__.py
@@ -534,10 +542,7 @@
 │   │   │   ├── test_flight_manager.py
 │   │   │   ├── test_flight.py
 │   │   │   └── test_flight_worker.py
-│   │   ├── uv.lock
-│   │   └── wenv
-│   │       └── flight_worker
-│   │           └── src
+│   │   └── uv.lock
 │   ├── flight_sim_project
 │   │   ├── distribution_tree.json
 │   │   ├── post_install.py
@@ -686,6 +691,8 @@
 │       └── uv.toml
 ├── fwk
 │   ├── core
+│   │   ├── dist
+│   │   │   └── agi_core-0.3.12-py3-none-any.whl
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
@@ -717,6 +724,8 @@
 │   ├── coverage.xml
 │   ├── env
 │   │   ├── coverage.xml
+│   │   ├── dist
+│   │   │   └── agi_env-0.3.12-py3-none-any.whl
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
@@ -808,7 +817,7 @@
     ├── pyproject.toml
     └── README.md
 
-93 directories, 282 files
+99 directories, 285 files
 </pre></div>
 </div>
 </section>
@@ -818,7 +827,7 @@
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="agi-workers.html" class="btn btn-neutral float-left" title="agi_core.workers API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="troubleshooting.html" class="btn btn-neutral float-right" title="Troubleshooting" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="install-usecase.html" class="btn btn-neutral float-right" title="Installation Principle" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

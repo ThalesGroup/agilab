@@ -1282,7 +1282,6 @@ class AGI:
             for j in range(n):
                 try:
                     AgiEnv.log_info(f"Starting worker #{i}.{j} on [{ip}]")
-
                     pid_file = f"dask-pid-{i}.{j}"
 
                     if is_local:
@@ -1294,7 +1293,6 @@ class AGI:
                         )
                         # Run locally in background (non-blocking)
                         AGI._exec_bg(cmd, str(wenv_abs))
-
                     else:
                         wenv_rel = env.wenv_rel
                         cmd = f'uv -q --project {wenv_rel} run dask worker tcp://{AGI._scheduler} --no-nanny --pid-file {pid_file}'

@@ -137,6 +137,7 @@
 <li class="toctree-l3"><a class="reference internal" href="agi-env.html#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.normalize_path"><code class="docutils literal notranslate"><span class="pre">normalize_path()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -170,6 +171,7 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="directory-structure.html">Project Files Structure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-usecase.html">Installation Principle</a></li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
@@ -268,7 +270,6 @@
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.logs"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.logs</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.mode"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.new"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.new()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.normalize_path"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.normalize_path()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.onerror"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.onerror()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.run"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.run()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.share_path"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.share_path</span></code></a></li>
@@ -372,7 +373,6 @@
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.logs"><code class="docutils literal notranslate"><span class="pre">FlightWorker.logs</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.mode"><code class="docutils literal notranslate"><span class="pre">FlightWorker.mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.new"><code class="docutils literal notranslate"><span class="pre">FlightWorker.new()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.normalize_path"><code class="docutils literal notranslate"><span class="pre">FlightWorker.normalize_path()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.onerror"><code class="docutils literal notranslate"><span class="pre">FlightWorker.onerror()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.pool_init"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_init()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.pool_vars"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_vars</span></code></a></li>
@@ -961,6 +961,8 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.has_admin_rights">has_admin_rights() (agi_env.agi_env.AgiEnv method)</a>
 </li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.has_rapids_hw">has_rapids_hw (agi_env.agi_env.AgiEnv attribute)</a>
+</li>
       <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.home_dir">home_dir (agi_core.workers.agi_worker.agi_worker.AgiWorker attribute)</a>
 
       <ul>
@@ -1272,26 +1274,12 @@
         <li><a href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.new">(my_code_worker.my_code_worker.MyCodeWorker static method)</a>
 </li>
       </ul></li>
-      <li><a href="flight-project.html#flight.flight.FlightArgs.nfile">nfile (flight.flight.FlightArgs attribute)</a>
-</li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.normalize_path">normalize_path() (agi_core.workers.agi_worker.agi_worker.AgiWorker static method)</a>
-
-      <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.normalize_path">(agi_core.workers.dag_worker.dag_worker.DagWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.normalize_path">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.normalize_path">(agi_core.workers.polars_worker.polars_worker.PolarsWorker static method)</a>
-</li>
-        <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.normalize_path">(agi_env.agi_env.AgiEnv static method)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.normalize_path">(flight_worker.flight_worker.FlightWorker static method)</a>
-</li>
-        <li><a href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.normalize_path">(my_code_worker.my_code_worker.MyCodeWorker static method)</a>
-</li>
-      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="flight-project.html#flight.flight.FlightArgs.nfile">nfile (flight.flight.FlightArgs attribute)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.normalize_path">normalize_path() (in module agi_env.agi_env)</a>
+</li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.nread">nread (flight.flight.FlightArgs attribute)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.nskip">nskip (flight.flight.FlightArgs attribute)</a>
