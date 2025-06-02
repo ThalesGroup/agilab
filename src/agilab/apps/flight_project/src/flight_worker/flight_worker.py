@@ -225,7 +225,6 @@ class FlightWorker(PolarsWorker):
                     timestamp = dt.now().strftime("%Y-%m-%d_%H-%M-%S")
                     filename = f"{self.data_out}/{str(plane)+'_'+timestamp}.csv"
                     plane_df.write_csv(str(filename))
-
                 if self.verbose > 0:
                     logging.info(f"Saved dataframe for plane {plane} with shape {plane_df.shape} in {filename}")
             except Exception as e:

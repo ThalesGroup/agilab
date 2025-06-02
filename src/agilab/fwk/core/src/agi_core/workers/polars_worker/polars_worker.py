@@ -150,7 +150,6 @@ class PolarsWorker(AgiWorker):
             f"PolarsWorker.work - ncore {ncore} - my_code_worker #{self.worker_id}"
             f" - work_pool x {len(works)}",
         )
-
         self.work_init()
         for work_id, work in enumerate(workers_tree[self.worker_id]):
             list_df = []
@@ -172,8 +171,7 @@ class PolarsWorker(AgiWorker):
             ) as exec:
                 # Map each work item to work_pool.
                 dfs = exec.map(self.work_pool, work)
-
-            # Post pool processing: collect non-empty DataFrames.
+            # Post pool processinflight: collect non-empty DataFrames.
             for df_result in dfs:
                 # Check if the result DataFrame has columns.
                 if df_result.shape[1] > 0:

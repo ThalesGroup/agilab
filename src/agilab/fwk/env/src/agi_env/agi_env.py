@@ -404,6 +404,7 @@ class AgiEnv:
         self.is_managed_pc = getpass.getuser().startswith("T0")
         self.agi_resources = Path("resources/.agilab")
         home_abs = Path.home() / "MyApp" if self.is_managed_pc else Path.home()
+        self.home_abs = home_abs
 
         self.resource_path = home_abs / self.agi_resources.name
         env_path = self.resource_path / ".env"
@@ -479,9 +480,10 @@ class AgiEnv:
         else:
             apps_dir = self._determine_apps_dir(active_app)
             module = apps_dir.name.replace("_project", "").replace("-", "_")
-
+        self.module = module
         wenv_root = Path("wenv")
         target_worker = f"{module}_worker"
+        self.target_worker = target_worker
         wenv_rel = wenv_root / target_worker
         target_class = "".join(x.title() for x in module.split("_"))
         self.target_class = target_class
@@ -522,7 +524,6 @@ class AgiEnv:
             self.worker_pyproject = self.wenv_rel  / "pyproject.toml"
             self.uvproject = self.wenv_rel / "uv.toml"
 
-        self.target_worker = target_worker
         AgiEnv.apps_dir = apps_dir
         distribution_tree = self.wenv_abs / "distribution_tree.json"
         if distribution_tree.exists():
@@ -558,14 +559,14 @@ class AgiEnv:
         core_src = base
         self.core_root = base.parent
         env_src = self.core_root.parent / "env/src"
-        self.env_root = env_src.parent
         self.env_src =  env_src
+        self.env_root = env_src.parent
 
         agi_core = core_src / "agi_core"
+        self.agi_core = agi_core
         self.core_src = core_src
         self.workers_root = agi_core / "workers"
         self.manager_root = agi_core / "managers"
-        self.agi_core = agi_core
         self.setup_app = self.app_abs / "setup"
 
         self.setup_core_rel = "agi_worker/setup"
@@ -579,7 +580,7 @@ class AgiEnv:
             module_path = module.expanduser().resolve()
         else:
             module_path = self._determine_module_path(module)
-        self.module = module
+
         self.target = module_path.stem
         self.module_path = module_path
         self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", "data"))
@@ -599,7 +600,6 @@ class AgiEnv:
 
         self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", home_abs / "data"))
 
-        self.home_abs = home_abs
         app_src = self.app_src
         app_src.mkdir(parents=True, exist_ok=True)
         app_src_str = str(app_src)
