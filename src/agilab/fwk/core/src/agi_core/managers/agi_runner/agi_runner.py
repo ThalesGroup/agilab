@@ -1418,7 +1418,7 @@ class AGI:
             AgiEnv.log_info("warning: no scheduler found but requested mode is dask=1 => switch to dask")
 
     @staticmethod
-    async def _run_local(debug=True):
+    async def _run_local():
         """
 
         Returns:
@@ -1450,7 +1450,7 @@ class AGI:
             else:
                 AGI._build_lib_local(is_local=True)
 
-        if debug:
+        if env.debug:
             AgiWorker.new(env.app, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
             res = AgiWorker.run(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
         else:
@@ -1462,14 +1462,16 @@ class AGI:
             )
 
             res = await AgiEnv.run_async(cmd, env.wenv_abs)
-        if isinstance(res, list):
-            return res
-        else:
-            res_lines = res.split('\n')
-            if len(res_lines) < 2:
+
+        if res:
+            if isinstance(res, list):
                 return res
             else:
-                return res.split('\n')[-2]
+                res_lines = res.split('\n')
+                if len(res_lines) < 2:
+                    return res
+                else:
+                    return res.split('\n')[-2]
 
     @staticmethod
     async def _run_by_mode():

@@ -1,4 +1,5 @@
 from IPython.core.ultratb import FormattedTB
+from IPython.core.ultratb import FormattedTB
 import ast
 import asyncio
 import getpass
@@ -337,6 +338,7 @@ class AgiEnv:
     GUI_SAMPLING = None
     init_done = False
     has_rapids_hw = None
+    debug = False
 
     def init_logging(self, verbosity: int = None):
         """
@@ -438,7 +440,10 @@ class AgiEnv:
             self._init_resources(resource_path)
         else:
             if install_type == 2:
-                self.agi_fwk_env_path = list(Path(sys.prefix).rglob('agi_env'))[0]
+                if self.debug:
+                    self.agi_fwk_env_path = self.agi_root / "fwk/env"
+                else:
+                    self.agi_fwk_env_path = list(Path(sys.prefix).rglob('agi_env'))[0]
             else:
                 head, sep, _ = __file__.partition("site-packages")
                 if not sep:
