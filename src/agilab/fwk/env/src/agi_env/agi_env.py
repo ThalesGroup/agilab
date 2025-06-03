@@ -1099,7 +1099,7 @@ class AgiEnv:
                 line = await stream.readline()
                 if not line:
                     break
-                decoded_line = line.decode().rstrip()
+                decoded_line = line.decode('utf-8', errors='replace').rstrip()
                 callback(decoded_line)
 
         tasks = []
