@@ -52,7 +52,7 @@
 | pydantic-core | MIT LICENSE |
 | pygments | BSD LICENSE |
 | pynacl | APACHE LICENSE 2.0 |
-| pyppmd | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pyppmd | LGPL-2.1-OR-LATER |
 | python-dotenv | BSD LICENSE |
 | pyyaml | MIT LICENSE |
 | pyzstd | BSD LICENSE |

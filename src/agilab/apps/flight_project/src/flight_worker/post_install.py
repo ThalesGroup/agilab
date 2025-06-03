@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 import py7zr
+import shutil
+import traceback
 
 def unzip_data(archive_path: Path, extract_to: Path | str = None):
     archive_path = Path(archive_path)
@@ -8,10 +10,16 @@ def unzip_data(archive_path: Path, extract_to: Path | str = None):
         print(f"Archive '{archive_path}' does not exist.")
         sys.exit(1)
 
-    # normalize extract_to to a Path, defaulting to "data" in cwd
+    # Normalize extract_to to a Path relative to cwd or absolute
     if not extract_to:
         extract_to = Path("data")
-    dest = Path().home() / extract_to
+    dest = Path(extract_to).expanduser().resolve()
+
+    # Clear existing folder if not empty to avoid extraction errors on second call
+    if dest.exists() and any(dest.iterdir()):
+        sys.exit(1)
+        #print(f"Destination '{dest}' exists and is not empty. Clearing it before extraction.")
+        #shutil.rmtree(dest)
     dest.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -20,6 +28,7 @@ def unzip_data(archive_path: Path, extract_to: Path | str = None):
         print(f"Successfully extracted '{archive_path}' to '{dest}'.")
     except Exception as e:
         print(f"Failed to extract '{archive_path}': {e}")
+        traceback.print_exc()
         sys.exit(1)
 
 if __name__ == "__main__":

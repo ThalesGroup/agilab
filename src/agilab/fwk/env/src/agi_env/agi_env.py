@@ -468,7 +468,7 @@ class AgiEnv:
                 os.makedirs(str(apps_dir), exist_ok=True)
         except FileNotFoundError:
             logging.error("apps_dir not found: %s", apps_dir)
-            exit(1)
+            sys.exit(1)
 
         self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
         self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
@@ -557,7 +557,7 @@ class AgiEnv:
         self.workers_packages_prefix = "agi_core.workers."
         if not self.worker_path.exists():
             logging.info(f"Missing {self.target_worker_class} definition; should be in {self.worker_path} but it does not exist")
-            exit(1)
+            sys.exit(1)
 
         self.agi_core = self.resolve_packages_path_in_toml()
         self.projects = self.get_projects(self.apps_dir)
@@ -1106,7 +1106,7 @@ class AgiEnv:
                     break
                 decoded_line = line.decode('utf-8', errors='replace').rstrip()
                 if decoded_line:
-                    log_func(decoded_line)
+                    AgiEnv.log_info(decoded_line)
 
         tasks = []
         if proc.stdout:
@@ -1286,12 +1286,12 @@ class AgiEnv:
         except asyncio.TimeoutError:
             err_msg = f"Connection to {ip} timed out after {timeout_sec} seconds."
             self._log_error_once(ip, err_msg)
-            exit(1)
+            sys.exit(1)
 
         except asyncssh.PermissionDenied:
             err_msg = f"Authentication failed for SSH user '{self.user}' on host {ip}."
             self._log_error_once(ip, err_msg)
-            exit(1)
+            sys.exit(1)
 
         except OSError as e:
             if e.errno == errno.EHOSTUNREACH:
@@ -1300,21 +1300,21 @@ class AgiEnv:
                     "Please check that the device is powered on, network cable connected, and SSH service running."
                 )
                 self._log_error_once(ip, err_msg)
-                exit(1)
+                sys.exit(1)
             elif e.errno in (errno.EACCES, errno.ECONNREFUSED):
                 self._log_error_once(ip, str(e))
-                exit(1)
+                sys.exit(1)
             else:
                 self._log_error_once(ip, str(e))
-                exit(1)
+                sys.exit(1)
 
         except asyncssh.Error as e:
             self._log_error_once(ip, str(e))
-            exit(1)
+            sys.exit(1)
 
         except Exception as e:
             self._log_error_once(ip, f"Unexpected error while connecting to {ip}: {e}")
-            exit(1)
+            sys.exit(1)
 
     async def exec_ssh(self, ip: str, cmd: str) -> str:
         try:
@@ -1339,11 +1339,11 @@ class AgiEnv:
                 stderr = stderr.decode('utf-8', errors='replace')
             self._log_error_once(ip, f"SSH command stdout: {stdout.strip()}")
             self._log_error_once(ip, f"SSH command stderr: {stderr.strip()}")
-            exit(1)
+            sys.exit(1)
 
         except (asyncssh.Error, OSError) as e:
             AgiEnv.log_error(e)
-            exit(1)
+            sys.exit(1)
 
     async def exec_ssh_async(self, ip: str, cmd: str) -> str:
         """

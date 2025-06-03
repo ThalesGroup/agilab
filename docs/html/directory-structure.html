@@ -24,7 +24,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Installation Principle" href="install-usecase.html" />
+    <link rel="next" title="Installation Overview" href="install-usecase.html" />
     <link rel="prev" title="agi_core.workers API" href="agi-workers.html" /> 
 </head>
 
@@ -174,7 +174,7 @@
 </ul>
 </li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Project Files Structure</a></li>
-<li class="toctree-l1"><a class="reference internal" href="install-usecase.html">Installation Principle</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-usecase.html">Installation Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
@@ -439,38 +439,40 @@
 │   │   ├── MANIFEST.in.in
 │   │   ├── pyproject.toml
 │   │   ├── README.md
-│   │   └── src
-│   │       ├── agent_app
-│   │       │   ├── agent_app.py
-│   │       │   └── __init__.py
-│   │       ├── agent_app_worker
-│   │       │   ├── agent_app_worker.py
-│   │       │   ├── __init__.py
-│   │       │   ├── post_install.py
-│   │       │   ├── pre_install.py
-│   │       │   ├── pyproject.toml
-│   │       │   └── uv.toml
-│   │       ├── app_settings.toml
-│   │       ├── args_ui_snippet.py
-│   │       └── pre_prompt.json
+│   │   ├── src
+│   │   │   ├── agent_app
+│   │   │   │   ├── agent_app.py
+│   │   │   │   └── __init__.py
+│   │   │   ├── agent_app_worker
+│   │   │   │   ├── agent_app_worker.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── post_install.py
+│   │   │   │   ├── pre_install.py
+│   │   │   │   ├── pyproject.toml
+│   │   │   │   └── uv.toml
+│   │   │   ├── app_settings.toml
+│   │   │   ├── args_ui_snippet.py
+│   │   │   └── pre_prompt.json
+│   │   └── uv.toml
 │   ├── dag_app_template
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
 │   │   ├── README.md
-│   │   └── src
-│   │       ├── app_settings.toml
-│   │       ├── args_ui_snippet.py
-│   │       ├── dag_app
-│   │       │   ├── dag_app.py
-│   │       │   └── __init__.py
-│   │       ├── dag_app_worker
-│   │       │   ├── dag_app_worker.py
-│   │       │   ├── __init__.py
-│   │       │   ├── post_install.py
-│   │       │   ├── pre_install.py
-│   │       │   ├── pyproject.toml
-│   │       │   └── uv.toml
-│   │       └── pre_prompt.json
+│   │   ├── src
+│   │   │   ├── app_settings.toml
+│   │   │   ├── args_ui_snippet.py
+│   │   │   ├── dag_app
+│   │   │   │   ├── dag_app.py
+│   │   │   │   └── __init__.py
+│   │   │   ├── dag_app_worker
+│   │   │   │   ├── dag_app_worker.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── post_install.py
+│   │   │   │   ├── pre_install.py
+│   │   │   │   ├── pyproject.toml
+│   │   │   │   └── uv.toml
+│   │   │   └── pre_prompt.json
+│   │   └── uv.toml
 │   ├── flight_legacy_project
 │   │   ├── pre_prompt.json
 │   │   ├── pyproject.toml
@@ -493,8 +495,9 @@
 │   │   │   ├── lab_steps.ipynb
 │   │   │   ├── lab_steps.toml
 │   │   │   └── pre_prompt.json
-│   │   └── test
-│   │       └── test_df.ipynb
+│   │   ├── test
+│   │   │   └── test_df.ipynb
+│   │   └── uv.toml
 │   ├── flight_project
 │   │   ├── apps
 │   │   ├── dask_pid
@@ -542,7 +545,8 @@
 │   │   │   ├── test_flight_manager.py
 │   │   │   ├── test_flight.py
 │   │   │   └── test_flight_worker.py
-│   │   └── uv.lock
+│   │   ├── uv.lock
+│   │   └── uv.toml
 │   ├── flight_sim_project
 │   │   ├── distribution_tree.json
 │   │   ├── post_install.py
@@ -572,12 +576,13 @@
 │   │   │       ├── PKG-INFO
 │   │   │       ├── SOURCES.txt
 │   │   │       └── top_level.txt
-│   │   └── test
-│   │       ├── __init__.py
-│   │       ├── test_df.ipynb
-│   │       ├── test_flight_sim_manager.py
-│   │       ├── test_flight_sim.py
-│   │       └── test_flight_sim_worker.py
+│   │   ├── test
+│   │   │   ├── __init__.py
+│   │   │   ├── test_df.ipynb
+│   │   │   ├── test_flight_sim_manager.py
+│   │   │   ├── test_flight_sim.py
+│   │   │   └── test_flight_sim_worker.py
+│   │   └── uv.toml
 │   ├── install.ps1
 │   ├── install.py
 │   ├── install.sh
@@ -593,13 +598,6 @@
 │   │   │   ├── my_code
 │   │   │   │   ├── __init__.py
 │   │   │   │   └── my_code.py
-│   │   │   ├── my_code_project.egg-info
-│   │   │   │   ├── dependency_links.txt
-│   │   │   │   ├── not-zip-safe
-│   │   │   │   ├── PKG-INFO
-│   │   │   │   ├── requires.txt
-│   │   │   │   ├── SOURCES.txt
-│   │   │   │   └── top_level.txt
 │   │   │   ├── my_code_worker
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── my_code_worker.c
@@ -615,6 +613,7 @@
 │   │   │   ├── test_my_code_manager.py
 │   │   │   └── test_my_code_worker.py
 │   │   ├── uv.lock
+│   │   ├── uv.toml
 │   │   └── wenv
 │   │       └── my_code_worker
 │   │           └── src
@@ -622,38 +621,40 @@
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
 │   │   ├── README.md
-│   │   └── src
-│   │       ├── app_settings.toml
-│   │       ├── args_ui_snippet.py
-│   │       ├── pandas_app
-│   │       │   ├── __init__.py
-│   │       │   └── pandas_app.py
-│   │       ├── pandas_app_worker
-│   │       │   ├── __init__.py
-│   │       │   ├── pandas_app_worker.py
-│   │       │   ├── post_install.py
-│   │       │   ├── pre_install.py
-│   │       │   ├── pyproject.toml
-│   │       │   └── uv.toml
-│   │       └── pre_prompt.json
+│   │   ├── src
+│   │   │   ├── app_settings.toml
+│   │   │   ├── args_ui_snippet.py
+│   │   │   ├── pandas_app
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── pandas_app.py
+│   │   │   ├── pandas_app_worker
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── pandas_app_worker.py
+│   │   │   │   ├── post_install.py
+│   │   │   │   ├── pre_install.py
+│   │   │   │   ├── pyproject.toml
+│   │   │   │   └── uv.toml
+│   │   │   └── pre_prompt.json
+│   │   └── uv.toml
 │   ├── polars_app_template
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
 │   │   ├── README.md
-│   │   └── src
-│   │       ├── app_settings.toml
-│   │       ├── args_ui_snippet.py
-│   │       ├── polars_app
-│   │       │   ├── __init__.py
-│   │       │   └── polars_app.py
-│   │       ├── polars_app_worker
-│   │       │   ├── __init__.py
-│   │       │   ├── polars_app_worker.py
-│   │       │   ├── post_install.py
-│   │       │   ├── pre_install.py
-│   │       │   ├── pyproject.toml
-│   │       │   └── uv.toml
-│   │       └── pre_prompt.json
+│   │   ├── src
+│   │   │   ├── app_settings.toml
+│   │   │   ├── args_ui_snippet.py
+│   │   │   ├── polars_app
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── polars_app.py
+│   │   │   ├── polars_app_worker
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── polars_app_worker.py
+│   │   │   │   ├── post_install.py
+│   │   │   │   ├── pre_install.py
+│   │   │   │   ├── pyproject.toml
+│   │   │   │   └── uv.toml
+│   │   │   └── pre_prompt.json
+│   │   └── uv.toml
 │   ├── README.md
 │   ├── rssi-predictor
 │   │   ├── rssi-predictor
@@ -817,7 +818,7 @@
     ├── pyproject.toml
     └── README.md
 
-99 directories, 285 files
+98 directories, 287 files
 </pre></div>
 </div>
 </section>
@@ -827,7 +828,7 @@
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="agi-workers.html" class="btn btn-neutral float-left" title="agi_core.workers API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="install-usecase.html" class="btn btn-neutral float-right" title="Installation Principle" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="install-usecase.html" class="btn btn-neutral float-right" title="Installation Overview" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

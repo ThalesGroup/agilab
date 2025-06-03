@@ -91,7 +91,7 @@ def main():
                     f.write(str(agilab_install))
                 else:
                     print("No agilab installed in", agilab_install)
-                    exit(1)
+                    sys.exit(1)
     if unknown:
         custom_args.extend(unknown)
 

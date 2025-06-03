@@ -174,7 +174,7 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="directory-structure.html">Project Files Structure</a></li>
-<li class="toctree-l1"><a class="reference internal" href="install-usecase.html">Installation Principle</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-usecase.html">Installation Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
@@ -576,6 +576,11 @@ in-file identifiers and class names.</p>
 </dl>
 </dd></dl>
 
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.debug">
+<span class="sig-name descname"><span class="pre">debug</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.debug" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.exec_ssh">
 <em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec_ssh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.exec_ssh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.exec_ssh" title="Link to this definition"></a></dt>
@@ -589,7 +594,13 @@ in-file identifiers and class names.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.exec_ssh_async">
 <em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec_ssh_async</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.exec_ssh_async"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.exec_ssh_async" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Execute a remote command via SSH and return the last line of its stdout output.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></span></p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.extract_base_info">
@@ -719,17 +730,8 @@ INFO and DEBUG levels go to stdout; WARNING and above go to stderr.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.log_remote_line">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">log_remote_line</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">line</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.log_remote_line"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.log_remote_line" title="Link to this definition"></a></dt>
-<dd><p>Log a line from remote SSH output with the proper log level.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>ip</strong> (<em>str</em>) – IP address of remote host.</p></li>
-<li><p><strong>line</strong> (<em>str</em>) – One line of output from remote process.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
+<span class="sig-name descname"><span class="pre">log_remote_line</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">line</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.log_remote_line"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.log_remote_line" title="Link to this definition"></a></dt>
+<dd></dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.mode2int">

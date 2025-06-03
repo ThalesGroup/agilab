@@ -201,7 +201,7 @@
 | plotly | MIT LICENSE |
 | ply | BSD |
 | polars | MIT LICENSE |
-| prometheus-client | APACHE SOFTWARE LICENSE |
+| prometheus-client | APACHE-2.0;; BSD-2-CLAUSE |
 | prompt-toolkit | BSD LICENSE |
 | propcache | APACHE SOFTWARE LICENSE |
 | proto-plus | APACHE SOFTWARE LICENSE |
@@ -228,7 +228,7 @@
 | pyopenssl | APACHE SOFTWARE LICENSE |
 | pyparsing | MIT LICENSE |
 | pypdf | BSD LICENSE |
-| pyppmd | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pyppmd | LGPL-2.1-OR-LATER |
 | python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | BSD LICENSE |
 | python-json-logger | BSD LICENSE |
