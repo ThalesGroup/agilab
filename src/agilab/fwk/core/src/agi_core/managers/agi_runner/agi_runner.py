@@ -192,7 +192,7 @@ class AGI:
 
         AGI.target_path = env.module_path
         AGI._target = env.target
-        AGI._rapids_install = rapids_enabled
+        AGI._rapids_enabled = rapids_enabled
         AgiEnv.log_info(f"AGI instance created for target {target} with verbosity {env.verbose}")
 
         if mode is None or isinstance(mode, list):
@@ -790,7 +790,7 @@ class AGI:
         wenv_abs = env.wenv_abs
         pyvers = env.python_version
         extras = "--dev -p " + pyvers
-        extras += " --config-file uv.toml" if AGI._rapids_install else ""
+        extras += " --config-file uv.toml" if AGI._rapids_enabled else ""
         options = {"manager": extras, "worker": extras}
         if isinstance(env.base_worker_cls, str):
             options["worker"] += " --extra " + " --extra ".join(AGI.install_worker_group)
@@ -853,7 +853,7 @@ class AGI:
         pyvers = env.python_version
         run_type = AGI._run_type
         ip = "127.0.0.1"
-        has_rapids_hw = AGI._hardware_supports_rapids()
+        has_rapids_hw = AGI._hardware_supports_rapids() and AGI._rapids_enabled
         env.has_rapids_hw = has_rapids_hw
         if has_rapids_hw:
             env.set_env_var(ip, "has_rapids_hw")
@@ -943,7 +943,9 @@ class AGI:
                         )
 
         result = await env.exec_ssh(ip, check_rapids)
-        has_rapids_hw = (result != "")
+        has_rapids_hw = (result != "") and AGI._rapids_enabled
+            has_rapids_hw = True
+
         env.has_rapids_hw = has_rapids_hw
         if has_rapids_hw:
             env.set_env_var(ip, "has_rapids_hw")
