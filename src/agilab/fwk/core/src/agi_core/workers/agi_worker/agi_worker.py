@@ -319,7 +319,7 @@ class AgiWorker(abc.ABC):
             )
         except Exception as err:
             AgiEnv.log_error(traceback.format_exc())
-            exit(1)
+            sys.exit(1)
 
         if mode == 48:
             return workers_tree

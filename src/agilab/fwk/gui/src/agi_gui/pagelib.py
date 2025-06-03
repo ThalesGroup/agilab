@@ -42,7 +42,7 @@ from sqlalchemy import false
 #         path = str(src)
 #         if not src.exists():
 #             print(path, "does not exist")
-#             exit(1)
+#             sys.exit(1)
 #         elif path not in sys.path:
 #             print(f"Adding {path} to sys.path")
 #             sys.path.insert(0, path)

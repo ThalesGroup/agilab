@@ -205,13 +205,13 @@ class AGI:
                 pattern = r"^[dcrp]+$"
                 if not re.fullmatch(pattern, mode.lower()):
                     AGI.env.log_info("parameter <mode> must only contain the letters 'd', 'c', 'r', 'p'")
-                    exit(1)
+                    sys.exit(1)
                 AGI._mode = env.mode2int(mode)
             elif isinstance(mode, int):
                 AGI._mode = int(mode)
             else:
                 AGI.env.log_info("parameter <mode> must be an int, a list of int or a string")
-                exit(1)
+                sys.exit(1)
 
             AGI._run_types = ["run", "sync --upgrade", "sync", "simulate"]
             if AGI._mode:
@@ -1176,7 +1176,7 @@ class AGI:
                         scheduler = "127.0.0.1"
                     else:
                         AgiEnv.log_info("AGI.run(...scheduler='scheduler ip address' is required -> Stop")
-                        exit(1)
+                        sys.exit(1)
 
                 AGI._scheduler_ip, AGI._scheduler_port = AGI._get_scheduler(scheduler)
 
@@ -1232,7 +1232,7 @@ class AGI:
             except Exception as e:
                 AgiEnv.log_error("Dask Client instantiation trouble, run aborted due to:")
                 AgiEnv.log_info(e)
-                exit(1)
+                sys.exit(1)
 
             AGI._install_done = True
             if AGI._worker_init_error:
@@ -1430,7 +1430,7 @@ class AGI:
         # check first that install is done
         if not (env.wenv_abs / ".venv").exists():
             AgiEnv.log_info("Worker installlation not found")
-            exit(1)
+            sys.exit(1)
 
         pid_file = "dask-pid-0"
         current_pid = os.getpid()
