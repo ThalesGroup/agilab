@@ -1100,7 +1100,8 @@ class AgiEnv:
                 if not line:
                     break
                 decoded_line = line.decode('utf-8', errors='replace').rstrip()
-                callback(decoded_line)
+                if decoded_line:
+                    log_func(decoded_line)
 
         tasks = []
         if proc.stdout:
@@ -1348,18 +1349,25 @@ class AgiEnv:
             process = await conn.create_process(cmd)
 
             async def read_stream(stream, log_func):
-                async for line in stream:
-                    if isinstance(line, bytes):
-                        decoded_line = line.decode('utf-8', errors='replace').rstrip()
-                    else:
-                        decoded_line = line.rstrip()
-                    if decoded_line:
-                        log_func(f"[{ip}] {decoded_line}")
-
-            await asyncio.gather(
-                read_stream(process.stdout, AgiEnv.log_info),
-                read_stream(process.stderr, AgiEnv.log_error)
-            )
+                buffer = b""
+                try:
+                    while True:
+                        chunk = await stream.read(1024)  # lire un bloc de bytes
+                        if not chunk:
+                            break
+                        buffer += chunk
+                        while b"\n" in buffer:
+                            line, buffer = buffer.split(b"\n", 1)
+                            decoded_line = line.decode("utf-8", errors="replace").rstrip()
+                            if decoded_line:
+                                log_func(decoded_line)
+                    # traiter la dernière partie si non vide
+                    if buffer:
+                        decoded_line = buffer.decode("utf-8", errors="replace").rstrip()
+                        if decoded_line:
+                            log_func(decoded_line)
+                except Exception as e:
+                    logging.error(f"Error reading SSH stream: {e}")
 
     async def send_file(
             self,
