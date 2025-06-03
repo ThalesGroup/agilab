@@ -1,39 +1,47 @@
-import io
 import pytest
-import asyncio
+import io
 from agi_env import AgiEnv
 from unittest import mock
+import asyncio
 import subprocess
 
 @pytest.fixture
 def env():
     agipath = AgiEnv.locate_agi_installation(verbose=0)
+    # Initialise AgiEnv avec install_type=1 (normal)
     return AgiEnv(active_app="flight", apps_dir=agipath / "apps", install_type=1, verbose=1)
 
 def test_replace_content_replaces_whole_words(env):
     txt = "foo foo_bar barfoo bar"
     rename_map = {"foo": "baz", "bar": "qux"}
     replaced = env.replace_content(txt, rename_map)
+    # On remplace uniquement les mots entiers "foo" et "bar"
+    # "foo_bar" et "barfoo" ne doivent pas être modifiés
     assert replaced == "baz foo_bar barfoo qux"
+
+def test_replace_content_unary(env):
+    txt = "foo bar baz foo"
+    rename_map = {"foo": "FOO"}
+    replaced = env.replace_content(txt, rename_map)
+    assert replaced == "FOO bar baz FOO"
 
 def test_create_symlink_existing_and_errors(tmp_path):
     src = tmp_path / "src"
     src.mkdir()
     dest = tmp_path / "dest"
-    # create symlink first time
+    # Création initiale de symlink
     AgiEnv.create_symlink(src, dest)
     assert dest.is_symlink()
 
-    # calling again should not error and detect existing symlink
+    # Re-création ne doit pas lever d'erreur ni écraser
     AgiEnv.create_symlink(src, dest)
 
-    # Create a file at dest (not symlink), should warn and not overwrite
+    # Si dest est un fichier ordinaire, création doit avertir et ne pas écraser
     dest.unlink()
     dest.write_text("hello")
     AgiEnv.create_symlink(src, dest)
 
 def test_clone_directory_and_cleanup(tmp_path, env):
-    # Setup dummy source project with files for clone_directory
     source = tmp_path / "source_project"
     source.mkdir()
     (source / "file.py").write_text("class SourceWorker:\n    pass")
@@ -46,20 +54,19 @@ def test_clone_directory_and_cleanup(tmp_path, env):
     env.clone_directory(source, dest, rename_map, spec, source)
     env._cleanup_rename(dest, rename_map)
 
-    # Check that renamed files exist and content replaced
     renamed_py = dest / "file.py"
     assert renamed_py.exists()
     content = renamed_py.read_text()
-    # Should have replaced 'FlightWorker' with renamed class in content
     assert any(s in content for s in rename_map.values())
 
 def test_change_active_app_reinitializes(monkeypatch, env):
-    # Patch __init__ to track call
     called = {}
     orig_init = AgiEnv.__init__
+
     def fake_init(self, **kwargs):
         called['called'] = True
         orig_init(self, **kwargs)
+
     monkeypatch.setattr(AgiEnv, "__init__", fake_init)
 
     env.app = "flight_project"
@@ -68,30 +75,20 @@ def test_change_active_app_reinitializes(monkeypatch, env):
 
 @pytest.mark.asyncio
 async def test_run_timeout_and_exception(env, monkeypatch):
-
-    async def raise_timeout(*args, **kwargs):
-        raise asyncio.TimeoutError()
-
-    monkeypatch.setattr("subprocess.Popen", mock.Mock())
-
-    # Patch subprocess.Popen to raise TimeoutExpired when communicate called
     class DummyProcess:
-
         def __init__(self):
             self.returncode = None
             self.stdout = io.StringIO("partial output\n")
             self.stderr = io.StringIO("error output\n")
-
         def poll(self):
             return 1
-
         def kill(self):
             return 2
-
         def wait(self, timeout=None):
             raise subprocess.TimeoutExpired(cmd="sleep", timeout=timeout)
 
     monkeypatch.setattr("subprocess.Popen", lambda *a, **k: DummyProcess())
+
     with pytest.raises(RuntimeError):
         await env.run("sleep 1", venv=".", wait=True)
 
@@ -100,19 +97,29 @@ async def test_exec_ssh_async_reads(monkeypatch, env):
     class DummyStream:
         def __init__(self, lines):
             self.lines = lines
+
+        async def read(self):
+            return b"".join(self.lines)
+
         def __aiter__(self):
             return self
+
         async def __anext__(self):
             if not self.lines:
                 raise StopAsyncIteration
             return self.lines.pop(0)
 
+    class DummyProcess:
+        def __init__(self):
+            self.stdout = DummyStream([b"INFO: line1\n", b"ERROR: line2\n"])
+            self.stderr = DummyStream([b"DEBUG: line3\n"])
+
+        async def wait(self):
+            return 0
+
     class DummyConn:
         async def create_process(self, cmd):
-            process = mock.Mock()
-            process.stdout = DummyStream([b"INFO: line1\n", b"ERROR: line2\n"])
-            process.stderr = DummyStream([b"DEBUG: line3\n"])
-            return process
+            return DummyProcess()
 
         def is_closed(self):
             return False
@@ -125,7 +132,9 @@ async def test_exec_ssh_async_reads(monkeypatch, env):
 
     monkeypatch.setattr(env, "get_ssh_connection", lambda ip: DummyConn())
 
-    await env.exec_ssh_async("1.2.3.4", "ls")
+    result = await env.exec_ssh_async("1.2.3.4", "ls")
+    assert result == "ERROR: line2"
+
 
 def test_humanize_validation_errors(env):
     from pydantic import BaseModel, ValidationError, constr
