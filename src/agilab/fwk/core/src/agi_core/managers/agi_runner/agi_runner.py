@@ -943,9 +943,7 @@ class AGI:
                         )
 
         result = await env.exec_ssh(ip, check_rapids)
-        has_rapids_hw = (result != "") and AGI._rapids_enabled
-            has_rapids_hw = True
-
+        has_rapids_hw = (result != "") and AGI._rapids_enable
         env.has_rapids_hw = has_rapids_hw
         if has_rapids_hw:
             env.set_env_var(ip, "has_rapids_hw")
