@@ -881,9 +881,9 @@ class AGI:
 
         # Commande pour workers selon si rapids supporté
         if has_rapids_hw:
-            cmd_worker = f"uv -q {run_type} --project {wenv_abs} {options['worker']} --extra workers"
-        else:
             cmd_worker = f"uv -q --config-file uv.toml {run_type} --project {wenv_abs} {options['worker']} --extra workers"
+        else:
+            cmd_worker = f"uv -q {run_type} --project {wenv_abs} {options['worker']} --extra workers"
 
         AgiEnv.log_info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
@@ -952,9 +952,10 @@ class AGI:
 
         # 6) Build and run uv -q sync, adding --config-file only when has_rapids_hw
         if has_rapids_hw:
-            sync_cmd = f"uv sync -q --project {wenv_rel} {option} --refresh-package dask "
-        else:
             sync_cmd = f"uv sync -q --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option} --refresh-package dask"
+        else:
+            sync_cmd = f"uv sync -q --project {wenv_rel} {option} --refresh-package dask "
+
         await env.exec_ssh(ip, sync_cmd)
 
         # 7) Post-install script
