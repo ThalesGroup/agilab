@@ -1322,8 +1322,6 @@ class AgiEnv:
                 msg = f"[{ip}] {cmd}"
                 if self.verbose > 1:
                     AgiEnv.log_info(msg)
-                if sys.platform == "linux":
-                    cmd = f"bash -l -c '{cmd}'"
                 result = await conn.run(cmd, check=True)
                 stdout = result.stdout
                 if isinstance(stdout, bytes):
@@ -1349,30 +1347,7 @@ class AgiEnv:
 
     async def exec_ssh_async(self, ip: str, cmd: str):
         async with self.get_ssh_connection(ip) as conn:
-            if sys.platform == "linux":
-                cmd = f"bash -l -c '{cmd}'"
             process = await conn.create_process(cmd)
-
-            async def read_stream(stream, log_func):
-                buffer = b""
-                try:
-                    while True:
-                        chunk = await stream.read(1024)  # lire un bloc de bytes
-                        if not chunk:
-                            break
-                        buffer += chunk
-                        while b"\n" in buffer:
-                            line, buffer = buffer.split(b"\n", 1)
-                            decoded_line = line.decode("utf-8", errors="replace").rstrip()
-                            if decoded_line:
-                                log_func(decoded_line)
-                    # traiter la dernière partie si non vide
-                    if buffer:
-                        decoded_line = buffer.decode("utf-8", errors="replace").rstrip()
-                        if decoded_line:
-                            log_func(decoded_line)
-                except Exception as e:
-                    logging.error(f"Error reading SSH stream: {e}")
 
     async def send_file(
             self,
