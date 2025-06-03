@@ -976,6 +976,7 @@ class AgiEnv:
         msg = f"{GREEN}{line}{RESET}" if sys.stdout.isatty() else line
         logging.info(msg)
 
+
     @staticmethod
     def log_error(line):
         RED = "\033[31m"
@@ -1314,7 +1315,7 @@ class AgiEnv:
             async with self.get_ssh_connection(ip) as conn:
                 msg = f"[{ip}] {cmd}"
                 if self.verbose > 1:
-                    self.log_info(msg)
+                    AgiEnv.log_info(msg)
                 if sys.platform == "linux":
                     cmd = f"bash -l -c '{cmd}'"
                 result = await conn.run(cmd, check=True)
@@ -1322,7 +1323,7 @@ class AgiEnv:
                 if isinstance(stdout, bytes):
                     stdout = stdout.decode('utf-8', errors='replace')
                 if self.verbose > 1:
-                    self.log_info(f"[{ip}] {stdout.strip()}")
+                    AgiEnv.log_info(f"[{ip}] {stdout.strip()}")
                 return stdout.strip()
 
         except ProcessError as e:
@@ -1337,7 +1338,7 @@ class AgiEnv:
             exit(1)
 
         except (asyncssh.Error, OSError) as e:
-            self.log_error(e)
+            AgiEnv.log_error(e)
             exit(1)
 
     async def exec_ssh_async(self, ip: str, cmd: str):
@@ -1356,8 +1357,8 @@ class AgiEnv:
                         log_func(f"[{ip}] {decoded_line}")
 
             await asyncio.gather(
-                read_stream(process.stdout, self.log_info),
-                read_stream(process.stderr, self.log_error)
+                read_stream(process.stdout, AgiEnv.log_info),
+                read_stream(process.stderr, AgiEnv.log_error)
             )
 
     async def send_file(
@@ -1392,13 +1393,13 @@ class AgiEnv:
             stdout, stderr = await process.communicate()
 
             if process.returncode != 0:
-                self.log_error(f"SCP failed sending {local_path} to {remote}: {stderr.decode().strip()}")
+                AgiEnv.log_error(f"SCP failed sending {local_path} to {remote}: {stderr.decode().strip()}")
                 raise ConnectionError(f"SCP error: {stderr.decode().strip()}")
 
-            self.log_info(f"Sent file {local_path} to {remote}")
+            AgiEnv.log_info(f"Sent file {local_path} to {remote}")
 
         except Exception as e:
-            self.log_error(f"Unexpected error during SCP of {local_path} to {remote}: {e}")
+            AgiEnv.log_error(f"Unexpected error during SCP of {local_path} to {remote}: {e}")
             raise
 
     async def send_files(self, ip: str, files: list[Path], remote_dir: Path, user: str = None):
@@ -1407,7 +1408,7 @@ class AgiEnv:
             remote_path = f"{remote_dir / f.name}"
             tasks.append(self.send_file(ip, f, remote_path, user=user))
         await asyncio.gather(*tasks)
-        # self.log_info(f"Sent {len(files)} files to {user if user else self.user}@{ip}:{remote_dir}")
+        # AgiEnv.log_info(f"Sent {len(files)} files to {user if user else self.user}@{ip}:{remote_dir}")
 
     def remove_dir_forcefully(self, path):
         import shutil
@@ -1824,11 +1825,6 @@ class AgiEnv:
             else:
                 raise OSError(f"Error: Failed to create symlink: {e}") from e
 
-    def log_error(self, msg):
-        print("ERROR", msg)  # Replace with your real logging method
-
-    def log_info(self, msg):
-        print("INFO", msg)  # Replace with your real logging method
 
     def log_remote_line(self, ip, line):
         print(f"[{ip}] {line}")  # Replace with your real remote line logger
@@ -1837,5 +1833,5 @@ class AgiEnv:
         # Avoid logging duplicate errors for same IP and message
         key = (ip, err_msg)
         if key not in self._logged_errors:
-            self.log_error(err_msg)
+            AgiEnv.log_error(err_msg)
             self._logged_errors.add(key)
