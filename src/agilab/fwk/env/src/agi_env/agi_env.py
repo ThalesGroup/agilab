@@ -1345,9 +1345,26 @@ class AgiEnv:
             AgiEnv.log_error(e)
             exit(1)
 
-    async def exec_ssh_async(self, ip: str, cmd: str):
+    async def exec_ssh_async(self, ip: str, cmd: str) -> str:
+        """
+        Execute a remote command via SSH and return the last line of its stdout output.
+        """
         async with self.get_ssh_connection(ip) as conn:
             process = await conn.create_process(cmd)
+
+            # Read entire stdout output as bytes
+            stdout = await process.stdout.read()
+            await process.wait()
+
+            # Decode output safely
+            stdout_str = stdout.decode('utf-8', errors='replace')
+
+            # Split output into lines and get the last non-empty line
+            lines = [line.strip() for line in stdout_str.splitlines() if line.strip()]
+            if lines:
+                return lines[-1]
+            else:
+                return ""  # or None if no output
 
     async def send_file(
             self,
