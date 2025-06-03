@@ -193,7 +193,7 @@ class AGI:
         AGI.target_path = env.module_path
         AGI._target = env.target
         AGI._rapids_enabled = rapids_enabled
-        AgiEnv.log_info(f"AGI instance created for target {target} with verbosity {env.verbose}")
+        AGI.env.log_info(f"AGI instance created for target {target} with verbosity {env.verbose}")
 
         if mode is None or isinstance(mode, list):
             mode_range = range(8) if mode is None else sorted(mode)
@@ -204,13 +204,13 @@ class AGI:
             if isinstance(mode, str):
                 pattern = r"^[dcrp]+$"
                 if not re.fullmatch(pattern, mode.lower()):
-                    AgiEnv.log_info("parameter <mode> must only contain the letters 'd', 'c', 'r', 'p'")
+                    AGI.env.log_info("parameter <mode> must only contain the letters 'd', 'c', 'r', 'p'")
                     exit(1)
                 AGI._mode = env.mode2int(mode)
             elif isinstance(mode, int):
                 AGI._mode = int(mode)
             else:
-                AgiEnv.log_info("parameter <mode> must be an int, a list of int or a string")
+                AGI.env.log_info("parameter <mode> must be an int, a list of int or a string")
                 exit(1)
 
             AGI._run_types = ["run", "sync --upgrade", "sync", "simulate"]
@@ -269,9 +269,8 @@ class AGI:
                 return 1
 
             except Exception as err:
-                AgiEnv.log_error(err)
-                AgiEnv.log_error(traceback.format_exc())
-
+                AGI.env.log_error(err)
+                AGI.env.log_error(traceback.format_exc())
 
     @staticmethod
     async def _run_all_modes(
@@ -357,7 +356,6 @@ class AGI:
 
         # Return a JSON-formatted string
         return json.dumps(runs_str_keys)
-
 
     @staticmethod
     def _is_local(ip):
@@ -463,7 +461,7 @@ class AGI:
         if path not in sys.path:
             sys.path.insert(0, path)
             AGI._sys_path_to_clean.append(path)
-        AgiEnv.log_info(f"import {module} from {package} located in {path}")
+        AGI.env.log_info(f"import {module} from {package} located in {path}")
         try:
             if package:
                 # Import module from a package
@@ -476,7 +474,7 @@ class AGI:
             module_to_install = (str(e).replace("No module named ", "").lower().replace("'", ""))
             app_path = AGI.env.app_abs
             cmd = f"uv -q add {module_to_install}"
-            AgiEnv.log_info(f"{cmd} from {app_path}")
+            AGI.env.log_info(f"{cmd} from {app_path}")
             await AgiEnv.run(cmd, app_path)
             AGI._module_to_clean.append(module_to_install)
             return AGI._load_module(module, package, path)
@@ -522,7 +520,7 @@ class AGI:
                 else:
                     decoded = decode_bytes(raw.encode('latin-1', errors='replace'))
                 line = decoded.strip()
-                AgiEnv.log_info(line)
+                AGI.env.log_info(line)
                 AGI._worker_init_error = line.endswith('[ProjectError]')
             return
 
@@ -538,7 +536,7 @@ class AGI:
                 decoded = decode_bytes(raw)
                 for part in decoded.splitlines():
                     line = part.strip()
-                    AgiEnv.log_info(line)
+                    AGI.env.log_info(line)
                     AGI._worker_init_error = line.endswith('[ProjectError]')
             elif chan.exit_status_ready():
                 break
@@ -571,11 +569,11 @@ class AGI:
                 if pid != current_pid:
                     pids_to_kill.append(pid)
             except Exception:
-                AgiEnv.log_warning(f"Could not read PID from {pid_file}, skipping")
+                AGI.env.log_warning(f"Could not read PID from {pid_file}, skipping")
             try:
                 pid_file.unlink()
             except Exception as e:
-                AgiEnv.log_warning(f"Failed to remove pid file {pid_file}: {e}")
+                AGI.env.log_warning(f"Failed to remove pid file {pid_file}: {e}")
 
         cmds: list[str] = []
 
@@ -617,7 +615,7 @@ class AGI:
             if isinstance(last_res, dict):
                 out = last_res.get("stdout", "")
                 err = last_res.get("stderr", "")
-                AgiEnv.log_info(out)
+                AGI.env.log_info(out)
                 if err:
                     raise RuntimeError(err)
 
@@ -656,7 +654,7 @@ class AGI:
         """
         env = AGI.env
         wenv_rel = env.wenv_rel
-        wenv_abs = env.wenv_ab
+        wenv_abs = env.wenv_abs
         if wenv_abs.exists():
             env.remove_dir_forcefully(str(wenv_abs))
         os.makedirs(wenv_abs / "src", exist_ok=True)
@@ -799,14 +797,14 @@ class AGI:
         node_ips = await AGI._get_clean_nodes(scheduler)
         AGI._venv_todo(node_ips)
         start_time = time.time()
-        AgiEnv.log_info(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1")
+        AGI.env.log_info(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1")
 
         await AGI._install_app_local(app_path, Path(wenv_rel), options)
-        # AgiEnv.log_info(AGI.run(cmd, wenv_abs))
+        # AGI.env.log_info(AGI.run(cmd, wenv_abs))
         if AGI._mode & 4:
             tasks = []
             for ip in node_ips:
-                AgiEnv.log_info(f"********   Starting {AGI._run_type} for Agi_worker in .venv on {ip}")
+                AGI.env.log_info(f"********   Starting {AGI._run_type} for Agi_worker in .venv on {ip}")
                 if not AGI._is_local(ip):
                     tasks.append(asyncio.create_task(
                     AGI._install_app_remote(ip, env, wenv_rel, options["worker"])
@@ -815,7 +813,7 @@ class AGI:
 
         if AGI._verbose:
             duration = AGI._format_duration(time.time() - start_time)
-            AgiEnv.log_info(f"********   Agi {AGI._run_type} completed in {duration}")
+            AGI.env.log_info(f"********   Agi {AGI._run_type} completed in {duration}")
 
     @staticmethod
     def _initialize_installation():
@@ -860,7 +858,7 @@ class AGI:
         else:
             env.set_env_var(ip, "no_rapids_hw")
 
-        AgiEnv.log_info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
+        AGI.env.log_info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
         # Commande pour manager selon si rapids supporté
         app_path = env.app_abs
@@ -869,14 +867,14 @@ class AGI:
         else:
             cmd_manager = f"uv -q --config-file uv.toml {run_type} {options['manager']} --extra managers --project {app_path}"
 
-        AgiEnv.log_info(f"Installing manager: {cmd_manager}")
+        AGI.env.log_info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
 
         # Copier les fichiers pyproject.toml et setup_core dans wenv_abs
         wenv_abs = env.wenv_abs
-        AgiEnv.log_info(f"Copying {src / 'pyproject.toml'} -> {wenv_abs}")
+        AGI.env.log_info(f"Copying {src / 'pyproject.toml'} -> {wenv_abs}")
         shutil.copy2(src / "pyproject.toml", wenv_abs)
-        AgiEnv.log_info(f"Copying {env.setup_core} -> {wenv_abs}")
+        AGI.env.log_info(f"Copying {env.setup_core} -> {wenv_abs}")
         shutil.copy2(env.setup_core, wenv_abs)
 
         # Commande pour workers selon si rapids supporté
@@ -885,7 +883,7 @@ class AGI:
         else:
             cmd_worker = f"uv -q {run_type} --project {wenv_abs} {options['worker']} --extra workers"
 
-        AgiEnv.log_info(f"Installing workers: {cmd_worker}")
+        AGI.env.log_info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
 
         # Build worker lib local
@@ -893,7 +891,7 @@ class AGI:
 
         # Lancer le script post_install
         cmd_post = f"uv -q --project {wenv} run -p {pyvers} python {env.app_abs / env.post_install} {env.data_dir}"
-        AgiEnv.log_info(f"Running post-install script: {cmd_post}")
+        AGI.env.log_info(f"Running post-install script: {cmd_post}")
         await AgiEnv.run(cmd_post, wenv)
 
         # Cleanup modules
