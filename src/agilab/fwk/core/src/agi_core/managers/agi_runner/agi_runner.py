@@ -585,8 +585,8 @@ class AGI:
                 'for p in psutil.process_iter(["name", "username", "cmdline"]):\n'            
                 '  try:\n'
                 '    if p.info.get("username") and me in p.info["username"] and ('
-                '      (p.info.get("name") and "uv" in p.info["name"]) or'
-                '      (p.info.get("cmdline") and any("uv" in s.lower() for s in p.info["cmdline"]))):\n'
+                '      (p.info.get("name") and "dask" in p.info["name"]) or'
+                '      (p.info.get("cmdline") and any("dask" in s.lower() for s in p.info["cmdline"]))):\n'
                 '      p.kill()\n'
                 '  except (psutil.NoSuchProcess, psutil.AccessDenied):\n'
                 '    pass"'
@@ -693,7 +693,7 @@ class AGI:
                                 p.info['username'].endswith(me)
                                 and p.info['pid'] != self_pid
                                 and p.info['cmdline']
-                                and any('uv' in s.lower() for s in p.info['cmdline'])
+                                and any('dask' in s.lower() for s in p.info['cmdline'])
                         ):
                             p.kill()
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
