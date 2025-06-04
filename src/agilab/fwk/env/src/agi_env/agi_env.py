@@ -391,7 +391,7 @@ class AgiEnv:
             self._init_apps()
 
         if os.name == "nt":
-            self.export_local_bin = 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
+            self.export_local_bin = None
         else:
             self.export_local_bin = 'export PATH="$HOME/.local/bin:$PATH";'
         self._ssh_connections = {}
