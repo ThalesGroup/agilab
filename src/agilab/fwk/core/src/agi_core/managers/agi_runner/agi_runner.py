@@ -355,8 +355,9 @@ class AGI:
         runs_str_keys = {str(k): v for k, v in runs.items()}
 
         # Return a JSON-formatted string
-        with open(env.benchmark, "w")as f:
-            f.write(json.dump(runs_str_keys, sys.stdout))
+        with open(env.benchmark, "w") as f:
+            json.dump(runs_str_keys, f)
+
         return json.dumps(runs_str_keys)
 
     @staticmethod
@@ -582,7 +583,7 @@ class AGI:
         # 2) If force, kill by process name
         if force:
             cmd = (
-                'python3 -c "import getpass, psutil, os;'
+                'uv run python -c "import getpass, psutil, os;'
                 'me = getpass.getuser();\n'
                 'my_pid = os.getpid();\n'
                 'for p in psutil.process_iter([\'name\', \'username\', \'cmdline\', \'pid\']):\n'
@@ -622,7 +623,7 @@ class AGI:
                 err = last_res.get("stderr", "")
                 logging.info(out)
                 if err:
-                    raise RuntimeError(err)
+                    logging.error(err)
 
         return last_res
 
