@@ -71,7 +71,7 @@ class PandasWorker(AgiWorker):
         Returns:
             pd.DataFrame: A pandas DataFrame with the processed results.
         """
-        AgiEnv.log_info("work_pool")
+        logging.info("work_pool")
 
         # Call the actual work_pool method, which should return a pandas DataFrame.
         # Ensure that the original _actual_work_pool method is refactored accordingly.
@@ -87,7 +87,7 @@ class PandasWorker(AgiWorker):
         Raises:
             ValueError: If an unsupported output format is specified.
         """
-        AgiEnv.log_info("work_done")
+        logging.info("work_done")
 
         if df is None or df.empty:
             return
@@ -142,7 +142,7 @@ class PandasWorker(AgiWorker):
         else:
             ncore = 1
 
-        AgiEnv.log_info(
+        logging.info(
             f"PandasWorker.work - ncore {ncore} - my_code_worker #{self.worker_id}"
             f" - work_pool x {len(works)}",
         )
@@ -195,7 +195,7 @@ class PandasWorker(AgiWorker):
         for work_id, work in enumerate(workers_tree[self.worker_id]):
             list_df = []
             df = pd.DataFrame()
-            AgiEnv.log_info(
+            logging.info(
                 f"PandasWorker.work - monoprocess work #{work_id} - work_pool x {len(work)}"
             )
 

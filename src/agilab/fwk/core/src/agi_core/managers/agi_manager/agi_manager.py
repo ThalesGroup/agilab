@@ -76,6 +76,7 @@ class AgiManager:
         """
         file = agi_env.distribution_tree
         workers_tree = []
+        workers_tree_info = []
         rebuild_tree = False
         if file.exists():
             with open(file, "r") as f:

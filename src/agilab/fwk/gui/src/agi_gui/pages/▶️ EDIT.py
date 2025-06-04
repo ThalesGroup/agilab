@@ -270,7 +270,11 @@ def clean_project(project_path):
         for dir_name in dirs:
             relative_dir_path = Path(root).joinpath(dir_name).relative_to(project_path)
             if spec.match_file(str(relative_dir_path)):
-                shutil.rmtree(Path(root) / dir_name, ignore_errors=True)
+                try:
+                    shutil.rmtree(Path(root) / dir_name, ignore_errors=True)
+                except:
+                    st.warning(f"failed to remove {Path(root) / dir_name}")
+                    pass
 
 
 # -------------------- Project Export Handler -------------------- #
@@ -1308,7 +1312,11 @@ def handle_project_rename():
 
         # verify & cleanup
         if dest_path.exists():
-            shutil.rmtree(src_path, ignore_errors=True)
+            try:
+                shutil.rmtree(src_path, ignore_errors=True)
+            except:
+                st.warning(f"failed to remove {src_path}")
+                pass
 
             st.success(f"Project renamed: '{current}' → '{new_name}'")
             env.change_active_app(new_name)

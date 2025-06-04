@@ -44,291 +44,6 @@ def normalize_path(path):
         else str(PurePosixPath(Path(path)))
     )
 
-class ContentRenamer(ast.NodeTransformer):
-    """
-    A class that renames identifiers in an abstract syntax tree (AST).
-    Attributes:
-        rename_map (dict): A mapping of old identifiers to new identifiers.
-    """
-    def __init__(self, rename_map):
-        """
-        Initialize the ContentRenamer with the rename_map.
-
-        Args:
-            rename_map (dict): Mapping of old names to new names.
-        """
-        self.rename_map = rename_map
-
-    def visit_Name(self, node):
-        # Rename variable and function names
-        """
-        Visit and potentially rename a Name node in the abstract syntax tree.
-
-        Args:
-            self: The current object instance.
-            node: The Name node in the abstract syntax tree.
-
-        Returns:
-            ast.Node: The modified Name node after potential renaming.
-
-        Note:
-            This function modifies the Name node in place.
-
-        Raises:
-            None
-        """
-        if node.id in self.rename_map:
-            print(f"Renaming Name: {node.id} ➔ {self.rename_map[node.id]}")
-            node.id = self.rename_map[node.id]
-        self.generic_visit(node)  # Ensure child nodes are visited
-        return node
-
-    def visit_Attribute(self, node):
-        # Rename attributes
-        """
-        Visit and potentially rename an attribute in a node.
-
-        Args:
-            node: A node representing an attribute.
-
-        Returns:
-            node: The visited node with potential attribute renamed.
-
-        Raises:
-            None.
-        """
-        if node.attr in self.rename_map:
-            print(f"Renaming Attribute: {node.attr} ➔ {self.rename_map[node.attr]}")
-            node.attr = self.rename_map[node.attr]
-        self.generic_visit(node)
-        return node
-
-    def visit_FunctionDef(self, node):
-        # Rename function names
-        """
-        Rename a function node based on a provided mapping.
-
-        Args:
-            node (ast.FunctionDef): The function node to be processed.
-
-        Returns:
-            ast.FunctionDef: The function node with potential name change.
-        """
-        if node.name in self.rename_map:
-            print(f"Renaming Function: {node.name} ➔ {self.rename_map[node.name]}")
-            node.name = self.rename_map[node.name]
-        self.generic_visit(node)
-        return node
-
-    def visit_ClassDef(self, node):
-        # Rename class names
-        """
-        Visit and potentially rename a ClassDef node.
-
-        Args:
-            node (ast.ClassDef): The ClassDef node to visit.
-
-        Returns:
-            ast.ClassDef: The potentially modified ClassDef node.
-        """
-        if node.name in self.rename_map:
-            print(f"Renaming Class: {node.name} ➔ {self.rename_map[node.name]}")
-            node.name = self.rename_map[node.name]
-        self.generic_visit(node)
-        return node
-
-    def visit_arg(self, node):
-        # Rename function argument names
-        """
-        Visit and potentially rename an argument node.
-
-        Args:
-            self: The instance of the class.
-            node: The argument node to visit and possibly rename.
-
-        Returns:
-            ast.AST: The modified argument node.
-
-        Notes:
-            Modifies the argument node in place if its name is found in the rename map.
-
-        Raises:
-            None.
-        """
-        if node.arg in self.rename_map:
-            print(f"Renaming Argument: {node.arg} ➔ {self.rename_map[node.arg]}")
-            node.arg = self.rename_map[node.arg]
-        self.generic_visit(node)
-        return node
-
-    def visit_Global(self, node):
-        # Rename global variable names
-        """
-        Visit and potentially rename global variables in the AST node.
-
-        Args:
-            self: The instance of the class that contains the renaming logic.
-            node: The AST node to visit and potentially rename global variables.
-
-        Returns:
-            AST node: The modified AST node with global variable names potentially renamed.
-        """
-        new_names = []
-        for name in node.names:
-            if name in self.rename_map:
-                print(f"Renaming Global Variable: {name} ➔ {self.rename_map[name]}")
-                new_names.append(self.rename_map[name])
-            else:
-                new_names.append(name)
-        node.names = new_names
-        self.generic_visit(node)
-        return node
-
-    def visit_nonlocal(self, node):
-        # Rename nonlocal variable names
-        """
-        Visit and potentially rename nonlocal variables in the AST node.
-
-        Args:
-            self: An instance of the class containing the visit_nonlocal method.
-            node: The AST node to visit and potentially modify.
-
-        Returns:
-            ast.AST: The modified AST node after visiting and potentially renaming nonlocal variables.
-        """
-        new_names = []
-        for name in node.names:
-            if name in self.rename_map:
-                print(
-                    f"Renaming Nonlocal Variable: {name} ➔ {self.rename_map[name]}"
-                )
-                new_names.append(self.rename_map[name])
-            else:
-                new_names.append(name)
-        node.names = new_names
-        self.generic_visit(node)
-        return node
-
-    def visit_Assign(self, node):
-        # Rename assigned variable names
-        """
-        Visit and process an assignment node.
-
-        Args:
-            self: The instance of the visitor class.
-            node: The assignment node to be visited.
-
-        Returns:
-            ast.Node: The visited assignment node.
-        """
-        self.generic_visit(node)
-        return node
-
-    def visit_AnnAssign(self, node):
-        # Rename annotated assignments
-        """
-        Visit and process an AnnAssign node in an abstract syntax tree.
-
-        Args:
-            self: The AST visitor object.
-            node: The AnnAssign node to be visited.
-
-        Returns:
-            AnnAssign: The visited AnnAssign node.
-        """
-        self.generic_visit(node)
-        return node
-
-    def visit_For(self, node):
-        # Rename loop variable names
-        """
-        Visit and potentially rename the target variable in a For loop node.
-
-        Args:
-            node (ast.For): The For loop node to visit.
-
-        Returns:
-            ast.For: The modified For loop node.
-
-        Note:
-            This function may modify the target variable in the For loop node if it exists in the rename map.
-        """
-        if isinstance(node.target, ast.Name) and node.target.id in self.rename_map:
-            print(
-                f"Renaming For Loop Variable: {node.target.id} ➔ {self.rename_map[node.target.id]}"
-            )
-            node.target.id = self.rename_map[node.target.id]
-        self.generic_visit(node)
-        return node
-
-    def visit_Import(self, node):
-        """
-        Rename imported modules in 'import module' statements.
-
-        Args:
-            node (ast.Import): The import node.
-        """
-        for alias in node.names:
-            original_name = alias.name
-            if original_name in self.rename_map:
-                print(
-                    f"Renaming Import Module: {original_name} ➔ {self.rename_map[original_name]}"
-                )
-                alias.name = self.rename_map[original_name]
-            else:
-                # Handle compound module names if necessary
-                for old, new in self.rename_map.items():
-                    if original_name.startswith(old):
-                        print(
-                            f"Renaming Import Module: {original_name} ➔ {original_name.replace(old, new, 1)}"
-                        )
-                        alias.name = original_name.replace(old, new, 1)
-                        break
-        self.generic_visit(node)
-        return node
-
-    def visit_ImportFrom(self, node):
-        """
-        Rename modules and imported names in 'from module import name' statements.
-
-        Args:
-            node (ast.ImportFrom): The import from node.
-        """
-        # Rename the module being imported from
-        if node.module in self.rename_map:
-            print(
-                f"Renaming ImportFrom Module: {node.module} ➔ {self.rename_map[node.module]}"
-            )
-            node.module = self.rename_map[node.module]
-        else:
-            for old, new in self.rename_map.items():
-                if node.module and node.module.startswith(old):
-                    new_module = node.module.replace(old, new, 1)
-                    print(
-                        f"Renaming ImportFrom Module: {node.module} ➔ {new_module}"
-                    )
-                    node.module = new_module
-                    break
-
-        # Rename the imported names
-        for alias in node.names:
-            if alias.name in self.rename_map:
-                print(
-                    f"Renaming Imported Name: {alias.name} ➔ {self.rename_map[alias.name]}"
-                )
-                alias.name = self.rename_map[alias.name]
-            else:
-                for old, new in self.rename_map.items():
-                    if alias.name.startswith(old):
-                        print(
-                            f"Renaming Imported Name: {alias.name} ➔ {alias.name.replace(old, new, 1)}"
-                        )
-                        alias.name = alias.name.replace(old, new, 1)
-                        break
-        self.generic_visit(node)
-        return node
-
-
 class AgiEnv:
     install_type = None
     apps_dir = None
@@ -339,6 +54,11 @@ class AgiEnv:
     init_done = False
     has_rapids_hw = None
     debug = False
+
+    import inspect
+    import logging
+    import sys
+
 
     def init_logging(self, verbosity: int = None):
         """
@@ -354,7 +74,7 @@ class AgiEnv:
         root_level = logging.DEBUG if verbosity >= 2 else logging.INFO if verbosity == 1 else logging.WARNING
 
         # Cap distributed logs at CRITICAL (silent)
-        sys_level = logging.ERROR if verbosity < 2 else logging.INFO if verbosity > 3  else logging.DEBUG
+        sys_level = logging.ERROR if verbosity < 2 else logging.INFO if verbosity > 3 else logging.DEBUG
 
         # Use root_level for your app-specific loggers as well
         app_level = root_level
@@ -387,29 +107,69 @@ class AgiEnv:
         for handler in root.handlers[:]:
             root.removeHandler(handler)
 
-        fmt = logging.Formatter(
+        class ClassNameFilter(logging.Filter):
+            def filter(self, record):
+                # Try to find the class name from the frame where the log call was made
+                try:
+                    # Walk up frames starting from current to find frame matching record
+                    frame = sys._getframe(0)
+                    while frame:
+                        code = frame.f_code
+                        if code.co_filename == record.pathname and code.co_name == record.funcName:
+                            # Found the frame of the caller
+                            # Check if 'self' is in locals to get class name
+                            if 'self' in frame.f_locals:
+                                record.classname = frame.f_locals['self'].__class__.__name__
+                            else:
+                                record.classname = record.module or record.pathname
+                            break
+                        frame = frame.f_back
+                    else:
+                        record.classname = '<no-class>'
+                except Exception:
+                    record.classname = '<no-class>'
+                return True
+
+        fmt_std = logging.Formatter(
             "%(asctime)s %(levelname)s %(message)s",
             datefmt="%H:%M:%S"
         )
 
+        fmt_err = logging.Formatter(
+            "%(asctime)s %(levelname)s %(classname)s %(funcName)s %(message)s",
+            datefmt="%H:%M:%S"
+        )
+
+        if verbosity > 1:
+            fmt_std = fmt_err
+
         stdout_handler = logging.StreamHandler(sys.stdout)
-        stdout_handler.setLevel(logging.DEBUG)  # always capture debug and above on stdout
-        stdout_handler.setFormatter(fmt)
+        stdout_handler.setLevel(logging.DEBUG)
+        stdout_handler.setFormatter(fmt_std)
+        stdout_handler.addFilter(ClassNameFilter())
 
         stderr_handler = logging.StreamHandler(sys.stderr)
-        stderr_handler.setLevel(logging.WARNING)  # warnings and errors on stderr
-        stderr_handler.setFormatter(fmt)
+        stderr_handler.setLevel(logging.WARNING)
+        stderr_handler.setFormatter(fmt_err)
+        stderr_handler.addFilter(ClassNameFilter())
 
+        root = logging.getLogger()
+        # Remove old handlers before adding new ones
+        for h in root.handlers[:]:
+            root.removeHandler(h)
         root.addHandler(stdout_handler)
         root.addHandler(stderr_handler)
 
-        logging.debug(f"Logging initialized at level {logging.getLevelName(root_level)}")
+        root.setLevel(logging.DEBUG if verbosity and verbosity >= 2 else logging.INFO if verbosity == 1 else logging.WARNING)
+
+        logging.debug(f"Logging initialized at level {logging.getLevelName(root.level)}")
+
 
     def __init__(self, install_type: int = None, apps_dir: Path = None,
-                 active_app: Path | str = None, verbose: int = None):
+                 active_app: Path | str = None, verbose: int = None, debug=False):
         AgiEnv.verbose = verbose
         self.init_logging(verbose)
-
+        self._debug = debug
         self.is_managed_pc = getpass.getuser().startswith("T0")
         self.agi_resources = Path("resources/.agilab")
         home_abs = Path.home() / "MyApp" if self.is_managed_pc else Path.home()
@@ -1002,7 +762,7 @@ class AgiEnv:
         Returns full stdout string.
         """
         if AgiEnv.verbose > 1:
-            AgiEnv.log_info(f"Executing in {venv}: {cmd}")
+            logging.info(f"Executing in {venv}: {cmd}")
 
         if not cwd:
             cwd = venv
@@ -1045,7 +805,7 @@ class AgiEnv:
                         if log_callback:
                             log_callback(line)
                         else:
-                            AgiEnv.log_info(line)
+                            logging.info(line)
 
                     if err_line:
                         line = err_line.rstrip("\n")
@@ -1053,16 +813,16 @@ class AgiEnv:
                         if log_callback:
                             log_callback(line)
                         elif msg_type == "INFO":
-                            AgiEnv.log_info(line)
+                            logging.info(line)
                         else:
-                            AgiEnv.log_error(line)
+                            logging.error(line)
 
                     if out_line == '' and err_line == '' and process.poll() is not None:
                         break
 
                 process.wait(timeout=timeout)
                 if AgiEnv.verbose > 1:
-                    AgiEnv.log_info(f"Command completed with exit code {process.returncode}")
+                    logging.info(f"Command completed with exit code {process.returncode}")
                 return result
 
             except subprocess.TimeoutExpired:
@@ -1106,7 +866,7 @@ class AgiEnv:
                     break
                 decoded_line = line.decode('utf-8', errors='replace').rstrip()
                 if decoded_line:
-                    AgiEnv.log_info(decoded_line)
+                    logging.info(decoded_line)
 
         tasks = []
         if proc.stdout:
@@ -1203,49 +963,18 @@ class AgiEnv:
         await asyncio.gather(stdout_task, stderr_task)
 
     @staticmethod
-    def create_symlink(source: Path, dest: Path):
-        """
-        Create a symlink from dest to source if not already existing.
-        """
+    def create_symlink(src: Path, dest: Path):
         try:
-            source_resolved = source.resolve(strict=True)
-        except FileNotFoundError as e:
-            raise FileNotFoundError(f"Source path does not exist: {source} {e}") from e
-
-        if dest.exists() or dest.is_symlink():
-            if dest.is_symlink():
-                try:
-                    existing_target = dest.resolve(strict=True)
-                    if existing_target == source_resolved:
-                        logging.info(f"Symlink already exists and is correct: {dest} -> {source_resolved}")
-                        return
-                    else:
-                        logging.info(f"Warning: Symlink at {dest} points to {existing_target}, expected {source_resolved}.")
-                        return
-                except RecursionError:
-                    raise RecursionError(f"Detected symlink loop while resolving {dest}.")
-                except FileNotFoundError:
-                    logging.info(f"Warning: Symlink at {dest} is broken.")
+            if dest.exists() or dest.is_symlink():
+                if dest.is_symlink() and dest.resolve() == src.resolve():
+                    logger.info(f"Symlink already exists and is correct: {dest} -> {src}")
                     return
-            else:
-                logging.info(f"Warning: Destination already exists and is not a symlink: {dest}")
-                return
-
-        try:
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            if os.name == "nt":
-                is_dir = source_resolved.is_dir()
-                os.symlink(str(source_resolved), str(dest), target_is_directory=is_dir)
-            else:
-                os.symlink(str(source_resolved), str(dest))
-            logging.info(f"Symlink created: {dest} -> {source_resolved}")
-        except OSError as e:
-            if os.name == "nt":
-                raise OSError(
-                    "Failed to create symlink on Windows. Ensure admin rights or Developer Mode enabled."
-                ) from e
-            else:
-                raise OSError(f"Failed to create symlink: {e}") from e
+                logger.warning(f"Warning: Destination already exists and is not a symlink: {dest}")
+                dest.unlink()
+            dest.symlink_to(src, target_is_directory=src.is_dir())
+            logger.info(f"Symlink created: {dest} -> {src}")
+        except Exception as e:
+            logger.error(f"Failed to create symlink {dest} -> {src}: {e}")
 
     def change_active_app(self, app, install_type=1):
         if isinstance(app, str):
@@ -1321,13 +1050,13 @@ class AgiEnv:
             async with self.get_ssh_connection(ip) as conn:
                 msg = f"[{ip}] {cmd}"
                 if self.verbose > 1:
-                    AgiEnv.log_info(msg)
+                    logging.info(msg)
                 result = await conn.run(cmd, check=True)
                 stdout = result.stdout
                 if isinstance(stdout, bytes):
                     stdout = stdout.decode('utf-8', errors='replace')
                 if self.verbose > 1:
-                    AgiEnv.log_info(f"[{ip}] {stdout.strip()}")
+                    logging.info(f"[{ip}] {stdout.strip()}")
                 return stdout.strip()
 
         except ProcessError as e:
@@ -1342,7 +1071,7 @@ class AgiEnv:
             sys.exit(1)
 
         except (asyncssh.Error, OSError) as e:
-            AgiEnv.log_error(e)
+            logging.error(e)
             sys.exit(1)
 
     async def exec_ssh_async(self, ip: str, cmd: str) -> str:
@@ -1357,10 +1086,10 @@ class AgiEnv:
             await process.wait()
 
             # Decode output safely
-            stdout_str = stdout.decode('utf-8', errors='replace')
+            #stdout_str = stdout.decode('utf-8', errors='replace')
 
             # Split output into lines and get the last non-empty line
-            lines = [line.strip() for line in stdout_str.splitlines() if line.strip()]
+            lines = [line.strip() for line in stdout.splitlines() if line.strip()]
             if lines:
                 return lines[-1]
             else:
@@ -1398,13 +1127,13 @@ class AgiEnv:
             stdout, stderr = await process.communicate()
 
             if process.returncode != 0:
-                AgiEnv.log_error(f"SCP failed sending {local_path} to {remote}: {stderr.decode().strip()}")
+                logging.error(f"SCP failed sending {local_path} to {remote}: {stderr.decode().strip()}")
                 raise ConnectionError(f"SCP error: {stderr.decode().strip()}")
 
-            AgiEnv.log_info(f"Sent file {local_path} to {remote}")
+            logging.info(f"Sent file {local_path} to {remote}")
 
         except Exception as e:
-            AgiEnv.log_error(f"Unexpected error during SCP of {local_path} to {remote}: {e}")
+            logging.error(f"Unexpected error during SCP of {local_path} to {remote}: {e}")
             raise
 
     async def send_files(self, ip: str, files: list[Path], remote_dir: Path, user: str = None):
@@ -1413,7 +1142,7 @@ class AgiEnv:
             remote_path = f"{remote_dir / f.name}"
             tasks.append(self.send_file(ip, f, remote_path, user=user))
         await asyncio.gather(*tasks)
-        # AgiEnv.log_info(f"Sent {len(files)} files to {user if user else self.user}@{ip}:{remote_dir}")
+        # logging.info(f"Sent {len(files)} files to {user if user else self.user}@{ip}:{remote_dir}")
 
     def remove_dir_forcefully(self, path):
         import shutil
@@ -1785,52 +1514,6 @@ class AgiEnv:
     def scheduler_ip_address(self):
         return self.scheduler_ip
 
-    @staticmethod
-    def create_symlink(source: Path, dest: Path):
-        try:
-            source_resolved = source.resolve(strict=True)
-        except FileNotFoundError as e:
-            raise FileNotFoundError(
-                f"Error: Source path does not exist: {source}\n{e}"
-            ) from e
-        if dest.exists() or dest.is_symlink():
-            if dest.is_symlink():
-                try:
-                    existing_target = dest.resolve(strict=True)
-                    if existing_target == source_resolved:
-                        print(f"Symlink already exists and is correct: {dest} -> {source_resolved}")
-                        return
-                    else:
-                        print(f"Warning: Symlink at {dest} points to {existing_target}, expected {source_resolved}.")
-                        return
-                except RecursionError:
-                    raise RecursionError(f"Error: Detected a symlink loop while resolving existing symlink at {dest}.")
-                except FileNotFoundError:
-                    print(f"Warning: Symlink at {dest} is broken.")
-                    return
-            else:
-                print(f"Warning: Destination already exists and is not a symlink: {dest}")
-                return
-        try:
-            dest.parent.mkdir(parents=True, exist_ok=True)
-        except OSError as e:
-            raise OSError(f"Error: Failed to create parent directories for {dest}: {e}") from e
-        try:
-            if os.name == "nt":
-                is_dir = source_resolved.is_dir()
-                os.symlink(str(source_resolved), str(dest), target_is_directory=is_dir)
-            else:
-                os.symlink(str(source_resolved), str(dest))
-            print(f"Symlink created: {dest} -> {source_resolved}")
-        except OSError as e:
-            if os.name == "nt":
-                raise OSError(
-                    "Error: Failed to create symlink on Windows.\nEnsure you have the necessary permissions or Developer Mode is enabled."
-                ) from e
-            else:
-                raise OSError(f"Error: Failed to create symlink: {e}") from e
-
-
     def log_remote_line(self, ip, line):
         print(f"[{ip}] {line}")  # Replace with your real remote line logger
 
@@ -1838,5 +1521,290 @@ class AgiEnv:
         # Avoid logging duplicate errors for same IP and message
         key = (ip, err_msg)
         if key not in self._logged_errors:
-            AgiEnv.log_error(err_msg)
+            logging.error(err_msg)
             self._logged_errors.add(key)
+
+
+class ContentRenamer(ast.NodeTransformer):
+    """
+    A class that renames identifiers in an abstract syntax tree (AST).
+    Attributes:
+        rename_map (dict): A mapping of old identifiers to new identifiers.
+    """
+    def __init__(self, rename_map):
+        """
+        Initialize the ContentRenamer with the rename_map.
+
+        Args:
+            rename_map (dict): Mapping of old names to new names.
+        """
+        self.rename_map = rename_map
+
+    def visit_Name(self, node):
+        # Rename variable and function names
+        """
+        Visit and potentially rename a Name node in the abstract syntax tree.
+
+        Args:
+            self: The current object instance.
+            node: The Name node in the abstract syntax tree.
+
+        Returns:
+            ast.Node: The modified Name node after potential renaming.
+
+        Note:
+            This function modifies the Name node in place.
+
+        Raises:
+            None
+        """
+        if node.id in self.rename_map:
+            print(f"Renaming Name: {node.id} ➔ {self.rename_map[node.id]}")
+            node.id = self.rename_map[node.id]
+        self.generic_visit(node)  # Ensure child nodes are visited
+        return node
+
+    def visit_Attribute(self, node):
+        # Rename attributes
+        """
+        Visit and potentially rename an attribute in a node.
+
+        Args:
+            node: A node representing an attribute.
+
+        Returns:
+            node: The visited node with potential attribute renamed.
+
+        Raises:
+            None.
+        """
+        if node.attr in self.rename_map:
+            print(f"Renaming Attribute: {node.attr} ➔ {self.rename_map[node.attr]}")
+            node.attr = self.rename_map[node.attr]
+        self.generic_visit(node)
+        return node
+
+    def visit_FunctionDef(self, node):
+        # Rename function names
+        """
+        Rename a function node based on a provided mapping.
+
+        Args:
+            node (ast.FunctionDef): The function node to be processed.
+
+        Returns:
+            ast.FunctionDef: The function node with potential name change.
+        """
+        if node.name in self.rename_map:
+            print(f"Renaming Function: {node.name} ➔ {self.rename_map[node.name]}")
+            node.name = self.rename_map[node.name]
+        self.generic_visit(node)
+        return node
+
+    def visit_ClassDef(self, node):
+        # Rename class names
+        """
+        Visit and potentially rename a ClassDef node.
+
+        Args:
+            node (ast.ClassDef): The ClassDef node to visit.
+
+        Returns:
+            ast.ClassDef: The potentially modified ClassDef node.
+        """
+        if node.name in self.rename_map:
+            print(f"Renaming Class: {node.name} ➔ {self.rename_map[node.name]}")
+            node.name = self.rename_map[node.name]
+        self.generic_visit(node)
+        return node
+
+    def visit_arg(self, node):
+        # Rename function argument names
+        """
+        Visit and potentially rename an argument node.
+
+        Args:
+            self: The instance of the class.
+            node: The argument node to visit and possibly rename.
+
+        Returns:
+            ast.AST: The modified argument node.
+
+        Notes:
+            Modifies the argument node in place if its name is found in the rename map.
+
+        Raises:
+            None.
+        """
+        if node.arg in self.rename_map:
+            print(f"Renaming Argument: {node.arg} ➔ {self.rename_map[node.arg]}")
+            node.arg = self.rename_map[node.arg]
+        self.generic_visit(node)
+        return node
+
+    def visit_Global(self, node):
+        # Rename global variable names
+        """
+        Visit and potentially rename global variables in the AST node.
+
+        Args:
+            self: The instance of the class that contains the renaming logic.
+            node: The AST node to visit and potentially rename global variables.
+
+        Returns:
+            AST node: The modified AST node with global variable names potentially renamed.
+        """
+        new_names = []
+        for name in node.names:
+            if name in self.rename_map:
+                print(f"Renaming Global Variable: {name} ➔ {self.rename_map[name]}")
+                new_names.append(self.rename_map[name])
+            else:
+                new_names.append(name)
+        node.names = new_names
+        self.generic_visit(node)
+        return node
+
+    def visit_nonlocal(self, node):
+        # Rename nonlocal variable names
+        """
+        Visit and potentially rename nonlocal variables in the AST node.
+
+        Args:
+            self: An instance of the class containing the visit_nonlocal method.
+            node: The AST node to visit and potentially modify.
+
+        Returns:
+            ast.AST: The modified AST node after visiting and potentially renaming nonlocal variables.
+        """
+        new_names = []
+        for name in node.names:
+            if name in self.rename_map:
+                print(
+                    f"Renaming Nonlocal Variable: {name} ➔ {self.rename_map[name]}"
+                )
+                new_names.append(self.rename_map[name])
+            else:
+                new_names.append(name)
+        node.names = new_names
+        self.generic_visit(node)
+        return node
+
+    def visit_Assign(self, node):
+        # Rename assigned variable names
+        """
+        Visit and process an assignment node.
+
+        Args:
+            self: The instance of the visitor class.
+            node: The assignment node to be visited.
+
+        Returns:
+            ast.Node: The visited assignment node.
+        """
+        self.generic_visit(node)
+        return node
+
+    def visit_AnnAssign(self, node):
+        # Rename annotated assignments
+        """
+        Visit and process an AnnAssign node in an abstract syntax tree.
+
+        Args:
+            self: The AST visitor object.
+            node: The AnnAssign node to be visited.
+
+        Returns:
+            AnnAssign: The visited AnnAssign node.
+        """
+        self.generic_visit(node)
+        return node
+
+    def visit_For(self, node):
+        # Rename loop variable names
+        """
+        Visit and potentially rename the target variable in a For loop node.
+
+        Args:
+            node (ast.For): The For loop node to visit.
+
+        Returns:
+            ast.For: The modified For loop node.
+
+        Note:
+            This function may modify the target variable in the For loop node if it exists in the rename map.
+        """
+        if isinstance(node.target, ast.Name) and node.target.id in self.rename_map:
+            print(
+                f"Renaming For Loop Variable: {node.target.id} ➔ {self.rename_map[node.target.id]}"
+            )
+            node.target.id = self.rename_map[node.target.id]
+        self.generic_visit(node)
+        return node
+
+    def visit_Import(self, node):
+        """
+        Rename imported modules in 'import module' statements.
+
+        Args:
+            node (ast.Import): The import node.
+        """
+        for alias in node.names:
+            original_name = alias.name
+            if original_name in self.rename_map:
+                print(
+                    f"Renaming Import Module: {original_name} ➔ {self.rename_map[original_name]}"
+                )
+                alias.name = self.rename_map[original_name]
+            else:
+                # Handle compound module names if necessary
+                for old, new in self.rename_map.items():
+                    if original_name.startswith(old):
+                        print(
+                            f"Renaming Import Module: {original_name} ➔ {original_name.replace(old, new, 1)}"
+                        )
+                        alias.name = original_name.replace(old, new, 1)
+                        break
+        self.generic_visit(node)
+        return node
+
+    def visit_ImportFrom(self, node):
+        """
+        Rename modules and imported names in 'from module import name' statements.
+
+        Args:
+            node (ast.ImportFrom): The import from node.
+        """
+        # Rename the module being imported from
+        if node.module in self.rename_map:
+            print(
+                f"Renaming ImportFrom Module: {node.module} ➔ {self.rename_map[node.module]}"
+            )
+            node.module = self.rename_map[node.module]
+        else:
+            for old, new in self.rename_map.items():
+                if node.module and node.module.startswith(old):
+                    new_module = node.module.replace(old, new, 1)
+                    print(
+                        f"Renaming ImportFrom Module: {node.module} ➔ {new_module}"
+                    )
+                    node.module = new_module
+                    break
+
+        # Rename the imported names
+        for alias in node.names:
+            if alias.name in self.rename_map:
+                print(
+                    f"Renaming Imported Name: {alias.name} ➔ {self.rename_map[alias.name]}"
+                )
+                alias.name = self.rename_map[alias.name]
+            else:
+                for old, new in self.rename_map.items():
+                    if alias.name.startswith(old):
+                        print(
+                            f"Renaming Imported Name: {alias.name} ➔ {alias.name.replace(old, new, 1)}"
+                        )
+                        alias.name = alias.name.replace(old, new, 1)
+                        break
+        self.generic_visit(node)
+        return node

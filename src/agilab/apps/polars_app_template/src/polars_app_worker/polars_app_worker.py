@@ -12,7 +12,7 @@ class PolarsAppWorker(PolarsWorker):
 
     def start(self):
         """init"""
-        AgiEnv.log_info(f"from: {__file__}")
+        logging.info(f"from: {__file__}")
 
     def work_init(self):
         """work_init : read from space"""
@@ -64,7 +64,7 @@ class PolarsAppWorker(PolarsWorker):
 
         No Returns.
         """
-        AgiEnv.log_info("PolarsAppWorker All done !\n", end="")
+        logging.info("PolarsAppWorker All done !\n", end="")
         """
         pools_done
         """

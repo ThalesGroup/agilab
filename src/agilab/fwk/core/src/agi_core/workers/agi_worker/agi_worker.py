@@ -86,7 +86,7 @@ class AgiWorker(abc.ABC):
             None
         """
         """ """
-        AgiEnv.log_info(
+        logging.info(
             f"AgiWorker.start - worker #{AgiWorker.worker_id}: {AgiWorker.worker} - mode: {self.mode}")
         self.start()
 
@@ -94,7 +94,7 @@ class AgiWorker(abc.ABC):
         """
         Returns:
         """
-        AgiEnv.log_info(f"stop - worker #{self.worker_id}: {self.worker} - mode: {self.mode}"
+        logging.info(f"stop - worker #{self.worker_id}: {self.worker} - mode: {self.mode}"
                         )
 
     @staticmethod
@@ -119,10 +119,10 @@ class AgiWorker(abc.ABC):
             try:
                 # your nfs account in order to mount it as net drive on windows
                 cmd = f'net use Z: "{net_path}" /user:your-name your-password'
-                AgiEnv.log_info(cmd)
+                logging.info(cmd)
                 subprocess.run(cmd, shell=True, check=True)
             except Exception as e:
-                AgiEnv.log_error(f"Mount failed: {e}")
+                logging.error(f"Mount failed: {e}")
         return AgiWorker.join(AgiWorker.expand(path1), path2)
 
     @staticmethod
@@ -230,8 +230,8 @@ class AgiWorker(abc.ABC):
         )
         if result.returncode != 0:
             if result.stderr.startswith("WARNING"):
-                AgiEnv.log_error(f"warning: worker {worker} - {cmd}")
-                AgiEnv.log_error(result.stderr)
+                logging.error(f"warning: worker {worker} - {cmd}")
+                logging.error(result.stderr)
             else:
                 raise RuntimeError(
                     f"error on agi_worker {worker} - {cmd} {result.stderr}"
@@ -241,10 +241,10 @@ class AgiWorker(abc.ABC):
 
     @staticmethod
     def _log_import_error(module, target_class, target_module):
-        AgiEnv.log_error(f"file:  {__file__}")
-        AgiEnv.log_error(f"__import__('{module}', fromlist=['{target_class}'])")
-        AgiEnv.log_error(f"getattr('{target_module} {target_class}')")
-        AgiEnv.log_error(f"sys.path: {sys.path}")
+        logging.error(f"file:  {__file__}")
+        logging.error(f"__import__('{module}', fromlist=['{target_class}'])")
+        logging.error(f"getattr('{target_module} {target_class}')")
+        logging.error(f"sys.path: {sys.path}")
 
     @staticmethod
     def _load_module(module_name, module_class):
@@ -305,7 +305,7 @@ class AgiWorker(abc.ABC):
                 if lib_path not in sys.path:
                     sys.path.insert(0, lib_path)
             else:
-                AgiEnv.log_info(f"warning: no cython library found at {lib_path}")
+                logging.info(f"warning: no cython library found at {lib_path}")
                 exit(0)
 
         target_class = AgiWorker._load_manager()
@@ -318,7 +318,7 @@ class AgiWorker(abc.ABC):
                 target_inst, env, workers
             )
         except Exception as err:
-            AgiEnv.log_error(traceback.format_exc())
+            logging.error(traceback.format_exc())
             sys.exit(1)
 
         if mode == 48:
@@ -346,7 +346,7 @@ class AgiWorker(abc.ABC):
                 os.chmod(path, stat.S_IWUSR | stat.S_IREAD)
                 func(path)
             except Exception as e:
-                AgiEnv.log_error(f"warning failed to grant write access to {path}: {e}")
+                logging.error(f"warning failed to grant write access to {path}: {e}")
         else:
             # not a permission problem—re-raise so you see real errors
             raise exc_value
@@ -380,8 +380,8 @@ class AgiWorker(abc.ABC):
             else:
                 AgiWorker.env = env
 
-            AgiEnv.log_info(f"venv: {sys.prefix}")
-            AgiEnv.log_info(f"AgiWorker.new - worker #{worker_id}: {worker} from: {os.path.relpath(__file__)}")
+            logging.info(f"venv: {sys.prefix}")
+            logging.info(f"AgiWorker.new - worker #{worker_id}: {worker} from: {os.path.relpath(__file__)}")
 
             # import of derived Class of AgiManager, name target_inst which is typically an instance of MyCode
             worker_class = AgiWorker._load_worker(mode)
@@ -487,21 +487,21 @@ class AgiWorker(abc.ABC):
         AgiWorker.dask_home = dask_home
         AgiWorker.worker = worker
 
-        AgiEnv.log_info(
+        logging.info(
             f"build - worker #{AgiWorker.worker_id}: {worker} from: {os.path.relpath(__file__)}"
         )
 
         try:
-            AgiEnv.log_info("set verbose=3 to see something in this trace file ...")
+            logging.info("set verbose=3 to see something in this trace file ...")
 
             if verbose > 2:
-                AgiEnv.log_info("starting worker_build ...")
-                AgiEnv.log_info(f"home_dir: {AgiWorker.home_dir}")
-                AgiEnv.log_info(
+                logging.info("starting worker_build ...")
+                logging.info(f"home_dir: {AgiWorker.home_dir}")
+                logging.info(
                     f"worker_build(target_worker={target_worker}, dask_home={dask_home}, mode={mode}, verbose={verbose}, worker={worker})"
                 )
                 for x in Path(dask_home).glob("*"):
-                    AgiEnv.log_info(f"{x}")
+                    logging.info(f"{x}")
 
             # Exemple supposé : définir egg_src (non défini dans ton code)
             egg_src = dask_home + "/some_egg_file"  # adapte selon contexte réel
@@ -512,21 +512,21 @@ class AgiWorker(abc.ABC):
             if not mode & 2:
                 egg_dest = extract_path / (os.path.basename(egg_src) + ".egg")
 
-                AgiEnv.log_info(f"copy: {egg_src} to {egg_dest}")
+                logging.info(f"copy: {egg_src} to {egg_dest}")
                 shutil.copyfile(egg_src, egg_dest)
 
                 if str(egg_dest) in sys.path:
                     sys.path.remove(str(egg_dest))
                 sys.path.insert(0, str(egg_dest))
 
-                AgiEnv.log_info("sys.path:")
+                logging.info("sys.path:")
                 for x in sys.path:
-                    AgiEnv.log_info(f"{x}")
+                    logging.info(f"{x}")
 
-                AgiEnv.log_info("done!")
+                logging.info("done!")
 
         except Exception as err:
-            AgiEnv.log_error(
+            logging.error(
                 f"worker<{worker}> - fail to build {target_worker} from {dask_home}, see {AgiWorker.logs} for details"
             )
             raise err
@@ -543,11 +543,11 @@ class AgiWorker(abc.ABC):
         try:
             worker_id = AgiWorker.worker_id
             if worker_id is not None:
-                AgiEnv.log_info(f"do_works - worker #{worker_id}: {AgiWorker.worker} from {os.path.relpath(__file__)}")
-                AgiEnv.log_info(f"AgiWorker.work - #{worker_id + 1} / {len(workers_tree)}")
+                logging.info(f"do_works - worker #{worker_id}: {AgiWorker.worker} from {os.path.relpath(__file__)}")
+                logging.info(f"AgiWorker.work - #{worker_id + 1} / {len(workers_tree)}")
                 AgiWorker._insts[worker_id].works(workers_tree, workers_tree_info)
             else:
-                AgiEnv.log_error(f"this worker is not initialized")
+                logging.error(f"this worker is not initialized")
                 raise Exception(f"failed to do_works")
 
         except Exception as e:

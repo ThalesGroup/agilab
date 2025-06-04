@@ -4,6 +4,7 @@ from agi_env import AgiEnv
 from unittest import mock
 import asyncio
 import subprocess
+import logging
 
 @pytest.fixture
 def env():
@@ -15,8 +16,6 @@ def test_replace_content_replaces_whole_words(env):
     txt = "foo foo_bar barfoo bar"
     rename_map = {"foo": "baz", "bar": "qux"}
     replaced = env.replace_content(txt, rename_map)
-    # On remplace uniquement les mots entiers "foo" et "bar"
-    # "foo_bar" et "barfoo" ne doivent pas être modifiés
     assert replaced == "baz foo_bar barfoo qux"
 
 def test_replace_content_unary(env):
@@ -25,21 +24,29 @@ def test_replace_content_unary(env):
     replaced = env.replace_content(txt, rename_map)
     assert replaced == "FOO bar baz FOO"
 
-def test_create_symlink_existing_and_errors(tmp_path):
+def test_create_symlink_existing_and_errors(tmp_path, caplog):
     src = tmp_path / "src"
     src.mkdir()
     dest = tmp_path / "dest"
-    # Création initiale de symlink
-    AgiEnv.create_symlink(src, dest)
-    assert dest.is_symlink()
 
-    # Re-création ne doit pas lever d'erreur ni écraser
-    AgiEnv.create_symlink(src, dest)
+    with caplog.at_level(logging.INFO):
+        AgiEnv.create_symlink(src, dest)
+        assert dest.is_symlink()
 
-    # Si dest est un fichier ordinaire, création doit avertir et ne pas écraser
-    dest.unlink()
-    dest.write_text("hello")
-    AgiEnv.create_symlink(src, dest)
+        # Re-creation should not error
+        AgiEnv.create_symlink(src, dest)
+
+        dest.unlink()
+        dest.write_text("hello")
+
+        AgiEnv.create_symlink(src, dest)
+
+        # DEBUG: print all captured logs for inspection
+        for rec in caplog.records:
+            print(f"Captured log: {rec.levelname} {rec.name} {rec.getMessage()}")
+
+        assert any("symlink" in rec.getMessage().lower() or "warning" in rec.getMessage().lower()
+                   for rec in caplog.records), "Expected symlink or warning messages in logs"
 
 def test_clone_directory_and_cleanup(tmp_path, env):
     source = tmp_path / "source_project"
@@ -57,7 +64,8 @@ def test_clone_directory_and_cleanup(tmp_path, env):
     renamed_py = dest / "file.py"
     assert renamed_py.exists()
     content = renamed_py.read_text()
-    assert any(s in content for s in rename_map.values())
+    # Check rename_map values appear somewhere in content
+    assert any(v in content for v in rename_map.values())
 
 def test_change_active_app_reinitializes(monkeypatch, env):
     called = {}
@@ -74,7 +82,7 @@ def test_change_active_app_reinitializes(monkeypatch, env):
     assert called.get('called', False)
 
 @pytest.mark.asyncio
-async def test_run_timeout_and_exception(env, monkeypatch):
+async def test_run_timeout_and_exception(env):
     class DummyProcess:
         def __init__(self):
             self.returncode = None
@@ -87,10 +95,9 @@ async def test_run_timeout_and_exception(env, monkeypatch):
         def wait(self, timeout=None):
             raise subprocess.TimeoutExpired(cmd="sleep", timeout=timeout)
 
-    monkeypatch.setattr("subprocess.Popen", lambda *a, **k: DummyProcess())
-
-    with pytest.raises(RuntimeError):
-        await env.run("sleep 1", venv=".", wait=True)
+    with mock.patch("subprocess.Popen", return_value=DummyProcess()):
+        with pytest.raises(RuntimeError):
+            await env.run("sleep 1", venv=".", wait=True)
 
 @pytest.mark.asyncio
 async def test_exec_ssh_async_reads(monkeypatch, env):
@@ -130,9 +137,14 @@ async def test_exec_ssh_async_reads(monkeypatch, env):
         async def __aexit__(self, exc_type, exc_val, exc_tb):
             pass
 
+    # Now monkeypatch after DummyConn is defined:
     monkeypatch.setattr(env, "get_ssh_connection", lambda ip: DummyConn())
 
     result = await env.exec_ssh_async("1.2.3.4", "ls")
+
+    if isinstance(result, bytes):
+        result = result.decode("utf-8").strip()
+
     assert result == "ERROR: line2"
 
 

@@ -66,7 +66,7 @@ class DagWorker(AgiWorker):
             if idx % num_workers == worker_id
         ]
         if not assigned:
-            AgiEnv.log_info(f"No tasks for worker {worker_id}")
+            logging.info(f"No tasks for worker {worker_id}")
             return
 
         # execute each branch sequentially
@@ -79,31 +79,31 @@ class DagWorker(AgiWorker):
             }
 
             # debug
-            AgiEnv.log_info(f"Complete dependency graph for worker {worker_id}:")
+            logging.info(f"Complete dependency graph for worker {worker_id}:")
             for fn, deps in dependency_graph.items():
-                AgiEnv.log_info(f"  {fn}: {deps}")
-            AgiEnv.log_info("Function info:")
+                logging.info(f"  {fn}: {deps}")
+            logging.info("Function info:")
             for fn, meta in function_info.items():
-                AgiEnv.log_info(
+                logging.info(
                     f"  {fn}: algo={meta['partition_name']}, sequence={meta['weight']}"
                 )
 
             # topological sort
             try:
                 topo_order = self.topological_sort(dependency_graph)
-                AgiEnv.log_info(f"Topological order: {topo_order}")
+                logging.info(f"Topological order: {topo_order}")
             except (KeyError, ValueError) as e:
-                AgiEnv.log_error(f"Error during topological sort: {e}")
+                logging.error(f"Error during topological sort: {e}")
                 continue
 
             # execute in order
             for fn in topo_order:
                 pname = function_info[fn]["partition_name"]
-                AgiEnv.log_info(f"Executing {fn} for partition {pname}")
+                logging.info(f"Executing {fn} for partition {pname}")
                 try:
                     self.get_work(fn)
                 except Exception as e:
-                    AgiEnv.log_error(f"Error executing {fn}: {e}")
+                    logging.error(f"Error executing {fn}: {e}")
 
     def topological_sort(self, dependency_graph):
         """
@@ -152,7 +152,7 @@ class DagWorker(AgiWorker):
                 assigned.append((fn, deps, pname, weight))
 
         if not assigned:
-            AgiEnv.log_info(f"No tasks for worker {worker_id}")
+            logging.info(f"No tasks for worker {worker_id}")
             return
 
         # build combined dependency graph & metadata
@@ -166,7 +166,7 @@ class DagWorker(AgiWorker):
         try:
             topo_order = self.topological_sort(dependency_graph)
         except ValueError as e:
-            AgiEnv.log_error(f"Error in dependency graph: {e}")
+            logging.error(f"Error in dependency graph: {e}")
             return
 
         # execute in parallel
@@ -183,7 +183,7 @@ class DagWorker(AgiWorker):
         for fn, (future, pname) in futures.items():
             try:
                 future.result()
-                AgiEnv.log_info(f"Method {fn} for partition {pname} completed.")
+                logging.info(f"Method {fn} for partition {pname} completed.")
             except Exception as exc:
-                AgiEnv.log_error(f"Method {fn} for partition {pname} generated an exception: {exc}")
+                logging.error(f"Method {fn} for partition {pname} generated an exception: {exc}")
 
