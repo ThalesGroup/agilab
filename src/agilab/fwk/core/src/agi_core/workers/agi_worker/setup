@@ -210,9 +210,9 @@ def main() -> None:
 
     # Change directory to build_dir BEFORE setup if build_ext
     if cmd == 'build_ext':
-        AgiEnv.log_info(f"cwd: {cwd}")
+        logging.info(f"cwd: {cwd}")
         #os.chdir(opts.build_dir)
-        AgiEnv.log_info(f"build_dir: {opts.build_dir}")
+        logging.info(f"build_dir: {opts.build_dir}")
         src_rel = Path("src") / worker_module / f"{worker_module}.pyx"
         prefix = Path(find_sys_prefix("~/MyApp"))
         mod = Extension(

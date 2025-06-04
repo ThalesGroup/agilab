@@ -44,7 +44,7 @@ def exec(cmd, cwd=".", timeout=None):
 
 def unzip_data(archive_path: Path, extract_to: Path=None):
     if not archive_path.exists():
-        AgiEnv.log_info(f"Archive '{archive_path}' does not exist.")
+        logging.info(f"Archive '{archive_path}' does not exist.")
         sys.exit(1)
 
     if not extract_to:
@@ -55,9 +55,9 @@ def unzip_data(archive_path: Path, extract_to: Path=None):
     try:
         with py7zr.SevenZipFile(str(archive_path), mode="r") as archive:
             archive.extractall(path=str(extract_to))
-        AgiEnv.log_info(f"Successfully extracted '{archive_path}' to '{extract_to}'.")
+        logging.info(f"Successfully extracted '{archive_path}' to '{extract_to}'.")
     except Exception as e:
-        AgiEnv.log_error(f"Failed to extract '{archive_path}': {e}")
+        logging.error(f"Failed to extract '{archive_path}': {e}")
         sys.exit(1)
 
 
