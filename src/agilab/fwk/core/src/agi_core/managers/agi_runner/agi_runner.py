@@ -1114,11 +1114,12 @@ class AGI:
             ConnectionError:
         """
         AGI._run_type = "sync"
+        mode = (AGI.INSTALL_MODE | modes_enabled)
         await AGI.run(module_name,
                       scheduler=scheduler,
                       workers=workers,
                       env=env,
-                      mode=(AGI.INSTALL_MODE | modes_enabled),
+                      mode=mode,
                       rapids_enabled=AGI.INSTALL_MODE & modes_enabled,
                       verbose=verbose, **args)
 

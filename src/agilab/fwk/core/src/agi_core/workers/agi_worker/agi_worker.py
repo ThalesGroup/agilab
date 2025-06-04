@@ -376,7 +376,8 @@ class AgiWorker(abc.ABC):
         """
         try:
             if not env:
-                AgiWorker.env = AgiEnv(active_app=app, install_type=2, verbose=verbose)
+                install_type = 1 if worker == "localhost" else 2
+                AgiWorker.env = AgiEnv(active_app=app, install_type=install_type, verbose=verbose)
             else:
                 AgiWorker.env = env
 
