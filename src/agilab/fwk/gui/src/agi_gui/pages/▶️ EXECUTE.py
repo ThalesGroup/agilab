@@ -899,14 +899,15 @@ if __name__ == '__main__':
 
             if not st.session_state.get('mode'):
                 try:
-                    data = json.loads(env.benchmark)
-                    if data:
-                        benchmark_df = pd.DataFrame.from_dict(data, orient='index')
-                        st.text("Benchmark result:")
-                        st.dataframe(benchmark_df)
+                    with open(env.benchmark, "r") as f:
+                        data = json.loads(f.read())
+                        if data:
+                            benchmark_df = pd.DataFrame.from_dict(data, orient='index')
+                            st.text("Benchmark result:")
+                            st.dataframe(benchmark_df)
 
-                    except json.JSONDecodeError as e:
-                        print("Error decoding JSON:", e)
+                except json.JSONDecodeError as e:
+                    print("Error decoding JSON:", e)
 
             st.session_state["loaded_df"] = cached_load_df(Path().home() / env.dataframes_path)
 
