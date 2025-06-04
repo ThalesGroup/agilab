@@ -92,11 +92,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#check-the-service-status">Check the service status:</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#permissions">Permissions</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#on-windows">On Windows</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#on-linux">On Linux</a></li>
-</ul>
-</li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#permissions">Permissions</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#useful-links">Useful links</a></li>
 </ul>
 </li>
@@ -171,6 +167,7 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../directory-structure.html">Project Files Structure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install-usecase.html">Installation Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting.html">Troubleshooting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
@@ -485,7 +482,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            None</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;from: </span><span class="si">{</span><span class="vm">__file__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;from: </span><span class="si">{</span><span class="vm">__file__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">if</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="o">&amp;</span> <span class="mi">2</span> <span class="ow">and</span> <span class="s2">&quot;cy&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="vm">__file__</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Cython requested but not executed&quot;</span><span class="p">)</span></div>
 
@@ -522,7 +519,7 @@
 <span class="sd">        Prints:</span>
 <span class="sd">            str: Print statement indicating the execution of algorithm A.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MyCodeWorker.algo_A&quot;</span><span class="p">)</span></div>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MyCodeWorker.algo_A&quot;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="MyCodeWorker.algo_B">
@@ -537,7 +534,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            None</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MyCodeWorker.algo_B&quot;</span><span class="p">)</span></div>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MyCodeWorker.algo_B&quot;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="MyCodeWorker.algo_C">
@@ -569,7 +566,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            None</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MyCodeWorker.algo_X&quot;</span><span class="p">)</span></div>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MyCodeWorker.algo_X&quot;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="MyCodeWorker.algo_Y">
@@ -600,7 +597,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            None</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MyCodeWorker.algo_Z&quot;</span><span class="p">)</span></div>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MyCodeWorker.algo_Z&quot;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="MyCodeWorker.stop">

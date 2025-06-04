@@ -51,7 +51,6 @@
 | decorator | BSD LICENSE |
 | deepmerge | MIT LICENSE |
 | defusedxml | PYTHON SOFTWARE FOUNDATION LICENSE |
-| deprecated | MIT LICENSE |
 | deprecation | APACHE SOFTWARE LICENSE |
 | dill | BSD LICENSE |
 | diskcache | APACHE SOFTWARE LICENSE |
@@ -327,7 +326,6 @@
 | wheel | MIT LICENSE |
 | widgetsnbextension | BSD LICENSE |
 | wordcloud | MIT LICENSE |
-| wrapt | BSD LICENSE |
 | yarl | APACHE SOFTWARE LICENSE |
 | ydata | MIT LICENSE |
 | ydata-profiling | MIT LICENSE |

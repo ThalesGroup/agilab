@@ -355,6 +355,8 @@ class AGI:
         runs_str_keys = {str(k): v for k, v in runs.items()}
 
         # Return a JSON-formatted string
+        with open(env.benchmark, "w")as f:
+            f.write(json.dump(runs_str_keys, sys.stdout))
         return json.dumps(runs_str_keys)
 
     @staticmethod

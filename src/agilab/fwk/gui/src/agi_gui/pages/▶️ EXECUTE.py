@@ -898,18 +898,12 @@ if __name__ == '__main__':
                 run_log = stdout
 
             if not st.session_state.get('mode'):
-                match = re.search(r'(\{.*\})', st.session_state["log_text"], re.DOTALL)
-                if match:
-                    json_str = match.group(1)
-                    # If necessary, clean up single quotes to valid double quotes for JSON
-                    json_str = json_str.replace("'", '"')
-
-                    try:
-                        data = json.loads(json_str)
-                        if data:
-                            benchmark_df = pd.DataFrame.from_dict(data, orient='index')
-                            st.text("Benchmark result:")
-                            st.dataframe(benchmark_df)
+                try:
+                    data = json.loads(env.benchmark)
+                    if data:
+                        benchmark_df = pd.DataFrame.from_dict(data, orient='index')
+                        st.text("Benchmark result:")
+                        st.dataframe(benchmark_df)
 
                     except json.JSONDecodeError as e:
                         print("Error decoding JSON:", e)

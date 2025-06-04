@@ -1,8 +1,8 @@
 Key Generation
 ==============
 
-In this part of the documentation, the term *client* refers to the computer where Agilab is installed.
-The *remote account* refers to the account provided during the AGI installation process.
+In this part of the documentation, the term **manager** (i.e ssh client) refers to the computer where Agilab is installed, and the **worker** (i.e the ssh server) refers to the remote worker.
+The **remote account** refers to the account provided during the AGI installation process.
 This account is used by AGI to establish SSH connections to the remote server.
 Ensure that the account exists on the server.
 
@@ -12,13 +12,13 @@ Generate the keys
 .. toctree::
    :hidden:
 
-On the client, generate a pair of public and private key using:
+On the manager, generate a pair of public and private key using:
 
 .. code-block:: bash
 
    ssh-keygen -a 100 -t ed25519
 
-You will be prompted for a passphrase. Store it securely, such as in a password manager.
+You will be prompted for a passphrase. don't enter one (double return).
 
 If you have not changed the default path, the public key will be stored in ``~/.ssh/id_ed25519.pub`` and the private key in ``~/.ssh/id_ed25519``.
 
@@ -28,19 +28,21 @@ Loading the private key in SSH Agent
 Load the private key
 ~~~~~~~~~~~~~~~~~~~~~
 
-To load the private key into the SSH agent, follow these steps:
+To load the private key into the SSH agent of the manager, follow these steps:
 
-- **On windows**:
+.. tabs::
 
-    .. code-block:: powershell
+	.. tab:: **Windows**
 
-       ssh-add $env:USERPROFILE/.ssh/id_ed25519
+		.. code-block:: powershell
+		
+		   ssh-add $env:USERPROFILE/.ssh/id_ed25519
 
-- **On Linux**:
+	.. tab:: **Linux**
 
-    .. code-block:: bash
-
-       ssh-add ~/.ssh/id_ed25519
+		.. code-block:: bash
+		
+		   ssh-add ~/.ssh/id_ed25519
 
 If you have set a passphrase, you will be asked to enter it. If you encounter any permission-related errors, refer to the `Permissions`_ section.
 
@@ -57,48 +59,51 @@ To check if the key has been correctly added to the agent:
 
 It should display the **public key** (not private). To manually check the public key:
 
-- **On Windows**:
+.. tabs::
 
-  .. code-block:: powershell
+	.. tab:: **Windows**
 
-      cat $env:USERPROFILE/.ssh/id_ed25519.pub
+		.. code-block:: powershell
 
-- **On Linux**:
+		   cat $env:USERPROFILE/.ssh/id_ed25519.pub
 
-  .. code-block:: bash
+	.. tab:: **Linux**
 
-      cat ~/.ssh/id_ed25519.pub
+		.. code-block:: bash
+
+		   cat ~/.ssh/id_ed25519.pub
+
 
 Copy the public key to the server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To authorize connections to the server, add your public key to the server's authorized keys:
+To authorize connections to the worker, add your public key to the worker's authorized keys:
 
--- **Unix client** and **Unix Server**:
+.. tabs::
 
-    .. code-block:: bash
+	.. tab:: **Unix manager** and **Unix worker**
+		
+		.. code-block:: bash
 
-       ssh-copy-id -i ~/.ssh/id_ed25519 <remote account>@<server ip address>
+		   ssh-copy-id -i ~/.ssh/id_ed25519 <remote account>@<worker ip>
 
--- **Unix client** and **Windows Server**:
+	.. tab:: **Unix manager** and **Windows worker**
 
-    .. code-block:: bash
+		.. code-block:: bash
 
-       cat ~/.ssh/id_ed25519.pub | ssh <remote account>@<windows server ip> "cat >> C:/Users/<remote account>/.ssh/authorized_keys"
+		   cat ~/.ssh/id_ed25519.pub | ssh <remote account>@<worker ip> "cat >> C:/Users/<remote account>/.ssh/authorized_keys"
 
+	.. tab:: **Windows manager** and **Windows worker**
 
--- **Windows client** and **Windows server**:
+		.. code-block:: powershell
 
-   .. code-block:: powershell
+		   Get-Content -Raw "${env:USERPROFILE}\.ssh\id_ed25519.pub" | ssh <remote account>@<worker ip> "cat >> C:/Users/<remote account>/.ssh/authorized_keys"
 
-      Get-Content -Raw "${env:USERPROFILE}\.ssh\id_ed25519.pub" | ssh <remote account>@<server ip> "cat >> C:/Users/<remote account>/.ssh/authorized_keys"
+	.. tab:: **Windows manager** and **Unix worker**:
 
+		.. code-block:: powershell
 
--- **Windows client** and **Unix server**:
-
-    .. code-block:: powershell
-
-       Get-Content -Raw "${env:USERPROFILE}\.ssh\id_ed25519.pub" | ssh <remote account>@<linux server ip> "cat >> ~/.ssh/authorized_keys"
+		   Get-Content -Raw "${env:USERPROFILE}\.ssh\id_ed25519.pub" | ssh <remote account>@<worker ip> "cat >> ~/.ssh/authorized_keys"
 
 SSHD Service
 ^^^^^^^^^^^^
@@ -123,80 +128,82 @@ To modify, open the file in an **elevated text editor**, update the lines as sho
 Restart the SSHD service
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
--- On **Windows Server** (admin):
+.. tabs::
 
-    .. code-block:: powershell
+	.. tab:: **Windows worker (admin)**
 
-        Restart-Service sshd   # Restart SSH Server
-        Restart-Service ssh-agent   # Restart SSH Agent
+		.. code-block:: powershell
 
--- On **Unix Server**:
+		   Restart-Service sshd   # Restart SSH Server
+		   Restart-Service ssh-agent   # Restart SSH Agent
 
-    .. code-block:: bash
+	.. tab:: **Linux worker**
 
-        sudo systemctl restart ssh  # Restart SSH Server
-        eval "$(ssh-agent -s)"  # Restart SSH Agent
+		.. code-block:: bash
 
+		   sudo systemctl restart ssh  # Restart SSH Server
+		   eval "$(ssh-agent -s)"  # Restart SSH Agent
 
 Check the service status:
 ~~~~~~~~~~~~~~~~~~~~~
 
--- On **Windows Server** (admin):
+.. tabs::
 
-    .. code-block:: powershell
+	.. tab:: **Windows worker (admin)**
 
-        Get-Service sshd
-        Get-Service ssh-agent
+		.. code-block:: powershell
 
--- On **Unix Server**:
+		   Get-Service sshd
+		   Get-Service ssh-agent
 
-    .. code-block:: bash
+	.. tab:: **Linux worker**
 
-        sudo systemctl status ssh  # Check SSH Server status
-        ssh-add -L  # Check if the SSH agent is running
+		.. code-block:: bash
 
+		   sudo systemctl status ssh  # Check SSH Server status
+		   ssh-add -L  # Check if the SSH agent is running
 Permissions
 ^^^^^^^^^^^
 
-On Windows
-~~~~~~~~~~
+.. tabs::
 
-Ensure that the ``.ssh`` folder and files ``id_ed25519`` and ``authorized_keys`` have the correct permissions:
+	.. tab:: **Windows**
 
-.. code-block:: bash
+		Ensure that the ``.ssh`` folder and files ``id_ed25519`` and ``authorized_keys`` have the correct permissions:
 
-    .ssh\id_rsa        AUTORITE NT\Système:(F)
-                        BUILTIN\Administrateurs:(F)
-                        %USERNAME%:(M)
+		.. code-block:: bash
 
-To view permissions:
+		   .ssh\id_rsa        AUTORITE NT\Système:(F)
+				      BUILTIN\Administrateurs:(F)
+				      %USERNAME%:(M)
 
-.. code-block:: powershell
+		To view permissions:
 
-    icacls "$env:userprofile\.ssh"
+		.. code-block:: powershell
 
-To set correct permissions:
+		    icacls "$env:userprofile\.ssh"
 
-.. code-block:: powershell
+		To set correct permissions:
 
-    icacls "$env:userprofile\.ssh\id_ed25519" /inheritance:r /grant "AUTORITE NT\Système:(F)" "BUILTIN\Administrateurs:(F)" "$env:username:(M)"
+		.. code-block:: powershell
 
-On Linux
-~~~~~~~~
+		    icacls "$env:userprofile\.ssh\id_ed25519" /inheritance:r /grant "AUTORITE NT\Système:(F)" "BUILTIN\Administrateurs:(F)" "$env:username:(M)"
 
-Ensure the ``.ssh`` folder and files have correct permissions:
+	.. tab:: **Linux worker**
 
-.. code-block:: bash
+		Ensure the ``.ssh`` folder and files have correct permissions:
 
-    chmod 700 ~/.ssh
-    chmod 600 ~/.ssh/id_ed25519
-    chmod 600 ~/.ssh/authorized_keys
+		.. code-block:: bash
 
-To verify:
+		    chmod 700 ~/.ssh
+		    chmod 600 ~/.ssh/id_ed25519
+		    chmod 600 ~/.ssh/authorized_keys
 
-.. code-block:: bash
+		To verify:
 
-    ls -l "~/.ssh"
+		.. code-block:: bash
+
+		    ls -l "~/.ssh"
 
 Useful links
 ^^^^^^
