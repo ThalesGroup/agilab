@@ -1196,7 +1196,7 @@ class AgiEnv:
             # Default to INFO if no level found
             level = logging.INFO
 
-        logging.log(level, f"[{ip}] {line}")
+        logging.info(level, f"[{ip}] {line}")
 
     def set_cluster_credentials(self, credentials: str):
         """Set the AGI_CREDENTIALS environment variable."""
