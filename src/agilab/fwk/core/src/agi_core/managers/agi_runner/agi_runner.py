@@ -1297,7 +1297,7 @@ class AGI:
                         wenv_rel = env.wenv_rel
                         cmd = f'uv -q --project {wenv_rel} run dask worker tcp://{AGI._scheduler} --no-nanny --pid-file {pid_file}'
                         asyncio.create_task(env.exec_ssh_async(ip, cmd))
-                        logging.log(f"Launched remote worker in background on {ip}: {cmd}")
+                        logging.info(f"Launched remote worker in background on {ip}: {cmd}")
 
                 except Exception as e:
                     logging.error(f"Failed to start worker on {ip}: {e}")
@@ -1653,7 +1653,7 @@ class AGI:
     async def _stop():
         """Stop the Dask workers and scheduler"""
         env = AGI.env
-        logging.log("stop Agi fwk")
+        logging.info("stop Agi fwk")
 
         # AGI._dask_client.retire_workers() # causing comm close error on ubuntu
 
