@@ -154,16 +154,13 @@ class AgiEnv:
         stderr_handler.setFormatter(fmt_err)
         stderr_handler.addFilter(ClassNameFilter())
 
-        root = logging.getLogger()
-        # Remove old handlers before adding new ones
-        for h in root.handlers[:]:
-            root.removeHandler(h)
         root.addHandler(stdout_handler)
         root.addHandler(stderr_handler)
 
         root.setLevel(logging.DEBUG if verbosity and verbosity >= 2 else logging.INFO if verbosity == 1 else logging.WARNING)
 
         logging.debug(f"Logging initialized at level {logging.getLevelName(root.level)}")
+
 
 
     def __init__(self, install_type: int = None, apps_dir: Path = None,
@@ -1040,7 +1037,7 @@ class AgiEnv:
                 sys.exit(1)
 
         except asyncssh.Error as e:
-            self._log_error_once(ip, str(e))
+            self._log_error_once(ip, set(e.command) + '\n' +  str(e))
             sys.exit(1)
 
         except Exception as e:
@@ -1068,7 +1065,6 @@ class AgiEnv:
                 stdout = stdout.decode('utf-8', errors='replace')
             if isinstance(stderr, bytes):
                 stderr = stderr.decode('utf-8', errors='replace')
-            self._log_error_once(ip, f"SSH command stdout: {stdout.strip()}")
             self._log_error_once(ip, f"SSH command stderr: {stderr.strip()}")
             sys.exit(1)
 
@@ -1116,9 +1112,11 @@ class AgiEnv:
         cmd = []
 
         if password and os.name != "nt":
-            cmd += ["sshpass", "-p", password]
+            cmd_base = ["sshpass"]
+            cmd += cmd_base + ["-p", password]
 
-        cmd += ["scp", str(local_path), remote]
+        cmd_end = ["scp", str(local_path), remote]
+        cmd = cmd + cmd_end
 
         try:
             process = await asyncio.create_subprocess_exec(
@@ -1135,8 +1133,24 @@ class AgiEnv:
             logging.info(f"Sent file {local_path} to {remote}")
 
         except Exception as e:
-            logging.error(f"Unexpected error during SCP of {local_path} to {remote}: {e}")
-            raise
+            try:
+                cmd = cmd_base + cmd_end
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await process.communicate()
+
+                if process.returncode:
+                    logging.error(f"SCP failed sending {local_path} to {remote}: {stderr.decode().strip()}")
+                    raise ConnectionError(f"SCP error: {stderr.decode().strip()}")
+
+                logging.info(f"Sent file {local_path} to {remote}")
+
+            except Exception as e:
+                raise
+
 
     async def send_files(self, ip: str, files: list[Path], remote_dir: Path, user: str = None):
         tasks = []
