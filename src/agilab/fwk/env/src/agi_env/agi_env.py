@@ -54,6 +54,7 @@ class AgiEnv:
     init_done = False
     has_rapids_hw = None
     debug = False
+    benchmark = None
 
     import inspect
     import logging
@@ -177,6 +178,7 @@ class AgiEnv:
 
         self.resource_path = home_abs / self.agi_resources.name
         env_path = self.resource_path / ".env"
+        self.benchmark = self.resource_path / "benchmark.json"
         self.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
         envars = self.envars
 
@@ -866,7 +868,7 @@ class AgiEnv:
                     break
                 decoded_line = line.decode('utf-8', errors='replace').rstrip()
                 if decoded_line:
-                    logging.info(decoded_line)
+                    callback(decoded_line)
 
         tasks = []
         if proc.stdout:

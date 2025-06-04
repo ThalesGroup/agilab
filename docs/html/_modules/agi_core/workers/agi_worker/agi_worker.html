@@ -92,11 +92,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../../../key-generation.html#check-the-service-status">Check the service status:</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../key-generation.html#permissions">Permissions</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../../../key-generation.html#on-windows">On Windows</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../key-generation.html#on-linux">On Linux</a></li>
-</ul>
-</li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../key-generation.html#permissions">Permissions</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../key-generation.html#useful-links">Useful links</a></li>
 </ul>
 </li>
@@ -519,7 +515,7 @@
 <span class="sd">            None</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot; &quot;&quot;&quot;</span>
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">&quot;AgiWorker.start - worker #</span><span class="si">{</span><span class="n">AgiWorker</span><span class="o">.</span><span class="n">worker_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">AgiWorker</span><span class="o">.</span><span class="n">worker</span><span class="si">}</span><span class="s2"> - mode: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">mode</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">()</span></div>
 
@@ -530,7 +526,7 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Returns:</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;stop - worker #</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">worker</span><span class="si">}</span><span class="s2"> - mode: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">mode</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;stop - worker #</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">worker</span><span class="si">}</span><span class="s2"> - mode: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">mode</span><span class="si">}</span><span class="s2">&quot;</span>
                         <span class="p">)</span></div>
 
 
@@ -558,10 +554,10 @@
             <span class="k">try</span><span class="p">:</span>
                 <span class="c1"># your nfs account in order to mount it as net drive on windows</span>
                 <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;net use Z: &quot;</span><span class="si">{</span><span class="n">net_path</span><span class="si">}</span><span class="s1">&quot; /user:your-name your-password&#39;</span>
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
                 <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">check</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Mount failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Mount failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">AgiWorker</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">path1</span><span class="p">),</span> <span class="n">path2</span><span class="p">)</span></div>
 
 
@@ -681,8 +677,8 @@
         <span class="p">)</span>
         <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">returncode</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;WARNING&quot;</span><span class="p">):</span>
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;warning: worker </span><span class="si">{</span><span class="n">worker</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;warning: worker </span><span class="si">{</span><span class="n">worker</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;error on agi_worker </span><span class="si">{</span><span class="n">worker</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">stderr</span><span class="si">}</span><span class="s2">&quot;</span>
@@ -693,10 +689,10 @@
 
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_log_import_error</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">target_class</span><span class="p">,</span> <span class="n">target_module</span><span class="p">):</span>
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;file:  </span><span class="si">{</span><span class="vm">__file__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;__import__(&#39;</span><span class="si">{</span><span class="n">module</span><span class="si">}</span><span class="s2">&#39;, fromlist=[&#39;</span><span class="si">{</span><span class="n">target_class</span><span class="si">}</span><span class="s2">&#39;])&quot;</span><span class="p">)</span>
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;getattr(&#39;</span><span class="si">{</span><span class="n">target_module</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">target_class</span><span class="si">}</span><span class="s2">&#39;)&quot;</span><span class="p">)</span>
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;sys.path: </span><span class="si">{</span><span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;file:  </span><span class="si">{</span><span class="vm">__file__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;__import__(&#39;</span><span class="si">{</span><span class="n">module</span><span class="si">}</span><span class="s2">&#39;, fromlist=[&#39;</span><span class="si">{</span><span class="n">target_class</span><span class="si">}</span><span class="s2">&#39;])&quot;</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;getattr(&#39;</span><span class="si">{</span><span class="n">target_module</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">target_class</span><span class="si">}</span><span class="s2">&#39;)&quot;</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;sys.path: </span><span class="si">{</span><span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_load_module</span><span class="p">(</span><span class="n">module_name</span><span class="p">,</span> <span class="n">module_class</span><span class="p">):</span>
@@ -759,7 +755,7 @@
                 <span class="k">if</span> <span class="n">lib_path</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
                     <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">lib_path</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;warning: no cython library found at </span><span class="si">{</span><span class="n">lib_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;warning: no cython library found at </span><span class="si">{</span><span class="n">lib_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
 
         <span class="n">target_class</span> <span class="o">=</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">_load_manager</span><span class="p">()</span>
@@ -772,7 +768,7 @@
                 <span class="n">target_inst</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">workers</span>
             <span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
-            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">())</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">())</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="mi">48</span><span class="p">:</span>
@@ -803,7 +799,7 @@
                 <span class="n">os</span><span class="o">.</span><span class="n">chmod</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_IWUSR</span> <span class="o">|</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_IREAD</span><span class="p">)</span>
                 <span class="n">func</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;warning failed to grant write access to </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;warning failed to grant write access to </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># not a permission problem—re-raise so you see real errors</span>
             <span class="k">raise</span> <span class="n">exc_value</span></div>
@@ -836,12 +832,13 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">env</span><span class="p">:</span>
-                <span class="n">AgiWorker</span><span class="o">.</span><span class="n">env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">app</span><span class="p">,</span> <span class="n">install_type</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+                <span class="n">install_type</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">worker</span> <span class="o">==</span> <span class="s2">&quot;localhost&quot;</span> <span class="k">else</span> <span class="mi">2</span>
+                <span class="n">AgiWorker</span><span class="o">.</span><span class="n">env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">app</span><span class="p">,</span> <span class="n">install_type</span><span class="o">=</span><span class="n">install_type</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">AgiWorker</span><span class="o">.</span><span class="n">env</span> <span class="o">=</span> <span class="n">env</span>
 
-            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;venv: </span><span class="si">{</span><span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;AgiWorker.new - worker #</span><span class="si">{</span><span class="n">worker_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">worker</span><span class="si">}</span><span class="s2"> from: </span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;venv: </span><span class="si">{</span><span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;AgiWorker.new - worker #</span><span class="si">{</span><span class="n">worker_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">worker</span><span class="si">}</span><span class="s2"> from: </span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
             <span class="c1"># import of derived Class of AgiManager, name target_inst which is typically an instance of MyCode</span>
             <span class="n">worker_class</span> <span class="o">=</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">_load_worker</span><span class="p">(</span><span class="n">mode</span><span class="p">)</span>
@@ -953,21 +950,21 @@
         <span class="n">AgiWorker</span><span class="o">.</span><span class="n">dask_home</span> <span class="o">=</span> <span class="n">dask_home</span>
         <span class="n">AgiWorker</span><span class="o">.</span><span class="n">worker</span> <span class="o">=</span> <span class="n">worker</span>
 
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">&quot;build - worker #</span><span class="si">{</span><span class="n">AgiWorker</span><span class="o">.</span><span class="n">worker_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">worker</span><span class="si">}</span><span class="s2"> from: </span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="p">)</span>
 
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="s2">&quot;set verbose=3 to see something in this trace file ...&quot;</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;set verbose=3 to see something in this trace file ...&quot;</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="s2">&quot;starting worker_build ...&quot;</span><span class="p">)</span>
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;home_dir: </span><span class="si">{</span><span class="n">AgiWorker</span><span class="o">.</span><span class="n">home_dir</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;starting worker_build ...&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;home_dir: </span><span class="si">{</span><span class="n">AgiWorker</span><span class="o">.</span><span class="n">home_dir</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;worker_build(target_worker=</span><span class="si">{</span><span class="n">target_worker</span><span class="si">}</span><span class="s2">, dask_home=</span><span class="si">{</span><span class="n">dask_home</span><span class="si">}</span><span class="s2">, mode=</span><span class="si">{</span><span class="n">mode</span><span class="si">}</span><span class="s2">, verbose=</span><span class="si">{</span><span class="n">verbose</span><span class="si">}</span><span class="s2">, worker=</span><span class="si">{</span><span class="n">worker</span><span class="si">}</span><span class="s2">)&quot;</span>
                 <span class="p">)</span>
                 <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">Path</span><span class="p">(</span><span class="n">dask_home</span><span class="p">)</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">&quot;*&quot;</span><span class="p">):</span>
-                    <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
             <span class="c1"># Exemple supposé : définir egg_src (non défini dans ton code)</span>
             <span class="n">egg_src</span> <span class="o">=</span> <span class="n">dask_home</span> <span class="o">+</span> <span class="s2">&quot;/some_egg_file&quot;</span>  <span class="c1"># adapte selon contexte réel</span>
@@ -978,21 +975,21 @@
             <span class="k">if</span> <span class="ow">not</span> <span class="n">mode</span> <span class="o">&amp;</span> <span class="mi">2</span><span class="p">:</span>
                 <span class="n">egg_dest</span> <span class="o">=</span> <span class="n">extract_path</span> <span class="o">/</span> <span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">egg_src</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;.egg&quot;</span><span class="p">)</span>
 
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;copy: </span><span class="si">{</span><span class="n">egg_src</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">egg_dest</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;copy: </span><span class="si">{</span><span class="n">egg_src</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">egg_dest</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="n">shutil</span><span class="o">.</span><span class="n">copyfile</span><span class="p">(</span><span class="n">egg_src</span><span class="p">,</span> <span class="n">egg_dest</span><span class="p">)</span>
 
                 <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">egg_dest</span><span class="p">)</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
                     <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">egg_dest</span><span class="p">))</span>
                 <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">egg_dest</span><span class="p">))</span>
 
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="s2">&quot;sys.path:&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;sys.path:&quot;</span><span class="p">)</span>
                 <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
-                    <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="s2">&quot;done!&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;done!&quot;</span><span class="p">)</span>
 
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
-            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;worker&lt;</span><span class="si">{</span><span class="n">worker</span><span class="si">}</span><span class="s2">&gt; - fail to build </span><span class="si">{</span><span class="n">target_worker</span><span class="si">}</span><span class="s2"> from </span><span class="si">{</span><span class="n">dask_home</span><span class="si">}</span><span class="s2">, see </span><span class="si">{</span><span class="n">AgiWorker</span><span class="o">.</span><span class="n">logs</span><span class="si">}</span><span class="s2"> for details&quot;</span>
             <span class="p">)</span>
             <span class="k">raise</span> <span class="n">err</span></div>
@@ -1012,11 +1009,11 @@
         <span class="k">try</span><span class="p">:</span>
             <span class="n">worker_id</span> <span class="o">=</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">worker_id</span>
             <span class="k">if</span> <span class="n">worker_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;do_works - worker #</span><span class="si">{</span><span class="n">worker_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">AgiWorker</span><span class="o">.</span><span class="n">worker</span><span class="si">}</span><span class="s2"> from </span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;AgiWorker.work - #</span><span class="si">{</span><span class="n">worker_id</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> / </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;do_works - worker #</span><span class="si">{</span><span class="n">worker_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">AgiWorker</span><span class="o">.</span><span class="n">worker</span><span class="si">}</span><span class="s2"> from </span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;AgiWorker.work - #</span><span class="si">{</span><span class="n">worker_id</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> / </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="n">AgiWorker</span><span class="o">.</span><span class="n">_insts</span><span class="p">[</span><span class="n">worker_id</span><span class="p">]</span><span class="o">.</span><span class="n">works</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;this worker is not initialized&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;this worker is not initialized&quot;</span><span class="p">)</span>
                 <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;failed to do_works&quot;</span><span class="p">)</span>
 
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>

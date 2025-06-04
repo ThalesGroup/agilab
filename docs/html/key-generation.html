@@ -11,6 +11,7 @@
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
       <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+      <link rel="stylesheet" type="text/css" href="_static/tabs.css?v=a5c4661c" />
       <link rel="stylesheet" type="text/css" href="_static/custom.css" />
 
   
@@ -21,6 +22,7 @@
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
       <script src="_static/design-tabs.js?v=f930bc37"></script>
+      <script src="_static/tabs.js?v=3030b3cb"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -95,11 +97,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#check-the-service-status">Check the service status:</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="#permissions">Permissions</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#on-windows">On Windows</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#on-linux">On Linux</a></li>
-</ul>
-</li>
+<li class="toctree-l3"><a class="reference internal" href="#permissions">Permissions</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#useful-links">Useful links</a></li>
 </ul>
 </li>
@@ -139,6 +137,8 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="agi-env.html#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.normalize_path"><code class="docutils literal notranslate"><span class="pre">normalize_path()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -172,11 +172,12 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="directory-structure.html">Project Files Structure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-usecase.html">Installation Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#d-agilab-run-vs-lab-run">D - agilab_run vs lab_run:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#d-agilab-run-vs-gui-run">D - agilab_run vs gui_run:</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html#known-bugs">Known Bugs</a><ul>
@@ -255,11 +256,13 @@
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.cython_decorators</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.dask_home</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.do_works"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.env"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.env</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_mono_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.exec_multi_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_logs_and_result()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_work"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_work()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.get_worker_info()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.home_dir</span></code></a></li>
@@ -268,7 +271,6 @@
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.logs"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.logs</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.mode"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.new"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.new()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.normalize_path"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.normalize_path()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.onerror"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.onerror()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.run"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.run()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="my-code-project.html#my_code_worker.my_code_worker.MyCodeWorker.share_path"><code class="docutils literal notranslate"><span class="pre">MyCodeWorker.share_path</span></code></a></li>
@@ -358,11 +360,13 @@
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">FlightWorker.cython_decorators</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">FlightWorker.dask_home</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.do_works"><code class="docutils literal notranslate"><span class="pre">FlightWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.env"><code class="docutils literal notranslate"><span class="pre">FlightWorker.env</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_mono_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_multi_process()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_logs_and_result()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_worker_info()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">FlightWorker.home_dir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">FlightWorker.is_managed_pc</span></code></a></li>
@@ -370,7 +374,6 @@
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.logs"><code class="docutils literal notranslate"><span class="pre">FlightWorker.logs</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.mode"><code class="docutils literal notranslate"><span class="pre">FlightWorker.mode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.new"><code class="docutils literal notranslate"><span class="pre">FlightWorker.new()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.normalize_path"><code class="docutils literal notranslate"><span class="pre">FlightWorker.normalize_path()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.onerror"><code class="docutils literal notranslate"><span class="pre">FlightWorker.onerror()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.pool_init"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_init()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.pool_vars"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_vars</span></code></a></li>
@@ -427,42 +430,34 @@
              
   <section id="key-generation">
 <h1>Key Generation<a class="headerlink" href="#key-generation" title="Link to this heading"></a></h1>
-<p>In this part of the documentation, the term <em>client</em> refers to the computer where Agilab is installed.
-The <em>remote account</em> refers to the account provided during the AGI installation process.
+<p>In this part of the documentation, the term <strong>manager</strong> (i.e ssh client) refers to the computer where Agilab is installed, and the <strong>worker</strong> (i.e the ssh server) refers to the remote worker.
+The <strong>remote account</strong> refers to the account provided during the AGI installation process.
 This account is used by AGI to establish SSH connections to the remote server.
 Ensure that the account exists on the server.</p>
 <section id="generate-the-keys">
 <h2>Generate the keys<a class="headerlink" href="#generate-the-keys" title="Link to this heading"></a></h2>
 <div class="toctree-wrapper compound">
 </div>
-<p>On the client, generate a pair of public and private key using:</p>
+<p>On the manager, generate a pair of public and private key using:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh-keygen<span class="w"> </span>-a<span class="w"> </span><span class="m">100</span><span class="w"> </span>-t<span class="w"> </span>ed25519
 </pre></div>
 </div>
-<p>You will be prompted for a passphrase. Store it securely, such as in a password manager.</p>
+<p>You will be prompted for a passphrase. don’t enter one (double return).</p>
 <p>If you have not changed the default path, the public key will be stored in <code class="docutils literal notranslate"><span class="pre">~/.ssh/id_ed25519.pub</span></code> and the private key in <code class="docutils literal notranslate"><span class="pre">~/.ssh/id_ed25519</span></code>.</p>
 </section>
 <section id="loading-the-private-key-in-ssh-agent">
 <h2>Loading the private key in SSH Agent<a class="headerlink" href="#loading-the-private-key-in-ssh-agent" title="Link to this heading"></a></h2>
 <section id="load-the-private-key">
 <h3>Load the private key<a class="headerlink" href="#load-the-private-key" title="Link to this heading"></a></h3>
-<p>To load the private key into the SSH agent, follow these steps:</p>
-<ul>
-<li><p><strong>On windows</strong>:</p>
-<blockquote>
-<div><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">ssh-add</span> <span class="nv">$env:USERPROFILE</span><span class="p">/.</span><span class="n">ssh</span><span class="p">/</span><span class="n">id_ed25519</span>
+<p>To load the private key into the SSH agent of the manager, follow these steps:</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0"><strong>Windows</strong></button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1"><strong>Linux</strong></button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">ssh-add</span> <span class="nv">$env:USERPROFILE</span><span class="p">/.</span><span class="n">ssh</span><span class="p">/</span><span class="n">id_ed25519</span>
 </pre></div>
 </div>
-</div></blockquote>
-</li>
-<li><p><strong>On Linux</strong>:</p>
-<blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh-add<span class="w"> </span>~/.ssh/id_ed25519
+</div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh-add<span class="w"> </span>~/.ssh/id_ed25519
 </pre></div>
 </div>
-</div></blockquote>
-</li>
-</ul>
+</div></div>
 <p>If you have set a passphrase, you will be asked to enter it. If you encounter any permission-related errors, refer to the <a class="reference internal" href="#permissions">Permissions</a> section.</p>
 <p>On Linux, if a window titled “Enter password to unlock the private key” appears when trying to establish an SSH connection, enter the passphrase and check the box “Automatically unlock this key whenever I’m logged in”.</p>
 </section>
@@ -473,47 +468,33 @@ Ensure that the account exists on the server.</p>
 </pre></div>
 </div>
 <p>It should display the <strong>public key</strong> (not private). To manually check the public key:</p>
-<ul>
-<li><p><strong>On Windows</strong>:</p>
-<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">cat </span><span class="nv">$env:USERPROFILE</span><span class="p">/.</span><span class="n">ssh</span><span class="p">/</span><span class="n">id_ed25519</span><span class="p">.</span><span class="n">pub</span>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-1-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-1-1-0" name="1-0" role="tab" tabindex="0"><strong>Windows</strong></button><button aria-controls="panel-1-1-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-1" name="1-1" role="tab" tabindex="-1"><strong>Linux</strong></button></div><div aria-labelledby="tab-1-1-0" class="sphinx-tabs-panel" id="panel-1-1-0" name="1-0" role="tabpanel" tabindex="0"><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">cat </span><span class="nv">$env:USERPROFILE</span><span class="p">/.</span><span class="n">ssh</span><span class="p">/</span><span class="n">id_ed25519</span><span class="p">.</span><span class="n">pub</span>
 </pre></div>
 </div>
-</li>
-<li><p><strong>On Linux</strong>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>~/.ssh/id_ed25519.pub
+</div><div aria-labelledby="tab-1-1-1" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-1" name="1-1" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>~/.ssh/id_ed25519.pub
 </pre></div>
 </div>
-</li>
-</ul>
+</div></div>
 </section>
 </section>
 <section id="copy-the-public-key-to-the-server">
 <h2>Copy the public key to the server<a class="headerlink" href="#copy-the-public-key-to-the-server" title="Link to this heading"></a></h2>
-<p>To authorize connections to the server, add your public key to the server’s authorized keys:</p>
-<p>– <strong>Unix client</strong> and <strong>Unix Server</strong>:</p>
-<blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh-copy-id<span class="w"> </span>-i<span class="w"> </span>~/.ssh/id_ed25519<span class="w"> </span>&lt;remote<span class="w"> </span>account&gt;@&lt;server<span class="w"> </span>ip<span class="w"> </span>address&gt;
+<p>To authorize connections to the worker, add your public key to the worker’s authorized keys:</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-2-2-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-2-2-0" name="2-0" role="tab" tabindex="0"><strong>Unix manager</strong> and <strong>Unix worker</strong></button><button aria-controls="panel-2-2-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-1" name="2-1" role="tab" tabindex="-1"><strong>Unix manager</strong> and <strong>Windows worker</strong></button><button aria-controls="panel-2-2-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-2" name="2-2" role="tab" tabindex="-1"><strong>Windows manager</strong> and <strong>Windows worker</strong></button><button aria-controls="panel-2-2-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-3" name="2-3" role="tab" tabindex="-1"><strong>Windows manager</strong> and <strong>Unix worker</strong>:</button></div><div aria-labelledby="tab-2-2-0" class="sphinx-tabs-panel" id="panel-2-2-0" name="2-0" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh-copy-id<span class="w"> </span>-i<span class="w"> </span>~/.ssh/id_ed25519<span class="w"> </span>&lt;remote<span class="w"> </span>account&gt;@&lt;worker<span class="w"> </span>ip&gt;
 </pre></div>
 </div>
-</div></blockquote>
-<p>– <strong>Unix client</strong> and <strong>Windows Server</strong>:</p>
-<blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>~/.ssh/id_ed25519.pub<span class="w"> </span><span class="p">|</span><span class="w"> </span>ssh<span class="w"> </span>&lt;remote<span class="w"> </span>account&gt;@&lt;windows<span class="w"> </span>server<span class="w"> </span>ip&gt;<span class="w"> </span><span class="s2">&quot;cat &gt;&gt; C:/Users/&lt;remote account&gt;/.ssh/authorized_keys&quot;</span>
+</div><div aria-labelledby="tab-2-2-1" class="sphinx-tabs-panel" hidden="true" id="panel-2-2-1" name="2-1" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>~/.ssh/id_ed25519.pub<span class="w"> </span><span class="p">|</span><span class="w"> </span>ssh<span class="w"> </span>&lt;remote<span class="w"> </span>account&gt;@&lt;worker<span class="w"> </span>ip&gt;<span class="w"> </span><span class="s2">&quot;cat &gt;&gt; C:/Users/&lt;remote account&gt;/.ssh/authorized_keys&quot;</span>
 </pre></div>
 </div>
-</div></blockquote>
-<p>– <strong>Windows client</strong> and <strong>Windows server</strong>:</p>
-<blockquote>
-<div><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">Get-Content</span> <span class="n">-Raw</span> <span class="s2">&quot;${env:USERPROFILE}\.ssh\id_ed25519.pub&quot;</span> <span class="p">|</span> <span class="n">ssh</span> <span class="p">&lt;</span><span class="n">remote</span> <span class="n">account</span><span class="p">&gt;@&lt;</span><span class="n">server</span> <span class="n">ip</span><span class="p">&gt;</span> <span class="s2">&quot;cat &gt;&gt; C:/Users/&lt;remote account&gt;/.ssh/authorized_keys&quot;</span>
+</div><div aria-labelledby="tab-2-2-2" class="sphinx-tabs-panel" hidden="true" id="panel-2-2-2" name="2-2" role="tabpanel" tabindex="0"><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">Get-Content</span> <span class="n">-Raw</span> <span class="s2">&quot;${env:USERPROFILE}\.ssh\id_ed25519.pub&quot;</span> <span class="p">|</span> <span class="n">ssh</span> <span class="p">&lt;</span><span class="n">remote</span> <span class="n">account</span><span class="p">&gt;@&lt;</span><span class="n">worker</span> <span class="n">ip</span><span class="p">&gt;</span> <span class="s2">&quot;cat &gt;&gt; C:/Users/&lt;remote account&gt;/.ssh/authorized_keys&quot;</span>
 </pre></div>
 </div>
-</div></blockquote>
-<p>– <strong>Windows client</strong> and <strong>Unix server</strong>:</p>
-<blockquote>
-<div><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">Get-Content</span> <span class="n">-Raw</span> <span class="s2">&quot;${env:USERPROFILE}\.ssh\id_ed25519.pub&quot;</span> <span class="p">|</span> <span class="n">ssh</span> <span class="p">&lt;</span><span class="n">remote</span> <span class="n">account</span><span class="p">&gt;@&lt;</span><span class="n">linux</span> <span class="n">server</span> <span class="n">ip</span><span class="p">&gt;</span> <span class="s2">&quot;cat &gt;&gt; ~/.ssh/authorized_keys&quot;</span>
+</div><div aria-labelledby="tab-2-2-3" class="sphinx-tabs-panel" hidden="true" id="panel-2-2-3" name="2-3" role="tabpanel" tabindex="0"><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">Get-Content</span> <span class="n">-Raw</span> <span class="s2">&quot;${env:USERPROFILE}\.ssh\id_ed25519.pub&quot;</span> <span class="p">|</span> <span class="n">ssh</span> <span class="p">&lt;</span><span class="n">remote</span> <span class="n">account</span><span class="p">&gt;@&lt;</span><span class="n">worker</span> <span class="n">ip</span><span class="p">&gt;</span> <span class="s2">&quot;cat &gt;&gt; ~/.ssh/authorized_keys&quot;</span>
 </pre></div>
 </div>
-</div></blockquote>
+</div></div>
 </section>
 <section id="sshd-service">
 <h2>SSHD Service<a class="headerlink" href="#sshd-service" title="Link to this heading"></a></h2>
@@ -533,47 +514,38 @@ PasswordAuthentication no
 </section>
 <section id="restart-the-sshd-service">
 <h3>Restart the SSHD service<a class="headerlink" href="#restart-the-sshd-service" title="Link to this heading"></a></h3>
-<p>– On <strong>Windows Server</strong> (admin):</p>
-<blockquote>
-<div><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">Restart-Service</span> <span class="n">sshd</span>   <span class="c"># Restart SSH Server</span>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-3-3-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-3-3-0" name="3-0" role="tab" tabindex="0"><strong>Windows worker (admin)</strong></button><button aria-controls="panel-3-3-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-3-3-1" name="3-1" role="tab" tabindex="-1"><strong>Linux worker</strong></button></div><div aria-labelledby="tab-3-3-0" class="sphinx-tabs-panel" id="panel-3-3-0" name="3-0" role="tabpanel" tabindex="0"><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">Restart-Service</span> <span class="n">sshd</span>   <span class="c"># Restart SSH Server</span>
 <span class="nb">Restart-Service</span> <span class="n">ssh-agent</span>   <span class="c"># Restart SSH Agent</span>
 </pre></div>
 </div>
-</div></blockquote>
-<p>– On <strong>Unix Server</strong>:</p>
-<blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>ssh<span class="w">  </span><span class="c1"># Restart SSH Server</span>
+</div><div aria-labelledby="tab-3-3-1" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-1" name="3-1" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>ssh<span class="w">  </span><span class="c1"># Restart SSH Server</span>
 <span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>ssh-agent<span class="w"> </span>-s<span class="k">)</span><span class="s2">&quot;</span><span class="w">  </span><span class="c1"># Restart SSH Agent</span>
 </pre></div>
 </div>
-</div></blockquote>
+</div></div>
 </section>
 <section id="check-the-service-status">
 <h3>Check the service status:<a class="headerlink" href="#check-the-service-status" title="Link to this heading"></a></h3>
-<p>– On <strong>Windows Server</strong> (admin):</p>
-<blockquote>
-<div><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">Get-Service</span> <span class="n">sshd</span>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-4-4-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-4-4-0" name="4-0" role="tab" tabindex="0"><strong>Windows worker (admin)</strong></button><button aria-controls="panel-4-4-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-4-4-1" name="4-1" role="tab" tabindex="-1"><strong>Linux worker</strong></button></div><div aria-labelledby="tab-4-4-0" class="sphinx-tabs-panel" id="panel-4-4-0" name="4-0" role="tabpanel" tabindex="0"><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">Get-Service</span> <span class="n">sshd</span>
 <span class="nb">Get-Service</span> <span class="n">ssh-agent</span>
 </pre></div>
 </div>
-</div></blockquote>
-<p>– On <strong>Unix Server</strong>:</p>
-<blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>systemctl<span class="w"> </span>status<span class="w"> </span>ssh<span class="w">  </span><span class="c1"># Check SSH Server status</span>
+</div><div aria-labelledby="tab-4-4-1" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-1" name="4-1" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>systemctl<span class="w"> </span>status<span class="w"> </span>ssh<span class="w">  </span><span class="c1"># Check SSH Server status</span>
 ssh-add<span class="w"> </span>-L<span class="w">  </span><span class="c1"># Check if the SSH agent is running</span>
 </pre></div>
 </div>
-</div></blockquote>
+</div></div>
 </section>
 </section>
 <section id="permissions">
 <h2>Permissions<a class="headerlink" href="#permissions" title="Link to this heading"></a></h2>
-<section id="on-windows">
-<h3>On Windows<a class="headerlink" href="#on-windows" title="Link to this heading"></a></h3>
-<p>Ensure that the <code class="docutils literal notranslate"><span class="pre">.ssh</span></code> folder and files <code class="docutils literal notranslate"><span class="pre">id_ed25519</span></code> and <code class="docutils literal notranslate"><span class="pre">authorized_keys</span></code> have the correct permissions:</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-5-5-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-5-5-0" name="5-0" role="tab" tabindex="0"><strong>Windows</strong></button><button aria-controls="panel-5-5-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-1" name="5-1" role="tab" tabindex="-1"><strong>Linux worker</strong></button></div><div aria-labelledby="tab-5-5-0" class="sphinx-tabs-panel" id="panel-5-5-0" name="5-0" role="tabpanel" tabindex="0"><p>Ensure that the <code class="docutils literal notranslate"><span class="pre">.ssh</span></code> folder and files <code class="docutils literal notranslate"><span class="pre">id_ed25519</span></code> and <code class="docutils literal notranslate"><span class="pre">authorized_keys</span></code> have the correct permissions:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>.ssh<span class="se">\i</span>d_rsa<span class="w">        </span>AUTORITE<span class="w"> </span>NT<span class="se">\S</span>ystème:<span class="o">(</span>F<span class="o">)</span>
-<span class="w">                    </span>BUILTIN<span class="se">\A</span>dministrateurs:<span class="o">(</span>F<span class="o">)</span>
-<span class="w">                    </span>%USERNAME%:<span class="o">(</span>M<span class="o">)</span>
+<span class="w">                   </span>BUILTIN<span class="se">\A</span>dministrateurs:<span class="o">(</span>F<span class="o">)</span>
+<span class="w">                   </span>%USERNAME%:<span class="o">(</span>M<span class="o">)</span>
 </pre></div>
 </div>
 <p>To view permissions:</p>
@@ -584,10 +556,7 @@ ssh-add<span class="w"> </span>-L<span class="w">  </span><span class="c1"># Che
 <div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">icacls</span> <span class="s2">&quot;$env:userprofile\.ssh\id_ed25519&quot;</span> <span class="p">/</span><span class="n">inheritance</span><span class="p">:</span><span class="nb">r </span><span class="p">/</span><span class="n">grant</span> <span class="s2">&quot;AUTORITE NT\Système:(F)&quot;</span> <span class="s2">&quot;BUILTIN\Administrateurs:(F)&quot;</span> <span class="s2">&quot;$env:username:(M)&quot;</span>
 </pre></div>
 </div>
-</section>
-<section id="on-linux">
-<h3>On Linux<a class="headerlink" href="#on-linux" title="Link to this heading"></a></h3>
-<p>Ensure the <code class="docutils literal notranslate"><span class="pre">.ssh</span></code> folder and files have correct permissions:</p>
+</div><div aria-labelledby="tab-5-5-1" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-1" name="5-1" role="tabpanel" tabindex="0"><p>Ensure the <code class="docutils literal notranslate"><span class="pre">.ssh</span></code> folder and files have correct permissions:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>chmod<span class="w"> </span><span class="m">700</span><span class="w"> </span>~/.ssh
 chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>~/.ssh/id_ed25519
 chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>~/.ssh/authorized_keys
@@ -597,7 +566,7 @@ chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>~
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls<span class="w"> </span>-l<span class="w"> </span><span class="s2">&quot;~/.ssh&quot;</span>
 </pre></div>
 </div>
-</section>
+</div></div>
 </section>
 <section id="useful-links">
 <h2>Useful links<a class="headerlink" href="#useful-links" title="Link to this heading"></a></h2>

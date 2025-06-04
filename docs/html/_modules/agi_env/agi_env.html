@@ -92,11 +92,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#check-the-service-status">Check the service status:</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#permissions">Permissions</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#on-windows">On Windows</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#on-linux">On Linux</a></li>
-</ul>
-</li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#permissions">Permissions</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#useful-links">Useful links</a></li>
 </ul>
 </li>
@@ -476,333 +472,6 @@
     <span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="ContentRenamer">
-<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">ContentRenamer</span><span class="p">(</span><span class="n">ast</span><span class="o">.</span><span class="n">NodeTransformer</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A class that renames identifiers in an abstract syntax tree (AST).</span>
-<span class="sd">    Attributes:</span>
-<span class="sd">        rename_map (dict): A mapping of old identifiers to new identifiers.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-<div class="viewcode-block" id="ContentRenamer.__init__">
-<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.__init__">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rename_map</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Initialize the ContentRenamer with the rename_map.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            rename_map (dict): Mapping of old names to new names.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span> <span class="o">=</span> <span class="n">rename_map</span></div>
-
-
-<div class="viewcode-block" id="ContentRenamer.visit_Name">
-<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_Name">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">visit_Name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
-        <span class="c1"># Rename variable and function names</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Visit and potentially rename a Name node in the abstract syntax tree.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            self: The current object instance.</span>
-<span class="sd">            node: The Name node in the abstract syntax tree.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            ast.Node: The modified Name node after potential renaming.</span>
-
-<span class="sd">        Note:</span>
-<span class="sd">            This function modifies the Name node in place.</span>
-
-<span class="sd">        Raises:</span>
-<span class="sd">            None</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Renaming Name: </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">id</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="n">node</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">id</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>  <span class="c1"># Ensure child nodes are visited</span>
-        <span class="k">return</span> <span class="n">node</span></div>
-
-
-<div class="viewcode-block" id="ContentRenamer.visit_Attribute">
-<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_Attribute">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">visit_Attribute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
-        <span class="c1"># Rename attributes</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Visit and potentially rename an attribute in a node.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            node: A node representing an attribute.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            node: The visited node with potential attribute renamed.</span>
-
-<span class="sd">        Raises:</span>
-<span class="sd">            None.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">attr</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Renaming Attribute: </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">attr</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">attr</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="n">node</span><span class="o">.</span><span class="n">attr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">attr</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">node</span></div>
-
-
-<div class="viewcode-block" id="ContentRenamer.visit_FunctionDef">
-<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_FunctionDef">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">visit_FunctionDef</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
-        <span class="c1"># Rename function names</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Rename a function node based on a provided mapping.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            node (ast.FunctionDef): The function node to be processed.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            ast.FunctionDef: The function node with potential name change.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Renaming Function: </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">name</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="n">node</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">node</span></div>
-
-
-<div class="viewcode-block" id="ContentRenamer.visit_ClassDef">
-<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_ClassDef">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">visit_ClassDef</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
-        <span class="c1"># Rename class names</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Visit and potentially rename a ClassDef node.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            node (ast.ClassDef): The ClassDef node to visit.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            ast.ClassDef: The potentially modified ClassDef node.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Renaming Class: </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">name</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="n">node</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">node</span></div>
-
-
-<div class="viewcode-block" id="ContentRenamer.visit_arg">
-<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_arg">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">visit_arg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
-        <span class="c1"># Rename function argument names</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Visit and potentially rename an argument node.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            self: The instance of the class.</span>
-<span class="sd">            node: The argument node to visit and possibly rename.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            ast.AST: The modified argument node.</span>
-
-<span class="sd">        Notes:</span>
-<span class="sd">            Modifies the argument node in place if its name is found in the rename map.</span>
-
-<span class="sd">        Raises:</span>
-<span class="sd">            None.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">arg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Renaming Argument: </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">arg</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">arg</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="n">node</span><span class="o">.</span><span class="n">arg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">arg</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">node</span></div>
-
-
-<div class="viewcode-block" id="ContentRenamer.visit_Global">
-<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_Global">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">visit_Global</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
-        <span class="c1"># Rename global variable names</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Visit and potentially rename global variables in the AST node.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            self: The instance of the class that contains the renaming logic.</span>
-<span class="sd">            node: The AST node to visit and potentially rename global variables.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            AST node: The modified AST node with global variable names potentially renamed.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">new_names</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
-                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Renaming Global Variable: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                <span class="n">new_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">name</span><span class="p">])</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">new_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
-        <span class="n">node</span><span class="o">.</span><span class="n">names</span> <span class="o">=</span> <span class="n">new_names</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">node</span></div>
-
-
-<div class="viewcode-block" id="ContentRenamer.visit_nonlocal">
-<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_nonlocal">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">visit_nonlocal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
-        <span class="c1"># Rename nonlocal variable names</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Visit and potentially rename nonlocal variables in the AST node.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            self: An instance of the class containing the visit_nonlocal method.</span>
-<span class="sd">            node: The AST node to visit and potentially modify.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            ast.AST: The modified AST node after visiting and potentially renaming nonlocal variables.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">new_names</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
-                <span class="nb">print</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;Renaming Nonlocal Variable: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
-                <span class="p">)</span>
-                <span class="n">new_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">name</span><span class="p">])</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">new_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
-        <span class="n">node</span><span class="o">.</span><span class="n">names</span> <span class="o">=</span> <span class="n">new_names</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">node</span></div>
-
-
-<div class="viewcode-block" id="ContentRenamer.visit_Assign">
-<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_Assign">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">visit_Assign</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
-        <span class="c1"># Rename assigned variable names</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Visit and process an assignment node.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            self: The instance of the visitor class.</span>
-<span class="sd">            node: The assignment node to be visited.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            ast.Node: The visited assignment node.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">node</span></div>
-
-
-<div class="viewcode-block" id="ContentRenamer.visit_AnnAssign">
-<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_AnnAssign">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">visit_AnnAssign</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
-        <span class="c1"># Rename annotated assignments</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Visit and process an AnnAssign node in an abstract syntax tree.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            self: The AST visitor object.</span>
-<span class="sd">            node: The AnnAssign node to be visited.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            AnnAssign: The visited AnnAssign node.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">node</span></div>
-
-
-<div class="viewcode-block" id="ContentRenamer.visit_For">
-<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_For">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">visit_For</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
-        <span class="c1"># Rename loop variable names</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Visit and potentially rename the target variable in a For loop node.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            node (ast.For): The For loop node to visit.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            ast.For: The modified For loop node.</span>
-
-<span class="sd">        Note:</span>
-<span class="sd">            This function may modify the target variable in the For loop node if it exists in the rename map.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">target</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Name</span><span class="p">)</span> <span class="ow">and</span> <span class="n">node</span><span class="o">.</span><span class="n">target</span><span class="o">.</span><span class="n">id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Renaming For Loop Variable: </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">target</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">target</span><span class="o">.</span><span class="n">id</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
-            <span class="p">)</span>
-            <span class="n">node</span><span class="o">.</span><span class="n">target</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">target</span><span class="o">.</span><span class="n">id</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">node</span></div>
-
-
-<div class="viewcode-block" id="ContentRenamer.visit_Import">
-<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_Import">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">visit_Import</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Rename imported modules in &#39;import module&#39; statements.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            node (ast.Import): The import node.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">for</span> <span class="n">alias</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
-            <span class="n">original_name</span> <span class="o">=</span> <span class="n">alias</span><span class="o">.</span><span class="n">name</span>
-            <span class="k">if</span> <span class="n">original_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
-                <span class="nb">print</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;Renaming Import Module: </span><span class="si">{</span><span class="n">original_name</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">original_name</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
-                <span class="p">)</span>
-                <span class="n">alias</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">original_name</span><span class="p">]</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="c1"># Handle compound module names if necessary</span>
-                <span class="k">for</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                    <span class="k">if</span> <span class="n">original_name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">old</span><span class="p">):</span>
-                        <span class="nb">print</span><span class="p">(</span>
-                            <span class="sa">f</span><span class="s2">&quot;Renaming Import Module: </span><span class="si">{</span><span class="n">original_name</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="n">original_name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">old</span><span class="p">,</span><span class="w"> </span><span class="n">new</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
-                        <span class="p">)</span>
-                        <span class="n">alias</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">original_name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-                        <span class="k">break</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">node</span></div>
-
-
-<div class="viewcode-block" id="ContentRenamer.visit_ImportFrom">
-<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_ImportFrom">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">visit_ImportFrom</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Rename modules and imported names in &#39;from module import name&#39; statements.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            node (ast.ImportFrom): The import from node.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Rename the module being imported from</span>
-        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">module</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Renaming ImportFrom Module: </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">module</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">module</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
-            <span class="p">)</span>
-            <span class="n">node</span><span class="o">.</span><span class="n">module</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">module</span><span class="p">]</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">module</span> <span class="ow">and</span> <span class="n">node</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">old</span><span class="p">):</span>
-                    <span class="n">new_module</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-                    <span class="nb">print</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;Renaming ImportFrom Module: </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">module</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="n">new_module</span><span class="si">}</span><span class="s2">&quot;</span>
-                    <span class="p">)</span>
-                    <span class="n">node</span><span class="o">.</span><span class="n">module</span> <span class="o">=</span> <span class="n">new_module</span>
-                    <span class="k">break</span>
-
-        <span class="c1"># Rename the imported names</span>
-        <span class="k">for</span> <span class="n">alias</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">alias</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
-                <span class="nb">print</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;Renaming Imported Name: </span><span class="si">{</span><span class="n">alias</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">alias</span><span class="o">.</span><span class="n">name</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
-                <span class="p">)</span>
-                <span class="n">alias</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">alias</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">for</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                    <span class="k">if</span> <span class="n">alias</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">old</span><span class="p">):</span>
-                        <span class="nb">print</span><span class="p">(</span>
-                            <span class="sa">f</span><span class="s2">&quot;Renaming Imported Name: </span><span class="si">{</span><span class="n">alias</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="n">alias</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">old</span><span class="p">,</span><span class="w"> </span><span class="n">new</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
-                        <span class="p">)</span>
-                        <span class="n">alias</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">alias</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-                        <span class="k">break</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">node</span></div>
-</div>
-
-
-
 <div class="viewcode-block" id="AgiEnv">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">AgiEnv</span><span class="p">:</span>
@@ -815,6 +484,12 @@
     <span class="n">init_done</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">debug</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">benchmark</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+
 
 <div class="viewcode-block" id="AgiEnv.init_logging">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.init_logging">[docs]</a>
@@ -832,7 +507,7 @@
         <span class="n">root_level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span> <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span> <span class="k">if</span> <span class="n">verbosity</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span>
 
         <span class="c1"># Cap distributed logs at CRITICAL (silent)</span>
-        <span class="n">sys_level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">ERROR</span> <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&lt;</span> <span class="mi">2</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span> <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&gt;</span> <span class="mi">3</span>  <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span>
+        <span class="n">sys_level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">ERROR</span> <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&lt;</span> <span class="mi">2</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span> <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&gt;</span> <span class="mi">3</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span>
 
         <span class="c1"># Use root_level for your app-specific loggers as well</span>
         <span class="n">app_level</span> <span class="o">=</span> <span class="n">root_level</span>
@@ -865,32 +540,72 @@
         <span class="k">for</span> <span class="n">handler</span> <span class="ow">in</span> <span class="n">root</span><span class="o">.</span><span class="n">handlers</span><span class="p">[:]:</span>
             <span class="n">root</span><span class="o">.</span><span class="n">removeHandler</span><span class="p">(</span><span class="n">handler</span><span class="p">)</span>
 
-        <span class="n">fmt</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span>
+        <span class="k">class</span><span class="w"> </span><span class="nc">ClassNameFilter</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">Filter</span><span class="p">):</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+                <span class="c1"># Try to find the class name from the frame where the log call was made</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="c1"># Walk up frames starting from current to find frame matching record</span>
+                    <span class="n">frame</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">_getframe</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                    <span class="k">while</span> <span class="n">frame</span><span class="p">:</span>
+                        <span class="n">code</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">f_code</span>
+                        <span class="k">if</span> <span class="n">code</span><span class="o">.</span><span class="n">co_filename</span> <span class="o">==</span> <span class="n">record</span><span class="o">.</span><span class="n">pathname</span> <span class="ow">and</span> <span class="n">code</span><span class="o">.</span><span class="n">co_name</span> <span class="o">==</span> <span class="n">record</span><span class="o">.</span><span class="n">funcName</span><span class="p">:</span>
+                            <span class="c1"># Found the frame of the caller</span>
+                            <span class="c1"># Check if &#39;self&#39; is in locals to get class name</span>
+                            <span class="k">if</span> <span class="s1">&#39;self&#39;</span> <span class="ow">in</span> <span class="n">frame</span><span class="o">.</span><span class="n">f_locals</span><span class="p">:</span>
+                                <span class="n">record</span><span class="o">.</span><span class="n">classname</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">f_locals</span><span class="p">[</span><span class="s1">&#39;self&#39;</span><span class="p">]</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="n">record</span><span class="o">.</span><span class="n">classname</span> <span class="o">=</span> <span class="n">record</span><span class="o">.</span><span class="n">module</span> <span class="ow">or</span> <span class="n">record</span><span class="o">.</span><span class="n">pathname</span>
+                            <span class="k">break</span>
+                        <span class="n">frame</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">f_back</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">record</span><span class="o">.</span><span class="n">classname</span> <span class="o">=</span> <span class="s1">&#39;&lt;no-class&gt;&#39;</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="n">record</span><span class="o">.</span><span class="n">classname</span> <span class="o">=</span> <span class="s1">&#39;&lt;no-class&gt;&#39;</span>
+                <span class="k">return</span> <span class="kc">True</span>
+
+        <span class="n">fmt_std</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span>
             <span class="s2">&quot;</span><span class="si">%(asctime)s</span><span class="s2"> </span><span class="si">%(levelname)s</span><span class="s2"> </span><span class="si">%(message)s</span><span class="s2">&quot;</span><span class="p">,</span>
             <span class="n">datefmt</span><span class="o">=</span><span class="s2">&quot;%H:%M:%S&quot;</span>
         <span class="p">)</span>
 
+        <span class="n">fmt_err</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span>
+            <span class="s2">&quot;</span><span class="si">%(asctime)s</span><span class="s2"> </span><span class="si">%(levelname)s</span><span class="s2"> </span><span class="si">%(classname)s</span><span class="s2"> </span><span class="si">%(funcName)s</span><span class="s2"> </span><span class="si">%(message)s</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="n">datefmt</span><span class="o">=</span><span class="s2">&quot;%H:%M:%S&quot;</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">fmt_std</span> <span class="o">=</span> <span class="n">fmt_err</span>
+
         <span class="n">stdout_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">)</span>
-        <span class="n">stdout_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>  <span class="c1"># always capture debug and above on stdout</span>
-        <span class="n">stdout_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">fmt</span><span class="p">)</span>
+        <span class="n">stdout_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+        <span class="n">stdout_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">fmt_std</span><span class="p">)</span>
+        <span class="n">stdout_handler</span><span class="o">.</span><span class="n">addFilter</span><span class="p">(</span><span class="n">ClassNameFilter</span><span class="p">())</span>
 
         <span class="n">stderr_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
-        <span class="n">stderr_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)</span>  <span class="c1"># warnings and errors on stderr</span>
-        <span class="n">stderr_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">fmt</span><span class="p">)</span>
+        <span class="n">stderr_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)</span>
+        <span class="n">stderr_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">fmt_err</span><span class="p">)</span>
+        <span class="n">stderr_handler</span><span class="o">.</span><span class="n">addFilter</span><span class="p">(</span><span class="n">ClassNameFilter</span><span class="p">())</span>
 
+        <span class="n">root</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">()</span>
+        <span class="c1"># Remove old handlers before adding new ones</span>
+        <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="n">root</span><span class="o">.</span><span class="n">handlers</span><span class="p">[:]:</span>
+            <span class="n">root</span><span class="o">.</span><span class="n">removeHandler</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>
         <span class="n">root</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">stdout_handler</span><span class="p">)</span>
         <span class="n">root</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">stderr_handler</span><span class="p">)</span>
 
-        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Logging initialized at level </span><span class="si">{</span><span class="n">logging</span><span class="o">.</span><span class="n">getLevelName</span><span class="p">(</span><span class="n">root_level</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+        <span class="n">root</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span> <span class="k">if</span> <span class="n">verbosity</span> <span class="ow">and</span> <span class="n">verbosity</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span> <span class="k">if</span> <span class="n">verbosity</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)</span>
+
+        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Logging initialized at level </span><span class="si">{</span><span class="n">logging</span><span class="o">.</span><span class="n">getLevelName</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">level</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
 
 
 <div class="viewcode-block" id="AgiEnv.__init__">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.__init__">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">install_type</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">apps_dir</span><span class="p">:</span> <span class="n">Path</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-                 <span class="n">active_app</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">verbose</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+                 <span class="n">active_app</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">verbose</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">init_logging</span><span class="p">(</span><span class="n">verbose</span><span class="p">)</span>
-
+        <span class="bp">self</span><span class="o">.</span><span class="n">_debug</span> <span class="o">=</span> <span class="n">debug</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">is_managed_pc</span> <span class="o">=</span> <span class="n">getpass</span><span class="o">.</span><span class="n">getuser</span><span class="p">()</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;T0&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;resources/.agilab&quot;</span><span class="p">)</span>
         <span class="n">home_abs</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;MyApp&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_managed_pc</span> <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span>
@@ -898,6 +613,7 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">resource_path</span> <span class="o">=</span> <span class="n">home_abs</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span><span class="o">.</span><span class="n">name</span>
         <span class="n">env_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">resource_path</span> <span class="o">/</span> <span class="s2">&quot;.env&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">benchmark</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">resource_path</span> <span class="o">/</span> <span class="s2">&quot;benchmark.json&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">envars</span> <span class="o">=</span> <span class="n">dotenv_values</span><span class="p">(</span><span class="n">dotenv_path</span><span class="o">=</span><span class="n">env_path</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
         <span class="n">envars</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">envars</span>
 
@@ -1112,7 +828,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_init_apps</span><span class="p">()</span>
 
         <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;nt&quot;</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">export_local_bin</span> <span class="o">=</span> <span class="s1">&#39;set PATH=%USERPROFILE%</span><span class="se">\\</span><span class="s1">.local</span><span class="se">\\</span><span class="s1">bin;%PATH% &amp;&amp;&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">export_local_bin</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">export_local_bin</span> <span class="o">=</span> <span class="s1">&#39;export PATH=&quot;$HOME/.local/bin:$PATH&quot;;&#39;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ssh_connections</span> <span class="o">=</span> <span class="p">{}</span></div>
@@ -1543,7 +1259,7 @@
 <span class="sd">        Returns full stdout string.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Executing in </span><span class="si">{</span><span class="n">venv</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Executing in </span><span class="si">{</span><span class="n">venv</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">cwd</span><span class="p">:</span>
             <span class="n">cwd</span> <span class="o">=</span> <span class="n">venv</span>
@@ -1586,7 +1302,7 @@
                         <span class="k">if</span> <span class="n">log_callback</span><span class="p">:</span>
                             <span class="n">log_callback</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
                         <span class="k">else</span><span class="p">:</span>
-                            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
 
                     <span class="k">if</span> <span class="n">err_line</span><span class="p">:</span>
                         <span class="n">line</span> <span class="o">=</span> <span class="n">err_line</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
@@ -1594,16 +1310,16 @@
                         <span class="k">if</span> <span class="n">log_callback</span><span class="p">:</span>
                             <span class="n">log_callback</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
                         <span class="k">elif</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s2">&quot;INFO&quot;</span><span class="p">:</span>
-                            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
                         <span class="k">else</span><span class="p">:</span>
-                            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
 
                     <span class="k">if</span> <span class="n">out_line</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span> <span class="ow">and</span> <span class="n">err_line</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span> <span class="ow">and</span> <span class="n">process</span><span class="o">.</span><span class="n">poll</span><span class="p">()</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                         <span class="k">break</span>
 
                 <span class="n">process</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-                    <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Command completed with exit code </span><span class="si">{</span><span class="n">process</span><span class="o">.</span><span class="n">returncode</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Command completed with exit code </span><span class="si">{</span><span class="n">process</span><span class="o">.</span><span class="n">returncode</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="k">return</span> <span class="n">result</span>
 
             <span class="k">except</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">TimeoutExpired</span><span class="p">:</span>
@@ -1648,7 +1364,7 @@
                     <span class="k">break</span>
                 <span class="n">decoded_line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;replace&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
                 <span class="k">if</span> <span class="n">decoded_line</span><span class="p">:</span>
-                    <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="n">decoded_line</span><span class="p">)</span>
+                    <span class="n">callback</span><span class="p">(</span><span class="n">decoded_line</span><span class="p">)</span>
 
         <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">if</span> <span class="n">proc</span><span class="o">.</span><span class="n">stdout</span><span class="p">:</span>
@@ -1750,50 +1466,22 @@
         <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="n">stdout_task</span><span class="p">,</span> <span class="n">stderr_task</span><span class="p">)</span></div>
 
 
+<div class="viewcode-block" id="AgiEnv.create_symlink">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.create_symlink">[docs]</a>
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">create_symlink</span><span class="p">(</span><span class="n">source</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">dest</span><span class="p">:</span> <span class="n">Path</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Create a symlink from dest to source if not already existing.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_symlink</span><span class="p">(</span><span class="n">src</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">dest</span><span class="p">:</span> <span class="n">Path</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">source_resolved</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">FileNotFoundError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Source path does not exist: </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
-
-        <span class="k">if</span> <span class="n">dest</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">or</span> <span class="n">dest</span><span class="o">.</span><span class="n">is_symlink</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">dest</span><span class="o">.</span><span class="n">is_symlink</span><span class="p">():</span>
-                <span class="k">try</span><span class="p">:</span>
-                    <span class="n">existing_target</span> <span class="o">=</span> <span class="n">dest</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                    <span class="k">if</span> <span class="n">existing_target</span> <span class="o">==</span> <span class="n">source_resolved</span><span class="p">:</span>
-                        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Symlink already exists and is correct: </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">source_resolved</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                        <span class="k">return</span>
-                    <span class="k">else</span><span class="p">:</span>
-                        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Warning: Symlink at </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2"> points to </span><span class="si">{</span><span class="n">existing_target</span><span class="si">}</span><span class="s2">, expected </span><span class="si">{</span><span class="n">source_resolved</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
-                        <span class="k">return</span>
-                <span class="k">except</span> <span class="ne">RecursionError</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="ne">RecursionError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Detected symlink loop while resolving </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
-                <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
-                    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Warning: Symlink at </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2"> is broken.&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">dest</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">or</span> <span class="n">dest</span><span class="o">.</span><span class="n">is_symlink</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">dest</span><span class="o">.</span><span class="n">is_symlink</span><span class="p">()</span> <span class="ow">and</span> <span class="n">dest</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span> <span class="o">==</span> <span class="n">src</span><span class="o">.</span><span class="n">resolve</span><span class="p">():</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Symlink already exists and is correct: </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">src</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                     <span class="k">return</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Warning: Destination already exists and is not a symlink: </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                <span class="k">return</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Warning: Destination already exists and is not a symlink: </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">dest</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
+            <span class="n">dest</span><span class="o">.</span><span class="n">symlink_to</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">target_is_directory</span><span class="o">=</span><span class="n">src</span><span class="o">.</span><span class="n">is_dir</span><span class="p">())</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Symlink created: </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">src</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to create symlink </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">src</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
 
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">dest</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;nt&quot;</span><span class="p">:</span>
-                <span class="n">is_dir</span> <span class="o">=</span> <span class="n">source_resolved</span><span class="o">.</span><span class="n">is_dir</span><span class="p">()</span>
-                <span class="n">os</span><span class="o">.</span><span class="n">symlink</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">source_resolved</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">dest</span><span class="p">),</span> <span class="n">target_is_directory</span><span class="o">=</span><span class="n">is_dir</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">os</span><span class="o">.</span><span class="n">symlink</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">source_resolved</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">dest</span><span class="p">))</span>
-            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Symlink created: </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">source_resolved</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;nt&quot;</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span>
-                    <span class="s2">&quot;Failed to create symlink on Windows. Ensure admin rights or Developer Mode enabled.&quot;</span>
-                <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to create symlink: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
 
 <div class="viewcode-block" id="AgiEnv.change_active_app">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.change_active_app">[docs]</a>
@@ -1877,13 +1565,13 @@
             <span class="k">async</span> <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_ssh_connection</span><span class="p">(</span><span class="n">ip</span><span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
                 <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2">&quot;</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-                    <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+                    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
                 <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">check</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
                 <span class="n">stdout</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">stdout</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stdout</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
                     <span class="n">stdout</span> <span class="o">=</span> <span class="n">stdout</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;replace&#39;</span><span class="p">)</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-                    <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="k">return</span> <span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
 
         <span class="k">except</span> <span class="n">ProcessError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
@@ -1898,7 +1586,7 @@
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
         <span class="k">except</span> <span class="p">(</span><span class="n">asyncssh</span><span class="o">.</span><span class="n">Error</span><span class="p">,</span> <span class="ne">OSError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span></div>
 
 
@@ -1916,10 +1604,10 @@
             <span class="k">await</span> <span class="n">process</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
 
             <span class="c1"># Decode output safely</span>
-            <span class="n">stdout_str</span> <span class="o">=</span> <span class="n">stdout</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;replace&#39;</span><span class="p">)</span>
+            <span class="c1">#stdout_str = stdout.decode(&#39;utf-8&#39;, errors=&#39;replace&#39;)</span>
 
             <span class="c1"># Split output into lines and get the last non-empty line</span>
-            <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">stdout_str</span><span class="o">.</span><span class="n">splitlines</span><span class="p">()</span> <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span>
+            <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">stdout</span><span class="o">.</span><span class="n">splitlines</span><span class="p">()</span> <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span>
             <span class="k">if</span> <span class="n">lines</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">lines</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
             <span class="k">else</span><span class="p">:</span>
@@ -1960,13 +1648,13 @@
             <span class="n">stdout</span><span class="p">,</span> <span class="n">stderr</span> <span class="o">=</span> <span class="k">await</span> <span class="n">process</span><span class="o">.</span><span class="n">communicate</span><span class="p">()</span>
 
             <span class="k">if</span> <span class="n">process</span><span class="o">.</span><span class="n">returncode</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;SCP failed sending </span><span class="si">{</span><span class="n">local_path</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">remote</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">stderr</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;SCP failed sending </span><span class="si">{</span><span class="n">local_path</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">remote</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">stderr</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="k">raise</span> <span class="ne">ConnectionError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;SCP error: </span><span class="si">{</span><span class="n">stderr</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Sent file </span><span class="si">{</span><span class="n">local_path</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">remote</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Sent file </span><span class="si">{</span><span class="n">local_path</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">remote</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unexpected error during SCP of </span><span class="si">{</span><span class="n">local_path</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">remote</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unexpected error during SCP of </span><span class="si">{</span><span class="n">local_path</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">remote</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="k">raise</span></div>
 
 
@@ -1979,7 +1667,7 @@
             <span class="n">tasks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">remote_path</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">))</span>
         <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="n">tasks</span><span class="p">)</span></div>
 
-        <span class="c1"># AgiEnv.log_info(f&quot;Sent {len(files)} files to {user if user else self.user}@{ip}:{remote_dir}&quot;)</span>
+        <span class="c1"># logging.info(f&quot;Sent {len(files)} files to {user if user else self.user}@{ip}:{remote_dir}&quot;)</span>
 
 <div class="viewcode-block" id="AgiEnv.remove_dir_forcefully">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.remove_dir_forcefully">[docs]</a>
@@ -2039,7 +1727,7 @@
             <span class="c1"># Default to INFO if no level found</span>
             <span class="n">level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span>
 
-        <span class="n">logging</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">line</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">line</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
 <div class="viewcode-block" id="AgiEnv.set_cluster_credentials">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.set_cluster_credentials">[docs]</a>
@@ -2399,55 +2087,6 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">scheduler_ip_address</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">scheduler_ip</span>
 
-<div class="viewcode-block" id="AgiEnv.create_symlink">
-<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.create_symlink">[docs]</a>
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">create_symlink</span><span class="p">(</span><span class="n">source</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">dest</span><span class="p">:</span> <span class="n">Path</span><span class="p">):</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">source_resolved</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">FileNotFoundError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Error: Source path does not exist: </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="se">\n</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span>
-            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
-        <span class="k">if</span> <span class="n">dest</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">or</span> <span class="n">dest</span><span class="o">.</span><span class="n">is_symlink</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">dest</span><span class="o">.</span><span class="n">is_symlink</span><span class="p">():</span>
-                <span class="k">try</span><span class="p">:</span>
-                    <span class="n">existing_target</span> <span class="o">=</span> <span class="n">dest</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                    <span class="k">if</span> <span class="n">existing_target</span> <span class="o">==</span> <span class="n">source_resolved</span><span class="p">:</span>
-                        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Symlink already exists and is correct: </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">source_resolved</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                        <span class="k">return</span>
-                    <span class="k">else</span><span class="p">:</span>
-                        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Warning: Symlink at </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2"> points to </span><span class="si">{</span><span class="n">existing_target</span><span class="si">}</span><span class="s2">, expected </span><span class="si">{</span><span class="n">source_resolved</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
-                        <span class="k">return</span>
-                <span class="k">except</span> <span class="ne">RecursionError</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="ne">RecursionError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error: Detected a symlink loop while resolving existing symlink at </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
-                <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
-                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Warning: Symlink at </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2"> is broken.&quot;</span><span class="p">)</span>
-                    <span class="k">return</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Warning: Destination already exists and is not a symlink: </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                <span class="k">return</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">dest</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error: Failed to create parent directories for </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;nt&quot;</span><span class="p">:</span>
-                <span class="n">is_dir</span> <span class="o">=</span> <span class="n">source_resolved</span><span class="o">.</span><span class="n">is_dir</span><span class="p">()</span>
-                <span class="n">os</span><span class="o">.</span><span class="n">symlink</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">source_resolved</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">dest</span><span class="p">),</span> <span class="n">target_is_directory</span><span class="o">=</span><span class="n">is_dir</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">os</span><span class="o">.</span><span class="n">symlink</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">source_resolved</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">dest</span><span class="p">))</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Symlink created: </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">source_resolved</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;nt&quot;</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span>
-                    <span class="s2">&quot;Error: Failed to create symlink on Windows.</span><span class="se">\n</span><span class="s2">Ensure you have the necessary permissions or Developer Mode is enabled.&quot;</span>
-                <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error: Failed to create symlink: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span></div>
-
-
-
 <div class="viewcode-block" id="AgiEnv.log_remote_line">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.log_remote_line">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">log_remote_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="n">line</span><span class="p">):</span>
@@ -2458,8 +2097,335 @@
         <span class="c1"># Avoid logging duplicate errors for same IP and message</span>
         <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">err_msg</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_logged_errors</span><span class="p">:</span>
-            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_logged_errors</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">key</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="ContentRenamer">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ContentRenamer</span><span class="p">(</span><span class="n">ast</span><span class="o">.</span><span class="n">NodeTransformer</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A class that renames identifiers in an abstract syntax tree (AST).</span>
+<span class="sd">    Attributes:</span>
+<span class="sd">        rename_map (dict): A mapping of old identifiers to new identifiers.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="ContentRenamer.__init__">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rename_map</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize the ContentRenamer with the rename_map.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            rename_map (dict): Mapping of old names to new names.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span> <span class="o">=</span> <span class="n">rename_map</span></div>
+
+
+<div class="viewcode-block" id="ContentRenamer.visit_Name">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_Name">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">visit_Name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="c1"># Rename variable and function names</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Visit and potentially rename a Name node in the abstract syntax tree.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            self: The current object instance.</span>
+<span class="sd">            node: The Name node in the abstract syntax tree.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            ast.Node: The modified Name node after potential renaming.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            This function modifies the Name node in place.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Renaming Name: </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">id</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">node</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">id</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>  <span class="c1"># Ensure child nodes are visited</span>
+        <span class="k">return</span> <span class="n">node</span></div>
+
+
+<div class="viewcode-block" id="ContentRenamer.visit_Attribute">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_Attribute">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">visit_Attribute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="c1"># Rename attributes</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Visit and potentially rename an attribute in a node.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            node: A node representing an attribute.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            node: The visited node with potential attribute renamed.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            None.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">attr</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Renaming Attribute: </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">attr</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">attr</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">node</span><span class="o">.</span><span class="n">attr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">attr</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">node</span></div>
+
+
+<div class="viewcode-block" id="ContentRenamer.visit_FunctionDef">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_FunctionDef">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">visit_FunctionDef</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="c1"># Rename function names</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Rename a function node based on a provided mapping.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            node (ast.FunctionDef): The function node to be processed.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            ast.FunctionDef: The function node with potential name change.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Renaming Function: </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">name</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">node</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">node</span></div>
+
+
+<div class="viewcode-block" id="ContentRenamer.visit_ClassDef">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_ClassDef">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">visit_ClassDef</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="c1"># Rename class names</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Visit and potentially rename a ClassDef node.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            node (ast.ClassDef): The ClassDef node to visit.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            ast.ClassDef: The potentially modified ClassDef node.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Renaming Class: </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">name</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">node</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">node</span></div>
+
+
+<div class="viewcode-block" id="ContentRenamer.visit_arg">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_arg">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">visit_arg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="c1"># Rename function argument names</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Visit and potentially rename an argument node.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            self: The instance of the class.</span>
+<span class="sd">            node: The argument node to visit and possibly rename.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            ast.AST: The modified argument node.</span>
+
+<span class="sd">        Notes:</span>
+<span class="sd">            Modifies the argument node in place if its name is found in the rename map.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            None.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">arg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Renaming Argument: </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">arg</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">arg</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">node</span><span class="o">.</span><span class="n">arg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">arg</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">node</span></div>
+
+
+<div class="viewcode-block" id="ContentRenamer.visit_Global">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_Global">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">visit_Global</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="c1"># Rename global variable names</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Visit and potentially rename global variables in the AST node.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            self: The instance of the class that contains the renaming logic.</span>
+<span class="sd">            node: The AST node to visit and potentially rename global variables.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            AST node: The modified AST node with global variable names potentially renamed.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">new_names</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Renaming Global Variable: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">new_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">name</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">new_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">node</span><span class="o">.</span><span class="n">names</span> <span class="o">=</span> <span class="n">new_names</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">node</span></div>
+
+
+<div class="viewcode-block" id="ContentRenamer.visit_nonlocal">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_nonlocal">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">visit_nonlocal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="c1"># Rename nonlocal variable names</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Visit and potentially rename nonlocal variables in the AST node.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            self: An instance of the class containing the visit_nonlocal method.</span>
+<span class="sd">            node: The AST node to visit and potentially modify.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            ast.AST: The modified AST node after visiting and potentially renaming nonlocal variables.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">new_names</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Renaming Nonlocal Variable: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+                <span class="n">new_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">name</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">new_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">node</span><span class="o">.</span><span class="n">names</span> <span class="o">=</span> <span class="n">new_names</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">node</span></div>
+
+
+<div class="viewcode-block" id="ContentRenamer.visit_Assign">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_Assign">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">visit_Assign</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="c1"># Rename assigned variable names</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Visit and process an assignment node.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            self: The instance of the visitor class.</span>
+<span class="sd">            node: The assignment node to be visited.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            ast.Node: The visited assignment node.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">node</span></div>
+
+
+<div class="viewcode-block" id="ContentRenamer.visit_AnnAssign">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_AnnAssign">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">visit_AnnAssign</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="c1"># Rename annotated assignments</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Visit and process an AnnAssign node in an abstract syntax tree.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            self: The AST visitor object.</span>
+<span class="sd">            node: The AnnAssign node to be visited.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            AnnAssign: The visited AnnAssign node.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">node</span></div>
+
+
+<div class="viewcode-block" id="ContentRenamer.visit_For">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_For">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">visit_For</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="c1"># Rename loop variable names</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Visit and potentially rename the target variable in a For loop node.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            node (ast.For): The For loop node to visit.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            ast.For: The modified For loop node.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            This function may modify the target variable in the For loop node if it exists in the rename map.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">target</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Name</span><span class="p">)</span> <span class="ow">and</span> <span class="n">node</span><span class="o">.</span><span class="n">target</span><span class="o">.</span><span class="n">id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Renaming For Loop Variable: </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">target</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">target</span><span class="o">.</span><span class="n">id</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+            <span class="n">node</span><span class="o">.</span><span class="n">target</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">target</span><span class="o">.</span><span class="n">id</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">node</span></div>
+
+
+<div class="viewcode-block" id="ContentRenamer.visit_Import">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_Import">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">visit_Import</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Rename imported modules in &#39;import module&#39; statements.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            node (ast.Import): The import node.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">alias</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
+            <span class="n">original_name</span> <span class="o">=</span> <span class="n">alias</span><span class="o">.</span><span class="n">name</span>
+            <span class="k">if</span> <span class="n">original_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Renaming Import Module: </span><span class="si">{</span><span class="n">original_name</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">original_name</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+                <span class="n">alias</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">original_name</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Handle compound module names if necessary</span>
+                <span class="k">for</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="k">if</span> <span class="n">original_name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">old</span><span class="p">):</span>
+                        <span class="nb">print</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">&quot;Renaming Import Module: </span><span class="si">{</span><span class="n">original_name</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="n">original_name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">old</span><span class="p">,</span><span class="w"> </span><span class="n">new</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+                        <span class="p">)</span>
+                        <span class="n">alias</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">original_name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+                        <span class="k">break</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">node</span></div>
+
+
+<div class="viewcode-block" id="ContentRenamer.visit_ImportFrom">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.ContentRenamer.visit_ImportFrom">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">visit_ImportFrom</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Rename modules and imported names in &#39;from module import name&#39; statements.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            node (ast.ImportFrom): The import from node.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Rename the module being imported from</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">module</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Renaming ImportFrom Module: </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">module</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">module</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+            <span class="n">node</span><span class="o">.</span><span class="n">module</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">module</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">module</span> <span class="ow">and</span> <span class="n">node</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">old</span><span class="p">):</span>
+                    <span class="n">new_module</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+                    <span class="nb">print</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Renaming ImportFrom Module: </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">module</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="n">new_module</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="p">)</span>
+                    <span class="n">node</span><span class="o">.</span><span class="n">module</span> <span class="o">=</span> <span class="n">new_module</span>
+                    <span class="k">break</span>
+
+        <span class="c1"># Rename the imported names</span>
+        <span class="k">for</span> <span class="n">alias</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">alias</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Renaming Imported Name: </span><span class="si">{</span><span class="n">alias</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">alias</span><span class="o">.</span><span class="n">name</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+                <span class="n">alias</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="p">[</span><span class="n">alias</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rename_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="k">if</span> <span class="n">alias</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">old</span><span class="p">):</span>
+                        <span class="nb">print</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">&quot;Renaming Imported Name: </span><span class="si">{</span><span class="n">alias</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> ➔ </span><span class="si">{</span><span class="n">alias</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">old</span><span class="p">,</span><span class="w"> </span><span class="n">new</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+                        <span class="p">)</span>
+                        <span class="n">alias</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">alias</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+                        <span class="k">break</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generic_visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">node</span></div>
+</div>
 
 </pre></div>
 

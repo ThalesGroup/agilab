@@ -47,6 +47,7 @@ sphinx = [
     "sphinx-autodoc-typehints",
     "sphinx-pyreverse",
     "sphinx-design",
+    "sphinx_tabs",
     "myst-parser[linkify]",
     "sphinxcontrib-plantuml",
     "sphinx-rtd-theme",
