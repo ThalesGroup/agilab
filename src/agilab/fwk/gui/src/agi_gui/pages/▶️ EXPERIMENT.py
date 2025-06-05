@@ -177,7 +177,7 @@ def chat_online(input_request, prompt, envars):
     try:
         client = openai.OpenAI(api_key=envars.get("OPENAI_API_KEY", ""))
         response = client.chat.completions.create(
-            model="gpt-4o", messages=prompt, max_tokens=500, temperature=0.0
+            model="gpt-4.1-mini", messages=prompt, max_tokens=500, temperature=0.0
         )
         prompt.pop()
         return response.choices[0].message.content.strip()
