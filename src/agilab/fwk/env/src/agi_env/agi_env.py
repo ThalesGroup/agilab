@@ -70,7 +70,6 @@ class AgiEnv:
         if verbosity is None:
             verbosity = 0
 
-        self._logged_errors = set()
         # Root logger level based on verbosity
         root_level = logging.DEBUG if verbosity >= 2 else logging.INFO if verbosity == 1 else logging.WARNING
 
@@ -1013,12 +1012,12 @@ class AgiEnv:
 
         except asyncio.TimeoutError:
             err_msg = f"Connection to {ip} timed out after {timeout_sec} seconds."
-            self._log_error_once(ip, err_msg)
+            logging.error(err_msg)
             sys.exit(1)
 
         except asyncssh.PermissionDenied:
             err_msg = f"Authentication failed for SSH user '{self.user}' on host {ip}."
-            self._log_error_once(ip, err_msg)
+            logging.error(err_msg)
             sys.exit(1)
 
         except OSError as e:
@@ -1027,21 +1026,21 @@ class AgiEnv:
                     f"Unable to connect to {ip} on SSH port 22. "
                     "Please check that the device is powered on, network cable connected, and SSH service running."
                 )
-                self._log_error_once(ip, err_msg)
+                logging.error(err_msg)
                 sys.exit(1)
             elif e.errno in (errno.EACCES, errno.ECONNREFUSED):
-                self._log_error_once(ip, str(e))
+                logging.error(str(e))
                 sys.exit(1)
             else:
-                self._log_error_once(ip, str(e))
+                logging.error(str(e))
                 sys.exit(1)
 
         except asyncssh.Error as e:
-            self._log_error_once(ip, set(e.command) + '\n' +  str(e))
+            logging.error(set(e.command) + '\n' +  str(e))
             sys.exit(1)
 
         except Exception as e:
-            self._log_error_once(ip, f"Unexpected error while connecting to {ip}: {e}")
+            logging.error(f"Unexpected error while connecting to {ip}: {e}")
             sys.exit(1)
 
     async def exec_ssh(self, ip: str, cmd: str) -> str:
@@ -1065,7 +1064,7 @@ class AgiEnv:
                 stdout = stdout.decode('utf-8', errors='replace')
             if isinstance(stderr, bytes):
                 stderr = stderr.decode('utf-8', errors='replace')
-            self._log_error_once(ip, f"SSH command stderr: {stderr.strip()}")
+            logging.error(f"SSH command stderr: {stderr.strip()}")
             sys.exit(1)
 
         except (asyncssh.Error, OSError) as e:
@@ -1532,14 +1531,6 @@ class AgiEnv:
 
     def log_remote_line(self, ip, line):
         print(f"[{ip}] {line}")  # Replace with your real remote line logger
-
-    def _log_error_once(self, ip, err_msg):
-        # Avoid logging duplicate errors for same IP and message
-        key = (ip, err_msg)
-        if key not in self._logged_errors:
-            logging.error(err_msg)
-            self._logged_errors.add(key)
-
 
 class ContentRenamer(ast.NodeTransformer):
     """
