@@ -857,7 +857,7 @@ if __name__ == '__main__':
     # RUN Section
     # ------------------
     if show_run:
-        if st.checkbox("Benchmark all modes", value=False,
+        if st.checkbox("Benchmark all modes", value=False, key="benchmark",
                            help="This will run the snippet for each available mode and return a table with each run’s duration"):
             st.session_state["mode"] = None
 
@@ -899,12 +899,17 @@ if __name__ == '__main__':
 
             if not st.session_state.get('mode'):
                 try:
-                    with open(env.benchmark, "r") as f:
-                        data = json.loads(f.read())
-                        if data:
-                            benchmark_df = pd.DataFrame.from_dict(data, orient='index')
-                            st.text("Benchmark result:")
-                            st.dataframe(benchmark_df)
+                    if env.benchmark.exists():
+                        with open(env.benchmark, "r") as f:
+                            data = json.loads(f.read())
+                            if data:
+                                benchmark_df = pd.DataFrame.from_dict(data, orient='index')
+                                st.text("Benchmark result:")
+                                st.dataframe(benchmark_df)
+                    else:
+                        st.error("program abort before all mode have been run")
+                        st.session_state['mode'] = 0
+                        st.session_state['bencchmark'] = False
 
                 except json.JSONDecodeError as e:
                     print("Error decoding JSON:", e)
