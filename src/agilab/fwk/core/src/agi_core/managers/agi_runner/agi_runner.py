@@ -297,7 +297,8 @@ class AGI:
         AGI._mode_auto = True
         rapids_mode_mask = AGI.RAPIDS_SET if rapids_enabled else AGI.RAPIDS_RESET
         runs = {}
-
+        if env.benchmark.exists():
+            os.remove(env.benchmark)
         for m in mode_range:
             # Determine which run mode to use.
             run_mode = m & rapids_mode_mask if rapids_enabled else m
@@ -1184,7 +1185,6 @@ class AGI:
         """
         env = AGI.env
         env.has_rapids_hw = True
-
         if (AGI._mode_auto and AGI._mode == AGI.DASK_MODE) or not AGI._mode_auto:
             if AGI._mode & AGI.DASK_MODE:
                 if scheduler is None:
