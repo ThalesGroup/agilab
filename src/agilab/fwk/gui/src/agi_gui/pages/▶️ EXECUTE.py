@@ -677,7 +677,7 @@ async def page():
     else:
         show_run = False
 
-    show_export = st.sidebar.checkbox("EXPORT DATA", value=False,help="")
+    show_export = st.sidebar.checkbox("EXPORT DATA", value=False, help="")
 
     cluster_params = st.session_state.app_settings["cluster"]
     verbose = cluster_params.get('verbose', 2)
@@ -928,8 +928,6 @@ if __name__ == '__main__':
     # ------------------
     # EXPORT-COLUMNS Section
     # ------------------
-    show_export = True
-
     if show_export:
         loaded_df = st.session_state.get("loaded_df")
 
