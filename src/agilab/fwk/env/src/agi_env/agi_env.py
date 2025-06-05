@@ -1013,12 +1013,12 @@ class AgiEnv:
         except asyncio.TimeoutError:
             err_msg = f"Connection to {ip} timed out after {timeout_sec} seconds."
             logging.error(err_msg)
-            sys.exit(1)
+            raise
 
         except asyncssh.PermissionDenied:
             err_msg = f"Authentication failed for SSH user '{self.user}' on host {ip}."
             logging.error(err_msg)
-            sys.exit(1)
+            raise
 
         except OSError as e:
             if e.errno == errno.EHOSTUNREACH:
@@ -1026,22 +1026,20 @@ class AgiEnv:
                     f"Unable to connect to {ip} on SSH port 22. "
                     "Please check that the device is powered on, network cable connected, and SSH service running."
                 )
-                logging.error(err_msg)
-                sys.exit(1)
+                raise ConnectionError(err_msg)
             elif e.errno in (errno.EACCES, errno.ECONNREFUSED):
                 logging.error(str(e))
-                sys.exit(1)
             else:
                 logging.error(str(e))
-                sys.exit(1)
+            raise
 
         except asyncssh.Error as e:
             logging.error(set(e.command) + '\n' +  str(e))
-            sys.exit(1)
+            raise
 
         except Exception as e:
             logging.error(f"Unexpected error while connecting to {ip}: {e}")
-            sys.exit(1)
+            raise
 
     async def exec_ssh(self, ip: str, cmd: str) -> str:
         try:
@@ -1057,6 +1055,9 @@ class AgiEnv:
                     logging.info(f"[{ip}] {stdout.strip()}")
                 return stdout.strip()
 
+        except ConnectionError:
+            raise
+
         except ProcessError as e:
             stdout = getattr(e, 'stdout', '')
             stderr = getattr(e, 'stderr', '')
@@ -1065,11 +1066,11 @@ class AgiEnv:
             if isinstance(stderr, bytes):
                 stderr = stderr.decode('utf-8', errors='replace')
             logging.error(f"SSH command stderr: {stderr.strip()}")
-            sys.exit(1)
+            raise
 
         except (asyncssh.Error, OSError) as e:
             logging.error(e)
-            sys.exit(1)
+            raise
 
     async def exec_ssh_async(self, ip: str, cmd: str) -> str:
         """
