@@ -565,7 +565,6 @@ class AGI:
         localhost = socket.gethostbyname("localhost")
         ip = ip or localhost
         current_pid = current_pid or os.getpid()
-
         # 1) Collect PIDs from any pid files and remove those files
         pids_to_kill: list[int] = []
         for pid_file in Path().home().glob("dask-pid*"):
@@ -586,7 +585,7 @@ class AGI:
         # 2) If force, kill by process name
         if force:
             cmd = (
-                'uv run python -c "import getpass, psutil, os;'
+                f'python3 -c "import getpass, psutil, os;'
                 'me = getpass.getuser();\n'
                 'my_pid = os.getpid();\n'
                 'for p in psutil.process_iter([\'name\', \'username\', \'cmdline\', \'pid\']):\n'
@@ -730,7 +729,6 @@ class AGI:
         localhost_ip = socket.gethostbyname("localhost")
         env = AGI.env
         pyvers = env.python_version
-        python = f"uv -q run -p {pyvers} python"
 
         # You can remove this check or keep it if you expect no scheduler/workers (rare)
         if not list_ip:
@@ -747,6 +745,9 @@ class AGI:
                 continue
 
             try:
+                # install psutil
+                await env.exec_ssh(ip, "pip3 install psutil")
+
                 wenv_rel = env.wenv_rel
                 pyvers = env.python_version
 
@@ -771,6 +772,8 @@ class AGI:
 
                 # 3) Install Python
                 await env.exec_ssh(ip, f"{cmd_prefix} uv -q python install {pyvers}")
+                await env.exec_ssh(ip, f"pip3 install psutil")
+
 
                 # 4) Bootstrap the uv -q environment
                 pyproject = wenv_rel / 'pyproject.toml'
