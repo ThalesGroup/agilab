@@ -263,10 +263,12 @@ class AGI:
                 return await AGI.main(scheduler)
 
             except ProcessError as e:
-                return 1
+                logging.error(f"failed to run \n{e}")
+                return
 
             except ConnectionError as e:
-                return 1
+                logging.error(f"failed to connect \n{e}")
+                return
 
             except Exception as err:
                 logging.error(err)
@@ -1192,7 +1194,6 @@ class AGI:
                         scheduler = "127.0.0.1"
                     else:
                         logging.info("AGI.run(...scheduler='scheduler ip address' is required -> Stop")
-                        sys.exit(1)
 
                 AGI._scheduler_ip, AGI._scheduler_port = AGI._get_scheduler(scheduler)
 
@@ -1202,13 +1203,13 @@ class AGI:
                     env.has_rapids_hw = False
                 try:
                     await AGI._kill(ip, os.getpid(), force=True)
-                except Exception:
-                    pass
+                except Exception as e:
+                    raise
 
             try:
                 await AGI._kill(AGI._scheduler_ip, os.getpid(), force=True)
-            except Exception:
-                pass
+            except Exception as e:
+                raise
 
             toml_local = env.app_abs / "pyproject.toml"
             wenv_rel = env.wenv_rel
