@@ -1034,7 +1034,8 @@ class AgiEnv:
             raise
 
         except asyncssh.Error as e:
-            logging.error(set(e.command) + '\n' +  str(e))
+            logging.error(e.command)
+            logging.error(e)
             raise
 
         except Exception as e:
