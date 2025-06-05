@@ -956,13 +956,9 @@ class AGI:
         await env.exec_ssh(ip, cmd)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
-        check_rapids = (f"{cmd_prefix} uv -q --project {wenv_rel} run -p {pyvers} python -c \"import subprocess, sys, shutil;"
-                        "r = subprocess.run(['nvidia-smi'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); "
-                        "sys.exit(0 if r.returncode == 0 else 1)\""
-                        )
-
+        check_rapids = 'nvidia-smi'
         result = await env.exec_ssh(ip, check_rapids)
-        has_rapids_hw = (result != "") and AGI._rapids_enable
+        has_rapids_hw = (result != "") and AGI._rapids_enabled
         env.has_rapids_hw = has_rapids_hw
         if has_rapids_hw:
             env.set_env_var(ip, "has_rapids_hw")
@@ -1563,7 +1559,7 @@ class AGI:
         )
 
         runtime = time.time() - t
-        # print(f"{env.mode2str(AGI._mode)} {runtime}")
+        print(f"{env.mode2str(AGI._mode)} {runtime}")
         return f"{env.mode2str(AGI._mode)} {runtime}"
 
     @staticmethod
