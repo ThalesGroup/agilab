@@ -681,7 +681,7 @@ async def page():
 
     cluster_params = st.session_state.app_settings["cluster"]
     verbose = cluster_params.get('verbose', 2)
-    with st.expander("Cluster settings:", expanded=True):
+    with st.expander("System settings:", expanded=True):
         render_cluster_settings_ui()
     # ------------------
     # INSTALL Section
