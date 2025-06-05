@@ -12,8 +12,8 @@ async def exec_ssh_cmd(env, ip, cmd):
 @pytest.mark.asyncio
 async def test_exec_ssh_1(env):
     # Safe quoting for remote shell execution:
-    cmd = f"cd {env.wenv_rel} && uv run python -c \"import os; print(os.getcwd())\""
-    ip = '192.168.20.222'
+    cmd = f"cd {env.wenv_rel} && python3 -c \"import os; print(os.getcwd())\""
+    ip = '192.168.20.224'
 
     res = await exec_ssh_cmd(env, ip,cmd)
     print(res)
