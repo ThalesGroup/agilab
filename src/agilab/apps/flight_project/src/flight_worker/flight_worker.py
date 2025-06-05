@@ -98,7 +98,7 @@ class FlightWorker(PolarsWorker):
                 logging.info(f"Failed to map network drive: {e}")
 
         # Path to database on symlink Path.home()/data(symlink)
-        self.home_rel = Path(self.args["path"]).expanduser()
+        self.home_rel = (Path("~/") / self.args["path"]).expanduser()
         path = normalize_path(self.home_rel)
         self.data_out = normalize_path(self.home_rel.parent / "dataframes")
 
