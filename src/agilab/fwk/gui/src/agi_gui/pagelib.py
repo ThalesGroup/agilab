@@ -31,21 +31,7 @@ import webbrowser
 
 from sqlalchemy import false
 
-# project_root = Path(__file__).parent.parent.parent.parent.parent
-#
-# for proj in [
-#     "*project",
-#     "fwk/core",
-#     "fwk/env",
-# ]:
-#     for src in project_root.rglob(f"{proj}/src"):
-#         path = str(src)
-#         if not src.exists():
-#             print(path, "does not exist")
-#             sys.exit(1)
-#         elif path not in sys.path:
-#             print(f"Adding {path} to sys.path")
-#             sys.path.insert(0, path)
+
 
 # Apply the custom CSS
 custom_css = (
