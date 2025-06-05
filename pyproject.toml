@@ -12,7 +12,6 @@ classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.12",
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
@@ -26,14 +25,15 @@ keywords = [
 ]
 
 dependencies = [
-    "build>=1.2.2.post1",
-    "pip>=25.0.1",
-    "setuptools>=76.0.0",
-    "twine>=6.1.0",
-    "wheel>=0.45.1",
+    "build",
+    "pip",
+    "setuptools",
+    "twine",
+    "wheel",
     "agi-env",
     "agi-core",
     "agi-gui",
+    "pylint",
 ]
 
 [project.urls]
