@@ -681,12 +681,13 @@ async def page():
 
     cluster_params = st.session_state.app_settings["cluster"]
     verbose = cluster_params.get('verbose', 2)
+    with st.expander("Cluster settings:", expanded=True):
+        render_cluster_settings_ui()
     # ------------------
     # INSTALL Section
     # ------------------
     if show_install:
-        with st.expander("Cluster settings:", expanded=True):
-            render_cluster_settings_ui()
+
         with st.expander("Install snippet"):
             enabled = cluster_params.get("cluster_enabled", False)
             scheduler = cluster_params.get("scheduler", "")
