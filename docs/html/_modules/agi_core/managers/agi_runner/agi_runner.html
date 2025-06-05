@@ -695,10 +695,12 @@
                 <span class="k">return</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">main</span><span class="p">(</span><span class="n">scheduler</span><span class="p">)</span>
 
             <span class="k">except</span> <span class="n">ProcessError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="k">return</span> <span class="mi">1</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;failed to run </span><span class="se">\n</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">return</span>
 
             <span class="k">except</span> <span class="ne">ConnectionError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="k">return</span> <span class="mi">1</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;failed to connect </span><span class="se">\n</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">return</span>
 
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
                 <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
@@ -730,7 +732,8 @@
         <span class="n">AGI</span><span class="o">.</span><span class="n">_mode_auto</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="n">rapids_mode_mask</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">RAPIDS_SET</span> <span class="k">if</span> <span class="n">rapids_enabled</span> <span class="k">else</span> <span class="n">AGI</span><span class="o">.</span><span class="n">RAPIDS_RESET</span>
         <span class="n">runs</span> <span class="o">=</span> <span class="p">{}</span>
-
+        <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">benchmark</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">benchmark</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">mode_range</span><span class="p">:</span>
             <span class="c1"># Determine which run mode to use.</span>
             <span class="n">run_mode</span> <span class="o">=</span> <span class="n">m</span> <span class="o">&amp;</span> <span class="n">rapids_mode_mask</span> <span class="k">if</span> <span class="n">rapids_enabled</span> <span class="k">else</span> <span class="n">m</span>
@@ -788,8 +791,9 @@
         <span class="n">runs_str_keys</span> <span class="o">=</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">k</span><span class="p">):</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">runs</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
 
         <span class="c1"># Return a JSON-formatted string</span>
-        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">benchmark</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span><span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">runs_str_keys</span><span class="p">,</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">))</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">benchmark</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">runs_str_keys</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+
         <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">runs_str_keys</span><span class="p">)</span>
 
     <span class="nd">@staticmethod</span>
@@ -1000,7 +1004,6 @@
         <span class="n">localhost</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">gethostbyname</span><span class="p">(</span><span class="s2">&quot;localhost&quot;</span><span class="p">)</span>
         <span class="n">ip</span> <span class="o">=</span> <span class="n">ip</span> <span class="ow">or</span> <span class="n">localhost</span>
         <span class="n">current_pid</span> <span class="o">=</span> <span class="n">current_pid</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">()</span>
-
         <span class="c1"># 1) Collect PIDs from any pid files and remove those files</span>
         <span class="n">pids_to_kill</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">pid_file</span> <span class="ow">in</span> <span class="n">Path</span><span class="p">()</span><span class="o">.</span><span class="n">home</span><span class="p">()</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">&quot;dask-pid*&quot;</span><span class="p">):</span>
@@ -1021,7 +1024,7 @@
         <span class="c1"># 2) If force, kill by process name</span>
         <span class="k">if</span> <span class="n">force</span><span class="p">:</span>
             <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="s1">&#39;python3 -c &quot;import getpass, psutil, os;&#39;</span>
+                <span class="sa">f</span><span class="s1">&#39;python3 -c &quot;import getpass, psutil, os;&#39;</span>
                 <span class="s1">&#39;me = getpass.getuser();</span><span class="se">\n</span><span class="s1">&#39;</span>
                 <span class="s1">&#39;my_pid = os.getpid();</span><span class="se">\n</span><span class="s1">&#39;</span>
                 <span class="s1">&#39;for p in psutil.process_iter([</span><span class="se">\&#39;</span><span class="s1">name</span><span class="se">\&#39;</span><span class="s1">, </span><span class="se">\&#39;</span><span class="s1">username</span><span class="se">\&#39;</span><span class="s1">, </span><span class="se">\&#39;</span><span class="s1">cmdline</span><span class="se">\&#39;</span><span class="s1">, </span><span class="se">\&#39;</span><span class="s1">pid</span><span class="se">\&#39;</span><span class="s1">]):</span><span class="se">\n</span><span class="s1">&#39;</span>
@@ -1061,7 +1064,7 @@
                 <span class="n">err</span> <span class="o">=</span> <span class="n">last_res</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;stderr&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
                 <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">err</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+                    <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">last_res</span>
 
@@ -1165,7 +1168,6 @@
         <span class="n">localhost_ip</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">gethostbyname</span><span class="p">(</span><span class="s2">&quot;localhost&quot;</span><span class="p">)</span>
         <span class="n">env</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">env</span>
         <span class="n">pyvers</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">python_version</span>
-        <span class="n">python</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q run -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python&quot;</span>
 
         <span class="c1"># You can remove this check or keep it if you expect no scheduler/workers (rare)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">list_ip</span><span class="p">:</span>
@@ -1182,6 +1184,9 @@
                 <span class="k">continue</span>
 
             <span class="k">try</span><span class="p">:</span>
+                <span class="c1"># install psutil</span>
+                <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="s2">&quot;pip3 install psutil&quot;</span><span class="p">)</span>
+
                 <span class="n">wenv_rel</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span>
                 <span class="n">pyvers</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">python_version</span>
 
@@ -1206,6 +1211,8 @@
 
                 <span class="c1"># 3) Install Python</span>
                 <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}</span><span class="s2"> uv -q python install </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;pip3 install psutil&quot;</span><span class="p">)</span>
+
 
                 <span class="c1"># 4) Bootstrap the uv -q environment</span>
                 <span class="n">pyproject</span> <span class="o">=</span> <span class="n">wenv_rel</span> <span class="o">/</span> <span class="s1">&#39;pyproject.toml&#39;</span>
@@ -1388,13 +1395,9 @@
         <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
         <span class="c1"># 5) Check remote Rapids hardware support via nvidia-smi</span>
-        <span class="n">check_rapids</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}</span><span class="s2"> uv -q --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> run -p </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2"> python -c </span><span class="se">\&quot;</span><span class="s2">import subprocess, sys, shutil;&quot;</span>
-                        <span class="s2">&quot;r = subprocess.run([&#39;nvidia-smi&#39;], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); &quot;</span>
-                        <span class="s2">&quot;sys.exit(0 if r.returncode == 0 else 1)</span><span class="se">\&quot;</span><span class="s2">&quot;</span>
-                        <span class="p">)</span>
-
+        <span class="n">check_rapids</span> <span class="o">=</span> <span class="s1">&#39;nvidia-smi&#39;</span>
         <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">check_rapids</span><span class="p">)</span>
-        <span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="p">(</span><span class="n">result</span> <span class="o">!=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_rapids_enable</span>
+        <span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="p">(</span><span class="n">result</span> <span class="o">!=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_rapids_enabled</span>
         <span class="n">env</span><span class="o">.</span><span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="n">has_rapids_hw</span>
         <span class="k">if</span> <span class="n">has_rapids_hw</span><span class="p">:</span>
             <span class="n">env</span><span class="o">.</span><span class="n">set_env_var</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="s2">&quot;has_rapids_hw&quot;</span><span class="p">)</span>
@@ -1631,7 +1634,6 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">env</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">env</span>
         <span class="n">env</span><span class="o">.</span><span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="kc">True</span>
-
         <span class="k">if</span> <span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode_auto</span> <span class="ow">and</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span> <span class="o">==</span> <span class="n">AGI</span><span class="o">.</span><span class="n">DASK_MODE</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode_auto</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span> <span class="o">&amp;</span> <span class="n">AGI</span><span class="o">.</span><span class="n">DASK_MODE</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">scheduler</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -1639,7 +1641,6 @@
                         <span class="n">scheduler</span> <span class="o">=</span> <span class="s2">&quot;127.0.0.1&quot;</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;AGI.run(...scheduler=&#39;scheduler ip address&#39; is required -&gt; Stop&quot;</span><span class="p">)</span>
-                        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
                 <span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler_ip</span><span class="p">,</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler_port</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_get_scheduler</span><span class="p">(</span><span class="n">scheduler</span><span class="p">)</span>
 
@@ -1649,13 +1650,13 @@
                     <span class="n">env</span><span class="o">.</span><span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="kc">False</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_kill</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">(),</span> <span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-                    <span class="k">pass</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="k">raise</span>
 
             <span class="k">try</span><span class="p">:</span>
                 <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_kill</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler_ip</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">(),</span> <span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-                <span class="k">pass</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="k">raise</span>
 
             <span class="n">toml_local</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">app_abs</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span>
             <span class="n">wenv_rel</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span>
@@ -1871,7 +1872,7 @@
                 <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
 
-                <span class="c1"># Get the current interpreter&#39;s platlib path (e.g. &#39;/usr/lib/python3.12/site-packages&#39;)</span>
+                <span class="c1"># Get the current interpreter&#39;s platlib path (e.g. &#39;/usr/lib/python3.13/site-packages&#39;)</span>
                 <span class="n">platlib</span> <span class="o">=</span> <span class="n">sysconfig</span><span class="o">.</span><span class="n">get_path</span><span class="p">(</span><span class="s2">&quot;platlib&quot;</span><span class="p">)</span>
                 <span class="n">platlib_idx</span> <span class="o">=</span> <span class="n">platlib</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;.venv&#39;</span><span class="p">)</span>
                 <span class="n">wenv_platlib</span> <span class="o">=</span> <span class="n">platlib</span><span class="p">[</span><span class="n">platlib_idx</span><span class="p">:]</span>
@@ -2006,7 +2007,7 @@
         <span class="p">)</span>
 
         <span class="n">runtime</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">t</span>
-        <span class="c1"># print(f&quot;{env.mode2str(AGI._mode)} {runtime}&quot;)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">mode2str</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">runtime</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">mode2str</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">runtime</span><span class="si">}</span><span class="s2">&quot;</span>
 
 <div class="viewcode-block" id="AGI.main">

@@ -21,7 +21,7 @@ COPY src/ ./src/
 COPY docker/install.sh ./install.sh
 
 ENV CLUSTER_CREDENTIALS="user:password"
-ENV PYTHON_VERSION="3.12.10"
+ENV PYTHON_VERSION="3.13"
 ENV OPENAI_API_KEY="dummkykey"
 
 RUN chmod +x ./install.sh

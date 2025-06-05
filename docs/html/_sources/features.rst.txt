@@ -24,7 +24,7 @@ agi-core
 
   - **Language Support:**
 
-    - Pure Python (From python 3.12)
+    - Pure Python (From python 3.11)
     - Cython (Ahead of execution compilation)
 
   - **Deployment Modes:**

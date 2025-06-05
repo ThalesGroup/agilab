@@ -502,7 +502,6 @@
         <span class="k">if</span> <span class="n">verbosity</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">verbosity</span> <span class="o">=</span> <span class="mi">0</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">_logged_errors</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
         <span class="c1"># Root logger level based on verbosity</span>
         <span class="n">root_level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span> <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span> <span class="k">if</span> <span class="n">verbosity</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span>
 
@@ -586,16 +585,13 @@
         <span class="n">stderr_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">fmt_err</span><span class="p">)</span>
         <span class="n">stderr_handler</span><span class="o">.</span><span class="n">addFilter</span><span class="p">(</span><span class="n">ClassNameFilter</span><span class="p">())</span>
 
-        <span class="n">root</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">()</span>
-        <span class="c1"># Remove old handlers before adding new ones</span>
-        <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="n">root</span><span class="o">.</span><span class="n">handlers</span><span class="p">[:]:</span>
-            <span class="n">root</span><span class="o">.</span><span class="n">removeHandler</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>
         <span class="n">root</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">stdout_handler</span><span class="p">)</span>
         <span class="n">root</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">stderr_handler</span><span class="p">)</span>
 
         <span class="n">root</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span> <span class="k">if</span> <span class="n">verbosity</span> <span class="ow">and</span> <span class="n">verbosity</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span> <span class="k">if</span> <span class="n">verbosity</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)</span>
 
         <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Logging initialized at level </span><span class="si">{</span><span class="n">logging</span><span class="o">.</span><span class="n">getLevelName</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">level</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
 
 
 
@@ -767,7 +763,7 @@
         <span class="n">credantials</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">credantials</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;:&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">user</span> <span class="o">=</span> <span class="n">credantials</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">password</span> <span class="o">=</span> <span class="n">credantials</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">credantials</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="kc">None</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">python_version</span> <span class="o">=</span> <span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;AGI_PYTHON_VERSION&quot;</span><span class="p">,</span> <span class="s2">&quot;3.12.9&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">python_version</span> <span class="o">=</span> <span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;AGI_PYTHON_VERSION&quot;</span><span class="p">,</span> <span class="s2">&quot;3.13&quot;</span><span class="p">)</span>
 
         <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="n">base</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_root</span> <span class="o">/</span> <span class="p">(</span><span class="s2">&quot;fwk/core/src&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">install_type</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
@@ -1419,6 +1415,7 @@
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_async</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">venv</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cwd</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">log_callback</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Run a shell command asynchronously inside a virtual environment.</span>
+<span class="sd">        Returns the last line of combined stdout and stderr outputs.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">cwd</span><span class="p">:</span>
             <span class="n">cwd</span> <span class="o">=</span> <span class="n">venv</span>
@@ -1442,19 +1439,24 @@
             <span class="n">executable</span><span class="o">=</span><span class="n">shell_executable</span>
         <span class="p">)</span>
 
-        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">read_stream</span><span class="p">(</span><span class="n">stream</span><span class="p">,</span> <span class="n">callback</span><span class="p">):</span>
+        <span class="n">stdout_lines</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">stderr_lines</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">read_stream</span><span class="p">(</span><span class="n">stream</span><span class="p">,</span> <span class="n">lines</span><span class="p">,</span> <span class="n">callback</span><span class="p">):</span>
             <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
                 <span class="n">line</span> <span class="o">=</span> <span class="k">await</span> <span class="n">stream</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="p">:</span>
                     <span class="k">break</span>
                 <span class="n">decoded_line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
-                <span class="n">callback</span><span class="p">(</span><span class="n">decoded_line</span><span class="p">)</span>
+                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">decoded_line</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">callback</span><span class="p">:</span>
+                    <span class="n">callback</span><span class="p">(</span><span class="n">decoded_line</span><span class="p">)</span>
 
         <span class="n">stdout_task</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span>
-            <span class="n">read_stream</span><span class="p">(</span><span class="n">process</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">log_callback</span> <span class="k">if</span> <span class="n">log_callback</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">)</span>
+            <span class="n">read_stream</span><span class="p">(</span><span class="n">process</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">stdout_lines</span><span class="p">,</span> <span class="n">log_callback</span> <span class="k">if</span> <span class="n">log_callback</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">)</span>
         <span class="p">)</span>
         <span class="n">stderr_task</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span>
-            <span class="n">read_stream</span><span class="p">(</span><span class="n">process</span><span class="o">.</span><span class="n">stderr</span><span class="p">,</span> <span class="n">log_callback</span> <span class="k">if</span> <span class="n">log_callback</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">)</span>
+            <span class="n">read_stream</span><span class="p">(</span><span class="n">process</span><span class="o">.</span><span class="n">stderr</span><span class="p">,</span> <span class="n">stderr_lines</span><span class="p">,</span> <span class="n">log_callback</span> <span class="k">if</span> <span class="n">log_callback</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">)</span>
         <span class="p">)</span>
 
         <span class="k">try</span><span class="p">:</span>
@@ -1463,7 +1465,21 @@
             <span class="n">process</span><span class="o">.</span><span class="n">kill</span><span class="p">()</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Timeout expired for command: </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">err</span>
 
-        <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="n">stdout_task</span><span class="p">,</span> <span class="n">stderr_task</span><span class="p">)</span></div>
+        <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="n">stdout_task</span><span class="p">,</span> <span class="n">stderr_task</span><span class="p">)</span>
+
+        <span class="c1"># Find last non-empty line from stderr first (usually errors), else stdout</span>
+        <span class="n">last_line</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">stderr_lines</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+                <span class="n">last_line</span> <span class="o">=</span> <span class="n">line</span>
+                <span class="k">break</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">last_line</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">stdout_lines</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+                    <span class="n">last_line</span> <span class="o">=</span> <span class="n">line</span>
+                    <span class="k">break</span>
+
+        <span class="k">return</span> <span class="n">last_line</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.create_symlink">
@@ -1526,13 +1542,13 @@
 
         <span class="k">except</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">TimeoutError</span><span class="p">:</span>
             <span class="n">err_msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Connection to </span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2"> timed out after </span><span class="si">{</span><span class="n">timeout_sec</span><span class="si">}</span><span class="s2"> seconds.&quot;</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_log_error_once</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">err_msg</span><span class="p">)</span>
-            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+            <span class="k">raise</span>
 
         <span class="k">except</span> <span class="n">asyncssh</span><span class="o">.</span><span class="n">PermissionDenied</span><span class="p">:</span>
             <span class="n">err_msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Authentication failed for SSH user &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="si">}</span><span class="s2">&#39; on host </span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">.&quot;</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_log_error_once</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">err_msg</span><span class="p">)</span>
-            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+            <span class="k">raise</span>
 
         <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">errno</span> <span class="o">==</span> <span class="n">errno</span><span class="o">.</span><span class="n">EHOSTUNREACH</span><span class="p">:</span>
@@ -1540,22 +1556,21 @@
                     <span class="sa">f</span><span class="s2">&quot;Unable to connect to </span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2"> on SSH port 22. &quot;</span>
                     <span class="s2">&quot;Please check that the device is powered on, network cable connected, and SSH service running.&quot;</span>
                 <span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_log_error_once</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">err_msg</span><span class="p">)</span>
-                <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ConnectionError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
             <span class="k">elif</span> <span class="n">e</span><span class="o">.</span><span class="n">errno</span> <span class="ow">in</span> <span class="p">(</span><span class="n">errno</span><span class="o">.</span><span class="n">EACCES</span><span class="p">,</span> <span class="n">errno</span><span class="o">.</span><span class="n">ECONNREFUSED</span><span class="p">):</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_log_error_once</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
-                <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_log_error_once</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
-                <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+            <span class="k">raise</span>
 
         <span class="k">except</span> <span class="n">asyncssh</span><span class="o">.</span><span class="n">Error</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_log_error_once</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
-            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">command</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="k">raise</span>
 
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_log_error_once</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Unexpected error while connecting to </span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span></div>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unexpected error while connecting to </span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">raise</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.exec_ssh">
@@ -1574,6 +1589,9 @@
                     <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="k">return</span> <span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
 
+        <span class="k">except</span> <span class="ne">ConnectionError</span><span class="p">:</span>
+            <span class="k">raise</span>
+
         <span class="k">except</span> <span class="n">ProcessError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="n">stdout</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="s1">&#39;stdout&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
             <span class="n">stderr</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="s1">&#39;stderr&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
@@ -1581,13 +1599,12 @@
                 <span class="n">stdout</span> <span class="o">=</span> <span class="n">stdout</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;replace&#39;</span><span class="p">)</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
                 <span class="n">stderr</span> <span class="o">=</span> <span class="n">stderr</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;replace&#39;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_log_error_once</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;SSH command stdout: </span><span class="si">{</span><span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_log_error_once</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;SSH command stderr: </span><span class="si">{</span><span class="n">stderr</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;SSH command stderr: </span><span class="si">{</span><span class="n">stderr</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">raise</span>
 
         <span class="k">except</span> <span class="p">(</span><span class="n">asyncssh</span><span class="o">.</span><span class="n">Error</span><span class="p">,</span> <span class="ne">OSError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
-            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span></div>
+            <span class="k">raise</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.exec_ssh_async">
@@ -1635,9 +1652,11 @@
         <span class="n">cmd</span> <span class="o">=</span> <span class="p">[]</span>
 
         <span class="k">if</span> <span class="n">password</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="s2">&quot;nt&quot;</span><span class="p">:</span>
-            <span class="n">cmd</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;sshpass&quot;</span><span class="p">,</span> <span class="s2">&quot;-p&quot;</span><span class="p">,</span> <span class="n">password</span><span class="p">]</span>
+            <span class="n">cmd_base</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;sshpass&quot;</span><span class="p">]</span>
+            <span class="n">cmd</span> <span class="o">+=</span> <span class="n">cmd_base</span> <span class="o">+</span> <span class="p">[</span><span class="s2">&quot;-p&quot;</span><span class="p">,</span> <span class="n">password</span><span class="p">]</span>
 
-        <span class="n">cmd</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;scp&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">local_path</span><span class="p">),</span> <span class="n">remote</span><span class="p">]</span>
+        <span class="n">cmd_end</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;scp&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">local_path</span><span class="p">),</span> <span class="n">remote</span><span class="p">]</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="n">cmd</span> <span class="o">+</span> <span class="n">cmd_end</span>
 
         <span class="k">try</span><span class="p">:</span>
             <span class="n">process</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">create_subprocess_exec</span><span class="p">(</span>
@@ -1654,8 +1673,24 @@
             <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Sent file </span><span class="si">{</span><span class="n">local_path</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">remote</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unexpected error during SCP of </span><span class="si">{</span><span class="n">local_path</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">remote</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="k">raise</span></div>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">cmd</span> <span class="o">=</span> <span class="n">cmd_base</span> <span class="o">+</span> <span class="n">cmd_end</span>
+                <span class="n">process</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">create_subprocess_exec</span><span class="p">(</span>
+                    <span class="o">*</span><span class="n">cmd</span><span class="p">,</span>
+                    <span class="n">stdout</span><span class="o">=</span><span class="n">asyncio</span><span class="o">.</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
+                    <span class="n">stderr</span><span class="o">=</span><span class="n">asyncio</span><span class="o">.</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">stdout</span><span class="p">,</span> <span class="n">stderr</span> <span class="o">=</span> <span class="k">await</span> <span class="n">process</span><span class="o">.</span><span class="n">communicate</span><span class="p">()</span>
+
+                <span class="k">if</span> <span class="n">process</span><span class="o">.</span><span class="n">returncode</span><span class="p">:</span>
+                    <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;SCP failed sending </span><span class="si">{</span><span class="n">local_path</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">remote</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">stderr</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="k">raise</span> <span class="ne">ConnectionError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;SCP error: </span><span class="si">{</span><span class="n">stderr</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Sent file </span><span class="si">{</span><span class="n">local_path</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">remote</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="k">raise</span></div>
+
 
 
 <div class="viewcode-block" id="AgiEnv.send_files">
@@ -2091,15 +2126,7 @@
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.log_remote_line">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">log_remote_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="n">line</span><span class="p">):</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">line</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># Replace with your real remote line logger</span></div>
-
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_log_error_once</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="n">err_msg</span><span class="p">):</span>
-        <span class="c1"># Avoid logging duplicate errors for same IP and message</span>
-        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">err_msg</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_logged_errors</span><span class="p">:</span>
-            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_logged_errors</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">key</span><span class="p">)</span></div>
-
+</div>
 
 
 <div class="viewcode-block" id="ContentRenamer">
