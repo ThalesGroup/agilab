@@ -51,7 +51,8 @@ dependencies = [
     "dask[distributed]",
     "cython",
     "wheel",
-    "scipy==1.15.2"
+    "scipy==1.15.2",
+    "psutil",
 ]
 
 [project.urls]
