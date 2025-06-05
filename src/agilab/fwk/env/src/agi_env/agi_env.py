@@ -328,7 +328,7 @@ class AgiEnv:
         credantials = self.credantials.split(":")
         self.user = credantials[0]
         self.password = credantials[1] if len(credantials) > 1 else None
-        self.python_version = envars.get("AGI_PYTHON_VERSION", "3.12.9")
+        self.python_version = envars.get("AGI_PYTHON_VERSION", "3.13")
 
         os.makedirs(AgiEnv.apps_dir, exist_ok=True)
         base = self.agi_root / ("fwk/core/src" if self.install_type else "")

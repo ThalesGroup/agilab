@@ -13,7 +13,7 @@
 | annotated-types | MIT LICENSE |
 | anthropic | MIT LICENSE |
 | anyio | MIT LICENSE |
-| argon2-cffi | MIT LICENSE |
+| argon2-cffi | MIT |
 | argon2-cffi-bindings | MIT LICENSE |
 | arrow | APACHE SOFTWARE LICENSE |
 | arxiv | MIT LICENSE |

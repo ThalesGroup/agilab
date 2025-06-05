@@ -15,4 +15,3 @@
 | pyzstd | BSD LICENSE |
 | setuptools | MIT |
 | texttable | MIT LICENSE |
-| typing-extensions | PSF-2.0 |

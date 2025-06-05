@@ -106,7 +106,7 @@ Clean the UV cache by executing the following command:
 <DASK> Debug Issue
 ------------------
 
-While debugging Dask on Python 3.12, you might encounter the following error:
+While debugging Dask on Python, you might encounter the following error:
 
 .. code-block:: none
 

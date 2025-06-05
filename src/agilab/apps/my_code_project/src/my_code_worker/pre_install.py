@@ -4,6 +4,9 @@ import argparse
 from pathlib import Path
 import parso
 from agi_env import AgiEnv, normalize_path
+import logging
+
+logger = logging.getLogger(__name__)
 
 def get_decorator_name(decorator_node):
     """

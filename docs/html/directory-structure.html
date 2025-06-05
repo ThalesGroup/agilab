@@ -495,10 +495,8 @@
 │   │   │   └── test_df.ipynb
 │   │   └── uv.toml
 │   ├── flight_project
+│   │   ├── apps
 │   │   ├── dask-pid-0
-│   │   ├── data
-│   │   │   └── flight
-│   │   │       └── dataframes
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
 │   │   ├── README.md
@@ -508,8 +506,6 @@
 │   │   │   ├── agi_worker -&gt; /home/pcm/PycharmProjects/agilab/src/agilab/fwk/core/src/agi_core/workers/agi_worker
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
-│   │   │   ├── data
-│   │   │   │   └── flight
 │   │   │   ├── flight
 │   │   │   │   ├── flight.py
 │   │   │   │   └── __init__.py
@@ -582,17 +578,27 @@
 │   ├── install.py
 │   ├── install.sh
 │   ├── my_code_project
+│   │   ├── apps
 │   │   ├── install.py
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── setup
 │   │   ├── src
+│   │   │   ├── agi_worker -&gt; /home/pcm/PycharmProjects/agilab/src/agilab/fwk/core/src/agi_core/workers/agi_worker
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
+│   │   │   ├── dag_worker -&gt; /home/pcm/PycharmProjects/agilab/src/agilab/fwk/core/src/agi_core/workers/dag_worker
 │   │   │   ├── my_code
 │   │   │   │   ├── __init__.py
 │   │   │   │   └── my_code.py
+│   │   │   ├── my_code_project.egg-info
+│   │   │   │   ├── dependency_links.txt
+│   │   │   │   ├── not-zip-safe
+│   │   │   │   ├── PKG-INFO
+│   │   │   │   ├── requires.txt
+│   │   │   │   ├── SOURCES.txt
+│   │   │   │   └── top_level.txt
 │   │   │   ├── my_code_worker
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── my_code_worker.c
@@ -653,18 +659,6 @@
 │   ├── README.md
 │   ├── rssi-predictor
 │   │   ├── rssi-predictor
-│   │   │   ├── data
-│   │   │   │   ├── beams.csv
-│   │   │   │   ├── prepared_flight_dataset.csv
-│   │   │   │   ├── raw_dataset.csv
-│   │   │   │   └── satellites.csv
-│   │   │   ├── data_preparation.ipynb
-│   │   │   ├── model
-│   │   │   │   └── svm_model.joblib
-│   │   │   ├── pyproject.toml
-│   │   │   ├── README.md
-│   │   │   ├── rssi_prediction.ipynb
-│   │   │   └── uv.toml
 │   │   └── uv.toml
 │   └── satcom-sim-project
 │       ├── data.7z
@@ -687,8 +681,6 @@
 │       └── uv.toml
 ├── fwk
 │   ├── core
-│   │   ├── dist
-│   │   │   └── agi_core-0.3.12-py3-none-any.whl
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
@@ -720,8 +712,6 @@
 │   ├── coverage.xml
 │   ├── env
 │   │   ├── coverage.xml
-│   │   ├── dist
-│   │   │   └── agi_env-0.3.12-py3-none-any.whl
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
@@ -755,15 +745,22 @@
 │   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── src
-│   │   │   └── agi_gui
-│   │   │       ├── agi_copilot.py
-│   │   │       ├── AGILAB.py
-│   │   │       ├── __init__.py
-│   │   │       ├── lab_run.py
-│   │   │       ├── pagelib.py
-│   │   │       ├── pages
-│   │   │       ├── resources
-│   │   │       └── steps.toml
+│   │   │   ├── agi_gui
+│   │   │   │   ├── agi_copilot.py
+│   │   │   │   ├── AGILAB.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── lab_run.py
+│   │   │   │   ├── pagelib.py
+│   │   │   │   ├── pages
+│   │   │   │   ├── resources
+│   │   │   │   └── steps.toml
+│   │   │   └── agi_gui.egg-info
+│   │   │       ├── dependency_links.txt
+│   │   │       ├── entry_points.txt
+│   │   │       ├── PKG-INFO
+│   │   │       ├── requires.txt
+│   │   │       ├── SOURCES.txt
+│   │   │       └── top_level.txt
 │   │   ├── test
 │   │   │   ├── __init__.py
 │   │   │   └── test-streamlit.sh
@@ -813,7 +810,7 @@
     ├── pyproject.toml
     └── README.md
 
-98 directories, 286 files
+95 directories, 286 files
 </pre></div>
 </div>
 </section>

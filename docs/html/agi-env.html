@@ -701,7 +701,7 @@ INFO and DEBUG levels go to stdout; WARNING and above go to stderr.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.inspect">
-<span class="sig-name descname"><span class="pre">inspect</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;module</span> <span class="pre">'inspect'</span> <span class="pre">from</span> <span class="pre">'/home/pcm/.local/share/uv/python/cpython-3.12.10-linux-x86_64-gnu/lib/python3.12/inspect.py'&gt;</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.inspect" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">inspect</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;module</span> <span class="pre">'inspect'</span> <span class="pre">from</span> <span class="pre">'/home/pcm/.local/share/uv/python/cpython-3.13.4-linux-x86_64-gnu/lib/python3.13/inspect.py'&gt;</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.inspect" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -741,7 +741,7 @@ INFO and DEBUG levels go to stdout; WARNING and above go to stderr.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.logging">
-<span class="sig-name descname"><span class="pre">logging</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;module</span> <span class="pre">'logging'</span> <span class="pre">from</span> <span class="pre">'/home/pcm/.local/share/uv/python/cpython-3.12.10-linux-x86_64-gnu/lib/python3.12/logging/__init__.py'&gt;</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.logging" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">logging</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;module</span> <span class="pre">'logging'</span> <span class="pre">from</span> <span class="pre">'/home/pcm/.local/share/uv/python/cpython-3.13.4-linux-x86_64-gnu/lib/python3.13/logging/__init__.py'&gt;</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.logging" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -806,7 +806,8 @@ Log stdout lines as info, stderr lines as error.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.run_async">
 <em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run_async</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">venv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cwd</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.run_async"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.run_async" title="Link to this definition"></a></dt>
-<dd><p>Run a shell command asynchronously inside a virtual environment.</p>
+<dd><p>Run a shell command asynchronously inside a virtual environment.
+Returns the last line of combined stdout and stderr outputs.</p>
 </dd></dl>
 
 <dl class="py property">

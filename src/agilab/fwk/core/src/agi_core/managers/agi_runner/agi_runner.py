@@ -1424,7 +1424,7 @@ class AGI:
                 except StopIteration:
                     raise RuntimeError(cmd)
 
-                # Get the current interpreter's platlib path (e.g. '/usr/lib/python3.12/site-packages')
+                # Get the current interpreter's platlib path (e.g. '/usr/lib/python3.13/site-packages')
                 platlib = sysconfig.get_path("platlib")
                 platlib_idx = platlib.index('.venv')
                 wenv_platlib = platlib[platlib_idx:]
