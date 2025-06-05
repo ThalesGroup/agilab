@@ -914,6 +914,7 @@ class AgiEnv:
     async def run_async(cmd, venv=None, cwd=None, timeout=None, log_callback=None):
         """
         Run a shell command asynchronously inside a virtual environment.
+        Returns the last line of combined stdout and stderr outputs.
         """
         if not cwd:
             cwd = venv
@@ -937,19 +938,24 @@ class AgiEnv:
             executable=shell_executable
         )
 
-        async def read_stream(stream, callback):
+        stdout_lines = []
+        stderr_lines = []
+
+        async def read_stream(stream, lines, callback):
             while True:
                 line = await stream.readline()
                 if not line:
                     break
                 decoded_line = line.decode().rstrip()
-                callback(decoded_line)
+                lines.append(decoded_line)
+                if callback:
+                    callback(decoded_line)
 
         stdout_task = asyncio.create_task(
-            read_stream(process.stdout, log_callback if log_callback else logging.info)
+            read_stream(process.stdout, stdout_lines, log_callback if log_callback else logging.info)
         )
         stderr_task = asyncio.create_task(
-            read_stream(process.stderr, log_callback if log_callback else logging.error)
+            read_stream(process.stderr, stderr_lines, log_callback if log_callback else logging.error)
         )
 
         try:
@@ -959,6 +965,20 @@ class AgiEnv:
             raise RuntimeError(f"Timeout expired for command: {cmd}") from err
 
         await asyncio.gather(stdout_task, stderr_task)
+
+        # Find last non-empty line from stderr first (usually errors), else stdout
+        last_line = None
+        for line in reversed(stderr_lines):
+            if line.strip():
+                last_line = line
+                break
+        if not last_line:
+            for line in reversed(stdout_lines):
+                if line.strip():
+                    last_line = line
+                    break
+
+        return last_line
 
     @staticmethod
     def create_symlink(src: Path, dest: Path):
