@@ -1119,6 +1119,7 @@ def handle_project_selection():
     # Define each section as (label, render‑fn)
     sections = [
         ("PYTHON‑ENV", lambda: _render_python_env(env)),
+        ("PYTHON-ENV-EXTRA", lambda: _render_uv_env(env)),
         ("MANAGER",    lambda: _render_manager(env)),
         ("WORKER",     lambda: _render_worker(env)),
         ("EXPORT‑APP‑FILTER", lambda: _render_gitignore(env)),
@@ -1138,10 +1139,20 @@ def _render_python_env(env):
     app_venv_file = env.app_abs / "pyproject.toml"
     if app_venv_file.exists():
         app_venv = app_venv_file.read_text()
+        render_code_editor(
+            app_venv_file, app_venv, "toml", "pyproject", comp_props, ace_props
+        )
+    else:
+        st.warning("App settings file not found.")
+
+def _render_uv_env(env):
+    app_venv_file = env.app_abs / "uv.toml"
+    if app_venv_file.exists():
+        app_venv = app_venv_file.read_text()
         if "-cu12" in app_venv:
             st.session_state["rapids"] = True
         render_code_editor(
-            app_venv_file, app_venv, "toml", "venv", comp_props, ace_props
+            app_venv_file, app_venv, "toml", "uv", comp_props, ace_props
         )
     else:
         st.warning("App settings file not found.")
