@@ -33,7 +33,6 @@
      </a>
    </p>
 
-
 AGILAB Open Source Project
 ==========================
 
@@ -53,25 +52,29 @@ Install and Execution for enduser
 Install for developers
 ^^^^^^^^^^^^^^^^^^^^^^
 
-.. tabs::
+.. raw:: html
 
-   .. tab:: Windows
+   <details>
+     <summary><strong>Windows</strong></summary>
+     <pre><code class="powershell">
+unzip agilab.zip
+cd agilab/src/agilab/fwk/gui
+powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key "your-api-key"
+     </code></pre>
+   </details>
 
-      .. code-block:: powershell
+.. raw:: html
 
-         unzip agilab.zip
-         cd agilab/src/agilab/fwk/gui
-         powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key "your-api-key"
-
-   .. tab:: Linux
-
-      .. code-block:: bash
-
-         git clone https://github.com/ThalesGroup/agilab
-         cd agilab/ agilab/src/agilab/fwk/gui
-         ./install.sh --openai-api-key "your-api-key" --cluster-ssh-credentials "username:[password]"
-
-Note: the password is provided only for demo restricted to posix linux os, see the `key-generation <key-generation.md>`_ page for a more secure alternative.
+   <details>
+     <summary><strong>Linux</strong></summary>
+     <pre><code class="bash">
+git clone https://github.com/ThalesGroup/agilab
+cd agilab/ agilab/src/agilab/fwk/gui
+./install.sh --openai-api-key "your-api-key" --cluster-ssh-credentials "username:[password]"
+     </code></pre>
+     <p>Note: the password is provided only for demo restricted to posix linux os, see the
+     <a href="key-generation.html">key-generation</a> page for a more secure alternative.</p>
+   </details>
 
 AGILab Execution
 ================
