@@ -26,30 +26,28 @@ uv run agilab --openai-api-key "your-api-key"
 
 ## Install for developers
 
-### Linux and MacOS:
+<details>
+<summary><strong>Linux and MacOS</strong></summary>
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab
-cd agilab  agilab/src/agilab/fwk/gui
+cd agilab/ agilab/src/agilab/fwk/gui
 ./install.sh --openai-api-key "your-api-key" --cluster-ssh-credentials "username:[password]"
 
 Note: the password is provided only for demo restricted to posix linux os, see the
 `key-generation <key-generation.md>`_ page for a more secure alternative.
 
-```
+</details> <details> <summary><strong>Windows</strong></summary>
 
-### Windows:
-
-```powershell
 unzip agilab.zip
 cd agilab/src/agilab/fwk/gui
 powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key "your-api-key"
-```
 
-## AGILab Execution
+</details>
+AGILab Execution
+<details> <summary><strong>Linux, MacOS and Windows</strong></summary>
 
-### Linux and MacOS and Windows:
-
-```commandline
 cd agilab/src/agilab/fwk/gui
 uv run agilab
+
+</details> 
