@@ -36,8 +36,8 @@ jobs:
             src/agilab/fwk/gui/pyproject.toml)
           echo "versions=$versions" >> $GITHUB_OUTPUT
 
-     - name: Debug print captured versions
-      run: echo "Captured versions: '${{ steps.get_versions.outputs.versions }}'"
+      - name: Debug print captured versions
+        run: echo "Captured versions: '${{ steps.get_versions.outputs.versions }}'"
 
   test:
     needs: get-python-versions
