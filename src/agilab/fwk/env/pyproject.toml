@@ -1,7 +1,7 @@
 [project]
 name = "agi-env"
 description = "AGI Env"
-version = "0.3.13"
+version = "0.3.20"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [
@@ -9,9 +9,12 @@ authors = [
 ]
 
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
+    "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",

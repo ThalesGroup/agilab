@@ -1,5 +1,3 @@
-# AGILAB Open Source Project
-
 [![PyPI version](https://img.shields.io/pypi/v/agilab.svg?color=informational)](https://pypi.org/project/agilab)
 [![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
 [![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
@@ -11,10 +9,11 @@
 [![docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://thalesgroup.github.io/agilab)
 [![ORCID](https://img.shields.io/badge/ORCID-0009--0003--5375--368X-A6CE39?logo=orcid)](https://orcid.org/0009-0003-5375-368X)
 
-AGILAB is an open source project under the BSD license. Its purpose is to explore AI for engineering and to help engineers quickly experiment with AI-driven methods.  
-See the [documentation](https://thalesgroup.github.io/agilab).
 
----
+# AGILAB Open Source Project
+
+AGILAB [BSD license](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) project purpose is to explore AI for engineering. It is designed to help engineers quickly experiment with AI-driven methods.
+See [documentation](https://thalesgroup.github.io/agilab).
 
 ## Install and Execution for enduser
 
@@ -23,28 +22,39 @@ mkdir agi-workspace && cd agi-workspace
 uv init --bare
 uv add agilab
 uv run agilab --openai-api-key "your-api-key"
+```
 
 ## Install for developers
-<details> <summary><strong>Windows</strong></summary>
 
+<details open> 
+<summary>
+    <strong> Linux and MacOs </strong>
+</summary>
+
+```bash
+git clone https://github.com/ThalesGroup/agilab
+cd agilab  agilab/src/agilab/fwk/gui
+./install.sh --openai-api-key "your-api-key" --cluster-ssh-credentials "username:[password]"
+```
+</details>
+
+<details> 
+<summary>
+    <strong>Windows</strong>
+</summary>
+
+```powershell
 unzip agilab.zip
 cd agilab/src/agilab/fwk/gui
 powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key "your-api-key"
-
-</details> <details> <summary><strong>Linux</strong></summary>
-
-git clone https://github.com/ThalesGroup/agilab
-cd agilab/ agilab/src/agilab/fwk/gui
-./install.sh --openai-api-key "your-api-key" --cluster-ssh-credentials "username:[password]"
-
-Note: the password is provided only for demo restricted to posix linux os, see the key-generation page for a more secure alternative.
+```
 </details>
-AGILab Execution
 
+## AGILab Execution
+
+### Linux and MacOS and Windows:
+
+```bash
 cd agilab/src/agilab/fwk/gui
 uv run agilab
-
-
-**Copy-paste this whole block as one cell into your README.md or Markdown file.**  
-It will render with all badges, collapsible install tabs, and correctly formatted code blocks on GitHub and most Markdown viewers.
-
+```

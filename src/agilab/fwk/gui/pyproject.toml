@@ -1,16 +1,18 @@
 [project]
 name = "agi-gui"
 description = "AGI GUI"
-version = "0.3.13"
-requires-python = ">=3.11"
+version = "0.3.20"
+requires-python = ">=3.11, <3.13"
 readme = "README.md"
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
 ]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
+    "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
