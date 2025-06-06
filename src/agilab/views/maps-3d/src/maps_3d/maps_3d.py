@@ -544,7 +544,7 @@ def page():
             # Initialize an empty DataFrame to store distribution metrics
             c = st.columns(5)
             sampling_ratio = c[4].number_input(
-                "Select the desired Sampling ratio",
+                "Sampling ratio",
                 min_value=1,
                 value=st.session_state.GUI_SAMPLING,
                 step=1,
