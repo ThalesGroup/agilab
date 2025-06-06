@@ -981,7 +981,7 @@ class AGI:
         #await env.exec_ssh(ip, cmd)
 
         # # upgrade dask
-        # cmd = f"uv -q --project {wenv_rel} run -p {pyvers} python -m pip install dask[distributed]"
+        # cmd = f"uv -q --project {wenv_rel} pip install dask[distributed]"
         # logging.info(f"Upgrading dask[distributed] on {ip}...")
         # await env.exec_ssh(ip, cmd)
 
@@ -1003,7 +1003,7 @@ class AGI:
         cmd = f"{cmd_prefix} uv -q --project {wenv_rel} run python -m ensurepip"
         await env.exec_ssh(ip, cmd)
 
-        cmd = f"{cmd_prefix} uv -q --project {wenv_rel} run python -m pip install -e {wenv_rel}"
+        cmd = f"{cmd_prefix} uv -q --project {wenv_rel} pip install -e {wenv_rel}"
         await env.exec_ssh(ip, cmd)
 
         # build agi_env*.whl
@@ -1050,7 +1050,7 @@ class AGI:
     async def _uninstall_modules():
         """Uninstall specified modules."""
         for module in AGI._module_to_clean:
-            cmd = f"uv -q run python -m pip uninstall {module} -y"
+            cmd = f"uv -q pip uninstall {module} -y"
             logging.info(f"Executing: {cmd}")
             await AgiEnv.run(cmd, AGI.env.core_root)
         AGI._module_to_clean.clear()
