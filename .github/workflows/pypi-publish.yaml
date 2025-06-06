@@ -30,7 +30,7 @@ jobs:
       - name: Get supported Python versions
         id: get_versions
         run: |
-          versions=$(python scripts/get_supported_python_versions.py \
+          versions=$(python fwk/get_supported_python_versions.py \
             src/agilab/fwk/env/pyproject.toml \
             src/agilab/fwk/core/pyproject.toml \
             src/agilab/fwk/gui/pyproject.toml)
