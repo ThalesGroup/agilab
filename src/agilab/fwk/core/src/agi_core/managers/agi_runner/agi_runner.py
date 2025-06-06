@@ -50,7 +50,7 @@ import subprocess
 import logging
 
 # Project Libraries:
-from agi_env import AgiEnv, normalize_path, normalize_path
+from agi_env import AgiEnv, normalize_path
 from agi_core.managers.agi_manager import AgiManager
 from agi_core.workers.agi_worker import AgiWorker
 
@@ -222,7 +222,6 @@ class AGI:
                 AGI._run_type = AGI._run_types[(AGI._mode & AGI.DEPLOYEMENT_MASK) >> AGI.DASK_MODE]
             AGI._args = args
             AGI._verbose = verbose
-            AGI.debug = True if verbose > 3 else False
             AGI.workers = workers
             AGI._run_time = {}
 
@@ -483,7 +482,7 @@ class AGI:
             logging.info(f"{cmd} from {app_path}")
             await AgiEnv.run(cmd, app_path)
             AGI._module_to_clean.append(module_to_install)
-            return AGI._load_module(module, package, path)
+            return await AGI._load_module(module, package, path)
 
     @staticmethod
     def _get_stdout(func, *args, **kwargs):
@@ -1220,7 +1219,6 @@ class AGI:
                     f"--host {AGI._scheduler_ip} --pid-file dask_pid"
                 )
                 logging.info(f"Starting dask scheduler locally: {cmd}")
-                logging.info(f"Starting dask scheduler locally: {cmd}")
                 result = AGI._exec_bg(cmd, env.app_abs)  # assuming _exec_bg is sync
                 logging.info(result)
             else:
@@ -1236,7 +1234,7 @@ class AGI:
                     f"--host {AGI._scheduler_ip} --pid-file {wenv_rel / dask_pid}"
                 )
                 # Run scheduler asynchronously over SSH without awaiting completion (fire and forget)
-                asyncio.create_task(await env.exec_ssh_async(AGI._scheduler_ip, cmd))
+                asyncio.create_task(env.exec_ssh_async(AGI._scheduler_ip, cmd))
 
             try:
                 await asyncio.sleep(1)  # Give scheduler a moment to start
@@ -1672,7 +1670,7 @@ class AGI:
         while len(AGI._dask_client.scheduler_info()["workers"]) and (i < AGI.TIMEOUT):
             i += 1
             AGI._dask_client.retire_workers()
-            time.sleep(1)
+            await asyncio.sleep(1)
 
         if (
                 AGI._mode_auto and (AGI._mode == 7 or AGI._mode == 15)
