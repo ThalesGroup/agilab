@@ -1,23 +1,37 @@
-+----------------------------------------------------------------------------------------+
-| .. image:: https://img.shields.io/pypi/v/agilab.svg?color=informational                  |
-|    :target: https://pypi.org/project/agilab                                             |
-| .. image:: https://img.shields.io/pypi/pyversions/agilab.svg                            |
-|    :target: https://pypi.org/project/agilab/                                           |
-| .. image:: https://img.shields.io/badge/License-BSD%203--Clause-blue.svg                |
-|    :target: https://opensource.org/licenses/BSD-3-Clause                               |
-| .. image:: https://img.shields.io/pypi/dm/agilab                                       |
-| .. image:: https://thalesgroup.github.io/agilab/tests.svg                              |
-|    :target: https://thalesgroup.github.io/agilab/tests.svg                             |
-| .. image:: https://thalesgroup.github.io/agilab/coverage.svg                           |
-|    :target: https://thalesgroup.github.io/agilab/coverage.svg                          |
-| .. image:: https://img.shields.io/github/stars/ThalesGroup/agilab.svg                  |
-|    :target: https://github.com/ThalesGroup/agilab                                     |
-| .. image:: https://img.shields.io/badge/code%20style-black-000000.svg                  |
-| .. image:: https://img.shields.io/badge/docs-online-brightgreen.svg                    |
-|    :target: https://thalesgroup.github.io/agilab                                      |
-| .. image:: https://img.shields.io/badge/ORCID-0009--0003--5375--368X-A6CE39?logo=orcid|
-|    :target: https://orcid.org/0009-0003-5375-368X                                     |
-+----------------------------------------------------------------------------------------+
+.. raw:: html
+
+   <p>
+     <a href="https://pypi.org/project/agilab" target="_blank" rel="noopener">
+       <img src="https://img.shields.io/pypi/v/agilab.svg?color=informational" alt="PyPI version" style="vertical-align:middle; margin-right:5px;">
+     </a>
+     <a href="https://pypi.org/project/agilab/" target="_blank" rel="noopener">
+       <img src="https://img.shields.io/pypi/pyversions/agilab.svg" alt="Supported Python Versions" style="vertical-align:middle; margin-right:5px;">
+     </a>
+     <a href="https://opensource.org/licenses/BSD-3-Clause" target="_blank" rel="noopener">
+       <img src="https://img.shields.io/badge/License-BSD%203--Clause-blue.svg" alt="License BSD 3-Clause" style="vertical-align:middle; margin-right:5px;">
+     </a>
+     <a href="#" target="_blank" rel="noopener">
+       <img src="https://img.shields.io/pypi/dm/agilab" alt="PyPI Downloads" style="vertical-align:middle; margin-right:5px;">
+     </a>
+     <a href="https://thalesgroup.github.io/agilab/tests.svg" target="_blank" rel="noopener">
+       <img src="https://thalesgroup.github.io/agilab/tests.svg" alt="Tests" style="vertical-align:middle; margin-right:5px;">
+     </a>
+     <a href="https://thalesgroup.github.io/agilab/coverage.svg" target="_blank" rel="noopener">
+       <img src="https://thalesgroup.github.io/agilab/coverage.svg" alt="Coverage" style="vertical-align:middle; margin-right:5px;">
+     </a>
+     <a href="https://github.com/ThalesGroup/agilab" target="_blank" rel="noopener">
+       <img src="https://img.shields.io/github/stars/ThalesGroup/agilab.svg" alt="GitHub stars" style="vertical-align:middle; margin-right:5px;">
+     </a>
+     <a href="#" target="_blank" rel="noopener">
+       <img src="https://img.shields.io/badge/code%20style-black-000000.svg" alt="Code style Black" style="vertical-align:middle; margin-right:5px;">
+     </a>
+     <a href="https://thalesgroup.github.io/agilab" target="_blank" rel="noopener">
+       <img src="https://img.shields.io/badge/docs-online-brightgreen.svg" alt="Docs online" style="vertical-align:middle; margin-right:5px;">
+     </a>
+     <a href="https://orcid.org/0009-0003-5375-368X" target="_blank" rel="noopener">
+       <img src="https://img.shields.io/badge/ORCID-0009--0003--5375--368X-A6CE39?logo=orcid" alt="ORCID" style="vertical-align:middle; margin-right:5px;">
+     </a>
+   </p>
 
 
 AGILAB Open Source Project
