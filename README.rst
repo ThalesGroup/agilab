@@ -25,7 +25,7 @@ AGILAB `BSD license <https://github.com/ThalesGroup/agilab/blob/main/LICENSE>`_ 
 See the `documentation <https://thalesgroup.github.io/agilab>`_.
 
 Install and Execution for enduser
---------------------------------
+=================================
 
 .. code-block:: bash
 
@@ -35,7 +35,7 @@ Install and Execution for enduser
    uv run agilab --openai-api-key "your-api-key"
 
 Install for developers
-----------------------
+^^^^^^^^^^^^^^^^^^^^^^
 
 .. tabs::
 
@@ -55,11 +55,10 @@ Install for developers
          cd agilab/ agilab/src/agilab/fwk/gui
          ./install.sh --openai-api-key "your-api-key" --cluster-ssh-credentials "username:[password]"
 
-      Note: the password is provided only for demo restricted to posix linux os, see the
-      `key-generation <key-generation.md>`_ page for a more secure alternative.
+Note: the password is provided only for demo restricted to posix linux os, see the `key-generation <key-generation.md>`_ page for a more secure alternative.
 
 AGILab Execution
-----------------
+================
 
 .. code-block:: bash
 
