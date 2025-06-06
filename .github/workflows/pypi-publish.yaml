@@ -11,55 +11,18 @@ on:
       - 'v*.*.*'
 
 jobs:
-  get-python-versions:
+  test:
     runs-on: ubuntu-latest
-    outputs:
-      python-versions: ${{ steps.set_output.outputs.versions }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Python 3.13
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.13'
-
-      - name: Install dependencies for parsing
-        run: pip install toml packaging
-
-      - id: set_output
-        name: Run get_supported_python_versions.py and set output
-        run: |
-          versions=$(python src/agilab/fwk/get_supported_python_versions.py \
-            src/agilab/fwk/env/pyproject.toml \
-            src/agilab/fwk/core/pyproject.toml \
-            src/agilab/fwk/gui/pyproject.toml | tr -d '\n\r')
-
-          # Provide fallback default if empty or malformed
-          if [[ -z "$versions" || "$versions" != \[*\] ]]; then
-            echo "No valid versions detected, falling back to ['3.13']"
-            versions='["3.13"]'
-          fi
-
-          echo "versions=$versions" >> $GITHUB_OUTPUT
-
-      - name: Debug print captured versions
-        run: echo "Captured versions: ${{ steps.set_output.outputs.versions }}"
-
-  test:
-    needs: get-python-versions
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ${{ fromJson(needs.get-python-versions.outputs.python-versions) }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
@@ -73,6 +36,7 @@ jobs:
           rm -rf dist
           uv sync --dev --extra workers --extra managers --config-file uv.toml
           uv pip install -e .
+          # uv run ../run-all-test.py
           popd > /dev/null
 
   pypi-publish:
@@ -105,17 +69,24 @@ jobs:
         env:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
+          # Strip leading 'v' if present
           VERSION=${VERSION#v}
           echo "Bumping version to $VERSION"
-          find . -type f -name pyproject.toml -not -path "./.git/*" | while read file; do
-            echo "→ Updating $file"
-            sed -i '/^dynamic\s*=/d' "$file"
-            if grep -q '^version *= *".*"' "$file"; then
-              sed -i "s/^version *= *.*/version = \"$VERSION\"/" "$file"
-            else
-              sed -i "/^\[project\]/a version = \"$VERSION\"" "$file"
-            fi
-          done
+
+          # Find every pyproject.toml in the repo (excluding .git)…
+          find . -type f -name pyproject.toml \
+            -not -path "./.git/*" \
+            | while read file; do
+                echo "→ Updating $file"
+                # Remove any dynamic-version plugin lines
+                sed -i '/^dynamic\s*=/d' "$file"
+                # Replace existing version=… or insert under [project] if missing
+                if grep -q '^version *= *".*"' "$file"; then
+                  sed -i "s/^version *= *.*/version = \"$VERSION\"/" "$file"
+                else
+                  sed -i "/^\[project\]/a version = \"$VERSION\"" "$file"
+                fi
+              done
 
       - name: Commit version changes
         env:
@@ -204,6 +175,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          echo "Triggering static content deployment..."
           curl -X POST \
             -H "Accept: application/vnd.github.v3+json" \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
