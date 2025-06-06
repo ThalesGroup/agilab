@@ -774,11 +774,10 @@ def load_df(path: Path, nrows=None, with_index=True):
         col_name,keyword = get_first_match_and_keyword(df.columns.tolist(),["time","date"])
         if col_name:
             if keyword == "time":
-                df[f"{col_name}_temp"] = pd.to_timedelta(df[col_name], unit='s')
+                df["index"] = pd.to_timedelta(df[col_name], unit='s')
             elif keyword == "date":
-                df[f"{col_name}_temp"] = pd.to_datetime(df[col_name], errors="coerce")
-            df.set_index(f"{col_name}_temp", inplace=True,drop=True)
-            print(f"found keyword: {keyword} in col name: {col_name}")
+                df["index"] = pd.to_datetime(df[col_name], errors="coerce")
+            df.set_index("index", inplace=True,drop=True)
         else:
             df.set_index(df.columns[0], inplace=True, drop=False)
         # ---------------- OLD CODE FOR INDEX ------------------
