@@ -11,18 +11,48 @@ on:
       - 'v*.*.*'
 
 jobs:
-  test:
+  get-python-versions:
     runs-on: ubuntu-latest
+    outputs:
+      python-versions: ${{ steps.get_versions.outputs.versions }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Python
+      - name: Set up Python 3.13
         uses: actions/setup-python@v4
         with:
           python-version: '3.13'
+
+      - name: Install dependencies for parsing
+        run: pip install toml packaging
+
+      - name: Get supported Python versions
+        id: get_versions
+        run: |
+          versions=$(python src/agilab/fwk/get_supported_python_versions.py \
+            src/agilab/fwk/env/pyproject.toml \
+            src/agilab/fwk/core/pyproject.toml \
+            src/agilab/fwk/gui/pyproject.toml)
+          echo "versions=$versions" >> $GITHUB_OUTPUT
+
+      - name: Debug print captured versions
+        run: echo "Captured versions: '${{ steps.get_versions.outputs.versions }}'"
+
+  test:
+    needs: get-python-versions
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ${{ fromJson(needs.get-python-versions.outputs.versions) || '["3.13"]' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
@@ -69,24 +99,17 @@ jobs:
         env:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
-          # Strip leading 'v' if present
           VERSION=${VERSION#v}
           echo "Bumping version to $VERSION"
-
-          # Find every pyproject.toml in the repo (excluding .git)…
-          find . -type f -name pyproject.toml \
-            -not -path "./.git/*" \
-            | while read file; do
-                echo "→ Updating $file"
-                # Remove any dynamic-version plugin lines
-                sed -i '/^dynamic\s*=/d' "$file"
-                # Replace existing version=… or insert under [project] if missing
-                if grep -q '^version *= *".*"' "$file"; then
-                  sed -i "s/^version *= *.*/version = \"$VERSION\"/" "$file"
-                else
-                  sed -i "/^\[project\]/a version = \"$VERSION\"" "$file"
-                fi
-              done
+          find . -type f -name pyproject.toml -not -path "./.git/*" | while read file; do
+            echo "→ Updating $file"
+            sed -i '/^dynamic\s*=/d' "$file"
+            if grep -q '^version *= *".*"' "$file"; then
+              sed -i "s/^version *= *.*/version = \"$VERSION\"/" "$file"
+            else
+              sed -i "/^\[project\]/a version = \"$VERSION\"" "$file"
+            fi
+          done
 
       - name: Commit version changes
         env:
