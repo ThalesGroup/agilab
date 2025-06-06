@@ -552,8 +552,7 @@ class AgiEnv:
         try:
             tree = ast.parse(source)
         except SyntaxError as e:
-            if self.verbose:
-                logging.error(f"Syntax error parsing {module_path}: {e}")
+            logging.error(f"Syntax error parsing {module_path}: {e}")
             raise RuntimeError(f"Syntax error parsing {module_path}: {e}")
 
         import_mapping = self.get_import_mapping(source)
@@ -572,8 +571,7 @@ class AgiEnv:
         try:
             tree = ast.parse(source)
         except SyntaxError as e:
-            if self.verbose:
-                logging.error(f"Syntax error during import mapping: {e}")
+            logging.error(f"Syntax error during import mapping: {e}")
             raise
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
@@ -819,7 +817,7 @@ class AgiEnv:
                         break
 
                 process.wait(timeout=timeout)
-                if AgiEnv.verbose > 1:
+                if AgiEnv.verbose > 1 or AgiEnv._debug:
                     logging.info(f"Command completed with exit code {process.returncode}")
                 return result
 
@@ -1003,7 +1001,7 @@ class AgiEnv:
             raise TypeError(f"Invalid app type (<str>|<Path>): {type(app)}")
 
         if app_name != self.app:
-            self.__init__(active_app=app_name, install_type=install_type, verbose=self.verbose)
+            self.__init__(active_app=app_name, install_type=install_type, verbose=AgiEnv.verbose)
 
 
     @asynccontextmanager
@@ -1066,13 +1064,13 @@ class AgiEnv:
         try:
             async with self.get_ssh_connection(ip) as conn:
                 msg = f"[{ip}] {cmd}"
-                if self.verbose > 1:
+                if AgiEnv.verbose > 1 or self._debug:
                     logging.info(msg)
                 result = await conn.run(cmd, check=True)
                 stdout = result.stdout
                 if isinstance(stdout, bytes):
                     stdout = stdout.decode('utf-8', errors='replace')
-                if self.verbose > 1:
+                if AgiEnv.verbose > 1 or self._debug:
                     logging.info(f"[{ip}] {stdout.strip()}")
                 return stdout.strip()
 
