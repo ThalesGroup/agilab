@@ -101,7 +101,6 @@ class FlightWorker(PolarsWorker):
         self.home_rel = (Path("~/") / self.args["path"]).expanduser()
         path = normalize_path(self.home_rel)
         self.data_out = normalize_path(self.home_rel.parent / "dataframes")
-
         if os.name != "nt":
             self.data_out = self.data_out.replace("\\", "/")
 
@@ -178,7 +177,7 @@ class FlightWorker(PolarsWorker):
         df = pl.read_csv(file)
 
         # If the first column is redundant (e.g. named "Unnamed: 0"), drop it.
-        if df.columns and df.columns[0].startswith("Unnamed"):
+        if df.columns and (df.columns[0].startswith("Unnamed") or df.columns[0] == ""):
             df = df.drop(df.columns[0])
 
         # Preprocess the DataFrame (date parsing, cleaning, etc.)
