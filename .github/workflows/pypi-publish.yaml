@@ -22,7 +22,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.13'
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
@@ -36,7 +36,6 @@ jobs:
           rm -rf dist
           uv sync --dev --extra workers --extra managers --config-file uv.toml
           uv pip install -e .
-          # uv run ../run-all-test.py
           popd > /dev/null
 
   pypi-publish:
@@ -54,7 +53,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.13'
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
@@ -69,24 +68,17 @@ jobs:
         env:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
-          # Strip leading 'v' if present
           VERSION=${VERSION#v}
           echo "Bumping version to $VERSION"
-
-          # Find every pyproject.toml in the repo (excluding .git)…
-          find . -type f -name pyproject.toml \
-            -not -path "./.git/*" \
-            | while read file; do
-                echo "→ Updating $file"
-                # Remove any dynamic-version plugin lines
-                sed -i '/^dynamic\s*=/d' "$file"
-                # Replace existing version=… or insert under [project] if missing
-                if grep -q '^version *= *".*"' "$file"; then
-                  sed -i "s/^version *= *.*/version = \"$VERSION\"/" "$file"
-                else
-                  sed -i "/^\[project\]/a version = \"$VERSION\"" "$file"
-                fi
-              done
+          find . -type f -name pyproject.toml -not -path "./.git/*" | while read file; do
+            echo "→ Updating $file"
+            sed -i '/^dynamic\s*=/d' "$file"
+            if grep -q '^version *= *".*"' "$file"; then
+              sed -i "s/^version *= *.*/version = \"$VERSION\"/" "$file"
+            else
+              sed -i "/^\[project\]/a version = \"$VERSION\"" "$file"
+            fi
+          done
 
       - name: Commit version changes
         env:
@@ -175,7 +167,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Triggering static content deployment..."
           curl -X POST \
             -H "Accept: application/vnd.github.v3+json" \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
