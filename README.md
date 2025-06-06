@@ -11,8 +11,7 @@
 [![docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://thalesgroup.github.io/agilab)
 [![ORCID](https://img.shields.io/badge/ORCID-0009--0003--5375--368X-A6CE39?logo=orcid)](https://orcid.org/0009-0003-5375-368X)
 
-
-AGILAB is an open source project under the BSD license. Its purpose is to explore AI for engineering and to help engineers quickly experiment with AI-driven methods.
+AGILAB is an open source project under the BSD license. Its purpose is to explore AI for engineering and to help engineers quickly experiment with AI-driven methods.  
 See the [documentation](https://thalesgroup.github.io/agilab).
 
 ---
@@ -25,7 +24,7 @@ uv init --bare
 uv add agilab
 uv run agilab --openai-api-key "your-api-key"
 
-Install for developers
+## Install for developers
 <details> <summary><strong>Windows</strong></summary>
 
 unzip agilab.zip
@@ -38,10 +37,14 @@ git clone https://github.com/ThalesGroup/agilab
 cd agilab/ agilab/src/agilab/fwk/gui
 ./install.sh --openai-api-key "your-api-key" --cluster-ssh-credentials "username:[password]"
 
-Note: the password is provided only for demo restricted to posix linux os, see the
-key-generation page for a more secure alternative.
+Note: the password is provided only for demo restricted to posix linux os, see the key-generation page for a more secure alternative.
 </details>
 AGILab Execution
 
 cd agilab/src/agilab/fwk/gui
 uv run agilab
+
+
+**Copy-paste this whole block as one cell into your README.md or Markdown file.**  
+It will render with all badges, collapsible install tabs, and correctly formatted code blocks on GitHub and most Markdown viewers.
+
