@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ${{ fromJson(needs.get-python-versions.outputs.versions) }}
+        python-version: ${{ fromJson(needs.get-python-versions.outputs.versions) || '["3.13"]' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
