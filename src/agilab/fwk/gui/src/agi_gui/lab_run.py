@@ -63,8 +63,8 @@ def main():
 
     # Collect custom arguments.
     custom_args = []
-    if args.cluster_credentials is not None:
-        custom_args.extend(["--cluster-ssh-credentials", args.cluster_credentials])
+    if args.cluster_ssh_credentials is not None:
+        custom_args.extend(["--cluster-ssh-credentials", args.cluster_ssh_credentials])
     if args.openai_api_key is not None:
         custom_args.extend(["--openai-api-key", args.openai_api_key])
     if args.apps_dir is not None:
