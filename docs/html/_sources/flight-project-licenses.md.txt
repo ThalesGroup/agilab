@@ -43,5 +43,6 @@
 | stack-data | MIT LICENSE |
 | texttable | MIT LICENSE |
 | traitlets | BSD LICENSE |
+| typing-extensions | PSF-2.0 |
 | tzdata | APACHE SOFTWARE LICENSE |
 | wcwidth | MIT LICENSE |
