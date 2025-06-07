@@ -14,12 +14,11 @@ def unzip_data(archive_path: Path, extract_to: Path | str = None):
     if not extract_to:
         extract_to = Path("data")
     dest = Path(extract_to).expanduser().resolve()
-
+    dataset = dest / "dataset"
     # Clear existing folder if not empty to avoid extraction errors on second call
-    if dest.exists() and any(dest.iterdir()):
-        pass
-        #print(f"Destination '{dest}' exists and is not empty. Clearing it before extraction.")
-        #shutil.rmtree(dest)
+    if dataset.exists() and any(dataset.iterdir()):
+        print(f"Destination '{dataset}' exists and is not empty. Clearing it before extraction.")
+        shutil.rmtree(dataset)
     dest.mkdir(parents=True, exist_ok=True)
 
     try:
