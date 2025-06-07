@@ -69,11 +69,11 @@ def main():
         custom_args.extend(["--openai-api-key", args.openai_api_key])
     if args.apps_dir is not None:
         custom_args.extend(["--apps-dir", args.apps_dir])
+    agi_path_storage = Path("~/").expanduser() / ".local/share/agilab/.agi-path"
     if args.install_type is not None:
         agilab_install = None
         custom_args.extend(["--install-type", args.install_type])
         if not args.install_type:
-            agi_path_storage = Path("~/").expanduser() /".local/share/agilab/.agi-path"
             if agi_path_storage.exists():
                 with open(agi_path_storage, "r") as f:
                     agilab_install = f.read()
@@ -92,6 +92,10 @@ def main():
                 else:
                     print("No agilab installed in", agilab_install)
                     sys.exit(1)
+    else:
+        if agi_path_storage.exists():
+            os.remove(agi_path_storage)
+
     if unknown:
         custom_args.extend(unknown)
 
