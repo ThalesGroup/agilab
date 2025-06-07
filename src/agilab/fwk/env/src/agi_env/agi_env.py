@@ -234,13 +234,13 @@ class AgiEnv:
         if not active_app:
             active_app = envars.get("APP_DEFAULT", 'flight_project')
 
+        src_apps = None
         if isinstance(active_app, str):
             if not active_app.endswith('_project'):
                 active_app = active_app + '_project'
-            # app_path = apps_dir / active_app
             self.app = active_app
-            src_apps = self.agi_root / "apps"
             if not install_type:
+                src_apps = self.agi_root / "agilab/apps"
                 if not apps_dir.exists():
                     shutil.copytree(src_apps, apps_dir)
                 else:
@@ -273,7 +273,15 @@ class AgiEnv:
         self.dist_abs = dist_abs
         self.wenv_target_worker = self.wenv_abs
 
-        if install_type < 2:
+        if install_type == 0:
+            self.app_abs = src_apps / active_app
+            self.app_src = self.app_abs / "src"
+            self.app_pyproject = self.app_abs / "pyproject.toml"
+            self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
+            self.module_path = self.app_src / module / f"{self.module}.py"
+            worker_module_path = self.worker_path.parent
+
+        elif install_type == 1:
             self.app_abs = self.agi_root / apps_dir / active_app
             self.app_src = self.app_abs / "src"
             self.app_pyproject = self.app_abs / "pyproject.toml"
@@ -281,7 +289,7 @@ class AgiEnv:
             self.module_path = self.app_src / module / f"{self.module}.py"
             worker_module_path = self.worker_path.parent
 
-        else:
+        elif install_type == 2:
             self.app_abs = self.agi_root
             self.app_src = self.agi_root / "src"
             self.worker_path = self.wenv_rel / 'src' / target_worker / f"{target_worker}.py"
