@@ -55,6 +55,7 @@ dependencies = [
     "wheel",
     "scipy==1.15.2",
     "psutil",
+    "typing-inspection>=0.4.1",
 ]
 
 [project.urls]

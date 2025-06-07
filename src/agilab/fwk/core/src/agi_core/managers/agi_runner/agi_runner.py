@@ -478,7 +478,7 @@ class AGI:
         except ModuleNotFoundError as e:
             module_to_install = (str(e).replace("No module named ", "").lower().replace("'", ""))
             app_path = AGI.env.app_abs
-            cmd = f"uv -q add {module_to_install}"
+            cmd = f"uv -q --upgrade add {module_to_install}"
             logging.info(f"{cmd} from {app_path}")
             await AgiEnv.run(cmd, app_path)
             AGI._module_to_clean.append(module_to_install)
@@ -966,9 +966,9 @@ class AGI:
 
         # 6) Build and run uv -q sync, adding --config-file only when has_rapids_hw
         if has_rapids_hw:
-            sync_cmd = f"{cmd_prefix} uv sync -q --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option} --refresh-package dask"
+            sync_cmd = f"{cmd_prefix} uv sync -q --upgrade --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option} --refresh-package dask"
         else:
-            sync_cmd = f"{cmd_prefix} uv sync -q --project {wenv_rel} {option} --refresh-package dask "
+            sync_cmd = f"{cmd_prefix} uv sync -q --upgrade --project {wenv_rel} {option} --refresh-package dask "
 
         await env.exec_ssh(ip, sync_cmd)
 
@@ -1017,7 +1017,7 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"{cmd_prefix} uv -q --project {dist_rel} add {dist_rel / whl.name}"
+        cmd = f"{cmd_prefix} uv -q --upgrade --project {dist_rel} add {dist_rel / whl.name}"
         await env.exec_ssh(ip, cmd)
 
         # build agi_core*.whl
@@ -1031,7 +1031,7 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"{cmd_prefix} uv -q --project {dist_rel} add {dist_rel / whl.name}"
+        cmd = f"{cmd_prefix} uv -q --upgrade --project {dist_rel} add {dist_rel / whl.name}"
         await env.exec_ssh(ip, cmd)
 
         # build target_worker lib
