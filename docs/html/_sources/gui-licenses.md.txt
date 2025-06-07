@@ -93,7 +93,7 @@
 | grpcio-status | APACHE SOFTWARE LICENSE |
 | gunicorn | MIT LICENSE |
 | h11 | MIT LICENSE |
-| h5py | BSD LICENSE |
+| h5py | BSD-3-CLAUSE |
 | hf-xet | APACHE-2.0 |
 | htbuilder | APACHE SOFTWARE LICENSE |
 | htmlmin | BSD LICENSE |

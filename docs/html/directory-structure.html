@@ -470,19 +470,25 @@
 │   │   │   └── pre_prompt.json
 │   │   └── uv.toml
 │   ├── flight_legacy_project
+│   │   ├── apps
 │   │   ├── pre_prompt.json
 │   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── setup
 │   │   ├── src
+│   │   │   ├── apps
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
+│   │   │   ├── data
+│   │   │   │   └── flight_legacy
 │   │   │   ├── flight_legacy
 │   │   │   │   ├── flight_legacy.py
 │   │   │   │   └── __init__.py
 │   │   │   ├── flight_legacy_worker
 │   │   │   │   ├── dataset.7z
+│   │   │   │   ├── flight_legacy_worker.c
 │   │   │   │   ├── flight_legacy_worker.py
+│   │   │   │   ├── flight_legacy_worker.pyx
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── post_install.py
 │   │   │   │   ├── pre_install.py
@@ -492,11 +498,18 @@
 │   │   │   ├── lab_steps.toml
 │   │   │   └── pre_prompt.json
 │   │   ├── test
-│   │   │   └── test_df.ipynb
+│   │   │   ├── test_df.ipynb
+│   │   │   ├── test_flight_legacy_manager.py
+│   │   │   ├── test_flight_legacy.py
+│   │   │   └── test_flight_legacy_worker.py
 │   │   └── uv.toml
 │   ├── flight_project
 │   │   ├── apps
+│   │   ├── dask_pid
 │   │   ├── dask-pid-0
+│   │   ├── dask-pid-0.0
+│   │   ├── lab_steps.ipynb
+│   │   ├── lab_steps.toml
 │   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
 │   │   ├── README.md
@@ -735,10 +748,11 @@
 │   │   │   ├── __init__.py
 │   │   │   ├── test_agi_env.py
 │   │   │   ├── _test_ssh_cmd.py
-│   │   │   └── test_ssh.py
+│   │   │   └── _test_ssh.py
 │   │   ├── uv.lock
 │   │   └── uv.toml
 │   ├── gen-app-script.py
+│   ├── get_supported_python_versions.py
 │   ├── gui
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
@@ -810,7 +824,7 @@
     ├── pyproject.toml
     └── README.md
 
-95 directories, 286 files
+99 directories, 296 files
 </pre></div>
 </div>
 </section>
