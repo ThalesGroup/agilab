@@ -297,8 +297,8 @@ class AgiEnv:
             worker_module_path = self.worker_path.parent
 
         self.app_abs = app_abs
-        self.worker_pyproject = worker_module_path / "pyproject.toml"
-        self.uvproject = worker_module_path / "uv.toml"
+        self.worker_pyproject = app_abs / "pyproject.toml"
+        self.uvproject = app_abs / "uv.toml"
         self.post_install = worker_module_path / "post_install.py"
         self.pre_install = worker_module_path / "pre_install.py"
         self.post_install_rel = self.wenv_rel / 'src' / target_worker / "post_install.py"
