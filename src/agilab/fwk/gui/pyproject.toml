@@ -1,7 +1,7 @@
 [project]
 name = "agi-gui"
 description = "AGI GUI"
-version = "0.3.28"
+version = "0.3.30"
 requires-python = ">=3.11, <3.13"
 readme = "README.md"
 authors = [
