@@ -21,6 +21,7 @@ import errno
 import astor
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
+from requests import packages
 
 # Compile regex once globally
 LOG_LEVEL_RE = re.compile(r'\b(INFO|ERROR|WARNING|DEBUG|CRITICAL)\b')
@@ -191,8 +192,12 @@ class AgiEnv:
             self.agi_root = home_abs / "wenv" / active_app
 
         if install_type == 1:
-            self.agi_fwk_env_path = self.agi_root / "fwk/env"
-            resource_path = self.agi_fwk_env_path / "src/agi_env" / self.agi_resources
+            if "site-packages" in self.agi_root.parts:
+                self.agi_fwk_env_path = self.agi_root.parent / 'agi_env'
+                resource_path = self.agi_fwk_env_path / self.agi_resources
+            else:
+                self.agi_fwk_env_path = self.agi_root / "fwk/env"
+                resource_path = self.agi_fwk_env_path / "src/agi_env" / self.agi_resources
             if not self.agi_fwk_env_path.exists():
                 raise RuntimeError("Your Agilab installation is not valid")
             self._init_resources(resource_path)
@@ -340,26 +345,21 @@ class AgiEnv:
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.13")
 
         os.makedirs(AgiEnv.apps_dir, exist_ok=True)
-        base = self.agi_root / ("fwk/core/src" if self.install_type else "")
-        core_src = base
-        self.core_root = base.parent
-        env_src = self.core_root.parent / "env/src"
-        self.env_src =  env_src
-        self.env_root = env_src.parent
+        if install_type == 1:
+            if "site-packages" in self.agi_root.parts:
+                self.core_root = self.agi_root.parent
+                self.env_root = self.agi_root.parent
+            else:
+                self.core_root = self.agi_root / "fwk/core/src"
+                self.env_root =  self.agi_root / "fwk/env/src"
 
-        agi_core = core_src / "agi_core"
-        self.agi_core = agi_core
-        self.core_src = core_src
+        self.agi_core = self.core_root / "agi_core"
         self.workers_root = agi_core / "workers"
         self.manager_root = agi_core / "managers"
         self.setup_app = app_abs / "setup"
 
         self.setup_core_rel = "agi_worker/setup"
         self.setup_core = self.workers_root / self.setup_core_rel
-
-        path = str(self.core_src)
-        if path not in sys.path:
-            sys.path.append(path)
 
         if isinstance(module, Path):
             module_path = module.expanduser().resolve()
