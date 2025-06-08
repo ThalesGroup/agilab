@@ -94,7 +94,7 @@ def main():
                     sys.exit(1)
     else:
         with open(agi_path_storage, "w") as f:
-            f.write(str(Path(__file__).parent.parent))
+            f.write(str(Path(__file__) / "agilab"))
 
     if unknown:
         custom_args.extend(unknown)
