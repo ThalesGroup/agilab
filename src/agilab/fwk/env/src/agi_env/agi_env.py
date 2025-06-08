@@ -245,7 +245,7 @@ class AgiEnv:
                 active_app = active_app + '_project'
             self.app = active_app
             if not install_type:
-                src_apps = self.agi_root / "agilab/apps"
+                src_apps = self.agi_root / "apps"
                 if not apps_dir.exists():
                     shutil.copytree(src_apps, apps_dir)
                 else:
