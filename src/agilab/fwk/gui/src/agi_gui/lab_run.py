@@ -93,8 +93,8 @@ def main():
                     print("No agilab installed in", agilab_install)
                     sys.exit(1)
     else:
-        if agi_path_storage.exists():
-            os.remove(agi_path_storage)
+        with open(agi_path_storage, "w") as f:
+            f.write(str(Path(__file__).parent.parent))
 
     if unknown:
         custom_args.extend(unknown)

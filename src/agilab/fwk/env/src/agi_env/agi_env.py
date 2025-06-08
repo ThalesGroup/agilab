@@ -185,7 +185,7 @@ class AgiEnv:
 
         self.install_type = install_type
 
-        if install_type < 2:
+        if install_type != 2:
             self.agi_root = AgiEnv.locate_agi_installation(verbose)
         else:
             self.agi_root = home_abs / "wenv" / active_app
@@ -462,7 +462,10 @@ class AgiEnv:
                 base_dir = os.path.dirname(p).replace('_env', 'lab')
                 if verbose:
                     logging.info(f"Fallback agilab path found: {base_dir}")
-                return Path(base_dir)
+                if AgiEnv.install_type == 0:
+                    return Path(base_dir)
+                else:
+                    return Path(p.split('/agilab',1)[0])
         logging.info("Falling back to current working directory")
         return Path(os.getcwd())
 
