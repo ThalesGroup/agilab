@@ -1,7 +1,7 @@
 [project]
 name = "agi-env"
 description = "AGI Env"
-version = "0.3.35"
+version = "0.3.34"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [
