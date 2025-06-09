@@ -331,9 +331,6 @@ class AgiEnv:
             logging.info(f"Missing {self.target_worker_class} definition; should be in {self.worker_path} but it does not exist")
             sys.exit(1)
 
-        if not self.projects:
-            logging.info(f"Could not find any target project app in {self.agi_root / 'apps'}.")
-
         envars = self.envars
         self.credantials = envars.get("CLUSTER_CREDENTIALS", getpass.getuser())
         credantials = self.credantials.split(":")
@@ -352,6 +349,8 @@ class AgiEnv:
         agi_core = self.resolve_packages_path_in_toml()
         self.core_root = agi_core
         self.projects = self.get_projects(self.apps_dir)
+        if not self.projects:
+            logging.info(f"Could not find any target project app in {self.agi_root / 'apps'}.")
 
         self.workers_root = agi_core / "workers"
         self.manager_root = agi_core / "managers"
