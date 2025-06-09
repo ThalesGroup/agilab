@@ -689,7 +689,7 @@ class AgiEnv:
             sources = uv["sources"]
 
             editable = True
-            if "site-packages" in agi_root.parts:
+            if "site-packages" in agi_root.parts or self.install_type == 0:
                 agi_core_path = str(agi_root.parent.resolve())
                 editable = False
             else:
