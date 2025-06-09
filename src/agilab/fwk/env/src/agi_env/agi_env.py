@@ -331,8 +331,8 @@ class AgiEnv:
             logging.info(f"Missing {self.target_worker_class} definition; should be in {self.worker_path} but it does not exist")
             sys.exit(1)
 
-        agi_core = self.resolve_packages_path_in_toml()
-        self.core_root = agi_core
+        #agi_core = self.resolve_packages_path_in_toml()
+        #self.core_root = agi_core
         self.projects = self.get_projects(self.apps_dir)
 
         if not self.projects:
@@ -346,13 +346,12 @@ class AgiEnv:
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.13")
 
         os.makedirs(AgiEnv.apps_dir, exist_ok=True)
-        if install_type == 1:
-            if "site-packages" in self.agi_root.parts:
-                self.core_root = self.agi_root.parent
-                self.env_root = self.agi_root.parent
-            else:
-                self.core_root = self.agi_root / "fwk/core/src"
-                self.env_root =  self.agi_root / "fwk/env/src"
+        if "site-packages" in self.agi_root.parts:
+            self.core_root = self.agi_root.parent
+            self.env_root = self.agi_root.parent
+        else:
+            self.core_root = self.agi_root / "fwk/core/src"
+            self.env_root =  self.agi_root / "fwk/env/src"
 
         self.workers_root = agi_core / "workers"
         self.manager_root = agi_core / "managers"
