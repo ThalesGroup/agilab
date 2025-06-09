@@ -685,7 +685,10 @@ class AgiEnv:
 
             sources = uv["sources"]
 
-            agi_core_path = str((agi_root / "fwk" / "core").resolve())
+            if "site-packages" in agi_root:
+                agi_core_path = str(agi_root.resolve())
+            else:
+                agi_core_path = str((agi_root / "fwk" / "core").resolve())
             tbl = tomlkit.inline_table()
             tbl["path"] = agi_core_path
             tbl["editable"] = True
