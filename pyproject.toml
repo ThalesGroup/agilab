@@ -1,5 +1,5 @@
 [project]
-version = "0.3.34"
+version = "0.3.35"
 name = "agilab"
 description = "AGILAB a datascience IDE for engineering to explore AI"
 requires-python = ">=3.11, <3.13"
