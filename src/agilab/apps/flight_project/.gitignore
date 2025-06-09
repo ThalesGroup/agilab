@@ -1,4 +1,4 @@
-setup.py
+setup
 src/agi_core
 src/agi_env
 # MacOS files
