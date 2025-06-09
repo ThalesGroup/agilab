@@ -320,9 +320,6 @@ class AgiEnv:
             distribution_tree.unlink()
         self.distribution_tree = distribution_tree
 
-        if install_type == 2:
-            return
-
         self.base_worker_cls, self.base_worker_module = self.get_base_worker_cls(
             self.worker_path, worker_class
         )
