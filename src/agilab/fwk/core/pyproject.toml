@@ -1,7 +1,7 @@
 [project]
 name = "agi-core"
 description = "agi-core a framework for AGI"
-version = "0.3.52"
+version = "0.3.53"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [
