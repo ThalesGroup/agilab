@@ -347,7 +347,7 @@ class AgiEnv:
             self.core_root = self.agi_root / "fwk/core/src"
             self.env_root =  self.agi_root / "fwk/env/src"
 
-        if install_type == 1:
+        if install_type != 2:
             self.resolve_packages_path_in_toml()
 
         agi_core = self.core_root / "agi_core"
@@ -689,7 +689,7 @@ class AgiEnv:
             sources = uv["sources"]
 
             editable = True
-            if "site-packages" in agi_root.parts or self.install_type == 0:
+            if "site-packages" in agi_root.parts:
                 agi_core_path = str(agi_root.parent.resolve())
                 editable = False
             else:
