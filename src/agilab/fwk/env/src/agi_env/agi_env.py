@@ -670,7 +670,7 @@ class AgiEnv:
 
     def resolve_packages_path_in_toml(self):
         agi_root = self.agi_root
-        file = self.worker_pyproject  # or self.app_pyproject
+        file = self.app_pyproject  # or self.app_pyproject
 
         if not file.exists():
             raise FileNotFoundError(f"{file} not found in {self.app_abs}")

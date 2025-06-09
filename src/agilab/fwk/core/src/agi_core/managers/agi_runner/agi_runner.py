@@ -914,7 +914,7 @@ class AGI:
             logging.error(f"searching for {wenv_abs / env.app}*.egg")
             raise FileNotFoundError("no existing egg file")
 
-        await env.send_files(ip, [env.setup_core, env.worker_pyproject, env.uvproject], wenv_rel)
+        await env.send_files(ip, [env.setup_core, env.app_pyproject, env.uvproject], wenv_rel)
         await env.send_file(ip, egg_file, dist_rel)
 
         # continue with bootstrap and unzip...
