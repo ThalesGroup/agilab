@@ -331,10 +331,6 @@ class AgiEnv:
             logging.info(f"Missing {self.target_worker_class} definition; should be in {self.worker_path} but it does not exist")
             sys.exit(1)
 
-        #agi_core = self.resolve_packages_path_in_toml()
-        #self.core_root = agi_core
-        self.projects = self.get_projects(self.apps_dir)
-
         if not self.projects:
             logging.info(f"Could not find any target project app in {self.agi_root / 'apps'}.")
 
@@ -352,6 +348,10 @@ class AgiEnv:
         else:
             self.core_root = self.agi_root / "fwk/core/src"
             self.env_root =  self.agi_root / "fwk/env/src"
+
+        agi_core = self.resolve_packages_path_in_toml()
+        self.core_root = agi_core
+        self.projects = self.get_projects(self.apps_dir)
 
         self.workers_root = agi_core / "workers"
         self.manager_root = agi_core / "managers"
