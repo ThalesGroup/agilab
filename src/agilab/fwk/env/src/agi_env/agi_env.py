@@ -303,7 +303,6 @@ class AgiEnv:
             worker_module_path = self.worker_path.parent
 
         self.app_abs = app_abs
-        self.worker_pyproject = app_abs / "pyproject.toml"
         self.uvproject = app_abs / "uv.toml"
         self.post_install = worker_module_path / "post_install.py"
         self.pre_install = worker_module_path / "pre_install.py"
@@ -669,58 +668,47 @@ class AgiEnv:
         else:
             self.copilot_file = self.agi_root / "fwk/gui/src/agi_gui/agi_copilot.py"
 
-
     def resolve_packages_path_in_toml(self):
         agi_root = self.agi_root
-        for file in [self.worker_pyproject, self.app_pyproject]:
-            if not file.exists():
-                raise FileNotFoundError(f"{file} not found in {self.app_abs}")
+        file = self.worker_pyproject  # or self.app_pyproject
 
-            text = file.read_text(encoding="utf-8")
-            doc = tomlkit.parse(text)
+        if not file.exists():
+            raise FileNotFoundError(f"{file} not found in {self.app_abs}")
 
-            try:
-                uv = doc["tool"]["uv"]
-            except KeyError:
-                raise RuntimeError("Could not find [tool.uv] section in the TOML")
+        text = file.read_text(encoding="utf-8")
+        doc = tomlkit.parse(text)
 
-            if "sources" not in uv or not isinstance(uv["sources"], tomlkit.items.Table):
-                raise RuntimeError("Could not find [tool.uv.sources] in the TOML")
+        try:
+            uv = doc["tool"]["uv"]
+        except KeyError:
+            raise RuntimeError("Could not find [tool.uv] section in the TOML")
 
-            sources = uv["sources"]
+        if "sources" not in uv or not isinstance(uv["sources"], tomlkit.items.Table):
+            raise RuntimeError("Could not find [tool.uv.sources] in the TOML")
 
-            if "site-packages" in agi_root.parts:
-                # Remove agi-core from [tool.uv.sources] if present
-                if "agi-core" in sources:
-                    del sources["agi-core"]
-                    if not sources:
-                        del uv["sources"]
-                    if not uv:
-                        del doc["tool"]["uv"]
-                    if not doc["tool"]:
-                        del doc["tool"]
+        sources = uv["sources"]
 
-                # Ensure agi-core is in [project].dependencies
-                deps = doc["project"].get("dependencies", [])
-                if not any(dep.split()[0] == "agi-core" for dep in deps):
-                    deps.append("agi-core")
-                    doc["project"]["dependencies"] = deps
-
-                agi_core_path = str(agi_root.parent.resolve())
-                # <<<<< Your requested change ends here <<<<<
-            else:
-                agi_core_path = str((agi_root / "fwk" / "core").resolve())
+        if "site-packages" in agi_root.parts:
+            if "agi-core" in sources:
+                del sources["agi-core"]
+                if not sources:
+                    del uv["sources"]
+                if not uv:
+                    del doc["tool"]["uv"]
+                if not doc["tool"]:
+                    del doc["tool"]
+            deps = doc["project"].get("dependencies", [])
+            if not any(dep.split()[0] == "agi-core" for dep in deps):
+                deps.append("agi-core")
+                doc["project"]["dependencies"] = deps
+        else:
+            agi_core_path = str((agi_root / "fwk" / "core").resolve())
             tbl = tomlkit.inline_table()
             tbl["path"] = agi_core_path
             tbl["editable"] = True
-
             sources["agi-core"] = tbl
 
-            try:
-                file.write_text(tomlkit.dumps(doc), encoding="utf-8")
-            except Exception as e:
-                print(f"Error writing file: {e}")
-        return agi_root / "fwk" / "core"
+        file.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
     def copy_missing(self, src: Path, dst: Path):
         dst.mkdir(parents=True, exist_ok=True)
