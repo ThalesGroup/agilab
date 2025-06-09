@@ -346,8 +346,12 @@ class AgiEnv:
             self.core_root = self.agi_root / "fwk/core/src"
             self.env_root =  self.agi_root / "fwk/env/src"
 
-        agi_core = self.resolve_packages_path_in_toml()
-        self.core_root = agi_core
+        if install_type == 1:
+            self.resolve_packages_path_in_toml()
+
+        agi_core = self.core_root / "agi_core"
+        self.agi_core = agi_core
+
         self.projects = self.get_projects(self.apps_dir)
         if not self.projects:
             logging.info(f"Could not find any target project app in {self.agi_root / 'apps'}.")
