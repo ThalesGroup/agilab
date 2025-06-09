@@ -358,9 +358,9 @@ class AgiEnv:
 
         self.workers_root = agi_core / "workers"
         self.manager_root = agi_core / "managers"
-        self.setup_app = app_abs / "setup"
+        self.setup_app = app_abs / "setup.py"
 
-        self.setup_core_rel = "agi_worker/setup"
+        self.setup_core_rel = "agi_worker/setup.py"
         self.setup_core = self.workers_root / self.setup_core_rel
 
         if isinstance(module, Path):

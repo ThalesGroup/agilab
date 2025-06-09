@@ -743,58 +743,45 @@ class AGI:
             if AGI._is_local(ip):
                 continue
 
+            # install psutil
+            await env.exec_ssh(ip, "pip3 install psutil")
+
+            wenv_rel = env.wenv_rel
+            pyvers = env.python_version
+
+            # 1) Check if need to export path (linux and macos)
+            cmd_prefix = await AGI._detect_export_cmd(ip)
+
+            env.set_env_var(f"{ip}_CMD_PREFIX", cmd_prefix)
+
+            # 2) Check uv
             try:
-                # install psutil
-                await env.exec_ssh(ip, "pip3 install psutil")
-
-                wenv_rel = env.wenv_rel
-                pyvers = env.python_version
-
-                # 1) Check if need to export path (linux and macos)
-                cmd_prefix = await AGI._detect_export_cmd(ip)
-
-                env.set_env_var(f"{ip}_CMD_PREFIX", cmd_prefix)
-
-                # 2) Check uv
+                await env.exec_ssh(ip, f"{cmd_prefix} uv -q --version")
+            except Exception:
+                # Try Windows installer
                 try:
-                    await env.exec_ssh(ip, f"{cmd_prefix} uv -q --version")
+                    await env.exec_ssh(ip,
+                                  'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"'
+                                  )
                 except Exception:
-                    # Try Windows installer
-                    try:
-                        await env.exec_ssh(ip,
-                                      'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"'
-                                      )
-                    except Exception:
-                        # Fallback to Unix installer
-                        await env.exec_ssh(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
-                        await env.exec_ssh(ip, 'source $HOME/.local/bin/env')
+                    # Fallback to Unix installer
+                    await env.exec_ssh(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
+                    await env.exec_ssh(ip, 'source $HOME/.local/bin/env')
 
-                # 3) Install Python
-                await env.exec_ssh(ip, f"{cmd_prefix} uv -q python install {pyvers}")
-                await env.exec_ssh(ip, f"pip3 install psutil")
+            # 3) Install Python
+            await env.exec_ssh(ip, f"{cmd_prefix} uv -q python install {pyvers}")
+            await env.exec_ssh(ip, f"pip3 install psutil")
 
 
-                # 4) Bootstrap the uv -q environment
-                pyproject = wenv_rel / 'pyproject.toml'
-                cmd = (
-                    f"{cmd_prefix} mkdir -p 'wenv/flight_worker'; "
-                    f"uv  --project {wenv_rel} run -p {pyvers} python -c \"import os, subprocess; "
-                    f"subprocess.run(['uv','init','--bare'], cwd=r'{wenv_rel}', check=True) "
-                    f"if not os.path.exists('{pyproject}') else None\""
-                )
-                await env.exec_ssh(ip, cmd)
-
-                # already done when cleaning dir
-                # 5) Make remote wenv dir
-                # await env.exec_ssh(
-                #     ip,
-                #     f"uv -q run -p {pyvers} python -c "
-                #     f"\"import os; os.makedirs(r'{dist}', exist_ok=True)\""
-                # )
-
-            except Exception as e:
-                msg = str(e).splitlines()[0]
-                raise RuntimeError(f"Node {ip} setup failed: {msg}")
+            # 4) Bootstrap the uv -q environment
+            pyproject = wenv_rel / 'pyproject.toml'
+            cmd = (
+                f"{cmd_prefix} mkdir -p 'wenv/flight_worker'; "
+                f"uv  --project {wenv_rel} run -p {pyvers} python -c \"import os, subprocess; "
+                f"subprocess.run(['uv','init','--bare'], cwd=r'{wenv_rel}', check=True) "
+                f"if not os.path.exists('{pyproject}') else None\""
+            )
+            await env.exec_ssh(ip, cmd)
 
 
     @staticmethod
@@ -1035,7 +1022,7 @@ class AGI:
         await env.exec_ssh(ip, cmd)
 
         # build target_worker lib
-        cmd = f"{cmd_prefix} uv -q --project {wenv_rel} run python {wenv_rel / 'setup'} build_ext -i 2 -b {wenv_rel}"
+        cmd = f"{cmd_prefix} uv -q --project {wenv_rel} run python {wenv_rel / env.setup_app.name} build_ext -i 2 -b {wenv_rel}"
         await env.exec_ssh(ip, cmd)
 
         # ajouter le wheel dans le projet de destination
@@ -1400,7 +1387,7 @@ class AGI:
         app_path = env.app_abs
         wenv_abs = env.wenv_abs
         shutil.copy(env.setup_core, app_path)
-        cmd = f"uv -q --project {app_path} run python {app_path / 'setup'} bdist_egg --packages \"{packages}\" -d {wenv_abs}"
+        cmd = f"uv -q --project {app_path} run python {env.setup_app} bdist_egg --packages \"{packages}\" -d {wenv_abs}"
         await AgiEnv.run(cmd, app_path)
         dask_client = AGI._dask_client
         if dask_client:
@@ -1415,7 +1402,7 @@ class AGI:
             if is_cy:
                 # cython compilation of wenv/src into wenw
                 shutil.copy(env.setup_core, wenv_abs)
-                cmd = f"uv -q --project {app_path} run python {app_path / 'setup'} build_ext -b {wenv_abs}"
+                cmd = f"uv -q --project {app_path} run python {env.setup_app} build_ext -b {wenv_abs}"
                 res = await AgiEnv.run(cmd, app_path)
                 try:
                     worker_lib = next(iter((wenv_abs / 'dist').glob("*_cy.*")), None)
