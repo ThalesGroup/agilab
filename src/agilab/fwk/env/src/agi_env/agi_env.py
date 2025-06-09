@@ -685,7 +685,7 @@ class AgiEnv:
 
             sources = uv["sources"]
 
-            if "site-packages" in agi_root:
+            if "site-packages" in agi_root.parts:
                 agi_core_path = str(agi_root.resolve())
             else:
                 agi_core_path = str((agi_root / "fwk" / "core").resolve())
