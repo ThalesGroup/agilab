@@ -14,7 +14,6 @@ output_format = "csv"
 view_module = [
     "maps",
     "maps_3d",
-    "maps_network_graph",
 ]
 
 [cluster]
