@@ -669,6 +669,7 @@ class AgiEnv:
         else:
             self.copilot_file = self.agi_root / "fwk/gui/src/agi_gui/agi_copilot.py"
 
+
     def resolve_packages_path_in_toml(self):
         agi_root = self.agi_root
         for file in [self.worker_pyproject, self.app_pyproject]:
@@ -688,15 +689,30 @@ class AgiEnv:
 
             sources = uv["sources"]
 
-            editable = True
             if "site-packages" in agi_root.parts:
+                # Remove agi-core from [tool.uv.sources] if present
+                if "agi-core" in sources:
+                    del sources["agi-core"]
+                    if not sources:
+                        del uv["sources"]
+                    if not uv:
+                        del doc["tool"]["uv"]
+                    if not doc["tool"]:
+                        del doc["tool"]
+
+                # Ensure agi-core is in [project].dependencies
+                deps = doc["project"].get("dependencies", [])
+                if not any(dep.split()[0] == "agi-core" for dep in deps):
+                    deps.append("agi-core")
+                    doc["project"]["dependencies"] = deps
+
                 agi_core_path = str(agi_root.parent.resolve())
-                editable = False
+                # <<<<< Your requested change ends here <<<<<
             else:
                 agi_core_path = str((agi_root / "fwk" / "core").resolve())
             tbl = tomlkit.inline_table()
             tbl["path"] = agi_core_path
-            tbl["editable"] = editable
+            tbl["editable"] = True
 
             sources["agi-core"] = tbl
 
