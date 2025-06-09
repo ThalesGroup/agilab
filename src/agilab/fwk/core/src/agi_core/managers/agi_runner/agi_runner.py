@@ -1387,7 +1387,7 @@ class AGI:
         app_path = env.app_abs
         wenv_abs = env.wenv_abs
         shutil.copy(env.setup_core, app_path)
-        cmd = f"uv -q --project {app_path} run python {env.setup_app} bdist_egg --packages \"{packages}\" -d {wenv_abs}"
+        cmd = f"uv -q --project {app_path} run python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d {wenv_abs}"
         await AgiEnv.run(cmd, app_path)
         dask_client = AGI._dask_client
         if dask_client:
