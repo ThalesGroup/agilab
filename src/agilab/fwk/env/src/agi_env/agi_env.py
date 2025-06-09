@@ -201,13 +201,12 @@ class AgiEnv:
             if not self.agi_fwk_env_path.exists():
                 raise RuntimeError("Your Agilab installation is not valid")
             self._init_resources(resource_path)
-        else:
-            if install_type == 2:
+        elif install_type == 2:
                 if self.debug:
                     self.agi_fwk_env_path = self.agi_root / "fwk/env"
                 else:
                     self.agi_fwk_env_path = list(Path(sys.prefix).rglob('agi_env'))[0]
-            else:
+        elif install_type == 0:
                 head, sep, _ = __file__.partition("site-packages")
                 if not sep:
                     raise ValueError("site-packages not in", __file__)
@@ -665,7 +664,7 @@ class AgiEnv:
         self.AGILAB_VIEWS_ABS = Path(envars.get("AGI_VIEWS_DIR", self.agi_root / "views"))
         self.AGILAB_VIEWS_REL = Path(envars.get("AGI_VIEWS_DIR", "agi/_"))
         if self.install_type == 0:
-            self.copilot_file = self.agi_root / "agi_gui/agi_copilot.py"
+            self.copilot_file = self.core_root / "agi_gui/agi_copilot.py"
         else:
             self.copilot_file = self.agi_root / "fwk/gui/src/agi_gui/agi_copilot.py"
 
