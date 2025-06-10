@@ -561,6 +561,7 @@ class AGI:
         localhost = socket.gethostbyname("localhost")
         ip = ip or localhost
         current_pid = current_pid or os.getpid()
+
         # 1) Collect PIDs from any pid files and remove those files
         pids_to_kill: list[int] = []
         for pid_file in Path().home().glob("dask-pid*"):
@@ -578,12 +579,16 @@ class AGI:
 
         cmds: list[str] = []
 
-        cmds.append("pip3 install psutil")
+        cmd_prefix = await AGI._detect_export_cmd(ip)
 
         # 2) If force, kill by process name
         if force:
+            if AGI._is_local(ip):
+                kill_prefix = f'{cmd_prefix} uv run --project {env.agi_core} python'
+            else:
+                kill_prefix = f'{cmd_prefix} uv run --project {env.wenv_rel} python'
             cmd = (
-                f'python3 -c "import getpass, psutil, os;'
+                f'{kill_prefix} -c "import getpass, psutil, os;\n'
                 'me = getpass.getuser();\n'
                 'my_pid = os.getpid();\n'
                 'for p in psutil.process_iter([\'name\', \'username\', \'cmdline\', \'pid\']):\n'
@@ -737,9 +742,6 @@ class AGI:
             if AGI._is_local(ip):
                 continue
 
-            # install psutil
-            await env.exec_ssh(ip, "pip3 install psutil")
-
             wenv_rel = env.wenv_rel
             pyvers = env.python_version
 
@@ -764,16 +766,17 @@ class AGI:
 
             # 3) Install Python
             await env.exec_ssh(ip, f"{cmd_prefix} uv -q python install {pyvers}")
-            await env.exec_ssh(ip, f"pip3 install psutil")
-
             # 4) Bootstrap the uv -q environment
             pyproject = wenv_rel / 'pyproject.toml'
             cmd = (
-                f"{cmd_prefix} mkdir -p 'wenv/flight_worker'; "
-                f"uv  --project {wenv_rel} run -p {pyvers} python -c \"import os, subprocess; "
+                f"{cmd_prefix} mkdir -p '{wenv_rel}'; "
+                f"uv --project {wenv_rel} run -p {pyvers} python -c \"import os, subprocess; "
                 f"subprocess.run(['uv','init','--bare'], cwd=r'{wenv_rel}', check=True) "
                 f"if not os.path.exists('{pyproject}') else None\""
             )
+            await env.exec_ssh(ip, cmd)
+
+            cmd = f"{cmd_prefix} uv --project {wenv_rel} add psutil"
             await env.exec_ssh(ip, cmd)
 
     @staticmethod
@@ -789,9 +792,8 @@ class AGI:
         options = {"manager": extras, "worker": extras}
         if isinstance(env.base_worker_cls, str):
             options["worker"] += " --extra " + " --extra ".join(AGI.install_worker_group)
-        if AGI._mode & 4:
-            await AGI._install_cluster(scheduler)
-        node_ips = await AGI._get_clean_nodes(scheduler)
+        # node_ips = await AGI._get_clean_nodes(scheduler)
+        node_ips = set(list(AGI.workers) + [AGI._get_scheduler(scheduler)[0]])
         AGI._venv_todo(node_ips)
         start_time = time.time()
         logging.info(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1")
@@ -1545,6 +1547,9 @@ class AGI:
             # case install modes
             t = time.time()
 
+            if AGI._mode & 4:
+                await AGI._install_cluster(scheduler)
+
             # clean both proc and dir
             await AGI._get_clean_nodes(scheduler)
 
@@ -1554,7 +1559,7 @@ class AGI:
             await AGI._install(scheduler)
 
             # clean both proc and dir
-            AGI._get_clean_nodes(scheduler)
+            # await AGI._get_clean_nodes(scheduler)
 
             res = time.time() - t
 
