@@ -1039,13 +1039,35 @@ class AgiEnv:
             return
 
         try:
+
+            ssh_dir = Path("~/.ssh").expanduser()
+
+            keys = []
+
+            for file in ssh_dir.iterdir():
+                # Skip if not a file
+                if not file.is_file():
+                    continue
+
+                name = file.name
+
+                # Exclude known files
+                if name.startswith('authorized_keys'):
+                    continue
+                if name.startswith('known_hosts'):
+                    continue
+                if name.startswith('id_') and name.endswith('.pub'):
+                    continue
+
+                keys.append(str(file))
+
             conn = await asyncio.wait_for(
                 asyncssh.connect(
                     ip,
                     username=self.user,
                     password=self.password,
                     known_hosts=None,
-                    client_keys=["/home/pcm/.ssh/id_ed25519"],
+                    client_keys=None,
                 ),
                 timeout=timeout_sec
             )
@@ -1108,7 +1130,7 @@ class AgiEnv:
                 stdout = stdout.decode('utf-8', errors='replace')
             if isinstance(stderr, bytes):
                 stderr = stderr.decode('utf-8', errors='replace')
-            logging.error(f"SSH command stderr: {stderr.strip()}")
+            logging.error(f"Remote command stderr: {stderr.strip()}")
             raise
 
         except (asyncssh.Error, OSError) as e:
