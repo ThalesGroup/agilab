@@ -10,6 +10,7 @@
 # 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or THALES SIX GTS France SAS, may be used to endorse or promote products derived from this software without specific prior written permission.
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+from asyncio import tasks
 
 from IPython.lib import backgroundjobs as bg
 import asyncio
@@ -644,13 +645,12 @@ class AGI:
         """
         for d in [
             f"{gettempdir()}/dask-scratch-space",
-            f"{AGI.env.wenv_abs}/*y",
+            f"{AGI.env.wenv_abs}",
         ]:
-            for x in glob.glob(d):
-                try:
-                    shutil.rmtree(x, ignore_errors=True)
-                except:
-                    pass
+            try:
+                shutil.rmtree(d, ignore_errors=True)
+            except:
+                pass
 
     @staticmethod
     async def _clean_dirs(ip):
@@ -675,8 +675,8 @@ class AGI:
                 f"python3 -c \"import os, glob, shutil\n"
                 f"from tempfile import gettempdir\n"
                 f"wenv_path = os.path.abspath(os.path.expanduser('{wenv_rel}'))\n"
-                f"patterns = [os.path.join(gettempdir(), 'dask-scratch-space'), os.path.join(wenv_path, '*y')]\n"
-                f"[shutil.rmtree(path, ignore_errors=True) for pat in patterns for path in glob.glob(pat)]\n"
+                f"dirs = [os.path.join(gettempdir(), 'dask-scratch-space'), wenv_path]\n"
+                f"[shutil.rmtree(d, ignore_errors=True) for d in dirs]\n"
                 f"os.makedirs(os.path.join(wenv_path, 'src'))\n\""
             )
         )
@@ -688,6 +688,7 @@ class AGI:
         if not list_ip:
             list_ip.add(localhost_ip)
 
+        tasks = []
         for ip in list_ip:  # remove the dask tempdir, the build dirs and the wenv dirs
             if AGI._is_local(ip):
                 me = getpass.getuser()
@@ -707,10 +708,11 @@ class AGI:
                 AGI._clean_dirs_local()
             else:
                 try:
-                    await AGI._kill(ip, os.getpid(), force=force)
+                    tasks.append(asyncio.create_task(AGI._kill(ip, os.getpid(), force=force)))
                 except:
                     pass
-                AGI._clean_dirs(ip)
+                tasks.append(asyncio.create_task(AGI._clean_dirs(ip)))
+        await asyncio.gather(*tasks)
 
         return list_ip
 
@@ -1088,8 +1090,6 @@ class AGI:
                 If `module_name_or_path` is invalid.
             ConnectionError:
         """
-        if env.wenv_abs.exists():
-            shutil.rmtree(env.wenv_abs)
         AGI._run_type = "sync"
         mode = (AGI.INSTALL_MODE | modes_enabled)
         await AGI.run(module_name,
@@ -1203,7 +1203,7 @@ class AGI:
 
                 cmd = (
                     f"uv -q --project {wenv_rel} run dask scheduler --port {AGI._scheduler_port} "
-                    f"--host {AGI._scheduler_ip} --pid-file {wenv_rel / dask_pid}"
+                    f"--host {AGI._scheduler_ip} --pid-file dask_pid"
                 )
                 # Run scheduler asynchronously over SSH without awaiting completion (fire and forget)
                 asyncio.create_task(env.exec_ssh_async(AGI._scheduler_ip, cmd))
@@ -1557,9 +1557,6 @@ class AGI:
             AGI._clean_dirs_local()
 
             await AGI._install(scheduler)
-
-            # clean both proc and dir
-            # await AGI._get_clean_nodes(scheduler)
 
             res = time.time() - t
 
