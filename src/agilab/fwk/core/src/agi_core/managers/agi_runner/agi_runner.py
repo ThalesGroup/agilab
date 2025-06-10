@@ -1083,6 +1083,8 @@ class AGI:
                 If `module_name_or_path` is invalid.
             ConnectionError:
         """
+        if env.wenv_abs.exists():
+            os.remove(env.wenv_abs)
         AGI._run_type = "sync"
         mode = (AGI.INSTALL_MODE | modes_enabled)
         await AGI.run(module_name,
