@@ -284,6 +284,7 @@ class AgiEnv:
             app_src = app_abs / "src"
             self.app_pyproject = app_abs / "pyproject.toml"
             self.worker_path = app_src / target_worker / f"{target_worker}.py"
+            self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
             self.module_path = app_src / module / f"{self.module}.py"
             worker_module_path = self.worker_path.parent
 
@@ -292,6 +293,7 @@ class AgiEnv:
             app_src = app_abs / "src"
             self.app_pyproject = app_abs / "pyproject.toml"
             self.worker_path = app_src / target_worker / f"{target_worker}.py"
+            self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
             self.module_path = app_src / module / f"{self.module}.py"
             worker_module_path = self.worker_path.parent
 
@@ -670,45 +672,44 @@ class AgiEnv:
 
     def resolve_packages_path_in_toml(self):
         agi_root = self.agi_root
-        file = self.app_pyproject  # or self.app_pyproject
+        for file in [self.worker_pyproject, self.app_pyproject]:
+            if not file.exists():
+                raise FileNotFoundError(f"{file} not found in {self.app_abs}")
 
-        if not file.exists():
-            raise FileNotFoundError(f"{file} not found in {self.app_abs}")
+            text = file.read_text(encoding="utf-8")
+            doc = tomlkit.parse(text)
 
-        text = file.read_text(encoding="utf-8")
-        doc = tomlkit.parse(text)
+            try:
+                uv = doc["tool"]["uv"]
+            except KeyError:
+                raise RuntimeError("Could not find [tool.uv] section in the TOML")
 
-        try:
-            uv = doc["tool"]["uv"]
-        except KeyError:
-            raise RuntimeError("Could not find [tool.uv] section in the TOML")
+            if "sources" not in uv or not isinstance(uv["sources"], tomlkit.items.Table):
+                raise RuntimeError("Could not find [tool.uv.sources] in the TOML")
 
-        if "sources" not in uv or not isinstance(uv["sources"], tomlkit.items.Table):
-            raise RuntimeError("Could not find [tool.uv.sources] in the TOML")
+            sources = uv["sources"]
 
-        sources = uv["sources"]
+            if "site-packages" in agi_root.parts:
+                if "agi-core" in sources:
+                    del sources["agi-core"]
+                    if not sources:
+                        del uv["sources"]
+                    if not uv:
+                        del doc["tool"]["uv"]
+                    if not doc["tool"]:
+                        del doc["tool"]
+                deps = doc["project"].get("dependencies", [])
+                if not any(dep.split()[0] == "agi-core" for dep in deps):
+                    deps.append("agi-core")
+                    doc["project"]["dependencies"] = deps
+            else:
+                agi_core_path = str((agi_root / "fwk" / "core").resolve())
+                tbl = tomlkit.inline_table()
+                tbl["path"] = agi_core_path
+                tbl["editable"] = True
+                sources["agi-core"] = tbl
 
-        if "site-packages" in agi_root.parts:
-            if "agi-core" in sources:
-                del sources["agi-core"]
-                if not sources:
-                    del uv["sources"]
-                if not uv:
-                    del doc["tool"]["uv"]
-                if not doc["tool"]:
-                    del doc["tool"]
-            deps = doc["project"].get("dependencies", [])
-            if not any(dep.split()[0] == "agi-core" for dep in deps):
-                deps.append("agi-core")
-                doc["project"]["dependencies"] = deps
-        else:
-            agi_core_path = str((agi_root / "fwk" / "core").resolve())
-            tbl = tomlkit.inline_table()
-            tbl["path"] = agi_core_path
-            tbl["editable"] = True
-            sources["agi-core"] = tbl
-
-        file.write_text(tomlkit.dumps(doc), encoding="utf-8")
+            file.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
     def copy_missing(self, src: Path, dst: Path):
         dst.mkdir(parents=True, exist_ok=True)
@@ -1044,7 +1045,7 @@ class AgiEnv:
                     username=self.user,
                     password=self.password,
                     known_hosts=None,
-                    client_keys=None,
+                    client_keys=["/home/pcm/.ssh/id_ed25519"],
                 ),
                 timeout=timeout_sec
             )
