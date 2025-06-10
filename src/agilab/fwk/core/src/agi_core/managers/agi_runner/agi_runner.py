@@ -578,6 +578,8 @@ class AGI:
 
         cmds: list[str] = []
 
+        cmds.append("pip3 install psutil")
+
         # 2) If force, kill by process name
         if force:
             cmd = (
