@@ -868,10 +868,13 @@ class AGI:
 
         # Copier les fichiers pyproject.toml et setup_core dans wenv_abs
         wenv_abs = env.wenv_abs
-        logging.info(f"Copying {src / 'pyproject.toml'} -> {wenv_abs}")
-        shutil.copy2(src / "pyproject.toml", wenv_abs)
-        logging.info(f"Copying {env.setup_core} -> {wenv_abs}")
-        shutil.copy(env.setup_core, wenv_abs / env.setup_core.stem)
+        os.makedirs(wenv_abs, exist_ok=True)
+        file = src / 'pyproject.toml'
+        logging.info(f"Copying {file} -> {wenv_abs}")
+        shutil.copy(file, wenv_abs / file.name)
+        file = env.setup_core
+        logging.info(f"Copying {file} -> {wenv_abs}")
+        shutil.copy(file, wenv_abs / file.stem)
 
         # Commande pour workers selon si rapids supporté
         if has_rapids_hw:
@@ -1084,7 +1087,7 @@ class AGI:
             ConnectionError:
         """
         if env.wenv_abs.exists():
-            os.remove(env.wenv_abs)
+            shutil.rmtree(env.wenv_abs)
         AGI._run_type = "sync"
         mode = (AGI.INSTALL_MODE | modes_enabled)
         await AGI.run(module_name,
