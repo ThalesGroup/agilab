@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="app install" type="PythonConfigurationType" factoryName="Python">
-    <module name="core" />
+  <configuration default="false" name="lab_run test" type="PythonConfigurationType" factoryName="Python">
+    <module name="gui" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
@@ -8,14 +8,14 @@
       <env name="PYTHONUNBUFFERED" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
-    <option name="SDK_NAME" value="uv (agilab)" />
-    <option name="WORKING_DIRECTORY" value="$ProjectFileDir$" />
+    <option name="SDK_NAME" value="uv (agi-workspace)" />
+    <option name="WORKING_DIRECTORY" value="$USER_HOME$/agi-workspace/" />
     <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="$USER_HOME$/log/AGI.install-$Prompt$.py" />
-    <option name="PARAMETERS" value="" />
+    <option name="SCRIPT_NAME" value="$USER_HOME$/agi-workspace/.venv/lib/python3.12/site-packages/agi_gui/lab_run.py" />
+    <option name="PARAMETERS" value="--openai-api-key &quot;your-key&quot;" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />
