@@ -928,7 +928,7 @@ class AGI:
 
         cmd = (
             f"{cmd_prefix} uv run python -c \"import os, pathlib, zipfile;"
-            f"os.remane("setup.py", "setup");"
+            f"os.remane('setup.py', 'setup');"
             f"root = pathlib.Path('{wenv_rel}');"
             f"root_src = root / 'src';"
             f"[zipfile.ZipFile(str(e)).extractall(str(root_src))"
