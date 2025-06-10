@@ -1044,7 +1044,7 @@ class AgiEnv:
                     username=self.user,
                     password=self.password,
                     known_hosts=None,
-                    client_keys=None,
+                    client_keys=["/home/pcm/.ssh/id_ed25519"],
                 ),
                 timeout=timeout_sec
             )
