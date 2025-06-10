@@ -869,7 +869,7 @@ class AGI:
         logging.info(f"Copying {src / 'pyproject.toml'} -> {wenv_abs}")
         shutil.copy2(src / "pyproject.toml", wenv_abs)
         logging.info(f"Copying {env.setup_core} -> {wenv_abs}")
-        shutil.copy2(env.setup_core, wenv_abs)
+        shutil.copy(env.setup_core, wenv_abs / env.setup_core.stem)
 
         # Commande pour workers selon si rapids supporté
         if has_rapids_hw:
@@ -961,8 +961,9 @@ class AGI:
             f"{cmd_prefix} {python} -c "
             "\"import os, subprocess; "
             f"ROOT = r'{wenv_rel}'; "
-            "subprocess.run(['uv','init','--bare'], cwd=ROOT, check=True) "
-            "if not os.path.exists(os.path.join(ROOT, 'pyproject.toml')) else None\""
+            "subprocess.run(['uv','init','--bare', '--no-workspace'], cwd=ROOT, check=True) "
+            "if not os.path.exists(os.path.join(ROOT, 'pyproject.toml')) else None;"
+            "os.rename('setup.py', 'setup')\""
         )
         await env.exec_ssh(ip, cmd)
 
@@ -1360,8 +1361,7 @@ class AGI:
 
         app_path = env.app_abs
         wenv_abs = env.wenv_abs
-        shutil.copy2(env.setup_core, app_path)
-        shutil.copy2(env.setup_core, app_path)
+        shutil.copy(env.setup_core, app_path / env.setup_core.stem)
 
         cmd = f"uv -q --project {app_path} run python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d {wenv_abs}"
         await AgiEnv.run(cmd, app_path)
