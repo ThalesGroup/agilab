@@ -928,6 +928,7 @@ class AGI:
 
         cmd = (
             f"{cmd_prefix} uv run python -c \"import os, pathlib, zipfile;"
+            f"os.remane("setup.py", "setup");"
             f"root = pathlib.Path('{wenv_rel}');"
             f"root_src = root / 'src';"
             f"[zipfile.ZipFile(str(e)).extractall(str(root_src))"
@@ -967,8 +968,7 @@ class AGI:
             "\"import os, subprocess; "
             f"ROOT = r'{wenv_rel}'; "
             "subprocess.run(['uv','init','--bare', '--no-workspace'], cwd=ROOT, check=True) "
-            "if not os.path.exists(os.path.join(ROOT, 'pyproject.toml')) else None;"
-            "os.rename('setup.py', 'setup')\""
+            "if not os.path.exists(os.path.join(ROOT, 'pyproject.toml')) else None;\""
         )
         await env.exec_ssh(ip, cmd)
 
