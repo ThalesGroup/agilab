@@ -4,7 +4,7 @@ version = "0.1.8"
 description = ""
 requires-python = ">=3.11"
 readme = "README.md"
-dependencies = [ "numpy", "geopy", "setuptools", "cython", "psutil", "parso", "py7zr", "python-dotenv", "humanize"]
+dependencies = [ "numpy", "geopy", "setuptools", "cython", "psutil", "parso", "py7zr", "python-dotenv", "humanize", "requests", ]
 [[project.authors]]
 name = "Jean-Pierre Morard"
 email = "focus@thalesgroup.com"
@@ -19,6 +19,6 @@ dag-worker = []
 polars-worker = [ "polars",]
 
 [tool.uv.sources]
-agi-core = {path = "/home/pcm/PycharmProjects/agilab/src/agilab/fwk/core", editable = true}
+agi-core = {path = "/home/julienb/PycharmProjects/agilab/src/agilab/fwk/core", editable = true}
 [tool.uv.sources.flight_project]
 workspace = true

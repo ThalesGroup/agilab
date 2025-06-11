@@ -978,7 +978,7 @@ class AGI:
         wenv = await AGI._build_lib_local(is_local=True)
 
         # Lancer le script post_install
-        cmd_post = f"uv -q --project {wenv} run -p {pyvers} python {env.app_abs / env.post_install} {env.data_dir}"
+        cmd_post = f"uv -q --project {wenv} run -p {pyvers} python {env.app_abs / env.post_install} {env.data_rel}"
         logging.info(f"Running post-install script: {cmd_post}")
         await AgiEnv.run(cmd_post, wenv)
 
@@ -1047,7 +1047,7 @@ class AGI:
         await env.exec_ssh(ip, sync_cmd)
 
         # 7) Post-install script
-        cmd = f"{cmd_prefix} uv run -q --project {wenv_rel} python {env.post_install_rel} {env.data_dir}"
+        cmd = f"{cmd_prefix} uv run -q --project {wenv_rel} python {env.post_install_rel} {env.data_rel}"
         await env.exec_ssh(ip, cmd)
 
         #####################################################
@@ -1075,7 +1075,7 @@ class AGI:
         await env.exec_ssh(ip, cmd)
 
         # build agi_core*.whl
-        wenv = env.core_root
+        wenv = env.agi_core_root
         src = wenv / "dist"
         cmd = f"{cmd_prefix} uv -q --project {wenv} build --wheel"
         await AgiEnv.run(cmd, venv=wenv)
@@ -1528,7 +1528,7 @@ class AGI:
             else:
                 AGI._build_lib_local(is_local=True)
 
-        if env.debug:
+        if env._debug:
             AgiWorker.new(env.app, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
             res = AgiWorker.run(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
         else:

@@ -196,9 +196,11 @@ class AgiEnv:
         if install_type == 1:
             if "site-packages" in self.agi_root.parts:
                 self.agi_env_root = self.agi_root.parent / 'agi_env'
+                self.agi_core_root = self.agi_root.parent / 'agi_root'
                 resource_path = self.agi_env_root / self.agi_resources
             else:
                 self.agi_env_root = self.agi_root / "fwk/env"
+                self.agi_core_root = self.agi_root / "fwk/core"
                 resource_path = self.agi_env_root / "src/agi_env" / self.agi_resources
             if not self.agi_env_root.exists():
                 raise RuntimeError("Your Agilab installation is not valid")
@@ -206,13 +208,16 @@ class AgiEnv:
         elif install_type == 2:
                 if AgiEnv._debug:
                     self.agi_env_root = self.agi_root / "fwk/env"
+                    self.agi_core_root = self.agi_root / "fwk/core"
                 else:
                     self.agi_env_root = list(Path(sys.prefix).rglob('agi_env'))[0]
+                    self.agi_core_root = list(Path(sys.prefix).rglob('agi_core'))[0]
         elif install_type == 0:
                 head, sep, _ = __file__.partition("site-packages")
                 if not sep:
                     raise ValueError("site-packages not in", __file__)
                 self.agi_env_root = Path(head + sep)
+                self.agi_core_root = Path(head + sep)
 
         if not apps_dir:
             apps_dir = 'apps'
@@ -344,16 +349,14 @@ class AgiEnv:
 
         os.makedirs(AgiEnv.apps_dir, exist_ok=True)
         if "site-packages" in self.agi_root.parts:
-            self.agi_core_root = self.agi_root.parent
-            self.env_root = self.agi_root.parent
+            self.agi_core_loc = self.agi_root.parent
         else:
-            self.agi_core_root = self.agi_root / "fwk/core/src"
-            self.env_root =  self.agi_root / "fwk/env/src"
+            self.agi_core_loc = self.agi_root / "fwk/core/src"
 
         if install_type != 2:
             self.resolve_packages_path_in_toml()
 
-        agi_core = self.agi_core_root / "agi_core"
+        agi_core = self.agi_core_loc / "agi_core"
         self.agi_core = agi_core
 
         self.projects = self.get_projects(self.apps_dir)
@@ -375,9 +378,9 @@ class AgiEnv:
         self.target = module_path.stem
         self.module_path = module_path
         self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", "data"))
-        data_dir = self.AGILAB_SHARE / self.target
-        self.dataframes_path = data_dir / "dataframes"
-        self.data_dir = data_dir
+        data_rel = self.AGILAB_SHARE / self.target
+        self.dataframes_path = data_rel / "dataframes"
+        self.data_rel = data_rel
         self._init_projects()
 
         self.scheduler_ip = envars.get("AGI_SCHEDULER_IP", "127.0.0.1")
@@ -668,7 +671,7 @@ class AgiEnv:
         self.AGILAB_VIEWS_ABS = Path(envars.get("AGI_VIEWS_DIR", self.agi_root / "views"))
         self.AGILAB_VIEWS_REL = Path(envars.get("AGI_VIEWS_DIR", "agi/_"))
         if self.install_type == 0:
-            self.copilot_file = self.agi_core_root / "agi_gui/agi_copilot.py"
+            self.copilot_file = self.agi_core_loc / "agi_gui/agi_copilot.py" # WTF ?
         else:
             self.copilot_file = self.agi_root / "fwk/gui/src/agi_gui/agi_copilot.py"
 
