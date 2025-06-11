@@ -45,6 +45,7 @@ def normalize_path(path):
         else str(PurePosixPath(Path(path)))
     )
 
+
 class AgiEnv:
     install_type = None
     apps_dir = None
@@ -360,9 +361,9 @@ class AgiEnv:
 
         self.workers_root = agi_core / "workers"
         self.manager_root = agi_core / "managers"
-        self.setup_app = app_abs / "setup"
+        self.setup_app = app_abs / "build.py"
 
-        self.setup_core_rel = "agi_worker/setup.py"
+        self.setup_core_rel = "agi_worker/build.py"
         self.setup_core = self.workers_root / self.setup_core_rel
 
         if isinstance(module, Path):
@@ -1067,7 +1068,7 @@ class AgiEnv:
                     username=self.user,
                     password=self.password,
                     known_hosts=None,
-                    client_keys=None,
+                    client_keys=keys,
                 ),
                 timeout=timeout_sec
             )
@@ -1881,3 +1882,8 @@ class ContentRenamer(ast.NodeTransformer):
                         break
         self.generic_visit(node)
         return node
+
+        import getpass, os, sys, subprocess, signal
+
+        me = getpass.getuser()
+        my_pid = os.getpid()

@@ -580,21 +580,95 @@ class AGI:
 
         cmds: list[str] = []
 
-        cmd_prefix = await AGI._detect_export_cmd(ip)
+        cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
+        if AGI._is_local(ip):
+            kill_prefix = f'{cmd_prefix} uv run --project {env.agi_core} python'
+        else:
+            kill_prefix = f'{cmd_prefix} uv run --project {env.wenv_rel} python'
 
         # 2) If force, kill by process name
         if force:
-            if AGI._is_local(ip):
-                kill_prefix = f'{cmd_prefix} uv run --project {env.agi_core} python'
-            else:
-                kill_prefix = f'{cmd_prefix} uv run --project {env.wenv_rel} python'
+            # this command is using python standard lib only (<> psutil)
+            # cmd = (
+            # f"{kill_prefix} -c \"import getpass, os, sys, subprocess, signal, csv, sys as pysys\n"
+            # "me = getpass.getuser()\n"
+            # "my_pid = os.getpid()\n"
+            # "parent_pid = os.getppid()\n"
+            # "def debug(msg): pysys.stderr.write(msg + '\\n')\n"
+            # "def kill_pid(pid):\n"
+            # "  import sys, subprocess, os, signal\n"
+            # "  exec('subprocess.call([\\'taskkill\\', \\'/PID\\', str(pid), \\'/F\\'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)' if sys.platform=='win32' else 'os.kill(pid, signal.SIGKILL)')\n"
+            # "if sys.platform == 'win32':\n"
+            # "  proc = subprocess.Popen(['tasklist', '/V', '/FO', 'CSV'], stdout=subprocess.PIPE, text=True)\n"
+            # "  out, _ = proc.communicate()\n"
+            # "  reader = csv.DictReader(out.splitlines())\n"
+            # "  for row in reader:\n"
+            # "    try:\n"
+            # "      pid = int(row['PID'])\n"
+            # "      username = row['User Name']\n"
+            # "      image_name = row['Image Name']\n"
+            # "      window_title = row['Window Title']\n"
+            # "      if pid in (my_pid, parent_pid):\n"
+            # "        debug(f'Skipping own process PID {pid}')\n"
+            # "        continue\n"
+            # "      if username and me.lower() in username.lower() and ('dask' in image_name.lower() or 'dask' in window_title.lower()):\n"
+            # "        debug(f'Killing PID {pid}')\n"
+            # "        kill_pid(pid)\n"
+            # "    except Exception:\n"
+            # "      pass\n"
+            # "elif sys.platform.startswith('linux'):\n"
+            # "  proc = subprocess.Popen(['ps', '-eo', 'pid,user,command'], stdout=subprocess.PIPE, text=True)\n"
+            # "  out, _ = proc.communicate()\n"
+            # "  lines = out.strip().split('\\n')[1:]\n"
+            # "  for line in lines:\n"
+            # "    parts = line.strip().split(None, 2)\n"
+            # "    if len(parts) < 3:\n"
+            # "      continue\n"
+            # "    pid_str, user, cmd = parts\n"
+            # "    try:\n"
+            # "      pid = int(pid_str)\n"
+            # "    except ValueError:\n"
+            # "      continue\n"
+            # "    if pid in (my_pid, parent_pid):\n"
+            # "      debug(f'Skipping own process PID {pid}')\n"
+            # "      continue\n"
+            # "    if user == me and 'dask' in cmd.lower():\n"
+            # "      debug(f'Killing PID {pid}')\n"
+            # "      kill_pid(pid)\n"
+            # "elif sys.platform == 'darwin':\n"
+            # "  proc = subprocess.Popen(['ps', '-axo', 'pid,user,command'], stdout=subprocess.PIPE, text=True)\n"
+            # "  out, _ = proc.communicate()\n"
+            # "  lines = out.strip().split('\\n')[1:]\n"
+            # "  for line in lines:\n"
+            # "    parts = line.strip().split(None, 2)\n"
+            # "    if len(parts) < 3:\n"
+            # "      continue\n"
+            # "    pid_str, user, cmd = parts\n"
+            # "    try:\n"
+            # "      pid = int(pid_str)\n"
+            # "    except ValueError:\n"
+            # "      continue\n"
+            # "    if pid in (my_pid, parent_pid):\n"
+            # "      debug(f'Skipping own process PID {pid}')\n"
+            # "      continue\n"
+            # "    if user == me and 'dask' in cmd.lower():\n"
+            # "      debug(f'Killing PID {pid}')\n"
+            # "      kill_pid(pid)\n"
+            # "else:\n"
+            # "  debug('Unsupported OS for process killing')\""
+            # )
             cmd = (
-                f'{kill_prefix} -c "import getpass, psutil, os;\n'
-                'me = getpass.getuser();\n'
-                'my_pid = os.getpid();\n'
+                f'{kill_prefix} -c "import getpass, os\n'
+                'try:\n'
+                '    import psutil\n'
+                'except ImportError:\n'
+                '    return\n'  
+                'me = getpass.getuser()\n'
+                'parent_pid = os.getppid()\n'
+                'my_pid = os.getpid()\n'
                 'for p in psutil.process_iter([\'name\', \'username\', \'cmdline\', \'pid\']):\n'
                 '    try:\n'
-                '        if p.info.get(\'pid\') == my_pid:\n'
+                '        if p.info.get(\'pid\') in (my_pid, parent_pid):\n'
                 '            continue\n'
                 '        if p.info.get(\'username\') and me in p.info[\'username\'] and ('
                 '            (p.info.get(\'name\') and \'dask\' in p.info[\'name\']) or '
@@ -603,12 +677,22 @@ class AGI:
                 '    except (psutil.NoSuchProcess, psutil.AccessDenied):\n'
                 '        pass"'
             )
+
             cmds.append(cmd)
 
         # 3) If we found any explicit pid files, terminate those PIDs
         if pids_to_kill:
+            # cmds.append(
+            #     "uv run python -c \"import os, sys, subprocess, signal\n"
+            #     f"pids={pids_to_kill}\n"
+            #     "mypid=os.getpid()\n"
+            #     "for p in pids:\n"
+            #     "  if p != mypid:\n"
+            #     "    (subprocess.call(['taskkill', '/PID', str(p), '/F'], stdout=subprocess.DEVNULL, "
+            #     "stderr=subprocess.DEVNULL) if sys.platform=='win32' else os.kill(p, signal.SIGKILL))\""
+            # )
             cmds.append(
-                'python3 -c "import os, psutil; '
+                f'{kill_prefix} -c "import os, psutil; '
                 f"pids={pids_to_kill}; "
                 "[psutil.Process(p).kill() for p in pids if p!=os.getpid()]"
                 '"'
@@ -643,6 +727,21 @@ class AGI:
         Returns:
 
         """
+        me = getpass.getuser()
+        self_pid = os.getpid()
+
+        for p in psutil.process_iter(['pid', 'username', 'cmdline']):
+            try:
+                if (
+                        p.info['username'].endswith(me)
+                        and p.info['pid'] != self_pid
+                        and p.info['cmdline']
+                        and any('dask' in s.lower() for s in p.info['cmdline'])
+                ):
+                    p.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+
         for d in [
             f"{gettempdir()}/dask-scratch-space",
             f"{AGI.env.wenv_abs}",
@@ -672,7 +771,7 @@ class AGI:
         await env.exec_ssh(
             ip,
             cmd=(
-                f"python3 -c \"import os, glob, shutil\n"
+                f"uv run python -c \"import os, glob, shutil\n"
                 f"from tempfile import gettempdir\n"
                 f"wenv_path = os.path.abspath(os.path.expanduser('{wenv_rel}'))\n"
                 f"dirs = [os.path.join(gettempdir(), 'dask-scratch-space'), wenv_path]\n"
@@ -682,42 +781,23 @@ class AGI:
         )
 
     @staticmethod
-    async def _get_clean_nodes(scheduler, force=True):
+    async def _clean_nodes(scheduler, force=True):
         list_ip = set(list(AGI.workers) + [AGI._get_scheduler(scheduler)[0]])
         localhost_ip = socket.gethostbyname("localhost")
         if not list_ip:
             list_ip.add(localhost_ip)
 
-        tasks = []
         for ip in list_ip:  # remove the dask tempdir, the build dirs and the wenv dirs
             if AGI._is_local(ip):
-                me = getpass.getuser()
-                self_pid = os.getpid()
-
-                for p in psutil.process_iter(['pid', 'username', 'cmdline']):
-                    try:
-                        if (
-                                p.info['username'].endswith(me)
-                                and p.info['pid'] != self_pid
-                                and p.info['cmdline']
-                                and any('dask' in s.lower() for s in p.info['cmdline'])
-                        ):
-                            p.kill()
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        pass
                 AGI._clean_dirs_local()
             else:
-                try:
-                    tasks.append(asyncio.create_task(AGI._kill(ip, os.getpid(), force=force)))
-                except:
-                    pass
-                tasks.append(asyncio.create_task(AGI._clean_dirs(ip)))
-        await asyncio.gather(*tasks)
+                await AGI._kill(ip, os.getpid(), force=force)
+                await AGI._clean_dirs(ip)
 
         return list_ip
 
     @staticmethod
-    async def _install_cluster(scheduler):
+    async def _install_uv(scheduler):
         """
         Validate and prepare each remote node in the cluster:
         - Verify each IP is valid and reachable.
@@ -740,6 +820,7 @@ class AGI:
                 raise ValueError(f"Invalid IP address: {ip}")
 
         # Prepare each remote node (skip local)
+        AGI.list_ip = list_ip
         for ip in list_ip:
             if AGI._is_local(ip):
                 continue
@@ -751,11 +832,12 @@ class AGI:
             cmd_prefix = await AGI._detect_export_cmd(ip)
 
             env.set_env_var(f"{ip}_CMD_PREFIX", cmd_prefix)
-
+            uv_is_already_installed = True
             # 2) Check uv
             try:
                 await env.exec_ssh(ip, f"{cmd_prefix} uv -q --version")
             except Exception:
+                uv_is_already_installed = False
                 # Try Windows installer
                 try:
                     await env.exec_ssh(ip,
@@ -768,17 +850,18 @@ class AGI:
 
             # 3) Install Python
             await env.exec_ssh(ip, f"{cmd_prefix} uv -q python install {pyvers}")
-            # 4) Bootstrap the uv -q environment
-            pyproject = wenv_rel / 'pyproject.toml'
+
+            if uv_is_already_installed:
+                await AGI._kill(ip, force=True)
+
             cmd = (
-                f"{cmd_prefix} mkdir -p '{wenv_rel}'; "
-                f"uv --project {wenv_rel} run -p {pyvers} python -c \"import os, subprocess; "
-                f"subprocess.run(['uv','init','--bare'], cwd=r'{wenv_rel}', check=True) "
-                f"if not os.path.exists('{pyproject}') else None\""
+                f"{cmd_prefix} rm -r '{wenv_rel}'; "
+                f"mkdir -p '{wenv_rel}'; "
+                f"uv --project {wenv_rel} init --bare --no-workspace"
             )
             await env.exec_ssh(ip, cmd)
 
-            cmd = f"{cmd_prefix} uv --project {wenv_rel} add psutil"
+            cmd = f"uv --project {wenv_rel} add psutil"
             await env.exec_ssh(ip, cmd)
 
     @staticmethod
@@ -794,6 +877,7 @@ class AGI:
         options = {"manager": extras, "worker": extras}
         if isinstance(env.base_worker_cls, str):
             options["worker"] += " --extra " + " --extra ".join(AGI.install_worker_group)
+
         # node_ips = await AGI._get_clean_nodes(scheduler)
         node_ips = set(list(AGI.workers) + [AGI._get_scheduler(scheduler)[0]])
         AGI._venv_todo(node_ips)
@@ -878,7 +962,7 @@ class AGI:
         shutil.copy(file, wenv_abs / file.name)
         file = env.setup_core
         logging.info(f"Copying {file} -> {wenv_abs}")
-        shutil.copy(file, wenv_abs / file.stem)
+        shutil.copy2(file, wenv_abs)
 
         # Commande pour workers selon si rapids supporté
         if has_rapids_hw:
@@ -910,6 +994,7 @@ class AGI:
         wenv_rel = env.wenv_rel
         dist_rel = env.dist_rel
         dist_abs = env.dist_abs
+        setup = wenv_rel / env.setup_app.name
 
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
 
@@ -931,13 +1016,11 @@ class AGI:
         await env.exec_ssh(ip, cmd)
 
         cmd = (
-            f"{cmd_prefix} uv run python -c \"import os, pathlib, zipfile;"
-            f"os.remane('setup.py', 'setup');"
-            f"root = pathlib.Path('{wenv_rel}');"
-            f"root_src = root / 'src';"
-            f"[zipfile.ZipFile(str(e)).extractall(str(root_src))"
-            f"for e in (root / 'dist').glob('*.egg')]\""
+            f"{cmd_prefix} uv run python -c \"import zipfile,pathlib\n"
+            f"r=pathlib.Path(s)\n"
+            f"[zipfile.ZipFile(str(f)).extractall('src') for f in pathlib.Path('dist').glob('*.egg')]\""
         )
+
         await env.exec_ssh(ip, cmd)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
@@ -1195,7 +1278,7 @@ class AGI:
                 logging.info(result)
             else:
                 # Create remote directory
-                cmd = f"python3 -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
+                cmd = f"uv run python -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
                 await env.exec_ssh(AGI._scheduler_ip, cmd)
 
                 toml_wenv = wenv_rel / "pyproject.toml"
@@ -1370,7 +1453,7 @@ class AGI:
 
         app_path = env.app_abs
         wenv_abs = env.wenv_abs
-        shutil.copy(env.setup_core, app_path / env.setup_core.stem)
+        shutil.copy2(env.setup_core, app_path)
 
         cmd = f"uv -q --project {app_path} run python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d {wenv_abs}"
         await AgiEnv.run(cmd, app_path)
@@ -1387,7 +1470,7 @@ class AGI:
 
             if is_cy:
                 # cython compilation of wenv/src into wenw
-                shutil.copy(env.setup_core, wenv_abs)
+                shutil.copy2(env.setup_core, wenv_abs)
                 cmd = f"uv -q --project {app_path} run python {env.setup_app} build_ext -b {wenv_abs}"
                 res = await AgiEnv.run(cmd, app_path)
                 try:
@@ -1548,13 +1631,10 @@ class AGI:
             t = time.time()
 
             if AGI._mode & 4:
-                await AGI._install_cluster(scheduler)
-
-            # clean both proc and dir
-            await AGI._get_clean_nodes(scheduler)
-
-            # clean local env
-            AGI._clean_dirs_local()
+                await AGI._install_uv(scheduler)
+                await AGI._clean_nodes(scheduler)
+            else:
+                AGI._clean_dirs_local()
 
             await AGI._install(scheduler)
 
