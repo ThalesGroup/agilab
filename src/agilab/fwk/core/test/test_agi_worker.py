@@ -8,13 +8,6 @@ from agi_core.workers.agi_worker import AgiWorker
 from agi_env import AgiEnv, normalize_path
 
 
-# DummyWorker can be defined if needed for instance methods test.
-class DummyWorker(AgiWorker):
-    def works(self, workers_tree, workers_tree_info):
-        # Minimal dummy implementation for testing purposes.
-        pass
-
-
 def test_expand():
     # Test expansion of a path starting with '~'
     expanded = AgiWorker.expand("~")

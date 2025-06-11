@@ -3,44 +3,19 @@ from pathlib import Path
 import pandas as pd
 import pytest
 import multiprocessing
+multiprocessing.set_start_method("spawn", force=True)
 
-data_src = Path(__file__).parent.parent
-worker_root = data_src.parent
-for src in [data_src, worker_root / "dag_worker", worker_root / "agent_worker", worker_root / "agi_worker"]:
-    path = str(src.absolute() / "src")
-    if path not in sys.path:
-        sys.path.insert(0, str(path))
+import sys
+from pathlib import Path
 
+# Ensure 'core' folder is in sys.path, so 'test' package is importable
+core_path = Path(__file__).parent.parent.resolve()
+if str(core_path) not in sys.path:
+    sys.path.insert(0, str(core_path))
+
+# Now import modules
 from agi_core.workers.pandas_worker import PandasWorker
-
-# Dummy subclass for testing PandasWorker.
-class DummyPandasWorker(PandasWorker):
-    def __init__(self, worker_id=0, output_format="csv", verbose=0):
-        self.worker_id = worker_id
-        self.verbose = verbose
-        self.args = {"output_format": output_format}
-        self.data_out = None
-        self.pool_vars = None
-        self.last_df = None
-
-    def _actual_work_pool(self, x):
-        """Dummy implementation that returns a simple DataFrame."""
-        return pd.DataFrame({"col": [x]})
-
-    def work_init(self):
-        pass
-
-    def pool_init(self, pool_vars):
-        pass
-
-    def stop(self):
-        pass
-
-    # Override work_done to capture the DataFrame for inspection.
-    def work_done(self, df: pd.DataFrame = None) -> None:
-        self.last_df = df
-        if self.data_out:
-            super().work_done(df)
+from dummy_workers import DummyPandasWorker, DummyWorker
 
 
 # --- Pytest Fixtures ---
