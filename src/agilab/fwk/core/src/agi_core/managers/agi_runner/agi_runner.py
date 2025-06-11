@@ -1066,6 +1066,7 @@ class AGI:
         await AgiEnv.run(cmd, venv=wenv)
         src = wenv / "dist"
         try:
+
             whl = next(iter(src.glob("agi_env*.whl")))
             await env.send_file(ip, whl, dist_rel)
         except StopIteration:
@@ -1102,7 +1103,7 @@ class AGI:
         for module in AGI._module_to_clean:
             cmd = f"uv -q pip uninstall {module} -y"
             logging.info(f"Executing: {cmd}")
-            await AgiEnv.run(cmd, AGI.env.core_root)
+            await AgiEnv.run(cmd, AGI.env.agi_env_root)
         AGI._module_to_clean.clear()
 
     @staticmethod
