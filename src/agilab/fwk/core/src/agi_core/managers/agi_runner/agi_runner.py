@@ -1233,8 +1233,8 @@ class AGI:
             SystemExit: on fatal error starting scheduler or Dask client.
         """
         env = AGI.env
-        env.has_rapids_hw = True
         if (AGI._mode_auto and AGI._mode == AGI.DASK_MODE) or not AGI._mode_auto:
+            env.has_rapids_hw = True
             if AGI._mode & AGI.DASK_MODE:
                 if scheduler is None:
                     if list(AGI.workers) == ["127.0.0.1"]:
@@ -1605,7 +1605,7 @@ class AGI:
         )
 
         runtime = time.time() - t
-        print(f"{env.mode2str(AGI._mode)} {runtime}")
+        logging.info(f"{env.mode2str(AGI._mode)} {runtime}")
         return f"{env.mode2str(AGI._mode)} {runtime}"
 
     @staticmethod
