@@ -720,7 +720,7 @@ if __name__ == '__main__':
                 stdout, stderr = await env.run_agi(
                     cmd,
                     log_callback=lambda message: update_log(live_log_placeholder, message),
-                    venv=env.core_root
+                    venv=env.agi_env_root
                 )
 
                 live_log_placeholder.empty()
