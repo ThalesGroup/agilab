@@ -129,7 +129,8 @@ install_dependencies() {
     elif command -v brew >/dev/null 2>&1; then
         echo -e "${BLUE}Detected Homebrew (macOS).${NC}"
         brew upgrade
-        brew install wget curl tree unzip openssl readline sqlite libxml2 xz hudochenkov/sshpass/sshpass
+        brew install wget curl unzip openssl readline sqlite libxml2 xz hudochenkov/sshpass/sshpass
+        brew tree Graphviz
         brew cleanup
     else
         echo -e "${RED}No supported package manager found. Please install dependencies manually.${NC}"

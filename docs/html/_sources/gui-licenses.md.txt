@@ -3,7 +3,6 @@
 |--------------|---------|
 | absl-py | APACHE SOFTWARE LICENSE |
 | ai21 | Apache License 2.0 |
-| ai21-tokenizer | Apache License 2.0 |
 | aiohappyeyeballs | PYTHON SOFTWARE FOUNDATION LICENSE |
 | aiohttp | APACHE-2.0 |
 | aiolimiter | MIT LICENSE |
@@ -88,7 +87,6 @@
 | graphene | MIT |
 | graphql-core | MIT LICENSE |
 | graphql-relay | MIT LICENSE |
-| greenlet | MIT;; PYTHON-2.0 |
 | grpcio | APACHE SOFTWARE LICENSE |
 | grpcio-status | APACHE SOFTWARE LICENSE |
 | gunicorn | MIT LICENSE |
@@ -252,7 +250,6 @@
 | scp | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
 | seaborn | BSD LICENSE |
 | send2trash | BSD LICENSE |
-| sentencepiece | APACHE SOFTWARE LICENSE |
 | setuptools | MIT |
 | sgmllib3k | BSD LICENSE |
 | shellingham | ISC LICENSE _ISCL_ |
@@ -317,7 +314,6 @@
 | uvicorn | BSD LICENSE |
 | validators | MIT LICENSE |
 | visions | BSD LICENSE |
-| watchdog | APACHE SOFTWARE LICENSE |
 | wcwidth | MIT LICENSE |
 | webcolors | BSD LICENSE |
 | webencodings | BSD LICENSE |
