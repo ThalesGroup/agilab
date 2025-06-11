@@ -55,9 +55,9 @@ class AgiEnv:
     GUI_SAMPLING = None
     init_done = False
     has_rapids_hw = None
-    debug = False
+    _debug = False
     benchmark = None
-
+    verbose = None
     import inspect
     import logging
     import sys
@@ -167,6 +167,7 @@ class AgiEnv:
     def __init__(self, install_type: int = None, apps_dir: Path = None,
                  active_app: Path | str = None, verbose: int = None, debug=False):
         AgiEnv.verbose = verbose
+        self.verbose = verbose
         self.init_logging(verbose)
         AgiEnv._debug = debug
         self.is_managed_pc = getpass.getuser().startswith("T0")
@@ -194,24 +195,24 @@ class AgiEnv:
 
         if install_type == 1:
             if "site-packages" in self.agi_root.parts:
-                self.agi_fwk_env_path = self.agi_root.parent / 'agi_env'
-                resource_path = self.agi_fwk_env_path / self.agi_resources
+                self.agi_env_root = self.agi_root.parent / 'agi_env'
+                resource_path = self.agi_env_root / self.agi_resources
             else:
-                self.agi_fwk_env_path = self.agi_root / "fwk/env"
-                resource_path = self.agi_fwk_env_path / "src/agi_env" / self.agi_resources
-            if not self.agi_fwk_env_path.exists():
+                self.agi_env_root = self.agi_root / "fwk/env"
+                resource_path = self.agi_env_root / "src/agi_env" / self.agi_resources
+            if not self.agi_env_root.exists():
                 raise RuntimeError("Your Agilab installation is not valid")
             self._init_resources(resource_path)
         elif install_type == 2:
-                if self.debug:
-                    self.agi_fwk_env_path = self.agi_root / "fwk/env"
+                if AgiEnv._debug:
+                    self.agi_env_root = self.agi_root / "fwk/env"
                 else:
-                    self.agi_fwk_env_path = list(Path(sys.prefix).rglob('agi_env'))[0]
+                    self.agi_env_root = list(Path(sys.prefix).rglob('agi_env'))[0]
         elif install_type == 0:
                 head, sep, _ = __file__.partition("site-packages")
                 if not sep:
                     raise ValueError("site-packages not in", __file__)
-                self.agi_fwk_env_path = Path(head + sep)
+                self.agi_env_root = Path(head + sep)
 
         if not apps_dir:
             apps_dir = 'apps'
@@ -343,16 +344,16 @@ class AgiEnv:
 
         os.makedirs(AgiEnv.apps_dir, exist_ok=True)
         if "site-packages" in self.agi_root.parts:
-            self.core_root = self.agi_root.parent
+            self.agi_core_root = self.agi_root.parent
             self.env_root = self.agi_root.parent
         else:
-            self.core_root = self.agi_root / "fwk/core/src"
+            self.agi_core_root = self.agi_root / "fwk/core/src"
             self.env_root =  self.agi_root / "fwk/env/src"
 
         if install_type != 2:
             self.resolve_packages_path_in_toml()
 
-        agi_core = self.core_root / "agi_core"
+        agi_core = self.agi_core_root / "agi_core"
         self.agi_core = agi_core
 
         self.projects = self.get_projects(self.apps_dir)
@@ -667,7 +668,7 @@ class AgiEnv:
         self.AGILAB_VIEWS_ABS = Path(envars.get("AGI_VIEWS_DIR", self.agi_root / "views"))
         self.AGILAB_VIEWS_REL = Path(envars.get("AGI_VIEWS_DIR", "agi/_"))
         if self.install_type == 0:
-            self.copilot_file = self.core_root / "agi_gui/agi_copilot.py"
+            self.copilot_file = self.agi_core_root / "agi_gui/agi_copilot.py"
         else:
             self.copilot_file = self.agi_root / "fwk/gui/src/agi_gui/agi_copilot.py"
 
@@ -1111,13 +1112,13 @@ class AgiEnv:
         try:
             async with self.get_ssh_connection(ip) as conn:
                 msg = f"[{ip}] {cmd}"
-                if AgiEnv.verbose > 1 or self._debug:
+                if AgiEnv.verbose > 1 or AgiEnv._debug:
                     logging.info(msg)
                 result = await conn.run(cmd, check=True)
                 stdout = result.stdout
                 if isinstance(stdout, bytes):
                     stdout = stdout.decode('utf-8', errors='replace')
-                if AgiEnv.verbose > 1 or self._debug:
+                if AgiEnv.verbose > 1 or AgiEnv._debug:
                     logging.info(f"[{ip}] {stdout.strip()}")
                 return stdout.strip()
 

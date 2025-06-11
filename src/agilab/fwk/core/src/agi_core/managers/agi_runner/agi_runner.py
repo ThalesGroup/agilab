@@ -660,22 +660,22 @@ class AGI:
             cmd = (
                 f'{kill_prefix} -c "import getpass, os\n'
                 'try:\n'
-                '    import psutil\n'
-                'except ImportError:\n'
-                '    return\n'  
-                'me = getpass.getuser()\n'
-                'parent_pid = os.getppid()\n'
-                'my_pid = os.getpid()\n'
-                'for p in psutil.process_iter([\'name\', \'username\', \'cmdline\', \'pid\']):\n'
+                '  import psutil\n' 
+                '  me = getpass.getuser()\n'
+                '  parent_pid = os.getppid()\n'
+                '  my_pid = os.getpid()\n'
+                '  for p in psutil.process_iter([\'name\', \'username\', \'cmdline\', \'pid\']):\n'
                 '    try:\n'
-                '        if p.info.get(\'pid\') in (my_pid, parent_pid):\n'
-                '            continue\n'
-                '        if p.info.get(\'username\') and me in p.info[\'username\'] and ('
-                '            (p.info.get(\'name\') and \'dask\' in p.info[\'name\']) or '
-                '            (p.info.get(\'cmdline\') and any(\'dask\' in s.lower() for s in p.info[\'cmdline\']))):\n'
-                '            p.kill()\n'
+                '      if p.info.get(\'pid\') in (my_pid, parent_pid):\n'
+                '        continue\n'
+                '      if p.info.get(\'username\') and me in p.info[\'username\'] and ('
+                '        (p.info.get(\'name\') and \'dask\' in p.info[\'name\']) or '
+                '        (p.info.get(\'cmdline\') and any(\'dask\' in s.lower() for s in p.info[\'cmdline\']))):\n'
+                '        p.kill()\n'
                 '    except (psutil.NoSuchProcess, psutil.AccessDenied):\n'
-                '        pass"'
+                '      pass\n'
+                'except ImportError:\n'
+                '  pass"'
             )
 
             cmds.append(cmd)
@@ -767,11 +767,12 @@ class AGI:
         if wenv_abs.exists():
             env.remove_dir_forcefully(str(wenv_abs))
         os.makedirs(wenv_abs / "src", exist_ok=True)
+        cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
 
         await env.exec_ssh(
             ip,
             cmd=(
-                f"uv run python -c \"import os, glob, shutil\n"
+                f"{cmd_prefix} uv run python -c \"import os, glob, shutil\n"
                 f"from tempfile import gettempdir\n"
                 f"wenv_path = os.path.abspath(os.path.expanduser('{wenv_rel}'))\n"
                 f"dirs = [os.path.join(gettempdir(), 'dask-scratch-space'), wenv_path]\n"
@@ -853,15 +854,15 @@ class AGI:
 
             if uv_is_already_installed:
                 await AGI._kill(ip, force=True)
+                await AGI._clean_dirs(ip)
 
             cmd = (
-                f"{cmd_prefix} rm -r '{wenv_rel}'; "
-                f"mkdir -p '{wenv_rel}'; "
+                f"{cmd_prefix} mkdir -p '{wenv_rel}'; "
                 f"uv --project {wenv_rel} init --bare --no-workspace"
             )
             await env.exec_ssh(ip, cmd)
 
-            cmd = f"uv --project {wenv_rel} add psutil"
+            cmd = f"{cmd_prefix} uv --project {wenv_rel} add psutil"
             await env.exec_ssh(ip, cmd)
 
     @staticmethod
@@ -988,8 +989,7 @@ class AGI:
     @staticmethod
     async def _install_app_remote(ip: str, env, wenv_rel: Path, option: str):
         """Install packages and set up the environment on a remote node."""
-        pyvers = env.python_version
-        python = f"uv -q run -p {pyvers} python"
+
         wenv_abs = env.wenv_abs
         wenv_rel = env.wenv_rel
         dist_rel = env.dist_rel
@@ -1011,27 +1011,32 @@ class AGI:
         await env.send_files(ip, [env.setup_core, env.worker_pyproject, env.uvproject], wenv_rel)
         await env.send_file(ip, egg_file, dist_rel)
 
-        # continue with bootstrap and unzip...
-        cmd = f"{cmd_prefix} uv run -q --project {wenv_rel} python -m ensurepip"
-        await env.exec_ssh(ip, cmd)
-
         cmd = (
-            f"{cmd_prefix} uv run python -c \"import zipfile,pathlib\n"
-            f"r=pathlib.Path(s)\n"
-            f"[zipfile.ZipFile(str(f)).extractall('src') for f in pathlib.Path('dist').glob('*.egg')]\""
+            f"{cmd_prefix} uv --project {wenv_rel} run python -c \"import os, pathlib, zipfile;"
+            f"root = pathlib.Path('{wenv_rel}');"
+            f"root_src = root / 'src';"
+            f"[zipfile.ZipFile(str(e)).extractall(str(root_src))"
+            f"for e in (root / 'dist').glob('*.egg')]\""
         )
 
         await env.exec_ssh(ip, cmd)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
-        check_rapids = 'nvidia-smi'
-        result = await env.exec_ssh(ip, check_rapids)
-        has_rapids_hw = (result != "") and AGI._rapids_enabled
-        env.has_rapids_hw = has_rapids_hw
-        if has_rapids_hw:
-            env.set_env_var(ip, "has_rapids_hw")
+        has_rapids_hw = False
+        if AGI._rapids_enabled:
+            check_rapids = 'nvidia-smi'
 
-        logging.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
+            try:
+                result = await env.exec_ssh(ip, check_rapids)
+            except Exception as e:
+                logging.error(f"rapids is requested but not supported by node [{ip}]")
+                raise
+
+            has_rapids_hw = (result != "") and AGI._rapids_enabled
+            env.has_rapids_hw = has_rapids_hw
+            if has_rapids_hw:
+                env.set_env_var(ip, "has_rapids_hw")
+            logging.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
         # 6) Build and run uv -q sync, adding --config-file only when has_rapids_hw
         if has_rapids_hw:
@@ -1042,32 +1047,21 @@ class AGI:
         await env.exec_ssh(ip, sync_cmd)
 
         # 7) Post-install script
-        cmd = f"{cmd_prefix} uv run -q --project {wenv_rel} -p {pyvers} python {env.post_install_rel} {env.data_dir}"
+        cmd = f"{cmd_prefix} uv run -q --project {wenv_rel} python {env.post_install_rel} {env.data_dir}"
         await env.exec_ssh(ip, cmd)
 
         #####################################################
         # install env & core for enabling dask worker spawn
-        ##################################################
+        ######################################################
 
-        # init venv
-        cmd = (
-            f"{cmd_prefix} {python} -c "
-            "\"import os, subprocess; "
-            f"ROOT = r'{wenv_rel}'; "
-            "subprocess.run(['uv','init','--bare', '--no-workspace'], cwd=ROOT, check=True) "
-            "if not os.path.exists(os.path.join(ROOT, 'pyproject.toml')) else None;\""
-        )
-        await env.exec_ssh(ip, cmd)
-
-        # Bootstrap ensurepip
         cmd = f"{cmd_prefix} uv -q --project {wenv_rel} run python -m ensurepip"
         await env.exec_ssh(ip, cmd)
 
-        cmd = f"{cmd_prefix} uv -q --project {wenv_rel} pip install -e {wenv_rel}"
+        cmd = f"{cmd_prefix} uv -q --project {wenv_rel} run python -m pip install -e {wenv_rel}"
         await env.exec_ssh(ip, cmd)
 
         # build agi_env*.whl
-        wenv = env.agi_fwk_env_path
+        wenv = env.agi_env_root
         cmd = f"{cmd_prefix} uv -q --project {wenv} build --wheel"
         await AgiEnv.run(cmd, venv=wenv)
         src = wenv / "dist"
@@ -1077,7 +1071,7 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"{cmd_prefix} uv -q --upgrade --project {dist_rel} add {dist_rel / whl.name}"
+        cmd = f"{cmd_prefix} uv -q --project {dist_rel} add --upgrade {dist_rel / whl.name}"
         await env.exec_ssh(ip, cmd)
 
         # build agi_core*.whl
@@ -1091,7 +1085,7 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"{cmd_prefix} uv -q --upgrade --project {dist_rel} add {dist_rel / whl.name}"
+        cmd = f"{cmd_prefix} uv -q --project {dist_rel} add --upgrade {dist_rel / whl.name}"
         await env.exec_ssh(ip, cmd)
 
         # build target_worker lib
@@ -1632,7 +1626,6 @@ class AGI:
 
             if AGI._mode & 4:
                 await AGI._install_uv(scheduler)
-                await AGI._clean_nodes(scheduler)
             else:
                 AGI._clean_dirs_local()
 
