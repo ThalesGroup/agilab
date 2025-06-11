@@ -36,6 +36,7 @@ src/*_worker_*/
 /docs/gen-docs.py
 /docs/make.bat
 /docs/Makefile
+/docs/html
 
 # apps
 /src/agilab/apps/*project/
