@@ -49,7 +49,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-agi-core = {path = "/home/pcm/PycharmProjects/agilab/src/agilab/fwk/core", editable = true}
+agi-core = {path = "/Users/jpm/PycharmProjects/agilab/src/agilab/fwk/core", editable = true}
 
 [tool.uv.sources.flight_project]
 workspace = true

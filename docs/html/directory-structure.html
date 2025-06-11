@@ -430,18 +430,19 @@
 <p>This is the Agilab project files tree:</p>
 <div class="code text highlight-default notranslate"><div class="highlight"><pre><span></span>.
 ├── apps
+│   ├── README.md
 │   ├── agent_app_template
 │   │   ├── MANIFEST.in
 │   │   ├── MANIFEST.in.in
-│   │   ├── pyproject.toml
 │   │   ├── README.md
+│   │   ├── pyproject.toml
 │   │   ├── src
 │   │   │   ├── agent_app
-│   │   │   │   ├── agent_app.py
-│   │   │   │   └── __init__.py
-│   │   │   ├── agent_app_worker
-│   │   │   │   ├── agent_app_worker.py
 │   │   │   │   ├── __init__.py
+│   │   │   │   └── agent_app.py
+│   │   │   ├── agent_app_worker
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── agent_app_worker.py
 │   │   │   │   ├── post_install.py
 │   │   │   │   ├── pre_install.py
 │   │   │   │   ├── pyproject.toml
@@ -452,17 +453,17 @@
 │   │   └── uv.toml
 │   ├── dag_app_template
 │   │   ├── MANIFEST.in
-│   │   ├── pyproject.toml
 │   │   ├── README.md
+│   │   ├── pyproject.toml
 │   │   ├── src
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
 │   │   │   ├── dag_app
-│   │   │   │   ├── dag_app.py
-│   │   │   │   └── __init__.py
-│   │   │   ├── dag_app_worker
-│   │   │   │   ├── dag_app_worker.py
 │   │   │   │   ├── __init__.py
+│   │   │   │   └── dag_app.py
+│   │   │   ├── dag_app_worker
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── dag_app_worker.py
 │   │   │   │   ├── post_install.py
 │   │   │   │   ├── pre_install.py
 │   │   │   │   ├── pyproject.toml
@@ -470,23 +471,23 @@
 │   │   │   └── pre_prompt.json
 │   │   └── uv.toml
 │   ├── flight_legacy_project
+│   │   ├── README.md
 │   │   ├── pre_prompt.json
 │   │   ├── pyproject.toml
-│   │   ├── README.md
 │   │   ├── setup
 │   │   ├── src
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
 │   │   │   ├── flight_legacy
-│   │   │   │   ├── flight_legacy.py
-│   │   │   │   └── __init__.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── flight_legacy.py
 │   │   │   ├── flight_legacy_worker
+│   │   │   │   ├── __init__.py
 │   │   │   │   ├── dataset
 │   │   │   │   ├── dataset.7z
 │   │   │   │   ├── flight_legacy_worker.c
 │   │   │   │   ├── flight_legacy_worker.py
 │   │   │   │   ├── flight_legacy_worker.pyx
-│   │   │   │   ├── __init__.py
 │   │   │   │   ├── post_install.py
 │   │   │   │   ├── pre_install.py
 │   │   │   │   ├── pyproject.toml
@@ -496,119 +497,101 @@
 │   │   │   └── pre_prompt.json
 │   │   ├── test
 │   │   │   ├── test_df.ipynb
-│   │   │   ├── test_flight_legacy_manager.py
 │   │   │   ├── test_flight_legacy.py
+│   │   │   ├── test_flight_legacy_manager.py
 │   │   │   └── test_flight_legacy_worker.py
 │   │   └── uv.toml
 │   ├── flight_project
-│   │   ├── dask_pid
+│   │   ├── MANIFEST.in
+│   │   ├── README.md
+│   │   ├── build.py
 │   │   ├── dask-pid-0
 │   │   ├── dask-pid-0.0
 │   │   ├── lab_steps.ipynb
 │   │   ├── lab_steps.toml
-│   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
-│   │   ├── README.md
 │   │   ├── run_test.sh
 │   │   ├── setup
 │   │   ├── src
-│   │   │   ├── agi_worker -&gt; /home/pcm/PycharmProjects/agilab/src/agilab/fwk/core/src/agi_core/workers/agi_worker
-│   │   │   ├── apps
 │   │   │   ├── app_settings.toml
+│   │   │   ├── apps
 │   │   │   ├── args_ui_snippet.py
 │   │   │   ├── flight
-│   │   │   │   ├── flight.py
-│   │   │   │   └── __init__.py
-│   │   │   ├── flight_project.egg-info
-│   │   │   │   ├── dependency_links.txt
-│   │   │   │   ├── not-zip-safe
-│   │   │   │   ├── PKG-INFO
-│   │   │   │   ├── requires.txt
-│   │   │   │   ├── SOURCES.txt
-│   │   │   │   └── top_level.txt
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── flight.py
 │   │   │   ├── flight_worker
+│   │   │   │   ├── __init__.py
 │   │   │   │   ├── dataset.7z
 │   │   │   │   ├── flight_worker.c
 │   │   │   │   ├── flight_worker.py
 │   │   │   │   ├── flight_worker.pyx
-│   │   │   │   ├── __init__.py
 │   │   │   │   ├── post_install.py
 │   │   │   │   ├── pre_install.py
 │   │   │   │   ├── pyproject.toml
 │   │   │   │   └── uv.toml
 │   │   │   ├── lab_steps.ipynb
 │   │   │   ├── lab_steps.toml
-│   │   │   ├── polars_worker -&gt; /home/pcm/PycharmProjects/agilab/src/agilab/fwk/core/src/agi_core/workers/polars_worker
 │   │   │   └── pre_prompt.json
 │   │   ├── test
 │   │   │   ├── __init__.py
 │   │   │   ├── test_df.ipynb
-│   │   │   ├── test_flight_manager.py
 │   │   │   ├── test_flight.py
+│   │   │   ├── test_flight_manager.py
 │   │   │   └── test_flight_worker.py
-│   │   ├── uv.lock
 │   │   └── uv.toml
 │   ├── flight_sim_project
+│   │   ├── README.md
 │   │   ├── distribution_tree.json
 │   │   ├── post_install.py
 │   │   ├── pyproject.toml
-│   │   ├── README.md
 │   │   ├── setup
 │   │   ├── src
+│   │   │   ├── UNKNOWN.egg-info
+│   │   │   │   ├── PKG-INFO
+│   │   │   │   ├── SOURCES.txt
+│   │   │   │   ├── dependency_links.txt
+│   │   │   │   └── top_level.txt
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
 │   │   │   ├── flight_sim
-│   │   │   │   ├── flight_sim.py
-│   │   │   │   └── __init__.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── flight_sim.py
 │   │   │   ├── flight_sim_worker
+│   │   │   │   ├── __init__.py
 │   │   │   │   ├── dataset.7z
 │   │   │   │   ├── flight_sim_worker.py
 │   │   │   │   ├── flight_sim_worker.pyx
-│   │   │   │   ├── __init__.py
 │   │   │   │   ├── post_install.py
 │   │   │   │   ├── pre_install.py
 │   │   │   │   ├── pyproject.toml
 │   │   │   │   └── uv.toml
 │   │   │   ├── main.py
 │   │   │   ├── pre_prompt.json
-│   │   │   ├── pyproject.toml
-│   │   │   └── UNKNOWN.egg-info
-│   │   │       ├── dependency_links.txt
-│   │   │       ├── PKG-INFO
-│   │   │       ├── SOURCES.txt
-│   │   │       └── top_level.txt
+│   │   │   └── pyproject.toml
 │   │   ├── test
 │   │   │   ├── __init__.py
 │   │   │   ├── test_df.ipynb
-│   │   │   ├── test_flight_sim_manager.py
 │   │   │   ├── test_flight_sim.py
+│   │   │   ├── test_flight_sim_manager.py
 │   │   │   └── test_flight_sim_worker.py
 │   │   └── uv.toml
 │   ├── install.ps1
 │   ├── install.py
 │   ├── install.sh
 │   ├── my_code_project
-│   │   ├── apps
-│   │   ├── install.py
 │   │   ├── MANIFEST.in
-│   │   ├── pyproject.toml
 │   │   ├── README.md
+│   │   ├── apps
+│   │   ├── build.py
+│   │   ├── install.py
+│   │   ├── pyproject.toml
 │   │   ├── setup
 │   │   ├── src
-│   │   │   ├── agi_worker -&gt; /home/pcm/PycharmProjects/agilab/src/agilab/fwk/core/src/agi_core/workers/agi_worker
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
-│   │   │   ├── dag_worker -&gt; /home/pcm/PycharmProjects/agilab/src/agilab/fwk/core/src/agi_core/workers/dag_worker
 │   │   │   ├── my_code
 │   │   │   │   ├── __init__.py
 │   │   │   │   └── my_code.py
-│   │   │   ├── my_code_project.egg-info
-│   │   │   │   ├── dependency_links.txt
-│   │   │   │   ├── not-zip-safe
-│   │   │   │   ├── PKG-INFO
-│   │   │   │   ├── requires.txt
-│   │   │   │   ├── SOURCES.txt
-│   │   │   │   └── top_level.txt
 │   │   │   ├── my_code_worker
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── my_code_worker.c
@@ -623,15 +606,14 @@
 │   │   │   ├── __init__.py
 │   │   │   ├── test_my_code_manager.py
 │   │   │   └── test_my_code_worker.py
-│   │   ├── uv.lock
 │   │   ├── uv.toml
 │   │   └── wenv
 │   │       └── my_code_worker
 │   │           └── src
 │   ├── pandas_app_template
 │   │   ├── MANIFEST.in
-│   │   ├── pyproject.toml
 │   │   ├── README.md
+│   │   ├── pyproject.toml
 │   │   ├── src
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
@@ -649,8 +631,8 @@
 │   │   └── uv.toml
 │   ├── polars_app_template
 │   │   ├── MANIFEST.in
-│   │   ├── pyproject.toml
 │   │   ├── README.md
+│   │   ├── pyproject.toml
 │   │   ├── src
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
@@ -666,14 +648,13 @@
 │   │   │   │   └── uv.toml
 │   │   │   └── pre_prompt.json
 │   │   └── uv.toml
-│   ├── README.md
 │   ├── rssi-predictor
 │   │   ├── rssi-predictor
 │   │   └── uv.toml
 │   └── satcom-sim-project
+│       ├── README.md
 │       ├── data.7z
 │       ├── pyproject.toml
-│       ├── README.md
 │       ├── scripts
 │       │   ├── post_install.py
 │       │   └── unzip_data.py
@@ -693,22 +674,22 @@
 │   ├── core
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
-│   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── SECURITY.md
-│   │   ├── setup
+│   │   ├── build.py
+│   │   ├── pyproject.toml
 │   │   ├── src
+│   │   │   ├── __init__.py
 │   │   │   ├── agi_core
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── managers
 │   │   │   │   └── workers
-│   │   │   ├── agi_core.egg-info
-│   │   │   │   ├── dependency_links.txt
-│   │   │   │   ├── PKG-INFO
-│   │   │   │   ├── requires.txt
-│   │   │   │   ├── SOURCES.txt
-│   │   │   │   └── top_level.txt
-│   │   │   └── __init__.py
+│   │   │   └── agi_core.egg-info
+│   │   │       ├── PKG-INFO
+│   │   │       ├── SOURCES.txt
+│   │   │       ├── dependency_links.txt
+│   │   │       ├── requires.txt
+│   │   │       └── top_level.txt
 │   │   ├── test
 │   │   │   ├── __init__.py
 │   │   │   ├── test_agi_manager.py
@@ -721,31 +702,31 @@
 │   │   └── uv.toml
 │   ├── coverage.xml
 │   ├── env
-│   │   ├── coverage.xml
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
-│   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── SECURITY.md
+│   │   ├── coverage.xml
+│   │   ├── pyproject.toml
 │   │   ├── setup
 │   │   ├── src
 │   │   │   ├── agi_env
-│   │   │   │   ├── agi_env.py
 │   │   │   │   ├── __init__.py
+│   │   │   │   ├── agi_env.py
 │   │   │   │   └── resources
 │   │   │   ├── agi_env.egg-info
-│   │   │   │   ├── dependency_links.txt
 │   │   │   │   ├── PKG-INFO
-│   │   │   │   ├── requires.txt
 │   │   │   │   ├── SOURCES.txt
+│   │   │   │   ├── dependency_links.txt
+│   │   │   │   ├── requires.txt
 │   │   │   │   └── top_level.txt
 │   │   │   └── pyproject.toml
 │   │   ├── test
-│   │   │   ├── clean_csv.py
 │   │   │   ├── __init__.py
-│   │   │   ├── test_agi_env.py
+│   │   │   ├── _test_ssh.py
 │   │   │   ├── _test_ssh_cmd.py
-│   │   │   └── _test_ssh.py
+│   │   │   ├── clean_csv.py
+│   │   │   └── test_agi_env.py
 │   │   ├── uv.lock
 │   │   └── uv.toml
 │   ├── gen-app-script.py
@@ -753,25 +734,18 @@
 │   ├── gui
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
-│   │   ├── pyproject.toml
 │   │   ├── README.md
+│   │   ├── pyproject.toml
 │   │   ├── src
-│   │   │   ├── agi_gui
-│   │   │   │   ├── agi_copilot.py
-│   │   │   │   ├── AGILAB.py
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── lab_run.py
-│   │   │   │   ├── pagelib.py
-│   │   │   │   ├── pages
-│   │   │   │   ├── resources
-│   │   │   │   └── steps.toml
-│   │   │   └── agi_gui.egg-info
-│   │   │       ├── dependency_links.txt
-│   │   │       ├── entry_points.txt
-│   │   │       ├── PKG-INFO
-│   │   │       ├── requires.txt
-│   │   │       ├── SOURCES.txt
-│   │   │       └── top_level.txt
+│   │   │   └── agi_gui
+│   │   │       ├── AGILAB.py
+│   │   │       ├── __init__.py
+│   │   │       ├── agi_copilot.py
+│   │   │       ├── lab_run.py
+│   │   │       ├── pagelib.py
+│   │   │       ├── pages
+│   │   │       ├── resources
+│   │   │       └── steps.toml
 │   │   ├── test
 │   │   │   ├── __init__.py
 │   │   │   └── test-streamlit.sh
@@ -780,28 +754,29 @@
 │   ├── install.sh
 │   └── run-all-test.py
 ├── pycharm
-│   ├── gen-app-script.py
 │   ├── _template_app_egg_manager.xml
 │   ├── _template_app_lib_worker.xml
 │   ├── _template_app_postinstall_worker.xml
 │   ├── _template_app_preinstall_manager.xml
 │   ├── _template_app_run.xml
-│   └── _template_app_test.xml
+│   ├── _template_app_test.xml
+│   └── gen-app-script.py
 └── views
+    ├── README.md
     ├── autoencoder-latentspace
     │   ├── __init__.py
     │   └── src
-    │       ├── autoencoder_latentspace
-    │       │   ├── autoencoder_latentspace.py
-    │       │   └── __init__.py
-    │       └── __init__.py
+    │       ├── __init__.py
+    │       └── autoencoder_latentspace
+    │           ├── __init__.py
+    │           └── autoencoder_latentspace.py
     ├── barycentric-graph
     │   ├── __init__.py
     │   └── src
-    │       ├── barycentric_graph
-    │       │   ├── barycentric_graph.py
-    │       │   └── __init__.py
-    │       └── __init__.py
+    │       ├── __init__.py
+    │       └── barycentric_graph
+    │           ├── __init__.py
+    │           └── barycentric_graph.py
     ├── maps
     │   └── src
     │       └── maps
@@ -818,10 +793,9 @@
     │           ├── __init__.py
     │           └── maps_network_graph.py
     ├── maps-network-graph.7z
-    ├── pyproject.toml
-    └── README.md
+    └── pyproject.toml
 
-96 directories, 296 files
+89 directories, 277 files
 </pre></div>
 </div>
 </section>
