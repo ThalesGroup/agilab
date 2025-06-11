@@ -13,7 +13,7 @@ def unzip_data(archive_path: Path, extract_to: Path | str = None):
     # Normalize extract_to to a Path relative to cwd or absolute
     if not extract_to:
         extract_to = Path("data")
-    dest = Path(extract_to).expanduser().resolve()
+    dest = Path.home() / Path(extract_to)
     dataset = dest / "dataset"
     # Clear existing folder if not empty to avoid extraction errors on second call
     if dataset.exists() and any(dataset.iterdir()):
@@ -32,7 +32,7 @@ def unzip_data(archive_path: Path, extract_to: Path | str = None):
 
 if __name__ == "__main__":
     if len(sys.argv) not in (1, 2):
-        print("Usage: python unzip.py [destination]")
+        print("Usage: python post_install.py [destination]")
         sys.exit(1)
 
     archive = Path(__file__).parent / "dataset.7z"
