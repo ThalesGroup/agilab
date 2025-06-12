@@ -98,6 +98,7 @@ def page(env):
         st.write("Redirecting to the main application...")
         st.session_state.current_page = "▶️ EDIT"
         st.rerun()
+
     current_year = datetime.now().year
     st.markdown(
         f"""
@@ -183,14 +184,13 @@ def main():
             st.session_state.current_page = "AGILAB"
 
         if st.session_state.current_page == "AGILAB":
-            st.session_state.current_page = None
             page(env)
         elif st.session_state.current_page == "▶️ EDIT":
-            st.session_state.current_page = None
             page_module = importlib.import_module("pages.▶️ EDIT")
             page_module.main()
         else:
             page(env)
+
     except Exception as e:
         st.error(f"An error occurred: {e}")
         import traceback
