@@ -582,9 +582,9 @@ class AGI:
 
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         if AGI._is_local(ip):
-            kill_prefix = f'{cmd_prefix} uv run --project {env.agi_core} python'
+            kill_prefix = f'{cmd_prefix}uv run --project {env.agi_core} python'
         else:
-            kill_prefix = f'{cmd_prefix} uv run --project {env.wenv_rel} python'
+            kill_prefix = f'{cmd_prefix}uv run --project {env.wenv_rel} python'
 
         # 2) If force, kill by process name
         if force:
