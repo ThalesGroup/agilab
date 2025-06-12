@@ -14,6 +14,7 @@
     <orderEntry type="module" module-name="flight_project" />
     <orderEntry type="module" module-name="my_code_worker" />
     <orderEntry type="module" module-name="my_code_project" />
+    <orderEntry type="module" module-name="flight_worker" />
   </component>
   <component name="PyDocumentationSettings">
     <option name="format" value="PLAIN" />
