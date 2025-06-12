@@ -660,17 +660,27 @@ class AGI:
             cmd = (
                 f'{kill_prefix} -c "import getpass, os\n'
                 'try:\n'
-                '  import psutil\n' 
+                '  import psutil\n'
                 '  me = getpass.getuser()\n'
-                '  parent_pid = os.getppid()\n'
                 '  my_pid = os.getpid()\n'
+                '  # collect ancestry PIDs\n'
+                '  ancestor_pids = set()\n'
+                '  try:\n'
+                '    p = psutil.Process(my_pid)\n'
+                '    while p:\n'
+                '      ancestor_pids.add(p.pid)\n'
+                '      p = p.parent()\n'
+                '  except Exception:\n'
+                '    pass\n'
                 '  for p in psutil.process_iter([\'name\', \'username\', \'cmdline\', \'pid\']):\n'
                 '    try:\n'
-                '      if p.info.get(\'pid\') in (my_pid, parent_pid):\n'
+                '      pid = p.info.get(\'pid\')\n'
+                '      if pid in ancestor_pids:\n'
                 '        continue\n'
-                '      if p.info.get(\'username\') and me in p.info[\'username\'] and ('
-                '        (p.info.get(\'name\') and \'dask\' in p.info[\'name\']) or '
-                '        (p.info.get(\'cmdline\') and any(\'dask\' in s.lower() for s in p.info[\'cmdline\']))):\n'
+                '      cmdline = p.info.get(\'cmdline\') or []\n'
+                '      if (p.info.get(\'username\') and me in p.info[\'username\'] and\n'
+                '          ((p.info.get(\'name\') and \'dask\' in p.info[\'name\']) or\n'
+                '           any(\'dask\' in s.lower() for s in cmdline))):\n'
                 '        p.kill()\n'
                 '    except (psutil.NoSuchProcess, psutil.AccessDenied):\n'
                 '      pass\n'
@@ -772,7 +782,7 @@ class AGI:
         await env.exec_ssh(
             ip,
             cmd=(
-                f"{cmd_prefix} uv run python -c \"import os, glob, shutil\n"
+                f"{cmd_prefix}uv run python -c \"import os, glob, shutil\n"
                 f"from tempfile import gettempdir\n"
                 f"wenv_path = os.path.abspath(os.path.expanduser('{wenv_rel}'))\n"
                 f"dirs = [os.path.join(gettempdir(), 'dask-scratch-space'), wenv_path]\n"
@@ -836,7 +846,7 @@ class AGI:
             uv_is_already_installed = True
             # 2) Check uv
             try:
-                await env.exec_ssh(ip, f"{cmd_prefix} uv -q --version")
+                await env.exec_ssh(ip, f"{cmd_prefix}uv -q --version")
             except Exception:
                 uv_is_already_installed = False
                 # Try Windows installer
@@ -850,19 +860,19 @@ class AGI:
                     await env.exec_ssh(ip, 'source $HOME/.local/bin/env')
 
             # 3) Install Python
-            await env.exec_ssh(ip, f"{cmd_prefix} uv -q python install {pyvers}")
+            await env.exec_ssh(ip, f"{cmd_prefix}uv -q python install {pyvers}")
 
             if uv_is_already_installed:
                 await AGI._kill(ip, force=True)
                 await AGI._clean_dirs(ip)
 
             cmd = (
-                f"{cmd_prefix} mkdir -p '{wenv_rel}'; "
+                f"{cmd_prefix}mkdir -p '{wenv_rel}'; "
                 f"uv --project {wenv_rel} init --bare --no-workspace"
             )
             await env.exec_ssh(ip, cmd)
 
-            cmd = f"{cmd_prefix} uv --project {wenv_rel} add psutil"
+            cmd = f"{cmd_prefix}uv --project {wenv_rel} add psutil"
             await env.exec_ssh(ip, cmd)
 
     @staticmethod
@@ -998,7 +1008,7 @@ class AGI:
 
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
 
-        cmd = f"{cmd_prefix} uv run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
+        cmd = f"{cmd_prefix}uv run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
         await env.exec_ssh(ip, cmd)
 
         # Then send the files to the remote directory
@@ -1012,7 +1022,7 @@ class AGI:
         await env.send_file(ip, egg_file, dist_rel)
 
         cmd = (
-            f"{cmd_prefix} uv --project {wenv_rel} run python -c \"import os, pathlib, zipfile;"
+            f"{cmd_prefix}uv --project {wenv_rel} run python -c \"import os, pathlib, zipfile;"
             f"root = pathlib.Path('{wenv_rel}');"
             f"root_src = root / 'src';"
             f"[zipfile.ZipFile(str(e)).extractall(str(root_src))"
@@ -1040,29 +1050,29 @@ class AGI:
 
         # 6) Build and run uv -q sync, adding --config-file only when has_rapids_hw
         if has_rapids_hw:
-            sync_cmd = f"{cmd_prefix} uv sync -q --upgrade --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option} --refresh-package dask"
+            sync_cmd = f"{cmd_prefix}uv sync -q --upgrade --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option} --refresh-package dask"
         else:
-            sync_cmd = f"{cmd_prefix} uv sync -q --upgrade --project {wenv_rel} {option} --refresh-package dask "
+            sync_cmd = f"{cmd_prefix}uv sync -q --upgrade --project {wenv_rel} {option} --refresh-package dask "
 
         await env.exec_ssh(ip, sync_cmd)
 
         # 7) Post-install script
-        cmd = f"{cmd_prefix} uv run -q --project {wenv_rel} python {env.post_install_rel} {env.data_rel}"
+        cmd = f"{cmd_prefix}uv run -q --project {wenv_rel} python {env.post_install_rel} {env.data_rel}"
         await env.exec_ssh(ip, cmd)
 
         #####################################################
         # install env & core for enabling dask worker spawn
         ######################################################
 
-        cmd = f"{cmd_prefix} uv -q --project {wenv_rel} run python -m ensurepip"
+        cmd = f"{cmd_prefix}uv -q --project {wenv_rel} run python -m ensurepip"
         await env.exec_ssh(ip, cmd)
 
-        cmd = f"{cmd_prefix} uv -q --project {wenv_rel} run python -m pip install -e {wenv_rel}"
+        cmd = f"{cmd_prefix}uv -q --project {wenv_rel} run python -m pip install -e {wenv_rel}"
         await env.exec_ssh(ip, cmd)
 
         # build agi_env*.whl
         wenv = env.agi_env_root
-        cmd = f"{cmd_prefix} uv -q --project {wenv} build --wheel"
+        cmd = f"{cmd_prefix}uv -q --project {wenv} build --wheel"
         await AgiEnv.run(cmd, venv=wenv)
         src = wenv / "dist"
         try:
@@ -1072,13 +1082,13 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"{cmd_prefix} uv -q --project {dist_rel} add --upgrade {dist_rel / whl.name}"
+        cmd = f"{cmd_prefix}uv -q --project {dist_rel} add --upgrade {dist_rel / whl.name}"
         await env.exec_ssh(ip, cmd)
 
         # build agi_core*.whl
         wenv = env.agi_core_root
         src = wenv / "dist"
-        cmd = f"{cmd_prefix} uv -q --project {wenv} build --wheel"
+        cmd = f"{cmd_prefix}uv -q --project {wenv} build --wheel"
         await AgiEnv.run(cmd, venv=wenv)
         try:
             whl = next(iter(src.glob("agi_core*.whl")))
@@ -1086,11 +1096,11 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"{cmd_prefix} uv -q --project {dist_rel} add --upgrade {dist_rel / whl.name}"
+        cmd = f"{cmd_prefix}uv -q --project {dist_rel} add --upgrade {dist_rel / whl.name}"
         await env.exec_ssh(ip, cmd)
 
         # build target_worker lib
-        cmd = f"{cmd_prefix} uv -q --project {wenv_rel} run python {wenv_rel / env.setup_app.name} build_ext -i 2 -b {wenv_rel}"
+        cmd = f"{cmd_prefix}uv -q --project {wenv_rel} run python {wenv_rel / env.setup_app.name} build_ext -i 2 -b {wenv_rel}"
         await env.exec_ssh(ip, cmd)
 
     @staticmethod
@@ -1318,7 +1328,7 @@ class AGI:
         if any(x in os_id for x in ('Linux', 'Darwin', 'BSD')):
             return 'export PATH="$HOME/.local/bin:$PATH";'
         else:
-            return None  # 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
+            return ""  # 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
 
     @staticmethod
     async def _start(scheduler):
@@ -1346,14 +1356,14 @@ class AGI:
                         wenv_abs = env.wenv_abs
                         cmd = (
                             # f'{export_cmd} '
-                            f'{cmd_prefix} uv -q --project {wenv_abs} run dask worker tcp://{AGI._scheduler} --no-nanny '
+                            f'{cmd_prefix}uv -q --project {wenv_abs} run dask worker tcp://{AGI._scheduler} --no-nanny '
                             f'--pid-file {pid_file}'
                         )
                         # Run locally in background (non-blocking)
                         AGI._exec_bg(cmd, str(wenv_abs))
                     else:
                         wenv_rel = env.wenv_rel
-                        cmd = f'{cmd_prefix} uv -q --project {wenv_rel} run dask worker tcp://{AGI._scheduler} --no-nanny --pid-file {pid_file}'
+                        cmd = f'{cmd_prefix}uv -q --project {wenv_rel} run dask worker tcp://{AGI._scheduler} --no-nanny --pid-file {pid_file}'
                         asyncio.create_task(env.exec_ssh_async(ip, cmd))
                         logging.info(f"Launched remote worker in background on {ip}: {cmd}")
 
