@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="PYTHON_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/agilab/fwk/core/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/agilab/fwk/env/src" isTestSource="false" />
+    </content>
+    <orderEntry type="jdk" jdkName="uv (agilab)" jdkType="Python SDK" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module" module-name="core" />
+    <orderEntry type="module" module-name="env" />
+    <orderEntry type="module" module-name="gui" />
+    <orderEntry type="module" module-name="flight_project" />
+    <orderEntry type="module" module-name="my_code_worker" />
+    <orderEntry type="module" module-name="my_code_project" />
+  </component>
+  <component name="PyDocumentationSettings">
+    <option name="format" value="PLAIN" />
+    <option name="myDocStringFormat" value="Plain" />
+  </component>
+  <component name="TestRunnerService">
+    <option name="PROJECT_TEST_RUNNER" value="py.test" />
+  </component>
+</module>
