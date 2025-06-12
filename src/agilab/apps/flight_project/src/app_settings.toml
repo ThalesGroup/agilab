@@ -19,10 +19,6 @@ view_module = [
 [cluster]
 verbose = true
 cython = true
-cluster_enabled = true
+cluster_enabled = false
 rapids = false
 pool = true
-scheduler = "192.168.20.123"
-
-[cluster.workers]
-"192.168.20.222" = 1
