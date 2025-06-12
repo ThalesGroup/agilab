@@ -1,5 +1,3 @@
-import sys
-from pathlib import Path
 import pandas as pd
 import pytest
 import multiprocessing
@@ -15,7 +13,7 @@ if str(core_path) not in sys.path:
 
 # Now import modules
 from agi_core.workers.pandas_worker import PandasWorker
-from dummy_workers import DummyPandasWorker, DummyWorker
+from agi_core.workers.dummy_worker import DummyPandasWorker
 
 
 # --- Pytest Fixtures ---
