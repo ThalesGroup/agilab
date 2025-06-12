@@ -32,17 +32,17 @@ To load the private key into the SSH agent of the manager, follow these steps:
 
 .. tabs::
 
-	.. tab:: **Windows**
+    .. tab:: **Windows**
 
-		.. code-block:: powershell
-		
-		   ssh-add $env:USERPROFILE/.ssh/id_ed25519
+        .. code-block:: powershell
 
-	.. tab:: **Linux**
+           ssh-add $env:USERPROFILE/.ssh/id_ed25519
 
-		.. code-block:: bash
-		
-		   ssh-add ~/.ssh/id_ed25519
+    .. tab:: **Linux**
+
+        .. code-block:: bash
+
+           ssh-add ~/.ssh/id_ed25519
 
 If you have set a passphrase, you will be asked to enter it. If you encounter any permission-related errors, refer to the `Permissions`_ section.
 
@@ -61,49 +61,49 @@ It should display the **public key** (not private). To manually check the public
 
 .. tabs::
 
-	.. tab:: **Windows**
+    .. tab:: **Windows**
 
-		.. code-block:: powershell
+        .. code-block:: powershell
 
-		   cat $env:USERPROFILE/.ssh/id_ed25519.pub
+           cat $env:USERPROFILE/.ssh/id_ed25519.pub
 
-	.. tab:: **Linux**
+    .. tab:: **Linux**
 
-		.. code-block:: bash
+        .. code-block:: bash
 
-		   cat ~/.ssh/id_ed25519.pub
+           cat ~/.ssh/id_ed25519.pub
 
 
-Copy the public key to the server
+Copy the public key to the worker
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To authorize connections to the worker, add your public key to the worker's authorized keys:
 
 .. tabs::
 
-	.. tab:: **Unix manager** and **Unix worker**
-		
-		.. code-block:: bash
+    .. tab:: **Unix manager** and **Unix worker**
 
-		   ssh-copy-id -i ~/.ssh/id_ed25519 <remote account>@<worker ip>
+        .. code-block:: bash
 
-	.. tab:: **Unix manager** and **Windows worker**
+           ssh-copy-id -i ~/.ssh/id_ed25519 <remote account>@<worker ip>
 
-		.. code-block:: bash
+    .. tab:: **Unix manager** and **Windows worker**
 
-		   cat ~/.ssh/id_ed25519.pub | ssh <remote account>@<worker ip> "cat >> C:/Users/<remote account>/.ssh/authorized_keys"
+        .. code-block:: bash
 
-	.. tab:: **Windows manager** and **Windows worker**
+           cat ~/.ssh/id_ed25519.pub | ssh <remote account>@<worker ip> "powershell -Command \"\$input | Out-File -Append -Encoding ascii C:\Users\account\.ssh\authorized_keys\""
 
-		.. code-block:: powershell
+    .. tab:: **Windows manager** and **Windows worker**
 
-		   Get-Content -Raw "${env:USERPROFILE}\.ssh\id_ed25519.pub" | ssh <remote account>@<worker ip> "cat >> C:/Users/<remote account>/.ssh/authorized_keys"
+        .. code-block:: powershell
 
-	.. tab:: **Windows manager** and **Unix worker**:
+           Get-Content -Raw $env:USERPROFILE\.ssh\id_ed25519.pub | ssh <remote account>@<worker ip> "powershell -Command \"\$input | Out-File -Append -Encoding ascii C:\Users\account\.ssh\authorized_keys\""
 
-		.. code-block:: powershell
+    .. tab:: **Windows manager** and **Unix worker**:
 
-		   Get-Content -Raw "${env:USERPROFILE}\.ssh\id_ed25519.pub" | ssh <remote account>@<worker ip> "cat >> ~/.ssh/authorized_keys"
+        .. code-block:: powershell
+
+           Get-Content -Raw "${env:USERPROFILE}\.ssh\id_ed25519.pub" | ssh <remote account>@<worker ip> "cat >> ~/.ssh/authorized_keys"
 
 SSHD Service
 ^^^^^^^^^^^^
@@ -130,80 +130,80 @@ Restart the SSHD service
 
 .. tabs::
 
-	.. tab:: **Windows worker (admin)**
+    .. tab:: **Windows worker (admin)**
 
-		.. code-block:: powershell
+        .. code-block:: powershell
 
-		   Restart-Service sshd   # Restart SSH Server
-		   Restart-Service ssh-agent   # Restart SSH Agent
+           Restart-Service sshd   # Restart SSH Server
+           Restart-Service ssh-agent   # Restart SSH Agent
 
-	.. tab:: **Linux worker**
+    .. tab:: **Linux worker**
 
-		.. code-block:: bash
+        .. code-block:: bash
 
-		   sudo systemctl restart ssh  # Restart SSH Server
-		   eval "$(ssh-agent -s)"  # Restart SSH Agent
+           sudo systemctl restart ssh  # Restart SSH Server
+           eval "$(ssh-agent -s)"  # Restart SSH Agent
 
 Check the service status:
 ~~~~~~~~~~~~~~~~~~~~~
 
 .. tabs::
 
-	.. tab:: **Windows worker (admin)**
+    .. tab:: **Windows worker (admin)**
 
-		.. code-block:: powershell
+        .. code-block:: powershell
 
-		   Get-Service sshd
-		   Get-Service ssh-agent
+           Get-Service sshd
+           Get-Service ssh-agent
 
-	.. tab:: **Linux worker**
+    .. tab:: **Linux worker**
 
-		.. code-block:: bash
+        .. code-block:: bash
 
-		   sudo systemctl status ssh  # Check SSH Server status
-		   ssh-add -L  # Check if the SSH agent is running
+           sudo systemctl status ssh  # Check SSH Server status
+           ssh-add -L  # Check if the SSH agent is running
 Permissions
 ^^^^^^^^^^^
 
 .. tabs::
 
-	.. tab:: **Windows**
+    .. tab:: **Windows**
 
-		Ensure that the ``.ssh`` folder and files ``id_ed25519`` and ``authorized_keys`` have the correct permissions:
+        Ensure that the ``.ssh`` folder and files ``id_ed25519`` and ``authorized_keys`` have the correct permissions:
 
-		.. code-block:: bash
+        .. code-block:: bash
 
-		   .ssh\id_rsa        AUTORITE NT\Système:(F)
-				      BUILTIN\Administrateurs:(F)
-				      %USERNAME%:(M)
+           .ssh\id_rsa        AUTORITE NT\Système:(F)
+                      BUILTIN\Administrateurs:(F)
+                      %USERNAME%:(M)
 
-		To view permissions:
+        To view permissions:
 
-		.. code-block:: powershell
+        .. code-block:: powershell
 
-		    icacls "$env:userprofile\.ssh"
+            icacls "$env:userprofile\.ssh"
 
-		To set correct permissions:
+        To set correct permissions:
 
-		.. code-block:: powershell
+        .. code-block:: powershell
 
-		    icacls "$env:userprofile\.ssh\id_ed25519" /inheritance:r /grant "AUTORITE NT\Système:(F)" "BUILTIN\Administrateurs:(F)" "$env:username:(M)"
+            icacls "$env:userprofile\.ssh\id_ed25519" /inheritance:r /grant "AUTORITE NT\Système:(F)" "BUILTIN\Administrateurs:(F)" "$env:username:(M)"
 
-	.. tab:: **Linux worker**
+    .. tab:: **Linux worker**
 
-		Ensure the ``.ssh`` folder and files have correct permissions:
+        Ensure the ``.ssh`` folder and files have correct permissions:
 
-		.. code-block:: bash
+        .. code-block:: bash
 
-		    chmod 700 ~/.ssh
-		    chmod 600 ~/.ssh/id_ed25519
-		    chmod 600 ~/.ssh/authorized_keys
+            chmod 700 ~/.ssh
+            chmod 600 ~/.ssh/id_ed25519
+            chmod 600 ~/.ssh/authorized_keys
 
-		To verify:
+        To verify:
 
-		.. code-block:: bash
+        .. code-block:: bash
 
-		    ls -l "~/.ssh"
+            ls -l "~/.ssh"
 
 Useful links
 ^^^^^^
