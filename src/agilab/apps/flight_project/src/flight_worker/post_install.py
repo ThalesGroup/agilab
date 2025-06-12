@@ -7,14 +7,15 @@ import traceback
 def unzip_data(archive_path: Path, extract_to: Path | str = None):
     archive_path = Path(archive_path)
     if not archive_path.exists():
-        print(f"Archive '{archive_path}' does not exist.")
-        sys.exit(1)
+        print(f"Warning: Archive '{archive_path}' does not exist. Skipping extraction.")
+        return  # Do not exit, just warn
 
     # Normalize extract_to to a Path relative to cwd or absolute
     if not extract_to:
         extract_to = Path("data")
     dest = Path.home() / Path(extract_to)
     dataset = dest / "dataset"
+
     # Clear existing folder if not empty to avoid extraction errors on second call
     if dataset.exists() and any(dataset.iterdir()):
         print(f"Destination '{dataset}' exists and is not empty. Clearing it before extraction.")
