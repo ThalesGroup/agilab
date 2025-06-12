@@ -87,6 +87,7 @@
 | graphene | MIT |
 | graphql-core | MIT LICENSE |
 | graphql-relay | MIT LICENSE |
+| greenlet | MIT;; PYTHON-2.0 |
 | grpcio | APACHE SOFTWARE LICENSE |
 | grpcio-status | APACHE SOFTWARE LICENSE |
 | gunicorn | MIT LICENSE |
@@ -314,6 +315,7 @@
 | uvicorn | BSD LICENSE |
 | validators | MIT LICENSE |
 | visions | BSD LICENSE |
+| watchdog | APACHE SOFTWARE LICENSE |
 | wcwidth | MIT LICENSE |
 | webcolors | BSD LICENSE |
 | webencodings | BSD LICENSE |
