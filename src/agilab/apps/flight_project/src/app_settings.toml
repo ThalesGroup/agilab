@@ -18,7 +18,11 @@ view_module = [
 
 [cluster]
 verbose = true
-cython = true
-cluster_enabled = false
+cython = false
+cluster_enabled = true
 rapids = false
-pool = true
+pool = false
+scheduler = "10.42.0.38"
+
+[cluster.workers]
+"10.42.0.125" = 1
