@@ -1604,16 +1604,22 @@ class AGI:
         if AGI._mode == AGI.INSTALL_MODE:
             workers_tree
 
-        #AGI._dask_client.gather(
-        await AGI._dask_client.submit(
-                AgiWorker.new,
-                env.app,
-                mode=AGI._mode,
-                verbose=AGI._verbose,
-                worker_id=0,
-                worker=AGI._dask_workers[0],
-                args=AGI._args,
-         )
+        AGI._dask_client.gather(
+            [
+                AGI._dask_client.submit(
+                    AgiWorker.new,
+                    env.app,
+                    env= 0 if env._debug else None,
+                    mode=AGI._mode,
+                    verbose=AGI._verbose,
+                    worker_id=list(AGI._dask_workers).index(worker),
+                    worker=worker,
+                    args=AGI._args,
+                    workers=[worker],
+                )
+                for worker in AGI._dask_workers
+            ]
+        )
 
         await AGI._calibration()
 
