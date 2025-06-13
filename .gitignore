@@ -29,14 +29,6 @@ src/*_worker_*/
 # Pytest caches
 .pytest*
 
-# docs sources
-/docs/source/
-/docs/.gitignore
-/docs/__init__.py
-/docs/gen-docs.py
-/docs/make.bat
-/docs/Makefile
-
 # apps
 /src/agilab/apps/*project/
 !/src/agilab/apps/flight_project/
