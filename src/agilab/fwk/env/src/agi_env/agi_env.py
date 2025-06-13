@@ -56,6 +56,7 @@ class AgiEnv:
     init_done = False
     has_rapids_hw = None
     _debug = False
+    uv = None
     benchmark = None
     verbose = None
     import inspect
@@ -69,8 +70,13 @@ class AgiEnv:
         0 = WARNING, 1 = INFO, 2 or more = DEBUG
         INFO and DEBUG levels go to stdout; WARNING and above go to stderr.
         """
+
+        self.uv = "uv"
         if verbosity is None:
             verbosity = 0
+        elif verbosity > 1:
+            self.uv = "uv -q"
+
 
         # Root logger level based on verbosity
         root_level = logging.DEBUG if verbosity >= 2 else logging.INFO if verbosity == 1 else logging.WARNING

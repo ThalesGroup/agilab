@@ -73,7 +73,7 @@ class AGI:
     **To run on a cluster:**
         1. Create a Agi account on each host with SSH access.
         2. Copy your project's `pyproject.toml` to each host.
-        3. Run `uv -q sync` before using AGI.
+        3. Run `uv sync` before using AGI.
         4. To run with output data, provide a shared directory accessible from all hosts. Use this directory in your Python target code as both input and output.
 
     **Remarks:**
@@ -215,7 +215,7 @@ class AGI:
                 logging.info("parameter <mode> must be an int, a list of int or a string")
                 sys.exit(1)
 
-            AGI._run_types = ["run", "sync --upgrade", "sync", "simulate"]
+            AGI._run_types = ["run", "sync --upgrade", "sync --upgradeƒ", "simulate"]
             if AGI._mode:
                 if AGI._mode & AGI.RUN_MASK not in range(0, AGI.RAPIDS_MODE):
                     raise ValueError(f"mode {AGI._mode} not implemented")
@@ -475,7 +475,7 @@ class AGI:
         except ModuleNotFoundError as e:
             module_to_install = (str(e).replace("No module named ", "").lower().replace("'", ""))
             app_path = AGI.env.app_abs
-            cmd = f"uv -q --upgrade add {module_to_install}"
+            cmd = f"{env.uv} --upgrade add {module_to_install}"
             logging.info(f"{cmd} from {app_path}")
             await AgiEnv.run(cmd, app_path)
             AGI._module_to_clean.append(module_to_install)
@@ -582,9 +582,9 @@ class AGI:
 
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         if AGI._is_local(ip):
-            kill_prefix = f'{cmd_prefix}uv run --project {env.agi_core} python'
+            kill_prefix = f'{cmd_prefix}{env.uv} run --project {env.agi_core} python'
         else:
-            kill_prefix = f'{cmd_prefix}uv run --project {env.wenv_rel} python'
+            kill_prefix = f'{cmd_prefix}{env.uv} run --project {env.wenv_rel} python'
 
         # 2) If force, kill by process name
         if force:
@@ -782,7 +782,7 @@ class AGI:
         await env.exec_ssh(
             ip,
             cmd=(
-                f"{cmd_prefix}uv run python -c \"import os, glob, shutil\n"
+                f"{cmd_prefix}{env.uv} run python -c \"import os, glob, shutil\n"
                 f"from tempfile import gettempdir\n"
                 f"wenv_path = os.path.abspath(os.path.expanduser('{wenv_rel}'))\n"
                 f"dirs = [os.path.join(gettempdir(), 'dask-scratch-space'), wenv_path]\n"
@@ -856,8 +856,8 @@ class AGI:
             uv_is_already_installed = True
             # 2) Check uv
             try:
-                await env.exec_ssh(ip, f"{cmd_prefix}uv -q --version")
-                await env.exec_ssh(ip, f"{cmd_prefix}uv -q self update")
+                await env.exec_ssh(ip, f"{cmd_prefix}{env.uv} --version")
+                await env.exec_ssh(ip, f"{cmd_prefix}{env.uv} self update")
             except Exception:
                 uv_is_already_installed = False
                 # Try Windows installer
@@ -871,7 +871,7 @@ class AGI:
                     await env.exec_ssh(ip, 'source $HOME/.local/bin/env')
 
             # 3) Install Python
-            await env.exec_ssh(ip, f"{cmd_prefix}uv -q python install {pyvers}")
+            await env.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers}")
 
             if uv_is_already_installed:
                 await AGI._kill(ip, force=True)
@@ -879,11 +879,11 @@ class AGI:
 
             cmd = (
                 f"{cmd_prefix}mkdir -p '{wenv_rel}'; "
-                f"uv --project {wenv_rel} init --bare --no-workspace"
+                f"{env.uv} --project {wenv_rel} init --bare --no-workspace"
             )
             await env.exec_ssh(ip, cmd)
 
-            cmd = f"{cmd_prefix}uv --project {wenv_rel} add psutil"
+            cmd = f"{cmd_prefix}{env.uv} --project {wenv_rel} add psutil"
             await env.exec_ssh(ip, cmd)
 
     @staticmethod
@@ -969,9 +969,9 @@ class AGI:
         # Commande pour manager selon si rapids supporté
         app_path = env.app_abs
         if has_rapids_hw:
-            cmd_manager = f"uv -q --config-file uv.toml {run_type} {options['manager']} --extra managers --project {app_path}"
+            cmd_manager = f"{env.uv} --config-file uv.toml {run_type} {options['manager']} --extra managers --project {app_path}"
         else:
-            cmd_manager = f"uv -q {run_type} {options['manager']} --extra managers --project {app_path}"
+            cmd_manager = f"{env.uv} {run_type} {options['manager']} --extra managers --project {app_path}"
 
         logging.info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
@@ -988,9 +988,9 @@ class AGI:
 
         # Commande pour workers selon si rapids supporté
         if has_rapids_hw:
-            cmd_worker = f"uv -q --config-file uv.toml {run_type} --project {wenv_abs} {options['worker']} --extra workers"
+            cmd_worker = f"{env.uv} --config-file uv.toml {run_type} --project {wenv_abs} {options['worker']} --extra workers"
         else:
-            cmd_worker = f"uv -q {run_type} --project {wenv_abs} {options['worker']} --extra workers"
+            cmd_worker = f"{env.uv} {run_type} --project {wenv_abs} {options['worker']} --extra workers"
 
         logging.info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
@@ -999,7 +999,7 @@ class AGI:
         wenv = await AGI._build_lib_local(is_local=True)
 
         # Lancer le script post_install
-        cmd_post = f"uv -q --project {wenv} run -p {pyvers} python {env.app_abs / env.post_install} {env.data_rel}"
+        cmd_post = f"{env.uv} --project {wenv} run -p {pyvers} python {env.app_abs / env.post_install} {env.data_rel}"
         logging.info(f"Running post-install script: {cmd_post}")
         await AgiEnv.run(cmd_post, wenv)
 
@@ -1019,7 +1019,7 @@ class AGI:
 
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
 
-        cmd = f"{cmd_prefix}uv run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
+        cmd = f"{cmd_prefix}{env.uv} run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
         await env.exec_ssh(ip, cmd)
 
         # Then send the files to the remote directory
@@ -1033,7 +1033,7 @@ class AGI:
         await env.send_file(ip, egg_file, dist_rel)
 
         cmd = (
-            f"{cmd_prefix}uv --project {wenv_rel} run python -c \"import os, pathlib, zipfile;"
+            f"{cmd_prefix}{env.uv} --project {wenv_rel} run python -c \"import os, pathlib, zipfile;"
             f"root = pathlib.Path('{wenv_rel}');"
             f"root_src = root / 'src';"
             f"[zipfile.ZipFile(str(e)).extractall(str(root_src))"
@@ -1059,31 +1059,31 @@ class AGI:
                 env.set_env_var(ip, "has_rapids_hw")
             logging.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
-        # 6) Build and run uv -q sync, adding --config-file only when has_rapids_hw
+        # 6) Build and run uv sync, adding --config-file only when has_rapids_hw
         if has_rapids_hw:
-            sync_cmd = f"{cmd_prefix}uv sync -q --upgrade --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option} --refresh-package dask"
+            sync_cmd = f"{cmd_prefix}{env.uv} sync --upgrade --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option} --refresh-package dask"
         else:
-            sync_cmd = f"{cmd_prefix}uv sync -q --upgrade --project {wenv_rel} {option} --refresh-package dask "
+            sync_cmd = f"{cmd_prefix}{env.uv} sync --upgrade --project {wenv_rel} {option} --refresh-package dask "
 
         await env.exec_ssh(ip, sync_cmd)
 
         # 7) Post-install script
-        cmd = f"{cmd_prefix}uv run -q --project {wenv_rel} python {env.post_install_rel} {env.data_rel}"
+        cmd = f"{cmd_prefix}{env.uv} run --project {wenv_rel} python {env.post_install_rel} {env.data_rel}"
         await env.exec_ssh(ip, cmd)
 
         #####################################################
         # install env & core for enabling dask worker spawn
         ######################################################
 
-        cmd = f"{cmd_prefix}uv -q --project {wenv_rel} run python -m ensurepip"
+        cmd = f"{cmd_prefix}{env.uv} --project {wenv_rel} run python -m ensurepip"
         await env.exec_ssh(ip, cmd)
 
-        cmd = f"{cmd_prefix}uv -q --project {wenv_rel} run python -m pip install -e {wenv_rel}"
+        cmd = f"{cmd_prefix}{env.uv} --project {wenv_rel} run python -m pip install -e {wenv_rel}"
         await env.exec_ssh(ip, cmd)
 
         # build agi_env*.whl
         wenv = env.agi_env_root
-        cmd = f"{cmd_prefix}uv -q --project {wenv} build --wheel"
+        cmd = f"{cmd_prefix}{env.uv} --project {wenv} build --wheel"
         await AgiEnv.run(cmd, venv=wenv)
         src = wenv / "dist"
         try:
@@ -1093,13 +1093,13 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"{cmd_prefix}uv -q --project {dist_rel} add --upgrade {dist_rel / whl.name}"
+        cmd = f"{cmd_prefix}{env.uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
         await env.exec_ssh(ip, cmd)
 
         # build agi_core*.whl
         wenv = env.agi_core_root
         src = wenv / "dist"
-        cmd = f"{cmd_prefix}uv -q --project {wenv} build --wheel"
+        cmd = f"{cmd_prefix}{env.uv} --project {wenv} build --wheel"
         await AgiEnv.run(cmd, venv=wenv)
         try:
             whl = next(iter(src.glob("agi_core*.whl")))
@@ -1107,11 +1107,11 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"{cmd_prefix}uv -q --project {dist_rel} add --upgrade {dist_rel / whl.name}"
+        cmd = f"{cmd_prefix}{env.uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
         await env.exec_ssh(ip, cmd)
 
         # build target_worker lib
-        cmd = f"{cmd_prefix}uv -q --project {wenv_rel} run python {wenv_rel / env.setup_app.name} build_ext -i 2 -b {wenv_rel}"
+        cmd = f"{cmd_prefix}{env.uv} --project {wenv_rel} run python {wenv_rel / env.setup_app.name} build_ext -i 2 -b {wenv_rel}"
         await env.exec_ssh(ip, cmd)
 
     @staticmethod
@@ -1122,7 +1122,7 @@ class AGI:
     async def _uninstall_modules():
         """Uninstall specified modules."""
         for module in AGI._module_to_clean:
-            cmd = f"uv -q pip uninstall {module} -y"
+            cmd = f"{env.uv} pip uninstall {module} -y"
             logging.info(f"Executing: {cmd}")
             await AgiEnv.run(cmd, AGI.env.agi_env_root)
         AGI._module_to_clean.clear()
@@ -1141,7 +1141,7 @@ class AGI:
 
     @staticmethod
     def _venv_todo(list_ip):
-        """uv -q config
+        """
 
         Args:
           list_ip: return:
@@ -1209,7 +1209,7 @@ class AGI:
         Parameters
         ----------
         package: any Agi target apps or project created with AGILAB
-        list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv -q synced
+        list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv synced
         mode_enabled: this is typically a mode mask to know for example if cython or rapids are required
         force_update: make a Spud.update before the installation, default is True
         verbose: verbosity [0-3]
@@ -1232,7 +1232,7 @@ class AGI:
         Parameters
         ----------
         package: any Agi target apps or project created by AGILAB
-        list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv -q synced
+        list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv synced
         verbose: verbosity [0-3]
 
         Returns
@@ -1286,7 +1286,7 @@ class AGI:
             if AGI._is_local(AGI._scheduler_ip):
                 await asyncio.sleep(1)  # non-blocking sleep
                 cmd = (
-                    f"uv -q run --project {env.wenv_abs} dask scheduler --port {AGI._scheduler_port} "
+                    f"{env.uv} run --project {env.wenv_abs} dask scheduler --port {AGI._scheduler_port} "
                     f"--host {AGI._scheduler_ip} --pid-file dask_pid"
                 )
                 logging.info(f"Starting dask scheduler locally: {cmd}")
@@ -1294,14 +1294,14 @@ class AGI:
                 logging.info(result)
             else:
                 # Create remote directory
-                cmd = f"uv run python -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
+                cmd = f"{env.uv} run python -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
                 await env.exec_ssh(AGI._scheduler_ip, cmd)
 
                 toml_wenv = wenv_rel / "pyproject.toml"
                 await env.send_file(AGI._scheduler_ip, toml_local, toml_wenv)
 
                 cmd = (
-                    f"uv -q --project {wenv_rel} run dask scheduler --port {AGI._scheduler_port} "
+                    f"{env.uv} --project {wenv_rel} run dask scheduler --port {AGI._scheduler_port} "
                     f"--host {AGI._scheduler_ip} --pid-file dask_pid"
                 )
                 # Run scheduler asynchronously over SSH without awaiting completion (fire and forget)
@@ -1367,14 +1367,14 @@ class AGI:
                         wenv_abs = env.wenv_abs
                         cmd = (
                             # f'{export_cmd} '
-                            f'{cmd_prefix}uv -q --project {wenv_abs} run dask worker tcp://{AGI._scheduler} --no-nanny '
+                            f'{cmd_prefix}{env.uv} --project {wenv_abs} run dask worker tcp://{AGI._scheduler} --no-nanny '
                             f'--pid-file {pid_file}'
                         )
                         # Run locally in background (non-blocking)
                         AGI._exec_bg(cmd, str(wenv_abs))
                     else:
                         wenv_rel = env.wenv_rel
-                        cmd = f'{cmd_prefix}uv -q --project {wenv_rel} run dask worker tcp://{AGI._scheduler} --no-nanny --pid-file {pid_file}'
+                        cmd = f'{cmd_prefix}{env.uv} --project {wenv_rel} run dask worker tcp://{AGI._scheduler} --no-nanny --pid-file {pid_file}'
                         asyncio.create_task(env.exec_ssh_async(ip, cmd))
                         logging.info(f"Launched remote worker in background on {ip}: {cmd}")
 
@@ -1471,7 +1471,7 @@ class AGI:
         wenv_abs = env.wenv_abs
         shutil.copy2(env.setup_core, app_path)
 
-        cmd = f"uv -q --project {app_path} run python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d {wenv_abs}"
+        cmd = f"{env.uv} --project {app_path} run python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d {wenv_abs}"
         await AgiEnv.run(cmd, app_path)
 
         dask_client = AGI._dask_client
@@ -1481,13 +1481,13 @@ class AGI:
                 dask_client.upload_file(str(egg_file))
         # compile in cython when cython is requested
         if is_local:
-            cmd = f"uv -q --project {wenv_abs} pip install -e ."
+            cmd = f"{env.uv} --project {wenv_abs} pip install -e ."
             await AgiEnv.run(cmd, wenv_abs)
 
             if is_cy:
                 # cython compilation of wenv/src into wenw
                 shutil.copy2(env.setup_core, wenv_abs)
-                cmd = f"uv -q --project {app_path} run python {env.setup_app} build_ext -b {wenv_abs}"
+                cmd = f"{env.uv} --project {app_path} run python {env.setup_app} build_ext -b {wenv_abs}"
                 res = await AgiEnv.run(cmd, app_path)
                 try:
                     worker_lib = next(iter((wenv_abs / 'dist').glob("*_cy.*")), None)
@@ -1555,7 +1555,7 @@ class AGI:
             res = AgiWorker.run(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
         else:
             cmd = (
-                f"uv -q run --project {env.wenv_abs} python -c \"from agi_core.workers.agi_worker import AgiWorker;"
+                f"{env.uv} run --project {env.wenv_abs} python -c \"from agi_core.workers.agi_worker import AgiWorker;"
                 f"from dask.distributed import print;"
                 f"AgiWorker.new('{env.app}', mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
                 f"res = AgiWorker.run({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
@@ -1599,21 +1599,16 @@ class AGI:
         if AGI._mode == AGI.INSTALL_MODE:
             workers_tree
 
-        AGI._dask_client.gather(
-            [
-                AGI._dask_client.submit(
-                    AgiWorker.new,
-                    env.app,
-                    mode=AGI._mode,
-                    verbose=AGI._verbose,
-                    worker_id=list(AGI._dask_workers).index(worker),
-                    worker=worker,
-                    args=AGI._args,
-                    workers=[worker],
-                )
-                for worker in AGI._dask_workers
-            ]
-        )
+        #AGI._dask_client.gather(
+        await AGI._dask_client.submit(
+                AgiWorker.new,
+                env.app,
+                mode=AGI._mode,
+                verbose=AGI._verbose,
+                worker_id=0,
+                worker=AGI._dask_workers[0],
+                args=AGI._args,
+         )
 
         await AGI._calibration()
 
