@@ -969,9 +969,9 @@ class AGI:
         # Commande pour manager selon si rapids supporté
         app_path = env.app_abs
         if has_rapids_hw:
-            cmd_manager = f"uv -q {run_type} {options['manager']} --extra managers --project {app_path}"
-        else:
             cmd_manager = f"uv -q --config-file uv.toml {run_type} {options['manager']} --extra managers --project {app_path}"
+        else:
+            cmd_manager = f"uv -q {run_type} {options['manager']} --extra managers --project {app_path}"
 
         logging.info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
