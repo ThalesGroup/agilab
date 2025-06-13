@@ -857,6 +857,7 @@ class AGI:
             # 2) Check uv
             try:
                 await env.exec_ssh(ip, f"{cmd_prefix}uv -q --version")
+                await env.exec_ssh(ip, f"{cmd_prefix}uv -q self update")
             except Exception:
                 uv_is_already_installed = False
                 # Try Windows installer
