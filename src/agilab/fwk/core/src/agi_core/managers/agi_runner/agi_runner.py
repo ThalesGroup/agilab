@@ -1390,10 +1390,10 @@ class AGI:
             # in case of core src has changed
             AGI._build_lib_local(is_local=True)
             await AGI._build_lib_remote()
-            if not (AGI._mode & AGI.CYTHON_MODE):
-                # load lib
-                for egg_file in (AGI.env.wenv_abs / "dist").glob("*.egg"):
-                    AGI._dask_client.upload_file(str(egg_file))
+            # if not (AGI._mode & AGI.CYTHON_MODE):
+            #     # load lib
+            #     for egg_file in (AGI.env.wenv_abs / "dist").glob("*.egg"):
+            #         AGI._dask_client.upload_file(str(egg_file))
 
     @staticmethod
     async def _sync(timeout=60):
