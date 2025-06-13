@@ -430,18 +430,19 @@
 <p>This is the Agilab project files tree:</p>
 <div class="code text highlight-default notranslate"><div class="highlight"><pre><span></span>.
 ├── apps
+│   ├── README.md
 │   ├── agent_app_template
 │   │   ├── MANIFEST.in
 │   │   ├── MANIFEST.in.in
-│   │   ├── pyproject.toml
 │   │   ├── README.md
+│   │   ├── pyproject.toml
 │   │   ├── src
 │   │   │   ├── agent_app
-│   │   │   │   ├── agent_app.py
-│   │   │   │   └── __init__.py
-│   │   │   ├── agent_app_worker
-│   │   │   │   ├── agent_app_worker.py
 │   │   │   │   ├── __init__.py
+│   │   │   │   └── agent_app.py
+│   │   │   ├── agent_app_worker
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── agent_app_worker.py
 │   │   │   │   ├── post_install.py
 │   │   │   │   ├── pre_install.py
 │   │   │   │   ├── pyproject.toml
@@ -452,46 +453,80 @@
 │   │   └── uv.toml
 │   ├── dag_app_template
 │   │   ├── MANIFEST.in
-│   │   ├── pyproject.toml
 │   │   ├── README.md
+│   │   ├── pyproject.toml
 │   │   ├── src
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
 │   │   │   ├── dag_app
-│   │   │   │   ├── dag_app.py
-│   │   │   │   └── __init__.py
-│   │   │   ├── dag_app_worker
-│   │   │   │   ├── dag_app_worker.py
 │   │   │   │   ├── __init__.py
+│   │   │   │   └── dag_app.py
+│   │   │   ├── dag_app_worker
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── dag_app_worker.py
 │   │   │   │   ├── post_install.py
 │   │   │   │   ├── pre_install.py
 │   │   │   │   ├── pyproject.toml
 │   │   │   │   └── uv.toml
 │   │   │   └── pre_prompt.json
 │   │   └── uv.toml
-│   ├── flight_project
-│   │   ├── build.py
-│   │   ├── MANIFEST.in
-│   │   ├── pyproject.toml
+│   ├── flight_legacy_project
 │   │   ├── README.md
+│   │   ├── build.py
+│   │   ├── pre_prompt.json
+│   │   ├── pyproject.toml
+│   │   ├── src
+│   │   │   ├── __init__.py
+│   │   │   ├── app_settings.toml
+│   │   │   ├── args_ui_snippet.py
+│   │   │   ├── flight_legacy
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── flight_legacy.py
+│   │   │   ├── flight_legacy_worker
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── dataset
+│   │   │   │   ├── dataset.7z
+│   │   │   │   ├── flight_legacy_worker.c
+│   │   │   │   ├── flight_legacy_worker.py
+│   │   │   │   ├── flight_legacy_worker.pyx
+│   │   │   │   ├── post_install.py
+│   │   │   │   ├── pre_install.py
+│   │   │   │   ├── pyproject.toml
+│   │   │   │   └── uv.toml
+│   │   │   ├── lab_steps.ipynb
+│   │   │   ├── lab_steps.toml
+│   │   │   └── pre_prompt.json
+│   │   ├── test
+│   │   │   ├── test_df.ipynb
+│   │   │   ├── test_flight_legacy.py
+│   │   │   ├── test_flight_legacy_manager.py
+│   │   │   └── test_flight_legacy_worker.py
+│   │   └── uv.toml
+│   ├── flight_project
+│   │   ├── MANIFEST.in
+│   │   ├── README.md
+│   │   ├── build.py
+│   │   ├── pyproject.toml
 │   │   ├── run_test.sh
 │   │   ├── src
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
 │   │   │   ├── flight
-│   │   │   │   ├── flight.py
-│   │   │   │   └── __init__.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── flight.py
 │   │   │   ├── flight_project.egg-info
+│   │   │   │   ├── PKG-INFO
+│   │   │   │   ├── SOURCES.txt
 │   │   │   │   ├── dependency_links.txt
 │   │   │   │   ├── not-zip-safe
-│   │   │   │   ├── PKG-INFO
 │   │   │   │   ├── requires.txt
-│   │   │   │   ├── SOURCES.txt
 │   │   │   │   └── top_level.txt
 │   │   │   ├── flight_worker
-│   │   │   │   ├── dataset.7z
-│   │   │   │   ├── flight_worker.py
 │   │   │   │   ├── __init__.py
+│   │   │   │   ├── dataset.7z
+│   │   │   │   ├── flight_worker.c
+│   │   │   │   ├── flight_worker.py
+│   │   │   │   ├── flight_worker.pyx
 │   │   │   │   ├── post_install.py
 │   │   │   │   ├── pre_install.py
 │   │   │   │   ├── pyproject.toml
@@ -502,20 +537,49 @@
 │   │   ├── test
 │   │   │   ├── __init__.py
 │   │   │   ├── test_df.ipynb
-│   │   │   ├── test_flight_manager.py
 │   │   │   ├── test_flight.py
+│   │   │   ├── test_flight_manager.py
 │   │   │   └── test_flight_worker.py
 │   │   ├── uv.lock
+│   │   └── uv.toml
+│   ├── flight_sim_project
+│   │   ├── README.md
+│   │   ├── distribution_tree.json
+│   │   ├── pyproject.toml
+│   │   ├── src
+│   │   │   ├── app_settings.toml
+│   │   │   ├── args_ui_snippet.py
+│   │   │   ├── flight_sim
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── flight_sim.py
+│   │   │   ├── flight_sim_worker
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── dataset.7z
+│   │   │   │   ├── flight_sim_worker.py
+│   │   │   │   ├── flight_sim_worker.pyx
+│   │   │   │   ├── post_install.py
+│   │   │   │   ├── pre_install.py
+│   │   │   │   ├── pyproject.toml
+│   │   │   │   └── uv.toml
+│   │   │   ├── main.py
+│   │   │   ├── pre_prompt.json
+│   │   │   └── pyproject.toml
+│   │   ├── test
+│   │   │   ├── __init__.py
+│   │   │   ├── test_df.ipynb
+│   │   │   ├── test_flight_sim.py
+│   │   │   ├── test_flight_sim_manager.py
+│   │   │   └── test_flight_sim_worker.py
 │   │   └── uv.toml
 │   ├── install.ps1
 │   ├── install.py
 │   ├── install.sh
 │   ├── my_code_project
+│   │   ├── MANIFEST.in
+│   │   ├── README.md
 │   │   ├── build.py
 │   │   ├── install.py
-│   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
-│   │   ├── README.md
 │   │   ├── src
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
@@ -523,14 +587,15 @@
 │   │   │   │   ├── __init__.py
 │   │   │   │   └── my_code.py
 │   │   │   ├── my_code_project.egg-info
+│   │   │   │   ├── PKG-INFO
+│   │   │   │   ├── SOURCES.txt
 │   │   │   │   ├── dependency_links.txt
 │   │   │   │   ├── not-zip-safe
-│   │   │   │   ├── PKG-INFO
 │   │   │   │   ├── requires.txt
-│   │   │   │   ├── SOURCES.txt
 │   │   │   │   └── top_level.txt
 │   │   │   ├── my_code_worker
 │   │   │   │   ├── __init__.py
+│   │   │   │   ├── my_code_worker.c
 │   │   │   │   ├── my_code_worker.py
 │   │   │   │   ├── my_code_worker.pyx
 │   │   │   │   ├── post_install.py
@@ -546,8 +611,8 @@
 │   │   └── uv.toml
 │   ├── pandas_app_template
 │   │   ├── MANIFEST.in
-│   │   ├── pyproject.toml
 │   │   ├── README.md
+│   │   ├── pyproject.toml
 │   │   ├── src
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
@@ -565,8 +630,8 @@
 │   │   └── uv.toml
 │   ├── polars_app_template
 │   │   ├── MANIFEST.in
-│   │   ├── pyproject.toml
 │   │   ├── README.md
+│   │   ├── pyproject.toml
 │   │   ├── src
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
@@ -582,27 +647,198 @@
 │   │   │   │   └── uv.toml
 │   │   │   └── pre_prompt.json
 │   │   └── uv.toml
-│   └── README.md
+│   ├── rssi_predictor_project
+│   │   ├── license-out.json
+│   │   ├── rssi-predictor
+│   │   └── uv.toml
+│   └── satcom_sim_project
+│       ├── README.md
+│       ├── data.7z
+│       ├── pyproject.toml
+│       ├── scripts
+│       │   ├── post_install.py
+│       │   └── unzip_data.py
+│       ├── src
+│       │   ├── app_settings.toml
+│       │   ├── args_ui_snippet.py
+│       │   ├── satcom_sim
+│       │   │   ├── __init__.py
+│       │   │   └── satcom_sim.py
+│       │   └── satcom_sim_worker
+│       │       ├── __init__.py
+│       │       ├── post_install.py
+│       │       ├── pre_install.py
+│       │       └── satcom_sim_worker.py
+│       └── uv.toml
+├── docs
+│   └── html
+│       ├── _images
+│       │   ├── AI-Problematic.svg
+│       │   ├── Agilab-Overview.svg
+│       │   ├── classes_agi_core.managers.agi_manager.png
+│       │   ├── classes_agi_core.managers.agi_runner.png
+│       │   ├── classes_agi_core.workers.agent_worker.png
+│       │   ├── classes_agi_core.workers.agi_worker.png
+│       │   ├── classes_agi_core.workers.dag_worker.png
+│       │   ├── classes_agi_core.workers.pandas_worker.png
+│       │   ├── classes_agi_core.workers.polars_worker.png
+│       │   ├── classes_agi_env.png
+│       │   ├── classes_flight.png
+│       │   ├── classes_flight_worker.png
+│       │   ├── classes_my_code.png
+│       │   ├── classes_my_code_worker.png
+│       │   ├── install-usecase.svg
+│       │   ├── packages_agi_core.managers.agi_manager.png
+│       │   ├── packages_agi_core.managers.agi_runner.png
+│       │   ├── packages_agi_core.workers.agent_worker.png
+│       │   ├── packages_agi_core.workers.agi_worker.png
+│       │   ├── packages_agi_core.workers.dag_worker.png
+│       │   ├── packages_agi_core.workers.pandas_worker.png
+│       │   ├── packages_agi_core.workers.polars_worker.png
+│       │   ├── packages_agi_env.png
+│       │   ├── packages_flight.png
+│       │   ├── packages_flight_worker.png
+│       │   ├── packages_my_code.png
+│       │   ├── packages_my_code_worker.png
+│       │   └── pycharm_bug.png
+│       ├── _modules
+│       │   ├── agi_core
+│       │   │   ├── managers
+│       │   │   └── workers
+│       │   ├── agi_env
+│       │   │   └── agi_env.html
+│       │   ├── flight
+│       │   │   └── flight.html
+│       │   ├── flight_worker
+│       │   │   └── flight_worker.html
+│       │   ├── index.html
+│       │   ├── my_code
+│       │   │   └── my_code.html
+│       │   └── my_code_worker
+│       │       └── my_code_worker.html
+│       ├── _sources
+│       │   ├── agi-env.rst.txt
+│       │   ├── agi-managers.rst.txt
+│       │   ├── agi-workers.rst.txt
+│       │   ├── agilab-github.rst.txt
+│       │   ├── agilab.rst.txt
+│       │   ├── cluster-help.rst.txt
+│       │   ├── cluster.rst.txt
+│       │   ├── core-licenses.md.txt
+│       │   ├── directory-structure.rst.txt
+│       │   ├── edit_help.rst.txt
+│       │   ├── env-licenses.md.txt
+│       │   ├── execute_help.rst.txt
+│       │   ├── experiment_help.rst.txt
+│       │   ├── features.rst.txt
+│       │   ├── flight-legacy-project-licenses.md.txt
+│       │   ├── flight-project-licenses.md.txt
+│       │   ├── flight-project.rst.txt
+│       │   ├── flight-sim-project-licenses.md.txt
+│       │   ├── framework-api.rst.txt
+│       │   ├── gui-licenses.md.txt
+│       │   ├── index.rst.txt
+│       │   ├── install-usecase.rst.txt
+│       │   ├── introduction.rst.txt
+│       │   ├── key-generation.rst.txt
+│       │   ├── license.rst.txt
+│       │   ├── my-code-project-licenses.md.txt
+│       │   ├── my-code-project.rst.txt
+│       │   ├── quick-start.rst.txt
+│       │   ├── troubleshooting.rst.txt
+│       │   ├── views.rst.txt
+│       │   └── views_help.rst.txt
+│       ├── _sphinx_design_static
+│       │   ├── design-tabs.js
+│       │   └── sphinx-design.min.css
+│       ├── _static
+│       │   ├── _sphinx_javascript_frameworks_compat.js
+│       │   ├── agi_logo.svg
+│       │   ├── basic.css
+│       │   ├── css
+│       │   │   ├── badge_only.css
+│       │   │   ├── fonts
+│       │   │   └── theme.css
+│       │   ├── design-tabs.js
+│       │   ├── doctools.js
+│       │   ├── documentation_options.js
+│       │   ├── file.png
+│       │   ├── fonts
+│       │   │   ├── Lato
+│       │   │   └── RobotoSlab
+│       │   ├── graphviz.css
+│       │   ├── jquery.js
+│       │   ├── js
+│       │   │   ├── badge_only.js
+│       │   │   ├── theme.js
+│       │   │   └── versions.js
+│       │   ├── language_data.js
+│       │   ├── minus.png
+│       │   ├── plus.png
+│       │   ├── pygments.css
+│       │   ├── searchtools.js
+│       │   ├── sphinx-design.min.css
+│       │   ├── sphinx_highlight.js
+│       │   ├── tabs.css
+│       │   └── tabs.js
+│       ├── agi-env.html
+│       ├── agi-managers.html
+│       ├── agi-workers.html
+│       ├── agilab-github.html
+│       ├── agilab.html
+│       ├── cluster-help.html
+│       ├── cluster.html
+│       ├── core-licenses.html
+│       ├── directory-structure.html
+│       ├── edit_help.html
+│       ├── env-licenses.html
+│       ├── execute_help.html
+│       ├── experiment_help.html
+│       ├── features.html
+│       ├── flight-legacy-project-licenses.html
+│       ├── flight-project-licenses.html
+│       ├── flight-project.html
+│       ├── flight-sim-project-licenses.html
+│       ├── framework-api.html
+│       ├── genindex.html
+│       ├── gui-licenses.html
+│       ├── index.html
+│       ├── install-usecase.html
+│       ├── introduction.html
+│       ├── key-generation.html
+│       ├── license.html
+│       ├── my-code-project-licenses.html
+│       ├── my-code-project.html
+│       ├── objects.inv
+│       ├── py-modindex.html
+│       ├── quick-start.html
+│       ├── search.html
+│       ├── searchindex.js
+│       ├── troubleshooting.html
+│       ├── views.html
+│       └── views_help.html
 ├── fwk
 │   ├── core
-│   │   ├── build.py
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
-│   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── SECURITY.md
+│   │   ├── build.py
+│   │   ├── dist
+│   │   │   └── agi_core-0.3.57-py3-none-any.whl
+│   │   ├── pyproject.toml
 │   │   ├── src
+│   │   │   ├── __init__.py
 │   │   │   ├── agi_core
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── managers
 │   │   │   │   └── workers
-│   │   │   ├── agi_core.egg-info
-│   │   │   │   ├── dependency_links.txt
-│   │   │   │   ├── PKG-INFO
-│   │   │   │   ├── requires.txt
-│   │   │   │   ├── SOURCES.txt
-│   │   │   │   └── top_level.txt
-│   │   │   └── __init__.py
+│   │   │   └── agi_core.egg-info
+│   │   │       ├── PKG-INFO
+│   │   │       ├── SOURCES.txt
+│   │   │       ├── dependency_links.txt
+│   │   │       ├── requires.txt
+│   │   │       └── top_level.txt
 │   │   ├── test
 │   │   │   ├── test_agi_manager.py
 │   │   │   ├── test_agi_runner.py
@@ -616,27 +852,30 @@
 │   ├── env
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
-│   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── SECURITY.md
+│   │   ├── coverage.xml
+│   │   ├── dist
+│   │   │   └── agi_env-0.3.57-py3-none-any.whl
+│   │   ├── pyproject.toml
 │   │   ├── src
 │   │   │   ├── agi_env
-│   │   │   │   ├── agi_env.py
 │   │   │   │   ├── __init__.py
+│   │   │   │   ├── agi_env.py
 │   │   │   │   └── resources
 │   │   │   ├── agi_env.egg-info
-│   │   │   │   ├── dependency_links.txt
 │   │   │   │   ├── PKG-INFO
-│   │   │   │   ├── requires.txt
 │   │   │   │   ├── SOURCES.txt
+│   │   │   │   ├── dependency_links.txt
+│   │   │   │   ├── requires.txt
 │   │   │   │   └── top_level.txt
 │   │   │   └── pyproject.toml
 │   │   ├── test
-│   │   │   ├── clean_csv.py
 │   │   │   ├── __init__.py
-│   │   │   ├── test_agi_env.py
+│   │   │   ├── _test_ssh.py
 │   │   │   ├── _test_ssh_cmd.py
-│   │   │   └── _test_ssh.py
+│   │   │   ├── clean_csv.py
+│   │   │   └── test_agi_env.py
 │   │   ├── uv.lock
 │   │   └── uv.toml
 │   ├── gen-app-script.py
@@ -644,25 +883,18 @@
 │   ├── gui
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
-│   │   ├── pyproject.toml
 │   │   ├── README.md
+│   │   ├── pyproject.toml
 │   │   ├── src
-│   │   │   ├── agi_gui
-│   │   │   │   ├── agi_copilot.py
-│   │   │   │   ├── AGILAB.py
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── lab_run.py
-│   │   │   │   ├── pagelib.py
-│   │   │   │   ├── pages
-│   │   │   │   ├── resources
-│   │   │   │   └── steps.toml
-│   │   │   └── agi_gui.egg-info
-│   │   │       ├── dependency_links.txt
-│   │   │       ├── entry_points.txt
-│   │   │       ├── PKG-INFO
-│   │   │       ├── requires.txt
-│   │   │       ├── SOURCES.txt
-│   │   │       └── top_level.txt
+│   │   │   └── agi_gui
+│   │   │       ├── AGILAB.py
+│   │   │       ├── __init__.py
+│   │   │       ├── agi_copilot.py
+│   │   │       ├── lab_run.py
+│   │   │       ├── pagelib.py
+│   │   │       ├── pages
+│   │   │       ├── resources
+│   │   │       └── steps.toml
 │   │   ├── test
 │   │   │   ├── __init__.py
 │   │   │   └── test-streamlit.sh
@@ -671,14 +903,29 @@
 │   ├── install.sh
 │   └── run-all-test.py
 ├── pycharm
-│   ├── gen-app-script.py
 │   ├── _template_app_egg_manager.xml
 │   ├── _template_app_lib_worker.xml
 │   ├── _template_app_postinstall_worker.xml
 │   ├── _template_app_preinstall_manager.xml
 │   ├── _template_app_run.xml
-│   └── _template_app_test.xml
+│   ├── _template_app_test.xml
+│   └── gen-app-script.py
 └── views
+    ├── README.md
+    ├── autoencoder-latentspace
+    │   ├── __init__.py
+    │   └── src
+    │       ├── __init__.py
+    │       └── autoencoder_latentspace
+    │           ├── __init__.py
+    │           └── autoencoder_latentspace.py
+    ├── barycentric-graph
+    │   ├── __init__.py
+    │   └── src
+    │       ├── __init__.py
+    │       └── barycentric_graph
+    │           ├── __init__.py
+    │           └── barycentric_graph.py
     ├── maps
     │   └── src
     │       └── maps
@@ -689,10 +936,15 @@
     │       └── maps_3d
     │           ├── __init__.py
     │           └── maps_3d.py
-    ├── pyproject.toml
-    └── README.md
+    ├── maps-network-graph
+    │   └── src
+    │       └── maps_network_graph
+    │           ├── __init__.py
+    │           └── maps_network_graph.py
+    ├── maps-network-graph.7z
+    └── pyproject.toml
 
-59 directories, 204 files
+108 directories, 407 files
 </pre></div>
 </div>
 </section>

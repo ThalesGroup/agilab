@@ -557,7 +557,7 @@ It offers a command-line interface in Python and an optional LAB with Streamlit,
 <dt><strong>To run on a cluster:</strong></dt><dd><ol class="arabic simple">
 <li><p>Create a Agi account on each host with SSH access.</p></li>
 <li><p>Copy your project’s <cite>pyproject.toml</cite> to each host.</p></li>
-<li><p>Run <cite>uv -q sync</cite> before using AGI.</p></li>
+<li><p>Run <cite>uv sync</cite> before using AGI.</p></li>
 <li><p>To run with output data, provide a shared directory accessible from all hosts. Use this directory in your Python target code as both input and output.</p></li>
 </ol>
 </dd>
@@ -674,7 +674,7 @@ It offers a command-line interface in Python and an optional LAB with Streamlit,
 :param package:
 :type package: any Agi target apps or project created by AGILAB
 :param list_ip:
-:type list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv -q synced
+:type list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv synced
 :param verbose:
 :type verbose: verbosity [0-3]
 :param Returns:
@@ -821,7 +821,7 @@ chunks and chunks_sizes must be left to None</p>
 :param package:
 :type package: any Agi target apps or project created with AGILAB
 :param list_ip:
-:type list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv -q synced
+:type list_ip: any ip V4 with ssh access and python (upto you to link it to python3) with psutil and uv synced
 :param mode_enabled:
 :type mode_enabled: this is typically a mode mask to know for example if cython or rapids are required
 :param force_update:

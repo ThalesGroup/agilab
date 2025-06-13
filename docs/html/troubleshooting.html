@@ -437,21 +437,33 @@ it will create a file (~/xxx-project_trace.txt) that shows what happened in duri
 <h2>B - Pycharm Run/Debug configurations:<a class="headerlink" href="#b-pycharm-run-debug-configurations" title="Link to this heading"></a></h2>
 <p>These scripts are provided to debug your app with the PyCharm IDE, which best matches Agilab troubleshooting.</p>
 <div class="code text highlight-default notranslate"><div class="highlight"><pre><span></span>.
+├── _flight_egg_manager.xml
+├── _flight_legacy_egg_manager.xml
+├── _flight_legacy_lib_worker.xml
+├── _flight_legacy_postinstall_worker.xml
+├── _flight_legacy_preinstall_manager.xml
+├── _flight_legacy_run.xml
+├── _flight_legacy_test.xml
+├── _flight_lib_worker.xml
+├── _flight_postinstall_worker.xml
+├── _flight_preinstall_manager.xml
+├── _flight_run.xml
+├── _flight_test.xml
+├── _my_code_egg_manager.xml
+├── _my_code_lib_worker.xml
+├── _my_code_postinstall_worker.xml
+├── _my_code_preinstall_manager.xml
+├── _my_code_run.xml
+├── _my_code_test.xml
 ├── agilab_run.xml
-├── app_install__debug_.xml
 ├── app_install.xml
+├── app_install__debug_.xml
 ├── app_script_gen.xml
 ├── core_test.xml
 ├── flight_egg_gen.xml
-├── _flight_egg_manager.xml
 ├── flight_lib_gen.xml
-├── _flight_lib_worker.xml
 ├── flight_postinstall_test.xml
-├── _flight_postinstall_worker.xml
-├── _flight_preinstall_manager.xml
 ├── flight_preinstall_test.xml
-├── _flight_run.xml
-├── _flight_test.xml
 ├── flight_test.xml
 ├── lab_run_test.xml
 ├── my_code_lib_gen.xml
@@ -469,7 +481,7 @@ it will create a file (~/xxx-project_trace.txt) that shows what happened in duri
 ├── test_ssh.xml
 └── zip_all_gen.xml
 
-1 directory, 31 files
+1 directory, 43 files
 </pre></div>
 </div>
 </section>
@@ -550,10 +562,8 @@ package version resolution. This may arrived because your <cite>UV cache has bee
 </pre></div>
 </div>
 <p><strong>Workaround:</strong></p>
-<p>Disable <cite>python.console.asynio.repl</cite> in the PyCharm registry.
-To do this, press <cite>&lt;Shift&gt;+&lt;Ctrl&gt;+A</cite> to open the action search window and then search for <em>registry</em>.</p>
-<a class="reference internal image-reference" href="_images/pycharm_registry.png"><img alt="PyCharm Registry" class="align-center" src="_images/pycharm_registry.png" style="width: 400px;" />
-</a>
+<p>Disable <cite>python.debug.asyncio.repl</cite> in the PyCharm registry.
+To do this, go to Naviguate/Search Everywhere (<cite>&lt;Shift&gt;+&lt;Ctrl|command&gt;+A</cite>) to open the <cite>&lt;Action&gt;</cite> tab then search for <em>registry</em>.</p>
 <br><br></section>
 <section id="pycharm-run-debug-configuration-is-broken">
 <h2>&lt;PYCHARM&gt; Run/Debug Configuration is Broken<a class="headerlink" href="#pycharm-run-debug-configuration-is-broken" title="Link to this heading"></a></h2>

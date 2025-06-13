@@ -85,7 +85,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../../../key-generation.html#verify-the-key-addition">Verify the key Addition</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../key-generation.html#copy-the-public-key-to-the-server">Copy the public key to the server</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../key-generation.html#copy-the-public-key-to-the-worker">Copy the public key to the worker</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../key-generation.html#sshd-service">SSHD Service</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../../key-generation.html#check-the-configuration">Check the configuration</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../key-generation.html#restart-the-sshd-service">Restart the SSHD service</a></li>
@@ -858,10 +858,11 @@
             <span class="n">AgiWorker</span><span class="o">.</span><span class="n">worker</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">worker</span><span class="p">)</span><span class="o">.</span><span class="n">name</span>
             <span class="n">AgiWorker</span><span class="o">.</span><span class="n">worker_id</span> <span class="o">=</span> <span class="n">worker_id</span>
             <span class="n">AgiWorker</span><span class="o">.</span><span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;worker #</span><span class="si">{</span><span class="n">worker_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">worker</span><span class="si">}</span><span class="s2"> starting...&quot;</span><span class="p">)</span>
             <span class="n">AgiWorker</span><span class="o">.</span><span class="n">start</span><span class="p">(</span><span class="n">worker_inst</span><span class="p">)</span>
 
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="n">traceback</span><span class="o">.</span><span class="n">print_exc</span><span class="p">()</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">())</span>
             <span class="k">raise</span></div>
 
 
@@ -1018,7 +1019,7 @@
 
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="kn">import</span><span class="w"> </span><span class="nn">traceback</span>
-            <span class="n">traceback</span><span class="o">.</span><span class="n">print_exc</span><span class="p">()</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">())</span>
             <span class="k">raise</span></div>
 </div>
 
