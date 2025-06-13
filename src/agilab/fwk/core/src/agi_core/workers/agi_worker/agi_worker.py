@@ -375,9 +375,12 @@ class AgiWorker(abc.ABC):
         Returns:
         """
         try:
-            if not env:
+            if env == None:
                 install_type = 1 if worker.startswith("localhost") or worker.startswith("127.0.0.1") else 2
                 AgiWorker.env = AgiEnv(active_app=app, install_type=install_type, verbose=verbose)
+            elif env == 0:
+                install_type = 1 if worker.startswith("localhost") or worker.startswith("127.0.0.1") else 2
+                AgiWorker.env = AgiEnv(active_app=app, install_type=install_type, verbose=verbose, debug=True)
             else:
                 AgiWorker.env = env
 
