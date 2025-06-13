@@ -402,10 +402,11 @@ class AgiWorker(abc.ABC):
             AgiWorker.worker = Path(worker).name
             AgiWorker.worker_id = worker_id
             AgiWorker.t0 = time.time()
+            logging.info(f"worker #{worker_id}: {worker} starting...")
             AgiWorker.start(worker_inst)
 
         except Exception as e:
-            traceback.print_exc()
+            logging.error(traceback.format_exc())
             raise
 
     @staticmethod
@@ -553,5 +554,5 @@ class AgiWorker(abc.ABC):
 
         except Exception as e:
             import traceback
-            traceback.print_exc()
+            logging.error(traceback.format_exc())
             raise
