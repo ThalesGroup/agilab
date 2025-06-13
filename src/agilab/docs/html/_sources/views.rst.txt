@@ -1,0 +1,29 @@
+Views
+=====
+
+views is a page to select the view you want to enable for your project
+
+barycentric-graph
+------------------
+
+This is mainly a view to visualize latent-space
+
+maps
+-----------
+
+A basic online maps visualisation
+
+maps\-3d
+---------
+
+A 3D online maps visualisation
+
+autoencoder\-latentspace
+-------------------------
+
+A dimension reduction visualisation based on auto-encoder
+
+maps\-network\-graph
+--------------------
+
+A dual synchronised view to visualize network status on a waypoint

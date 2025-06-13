@@ -1,0 +1,106 @@
+▶️ EDIT
+=======
+
+.. toctree::
+   :hidden:
+
+Sidebar
+-------
+
+.. tab-set::
+   .. tab-item:: Select
+
+      This is a listbox to select a project to be loaded from the existing ones.
+      After selection you can also export it for a feature import. In fact, this will
+      zip all the project files filtered by the export-app-filter.
+
+   .. tab-item:: Create
+
+      Select either the current project (to clone it) or a template if you want
+      to create a new project.
+
+   .. tab-item:: Rename
+
+      Rename the current project.
+
+   .. tab-item:: Import
+
+      Select one of the previously exported projects to load it.
+
+Main Content Area
+-----------------
+
+.. tab-set::
+
+   .. tab-item:: PYTHON-VENV
+
+      This is the file created by the `pdm <https://pdm-project.org/en/latest/>`_ tool
+      to manage your Python dependencies.
+
+   .. tab-item:: MANAGER
+
+      The source code of your app Manager
+
+   .. tab-item:: WORKER
+
+      The source code of your app Worker
+
+   .. tab-item:: EXPORT-APP-FILTER
+
+      The .gitignore filter that will be used when exporting your project
+
+   .. tab-item:: APP-SETTINGS
+
+      The list of parameters for your app:
+
+      .. code-block:: ini
+
+         [args]
+         The default value for your app parameters.
+         Example :
+         data_source = "file"
+         path = "/home/pcm/data/flight"
+         output_format = "parquet"
+
+         [views]
+         The list of views available for your app:
+         Example:
+         view_module = [ "barycentric_graph", "maps", "autoencoder_latentspace",]
+
+         [barycentric_graph]
+         The columns of the dataset you want to use for your view:
+         Example:
+         variables = [ "rssi", "beam", "flight_serial",]
+
+         [cluster]
+         The default value for the settings of the cluster:
+         Example:
+         verbose = true
+         cython = false
+         workers_enabled = true
+         rapids = true
+         pool = false
+
+         [cluster.workers]
+         The default value for your workers.
+         This is a list of IP addresses with the number of workers per address:
+         "127.0.0.1" = 2
+
+   .. tab-item:: ARGS-UI
+
+      The Streamlit code to customize your app parameter GUI.
+      This file is optional as it requires a Streamlit background.
+      If omitted, then a generic UI will be used.
+
+   .. tab-item:: PRE-PROMPT
+
+      The ChatGPT pre-prompt that will be used to generate
+      your transform Python snippet.
+
+Support
+-------
+
+Email: focus@thalesgroup.com
+
+.. |PyPI version| image:: https://img.shields.io/pypi/v/AGI.svg
+   :target: https://pypi.org/project/agilab/
