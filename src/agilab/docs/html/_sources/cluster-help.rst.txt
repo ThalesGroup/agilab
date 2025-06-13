@@ -1,0 +1,16 @@
+Cluster Help
+============
+
+Overview
+--------
+
+A cluster of computer is not mandatory to use agilab but it will enable to run your project at scale which is the
+foundation idea of agi-core.
+
+Principle
+---------
+a cluster is composed of computers identified by their IP v4 address that are generally name nodes. One of this node
+will play the role of scheduler and the others are workers matching the Dask[distributed] concept. Agilab will ask
+agi-core to install your project on each nodes. In order to proceed it requires each node to run a ssh server.
+The node on which agilab run will use ssh client to connect to each node. So that is why you need to generate keys
+from your Agillab node and then copy it to each nodes of your cluster.
