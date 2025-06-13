@@ -8,14 +8,7 @@ authors = [
     {name = "your name", email = "your email"}
 ]
 
-dependencies = [
- "setuptools",
-    "cython",
-    "parso",
-    "py7zr",
-    "python-dotenv",
-    "ipython",
-]
+dependencies = [ "numpy", "geopy", "setuptools", "cython", "psutil", "parso", "py7zr", "python-dotenv", "humanize", "requests", "dask[distributed]"]
 
 [dependency-groups]
 dev = [

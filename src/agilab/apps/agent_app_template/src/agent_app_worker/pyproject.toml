@@ -4,7 +4,7 @@ version = "0.1.8"
 description = ""
 requires-python = ">=3.11"
 readme = "README.md"
-dependencies = ["numpy", "geopy", "setuptools", "cython", "psutil", "parso", "py7zr", "python-dotenv", "requests", ]
+dependencies = [ "numpy", "geopy", "setuptools", "cython", "psutil", "parso", "py7zr", "python-dotenv", "humanize", "requests", "dask[distributed]"]
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
 ]
