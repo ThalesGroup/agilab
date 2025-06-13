@@ -782,7 +782,7 @@ class AgiEnv:
             line = str(line)
 
         msg = f"{RED}{line}{RESET}" if sys.stdout.isatty() else line
-        logging.error(msg)
+        logging.info(msg)
 
     @staticmethod
     async def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
@@ -840,13 +840,11 @@ class AgiEnv:
 
                     if err_line:
                         line = err_line.rstrip("\n")
-                        msg_type = line[:4]
                         if log_callback:
                             log_callback(line)
-                        elif msg_type == "INFO":
-                            logging.info(line)
                         else:
-                            logging.error(line)
+                            logging.info(line)
+
 
                     if out_line == '' and err_line == '' and process.poll() is not None:
                         break
