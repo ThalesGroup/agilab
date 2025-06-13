@@ -87,7 +87,6 @@
 | graphene | MIT |
 | graphql-core | MIT LICENSE |
 | graphql-relay | MIT LICENSE |
-| greenlet | MIT;; PYTHON-2.0 |
 | grpcio | APACHE SOFTWARE LICENSE |
 | grpcio-status | APACHE SOFTWARE LICENSE |
 | gunicorn | MIT LICENSE |
@@ -161,7 +160,7 @@
 | ml-dtypes | APACHE SOFTWARE LICENSE |
 | mlflow | APACHE SOFTWARE LICENSE |
 | mlflow-skinny | APACHE SOFTWARE LICENSE |
-| msgpack | APACHE SOFTWARE LICENSE |
+| msgpack | APACHE 2.0 |
 | multidict | APACHE SOFTWARE LICENSE |
 | multimethod | APACHE SOFTWARE LICENSE |
 | multiprocess | BSD LICENSE |

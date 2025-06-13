@@ -845,7 +845,6 @@ class AgiEnv:
                         else:
                             logging.info(line)
 
-
                     if out_line == '' and err_line == '' and process.poll() is not None:
                         break
 
