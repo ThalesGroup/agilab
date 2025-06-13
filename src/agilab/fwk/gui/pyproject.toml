@@ -62,7 +62,8 @@ dependencies = [
     "ydata",
     "ydata-profiling",
     "tomli_w",
-    "asyncssh"
+    "asyncssh",
+    "watchdog",
 ]
 
 [project.urls]
