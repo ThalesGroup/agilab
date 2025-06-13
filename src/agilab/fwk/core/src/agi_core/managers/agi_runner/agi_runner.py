@@ -793,17 +793,27 @@ class AGI:
 
     @staticmethod
     async def _clean_nodes(scheduler, force=True):
+        # Compose list of IPs: workers plus scheduler's IP
         list_ip = set(list(AGI.workers) + [AGI._get_scheduler(scheduler)[0]])
         localhost_ip = socket.gethostbyname("localhost")
         if not list_ip:
             list_ip.add(localhost_ip)
 
-        for ip in list_ip:  # remove the dask tempdir, the build dirs and the wenv dirs
+        tasks = []
+        for ip in list_ip:
             if AGI._is_local(ip):
+                # Assuming this cleans local dirs once per IP (or should be once per call)
                 AGI._clean_dirs_local()
             else:
-                await AGI._kill(ip, os.getpid(), force=force)
-                await AGI._clean_dirs(ip)
+                tasks.append(asyncio.create_task(AGI._kill(ip, os.getpid(), force=force)))
+        if tasks:
+            await asyncio.gather(*tasks)
+
+        tasks = []
+        for ip in list_ip:
+            tasks.append(asyncio.create_task(AGI._clean_dirs(ip)))
+        if tasks:
+            await asyncio.gather(*tasks)
 
         return list_ip
 
