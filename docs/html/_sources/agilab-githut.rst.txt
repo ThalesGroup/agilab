@@ -1,5 +1,0 @@
-`Agilab on Githut <https://github.com/ThalesGroup/agilab/>`_
-`Agilab on pypi.org <https://pypi.org/project/agilab/>`_
-`Agi-env on pypi.org <https://pypi.org/project/agi-env/>`_
-`Agi-core on pypi.org <https://pypi.org/project/agi-core/>`_
-`Agi-gui on pypi.org <https://pypi.org/project/agi-gui/>`_
