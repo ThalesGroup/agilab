@@ -1,8 +1,0 @@
-Installation Principle
-======================
-
-This discribe the mecanism of Agilab seemless installation automation
-
-.. image:: installation-usecase.svg
-   :alt: Installation Princple
-   :align: center
