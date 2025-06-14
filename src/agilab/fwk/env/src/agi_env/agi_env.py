@@ -1047,19 +1047,14 @@ class AgiEnv:
             return
 
         try:
-
             ssh_dir = Path("~/.ssh").expanduser()
-
             keys = []
 
             for file in ssh_dir.iterdir():
-                # Skip if not a file
                 if not file.is_file():
                     continue
 
                 name = file.name
-
-                # Exclude known files
                 if name.startswith('authorized_keys'):
                     continue
                 if name.startswith('known_hosts'):
@@ -1069,16 +1064,19 @@ class AgiEnv:
 
                 keys.append(str(file))
 
+            client_keys = keys if keys else None
+
             conn = await asyncio.wait_for(
                 asyncssh.connect(
                     ip,
                     username=self.user,
                     password=self.password,
                     known_hosts=None,
-                    client_keys=keys,
+                    client_keys=client_keys,
                 ),
                 timeout=timeout_sec
             )
+
             self._ssh_connections[ip] = conn
             yield conn
 
@@ -1106,7 +1104,7 @@ class AgiEnv:
             raise
 
         except asyncssh.Error as e:
-            logging.error(e.command)
+            logging.error(e.command if hasattr(e, 'command') else "No command attribute")
             logging.error(e)
             raise
 
