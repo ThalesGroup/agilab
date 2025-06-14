@@ -8,15 +8,15 @@
       <env name="PYTHONUNBUFFERED" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
-    <option name="SDK_NAME" value="uv (fflight_worker)" />
+    <option name="SDK_NAME" value="uv (flight_worker)" />
     <option name="WORKING_DIRECTORY" value="$USER_HOME$/wenv/flight_worker" />
-    <option name="IS_MODULE_SDK" value="true" />
+    <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="$USER_HOME$/wenv/flight_worker/setup.py" />
     <option name="PARAMETERS" value="build_ext --packages &quot;agi_worker, dag_worker&quot; pandas_worker&quot; polars_worker&quot; agent_worker&quot;-b $USER_HOME$/wenv/flight_worker" />
-    <option name="SHOW_COMMAND_LINE" value="false" />t
+    <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />
     <option name="REDIRECT_INPUT" value="false" />
