@@ -1,0 +1,98 @@
+agi_core.managers API
+======================
+
+Usage Example
+-------------
+
+Installation
+^^^^^^^^^^^^
+
+.. literalinclude:: log/AGI.install-my_code.py
+   :language: python
+
+------
+
+Update
+^^^^^^
+
+.. literalinclude:: log/AGI.update-my_code.py
+   :language: python
+
+----
+
+Distribute
+^^^^^^^^^^^^
+
+.. literalinclude:: log/AGI.distribute-flight.py
+   :language: python
+
+-----
+
+.. literalinclude:: log/AGI.distribute-my_code.py
+   :language: python
+
+----
+
+Run
+^^^
+
+.. literalinclude:: log/AGI.run-my_code.py
+   :language: python
+
+----
+
+.. literalinclude:: log/AGI.run-flight.py
+   :language: python
+
+----
+
+Reference
+----------
+
+agi_core.managers.agi_runner
+~~~~~~~~~~
+
+.. image:: diagrams/packages_agi_core.managers.agi_runner.png
+   :width: 400
+   :alt: Packages diagram for agi_runner
+   :align: center
+
+----
+
+.. image:: diagrams/classes_agi_core.managers.agi_runner.png
+   :width: 400
+   :alt: Classes diagram for agi_core.managers.agi_runner
+   :align: center
+
+----
+
+.. automodule:: agi_core.managers.agi_runner.agi_runner
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----
+
+agi_core.managers.agi_manager
+~~~~~~~~~~~~
+
+.. image:: diagrams/packages_agi_core.managers.agi_manager.png
+   :width: 400
+   :alt: Packages diagram for agi_core.managers.agi_manager
+   :align: center
+
+----
+
+.. image:: diagrams/classes_agi_core.managers.agi_manager.png
+   :width: 400
+   :alt: Classes diagram for agi_core.managers.agi_manager
+   :align: center
+
+----
+
+.. automodule:: agi_core.managers.agi_manager.agi_manager
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----
