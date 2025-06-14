@@ -992,13 +992,17 @@ class AGI:
         shutil.copy2(file, wenv_abs)
 
         # Commande pour workers selon si rapids supporté
+        logging.info(f"Installing workers: {cmd_worker}")
         if has_rapids_hw:
             cmd_worker = f"{env.uv} --config-file uv.toml {run_type} --project {wenv_abs} {options['worker']} --extra workers"
+            await AgiEnv.run(cmd_worker, wenv_abs)
         else:
             cmd_worker = f"{env.uv} {run_type} --project {wenv_abs} {options['worker']} --extra workers"
+            await AgiEnv.run(cmd_worker, wenv_abs)
+            if os.name != "nt":
+                cmd_worker = f"{env.uv} {run_type} --project {wenv_abs} add sshpass"
+                await AgiEnv.run(cmd_worker, wenv_abs)
 
-        logging.info(f"Installing workers: {cmd_worker}")
-        await AgiEnv.run(cmd_worker, wenv_abs)
 
         # Build worker lib local
         wenv = await AGI._build_lib_local(is_local=True)
