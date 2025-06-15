@@ -707,9 +707,9 @@ async def main():
     print(res)
     return res
 
-if __name__ == '__main__': 
-    loop = asyncio.get_event_loop()
-    loop.create_task(main()) if loop.is_running() else loop.run_until_complete(main())
+if __name__ == '__main__':
+    try: asyncio.get_running_loop().create_task(main())
+    except RuntimeError: asyncio.run(main())
             """
             st.code(cmd, language="python")
         if st.button("INSTALL", key="install_btn", type="primary",
@@ -781,8 +781,8 @@ async def main():
     return res
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    loop.create_task(main()) if loop.is_running() else loop.run_until_complete(main())
+    try: asyncio.get_running_loop().create_task(main())
+    except RuntimeError: asyncio.run(main())
             """
             st.code(cmd, language="python")
         if st.button("TEST DISTRIBUTE", key="preview_btn", type="secondary",
@@ -881,8 +881,8 @@ async def main():
     return res
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    loop.create_task(main()) if loop.is_running() else loop.run_until_complete(main())
+    try: asyncio.get_running_loop().create_task(main())
+    except RuntimeError: asyncio.run(main())
             """
             st.code(cmd, language="python")
         if st.button("RUN", key="run_btn", type="primary", help="Run your snippet with your cluster and app settings"):

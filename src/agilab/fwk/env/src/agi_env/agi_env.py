@@ -201,8 +201,8 @@ class AgiEnv:
 
         if install_type == 1:
             if "site-packages" in self.agi_root.parts:
-                self.agi_env_root = self.agi_root.parent / 'agi_env'
-                self.agi_core_root = self.agi_root.parent / 'agi_root'
+                self.agi_env_root = self.agi_root.parent
+                self.agi_core_root = self.agi_root.parent
                 resource_path = self.agi_env_root / self.agi_resources
             else:
                 self.agi_env_root = self.agi_root / "fwk/env"
@@ -412,9 +412,9 @@ class AgiEnv:
             self._init_apps()
 
         if os.name == "nt":
-            self.export_local_bin = None
+            AgiEnv.export_local_bin = None
         else:
-            self.export_local_bin = 'export PATH="$HOME/.local/bin:$PATH";'
+            AgiEnv.export_local_bin = 'export PATH="$HOME/.local/bin:$PATH";'
         self._ssh_connections = {}
 
     def active(self, target, install_type):

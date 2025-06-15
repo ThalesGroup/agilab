@@ -35,6 +35,7 @@ dependencies = [
     "setuptools",
     "tomlkit",
     "astor",
+    "psutil",
     "pathspec",
     "ipython",
     "asyncssh",
@@ -47,7 +48,7 @@ Tracker = "https://github.com/ThalesGroup/agilab/issue"
 
 [dependency-groups]
 dev = [
-    "agi-env", "black", "pytest", "licensecheck"
+    "agi-env", "black", "pytest", "pytest-asyncio", "licensecheck"
 ]
 
 [tool.uv.sources.agi-env]

@@ -559,6 +559,7 @@ class AGI:
             The result of the last kill command (dict or None).
         """
         env = AGI.env
+        uv = env.uv
         localhost = socket.gethostbyname("localhost")
         ip = ip or localhost
         current_pid = current_pid or os.getpid()
@@ -582,130 +583,16 @@ class AGI:
 
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         if AGI._is_local(ip):
-            kill_prefix = f'{cmd_prefix}{env.uv} run --project {env.agi_core} python'
+            kill_prefix = f'{cmd_prefix}{uv} run --project {env.agi_core} python'
         else:
-            kill_prefix = f'{cmd_prefix}{env.uv} run --project {env.wenv_rel} python'
-
-        # 2) If force, kill by process name
-        if force:
-            # this command is using python standard lib only (<> psutil)
-            # cmd = (
-            # f"{kill_prefix} -c \"import getpass, os, sys, subprocess, signal, csv, sys as pysys\n"
-            # "me = getpass.getuser()\n"
-            # "my_pid = os.getpid()\n"
-            # "parent_pid = os.getppid()\n"
-            # "def debug(msg): pysys.stderr.write(msg + '\\n')\n"
-            # "def kill_pid(pid):\n"
-            # "  import sys, subprocess, os, signal\n"
-            # "  exec('subprocess.call([\\'taskkill\\', \\'/PID\\', str(pid), \\'/F\\'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)' if sys.platform=='win32' else 'os.kill(pid, signal.SIGKILL)')\n"
-            # "if sys.platform == 'win32':\n"
-            # "  proc = subprocess.Popen(['tasklist', '/V', '/FO', 'CSV'], stdout=subprocess.PIPE, text=True)\n"
-            # "  out, _ = proc.communicate()\n"
-            # "  reader = csv.DictReader(out.splitlines())\n"
-            # "  for row in reader:\n"
-            # "    try:\n"
-            # "      pid = int(row['PID'])\n"
-            # "      username = row['User Name']\n"
-            # "      image_name = row['Image Name']\n"
-            # "      window_title = row['Window Title']\n"
-            # "      if pid in (my_pid, parent_pid):\n"
-            # "        debug(f'Skipping own process PID {pid}')\n"
-            # "        continue\n"
-            # "      if username and me.lower() in username.lower() and ('dask' in image_name.lower() or 'dask' in window_title.lower()):\n"
-            # "        debug(f'Killing PID {pid}')\n"
-            # "        kill_pid(pid)\n"
-            # "    except Exception:\n"
-            # "      pass\n"
-            # "elif sys.platform.startswith('linux'):\n"
-            # "  proc = subprocess.Popen(['ps', '-eo', 'pid,user,command'], stdout=subprocess.PIPE, text=True)\n"
-            # "  out, _ = proc.communicate()\n"
-            # "  lines = out.strip().split('\\n')[1:]\n"
-            # "  for line in lines:\n"
-            # "    parts = line.strip().split(None, 2)\n"
-            # "    if len(parts) < 3:\n"
-            # "      continue\n"
-            # "    pid_str, user, cmd = parts\n"
-            # "    try:\n"
-            # "      pid = int(pid_str)\n"
-            # "    except ValueError:\n"
-            # "      continue\n"
-            # "    if pid in (my_pid, parent_pid):\n"
-            # "      debug(f'Skipping own process PID {pid}')\n"
-            # "      continue\n"
-            # "    if user == me and 'dask' in cmd.lower():\n"
-            # "      debug(f'Killing PID {pid}')\n"
-            # "      kill_pid(pid)\n"
-            # "elif sys.platform == 'darwin':\n"
-            # "  proc = subprocess.Popen(['ps', '-axo', 'pid,user,command'], stdout=subprocess.PIPE, text=True)\n"
-            # "  out, _ = proc.communicate()\n"
-            # "  lines = out.strip().split('\\n')[1:]\n"
-            # "  for line in lines:\n"
-            # "    parts = line.strip().split(None, 2)\n"
-            # "    if len(parts) < 3:\n"
-            # "      continue\n"
-            # "    pid_str, user, cmd = parts\n"
-            # "    try:\n"
-            # "      pid = int(pid_str)\n"
-            # "    except ValueError:\n"
-            # "      continue\n"
-            # "    if pid in (my_pid, parent_pid):\n"
-            # "      debug(f'Skipping own process PID {pid}')\n"
-            # "      continue\n"
-            # "    if user == me and 'dask' in cmd.lower():\n"
-            # "      debug(f'Killing PID {pid}')\n"
-            # "      kill_pid(pid)\n"
-            # "else:\n"
-            # "  debug('Unsupported OS for process killing')\""
-            # )
-            cmd = (
-                f'{kill_prefix} -c "import getpass, os, signal, platform\n'
-                'try:\n'
-                '  import psutil\n'
-                '  me = getpass.getuser()\n'
-                '  my_pid = os.getpid()\n'
-                '  ancestor_pids = set()\n'
-                '  try:\n'
-                '    p = psutil.Process(my_pid)\n'
-                '    while p:\n'
-                '      ancestor_pids.add(p.pid)\n'
-                '      p = p.parent()\n'
-                '  except Exception:\n'
-                '    pass\n'
-                '  for p in psutil.process_iter([\'pid\', \'name\', \'username\', \'cmdline\"]):\n'
-                '    try:\n'
-                '      pid = p.info.get(\'pid\')\n'
-                '      if pid in ancestor_pids:\n'
-                '        continue\n'
-                '      username = p.info.get(\'username\') or ""\n'
-                '      if me not in username:\n'
-                '        continue\n'
-                '      name = p.info.get(\'name\') or ""\n'
-                '      cmdline = p.info.get(\'cmdline\') or []\n'
-                '      if (\'dask\' in name.lower() or any(\'dask\' in s.lower() for s in cmdline)):\n'
-                '        # cross-platform kill\n'
-                '        if platform.system() == "Windows":\n'
-                '          p.terminate()\n'
-                '        else:\n'
-                '          p.send_signal(signal.SIGTERM)\n'
-                '    except (psutil.NoSuchProcess, psutil.AccessDenied):\n'
-                '      pass\n'
-                'except ImportError:\n'
-                '  pass"\n'
-            )
-
-            cmds.append(cmd)
+            kill_prefix = f'{cmd_prefix}{uv} run --project {env.wenv_rel} python'
+            if force:
+                await env.send_file(ip, env.agi_env_root / "src/agi_env/clean.py", env.wenv_rel)
+                cmd = f"{kill_prefix} {env.wenv_rel / "clean.py"}"
+                cmds.append(cmd)
 
         # 3) If we found any explicit pid files, terminate those PIDs
         if pids_to_kill:
-            # cmds.append(
-            #     "uv run python -c \"import os, sys, subprocess, signal\n"
-            #     f"pids={pids_to_kill}\n"
-            #     "mypid=os.getpid()\n"
-            #     "for p in pids:\n"
-            #     "  if p != mypid:\n"
-            #     "    (subprocess.call(['taskkill', '/PID', str(p), '/F'], stdout=subprocess.DEVNULL, "
-            #     "stderr=subprocess.DEVNULL) if sys.platform=='win32' else os.kill(p, signal.SIGKILL))\""
-            # )
             cmds.append(
                 f'{kill_prefix} -c "import os, psutil; '
                 f"pids={pids_to_kill}; "
@@ -718,7 +605,7 @@ class AGI:
             # choose working directory based on local vs remote
             cwd = env.manager_root if ip == localhost else str(env.wenv_abs)
             if AGI._is_local(ip):
-                AgiEnv.run(cmd, cwd)
+                await AgiEnv.run(cmd, cwd)
             else:
                 last_res = await env.exec_ssh(ip, cmd)
 
@@ -905,7 +792,7 @@ class AGI:
         if isinstance(env.base_worker_cls, str):
             options["worker"] += " --extra " + " --extra ".join(AGI.install_worker_group)
 
-        # node_ips = await AGI._get_clean_nodes(scheduler)
+        #node_ips = await AGI._clean_nodes(scheduler)
         node_ips = set(list(AGI.workers) + [AGI._get_scheduler(scheduler)[0]])
         AGI._venv_todo(node_ips)
         start_time = time.time()
@@ -1333,7 +1220,7 @@ class AGI:
     @staticmethod
     async def _detect_export_cmd(ip: str) -> str | None:
         if AGI._is_local(ip):
-            return AGI.env.export_local_bin
+            return AgiEnv.export_local_bin
 
         # probe remote OS via SSH
         try:
@@ -1641,8 +1528,6 @@ class AGI:
         cond_clean = (
             True
         )
-
-        AGI._jobs = bg.BackgroundJobManager()
 
         if (AGI._mode & AGI.DEPLOYEMENT_MASK) == AGI.SIMULATE_MODE:
             # case simulate mode #0b11xxxx
