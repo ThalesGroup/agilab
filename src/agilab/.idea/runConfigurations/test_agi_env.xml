@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="test_agi_env" type="tests" factoryName="py.test" show_console_on_std_err="true" show_console_on_std_out="true">
+  <configuration default="false" name="test-agi_env" type="tests" factoryName="py.test" show_console_on_std_err="true" show_console_on_std_out="true">
     <module name="env" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />

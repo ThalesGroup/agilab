@@ -1,34 +1,26 @@
 import os
+import asyncio
 import subprocess
 from pathlib import Path
 from agi_env import AgiEnv
+import logging
 
-def run_ssh_command():
+logger = logging.getLogger(__name__)
+
+async def main():
     """
     Runs an SSH command and returns (stdout, stderr) decoded strings.
     Raises subprocess.CalledProcessError on failure.
     """
-    host = "192.168.20.222"
-    user = "nsbl"
+    host = "127.0.0.1"
     agipath = AgiEnv.locate_agi_installation(verbose=0)
     env = AgiEnv(active_app="flight", apps_dir=agipath / "apps", install_type=1, verbose=1)
-    cmd = f"ssh {user}@{host} "
+    env.user = "jpm"
+    cmd_prefix = 'export PATH="$HOME/.local/bin:$PATH";' # ""  if remote host is windows
 
-    cwd = Path().home()
-    os.chdir(cwd)
-    module = 'flight'
-    wenv = env.wenv_rel
-    dist = wenv / "dist"
-    cmd += (
-        f"uv -q --project {wenv} run python -c "
-        f"\"from pathlib import Path; "
-        f"whl = list((Path().home() / '{dist}').glob('{module}*.whl')); "
-        f"print(whl)\""
-    )
+    cmd = f'{cmd_prefix}uv run --project {env.wenv_rel} python {env.wenv_rel / "dummy_cmd.py"}'
+    await env.send_file(host,  "dummy_cmd.py", env.wenv_rel)
+    await env.exec_ssh(host, cmd)
 
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    print("Stdout: " + result.stdout.strip())
-    print("Stderr: " + result.stderr.strip())
-
-if __name__ == "__main__":
-    run_ssh_command()
+if __name__ == '__main__':
+    asyncio.run(main())
