@@ -3,6 +3,8 @@ import sys
 import os
 from pathlib import Path
 from tempfile import gettempdir
+from logging import getLogger
+logger = logging.getLogger(__name__)
 
 
 try:
@@ -13,4 +15,4 @@ try:
     os.makedirs(os.path.join(wenv_path, 'src'))
 
 except Exception as e:
-    print(f"Error removing {directory}: {e}")
+    logging.error(f"Error removing {directory}: {e}")

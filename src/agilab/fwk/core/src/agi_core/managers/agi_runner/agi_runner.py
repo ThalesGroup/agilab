@@ -664,24 +664,16 @@ class AGI:
 
         """
         env = AGI.env
+        uv = env.uv
         wenv_rel = env.wenv_rel
         wenv_abs = env.wenv_abs
         if wenv_abs.exists():
             env.remove_dir_forcefully(str(wenv_abs))
         os.makedirs(wenv_abs / "src", exist_ok=True)
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
+        cmd = (f"{ cmd_prefix}{uv} run --project {env.wenv_rel} run python {env.wenv_rel / 'clean.py'}")
+        await env.exec_ssh(ip, cmd)
 
-        await env.exec_ssh(
-            ip,
-            cmd=(
-                f"{cmd_prefix}{env.uv} run python -c \"import os, glob, shutil\n"
-                f"from tempfile import gettempdir\n"
-                f"wenv_path = os.path.abspath(os.path.expanduser('{wenv_rel}'))\n"
-                f"dirs = [os.path.join(gettempdir(), 'dask-scratch-space'), wenv_path]\n"
-                f"[shutil.rmtree(d, ignore_errors=True) for d in dirs]\n"
-                f"os.makedirs(os.path.join(wenv_path, 'src'))\n\""
-            )
-        )
 
     @staticmethod
     async def _clean_nodes(scheduler, force=True):
@@ -767,6 +759,7 @@ class AGI:
 
             if uv_is_already_installed:
                 await AGI._kill(ip, force=True)
+                await env.send_file(ip, env.agi_env_root / "src/agi_env/clean.py", env.wenv_rel)
                 await AGI._clean_dirs(ip)
 
             cmd = (
