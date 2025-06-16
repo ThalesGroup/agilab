@@ -3,6 +3,8 @@ import os
 import signal
 import platform
 import psutil
+from logging import getLogger
+logger = logging.getLogger(__name__)
 
 try:
     me = getpass.getuser()
@@ -32,7 +34,7 @@ try:
             cmdline = p.info.get('cmdline') or []
 
             if ('dask' in name.lower()) or any('dask' in s.lower() for s in cmdline):
-                print(f"Killing PID {pid}: {name} {' '.join(cmdline)}")
+                loggin.info(f"Killing PID {pid}: {name} {' '.join(cmdline)}")
 
                 proc = psutil.Process(pid)
                 children = proc.children(recursive=True)
@@ -53,4 +55,4 @@ try:
             pass
 
 except ImportError:
-    print("psutil is required for this script.")
+    logging.error("psutil is required for this script.")
