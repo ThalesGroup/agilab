@@ -201,8 +201,8 @@ class AgiEnv:
 
         if install_type == 1:
             if "site-packages" in self.agi_root.parts:
-                self.agi_env_root = self.agi_root.parent
-                self.agi_core_root = self.agi_root.parent
+                self.agi_env_root = self.agi_root.parent / "agi_env"
+                self.agi_core_root = self.agi_root.parent / "agi_core"
                 resource_path = self.agi_env_root / self.agi_resources
             else:
                 self.agi_env_root = self.agi_root / "fwk/env"
