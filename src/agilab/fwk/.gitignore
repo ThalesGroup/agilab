@@ -31,5 +31,4 @@ src/*_worker_*/
 # Pytest caches
 .pytest*
 
-# JetBrains IDE settings
-.idea/
+
