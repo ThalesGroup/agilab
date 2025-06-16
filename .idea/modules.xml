@@ -6,7 +6,6 @@
       <module fileurl="file://$PROJECT_DIR$/src/agilab/fwk/core/.idea/core.iml" filepath="$PROJECT_DIR$/src/agilab/fwk/core/.idea/core.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/fwk/env/.idea/env.iml" filepath="$PROJECT_DIR$/src/agilab/fwk/env/.idea/env.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/flight_project/.idea/flight_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/flight_project/.idea/flight_project.iml" />
-      <module fileurl="file://$USER_HOME$/wenv/flight_worker/.idea/flight_worker.iml" filepath="$USER_HOME$/wenv/flight_worker/.idea/flight_worker.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/fwk/gui/.idea/gui.iml" filepath="$PROJECT_DIR$/src/agilab/fwk/gui/.idea/gui.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/my_code_project/.idea/my_code_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/my_code_project/.idea/my_code_project.iml" />
       <module fileurl="file://$USER_HOME$/wenv/my_code_worker/.idea/my_code_worker.iml" filepath="$USER_HOME$/wenv/my_code_worker/.idea/my_code_worker.iml" />
