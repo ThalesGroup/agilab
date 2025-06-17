@@ -18,6 +18,7 @@
 | pathspec | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | pexpect | ISC LICENSE _ISCL_ |
 | prompt-toolkit | BSD LICENSE |
+| psutil | BSD LICENSE |
 | ptyprocess | ISC LICENSE _ISCL_ |
 | pure-eval | MIT LICENSE |
 | pycparser | BSD LICENSE |

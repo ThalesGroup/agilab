@@ -7,7 +7,7 @@ Usage Example
 Installation
 ^^^^^^^^^^^^
 
-.. literalinclude:: log/AGI.install-my_code.py
+.. literalinclude:: log/AGI.install-.py
    :language: python
 
 ------
@@ -15,7 +15,7 @@ Installation
 Update
 ^^^^^^
 
-.. literalinclude:: log/AGI.update-my_code.py
+.. literalinclude:: log/AGI.update-.py
    :language: python
 
 ----
@@ -28,7 +28,7 @@ Distribute
 
 -----
 
-.. literalinclude:: log/AGI.distribute-my_code.py
+.. literalinclude:: log/AGI.distribute-.py
    :language: python
 
 ----
@@ -36,7 +36,7 @@ Distribute
 Run
 ^^^
 
-.. literalinclude:: log/AGI.run-my_code.py
+.. literalinclude:: log/AGI.run-.py
    :language: python
 
 ----
