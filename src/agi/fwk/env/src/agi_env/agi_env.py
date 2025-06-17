@@ -1,11 +1,12 @@
 from IPython.core.ultratb import FormattedTB
-from IPython.core.ultratb import FormattedTB
 import ast
 import asyncio
 import getpass
 import os
 import re
 import shutil
+import psutil
+import socket
 import subprocess
 import sys
 import asyncssh
@@ -21,7 +22,6 @@ import errno
 import astor
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
-from requests import packages
 
 # Compile regex once globally
 LOG_LEVEL_RE = re.compile(r'\b(INFO|ERROR|WARNING|DEBUG|CRITICAL)\b')
@@ -59,9 +59,7 @@ class AgiEnv:
     uv = None
     benchmark = None
     verbose = None
-    import inspect
-    import logging
-    import sys
+    _ip_local_cache: set = set({"127.0.0.1", "::1"})
 
 
     def init_logging(self, verbosity: int = None):
@@ -1035,9 +1033,35 @@ class AgiEnv:
         if app_name != self.app:
             self.__init__(active_app=app_name, install_type=install_type, verbose=AgiEnv.verbose)
 
+    @staticmethod
+    def is_local(ip):
+        """
+
+        Args:
+          ip:
+
+        Returns:
+
+        """
+        if (
+                not ip or ip in AgiEnv._ip_local_cache
+        ):  # Check if IP is None, empty, or cached
+            return True
+
+        for _, addrs in psutil.net_if_addrs().items():
+            for addr in addrs:
+                if addr.family == socket.AF_INET and ip == addr.address:
+                    AgiEnv._ip_local_cache.add(ip)  # Cache the local IP found
+                    return True
+
+        return False
 
     @asynccontextmanager
     async def get_ssh_connection(self, ip: str, timeout_sec: int = 5):
+
+        if AgiEnv.is_local(ip):
+            self.user = getpass.getuser()
+
         if not self.user:
             raise ValueError("SSH username is not configured. Please set 'user' in your .env file.")
 
@@ -1172,6 +1196,10 @@ class AgiEnv:
             user: str = None,
             password: str = None
     ):
+        if AgiEnv.is_local(ip):
+            shutil.copyfile(local_path, remote_path)
+            return
+        
         if not user:
             user = self.user
         if not password:

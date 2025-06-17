@@ -128,8 +128,7 @@ class AGI:
     best_mode: Dict[str, Any] = {}
     workers_tree: Optional[Any] = None
     workers_tree_info: Optional[Any] = None
-    debug: Optional[bool] = None
-    _ip_local_cache: set = set({"127.0.0.1", "::1"})  # Cache with default local IPs
+    debug: Optional[bool] = None # Cache with default local IPs
     env: Optional[AgiEnv] = None
 
     def __init__(self, target: str, verbose: int = 1):
@@ -360,29 +359,6 @@ class AGI:
         return json.dumps(runs_str_keys)
 
     @staticmethod
-    def _is_local(ip):
-        """
-
-        Args:
-          ip:
-
-        Returns:
-
-        """
-        if (
-                not ip or ip in AGI._ip_local_cache
-        ):  # Check if IP is None, empty, or cached
-            return True
-
-        for _, addrs in psutil.net_if_addrs().items():
-            for addr in addrs:
-                if addr.family == socket.AF_INET and ip == addr.address:
-                    AGI._ip_local_cache.add(ip)  # Cache the local IP found
-                    return True
-
-        return False
-
-    @staticmethod
     def get_default_local_ip():
         """
         Get the default local IP address of the machine.
@@ -582,13 +558,13 @@ class AGI:
         cmds: list[str] = []
 
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-        if AGI._is_local(ip):
+        if env.is_local(ip):
             kill_prefix = f'{cmd_prefix}{uv} run --project {env.agi_core} python'
         else:
             kill_prefix = f'{cmd_prefix}{uv} run --project {env.wenv_rel} python'
             if force:
                 clean = env.wenv_rel.parent / "kill.py"
-                await env.send_file(ip, env.manager_root / "agi_runner/kill.py", clean.parent)
+                #await env.send_file(ip, env.manager_root / "agi_runner/kill.py", clean.parent)
                 cmd = f"{kill_prefix} {clean}"
                 cmds.append(cmd)
 
@@ -605,9 +581,11 @@ class AGI:
         for cmd in cmds:
             # choose working directory based on local vs remote
             cwd = env.manager_root if ip == localhost else str(env.wenv_abs)
-            if AGI._is_local(ip):
+            if env.is_local(ip):
                 await AgiEnv.run(cmd, cwd)
             else:
+                clean = env.wenv_rel.parent / "kill.py"
+                await env.send_file(ip, env.manager_root / "agi_runner/kill.py", clean.parent)
                 last_res = await env.exec_ssh(ip, cmd)
 
             # handle tuple or dict result
@@ -672,7 +650,9 @@ class AGI:
             env.remove_dir_forcefully(str(wenv_abs))
         os.makedirs(wenv_abs / "src", exist_ok=True)
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-        cmd = (f"{ cmd_prefix}{uv} run --project {env.wenv_rel} run python {env.wenv_rel.parent / 'clean.py'}")
+        clean = env.wenv_rel.parent / 'clean.py'
+        await env.send_file(ip, env.manager_root / "agi_runner/clean.py", clean.parent)
+        cmd = (f"{cmd_prefix}{uv} run --project {env.wenv_rel} python {clean}")
         await env.exec_ssh(ip, cmd)
 
 
@@ -686,7 +666,7 @@ class AGI:
 
         tasks = []
         for ip in list_ip:
-            if AGI._is_local(ip):
+            if AgiEnv.is_local(ip):
                 # Assuming this cleans local dirs once per IP (or should be once per call)
                 AGI._clean_dirs_local()
             else:
@@ -722,13 +702,13 @@ class AGI:
 
         # Validate IPs
         for ip in list_ip:
-            if not AGI._is_local(ip) and not is_ip(ip):
+            if not env.is_local(ip) and not is_ip(ip):
                 raise ValueError(f"Invalid IP address: {ip}")
 
         # Prepare each remote node (skip local)
         AGI.list_ip = list_ip
         for ip in list_ip:
-            if AGI._is_local(ip):
+            if env.is_local(ip):
                 continue
 
             wenv_rel = env.wenv_rel
@@ -759,6 +739,7 @@ class AGI:
             await env.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers}")
 
             if uv_is_already_installed:
+                await env.send_file(ip, env.manager_root / "agi_runner/kill.py", env.wenv_rel.parent)
                 await AGI._kill(ip, force=True)
                 await env.send_file(ip, env.manager_root / "agi_runner/clean.py", env.wenv_rel.parent)
                 await AGI._clean_dirs(ip)
@@ -798,7 +779,7 @@ class AGI:
             tasks = []
             for ip in node_ips:
                 logging.info(f"********   Starting {AGI._run_type} for Agi_worker in .venv on {ip}")
-                if not AGI._is_local(ip):
+                if not env.is_local(ip):
                     tasks.append(asyncio.create_task(
                         AGI._install_app_remote(ip, env, wenv_rel, options["worker"])
                     ))
@@ -1040,7 +1021,7 @@ class AGI:
         AGI._local_ip, AGI._remote_ip = [], []
 
         for ip in list_ip:
-            (AGI._local_ip.append(ip) if AGI._is_local(ip) else AGI._remote_ip.append(ip))
+            (AGI._local_ip.append(ip) if AgiEnv.is_local(ip) else AGI._remote_ip.append(ip))
         AGI._install_todo = 2 * len(AGI._remote_ip)
         logging.info(f"********   {AGI._install_todo} remote .venv to {AGI._run_type}")
 
@@ -1169,7 +1150,7 @@ class AGI:
             toml_local = env.app_abs / "pyproject.toml"
             wenv_rel = env.wenv_rel
 
-            if AGI._is_local(AGI._scheduler_ip):
+            if env.is_local(AGI._scheduler_ip):
                 await asyncio.sleep(1)  # non-blocking sleep
                 cmd = (
                     f"{env.uv} run --project {env.wenv_abs} dask scheduler --port {AGI._scheduler_port} "
@@ -1213,7 +1194,7 @@ class AGI:
 
     @staticmethod
     async def _detect_export_cmd(ip: str) -> str | None:
-        if AGI._is_local(ip):
+        if AgiEnv.is_local(ip):
             return AgiEnv.export_local_bin
 
         # probe remote OS via SSH
@@ -1240,7 +1221,7 @@ class AGI:
             return False
 
         for i, (ip, n) in enumerate(AGI.workers.items()):
-            is_local = AGI._is_local(ip)
+            is_local = env.is_local(ip)
 
             cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
 

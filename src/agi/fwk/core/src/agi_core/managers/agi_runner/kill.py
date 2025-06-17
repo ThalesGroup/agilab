@@ -1,58 +1,143 @@
-import getpass
 import os
+import sys
+import getpass
 import signal
+import subprocess
 import platform
-import psutil
 import logging
-logger = logging.getLogger(__name__)
 
-try:
-    me = getpass.getuser()
-    my_pid = os.getpid()
+logger = logging.getLogger("clean_dask")
+logging.basicConfig(level=logging.INFO)
 
-    # Collect own ancestry PIDs to avoid killing self or parents
-    ancestor_pids = set()
+def get_ancestry_pids():
+    """Return a set of own pid and ancestors up to init."""
+    pids = set()
     try:
-        p = psutil.Process(my_pid)
-        while p:
-            ancestor_pids.add(p.pid)
-            p = p.parent()
+        pid = os.getpid()
+        while True:
+            pids.add(pid)
+            ppid = os.getppid()
+            if ppid == 0 or ppid == pid:
+                break
+            pid = ppid
     except Exception:
         pass
+    return pids
 
-    for p in psutil.process_iter(['pid', 'name', 'username', 'cmdline']):
-        try:
-            pid = p.info.get('pid')
-            if pid in ancestor_pids:
+def get_processes_unix(user):
+    """Yield dicts of {'pid', 'user', 'name', 'cmd'} for user's processes (Unix)."""
+    try:
+        out = subprocess.check_output(
+            ["ps", "-eo", "pid,user,comm,args"], text=True, stderr=subprocess.DEVNULL
+        )
+        for line in out.splitlines()[1:]:
+            parts = line.strip().split(None, 3)
+            if len(parts) < 4:
                 continue
-
-            username = p.info.get('username') or ""
-            if me not in username:
+            pid_str, u, name, cmd = parts
+            try:
+                pid = int(pid_str)
+            except Exception:
                 continue
+            if u == user:
+                yield {"pid": pid, "user": u, "name": name, "cmd": cmd}
+    except Exception as e:
+        logger.error(f"ps failed: {e}")
 
-            name = p.info.get('name') or ""
-            cmdline = p.info.get('cmdline') or []
+def get_processes_windows(user):
+    """Yield dicts of {'pid', 'user', 'name', 'cmd'} for user's processes (Windows)."""
+    try:
+        out = subprocess.check_output(
+            ["wmic", "process", "get", "ProcessId,CommandLine,Name,UserModeTime", "/FORMAT:csv"],
+            text=True, stderr=subprocess.DEVNULL
+        )
+        for line in out.splitlines()[1:]:
+            if not line.strip():
+                continue
+            parts = line.strip().split(",")
+            if len(parts) < 4:
+                continue
+            _, cmd, name, pid_str = parts
+            try:
+                pid = int(pid_str)
+            except Exception:
+                continue
+            # WMIC doesn't return user easily, so only match our own session
+            yield {"pid": pid, "user": user, "name": name or "", "cmd": cmd or ""}
+    except Exception as e:
+        logger.error(f"wmic failed: {e}")
 
-            if ('dask' in name.lower()) or any('dask' in s.lower() for s in cmdline):
-                loggin.info(f"Killing PID {pid}: {name} {' '.join(cmdline)}")
+def get_child_pids(parent_pid, all_procs):
+    """Find child pids recursively from the all_procs list."""
+    children = []
+    to_search = [parent_pid]
+    seen = set(to_search)
+    while to_search:
+        pid = to_search.pop()
+        for proc in all_procs:
+            try:
+                if int(proc.get("ppid", -1)) == pid:
+                    cpid = proc["pid"]
+                    if cpid not in seen:
+                        children.append(cpid)
+                        to_search.append(cpid)
+                        seen.add(cpid)
+            except Exception:
+                continue
+    return children
 
-                proc = psutil.Process(pid)
-                children = proc.children(recursive=True)
+def kill_pid(pid):
+    try:
+        if platform.system() == "Windows":
+            subprocess.call(['taskkill', '/PID', str(pid), '/F'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            os.kill(pid, signal.SIGTERM)
+    except Exception as e:
+        logger.info(f"Failed to kill {pid}: {e}")
 
-                # First try graceful termination on Unix/macOS, terminate on Windows
-                for child in children:
-                    if platform.system() == "Windows":
-                        child.terminate()
-                    else:
-                        child.send_signal(signal.SIGTERM)
+def main():
+    me = getpass.getuser()
+    ancestry = get_ancestry_pids()
+    system = platform.system()
+    # On Unix, get ppid for each process (needed for recursive kill)
+    all_procs = []
 
-                if platform.system() == "Windows":
-                    proc.terminate()
-                else:
-                    proc.send_signal(signal.SIGTERM)
+    if system in ("Linux", "Darwin"):
+        # Use "ps -eo pid,ppid,user,comm,args" for full ancestry
+        out = subprocess.check_output(
+            ["ps", "-eo", "pid,ppid,user,comm,args"], text=True, stderr=subprocess.DEVNULL
+        )
+        for line in out.splitlines()[1:]:
+            parts = line.strip().split(None, 4)
+            if len(parts) < 5:
+                continue
+            pid_str, ppid_str, u, name, cmd = parts
+            try:
+                pid = int(pid_str)
+                ppid = int(ppid_str)
+            except Exception:
+                continue
+            if u == me:
+                all_procs.append({"pid": pid, "ppid": ppid, "user": u, "name": name, "cmd": cmd})
+        procs = all_procs
+    else:  # Windows
+        procs = list(get_processes_windows(me))
 
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            pass
+    for proc in procs:
+        pid = proc["pid"]
+        if pid in ancestry:
+            continue
+        name = proc.get("name", "")
+        cmd = proc.get("cmd", "")
+        # Look for dask in name or command
+        if ("dask" in name.lower()) or ("dask" in cmd.lower()):
+            logger.info(f"Killing PID {pid}: {name} {cmd}")
+            # First try to kill children (if possible)
+            if system in ("Linux", "Darwin"):
+                children = get_child_pids(pid, all_procs)
+                for cpid in children:
+                    kill_pid(cpid)
+            kill_pid(pid)
 
-except ImportError:
-    logging.error("psutil is required for this script.")
+if __name__ == "__main__":
+    main()
