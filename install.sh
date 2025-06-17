@@ -248,7 +248,7 @@ install_framework_apps() {
 
 write_env_values() {
     shared_env="$HOME/.local/share/agilab/.env"
-    agilab_env="$HOME/.agilab/.env"
+    agilab_env="$HOME/.agi/.env"
 
     [[ -f "$shared_env" ]] || { echo -e "${RED}Error: $shared_env does not exist.${NC}"; return 1; }
 
