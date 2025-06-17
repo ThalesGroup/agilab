@@ -587,7 +587,7 @@ class AGI:
         else:
             kill_prefix = f'{cmd_prefix}{uv} run --project {env.wenv_rel} python'
             if force:
-                await env.send_file(ip, env.agi_env_root / "src/agi_env/clean.py", env.wenv_rel)
+                await env.send_file(ip, env.manager_root / "agi_runner/clean.py", env.wenv_rel)
                 cmd = f"{kill_prefix} {env.wenv_rel / "clean.py"}"
                 cmds.append(cmd)
 
@@ -759,7 +759,7 @@ class AGI:
 
             if uv_is_already_installed:
                 await AGI._kill(ip, force=True)
-                await env.send_file(ip, env.agi_env_root / "src/agi_env/clean.py", env.wenv_rel)
+                await env.send_file(ip, env.manager_root / "agi_runner/clean.py", env.wenv_rel)
                 await AGI._clean_dirs(ip)
 
             cmd = (
