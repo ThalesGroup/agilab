@@ -13,7 +13,7 @@ APP_INSTALL="uv -q run -p $AGI_PYTHON_VERSION --project ../fwk/core/managers pyt
 
 # List only the apps that you want to install
 INCLUDED_APPS=(
-    "my_code_project"
+    "mycode_project"
     "flight_project"
 )
 

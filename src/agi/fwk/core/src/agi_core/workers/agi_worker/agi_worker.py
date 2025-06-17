@@ -363,7 +363,7 @@ class AgiWorker(abc.ABC):
     ):
         """new worker instance
         Args:
-          module: instanciate and load target my_code_worker module
+          module: instanciate and load target mycode_worker module
           target_worker:
           target_worker_class:
           target_package:

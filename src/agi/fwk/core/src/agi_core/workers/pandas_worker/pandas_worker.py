@@ -143,7 +143,7 @@ class PandasWorker(AgiWorker):
             ncore = 1
 
         logging.info(
-            f"PandasWorker.work - ncore {ncore} - my_code_worker #{self.worker_id}"
+            f"PandasWorker.work - ncore {ncore} - mycode_worker #{self.worker_id}"
             f" - work_pool x {len(works)}",
         )
 

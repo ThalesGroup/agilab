@@ -78,7 +78,7 @@ def test_change_active_app_reinitializes(monkeypatch, env):
     monkeypatch.setattr(AgiEnv, "__init__", fake_init)
 
     env.app = "flight_project"
-    env.change_active_app("my_code_project", install_type=1)
+    env.change_active_app("mycode_project", install_type=1)
     assert called.get('called', False)
 
 @pytest.mark.asyncio

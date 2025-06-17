@@ -13,7 +13,7 @@ $ErrorActionPreference = "Stop"
 
 # List only the apps that you want to install
 $INCLUDED_APPS = @(
-    "my_code_project",
+    "mycode_project",
     "flight_project"
 )
 
