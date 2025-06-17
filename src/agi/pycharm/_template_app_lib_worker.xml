@@ -8,7 +8,7 @@
       <env name="PYTHONUNBUFFERED" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
-    <option name="SDK_NAME" value="uv (f{APP}_worker)" />
+    <option name="SDK_NAME" value="uv ({APP}_worker)" />
     <option name="WORKING_DIRECTORY" value="$USER_HOME$/wenv/{APP}_worker" />
     <option name="IS_MODULE_SDK" value="true" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
