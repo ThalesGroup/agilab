@@ -177,7 +177,7 @@ class AgiEnv:
         self.init_logging(verbose)
         AgiEnv._debug = debug
         self.is_managed_pc = getpass.getuser().startswith("T0")
-        self.agi_resources = Path("resources/.agilab")
+        self.agi_resources = Path("resources/.agi")
         home_abs = Path.home() / "MyApp" if self.is_managed_pc else Path.home()
         self.home_abs = home_abs
 

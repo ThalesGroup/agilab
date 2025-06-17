@@ -215,7 +215,7 @@ copy_project_files() {
         echo "Using current directory as install directory; no copy needed."
     fi
     mkdir -p "$HOME/.local/share/agilab"
-    echo "$AGI_INSTALL_PATH/src/agilab" > "$HOME/.local/share/agilab/.agi-path"
+    echo "$AGI_INSTALL_PATH/src/agi" > "$HOME/.local/share/agilab/.agi-path"
 }
 
 update_environment() {
@@ -231,8 +231,8 @@ update_environment() {
 }
 
 install_framework_apps() {
-    framework_dir="$AGI_INSTALL_PATH/src/agilab/fwk"
-    apps_dir="$AGI_INSTALL_PATH/src/agilab/apps"
+    framework_dir="$AGI_INSTALL_PATH/src/agi/fwk"
+    apps_dir="$AGI_INSTALL_PATH/src/agi/apps"
     chmod +x "$framework_dir/install.sh" "$apps_dir/install.sh"
 
     echo -e "${BLUE}Installing Framework...${NC}"

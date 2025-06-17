@@ -49,8 +49,8 @@ update_environment() {
 }
 
 install_framework_apps() {
-    framework_dir="/app/src/agilab/fwk"
-    apps_dir="/app/src/agilab/apps"
+    framework_dir="/app/src/agi/fwk"
+    apps_dir="/app/src/agi/apps"
 
     chmod +x "$framework_dir/install.sh" "$apps_dir/install.sh"
 
@@ -105,7 +105,7 @@ write_env_values() {
 install_python_version
 update_environment
 mkdir -p "$HOME/.local/share/agilab"
-echo "/app/src/agilab" > "$HOME/.local/share/agilab/.agi-path"
+echo "/app/src/agi" > "$HOME/.local/share/agilab/.agi-path"
 install_framework_apps
 write_env_values
 

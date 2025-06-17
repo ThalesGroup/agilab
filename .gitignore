@@ -30,14 +30,14 @@ src/*_worker_*/
 .pytest*
 
 # apps
-/src/agilab/apps/*project/
-!/src/agilab/apps/flight_project/
-!/src/agilab/apps/my_code_project/
+/src/agi/apps/*project/
+!/src/agi/apps/flight_project/
+!/src/agi/apps/my_code_project/
 
 # views
-/src/agilab/views/
-!/src/agilab/views/maps/
-!/src/agilab/apps/maps-3d/
+/src/agi/views/
+!/src/agi/views/maps/
+!/src/agi/apps/maps-3d/
 
 # managed PC install under windows
 /thales/

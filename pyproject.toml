@@ -69,13 +69,13 @@ default-groups = ["dev"]
 workspace = true
 
 [tool.uv.sources.agi-env]
-path = "src/agilab/fwk/env"
+path = "src/agi/fwk/env"
 
 [tool.uv.sources.agi-core]
-path = "src/agilab/fwk/core"
+path = "src/agi/fwk/core"
 
 [tool.uv.sources.agi-gui]
-path = "src/agilab/fwk/gui"
+path = "src/agi/fwk/gui"
 
 [tool.uv.workspace]
 members = ["apps", "views"]
@@ -90,13 +90,13 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["agilab*", "apps*", "views*"]
+include = ["agi*", "apps*", "views*"]
 exclude = [
-    "agilab.fwk*",
+    "agi.fwk*",
     ".idea*",
     "tests*",
-    "agilab.apps.flight_project.build*",
-    "agilab.apps.my_code_project.build*"
+    "agi.apps.flight_project.build*",
+    "agi.apps.my_code_project.build*"
 ]
 
 [tool.mypy]

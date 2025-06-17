@@ -17,7 +17,7 @@ Move-Item dist\*.gz $targetDist
 $subdirs = @("fwk/env", "fwk/core", "fwk/gui")
 
 foreach ($dir in $subdirs) {
-    $srcDir = Join-Path $cwd "src\agilab\$dir"
+    $srcDir = Join-Path $cwd "src\agi\$dir"
     Push-Location $srcDir
 
     Remove-Item -Recurse -Force dist,build -ErrorAction SilentlyContinue
