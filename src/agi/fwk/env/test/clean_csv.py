@@ -13,8 +13,8 @@
 
 import csv
 
-input_csv = '~/.agilab/balancer_df.csv'
-cleaned_csv = '../src/env/.agilab/balancer_df.csv'
+input_csv = '~/.agi/balancer_df.csv'
+cleaned_csv = '../src/env/.agi/balancer_df.csv'
 
 with open(input_csv, 'r', newline='') as infile, open(cleaned_csv, 'w', newline='') as outfile:
     reader = csv.reader(infile)

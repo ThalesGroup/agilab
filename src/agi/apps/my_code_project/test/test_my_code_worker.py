@@ -9,7 +9,7 @@ args = {
     'param4': True
 }
 
-sys.path.insert(0,'/home/pcm/PycharmProjects/agilab/src/agilab/apps/my_code_project/src')
+sys.path.insert(0,'/home/pcm/PycharmProjects/agilab/src/agi/apps/my_code_project/src')
 sys.path.insert(0,'/home/pcm/wenv/my_code_worker/dist')
 
 

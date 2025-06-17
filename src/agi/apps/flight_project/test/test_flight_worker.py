@@ -15,7 +15,7 @@ args = {
     'output_format': "csv"
 }
 
-sys.path.insert(0,'/home/pcm/PycharmProjects/agilab/src/agilab/apps/flight_project/src')
+sys.path.insert(0,'/home/pcm/PycharmProjects/agilab/src/agi/apps/flight_project/src')
 sys.path.insert(0,'/home/pcm/wenv/flight_worker/dist')
 
 # AgiWorker.run flight command

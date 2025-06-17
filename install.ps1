@@ -54,7 +54,7 @@ $AgiPathFile = Join-Path $LocalDir ".agi-path"
 $PYTHON_VERSION = "3.12"
 
 # Define project directories (AGI_PROJECT_SRC is "$AgiDir\src")
-$AgiProject = Join-Path $CurrentPath "src\agilab"
+$AgiProject = Join-Path $CurrentPath "src\agi"
 $FrameworkDir = Join-Path $AgiProject "fwk"
 $AppsDir = Join-Path $AgiProject "apps"
 
@@ -188,7 +188,7 @@ function Backup-AGIProject {
                 # Use Compress-Archive as a backup mechanism
                 Compress-Archive -Path $AgiProject\* -DestinationPath $backupFile -Force
                 Write-Host "Backup created successfully at $backupFile." -ForegroundColor Green
-                if ((Split-Path $AgiProject -Leaf) -ne "agilab") {
+                if ((Split-Path $AgiProject -Leaf) -ne "agi") {
                     Remove-Item -Recurse -Force $AgiProject
                     Write-Host "Existing AGI project directory removed." -ForegroundColor Green
                 }
@@ -226,8 +226,8 @@ function Copy-ProjectFiles {
     } else {
         Write-Host "Using current directory as install directory; no copy needed." -ForegroundColor Yellow
     }
-    "$InstallPath/src/agilab" | Set-Content -Encoding UTF8 -Path $AgiPathFile
-    [System.Environment]::SetEnvironmentVariable('AGI_ROOT', "$InstallPath/src/agilab", [System.EnvironmentVariableTarget]::User)
+    "$InstallPath/src/agi" | Set-Content -Encoding UTF8 -Path $AgiPathFile
+    [System.Environment]::SetEnvironmentVariable('AGI_ROOT', "$InstallPath/src/agi", [System.EnvironmentVariableTarget]::User)
     Write-Host "Installation root path has been exported as AGI_ROOT and written in $LocalDir" -ForegroundColor Green
 
 }
@@ -249,8 +249,8 @@ AGI_PYTHON_VERSION="$env:PYTHON_VERSION"
 }
 
 function Install-FrameworkApps {
-    $frameworkDir = Join-Path $InstallPath "src\agilab\fwk"
-    $appsDir = Join-Path $InstallPath "src\agilab\apps"
+    $frameworkDir = Join-Path $InstallPath "src\agi\fwk"
+    $appsDir = Join-Path $InstallPath "src\agi\apps"
 
     Write-Host "Installing Framework..." -ForegroundColor Blue
     Push-Location $frameworkDir
