@@ -147,7 +147,7 @@ class PolarsWorker(AgiWorker):
             ncore = max(min(len(works), int(os.cpu_count())), 1)
 
         logging.info(
-            f"PolarsWorker.work - ncore {ncore} - my_code_worker #{self.worker_id}"
+            f"PolarsWorker.work - ncore {ncore} - mycode_worker #{self.worker_id}"
             f" - work_pool x {len(works)}",
         )
         self.work_init()

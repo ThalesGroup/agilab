@@ -1638,7 +1638,7 @@ class AGI:
 
 
         Returns:
-          : list of chunk per my_code_worker containing list of works per my_code_worker containing list of chunks level 1
+          : list of chunk per mycode_worker containing list of works per my_code_worker containing list of chunks level 1
 
         """
         if not AGI.workers:
@@ -1902,15 +1902,15 @@ class AGI:
         current_state = deepcopy(workers_rt)
 
         for worker, data in workers_rt.items():
-            worker_cap = data["label"]  # Capacité actuelle du my_code_wprker
-            worker_rt = data["run_time"]  # Temps d'exécution du my_code_worker
+            worker_cap = data["label"]  # Capacité actuelle du mycode_wprker
+            worker_rt = data["run_time"]  # Temps d'exécution du mycode_worker
 
-            # Calculer le delta de temps et mettre à jour la capacité pour chaque autre my_code_worker
+            # Calculer le delta de temps et mettre à jour la capacité pour chaque autre mycode_worker
             for other_worker, other_data in current_state.items():
                 if other_worker != worker:
                     other_rt = other_data[
                         "run_time"
-                    ]  # Temps d'exécution de l'autre my_code_worker
+                    ]  # Temps d'exécution de l'autre mycode_worker
                     delta = worker_rt - other_rt
                     workers_rt[worker]["label"] -= (
                             0.1 * worker_cap * delta / worker_rt / (len(current_state) - 1)
