@@ -20,7 +20,7 @@ template_paths = [
     'pycharm/_template_app_lib.xml',
     'pycharm/_template_app_egg.xml',
     'pycharm/_template_app_run.xml',
-    'pycharm/_template_app_test.xml'
+    'pycharm/_template_app_test_manager.xml'
 ]
 
 output_dir = os.path.join(os.getcwd(), '.idea', 'runConfigurations')
