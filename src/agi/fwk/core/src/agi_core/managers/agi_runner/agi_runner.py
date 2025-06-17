@@ -587,8 +587,9 @@ class AGI:
         else:
             kill_prefix = f'{cmd_prefix}{uv} run --project {env.wenv_rel} python'
             if force:
-                await env.send_file(ip, env.manager_root / "agi_runner/clean.py", env.wenv_rel)
-                cmd = f"{kill_prefix} {env.wenv_rel / "clean.py"}"
+                clean = env.wenv_rel.parent / "kill.py"
+                await env.send_file(ip, env.manager_root / "agi_runner/kill.py", clean.parent)
+                cmd = f"{kill_prefix} {clean}"
                 cmds.append(cmd)
 
         # 3) If we found any explicit pid files, terminate those PIDs
@@ -671,7 +672,7 @@ class AGI:
             env.remove_dir_forcefully(str(wenv_abs))
         os.makedirs(wenv_abs / "src", exist_ok=True)
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-        cmd = (f"{ cmd_prefix}{uv} run --project {env.wenv_rel} run python {env.wenv_rel / 'clean.py'}")
+        cmd = (f"{ cmd_prefix}{uv} run --project {env.wenv_rel} run python {env.wenv_rel.parent / 'clean.py'}")
         await env.exec_ssh(ip, cmd)
 
 
@@ -759,7 +760,7 @@ class AGI:
 
             if uv_is_already_installed:
                 await AGI._kill(ip, force=True)
-                await env.send_file(ip, env.manager_root / "agi_runner/clean.py", env.wenv_rel)
+                await env.send_file(ip, env.manager_root / "agi_runner/clean.py", env.wenv_rel.parent)
                 await AGI._clean_dirs(ip)
 
             cmd = (
