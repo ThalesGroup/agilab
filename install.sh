@@ -230,15 +230,19 @@ update_environment() {
     echo -e "${GREEN}Environment updated in $ENV_FILE${NC}"
 }
 
-install_framework_apps() {
+install_framework() {
     framework_dir="$AGI_INSTALL_PATH/src/agi/fwk"
-    apps_dir="$AGI_INSTALL_PATH/src/agi/apps"
-    chmod +x "$framework_dir/install.sh" "$apps_dir/install.sh"
+    chmod +x "$framework_dir/install.sh"
 
     echo -e "${BLUE}Installing Framework...${NC}"
     pushd "$framework_dir" > /dev/null
       ./install.sh "$framework_dir"
     popd  > /dev/null
+}
+
+install_apps() {
+    apps_dir="$AGI_INSTALL_PATH/src/agi/apps"
+    chmod +x "$apps_dir/install.sh"
 
     echo -e "${BLUE}Installing Apps...${NC}"
     pushd "$apps_dir" > /dev/null
@@ -282,7 +286,8 @@ choose_python_version
 backup_existing_project
 copy_project_files
 update_environment
-install_framework_apps
+install_framework
 write_env_values
+install_apps
 
 echo -e "${GREEN}Installation complete!${NC}"
