@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
-import sys
-import subprocess
-from pathlib import Path
 import os
+from pathlib import Path
+
+core_path = str((Path(__file__).parent.parent.resolve() / "src").resolve())
+pp = os.environ.get("PYTHONPATH", "")
+if not pp.startswith(core_path):
+    os.environ["PYTHONPATH"] = core_path + (os.pathsep + pp if pp else "")
+    os.execv(os.sys.executable, [os.sys.executable] + os.sys.argv)
+
+import sys
+from pathlib import Path
+import subprocess
 
 def main():
     repo_root = Path(__file__).parent.absolute()
@@ -19,19 +27,19 @@ def main():
         sys.exit(1)
 
     cmd = [
-              sys.executable, "-m", "pytest",
-              "--rootdir", str(repo_root),
-              "--cov=agi_core",  # measure coverage for your package
-              "--cov-report=term",  # add terminal report for percentage output
-              "--cov-report=xml",  # retain XML report if needed
-              "--import-mode=importlib",
-              "--local-badge-output-dir",
-              str(badges_root),
-          ] + [str(f) for f in test_files]
+        sys.executable, "-m", "pytest",
+        "--rootdir", str(repo_root),
+        "--cov=agi_core",
+        "--cov-report=term",
+        "--cov-report=xml",
+        "--import-mode=importlib",
+        "--local-badge-output-dir",
+        str(badges_root),
+    ] + [str(f) for f in test_files]
 
     print("Running pytest with command:")
     print(" ".join(cmd))
-    proc = subprocess.run(cmd)
+    proc = subprocess.run(cmd, env=os.environ.copy())
     sys.exit(proc.returncode)
 
 if __name__ == "__main__":
