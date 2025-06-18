@@ -653,7 +653,7 @@ class AGI:
         wenv = env.wenv_rel
         clean = wenv.parent / 'clean.py'
         await env.send_file(ip, env.manager_root / "agi_runner/clean.py", clean.parent)
-        cmd = (f"{cmd_prefix}{uv} run python -p {env.python_version} {clean} {wenv}")
+        cmd = (f"{cmd_prefix}{uv} run -p {env.python_version} python {clean} {wenv}")
         await env.exec_ssh(ip, cmd)
 
 
@@ -755,8 +755,8 @@ class AGI:
             )
             await env.exec_ssh(ip, cmd)
 
-            cmd = f"{cmd_prefix}{env.uv} --project {wenv_rel} add psutil"
-            await env.exec_ssh(ip, cmd)
+            # cmd = f"{cmd_prefix}{env.uv} --project {wenv_rel} add psutil"
+            # await env.exec_ssh(ip, cmd)
 
     @staticmethod
     async def _install(scheduler):
