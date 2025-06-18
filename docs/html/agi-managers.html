@@ -581,6 +581,11 @@ It offers a command-line interface in Python and an optional LAB with Streamlit,
 :param Returns:
 :param the distribution tree:
 :param ——-:</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code></span></p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py attribute">
@@ -591,21 +596,29 @@ It offers a command-line interface in Python and an optional LAB with Streamlit,
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.find_free_port">
 <em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">find_free_port</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attempts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI.find_free_port"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.find_free_port" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></span></p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.get_default_local_ip">
 <em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_default_local_ip</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI.get_default_local_ip"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.get_default_local_ip" title="Link to this definition"></a></dt>
 <dd><p>Get the default local IP address of the machine.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>The default local IP address.</p>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></span></p>
 </dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>str</p>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The default local IP address.</p>
 </dd>
-<dt class="field-odd">Raises<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>Exception</strong> – If unable to determine the local IP address.</p>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>Exception</strong> – If unable to determine the local IP address.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -615,8 +628,11 @@ It offers a command-line interface in Python and an optional LAB with Streamlit,
 <em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">install</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">module_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modes_enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI.install"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.install" title="Link to this definition"></a></dt>
 <dd><p>Update the cluster’s virtual environment.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
 <li><p><strong>module_name_or_path</strong> (<em>str</em>) – The name of the module to install or the path to the module.</p></li>
 <li><p><strong>list_ip</strong> (<em>List</em><em>[</em><em>str</em><em>]</em><em>, </em><em>optional</em>) – A list of IPv4 addresses with SSH access. Each IP should have Python,
 <cite>psutil</cite>, and <cite>pdm</cite> installed. Defaults to None.</p></li>
@@ -626,14 +642,14 @@ Defaults to 1.</p></li>
 <li><p><strong>**args</strong> – Additional keyword arguments.</p></li>
 </ul>
 </dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><cite>True</cite> if the installation was successful, <cite>False</cite> otherwise.</p>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><cite>True</cite> if the installation was successful, <cite>False</cite> otherwise.</p>
 </dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>bool</p>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool</p>
 </dd>
-<dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><ul class="simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
 <li><p><strong>ValueError</strong> – If <cite>module_name_or_path</cite> is invalid.</p></li>
 <li><p><strong>ConnectionError</strong> – </p></li>
 </ul>
@@ -644,7 +660,12 @@ Defaults to 1.</p></li>
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.main">
 <em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">scheduler</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_core/managers/agi_runner/agi_runner.html#AGI.main"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_core.managers.agi_runner.agi_runner.AGI.main" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code></span></p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_core.managers.agi_runner.agi_runner.AGI.make_chunks">
@@ -652,8 +673,11 @@ Defaults to 1.</p></li>
 <dd><p>Partitions the nchunk2 weighted into n chuncks, in a smart way
 chunks and chunks_sizes must be left to None</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code>]]]</span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
 <li><p><strong>nchunk2</strong> – list of number of chunks level 2</p></li>
 <li><p><strong>weights</strong> – the list of weight level2</p></li>
 <li><p><strong>capacities</strong> – the lnewist of workers capacity (Default value = None)</p></li>
@@ -662,8 +686,8 @@ chunks and chunks_sizes must be left to None</p>
 <li><p><strong>weights</strong> – list:</p></li>
 </ul>
 </dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>list of chunk per mycode_worker containing list of works per my_code_worker containing list of chunks level 1</p>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list of chunk per mycode_worker containing list of works per my_code_worker containing list of chunks level 1</p>
 </dd>
 </dl>
 </dd></dl>
@@ -728,7 +752,9 @@ chunks and chunks_sizes must be left to None</p>
 :param force_update:
 :type force_update: make a Spud.update before the installation, default is True
 :param verbose:
-:type verbose: verbosity [0-3]</p>
+:type verbose: verbosity [0-3]
+:param :
+:type : rtype: <span class="sphinx_autodoc_typehints-type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></span></p>
 </dd></dl>
 
 <dl class="py attribute">
