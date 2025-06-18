@@ -10,7 +10,6 @@ core_path = str((Path(__file__).parent / "core").resolve())
 pp = os.environ.get("PYTHONPATH", "")
 if not pp.startswith(core_path):
     os.environ["PYTHONPATH"] = core_path + (os.pathsep + pp if pp else "")
-    os.execv(os.sys.executable, [os.sys.executable] + os.sys.argv)
 
 def main():
     repo_root = Path(__file__).parent.absolute()
