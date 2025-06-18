@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
 import os
 from pathlib import Path
-
-core_path = str((Path(__file__).parent.parent.resolve() / "src").resolve())
-pp = os.environ.get("PYTHONPATH", "")
-if not pp.startswith(core_path):
-    os.environ["PYTHONPATH"] = core_path + (os.pathsep + pp if pp else "")
-    os.execv(os.sys.executable, [os.sys.executable] + os.sys.argv)
-
 import sys
 from pathlib import Path
 import subprocess
