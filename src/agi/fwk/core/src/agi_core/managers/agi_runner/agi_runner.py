@@ -426,7 +426,7 @@ class AGI:
         return ip, port
 
     @staticmethod
-        async def _load_module(
+    async def _load_module(
         module: str,
         package: Optional[str] = None,
         path: Optional[Union[str, Path]] = None,
