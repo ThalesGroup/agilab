@@ -38,4 +38,4 @@ uv run python -m ensurepip
 popd > /dev/null
 
 echo -e "${GREEN}Checking installation...${NC}"
-uv run -p "$AGI_PYTHON_VERSION" --project core/managers python run-all-test.py
+uv run -p "$AGI_PYTHON_VERSION" --project core python run-all-test.py
