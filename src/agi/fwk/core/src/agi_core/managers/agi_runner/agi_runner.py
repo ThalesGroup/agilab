@@ -559,9 +559,9 @@ class AGI:
 
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         if env.is_local(ip):
-            kill_prefix = f'{cmd_prefix}{uv} run --project {env.agi_core} python'
+            kill_prefix = f'{cmd_prefix}{uv} run --project {env.agi_core} -p {env.python_version} python'
         else:
-            kill_prefix = f'{cmd_prefix}{uv} run --project {env.wenv_rel} python'
+            kill_prefix = f'{cmd_prefix}{uv} run --project {env.wenv_rel} -p {env.python_version} python'
             if force:
                 clean = env.wenv_rel.parent / "kill.py"
                 #await env.send_file(ip, env.manager_root / "agi_runner/kill.py", clean.parent)
@@ -650,9 +650,10 @@ class AGI:
             env.remove_dir_forcefully(str(wenv_abs))
         os.makedirs(wenv_abs / "src", exist_ok=True)
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-        clean = env.wenv_rel.parent / 'clean.py'
+        wenv = env.wenv_rel
+        clean = wenv.parent / 'clean.py'
         await env.send_file(ip, env.manager_root / "agi_runner/clean.py", clean.parent)
-        cmd = (f"{cmd_prefix}{uv} run --project {env.wenv_rel} python {clean}")
+        cmd = (f"{cmd_prefix}{uv} run python -p {env.python_version} {clean} {wenv}")
         await env.exec_ssh(ip, cmd)
 
 
@@ -683,7 +684,7 @@ class AGI:
         return list_ip
 
     @staticmethod
-    async def _install_uv(scheduler):
+    async def _install_cluster(scheduler):
         """
         Validate and prepare each remote node in the cluster:
         - Verify each IP is valid and reachable.
@@ -718,35 +719,39 @@ class AGI:
             cmd_prefix = await AGI._detect_export_cmd(ip)
 
             env.set_env_var(f"{ip}_CMD_PREFIX", cmd_prefix)
-            uv_is_already_installed = True
+            uv_is_installed = True
             # 2) Check uv
             try:
                 await env.exec_ssh(ip, f"{cmd_prefix}{env.uv} --version")
                 await env.exec_ssh(ip, f"{cmd_prefix}{env.uv} self update")
             except Exception:
-                uv_is_already_installed = False
+                uv_is_installed = False
                 # Try Windows installer
                 try:
                     await env.exec_ssh(ip,
                                        'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"'
                                        )
+                    uv_is_installed = True
                 except Exception:
+                    uv_is_installed = False
                     # Fallback to Unix installer
                     await env.exec_ssh(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
                     await env.exec_ssh(ip, 'source $HOME/.local/bin/env')
+                    uv_is_installed = True
 
+            if not uv_is_installed:
+                logging.error("Failed to install uv")
+                raise EnvironmentError("Failed to install uv")
+            
             # 3) Install Python
             await env.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers}")
-
-            if uv_is_already_installed:
-                await env.send_file(ip, env.manager_root / "agi_runner/kill.py", env.wenv_rel.parent)
-                await AGI._kill(ip, force=True)
-                await env.send_file(ip, env.manager_root / "agi_runner/clean.py", env.wenv_rel.parent)
-                await AGI._clean_dirs(ip)
+            await env.send_file(ip, env.manager_root / "agi_runner/kill.py", env.wenv_rel.parent)
+            await AGI._kill(ip, force=True)
+            await env.send_file(ip, env.manager_root / "agi_runner/clean.py", env.wenv_rel.parent)
+            await AGI._clean_dirs(ip)
 
             cmd = (
-                f"{cmd_prefix}mkdir -p '{wenv_rel}'; "
-                f"{env.uv} --project {wenv_rel} init --bare --no-workspace"
+                f"{cmd_prefix}{env.uv} --project {wenv_rel} init --bare --no-workspace"
             )
             await env.exec_ssh(ip, cmd)
 
@@ -886,7 +891,7 @@ class AGI:
 
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
 
-        cmd = f"{cmd_prefix}{env.uv} run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
+        cmd = f"{cmd_prefix}{env.uv} run -p {env.python_version} python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
         await env.exec_ssh(ip, cmd)
 
         # Then send the files to the remote directory
@@ -928,9 +933,9 @@ class AGI:
 
         # 6) Build and run uv sync, adding --config-file only when has_rapids_hw
         if has_rapids_hw:
-            sync_cmd = f"{cmd_prefix}{env.uv} sync --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option}"
+            sync_cmd = f"{cmd_prefix}{env.uv} sync --upgrade --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option} --refresh-package dask"
         else:
-            sync_cmd = f"{cmd_prefix}{env.uv} sync --project {wenv_rel} {option}"
+            sync_cmd = f"{cmd_prefix}{env.uv} sync --upgrade --project {wenv_rel} {option} --refresh-package dask "
 
         await env.exec_ssh(ip, sync_cmd)
 
@@ -1161,7 +1166,7 @@ class AGI:
                 logging.info(result)
             else:
                 # Create remote directory
-                cmd = f"{env.uv} run python -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
+                cmd = f"{env.uv} run -p {env.python_version} python -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
                 await env.exec_ssh(AGI._scheduler_ip, cmd)
 
                 toml_wenv = wenv_rel / "pyproject.toml"
@@ -1513,7 +1518,7 @@ class AGI:
             t = time.time()
 
             if AGI._mode & 4:
-                await AGI._install_uv(scheduler)
+                await AGI._install_cluster(scheduler)
             else:
                 AGI._clean_dirs_local()
 
