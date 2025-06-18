@@ -10,8 +10,7 @@
 # 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or THALES SIX GTS France SAS, may be used to endorse or promote products derived from this software without specific prior written permission.
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-from asyncio import tasks
-
+from typing import Any, Dict, List, Optional, Union, Tuple, Set  # Ajoute Tuple et Set
 from IPython.lib import backgroundjobs as bg
 import asyncio
 import getpass
@@ -145,7 +144,10 @@ class AGI:
         Raises:
             None
         """
-        pass
+        # At the top of __init__:
+        if hasattr(AGI, "_instantiated") and AGI._instantiated:
+            raise RuntimeError("AGI class is a singleton. Only one instance allowed per process.")
+        AGI._instantiated = True
 
     @staticmethod
     async def run(
@@ -271,19 +273,21 @@ class AGI:
                 return
 
             except Exception as err:
-                logging.error(err)
-                logging.error(traceback.format_exc())
+                logging.error(f"Unhandled exception in AGI.run: {err}", exc_info=True)
+
+        raise
 
     @staticmethod
     async def _run_all_modes(
-            target,
-            env,
-            scheduler=None,
-            workers=None,
-            verbose=0,
-            mode_range=None,
-            rapids_enabled=None,
-            **args,
+        target: str,
+        env: AgiEnv,
+        scheduler: Optional[str] = None,
+        workers: Optional[Dict[str, int]] = None,
+        verbose: int = 0,
+        mode_range: Optional[Union[List[int], range]] = None,
+        rapids_enabled: Optional[bool] = None,
+        **args: Any,
+    ) -> str:
     ):
         """
         Run all modes to find the fastest one.
@@ -359,7 +363,7 @@ class AGI:
         return json.dumps(runs_str_keys)
 
     @staticmethod
-    def get_default_local_ip():
+    def get_default_local_ip() -> str:
         """
         Get the default local IP address of the machine.
 
@@ -379,7 +383,7 @@ class AGI:
             return "Unable to determine local IP"
 
     @staticmethod
-    def find_free_port(start=5000, end=10000, attempts=100):
+    def find_free_port(start: int = 5000, end: int = 10000, attempts: int = 100) -> int:
         for _ in range(attempts):
             port = random.randint(start, end)
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -395,7 +399,7 @@ class AGI:
         raise RuntimeError("No free port found in the specified range.")
 
     @staticmethod
-    def _get_scheduler(ip_sched):
+    def _get_scheduler(ip_sched: Optional[Union[str, Dict[str, int]]] = None) -> Tuple[str, int]:
         """get scheduler ip V4 address
         when no scheduler provided, scheduler address is localhost or the first address if workers are not local.
         port is random
@@ -423,7 +427,11 @@ class AGI:
         return ip, port
 
     @staticmethod
-    async def _load_module(module, package=None, path=None):
+        async def _load_module(
+        module: str,
+        package: Optional[str] = None,
+        path: Optional[Union[str, Path]] = None,
+    ) -> Any:
         """load a module
 
         Args:
@@ -458,7 +466,7 @@ class AGI:
             return await AGI._load_module(module, package, path)
 
     @staticmethod
-    def _get_stdout(func, *args, **kwargs):
+    def _get_stdout(func: Any, *args: Any, **kwargs: Any) -> Tuple[str, Any]:
         """to get the stdout stream
 
         Args:
@@ -477,7 +485,7 @@ class AGI:
         return f.getvalue(), result
 
     @staticmethod
-    def _read_stderr(output_stream):
+    def _read_stderr(output_stream: Any) -> None:
         """Read remote stderr robustly on Linux (UTF-8), Windows OEM (CP850), then ANSI (CP1252)."""
 
         def decode_bytes(bs: bytes) -> str:
@@ -523,7 +531,7 @@ class AGI:
                 time.sleep(0.1)
 
     @staticmethod
-    async def _kill(ip: str | None = None, current_pid: int | None = None, force: bool = True):
+    async def _kill(ip: Optional[str] = None, current_pid: Optional[int] = None, force: bool = True) -> Optional[Any]:
         """
         Terminate 'uv' and Dask processes on the given host and clean up pid files.
 
@@ -599,7 +607,7 @@ class AGI:
         return last_res
 
     @staticmethod
-    def _clean_dirs_local():
+    def _clean_dirs_local() -> None:
         """Clean up local worker env directory
 
         Args:
@@ -633,7 +641,7 @@ class AGI:
                 pass
 
     @staticmethod
-    async def _clean_dirs(ip):
+    async def _clean_nodes(scheduler: Optional[str], force: bool = True) -> Set[str]:
         """Clean up remote worker
 
         Args:
@@ -658,7 +666,7 @@ class AGI:
 
 
     @staticmethod
-    async def _clean_nodes(scheduler, force=True):
+    async def _clean_nodes(scheduler: Optional[str], force: bool = True) -> Set[str]:
         # Compose list of IPs: workers plus scheduler's IP
         list_ip = set(list(AGI.workers) + [AGI._get_scheduler(scheduler)[0]])
         localhost_ip = socket.gethostbyname("localhost")
@@ -684,7 +692,7 @@ class AGI:
         return list_ip
 
     @staticmethod
-    async def _install_cluster(scheduler):
+    async def _install_cluster(scheduler: Optional[str]) -> None:
         """
         Validate and prepare each remote node in the cluster:
         - Verify each IP is valid and reachable.
@@ -759,7 +767,7 @@ class AGI:
             # await env.exec_ssh(ip, cmd)
 
     @staticmethod
-    async def _install(scheduler):
+    async def _install(scheduler: Optional[str]) -> None:
         AGI._initialize_installation()
         env = AGI.env
         app_path = env.app_abs
@@ -795,7 +803,7 @@ class AGI:
             logging.info(f"********   Agi {AGI._run_type} completed in {duration}")
 
     @staticmethod
-    def _initialize_installation():
+    def _initialize_installation() -> None:
         """Initialize installation flags and run type."""
         AGI._run_type = AGI._run_types[(AGI._mode & AGI.DEPLOYEMENT_MASK) >> 4]
         AGI._install_done_local = False
@@ -816,7 +824,7 @@ class AGI:
             return False
 
     @staticmethod
-    async def _install_app_local(src: Path, wenv_rel: Path, options: dict):
+    async def _install_app_local(src: Path, wenv_rel: Path, options: Dict[str, str]) -> None:
         """
         Installe l’environnement localement.
 
@@ -880,7 +888,7 @@ class AGI:
         AGI._install_done_local = True
 
     @staticmethod
-    async def _install_app_remote(ip: str, env, wenv_rel: Path, option: str):
+    async def _install_app_remote(ip: str, env: AgiEnv, wenv_rel: Path, option: str) -> None:
         """Install packages and set up the environment on a remote node."""
 
         wenv_abs = env.wenv_abs
@@ -987,11 +995,11 @@ class AGI:
         await env.exec_ssh(ip, cmd)
 
     @staticmethod
-    def _should_install_pip():
+    def _should_install_pip() -> bool:
         return str(getpass.getuser()).startswith("T0") and not (Path(sys.prefix) / "Scripts/pip.exe").exists()
 
     @staticmethod
-    async def _uninstall_modules():
+    async def _uninstall_modules() -> None:
         """Uninstall specified modules."""
         for module in AGI._module_to_clean:
             cmd = f"{env.uv} pip uninstall {module} -y"
@@ -1000,7 +1008,7 @@ class AGI:
         AGI._module_to_clean.clear()
 
     @staticmethod
-    def _format_duration(seconds):
+    def _format_duration(seconds: float) -> str:
         """Format the duration from seconds to a human-readable format.
 
         Args:
@@ -1012,7 +1020,7 @@ class AGI:
         return humanize.precisedelta(timedelta(seconds=seconds))
 
     @staticmethod
-    def _venv_todo(list_ip):
+    def _venv_todo(list_ip: Set[str]) -> None:
         """
 
         Args:
@@ -1032,9 +1040,14 @@ class AGI:
 
     @staticmethod
     async def install(
-            module_name, env, scheduler: Optional[str] = None, workers: Optional[Dict[str, int]] = None,
-            modes_enabled=RUN_MASK, verbose=None, **args
-    ):
+    module_name: str,
+    env: AgiEnv,
+    scheduler: Optional[str] = None,
+    workers: Optional[Dict[str, int]] = None,
+    modes_enabled: int = RUN_MASK,
+    verbose: Optional[int] = None,
+    **args: Any,
+) -> None:
         """
         Update the cluster's virtual environment.
 
@@ -1073,9 +1086,14 @@ class AGI:
 
     @staticmethod
     async def update(
-            module_name, scheduler: Optional[str] = None, workers: Optional[Dict[str, int]] = None,
-            env=None, modes_enabled=RUN_MASK, verbose=None, **args
-    ):
+    module_name: str,
+    scheduler: Optional[str] = None,
+    workers: Optional[Dict[str, int]] = None,
+    env: Optional[AgiEnv] = None,
+    modes_enabled: int = RUN_MASK,
+    verbose: Optional[int] = None,
+    **args: Any,
+) -> None:
         """
         install cluster virtual environment
         Parameters
@@ -1097,8 +1115,14 @@ class AGI:
                       verbose=verbose, **args)
 
     @staticmethod
-    async def distribute(app, env, scheduler=None, workers=None, verbose=0, **args
-                         ):
+    async def distribute(
+    app: str,
+    env: AgiEnv,
+    scheduler: Optional[str] = None,
+    workers: Optional[Dict[str, int]] = None,
+    verbose: int = 0,
+    **args: Any,
+) -> Any:
         """
         check the distribution with a dry run
         Parameters
@@ -1115,7 +1139,7 @@ class AGI:
         return await AGI.run(app, env, scheduler, workers, verbose, mode=AGI.SIMULATE_MODE, **args)
 
     @staticmethod
-    async def _start_scheduler(scheduler):
+    async def _start_scheduler(scheduler: Optional[str]) -> bool:
         """
         Start Dask scheduler either locally or remotely.
 
@@ -1198,7 +1222,7 @@ class AGI:
         return True
 
     @staticmethod
-    async def _detect_export_cmd(ip: str) -> str | None:
+    async def _detect_export_cmd(ip: str) -> Optional[str]:
         if AgiEnv.is_local(ip):
             return AgiEnv.export_local_bin
 
@@ -1214,7 +1238,7 @@ class AGI:
             return ""  # 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
 
     @staticmethod
-    async def _start(scheduler):
+    async def _start(scheduler: Optional[str]) -> bool:
         """_start(
         Start Dask workers locally and remotely,
         launching remote workers detached in background,
@@ -1269,7 +1293,7 @@ class AGI:
             #         AGI._dask_client.upload_file(str(egg_file))
 
     @staticmethod
-    async def _sync(timeout=60):
+    async def _sync(timeout: int = 60) -> None:
         if not isinstance(AGI._dask_client, Client):
             return
         start = time.time()
@@ -1315,7 +1339,7 @@ class AGI:
         logging.info("All workers successfully attached to scheduler")
 
     @staticmethod
-    async def _build_lib_local(is_local=True):
+    async def _build_lib_local(is_local: bool = True) -> Path:
         """
 
         Args:
@@ -1380,7 +1404,7 @@ class AGI:
         return wenv
 
     @staticmethod
-    async def _build_lib_remote():
+    async def _build_lib_remote() -> None:
         """
         workers init
         """
@@ -1390,7 +1414,7 @@ class AGI:
             logging.info("warning: no scheduler found but requested mode is dask=1 => switch to dask")
 
     @staticmethod
-    async def _run_local():
+    async def _run_local() -> Any:
         """
 
         Returns:
@@ -1447,7 +1471,7 @@ class AGI:
                     return res.split('\n')[-2]
 
     @staticmethod
-    async def _run_by_mode():
+    async def _run_by_mode() -> str:
         """
         workers run calibration and targets job
         """
@@ -1504,7 +1528,7 @@ class AGI:
         return f"{env.mode2str(AGI._mode)} {runtime}"
 
     @staticmethod
-    async def main(scheduler):
+    async def main(scheduler: Optional[str]) -> Any:
         cond_clean = True
 
         AGI._jobs = bg.BackgroundJobManager()
@@ -1551,7 +1575,7 @@ class AGI:
         return res
 
     @staticmethod
-    def _clean_job(cond_clean):
+    def _clean_job(cond_clean: bool) -> None:
         """
 
         Args:
@@ -1569,7 +1593,7 @@ class AGI:
                     AGI._jobs.flush()
 
     @staticmethod
-    def _scale_cluster():
+    def _scale_cluster() -> None:
         """Remove unnecessary workers"""
         if AGI._dask_workers:
             nb_kept_workers = {}
@@ -1592,7 +1616,7 @@ class AGI:
                     AGI._dask_workers.remove(worker)
 
     @staticmethod
-    async def _stop():
+    async def _stop() -> None:
         """Stop the Dask workers and scheduler"""
         env = AGI.env
         logging.info("stop Agi fwk")
@@ -1611,7 +1635,13 @@ class AGI:
         await env.close_all_connections()
 
     @staticmethod
-    def make_chunks(nchunk2, weights: list, capacities=None, verbose=0, threshold=12):
+    def make_chunks(
+    nchunk2: int,
+    weights: List[Any],
+    capacities: Optional[List[Any]] = None,
+    verbose: int = 0,
+    threshold: int = 12,
+) -> List[List[List[Any]]]:
         """Partitions the nchunk2 weighted into n chuncks, in a smart way
         chunks and chunks_sizes must be left to None
 
@@ -1660,7 +1690,12 @@ class AGI:
             ]
 
     @staticmethod
-    def _make_chunks_optimal(subsets: list, chkweights, chunks=None, chunks_sizes=None):
+    def _make_chunks_optimal(
+    subsets: List[Any],
+    chkweights: List[Any],
+    chunks: Optional[List[Any]] = None,
+    chunks_sizes: Optional[Any] = None
+) -> Any:
         """Partitions subsets in nchk non-weighted chunks, in a slower but optimal recursive way
 
         Args:
@@ -1730,7 +1765,7 @@ class AGI:
             return best_chunks
 
     @staticmethod
-    def _make_chunks_fastest(subsets: list, chk_weights):
+    def _make_chunks_fastest(subsets: List[Any], chk_weights: List[Any]) -> List[List[Any]]:
         """Partitions subsets in nchk weighted chunks, in a fast but non optimal way
 
         Args:
@@ -1756,7 +1791,7 @@ class AGI:
         return chunks
 
     @staticmethod
-    async def _calibration():
+    async def _calibration() -> None:
         """
         balancer calibration
         """
@@ -1804,7 +1839,7 @@ class AGI:
         )
 
     @staticmethod
-    def _train_model(train_home):
+    def _train_model(train_home: Path) -> None:
         """train the balancer model
 
         Args:
@@ -1862,7 +1897,7 @@ class AGI:
             pickle.dump(AGI._capacity_predictor, f)
 
     @staticmethod
-    def _update_model():
+    def _update_model() -> None:
         """update the balancer model"""
         workers_rt = {}
         balancer_cols = [
@@ -1925,7 +1960,7 @@ class AGI:
         AGI._train_model(AGI.env.home_abs)
 
     @staticmethod
-    def _exec_bg(cmd, cwd):
+    def _exec_bg(cmd: str, cwd: str) -> None:
         """
         Execute background command
         Args:
