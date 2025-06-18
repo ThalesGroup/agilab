@@ -928,9 +928,9 @@ class AGI:
 
         # 6) Build and run uv sync, adding --config-file only when has_rapids_hw
         if has_rapids_hw:
-            sync_cmd = f"{cmd_prefix}{env.uv} sync --upgrade --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option} --refresh-package dask"
+            sync_cmd = f"{cmd_prefix}{env.uv} sync --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option} --refresh-package dask"
         else:
-            sync_cmd = f"{cmd_prefix}{env.uv} sync --upgrade --project {wenv_rel} {option} --refresh-package dask "
+            sync_cmd = f"{cmd_prefix}{env.uv} sync --project {wenv_rel} {option} --refresh-package dask "
 
         await env.exec_ssh(ip, sync_cmd)
 
