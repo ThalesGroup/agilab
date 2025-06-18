@@ -42,7 +42,6 @@ src/*_worker_*/
 # managed PC install under windows
 /thales/
 
-# to be commented after clone
 .idea/workspace.xml
 
 /gen_stubs/gen_stubs.py
