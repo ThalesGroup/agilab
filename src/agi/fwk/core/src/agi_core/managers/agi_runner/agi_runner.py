@@ -288,7 +288,6 @@ class AGI:
         rapids_enabled: Optional[bool] = None,
         **args: Any,
     ) -> str:
-    ):
         """
         Run all modes to find the fastest one.
 
