@@ -16,7 +16,6 @@
 | argon2-cffi-bindings | MIT LICENSE |
 | arrow | APACHE SOFTWARE LICENSE |
 | arxiv | MIT LICENSE |
-| asn1crypto | MIT LICENSE |
 | astor | BSD LICENSE |
 | asttokens | APACHE 2.0 |
 | asyncssh | EPL-2.0;; GPL-2.0-OR-LATER |
@@ -206,6 +205,7 @@
 | psutil | BSD LICENSE |
 | ptyprocess | ISC LICENSE _ISCL_ |
 | pure-eval | MIT LICENSE |
+| puremagic | MIT LICENSE |
 | py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pyarrow | APACHE SOFTWARE LICENSE |
 | pyasn1 | BSD LICENSE |
@@ -219,10 +219,8 @@
 | pydantic-settings | MIT LICENSE |
 | pydeck | APACHE LICENSE 2.0 |
 | pygments | BSD LICENSE |
-| pyjwt | MIT LICENSE |
 | pymdown-extensions | MIT LICENSE |
 | pynacl | APACHE LICENSE 2.0 |
-| pyopenssl | APACHE SOFTWARE LICENSE |
 | pyparsing | MIT LICENSE |
 | pypdf | BSD LICENSE |
 | pyppmd | LGPL-2.1-OR-LATER |
@@ -256,8 +254,6 @@
 | six | MIT LICENSE |
 | smmap | BSD LICENSE |
 | sniffio | APACHE SOFTWARE LICENSE;; MIT LICENSE |
-| snowflake-connector-python | APACHE SOFTWARE LICENSE |
-| snowflake-snowpark-python | APACHE SOFTWARE LICENSE |
 | sortedcontainers | APACHE SOFTWARE LICENSE |
 | soupsieve | MIT LICENSE |
 | sqlalchemy | MIT |
@@ -273,7 +269,7 @@
 | streamlit-card | MIT LICENSE |
 | streamlit-code-editor | MIT License |
 | streamlit-embedcode | MIT License |
-| streamlit-extras | APACHE-2.0 |
+| streamlit-extras | APACHE SOFTWARE LICENSE |
 | streamlit-faker | Apache License 2.0 |
 | streamlit-image-coordinates | MIT LICENSE |
 | streamlit-keyup | MIT License |
@@ -299,7 +295,7 @@
 | tornado | APACHE SOFTWARE LICENSE |
 | tqdm | MIT LICENSE;; MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | traitlets | BSD LICENSE |
-| typeguard | MIT LICENSE |
+| typeguard | MIT |
 | typer | MIT LICENSE |
 | types-python-dateutil | APACHE-2.0 |
 | types-pyyaml | APACHE-2.0 |
@@ -308,7 +304,6 @@
 | typing-inspect | MIT LICENSE |
 | typing-inspection | MIT |
 | tzdata | APACHE SOFTWARE LICENSE |
-| tzlocal | MIT LICENSE |
 | uri-template | MIT LICENSE |
 | urllib3 | MIT |
 | uvicorn | BSD LICENSE |
