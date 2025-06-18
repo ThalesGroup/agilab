@@ -585,7 +585,7 @@ class AGI:
                 await AgiEnv.run(cmd, cwd)
             else:
                 clean = env.wenv_rel.parent / "kill.py"
-                await env.send_file(ip, env.manager_root / "agi_runner/kill.py", clean.parent)
+                #await env.send_file(ip, env.manager_root / "agi_runner/kill.py", clean.parent)
                 last_res = await env.exec_ssh(ip, cmd)
 
             # handle tuple or dict result
@@ -652,7 +652,7 @@ class AGI:
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         wenv = env.wenv_rel
         clean = wenv.parent / 'clean.py'
-        await env.send_file(ip, env.manager_root / "agi_runner/clean.py", clean.parent)
+        #await env.send_file(ip, env.manager_root / "agi_runner/clean.py", clean.parent)
         cmd = (f"{cmd_prefix}{uv} run -p {env.python_version} python {clean} {wenv}")
         await env.exec_ssh(ip, cmd)
 
