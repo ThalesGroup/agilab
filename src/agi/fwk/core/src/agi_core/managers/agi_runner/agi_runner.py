@@ -559,9 +559,9 @@ class AGI:
 
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         if env.is_local(ip):
-            kill_prefix = f'{cmd_prefix}{uv} run --project {env.agi_core} -p {env.python_version} python'
+            kill_prefix = f'{cmd_prefix}{uv} run -p {env.python_version} python'
         else:
-            kill_prefix = f'{cmd_prefix}{uv} run --project {env.wenv_rel} -p {env.python_version} python'
+            kill_prefix = f'{cmd_prefix}{uv} run -p {env.python_version} python'
             if force:
                 clean = env.wenv_rel.parent / "kill.py"
                 #await env.send_file(ip, env.manager_root / "agi_runner/kill.py", clean.parent)
