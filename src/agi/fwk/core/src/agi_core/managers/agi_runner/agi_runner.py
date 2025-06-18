@@ -1505,9 +1505,9 @@ class AGI:
 
     @staticmethod
     async def main(scheduler):
-        cond_clean = (
-            True
-        )
+        cond_clean = True
+
+        AGI._jobs = bg.BackgroundJobManager()
 
         if (AGI._mode & AGI.DEPLOYEMENT_MASK) == AGI.SIMULATE_MODE:
             # case simulate mode #0b11xxxx
