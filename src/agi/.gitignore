@@ -1,5 +1,3 @@
-coverage.xml
-.coverage
 # MacOS files
 .DS_Store
 
@@ -31,4 +29,24 @@ src/*_worker_*/
 # Pytest caches
 .pytest*
 
+# apps
+/src/agi/apps/*project/
+!/src/agi/apps/flight_project/
+!/src/agi/apps/my_code_project/
 
+# views
+/src/agi/views/
+!/src/agi/views/maps/
+!/src/agi/apps/maps-3d/
+
+# managed PC install under windows
+/thales/
+
+# to be commented after clone
+.idea/workspace.xml
+
+/gen_stubs/gen_stubs.py
+/gen_stubs/pyproject.toml
+/gen_stubs/README.md
+
+.coverage*
