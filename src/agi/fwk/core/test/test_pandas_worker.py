@@ -1,13 +1,14 @@
 import pandas as pd
 import pytest
 import multiprocessing
-multiprocessing.set_start_method("spawn", force=True)
 
 import sys
 from pathlib import Path
 
+multiprocessing.set_start_method("spawn", force=True)
+
 # Ensure 'core' folder is in sys.path, so 'test' package is importable
-core_path = Path(__file__).parent.parent.resolve()
+core_path = Path(__file__).parent.parent.resolve() / "src"
 if str(core_path) not in sys.path:
     sys.path.insert(0, str(core_path))
 
