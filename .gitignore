@@ -49,4 +49,3 @@ src/*_worker_*/
 /gen_stubs/README.md
 
 .coverage*
-coverage*
