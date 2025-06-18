@@ -542,7 +542,7 @@ class AGI:
 
         # 1) Collect PIDs from any pid files and remove those files
         pids_to_kill: list[int] = []
-        for pid_file in Path().home().glob("dask-pid*"):
+        for pid_file in Path().home().glob("dask_pid*"):
             try:
                 text = pid_file.read_text().strip()
                 pid = int(text)
@@ -1233,7 +1233,7 @@ class AGI:
             for j in range(n):
                 try:
                     logging.info(f"Starting worker #{i}.{j} on [{ip}]")
-                    pid_file = f"dask-pid-{i}.{j}"
+                    pid_file = f"dask_pid_{i}.{j}"
 
                     if is_local:
                         wenv_abs = env.wenv_abs
@@ -1404,7 +1404,7 @@ class AGI:
             logging.info("Worker installlation not found")
             sys.exit(1)
 
-        pid_file = "dask-pid-0"
+        pid_file = "dask_pid_0"
         current_pid = os.getpid()
         with open(pid_file, "w") as f:
             f.write(str(current_pid))
