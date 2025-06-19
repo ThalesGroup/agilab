@@ -1,26 +1,22 @@
-import sys
-from agi_core.workers.agi_worker import AgiWorker
-from agi_env import AgiEnv, normalize_path
+import pytest
+from agi_apps.flight_project.src.flight_worker import FlightWorker
 
-args = {
-    'data_source': "file",
-    'path': "data/flight/dataset",
-    'files': "csv/*",
-    'nfile': 1,
-    'nskip': 0,
-    'nread': 0,
-    'sampling_rate': 10.0,
-    'datemin': "2020-01-01",
-    'datemax': "2021-01-01",
-    'output_format': "csv"
-}
+@pytest.fixture
+def worker():
+    return FlightWorker()
 
-sys.path.insert(0,'/home/pcm/PycharmProjects/agilab/src/agi/apps/flight_project/src')
-sys.path.insert(0,'/home/pcm/wenv/flight_worker/dist')
+def test_flight_worker_starts_idle(worker):
+    assert worker.state == "idle"
 
-# AgiWorker.run flight command
-for i in  range(4):
-    env = AgiEnv(install_type=1,active_app="flight_project",verbose=True)
-    AgiWorker.new("flight_project", mode=i, env=env, verbose=3, args=args)
-    result = AgiWorker.run(workers={"192.168.20.123":2}, mode=i, args=args)
-    print(result)
+def test_flight_worker_can_start_task(worker):
+    task = {"type": "test_task", "payload": 42}
+    worker.assign_task(task)
+    assert worker.state == "busy"
+    assert worker.current_task == task
+
+def test_flight_worker_completes_task(worker):
+    task = {"type": "test_task", "payload": 100}
+    worker.assign_task(task)
+    worker.run_current_task()
+    assert worker.state == "idle"
+    assert worker.result == 200  # Remplace 200 par le résultat attendu selon ta logique

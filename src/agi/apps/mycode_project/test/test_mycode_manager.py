@@ -1,28 +1,22 @@
-import asyncio
-import sys
-from agi_core.managers.agi_runner import AGI
+import pytest
+from mycode.manager import MyCodeManager
 
+@pytest.fixture
+def manager():
+    return MyCodeManager()
 
-async def main(method_name):
-    # Retrieve the method using getattr
-    try:
-        method = getattr(AGI, method_name)
-    except AttributeError:
-        raise ValueError(f"AGI has no method named '{method_name}'")
+def test_mycode_manager_init(manager):
+    assert manager is not None
 
-    if method_name == "install":
-        res = await method('mycode', verbose=3, modes_enabled=0b0111, list_ip=None)
-    elif method_name == "distribute":
-        res = await method('mycode', verbose=True)
-    elif method_name == "run":
-        res = await method('mycode', mode=3, verbose=True)
-    else:
-        raise ValueError("Unknown method name")
-    print(res)
+def test_mycode_manager_job_handling(manager):
+    job = {"data": 123}
+    manager.submit(job)
+    manager.process_next()
+    assert manager.last_result == 246  # Exemple : adapte selon logique réelle
 
-if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("Usage: script.py <method_name>")
-        sys.exit(1)
-    method_name = sys.argv[1]
-    asyncio.run(main(method_name))
+def test_mycode_manager_reset(manager):
+    job = {"data": 555}
+    manager.submit(job)
+    manager.reset()
+    assert manager.last_result is None
+    assert len(manager.queue) == 0

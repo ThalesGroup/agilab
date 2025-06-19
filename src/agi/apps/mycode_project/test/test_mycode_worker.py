@@ -1,22 +1,17 @@
-import sys
-from agi_core.workers.agi_worker import AgiWorker
-from agi_env import AgiEnv, normalize_path
+import pytest
+from mycode.worker import MyCodeWorker
 
-args = {
-    'param1': 0,
-    'param2': "some text",
-    'param3': 3.14,
-    'param4': True
-}
+@pytest.fixture
+def worker():
+    return MyCodeWorker()
 
-sys.path.insert(0,'/home/pcm/PycharmProjects/agilab/src/agi/apps/mycode_project/src')
-sys.path.insert(0,'/home/pcm/wenv/mycode_worker/dist')
+def test_mycode_worker_default_state(worker):
+    assert worker.status == "ready"
 
+def test_mycode_worker_compute(worker):
+    result = worker.compute(3, 7)
+    assert result == 10  # Change le résultat selon ta logique réelle
 
-# AgiWorker.run flight command
-for i in  range(4):
-    env = AgiEnv(install_type=1,active_app="mycode_project",verbose=True)
-    AgiWorker.new('mycode', mode=i, env=env, verbose=3, args=args)
-    result = AgiWorker.run(workers={"192.168.20.222":2}, mode=i, args=args)
-
-print(result)
+def test_mycode_worker_raises_on_invalid_input(worker):
+    with pytest.raises(ValueError):
+        worker.compute(None, 5)

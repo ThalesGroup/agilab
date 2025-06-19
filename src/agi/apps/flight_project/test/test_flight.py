@@ -41,14 +41,14 @@ cmd = "uv -q sync"
 res = exec(cmd, ".", "localhost")
 print_emoticon(res)
 
-test_manager = "uv -q run test/test_flight_manager.py "
+test_manager = "uv -q run test/_test_flight_manager.py "
 
-# uv run test/test_flight_manager.py install
+# uv run test/_test_flight_manager.py install
 cmd = test_manager + "install"
 res = exec(cmd, ".", "localhost")
 print_emoticon(res)
 
-# uv run test/test_flight_manager.py distribute
+# uv run test/_test_flight_manager.py distribute
 cmd = test_manager + "distribute"
 res = exec(cmd, ".", "localhost")
 print_emoticon(res)
@@ -78,7 +78,7 @@ cmd = "uv -q build"
 res = exec(cmd, ".", "localhost")
 print_emoticon(res)
 
-# uv run test/test_flight_worker.py
-cmd = "uv -q run test/test_flight_worker.py"
+# uv run test/_test_flight_worker.py
+cmd = "uv -q run test/_test_flight_worker.py"
 res = exec(cmd, wenv, "localhost")
 print_emoticon(res)
