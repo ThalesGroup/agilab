@@ -1,5 +1,5 @@
 import pytest
-from agi_apps.flight_project.src.flight_manager import FlightManager
+from flight import FlightManager
 
 @pytest.fixture
 def manager():
