@@ -32,7 +32,7 @@ src/*_worker_*/
 # apps
 /src/agi/apps/*project/
 !/src/agi/apps/flight_project/
-!/src/agi/apps/my_code_project/
+!/src/agi/apps/mycode_project/
 
 # views
 /src/agi/views/
