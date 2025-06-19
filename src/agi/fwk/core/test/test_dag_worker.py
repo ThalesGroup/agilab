@@ -1,5 +1,13 @@
 import time
 import pytest
+import sys
+from pathlib import Path
+data_src = Path(__file__).parent.parent
+worker_root = data_src.parent
+for src in [data_src, worker_root / "dag_worker", worker_root / "agent_worker", worker_root / "agi_worker"]:
+    path = str(src.absolute() / "src")
+    if path not in sys.path:
+        sys.path.insert(0, str(path))
 
 from agi_core.workers.agi_worker import AgiWorker
 from agi_core.workers.dag_worker import DagWorker
