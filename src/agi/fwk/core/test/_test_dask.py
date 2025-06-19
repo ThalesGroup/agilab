@@ -28,7 +28,7 @@ async def main():
     AGI.env = env
     env.user = "nsbl"
     await AGI._kill(ip_worker1 , current_pid=os.getpid(), force=True)
-    runpy.run_path(env.manager_root / "agi_runner/kill.py")
+    runpy.run_path(env.manager_root / "agi_runner/cli.py")
 
     # start scheduler
     cmd = (
