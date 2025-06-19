@@ -6,6 +6,7 @@
       <sourceFolder url="file://$MODULE_DIR$/src/agilab/fwk/core/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/agilab/fwk/env/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
+      <excludeFolder url="file://$MODULE_DIR$/src/agi/apps/mycode_project/.idea" />
     </content>
     <orderEntry type="jdk" jdkName="uv (agilab)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
