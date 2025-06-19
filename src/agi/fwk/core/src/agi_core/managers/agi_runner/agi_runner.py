@@ -549,7 +549,7 @@ class AGI:
 
         # 1) Collect PIDs from any pid files and remove those files
         pids_to_kill: list[int] = []
-        for pid_file in Path(os.getcwd()).glob("dask_pid*"):
+        for pid_file in Path(os.getcwd()).glob("*.pid"):
             try:
                 text = pid_file.read_text().strip()
                 pid = int(text)
@@ -570,8 +570,8 @@ class AGI:
         else:
             kill_prefix = f'{cmd_prefix}{uv} run -p {env.python_version} python'
             if force:
-                clean = env.wenv_rel.parent / "kill.py"
-                #await env.send_file(ip, env.manager_root / "agi_runner/kill.py", clean.parent)
+                clean = env.wenv_rel.parent / "cli.py"
+                #await env.send_file(ip, env.manager_root / "agi_runner/cli.py", clean.parent)
                 cmd = f"{kill_prefix} {clean}"
                 cmds.append(cmd)
 
@@ -591,8 +591,8 @@ class AGI:
             if env.is_local(ip):
                 await AgiEnv.run(cmd, cwd)
             else:
-                clean = env.wenv_rel.parent / "kill.py"
-                #await env.send_file(ip, env.manager_root / "agi_runner/kill.py", clean.parent)
+                cli = env.wenv_rel.parent / "cli.py"
+                await env.send_file(ip, env.manager_root / "agi_runner/cli.py", cli.parent)
                 last_res = await env.exec_ssh(ip, cmd)
 
             # handle tuple or dict result
@@ -658,9 +658,8 @@ class AGI:
         os.makedirs(wenv_abs / "src", exist_ok=True)
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         wenv = env.wenv_rel
-        clean = wenv.parent / 'clean.py'
-        #await env.send_file(ip, env.manager_root / "agi_runner/clean.py", clean.parent)
-        cmd = (f"{cmd_prefix}{uv} run -p {env.python_version} python {clean} {wenv}")
+        cli = wenv.parent / 'cli.py'
+        cmd = (f"{cmd_prefix}{uv} run -p {env.python_version} python {cli} clean {wenv}")
         await env.exec_ssh(ip, cmd)
 
 
@@ -763,9 +762,8 @@ class AGI:
             
             # 3) Install Python
             await env.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers}")
-            await env.send_file(ip, env.manager_root / "agi_runner/kill.py", env.wenv_rel.parent)
+            await env.send_file(ip, env.manager_root / "agi_runner/cli.py", env.wenv_rel.parent)
             await AGI._kill(ip, force=True)
-            await env.send_file(ip, env.manager_root / "agi_runner/clean.py", env.wenv_rel.parent)
             await AGI._clean_dirs(ip)
 
             cmd = (
@@ -1196,8 +1194,9 @@ class AGI:
                     f"--host {AGI._scheduler_ip} --pid-file dask_pid"
                 )
                 logging.info(f"Starting dask scheduler locally: {cmd}")
-                result = AGI._exec_bg(cmd, env.app_abs)  # assuming _exec_bg is sync
-                logging.info(result)
+                result = AGI._exec_bg(cmd, env.app_abs)
+                if result:# assuming _exec_bg is sync
+                    logging.info(result)
             else:
                 # Create remote directory
                 cmd = f"{env.uv} run -p {env.python_version} python -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
@@ -1208,7 +1207,7 @@ class AGI:
 
                 cmd = (
                     f"{env.uv} --project {wenv_rel} run dask scheduler --port {AGI._scheduler_port} "
-                    f"--host {AGI._scheduler_ip} --pid-file dask_pid"
+                    f"--host {AGI._scheduler_ip} --pid-file dask_scheduler.pid"
                 )
                 # Run scheduler asynchronously over SSH without awaiting completion (fire and forget)
                 asyncio.create_task(env.exec_ssh_async(AGI._scheduler_ip, cmd))
@@ -1267,7 +1266,7 @@ class AGI:
             for j in range(n):
                 try:
                     logging.info(f"Starting worker #{i}.{j} on [{ip}]")
-                    pid_file = f"dask_pid_{i}.{j}"
+                    pid_file = f"dask_worker_{i}_{j}.pid"
 
                     if is_local:
                         wenv_abs = env.wenv_abs
@@ -1438,7 +1437,7 @@ class AGI:
             logging.info("Worker installlation not found")
             sys.exit(1)
 
-        pid_file = "dask_pid_0"
+        pid_file = "dask_worker_0.pid"
         current_pid = os.getpid()
         with open(pid_file, "w") as f:
             f.write(str(current_pid))
