@@ -825,7 +825,8 @@ class AgiEnv:
                 result = ""
                 while True:
                     out_line = process.stdout.readline()
-                    err_line = process.stderr.readline()
+                    # err_line = process.stderr.readline()
+                    err_line = ""
 
                     result += out_line
 

@@ -140,7 +140,8 @@ class Flight(AgiManager):
             args["files"] = args.get("files", "*")
             path = args.get("path", "data/flight")
             if env.is_managed_pc:
-                path = path.replace("~", "~/MyApp")
+                home = Path.home()
+                path = path.replace(str(home), str(home) + "\\MyApp")
             args["nfile"] = args.get("nfile", 999_999_999_999)
             if args["nfile"] == 0:
                 args["nfile"] = 999_999_999_999

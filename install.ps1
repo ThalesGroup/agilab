@@ -21,7 +21,6 @@ if (-not $Offline) {
     }
 }
 
-
 $LogDir = Join-Path $env:USERPROFILE "log\install_logs"
 if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir | Out-Null }
 $LogFile = Join-Path $LogDir ("install_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
@@ -30,6 +29,7 @@ Start-Transcript -Path $LogFile
 Get-ChildItem -Recurse -Directory | Where-Object {
     $_.Name -match '\.venv|uv.lock|build|dist|.*egg-info'
 } | Remove-Item -Recurse -Force
+
 
 
 # ================================
@@ -57,6 +57,10 @@ $PYTHON_VERSION = "3.12"
 $AgiProject = Join-Path $CurrentPath "src\agi"
 $FrameworkDir = Join-Path $AgiProject "fwk"
 $AppsDir = Join-Path $AgiProject "apps"
+
+$currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+$username = $currentUser.Split('\')[-1]
+
 
 Write-Host "Installation Directory: $InstallPath" -ForegroundColor Cyan
 if (-not $Offline)
@@ -248,14 +252,23 @@ AGI_PYTHON_VERSION="$env:PYTHON_VERSION"
     Write-Host "Environment updated in $envFile" -ForegroundColor Green
 }
 
-function Install-FrameworkApps {
+function Install-Framework {
     $frameworkDir = Join-Path $InstallPath "src\agi\fwk"
-    $appsDir = Join-Path $InstallPath "src\agi\apps"
 
     Write-Host "Installing Framework..." -ForegroundColor Blue
+    Write-Host $frameworkDir
     Push-Location $frameworkDir
-    & "./install.ps1" $frameworkDir
+    if ($Offline) {
+        & "./install.ps1" -FrameworkDir $frameworkDir -Offline
+    } else {
+        & "./install.ps1" -FrameworkDir $frameworkDir
+    }
+
     Pop-Location
+}
+
+function Install-Apps {
+    $appsDir = Join-Path $InstallPath "src\agi\apps"
 
     Write-Host "Installing Apps..." -ForegroundColor Blue
     Write-Host "$appsDir" -ForegroundColor Yellow
@@ -264,27 +277,26 @@ function Install-FrameworkApps {
     Pop-Location
 }
 
+
 function Write-EnvValues {
     $sharedDir = $env:LOCALAPPDATA
     $sharedEnv = Join-Path $sharedDir "agilab\.env"
     $sharedPath = Join-Path $sharedDir "agilab\.agi-path"
-    $agilabEnv = Join-Path $env:USERPROFILE ".agilab\.env"
-
-    $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-    $username = $currentUser.Split('\')[-1]
+    $agilabEnv = Join-Path $env:USERPROFILE ".agi\.env"
 
     if (-not (Test-Path $sharedEnv)) {
         Write-Host "Error: $sharedEnv does not exist." -ForegroundColor Red
         exit 1
     }
-
     # Append the shared env file content to agilab env file
     $path = Get-Content $sharedPath
-    if (-not ($path -like "C:\*") -and ($username -like "T0*"))
+    if (($path -like "*MyApp*") -and ($username -like "T0*"))
     {
         $userDir = [Environment]::GetFolderPath('UserProfile')
-        $agilabEnv = Join-Path $userDir "MyApp/.agilab/.env"
+        $agilabEnv = Join-Path $userDir "MyApp/.agi/.env"
     }
+    Write-Host $path
+    Write-Host $agilabEnv
     Get-Content $sharedEnv | Out-File -Append -FilePath $agilabEnv -Encoding UTF8
 
     Write-Host ".env file updated." -ForegroundColor Green
@@ -306,5 +318,6 @@ Choose-PythonVersion
 Backup-AGIProject
 Copy-ProjectFiles
 Update-Environment
-Install-FrameworkApps
+Install-Framework
 Write-EnvValues
+Install-Apps
