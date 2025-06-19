@@ -549,7 +549,7 @@ class AGI:
 
         # 1) Collect PIDs from any pid files and remove those files
         pids_to_kill: list[int] = []
-        for pid_file in Path().home().glob("dask_pid*"):
+        for pid_file in Path(os.getcwd()).glob("dask_pid*"):
             try:
                 text = pid_file.read_text().strip()
                 pid = int(text)
@@ -672,23 +672,34 @@ class AGI:
         if not list_ip:
             list_ip.add(localhost_ip)
 
-        tasks = []
+
         for ip in list_ip:
             if AgiEnv.is_local(ip):
                 # Assuming this cleans local dirs once per IP (or should be once per call)
                 AGI._clean_dirs_local()
-            else:
+
+        AGI._clean_remote_procs()
+        AGI._clean_remote_dirs()
+
+        return list_ip
+
+    @staticmethod
+    async def _clean_remote_procs() -> None:
+        tasks = []
+        for ip in list_ip:
+            if not AgiEnv.is_local(ip):
                 tasks.append(asyncio.create_task(AGI._kill(ip, os.getpid(), force=force)))
+
         if tasks:
             await asyncio.gather(*tasks)
 
+    @staticmethod
+    async def _clean_remote_dirs() -> None:
         tasks = []
         for ip in list_ip:
             tasks.append(asyncio.create_task(AGI._clean_dirs(ip)))
         if tasks:
             await asyncio.gather(*tasks)
-
-        return list_ip
 
     @staticmethod
     async def _install_cluster(scheduler: Optional[str]) -> None:
