@@ -63,7 +63,8 @@ class Main(AgiManager):
             and hasattr(self.env, "is_managed_pc")
             and self.env.is_managed_pc
         ):
-            home_rel = home_rel.replace("~", "~/MyApp")
+            home = Path.home()
+            home_rel = home_rel.replace(str(home), str(home) + "\\MyApp")
 
         path_abs = Path(home_rel).expanduser()
         self.path_rel = str(path_abs)

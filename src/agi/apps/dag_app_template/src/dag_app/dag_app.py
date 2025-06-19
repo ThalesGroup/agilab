@@ -62,7 +62,8 @@ class DagApp(AgiManager):
         home_rel = args.get("data_dir", os.path.join("~", "data", "DagApp"))
 
         if env.is_managed_pc:
-            home_rel = home_rel.replace("~", "~/MyApp")
+            home = Path.home()
+            home_rel = home_rel.replace(str(home), str(home) + "\\MyApp")
 
         path_abs = Path(os.path.expanduser(home_rel))
         self.path_rel = home_rel

@@ -621,8 +621,8 @@ class AGI:
         for p in psutil.process_iter(['pid', 'username', 'cmdline']):
             try:
                 if (
-                        p.info['username'].endswith(me)
-                        and p.info['pid'] != self_pid
+                        p.info['username'] and p.info['username'].endswith(me)
+                        and p.info['pid'] and p.info['pid'] != self_pid
                         and p.info['cmdline']
                         and any('dask' in s.lower() for s in p.info['cmdline'])
                 ):
@@ -887,7 +887,7 @@ class AGI:
         wenv = await AGI._build_lib_local(is_local=True)
 
         # Lancer le script post_install
-        cmd_post = f"{env.uv} --project {wenv} run -p {pyvers} python {env.app_abs / env.post_install} {env.data_rel}"
+        cmd_post = f"{env.uv} --project {wenv} run -p {pyvers} python {env.app_abs / env.post_install} {env.target} {env.install_type} {env.data_rel}"
         logging.info(f"Running post-install script: {cmd_post}")
         await AgiEnv.run(cmd_post, wenv)
 
