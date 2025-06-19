@@ -1,8 +1,11 @@
 import pytest
 import sys
 from pathlib import Path
-core_src = str(Path(__file__).parent.parent / 'src')
-sys.path.insert(0, core_src)
+
+# Ensure 'core' folder is in sys.path, so 'test' package is importable
+core_path = Path(__file__).parent.parent.resolve() / "src"
+if str(core_path) not in sys.path:
+    sys.path.insert(0, str(core_path))
 
 from agi_core.managers.agi_manager import AgiManager
 
