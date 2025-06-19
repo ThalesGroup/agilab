@@ -1,0 +1,3 @@
+# Flight-sim-project Licenses
+| Package Name | License |
+|--------------|---------|
