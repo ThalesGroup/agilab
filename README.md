@@ -33,7 +33,7 @@ uv run agilab --openai-api-key "your-api-key"
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab
-cd agilab  agilab/src/agi/fwk/gui
+cd agilab/src/agi/fwk/gui
 ./install.sh --openai-api-key "your-api-key" --cluster-ssh-credentials "username:[password]"
 ```
 </details>
