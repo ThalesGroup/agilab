@@ -33,6 +33,7 @@ src/*_worker_*/
 /src/agi/apps/*project/
 !/src/agi/apps/flight_project/
 !/src/agi/apps/mycode_project/
+!/src/agi/apps/*app_template
 
 # views
 /src/agi/views/
