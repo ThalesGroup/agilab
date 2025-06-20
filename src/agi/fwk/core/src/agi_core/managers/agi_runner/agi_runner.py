@@ -1190,7 +1190,7 @@ class AGI:
 
             toml_local = env.app_abs / "pyproject.toml"
             wenv_rel = env.wenv_rel
-
+            wenv_abs = env.wenv_abs
             if env.is_local(AGI._scheduler_ip):
                 await asyncio.sleep(1)  # non-blocking sleep
                 cmd = (
