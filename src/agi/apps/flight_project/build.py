@@ -126,19 +126,26 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
 
     if not dest.exists():
         logging.info(f"Linking {src_abs} -> {dest}")
-        try:
-            AgiEnv.create_symlink(src_abs, dest)
-            created_links.append(dest)
-            logging.info(f"Symlink created: {dest} -> {src_abs}")
-        except Exception as symlink_err:
-            logging.warning(f"Symlink creation failed: {symlink_err}. Trying hard link instead.")
+        if env.is_managed_pc:
             try:
-                os.link(src_abs, dest)
-                created_links.append(dest)
-                logging.info(f"Hard link created: {dest} -> {src_abs}")
+                AgiEnv.create_junction_windows(src_abs, dest)
             except Exception as link_err:
                 logging.error(f"Failed to create link from {src_abs} to {dest}: {link_err}")
                 sys.exit(1)
+        else:
+            try:
+                AgiEnv.create_symlink(src_abs, dest)
+                created_links.append(dest)
+                logging.info(f"Symlink created: {dest} -> {src_abs}")
+            except Exception as symlink_err:
+                logging.warning(f"Symlink creation failed: {symlink_err}. Trying hard link instead.")
+                try:
+                    os.link(src_abs, dest)
+                    created_links.append(dest)
+                    logging.info(f"Hard link created: {dest} -> {src_abs}")
+                except Exception as link_err:
+                    logging.error(f"Failed to create link from {src_abs} to {dest}: {link_err}")
+                    sys.exit(1)
     else:
         logging.debug(f"Link already exists for {dest}")
 
@@ -167,12 +174,26 @@ def main() -> None:
 
     # Determine out_dir (strip file to dir)
     outdir = opts.build_dir if cmd == "build_ext" else opts.dist_dir
+
+    # For bdist_egg, choose target_pkg/module differently:
+    if outdir:
+        target_pkg = Path(outdir).stem.removesuffix("_worker").removesuffix("_project")
+    else:
+        if packages:
+            target_pkg = packages[0].replace("_worker", "").replace("_project", "")
+        else:
+            logging.error("Cannot determine target package name.")
+            sys.exit(1)
+
+    target_module = target_pkg.replace("-", "_")
+    env = AgiEnv(active_app=target_pkg + "_project", install_type=install_type)
+
     p = Path(outdir)
     if p.suffix and not p.is_dir():
         logging.warning(f"'{outdir}' looks like a file; using its parent directory instead.")
         p = p.parent
     try:
-        out_arg = p.relative_to(Path().home()).as_posix()
+        out_arg = p.relative_to(env.home_abs).as_posix()
     except Exception:
         out_arg = str(p)
 
@@ -191,18 +212,6 @@ def main() -> None:
             logging.error(e)
             sys.exit(1)
 
-    # For bdist_egg, choose target_pkg/module differently:
-    if outdir:
-        target_pkg = Path(outdir).stem.removesuffix("_worker").removesuffix("_project")
-    else:
-        if packages:
-            target_pkg = packages[0].replace("_worker", "").replace("_project", "")
-        else:
-            logging.error("Cannot determine target package name.")
-            sys.exit(1)
-
-    target_module = target_pkg.replace("-", "_")
-    env = AgiEnv(active_app=target_pkg + "_project", install_type=install_type)
     sys.argv = [sys.argv[0], cmd, flag, env.home_abs / out_arg / "dist"]
     worker_module = target_module + "_worker"
     links_created: list[Path] = []

@@ -963,10 +963,6 @@ class AGI:
 
         await env.exec_ssh(ip, sync_cmd)
 
-        # 7) Post-install script
-        cmd = f"{cmd_prefix}{env.uv} run --project {wenv_rel} python {env.post_install_rel} {env.data_rel}"
-        await env.exec_ssh(ip, cmd)
-
         #####################################################
         # install env & core for enabling dask worker spawn
         ######################################################
@@ -1004,6 +1000,10 @@ class AGI:
             raise RuntimeError(cmd)
 
         cmd = f"{cmd_prefix}{env.uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
+        await env.exec_ssh(ip, cmd)
+
+        # Post-install script
+        cmd = f"{cmd_prefix}{env.uv} run --project {wenv_rel} python {env.post_install_rel} {env.data_rel}"
         await env.exec_ssh(ip, cmd)
 
         # build target_worker lib
