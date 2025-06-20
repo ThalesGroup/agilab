@@ -2,8 +2,8 @@ import os
 import sys
 import signal
 import time
-from pathlib import Path
 import logging
+from pathlib import Path
 from tempfile import gettempdir
 import shutil
 
@@ -26,10 +26,55 @@ def clean(wenv=None):
 def kill(exclude_pids=None):
     if exclude_pids is None:
         exclude_pids = set()
+
+    try:
+        import psutil
+    except ImportError:
+        logger.warning("psutil not installed, skipping psutil-based kills")
+        psutil = None
+
     current_pid = os.getpid()
     exclude_pids.add(current_pid)
 
+    # Gather ancestor PIDs (self + parents) to exclude
+    ancestor_pids = set()
+    if psutil:
+        try:
+            p = psutil.Process(current_pid)
+            while p:
+                ancestor_pids.add(p.pid)
+                p = p.parent()
+        except Exception:
+            pass
+    exclude_pids.update(ancestor_pids)
+
     logger.info(f"Excluding PIDs from kill: {exclude_pids}")
+
+    # Kill "dask" processes owned by current user except excluded
+    if psutil:
+        try:
+            me = os.getlogin()
+        except Exception:
+            me = None
+
+        for p in psutil.process_iter(['pid', 'name', 'username', 'cmdline']):
+            try:
+                pid = p.info.get('pid')
+                if pid in exclude_pids:
+                    continue
+                username = p.info.get('username') or ""
+                if me and me not in username:
+                    continue
+                name = p.info.get('name') or ""
+                cmdline = p.info.get('cmdline') or []
+                if ('dask' in name.lower() or any('dask' in s.lower() for s in cmdline)):
+                    logger.info(f"Killing dask process PID {pid}, name: {name}")
+                    if os.name == "nt":
+                        p.terminate()
+                    else:
+                        p.send_signal(signal.SIGTERM)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
 
     dask_pids_to_kill = []
     for pid_file in (Path(__file__).parent).glob("*.pid"):
@@ -105,7 +150,7 @@ if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "kill"
     arg = sys.argv[2] if len(sys.argv) > 2 else None
     exclude_pids = set()
-    if len(sys.argv) > 2:
+    if arg:
         for pid_str in arg.split(","):
             try:
                 exclude_pids.add(int(pid_str))
