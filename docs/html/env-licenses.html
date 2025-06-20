@@ -79,18 +79,14 @@
 <li class="toctree-l3"><a class="reference internal" href="cluster-help.html#principle">Principle</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#generate-the-keys">Generate the keys</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#loading-the-private-key-in-ssh-agent">Loading the private key in SSH Agent</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#verify-the-key-addition">Verify the key addition</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#copy-the-public-key-to-the-worker">Copy the public key to the worker</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#sshd-service">SSHD Service</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#check-the-configuration">Check the configuration</a></li>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#restart-the-sshd-service">Restart the SSHD service</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#permissions">Permissions</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#useful-links">Useful links</a></li>
+<li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation and Deployment Guide</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#terminology">Terminology</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-1-manager-linux-worker-linux">Use Case 1: Manager Linux → Worker Linux</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-2-manager-linux-worker-windows">Use Case 2: Manager Linux → Worker Windows</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-3-manager-windows-worker-linux">Use Case 3: Manager Windows → Worker Linux</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-4-manager-windows-worker-windows">Use Case 4: Manager Windows → Worker Windows</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#end-of-guide">End of Guide</a></li>
 </ul>
 </li>
 </ul>
@@ -396,20 +392,26 @@
 <tr class="row-odd"><td><p>asyncssh</p></td>
 <td><p>EPL-2.0;; GPL-2.0-OR-LATER</p></td>
 </tr>
-<tr class="row-even"><td><p>cffi</p></td>
+<tr class="row-even"><td><p>brotli</p></td>
 <td><p>MIT LICENSE</p></td>
 </tr>
-<tr class="row-odd"><td><p>cryptography</p></td>
+<tr class="row-odd"><td><p>cffi</p></td>
+<td><p>MIT LICENSE</p></td>
+</tr>
+<tr class="row-even"><td><p>cryptography</p></td>
 <td><p>APACHE-2.0;; BSD-3-CLAUSE</p></td>
 </tr>
-<tr class="row-even"><td><p>decorator</p></td>
+<tr class="row-odd"><td><p>decorator</p></td>
 <td><p>BSD LICENSE</p></td>
 </tr>
-<tr class="row-odd"><td><p>executing</p></td>
+<tr class="row-even"><td><p>executing</p></td>
 <td><p>MIT LICENSE</p></td>
 </tr>
-<tr class="row-even"><td><p>humanize</p></td>
+<tr class="row-odd"><td><p>humanize</p></td>
 <td><p>MIT License</p></td>
+</tr>
+<tr class="row-even"><td><p>inflate64</p></td>
+<td><p>GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER <em>LGPLV2</em>_</p></td>
 </tr>
 <tr class="row-odd"><td><p>ipython</p></td>
 <td><p>BSD LICENSE</p></td>
@@ -423,29 +425,41 @@
 <tr class="row-even"><td><p>matplotlib-inline</p></td>
 <td><p>BSD LICENSE</p></td>
 </tr>
-<tr class="row-odd"><td><p>parso</p></td>
+<tr class="row-odd"><td><p>multivolumefile</p></td>
+<td><p>GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER <em>LGPLV2</em>_</p></td>
+</tr>
+<tr class="row-even"><td><p>parso</p></td>
 <td><p>MIT LICENSE</p></td>
 </tr>
-<tr class="row-even"><td><p>pathspec</p></td>
+<tr class="row-odd"><td><p>pathspec</p></td>
 <td><p>MOZILLA PUBLIC LICENSE 2.0 <em>MPL 2.0</em></p></td>
 </tr>
-<tr class="row-odd"><td><p>pexpect</p></td>
+<tr class="row-even"><td><p>pexpect</p></td>
 <td><p>ISC LICENSE <em>ISCL</em></p></td>
 </tr>
-<tr class="row-even"><td><p>prompt-toolkit</p></td>
+<tr class="row-odd"><td><p>prompt-toolkit</p></td>
 <td><p>BSD LICENSE</p></td>
 </tr>
-<tr class="row-odd"><td><p>psutil</p></td>
+<tr class="row-even"><td><p>psutil</p></td>
 <td><p>BSD LICENSE</p></td>
 </tr>
-<tr class="row-even"><td><p>ptyprocess</p></td>
+<tr class="row-odd"><td><p>ptyprocess</p></td>
 <td><p>ISC LICENSE <em>ISCL</em></p></td>
 </tr>
-<tr class="row-odd"><td><p>pure-eval</p></td>
+<tr class="row-even"><td><p>pure-eval</p></td>
 <td><p>MIT LICENSE</p></td>
 </tr>
-<tr class="row-even"><td><p>pycparser</p></td>
+<tr class="row-odd"><td><p>py7zr</p></td>
+<td><p>GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER <em>LGPLV2</em>_</p></td>
+</tr>
+<tr class="row-even"><td><p>pybcj</p></td>
+<td><p>GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER <em>LGPLV2</em>_</p></td>
+</tr>
+<tr class="row-odd"><td><p>pycparser</p></td>
 <td><p>BSD LICENSE</p></td>
+</tr>
+<tr class="row-even"><td><p>pycryptodomex</p></td>
+<td><p>BSD LICENSE;; PUBLIC DOMAIN</p></td>
 </tr>
 <tr class="row-odd"><td><p>pydantic</p></td>
 <td><p>MIT LICENSE</p></td>
@@ -456,7 +470,13 @@
 <tr class="row-odd"><td><p>pygments</p></td>
 <td><p>BSD LICENSE</p></td>
 </tr>
-<tr class="row-even"><td><p>python-dotenv</p></td>
+<tr class="row-even"><td><p>pyppmd</p></td>
+<td><p>LGPL-2.1-OR-LATER</p></td>
+</tr>
+<tr class="row-odd"><td><p>python-dotenv</p></td>
+<td><p>BSD LICENSE</p></td>
+</tr>
+<tr class="row-even"><td><p>pyzstd</p></td>
 <td><p>BSD LICENSE</p></td>
 </tr>
 <tr class="row-odd"><td><p>setuptools</p></td>
@@ -465,19 +485,22 @@
 <tr class="row-even"><td><p>stack-data</p></td>
 <td><p>MIT LICENSE</p></td>
 </tr>
-<tr class="row-odd"><td><p>tomlkit</p></td>
+<tr class="row-odd"><td><p>texttable</p></td>
 <td><p>MIT LICENSE</p></td>
 </tr>
-<tr class="row-even"><td><p>traitlets</p></td>
+<tr class="row-even"><td><p>tomlkit</p></td>
+<td><p>MIT LICENSE</p></td>
+</tr>
+<tr class="row-odd"><td><p>traitlets</p></td>
 <td><p>BSD LICENSE</p></td>
 </tr>
-<tr class="row-odd"><td><p>typing-extensions</p></td>
+<tr class="row-even"><td><p>typing-extensions</p></td>
 <td><p>PSF-2.0</p></td>
 </tr>
-<tr class="row-even"><td><p>typing-inspection</p></td>
+<tr class="row-odd"><td><p>typing-inspection</p></td>
 <td><p>MIT</p></td>
 </tr>
-<tr class="row-odd"><td><p>wcwidth</p></td>
+<tr class="row-even"><td><p>wcwidth</p></td>
 <td><p>MIT LICENSE</p></td>
 </tr>
 </tbody>
