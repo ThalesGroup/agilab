@@ -32,7 +32,7 @@ jobs:
       - name: Run tests
         run: |
           echo "Building core package for testing"
-          pushd src/agilab/fwk/core > /dev/null
+          pushd src/agi/fwk/core > /dev/null
           rm -rf dist
           uv sync --dev --extra workers --extra managers --config-file uv.toml
           uv pip install -e .
@@ -62,7 +62,7 @@ jobs:
 
       - name: Remove all existing distribution directories
         run: |
-          rm -rf src/agilab/fwk/env/dist src/agilab/fwk/core/dist src/agilab/fwk/gui/dist dist agi-pypi
+          rm -rf src/agi/fwk/env/dist src/agi/fwk/core/dist src/agi/fwk/gui/dist dist agi-pypi
 
       - name: Update version in pyproject.toml files
         env:
@@ -86,7 +86,7 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add pyproject.toml src/agilab/fwk/env/pyproject.toml src/agilab/fwk/core/pyproject.toml src/agilab/fwk/gui/pyproject.toml
+          git add pyproject.toml src/agi/fwk/env/pyproject.toml src/agi/fwk/core/pyproject.toml src/agi/fwk/gui/pyproject.toml
           if ! git diff --cached --quiet; then
             git commit -m "Bump version to ${VERSION#v}"
             git push
@@ -97,7 +97,7 @@ jobs:
       - name: Build env package
         run: |
           echo "Building env package"
-          pushd src/agilab/fwk/env > /dev/null
+          pushd src/agi/fwk/env > /dev/null
           rm -rf dist
           uv build --wheel
           popd > /dev/null
@@ -105,7 +105,7 @@ jobs:
       - name: Build core package
         run: |
           echo "Building core package"
-          pushd src/agilab/fwk/core > /dev/null
+          pushd src/agi/fwk/core > /dev/null
           rm -rf dist
           uv build --wheel
           popd > /dev/null
@@ -113,7 +113,7 @@ jobs:
       - name: Build gui package
         run: |
           echo "Building gui package"
-          pushd src/agilab/fwk/gui > /dev/null
+          pushd src/agi/fwk/gui > /dev/null
           rm -rf dist
           uv build --wheel
           popd > /dev/null
@@ -122,19 +122,19 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: agi-env-distributions
-          path: src/agilab/fwk/env/dist/
+          path: src/agi/fwk/env/dist/
 
       - name: Upload agi-core package
         uses: actions/upload-artifact@v4
         with:
           name: agi-core-distributions
-          path: src/agilab/fwk/core/dist/
+          path: src/agi/fwk/core/dist/
 
       - name: Upload agi-gui package
         uses: actions/upload-artifact@v4
         with:
           name: agi-gui-distributions
-          path: src/agilab/fwk/gui/dist/
+          path: src/agi/fwk/gui/dist/
 
       - name: Build combined main package (agilab)
         run: uv build --sdist
@@ -146,16 +146,16 @@ jobs:
           path: dist/
 
       - name: Verify package files before upload
-        run: twine check src/agilab/fwk/env/dist/* src/agilab/fwk/core/dist/* src/agilab/fwk/gui/dist/* dist/*
+        run: twine check src/agi/fwk/env/dist/* src/agi/fwk/core/dist/* src/agi/fwk/gui/dist/* dist/*
 
       - name: Publish subpackages to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: |
-          twine upload src/agilab/fwk/env/dist/*
-          twine upload src/agilab/fwk/core/dist/*
-          twine upload src/agilab/fwk/gui/dist/*
+          twine upload src/agi/fwk/env/dist/*
+          twine upload src/agi/fwk/core/dist/*
+          twine upload src/agi/fwk/gui/dist/*
 
       - name: Publish main package (agilab) to PyPI
         env:
@@ -163,12 +163,12 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: twine upload dist/*
 
-      - name: Trigger static pages workflow
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          curl -X POST \
-            -H "Accept: application/vnd.github.v3+json" \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            https://github.com/jpmorard/agilab/actions/workflows/doc-publish.yml/dispatches \
-            -d '{"ref": "main"}'
+#      - name: Trigger static pages workflow
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        run: |
+#          curl -X POST \
+#            -H "Accept: application/vnd.github.v3+json" \
+#            -H "Authorization: Bearer $GITHUB_TOKEN" \
+#            https://github.com/jpmorard/agilab/actions/workflows/doc-publish.yml/dispatches \
+#            -d '{"ref": "main"}'
