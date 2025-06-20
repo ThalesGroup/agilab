@@ -9,37 +9,11 @@ Ensure that the account exists on the server.
 .. raw:: html
 
    <style>
-     .copy-btn-left {
-       position: relative;
-       left: 0;
-       font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-       font-size: 0.75rem;
-       padding: 3px 7px;
-       border: 1px solid #4a90e2;
-       border-radius: 4px;
-       background: rgba(74, 144, 226, 0.12);
-       color: #4a90e2;
-       cursor: pointer;
-       opacity: 0.7;
-       transition: background-color 0.3s ease, color 0.3s ease;
-       margin-bottom: 6px;
-     }
-     .copy-btn-left:hover {
-       background-color: #4a90e2;
-       color: white;
-       opacity: 1;
-     }
-     .copy-btn-left:active {
-       box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
-     }
-     .worker-block {
-       position: relative;
-       margin-bottom: 20px;
-     }
-     .worker-block > code {
-       display: block;
-       padding-left: 0;
-     }
+   .copy-btn-left { position: relative; left: 0; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; font-size: 0.75rem; padding: 3px 7px; border: 1px solid #4a90e2; border-radius: 4px; background: rgba(74, 144, 226, 0.12); color: #4a90e2; cursor: pointer; opacity: 0.7; transition: background-color 0.3s ease, color 0.3s ease; margin-bottom: 6px; }
+   .copy-btn-left:hover { background-color: #4a90e2; color: white; opacity: 1; }
+   .copy-btn-left:active { box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); }
+   .worker-block { position: relative; margin-bottom: 20px; }
+   .worker-block > code { display: block; padding-left: 0; }
    </style>
 
 .. raw:: html
@@ -65,83 +39,65 @@ Ensure that the account exists on the server.
 Generate the keys
 ^^^^^^^^^^^^^^^^^
 
-.. toctree::
-   :hidden:
-
-
-``In the manager terminal``
-
-.. raw:: html
-
-   <button class="copy-btn-left" data-label="📋 Copy SSH keygen command" onclick="copyCode(this)" aria-label="Copy SSH keygen">📋 Copy ssh-keygen</button>
+On the manager, generate a pair of public and private key using:
 
 .. code-block:: bash
 
    ssh-keygen -a 100 -t ed25519
 
-You will be prompted for a passphrase. don't enter one (double return).
+You will be prompted for a passphrase. Don't enter one (double return).
 
 If you have not changed the default path, the public key will be stored in ``~/.ssh/id_ed25519.pub`` and the private key in ``~/.ssh/id_ed25519``.
 
 Loading the private key in SSH Agent
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Load the public key
-~~~~~~~~~~~~~~~~~~~
-
-Follow these steps to load the public key of the worker into the SSH agent of the manager (where you run Agilab):
-
-``In the manager terminal``
+To load the private key into the SSH agent of the manager, follow these steps:
 
 .. tabs::
 
-    .. tab:: **Unix**
+   .. tab:: Linux/macOS
 
-        .. raw:: html
+      .. raw:: html
 
-           <button class="copy-btn-left" data-label="📋 Copy if <remote account> is under Unix" onclick="copyCode(this)" aria-label="Unix Worker">📋 Unix Worker</button>
+         <button class="copy-btn-left" data-label="📋 Copy" onclick="copyCode(this)">📋 Copy</button>
 
-        .. code-block:: bash
+      .. code-block:: bash
 
-           ssh-copy-id -i ~/.ssh/id_ed25519 <remote account>@<worker ip>
+         eval "$(ssh-agent -s)"
+         ssh-add ~/.ssh/id_ed25519
 
-        .. raw:: html
+   .. tab:: Windows (Git Bash)
 
-           <button class="copy-btn-left" data-label="📋 Copy if <remote account> is under Windows" onclick="copyCode(this)" aria-label="Windows Worker">📋 Windows Worker</button>
+      .. raw:: html
 
-        .. code-block:: bash
+         <button class="copy-btn-left" data-label="📋 Copy" onclick="copyCode(this)">📋 Copy</button>
 
-           PS_COMMAND='$input = [Console]::In.ReadToEnd(); Add-Content -Path ''C:\Users\<remote account>\.ssh\authorized_keys'' -Value $input'
-           ENCODED_COMMAND=$(echo -n "$PS_COMMAND" | iconv -f utf-8 -t utf-16le | base64 -w 0)
-           cat ~/.ssh/id_ed25519.pub | ssh <remote account>@<worker ip> powershell.exe -EncodedCommand $ENCODED_COMMAND
+      .. code-block:: bash
 
-    .. tab:: **Windows**
+         eval `ssh-agent -s`
+         ssh-add ~/.ssh/id_ed25519
 
-        .. raw:: html
+   .. tab:: Windows (PowerShell)
 
-           <button class="copy-btn-left" data-label="📋 Copy if <remote account> is under Unix" onclick="copyCode(this)" aria-label="Unix Worker">📋 Unix Worker</button>
+      .. raw:: html
 
-        .. code-block:: powershell
+         <button class="copy-btn-left" data-label="📋 Copy" onclick="copyCode(this)">📋 Copy</button>
 
-           Get-Content -Raw "${env:USERPROFILE}\\.ssh\\id_ed25519.pub" | ssh <remote account>@<worker ip> "cat >> ~/.ssh/authorized_keys"
+      .. code-block:: powershell
 
-        .. raw:: html
+         Start-Service ssh-agent
+         ssh-add $env:USERPROFILE\.ssh\id_ed25519
 
-           <button class="copy-btn-left" data-label="📋 Copy if <remote account> is under Windows" onclick="copyCode(this)" aria-label="Windows Worker">📋 Windows Worker</button>
-
-        .. code-block:: powershell
-
-           Get-Content -Raw $env:USERPROFILE\\.ssh\\id_ed25519.pub | ssh <remote account>@<worker ip> "powershell -Command \"\$input | Out-File -Append -Encoding ascii C:\\Users\\<remote account>\\.ssh\\authorized_keys\\\""
-
-If you have set a passphrase, you will be asked to enter it. If you encounter any permission-related errors, refer to the `Permissions`_ section.
+If you have set a passphrase, you will be asked to enter it.
+If you encounter any permission-related errors, refer to the `Permissions`_ section.
 
 On Linux, if a window titled "Enter password to unlock the private key" appears when trying to establish an SSH connection, enter the passphrase and check the box "Automatically unlock this key whenever I'm logged in".
 
-Verify the key Addition
-~~~~~~~~~~~~~~~~~~~~~~~
+Verify the key addition
+^^^^^^^^^^^^^^^^^^^^^^
 
-
-``In the workers terminal``
+To check if the key has been correctly added to the agent:
 
 .. raw:: html
 
@@ -149,182 +105,219 @@ Verify the key Addition
 
 .. code-block:: bash
 
-    ssh-add -l
+   ssh-add -l
 
-It should display the **public key** (not private). To manually check the public key:
-
-``In the workers terminal``
+It should display the public key (not private). To manually check the public key:
 
 .. tabs::
 
-    .. tab:: **Windows**
+   .. tab:: Windows
 
-        .. raw:: html
+      .. raw:: html
 
-           <button class="copy-btn-left" data-label="📋 Copy Windows cat pub key" onclick="copyCode(this)" aria-label="Copy Windows pub key">📋 Copy</button>
+         <button class="copy-btn-left" data-label="📋 Copy Windows cat pub key" onclick="copyCode(this)" aria-label="Copy Windows pub key">📋 Copy</button>
 
-        .. code-block:: powershell
+      .. code-block:: powershell
 
-           cat $env:USERPROFILE/.ssh/id_ed25519.pub
+         cat $env:USERPROFILE/.ssh/id_ed25519.pub
 
-    .. tab:: **Linux**
+   .. tab:: Linux
 
-        .. raw:: html
+      .. raw:: html
 
-           <button class="copy-btn-left" data-label="📋 Copy Linux cat pub key" onclick="copyCode(this)" aria-label="Copy Linux pub key">📋 Copy</button>
+         <button class="copy-btn-left" data-label="📋 Copy Linux cat pub key" onclick="copyCode(this)" aria-label="Copy Linux pub key">📋 Copy</button>
 
-        .. code-block:: bash
+      .. code-block:: bash
 
-           cat ~/.ssh/id_ed25519.pub
+         cat ~/.ssh/id_ed25519.pub
 
+Copy the public key to the worker
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To authorize connections to the worker, add your public key to the worker's authorized keys:
+
+.. tabs::
+
+   .. tab:: Unix manager and Unix worker
+
+      .. raw:: html
+
+         <button class="copy-btn-left" data-label="📋 Copy ssh-copy-id" onclick="copyCode(this)" aria-label="Copy ssh-copy-id">📋 Copy</button>
+
+      .. code-block:: bash
+
+         ssh-copy-id -i ~/.ssh/id_ed25519 <remote account>@<worker ip>
+
+   .. tab:: Unix manager and Windows worker
+
+      .. raw:: html
+
+         <button class="copy-btn-left" data-label="📋 Copy ssh pub to Windows" onclick="copyCode(this)" aria-label="Copy pub key to Windows">📋 Copy</button>
+
+      .. code-block:: bash
+
+         PS_COMMAND='$input = [Console]::In.ReadToEnd(); Add-Content -Path ''C:\Users\<remote account>\.ssh\authorized_keys'' -Value $input'
+         ENCODED_COMMAND=$(echo -n "$PS_COMMAND" | iconv -f utf-8 -t utf-16le | base64 -w 0)
+         cat ~/.ssh/id_ed25519.pub | ssh <remote account>@<worker ip> powershell.exe -EncodedCommand $ENCODED_COMMAND
+
+   .. tab:: Windows manager and Windows worker
+
+      .. raw:: html
+
+         <button class="copy-btn-left" data-label="📋 Copy PowerShell Windows-to-Windows" onclick="copyCode(this)" aria-label="Copy Win->Win">📋 Copy</button>
+
+      .. code-block:: powershell
+
+         Get-Content -Raw $env:USERPROFILE\.ssh\id_ed25519.pub | ssh <remote account>@<worker ip> "powershell -Command \"\$input | Out-File -Append -Encoding ascii C:\Users\<remote account>\.ssh\authorized_keys\""
+
+   .. tab:: Windows manager and Unix worker
+
+      .. raw:: html
+
+         <button class="copy-btn-left" data-label="📋 Copy Win pubkey to Unix" onclick="copyCode(this)" aria-label="Copy Win pub to Unix">📋 Copy</button>
+
+      .. code-block:: powershell
+
+         Get-Content -Raw "${env:USERPROFILE}\.ssh\id_ed25519.pub" | ssh <remote account>@<worker ip> "cat >> ~/.ssh/authorized_keys"
 
 SSHD Service
 ^^^^^^^^^^^^
 
 Check the configuration
-~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 
 Check the SSH server configuration in the ``sshd_config`` file:
 
 - **Windows Server**: ``C:\ProgramData\ssh\sshd_config``
 - **Unix Server**: ``/etc/ssh/sshd_config``
 
-
-``In the workers terminal``
-
 Ensure the following configuration is set:
 
 .. code-block:: none
 
-    PubkeyAuthentication yes
-    PasswordAuthentication no
+   PubkeyAuthentication yes
+   PasswordAuthentication no
 
 To modify, open the file in an **elevated text editor**, update the lines as shown above, and restart the SSH server (see `Restart SSH Server`_ section).
 
 Restart the SSHD service
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-``In the workers terminal``
-
 .. tabs::
 
-    .. tab:: **Windows (admin)**
+   .. tab:: Windows worker (admin)
 
-        .. raw:: html
+      .. raw:: html
 
-           <button class="copy-btn-left" data-label="📋 Copy Windows restart commands" onclick="copyCode(this)" aria-label="Copy Windows restart commands">📋 Copy</button>
+         <button class="copy-btn-left" data-label="📋 Copy Windows restart commands" onclick="copyCode(this)" aria-label="Copy Windows restart commands">📋 Copy</button>
 
-        .. code-block:: powershell
+      .. code-block:: powershell
 
-           Restart-Service sshd   # Restart SSH Server
-           Restart-Service ssh-agent   # Restart SSH Agent
+         Restart-Service sshd   # Restart SSH Server
+         Restart-Service ssh-agent   # Restart SSH Agent
 
-    .. tab:: **Linux**
+   .. tab:: Linux worker
 
-        .. raw:: html
+      .. raw:: html
 
-           <button class="copy-btn-left" data-label="📋 Copy Linux restart commands" onclick="copyCode(this)" aria-label="Copy Linux restart commands">📋 Copy</button>
+         <button class="copy-btn-left" data-label="📋 Copy Linux restart commands" onclick="copyCode(this)" aria-label="Copy Linux restart commands">📋 Copy</button>
 
-        .. code-block:: bash
+      .. code-block:: bash
 
-           sudo systemctl restart ssh  # Restart SSH Server
-           eval "$(ssh-agent -s)"  # Restart SSH Agent
+         sudo systemctl restart ssh  # Restart SSH Server
+         eval "$(ssh-agent -s)"  # Restart SSH Agent
 
 Check the service status:
-~~~~~~~~~~~~~~~~~~~~~
-
-``In the workers terminal``
 
 .. tabs::
 
-    .. tab:: **Windows (admin)**
+   .. tab:: Windows worker (admin)
 
-        .. raw:: html
+      .. raw:: html
 
-           <button class="copy-btn-left" data-label="📋 Copy Windows service status" onclick="copyCode(this)" aria-label="Copy Windows service status">📋 Copy</button>
+         <button class="copy-btn-left" data-label="📋 Copy Windows service status" onclick="copyCode(this)" aria-label="Copy Windows service status">📋 Copy</button>
 
-        .. code-block:: powershell
+      .. code-block:: powershell
 
-           Get-Service sshd
-           Get-Service ssh-agent
+         Get-Service sshd
+         Get-Service ssh-agent
 
-    .. tab:: **Linux**
+   .. tab:: Linux worker
 
-        .. raw:: html
+      .. raw:: html
 
-           <button class="copy-btn-left" data-label="📋 Copy Linux service status" onclick="copyCode(this)" aria-label="Copy Linux service status">📋 Copy</button>
+         <button class="copy-btn-left" data-label="📋 Copy Linux service status" onclick="copyCode(this)" aria-label="Copy Linux service status">📋 Copy</button>
 
-        .. code-block:: bash
+      .. code-block:: bash
 
-           sudo systemctl status ssh  # Check SSH Server status
-           ssh-add -L  # Check if the SSH agent is running
+         sudo systemctl status ssh  # Check SSH Server status
+         ssh-add -L  # Check if the SSH agent is running
+
 Permissions
 ^^^^^^^^^^^
 
-``In the workers terminal``
-
 .. tabs::
 
-    .. tab:: **Windows**
+   .. tab:: Windows
 
-        Ensure that the ``.ssh`` folder and files ``id_ed25519`` and ``authorized_keys`` have the correct permissions:
+      Ensure that the ``.ssh`` folder and files ``id_ed25519`` and ``authorized_keys`` have the correct permissions:
 
-        .. raw:: html
+      .. raw:: html
 
-           <button class="copy-btn-left" data-label="📋 Copy Windows permission info" onclick="copyCode(this)" aria-label="Copy Windows permission info">📋 Copy</button>
+         <button class="copy-btn-left" data-label="📋 Copy Windows permission info" onclick="copyCode(this)" aria-label="Copy Windows permission info">📋 Copy</button>
 
-        .. code-block:: bash
+      .. code-block:: none
 
-           .ssh\id_rsa        AUTORITE NT\Système:(F)
-                      BUILTIN\Administrateurs:(F)
-                      %USERNAME%:(M)
+         .ssh\id_rsa        AUTORITE NT\Système:(F)
+                            BUILTIN\Administrateurs:(F)
+                            %USERNAME%:(M)
 
-        To view permissions:
+      To view permissions:
 
-        .. raw:: html
+      .. raw:: html
 
-           <button class="copy-btn-left" data-label="📋 Copy Windows icacls command" onclick="copyCode(this)" aria-label="Copy Windows icacls">📋 Copy</button>
+         <button class="copy-btn-left" data-label="📋 Copy Windows icacls command" onclick="copyCode(this)" aria-label="Copy Windows icacls">📋 Copy</button>
 
-        .. code-block:: powershell
+      .. code-block:: powershell
 
-            icacls "$env:userprofile\.ssh"
+         icacls "$env:userprofile\.ssh"
 
-        To set correct permissions:
+      To set correct permissions:
 
-        .. raw:: html
+      .. raw:: html
 
-           <button class="copy-btn-left" data-label="📋 Copy Windows set perms command" onclick="copyCode(this)" aria-label="Copy Windows set perms">📋 Copy</button>
+         <button class="copy-btn-left" data-label="📋 Copy Windows set perms command" onclick="copyCode(this)" aria-label="Copy Windows set perms">📋 Copy</button>
 
-        .. code-block:: powershell
+      .. code-block:: powershell
 
-            icacls "$env:userprofile\.ssh\id_ed25519" /inheritance:r /grant "AUTORITE NT\Système:(F)" "BUILTIN\Administrateurs:(F)" "$env:username:(M)"
+         icacls "$env:userprofile\.ssh\id_ed25519" /inheritance:r /grant "AUTORITE NT\Système:(F)" "BUILTIN\Administrateurs:(F)" "$env:username:(M)"
 
-    .. tab:: **Linux**
+   .. tab:: Linux
 
-        .. raw:: html
+      .. raw:: html
 
-           <button class="copy-btn-left" data-label="📋 Copy Linux permissions" onclick="copyCode(this)" aria-label="Copy Linux permissions">📋 Copy</button>
+         <button class="copy-btn-left" data-label="📋 Copy Linux permissions" onclick="copyCode(this)" aria-label="Copy Linux permissions">📋 Copy</button>
 
-        .. code-block:: bash
+      .. code-block:: bash
 
-            chmod 700 ~/.ssh
-            chmod 600 ~/.ssh/id_ed25519
-            chmod 600 ~/.ssh/authorized_keys
+         chmod 700 ~/.ssh
+         chmod 600 ~/.ssh/id_ed25519
+         chmod 600 ~/.ssh/authorized_keys
 
-        To verify:
+      To verify:
 
-        .. raw:: html
+      .. raw:: html
 
-           <button class="copy-btn-left" data-label="📋 Copy Linux ls command" onclick="copyCode(this)" aria-label="Copy Linux ls">📋 Copy</button>
+         <button class="copy-btn-left" data-label="📋 Copy Linux ls command" onclick="copyCode(this)" aria-label="Copy Linux ls">📋 Copy</button>
 
-        .. code-block:: bash
+      .. code-block:: bash
 
-            ls -l "~/.ssh"
+         ls -l "~/.ssh"
 
 Useful links
-^^^^^^
+^^^^^^^^^^^^
 
-If you need more informations about ssh configuration, the following guides may be helpful:
+If you need more information about ssh configuration, the following guides may be helpful:
+
 - For **Unix**: `Debian documentation <https://wiki.debian.org/SSH>`__
-
-- For **Windows**/ `Microsoft documentation <https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh-server-configuration>`__
+- For **Windows**: `Microsoft documentation <https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh-server-configuration>`__
