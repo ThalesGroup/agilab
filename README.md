@@ -45,7 +45,7 @@ cd agilab  agilab/src/agi/fwk/gui
 
 ```powershell
 unzip agilab.zip
-cd agilab/src/agilab/fwk/gui
+cd agilab/src/agi/fwk/gui
 powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key "your-api-key"
 ```
 </details>
@@ -55,6 +55,6 @@ powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key "you
 ### Linux and MacOS and Windows:
 
 ```bash
-cd agilab/src/agilab/fwk/gui
+cd agilab/src/agi/fwk/gui
 uv run agilab
 ```
