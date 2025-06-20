@@ -39,6 +39,7 @@ dependencies = [
     "pathspec",
     "ipython",
     "asyncssh",
+    "py7zr",
 ]
 
 [project.urls]
