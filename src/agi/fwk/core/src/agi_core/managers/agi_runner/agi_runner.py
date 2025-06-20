@@ -549,7 +549,7 @@ class AGI:
 
         # 1) Collect PIDs from any pid files and remove those files
         pids_to_kill: list[int] = []
-        for pid_file in Path(os.getcwd()).glob("*.pid"):
+        for pid_file in Path(env.wenv_abs.parent).glob("*.pid"):
             try:
                 text = pid_file.read_text().strip()
                 pid = int(text)
@@ -563,16 +563,20 @@ class AGI:
                 AGI.env.log_warning(f"Failed to remove pid file {pid_file}: {e}")
 
         cmds: list[str] = []
-
+        clean_rel = env.wenv_rel.parent / "cli.py"
+        clean_abs = env.wenv_abs.parent / "cli.py"
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         if env.is_local(ip):
             kill_prefix = f'{cmd_prefix}{uv} run -p {env.python_version} python'
+            shutil.copy(env.manager_root / "agi_runner/cli.py", clean_abs)
+            if force:
+                cmd = f"{kill_prefix} {clean_abs}"
+                cmds.append(cmd)
         else:
+            await env.send_file(ip, env.manager_root / "agi_runner/cli.py", clean_rel.parent)
             kill_prefix = f'{cmd_prefix}{uv} run -p {env.python_version} python'
             if force:
-                clean = env.wenv_rel.parent / "cli.py"
-                #await env.send_file(ip, env.manager_root / "agi_runner/cli.py", clean.parent)
-                cmd = f"{kill_prefix} {clean}"
+                cmd = f"{kill_prefix} {clean_rel}"
                 cmds.append(cmd)
 
         # 3) If we found any explicit pid files, terminate those PIDs
@@ -1191,7 +1195,7 @@ class AGI:
                 await asyncio.sleep(1)  # non-blocking sleep
                 cmd = (
                     f"{env.uv} run --project {env.wenv_abs} dask scheduler --port {AGI._scheduler_port} "
-                    f"--host {AGI._scheduler_ip} --pid-file dask_pid"
+                    f"--host {AGI._scheduler_ip} --pid-file {wenv_rel.parent / 'dask_scheduler.pid' } "
                 )
                 logging.info(f"Starting dask scheduler locally: {cmd}")
                 result = AGI._exec_bg(cmd, env.app_abs)
@@ -1273,13 +1277,13 @@ class AGI:
                         cmd = (
                             # f'{export_cmd} '
                             f'{cmd_prefix}{env.uv} --project {wenv_abs} run dask worker tcp://{AGI._scheduler} --no-nanny '
-                            f'--pid-file {pid_file}'
+                            f'--pid-file {wenv_abs / pid_file}'
                         )
                         # Run locally in background (non-blocking)
                         AGI._exec_bg(cmd, str(wenv_abs))
                     else:
                         wenv_rel = env.wenv_rel
-                        cmd = f'{cmd_prefix}{env.uv} --project {wenv_rel} run dask worker tcp://{AGI._scheduler} --no-nanny --pid-file {pid_file}'
+                        cmd = f'{cmd_prefix}{env.uv} --project {wenv_rel} run dask worker tcp://{AGI._scheduler} --no-nanny --pid-file {wenv_rel.parent / pid_file}'
                         asyncio.create_task(env.exec_ssh_async(ip, cmd))
                         logging.info(f"Launched remote worker in background on {ip}: {cmd}")
 

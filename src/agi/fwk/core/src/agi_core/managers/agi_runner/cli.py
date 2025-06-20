@@ -27,7 +27,7 @@ def kill():
     current_pid = os.getpid()
     # DASK pid files
     dask_pids_to_kill = []
-    for pid_file in Path(os.getcwd()).glob("*.pid"):
+    for pid_file in (Path(__file__).parent).glob("*.pid"):
         try:
             text = pid_file.read_text().strip()
             pid = int(text)
