@@ -1003,7 +1003,7 @@ class AGI:
         await env.exec_ssh(ip, cmd)
 
         # Post-install script
-        cmd = f"{cmd_prefix}{env.uv} run --project {wenv_rel} python {env.post_install_rel} {env.data_rel}"
+        cmd = f"{cmd_prefix}{env.uv} --project {wenv_rel} run python {env.post_install_rel} {env.data_rel}"
         await env.exec_ssh(ip, cmd)
 
         # build target_worker lib
