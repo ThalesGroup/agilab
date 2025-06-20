@@ -48,6 +48,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 import subprocess
 import logging
+import runpy
 
 # Project Libraries:
 from agi_env import AgiEnv, normalize_path
@@ -564,7 +565,7 @@ class AGI:
 
         cmds: list[str] = []
         clean_rel = env.wenv_rel.parent / "cli.py"
-        clean_abs = env.wenv_abs.parent / "cli.py"
+        clean_abs = env.wenv_abs.parent / clean_rel.name
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         if env.is_local(ip):
             kill_prefix = f'{cmd_prefix}{uv} run -p {env.python_version} python'
@@ -593,7 +594,11 @@ class AGI:
             # choose working directory based on local vs remote
             cwd = env.manager_root if ip == localhost else str(env.wenv_abs)
             if env.is_local(ip):
-                await AgiEnv.run(cmd, cwd)
+                if env.debug:
+                    sys.argv = cmd.split('python ')[1].split(" ")
+                    runpy.run_path(sys.argv[0], run_name="__main__")
+                else:
+                    await AgiEnv.run(cmd, cwd)
             else:
                 cli = env.wenv_rel.parent / "cli.py"
                 await env.send_file(ip, env.manager_root / "agi_runner/cli.py", cli.parent)
@@ -621,7 +626,6 @@ class AGI:
         """
         me = getpass.getuser()
         self_pid = os.getpid()
-
         for p in psutil.process_iter(['pid', 'username', 'cmdline']):
             try:
                 if (
@@ -1514,7 +1518,7 @@ class AGI:
                 AGI._dask_client.submit(
                     AgiWorker.new,
                     env.app,
-                    env= 0 if env._debug else None,
+                    env= 0 if env.debug else None,
                     mode=AGI._mode,
                     verbose=AGI._verbose,
                     worker_id=list(AGI._dask_workers).index(worker),
