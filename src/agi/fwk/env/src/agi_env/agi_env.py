@@ -55,7 +55,7 @@ class AgiEnv:
     GUI_SAMPLING = None
     init_done = False
     has_rapids_hw = None
-    _debug = False
+    debug = False
     uv = None
     benchmark = None
     verbose = None
@@ -173,7 +173,7 @@ class AgiEnv:
         AgiEnv.verbose = verbose
         self.verbose = verbose
         self.init_logging(verbose)
-        AgiEnv._debug = debug
+        AgiEnv.debug = debug
         self.is_managed_pc = getpass.getuser().startswith("T0")
         self.agi_resources = Path("resources/.agi")
         home_abs = Path.home() / "MyApp" if self.is_managed_pc else Path.home()
@@ -210,7 +210,7 @@ class AgiEnv:
                 raise RuntimeError("Your Agilab installation is not valid")
             self._init_resources(resource_path)
         elif install_type == 2:
-                if AgiEnv._debug:
+                if AgiEnv.debug:
                     self.agi_env_root = self.agi_root / "fwk/env"
                     self.agi_core_root = self.agi_root / "fwk/core"
                 else:
@@ -848,7 +848,7 @@ class AgiEnv:
                         break
 
                 process.wait(timeout=timeout)
-                if AgiEnv.verbose > 1 or AgiEnv._debug:
+                if AgiEnv.verbose > 1 or AgiEnv.debug:
                     logging.info(f"Command completed with exit code {process.returncode}")
                 return result
 
@@ -1141,13 +1141,13 @@ class AgiEnv:
         try:
             async with self.get_ssh_connection(ip) as conn:
                 msg = f"[{ip}] {cmd}"
-                if AgiEnv.verbose > 1 or AgiEnv._debug:
+                if AgiEnv.verbose > 1 or AgiEnv.debug:
                     logging.info(msg)
                 result = await conn.run(cmd, check=True)
                 stdout = result.stdout
                 if isinstance(stdout, bytes):
                     stdout = stdout.decode('utf-8', errors='replace')
-                if AgiEnv.verbose > 1 or AgiEnv._debug:
+                if AgiEnv.verbose > 1 or AgiEnv.debug:
                     logging.info(f"[{ip}] {stdout.strip()}")
                 return stdout.strip()
 
