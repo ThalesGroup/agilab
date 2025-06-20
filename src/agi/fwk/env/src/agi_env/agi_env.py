@@ -22,6 +22,7 @@ import errno
 import astor
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
+import py7zr
 
 # Compile regex once globally
 LOG_LEVEL_RE = re.compile(r'\b(INFO|ERROR|WARNING|DEBUG|CRITICAL)\b')
