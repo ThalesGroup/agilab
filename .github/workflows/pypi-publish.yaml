@@ -34,7 +34,7 @@ jobs:
           echo "Building core package for testing"
           pushd src/agi/fwk/core > /dev/null
           rm -rf dist
-          uv sync --dev --extra workers --extra managers --config-file uv.toml
+          uv sync --dev --extra workers --extra managers --config-file uv_config.toml
           uv pip install -e .
           popd > /dev/null
 
