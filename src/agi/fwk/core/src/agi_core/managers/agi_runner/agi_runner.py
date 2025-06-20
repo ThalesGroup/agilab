@@ -1195,7 +1195,7 @@ class AGI:
                 await asyncio.sleep(1)  # non-blocking sleep
                 cmd = (
                     f"{env.uv} run --project {env.wenv_abs} dask scheduler --port {AGI._scheduler_port} "
-                    f"--host {AGI._scheduler_ip} --pid-file {wenv_rel.parent / 'dask_scheduler.pid' } "
+                    f"--host {AGI._scheduler_ip} --pid-file {wenv_abs.parent / 'dask_scheduler.pid' } "
                 )
                 logging.info(f"Starting dask scheduler locally: {cmd}")
                 result = AGI._exec_bg(cmd, env.app_abs)
