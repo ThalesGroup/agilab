@@ -5,15 +5,18 @@
 | astor | BSD LICENSE |
 | asttokens | APACHE 2.0 |
 | asyncssh | EPL-2.0;; GPL-2.0-OR-LATER |
+| brotli | MIT LICENSE |
 | cffi | MIT LICENSE |
 | cryptography | APACHE-2.0;; BSD-3-CLAUSE |
 | decorator | BSD LICENSE |
 | executing | MIT LICENSE |
 | humanize | MIT License |
+| inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | ipython | BSD LICENSE |
 | ipython-pygments-lexers | BSD LICENSE |
 | jedi | MIT LICENSE |
 | matplotlib-inline | BSD LICENSE |
+| multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | parso | MIT LICENSE |
 | pathspec | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | pexpect | ISC LICENSE _ISCL_ |
@@ -21,13 +24,19 @@
 | psutil | BSD LICENSE |
 | ptyprocess | ISC LICENSE _ISCL_ |
 | pure-eval | MIT LICENSE |
+| py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pycparser | BSD LICENSE |
+| pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
 | pydantic | MIT LICENSE |
 | pydantic-core | MIT LICENSE |
 | pygments | BSD LICENSE |
+| pyppmd | LGPL-2.1-OR-LATER |
 | python-dotenv | BSD LICENSE |
+| pyzstd | BSD LICENSE |
 | setuptools | MIT |
 | stack-data | MIT LICENSE |
+| texttable | MIT LICENSE |
 | tomlkit | MIT LICENSE |
 | traitlets | BSD LICENSE |
 | typing-extensions | PSF-2.0 |

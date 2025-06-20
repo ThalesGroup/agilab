@@ -79,18 +79,14 @@
 <li class="toctree-l3"><a class="reference internal" href="cluster-help.html#principle">Principle</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#generate-the-keys">Generate the keys</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#loading-the-private-key-in-ssh-agent">Loading the private key in SSH Agent</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#verify-the-key-addition">Verify the key addition</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#copy-the-public-key-to-the-worker">Copy the public key to the worker</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#sshd-service">SSHD Service</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#check-the-configuration">Check the configuration</a></li>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#restart-the-sshd-service">Restart the SSHD service</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#permissions">Permissions</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#useful-links">Useful links</a></li>
+<li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation and Deployment Guide</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#terminology">Terminology</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-1-manager-linux-worker-linux">Use Case 1: Manager Linux → Worker Linux</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-2-manager-linux-worker-windows">Use Case 2: Manager Linux → Worker Windows</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-3-manager-windows-worker-linux">Use Case 3: Manager Windows → Worker Linux</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-4-manager-windows-worker-windows">Use Case 4: Manager Windows → Worker Windows</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#end-of-guide">End of Guide</a></li>
 </ul>
 </li>
 </ul>
@@ -422,7 +418,6 @@
 │   │   ├── README.md
 │   │   ├── apps
 │   │   ├── build.py
-│   │   ├── dask_pid
 │   │   ├── pyproject.toml
 │   │   ├── run_test.sh
 │   │   ├── src
@@ -545,6 +540,8 @@
 │   │   ├── SECURITY.md
 │   │   ├── build.py
 │   │   ├── coverage.xml
+│   │   ├── dist
+│   │   │   └── agi_core-0.3.57-py3-none-any.whl
 │   │   ├── pyproject.toml
 │   │   ├── src
 │   │   │   ├── __init__.py
@@ -578,6 +575,8 @@
 │   │   ├── README.md
 │   │   ├── SECURITY.md
 │   │   ├── coverage.xml
+│   │   ├── dist
+│   │   │   └── agi_env-0.3.57-py3-none-any.whl
 │   │   ├── pyproject.toml
 │   │   ├── src
 │   │   │   ├── agi_env
@@ -654,7 +653,7 @@
     │           └── maps_3d.py
     └── pyproject.toml
 
-61 directories, 215 files
+63 directories, 216 files
 </pre></div>
 </div>
 </section>

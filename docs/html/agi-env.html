@@ -79,18 +79,14 @@
 <li class="toctree-l3"><a class="reference internal" href="cluster-help.html#principle">Principle</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#generate-the-keys">Generate the keys</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#loading-the-private-key-in-ssh-agent">Loading the private key in SSH Agent</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#verify-the-key-addition">Verify the key addition</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#copy-the-public-key-to-the-worker">Copy the public key to the worker</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#sshd-service">SSHD Service</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#check-the-configuration">Check the configuration</a></li>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#restart-the-sshd-service">Restart the SSHD service</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#permissions">Permissions</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#useful-links">Useful links</a></li>
+<li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation and Deployment Guide</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#terminology">Terminology</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-1-manager-linux-worker-linux">Use Case 1: Manager Linux → Worker Linux</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-2-manager-linux-worker-windows">Use Case 2: Manager Linux → Worker Windows</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-3-manager-windows-worker-linux">Use Case 3: Manager Windows → Worker Linux</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-4-manager-windows-worker-windows">Use Case 4: Manager Windows → Worker Windows</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#end-of-guide">End of Guide</a></li>
 </ul>
 </li>
 </ul>
@@ -526,6 +522,11 @@ in-file identifiers and class names.</p>
 </dl>
 </dd></dl>
 
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.debug">
+<span class="sig-name descname"><span class="pre">debug</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.debug" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.exec_ssh">
 <em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec_ssh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.exec_ssh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.exec_ssh" title="Link to this definition"></a></dt>
@@ -796,6 +797,11 @@ Returns the last line of combined stdout and stderr outputs.</p>
 <span class="sig-name descname"><span class="pre">set_openai_api_key</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">api_key</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.set_openai_api_key"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.set_openai_api_key" title="Link to this definition"></a></dt>
 <dd><p>Set the OPENAI_API_KEY environment variable.</p>
 </dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.unzip_data">
+<span class="sig-name descname"><span class="pre">unzip_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">archive_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">extract_to</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.unzip_data"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.unzip_data" title="Link to this definition"></a></dt>
+<dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.uv">

@@ -77,17 +77,13 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../../key-generation.html">Key Generation</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#generate-the-keys">Generate the keys</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#loading-the-private-key-in-ssh-agent">Loading the private key in SSH Agent</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#verify-the-key-addition">Verify the key addition</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#copy-the-public-key-to-the-worker">Copy the public key to the worker</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#sshd-service">SSHD Service</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#check-the-configuration">Check the configuration</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#restart-the-sshd-service">Restart the SSHD service</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#permissions">Permissions</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#useful-links">Useful links</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#step-1-prepare-the-powershell-script">Step 1: Prepare the PowerShell Script</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#step-2-encode-the-powershell-script-on-your-local-machine">Step 2: Encode the PowerShell Script on Your Local Machine</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#step-3-send-your-ssh-public-key-to-the-remote-windows-machine">Step 3: Send Your SSH Public Key to the Remote Windows Machine</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#step-4-verify-your-key-has-been-added-successfully">Step 4: Verify Your Key Has Been Added Successfully</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#additional-notes">Additional Notes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#example">Example</a></li>
 </ul>
 </li>
 </ul>
@@ -396,6 +392,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">astor</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathspec</span><span class="w"> </span><span class="kn">import</span> <span class="n">PathSpec</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathspec.patterns</span><span class="w"> </span><span class="kn">import</span> <span class="n">GitWildMatchPattern</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">py7zr</span>
 
 <span class="c1"># Compile regex once globally</span>
 <span class="n">LOG_LEVEL_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;\b(INFO|ERROR|WARNING|DEBUG|CRITICAL)\b&#39;</span><span class="p">)</span>
@@ -434,7 +431,7 @@
     <span class="n">GUI_SAMPLING</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">init_done</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">_debug</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">debug</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">uv</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">benchmark</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">verbose</span> <span class="o">=</span> <span class="kc">None</span>
@@ -557,7 +554,7 @@
         <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">init_logging</span><span class="p">(</span><span class="n">verbose</span><span class="p">)</span>
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">_debug</span> <span class="o">=</span> <span class="n">debug</span>
+        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">debug</span> <span class="o">=</span> <span class="n">debug</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">is_managed_pc</span> <span class="o">=</span> <span class="n">getpass</span><span class="o">.</span><span class="n">getuser</span><span class="p">()</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;T0&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;resources/.agi&quot;</span><span class="p">)</span>
         <span class="n">home_abs</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;MyApp&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_managed_pc</span> <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span>
@@ -594,7 +591,7 @@
                 <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Your Agilab installation is not valid&quot;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_init_resources</span><span class="p">(</span><span class="n">resource_path</span><span class="p">)</span>
         <span class="k">elif</span> <span class="n">install_type</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">_debug</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">agi_env_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_root</span> <span class="o">/</span> <span class="s2">&quot;fwk/env&quot;</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">agi_core_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_root</span> <span class="o">/</span> <span class="s2">&quot;fwk/core&quot;</span>
                 <span class="k">else</span><span class="p">:</span>
@@ -1292,7 +1289,7 @@
                         <span class="k">break</span>
 
                 <span class="n">process</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">_debug</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
                     <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Command completed with exit code </span><span class="si">{</span><span class="n">process</span><span class="o">.</span><span class="n">returncode</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="k">return</span> <span class="n">result</span>
 
@@ -1606,13 +1603,13 @@
         <span class="k">try</span><span class="p">:</span>
             <span class="k">async</span> <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_ssh_connection</span><span class="p">(</span><span class="n">ip</span><span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
                 <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2">&quot;</span>
-                <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">_debug</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
                     <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
                 <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">check</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
                 <span class="n">stdout</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">stdout</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stdout</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
                     <span class="n">stdout</span> <span class="o">=</span> <span class="n">stdout</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;replace&#39;</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">_debug</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
                     <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="k">return</span> <span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
 
@@ -2157,7 +2154,38 @@
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.log_remote_line">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">log_remote_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="n">line</span><span class="p">):</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">line</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># Replace with your real remote line logger</span></div>
+
+
+<div class="viewcode-block" id="AgiEnv.unzip_data">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.unzip_data">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">unzip_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">archive_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">extract_to</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="n">archive_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">archive_path</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">archive_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Warning: Archive &#39;</span><span class="si">{</span><span class="n">archive_path</span><span class="si">}</span><span class="s2">&#39; does not exist. Skipping extraction.&quot;</span><span class="p">)</span>
+            <span class="k">return</span>  <span class="c1"># Do not exit, just warn</span>
+
+        <span class="c1"># Normalize extract_to to a Path relative to cwd or absolute</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">extract_to</span><span class="p">:</span>
+            <span class="n">extract_to</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">)</span>
+        <span class="n">dest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">/</span> <span class="n">Path</span><span class="p">(</span><span class="n">extract_to</span><span class="p">)</span>
+        <span class="n">dataset</span> <span class="o">=</span> <span class="n">dest</span> <span class="o">/</span> <span class="s2">&quot;dataset&quot;</span>
+
+        <span class="c1"># Clear existing folder if not empty to avoid extraction errors on second call</span>
+        <span class="k">if</span> <span class="n">dataset</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">iterdir</span><span class="p">()):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Destination &#39;</span><span class="si">{</span><span class="n">dataset</span><span class="si">}</span><span class="s2">&#39; exists and is not empty. Clearing it before extraction.&quot;</span><span class="p">)</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span>
+        <span class="n">dest</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">py7zr</span><span class="o">.</span><span class="n">SevenZipFile</span><span class="p">(</span><span class="n">archive_path</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">archive</span><span class="p">:</span>
+                <span class="n">archive</span><span class="o">.</span><span class="n">extractall</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="n">dest</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Successfully extracted &#39;</span><span class="si">{</span><span class="n">archive_path</span><span class="si">}</span><span class="s2">&#39; to &#39;</span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to extract &#39;</span><span class="si">{</span><span class="n">archive_path</span><span class="si">}</span><span class="s2">&#39;: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">traceback</span><span class="o">.</span><span class="n">print_exc</span><span class="p">()</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span></div>
 </div>
+
 
 
 <div class="viewcode-block" id="ContentRenamer">
