@@ -911,11 +911,11 @@ class AGI:
         wenv_rel = env.wenv_rel
         dist_rel = env.dist_rel
         dist_abs = env.dist_abs
-        setup = wenv_rel / env.setup_app.name
+        uv  = cmd_prefix + env.uv
 
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
 
-        cmd = f"{cmd_prefix}{env.uv} run -p {env.python_version} python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
+        cmd = f"{uv} run -p {env.python_version} python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
         await env.exec_ssh(ip, cmd)
 
         # Then send the files to the remote directory
@@ -929,7 +929,7 @@ class AGI:
         await env.send_file(ip, egg_file, dist_rel)
 
         cmd = (
-            f"{cmd_prefix}{env.uv} --project {wenv_rel} run python -c \"import os, pathlib, zipfile;"
+            f"{uv} --project {wenv_rel} run python -c \"import os, pathlib, zipfile;"
             f"root = pathlib.Path('{wenv_rel}');"
             f"root_src = root / 'src';"
             f"[zipfile.ZipFile(str(e)).extractall(str(root_src))"
@@ -957,9 +957,10 @@ class AGI:
 
         # 6) Build and run uv sync, adding --config-file only when has_rapids_hw
         if has_rapids_hw:
-            sync_cmd = f"{cmd_prefix}{env.uv} sync --upgrade --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option} --refresh-package dask"
+            sync_cmd = (f"{uv} sync --upgrade --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option}"
+                        f" --refresh-package dask")
         else:
-            sync_cmd = f"{cmd_prefix}{env.uv} sync --upgrade --project {wenv_rel} {option} --refresh-package dask "
+            sync_cmd = f"{uv} sync --upgrade --project {wenv_rel} {option} --refresh-package dask "
 
         await env.exec_ssh(ip, sync_cmd)
 
@@ -967,15 +968,15 @@ class AGI:
         # install env & core for enabling dask worker spawn
         ######################################################
 
-        cmd = f"{cmd_prefix}{env.uv} --project {wenv_rel} run python -m ensurepip"
+        cmd = f"{uv} --project {wenv_rel} run python -m ensurepip"
         await env.exec_ssh(ip, cmd)
 
-        cmd = f"{cmd_prefix}{env.uv} --project {wenv_rel} run python -m pip install -e {wenv_rel}"
+        cmd = f"{uv} --project {wenv_rel} run python -m pip install -e {wenv_rel}"
         await env.exec_ssh(ip, cmd)
 
         # build agi_env*.whl
         wenv = env.agi_env_root
-        cmd = f"{cmd_prefix}{env.uv} --project {wenv} build --wheel"
+        cmd = f"{uv} --project {wenv} build --wheel"
         await AgiEnv.run(cmd, venv=wenv)
         src = wenv / "dist"
         try:
@@ -985,13 +986,13 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"{cmd_prefix}{env.uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
+        cmd = f"{uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
         await env.exec_ssh(ip, cmd)
 
         # build agi_core*.whl
         wenv = env.agi_core_root
         src = wenv / "dist"
-        cmd = f"{cmd_prefix}{env.uv} --project {wenv} build --wheel"
+        cmd = f"{uv} --project {wenv} build --wheel"
         await AgiEnv.run(cmd, venv=wenv)
         try:
             whl = next(iter(src.glob("agi_core*.whl")))
@@ -999,16 +1000,15 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"{cmd_prefix}{env.uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
+        cmd = f"{uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
         await env.exec_ssh(ip, cmd)
 
         # Post-install script
-        cmd = (f"{cmd_prefix}{env.uv} --project {wenv_rel} run python {env.post_install_rel} --install-type 2"
-               f"{env.data_rel}")
+        cmd = f"{uv} --project {wenv_rel} run python {env.post_install_rel} --install-type 2 {env.data_rel}"
         await env.exec_ssh(ip, cmd)
 
         # build target_worker lib
-        cmd = f"{cmd_prefix}{env.uv} --project {wenv_rel} run python {wenv_rel / env.setup_app.name} build_ext -i 2 -b {wenv_rel}"
+        cmd = f"{uv} --project {wenv_rel} run python {wenv_rel / env.setup_app.name} build_ext -i 2 -b {wenv_rel}"
         await env.exec_ssh(ip, cmd)
 
     @staticmethod
