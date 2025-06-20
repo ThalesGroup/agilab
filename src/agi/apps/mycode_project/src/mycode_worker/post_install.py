@@ -3,8 +3,9 @@ from pathlib import Path
 import py7zr
 import shutil
 import traceback
+from agi_env import AgiEnv
 
-def unzip_data(archive_path: Path, extract_to: Path | str = None):
+def unzip_data(env, archive_path: Path, extract_to: Path | str = None):
     archive_path = Path(archive_path)
     if not archive_path.exists():
         print(f"Warning: Archive '{archive_path}' does not exist. Skipping extraction.")
@@ -32,10 +33,11 @@ def unzip_data(archive_path: Path, extract_to: Path | str = None):
         sys.exit(1)
 
 if __name__ == "__main__":
-    if len(sys.argv) not in (1, 2):
-        print("Usage: python post_install.py [destination]")
+    if len(sys.argv) not in (3, 4):
+        print("Usage: python post_install.py <app> <install_type> [destination]")
         sys.exit(1)
 
+    env = AgiEnv(active_app=sys.argv[1], install_type=sys.argv[2])
     archive = Path(__file__).parent / "dataset.7z"
-    dest_arg = sys.argv[1] if len(sys.argv) == 2 else None
-    unzip_data(archive, dest_arg)
+    dest_arg = sys.argv[3] if len(sys.argv) == 4 else None
+    unzip_data(env, archive, dest_arg)
