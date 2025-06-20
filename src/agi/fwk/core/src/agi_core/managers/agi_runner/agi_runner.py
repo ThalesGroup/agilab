@@ -911,9 +911,9 @@ class AGI:
         wenv_rel = env.wenv_rel
         dist_rel = env.dist_rel
         dist_abs = env.dist_abs
+        cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         uv  = cmd_prefix + env.uv
 
-        cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
 
         cmd = f"{uv} run -p {env.python_version} python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
         await env.exec_ssh(ip, cmd)
