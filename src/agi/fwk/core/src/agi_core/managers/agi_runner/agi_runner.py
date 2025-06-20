@@ -570,7 +570,7 @@ class AGI:
             kill_prefix = f'{cmd_prefix}{uv} run -p {env.python_version} python'
             shutil.copy(env.manager_root / "agi_runner/cli.py", clean_abs)
             if force:
-                cmd = f"{kill_prefix} {clean_abs}"
+                cmd = f"{kill_prefix} {clean_abs} kill"
                 cmds.append(cmd)
         else:
             await env.send_file(ip, env.manager_root / "agi_runner/cli.py", clean_rel.parent)
@@ -1174,7 +1174,7 @@ class AGI:
 
                 AGI._scheduler_ip, AGI._scheduler_port = AGI._get_scheduler(scheduler)
 
-            # Clean cluster environment by killing old processes
+            # Clean worker
             for ip in list(AGI.workers):
                 if not env.envars.get(ip, None):
                     env.has_rapids_hw = False
@@ -1183,6 +1183,7 @@ class AGI:
                 except Exception as e:
                     raise
 
+            # clean scheduler
             try:
                 await AGI._kill(AGI._scheduler_ip, os.getpid(), force=True)
             except Exception as e:
@@ -1300,7 +1301,7 @@ class AGI:
             # in case of core src has changed
             AGI._build_lib_local(is_local=True)
             await AGI._build_lib_remote()
-            # if not (AGI._mode & AGI.CYTHON_MODE):
+            # if not (AGI._mode & AGI.DASK_MODE):
             #     # load lib
             #     for egg_file in (AGI.env.wenv_abs / "dist").glob("*.egg"):
             #         AGI._dask_client.upload_file(str(egg_file))
