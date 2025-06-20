@@ -77,18 +77,13 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../key-generation.html">Key Generation</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../../../key-generation.html#generate-the-keys">Generate the keys</a><ul class="simple">
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../key-generation.html#loading-the-private-key-in-ssh-agent">Loading the private key in SSH Agent</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../../../key-generation.html#load-the-public-key">Load the public key</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../key-generation.html#verify-the-key-addition">Verify the key Addition</a></li>
-</ul>
-</li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../key-generation.html#generate-the-keys">Generate the keys</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../key-generation.html#loading-the-private-key-in-ssh-agent">Loading the private key in SSH Agent</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../key-generation.html#verify-the-key-addition">Verify the key addition</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../key-generation.html#copy-the-public-key-to-the-worker">Copy the public key to the worker</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../key-generation.html#sshd-service">SSHD Service</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../../key-generation.html#check-the-configuration">Check the configuration</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../key-generation.html#restart-the-sshd-service">Restart the SSHD service</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../key-generation.html#check-the-service-status">Check the service status:</a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../key-generation.html#permissions">Permissions</a></li>
@@ -942,7 +937,7 @@
 
         <span class="c1"># 1) Collect PIDs from any pid files and remove those files</span>
         <span class="n">pids_to_kill</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">pid_file</span> <span class="ow">in</span> <span class="n">Path</span><span class="p">()</span><span class="o">.</span><span class="n">home</span><span class="p">()</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">&quot;dask_pid*&quot;</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">pid_file</span> <span class="ow">in</span> <span class="n">Path</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">&quot;*.pid&quot;</span><span class="p">):</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">text</span> <span class="o">=</span> <span class="n">pid_file</span><span class="o">.</span><span class="n">read_text</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
                 <span class="n">pid</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
@@ -956,16 +951,20 @@
                 <span class="n">AGI</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">log_warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to remove pid file </span><span class="si">{</span><span class="n">pid_file</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="n">cmds</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-
+        <span class="n">clean_rel</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;cli.py&quot;</span>
+        <span class="n">clean_abs</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;cli.py&quot;</span>
         <span class="n">cmd_prefix</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">_CMD_PREFIX&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">is_local</span><span class="p">(</span><span class="n">ip</span><span class="p">):</span>
             <span class="n">kill_prefix</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">uv</span><span class="si">}</span><span class="s1"> run -p </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">python_version</span><span class="si">}</span><span class="s1"> python&#39;</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">manager_root</span> <span class="o">/</span> <span class="s2">&quot;agi_runner/cli.py&quot;</span><span class="p">,</span> <span class="n">clean_abs</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">force</span><span class="p">:</span>
+                <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">kill_prefix</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">clean_abs</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="n">cmds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
+            <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">manager_root</span> <span class="o">/</span> <span class="s2">&quot;agi_runner/cli.py&quot;</span><span class="p">,</span> <span class="n">clean_rel</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
             <span class="n">kill_prefix</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">uv</span><span class="si">}</span><span class="s1"> run -p </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">python_version</span><span class="si">}</span><span class="s1"> python&#39;</span>
             <span class="k">if</span> <span class="n">force</span><span class="p">:</span>
-                <span class="n">clean</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;kill.py&quot;</span>
-                <span class="c1">#await env.send_file(ip, env.manager_root / &quot;agi_runner/kill.py&quot;, clean.parent)</span>
-                <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">kill_prefix</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">clean</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">kill_prefix</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">clean_rel</span><span class="si">}</span><span class="s2">&quot;</span>
                 <span class="n">cmds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
 
         <span class="c1"># 3) If we found any explicit pid files, terminate those PIDs</span>
@@ -984,8 +983,8 @@
             <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">is_local</span><span class="p">(</span><span class="n">ip</span><span class="p">):</span>
                 <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">cwd</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">clean</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;kill.py&quot;</span>
-                <span class="c1">#await env.send_file(ip, env.manager_root / &quot;agi_runner/kill.py&quot;, clean.parent)</span>
+                <span class="n">cli</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;cli.py&quot;</span>
+                <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">manager_root</span> <span class="o">/</span> <span class="s2">&quot;agi_runner/cli.py&quot;</span><span class="p">,</span> <span class="n">cli</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
                 <span class="n">last_res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
             <span class="c1"># handle tuple or dict result</span>
@@ -1033,7 +1032,7 @@
                 <span class="k">pass</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_clean_nodes</span><span class="p">(</span><span class="n">scheduler</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">force</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_clean_dirs</span><span class="p">(</span><span class="n">ip</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Clean up remote worker</span>
 
 <span class="sd">        Args:</span>
@@ -1051,9 +1050,8 @@
         <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">wenv_abs</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="n">cmd_prefix</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">_CMD_PREFIX&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
         <span class="n">wenv</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span>
-        <span class="n">clean</span> <span class="o">=</span> <span class="n">wenv</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s1">&#39;clean.py&#39;</span>
-        <span class="c1">#await env.send_file(ip, env.manager_root / &quot;agi_runner/clean.py&quot;, clean.parent)</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> run -p </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">python_version</span><span class="si">}</span><span class="s2"> python </span><span class="si">{</span><span class="n">clean</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">wenv</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">cli</span> <span class="o">=</span> <span class="n">wenv</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s1">&#39;cli.py&#39;</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> run -p </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">python_version</span><span class="si">}</span><span class="s2"> python </span><span class="si">{</span><span class="n">cli</span><span class="si">}</span><span class="s2"> clean </span><span class="si">{</span><span class="n">wenv</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
 
@@ -1065,23 +1063,34 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="n">list_ip</span><span class="p">:</span>
             <span class="n">list_ip</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">localhost_ip</span><span class="p">)</span>
 
-        <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
+
         <span class="k">for</span> <span class="n">ip</span> <span class="ow">in</span> <span class="n">list_ip</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">is_local</span><span class="p">(</span><span class="n">ip</span><span class="p">):</span>
                 <span class="c1"># Assuming this cleans local dirs once per IP (or should be once per call)</span>
                 <span class="n">AGI</span><span class="o">.</span><span class="n">_clean_dirs_local</span><span class="p">()</span>
-            <span class="k">else</span><span class="p">:</span>
+
+        <span class="n">AGI</span><span class="o">.</span><span class="n">_clean_remote_procs</span><span class="p">()</span>
+        <span class="n">AGI</span><span class="o">.</span><span class="n">_clean_remote_dirs</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">list_ip</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_clean_remote_procs</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ip</span> <span class="ow">in</span> <span class="n">list_ip</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">is_local</span><span class="p">(</span><span class="n">ip</span><span class="p">):</span>
                 <span class="n">tasks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_kill</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">(),</span> <span class="n">force</span><span class="o">=</span><span class="n">force</span><span class="p">)))</span>
+
         <span class="k">if</span> <span class="n">tasks</span><span class="p">:</span>
             <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="n">tasks</span><span class="p">)</span>
 
+    <span class="nd">@staticmethod</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_clean_remote_dirs</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">ip</span> <span class="ow">in</span> <span class="n">list_ip</span><span class="p">:</span>
             <span class="n">tasks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_clean_dirs</span><span class="p">(</span><span class="n">ip</span><span class="p">)))</span>
         <span class="k">if</span> <span class="n">tasks</span><span class="p">:</span>
             <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="n">tasks</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">list_ip</span>
 
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_install_cluster</span><span class="p">(</span><span class="n">scheduler</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -1145,9 +1154,8 @@
             
             <span class="c1"># 3) Install Python</span>
             <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s2"> python install </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">manager_root</span> <span class="o">/</span> <span class="s2">&quot;agi_runner/kill.py&quot;</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
+            <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">manager_root</span> <span class="o">/</span> <span class="s2">&quot;agi_runner/cli.py&quot;</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
             <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_kill</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-            <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">manager_root</span> <span class="o">/</span> <span class="s2">&quot;agi_runner/clean.py&quot;</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
             <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_clean_dirs</span><span class="p">(</span><span class="n">ip</span><span class="p">)</span>
 
             <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span>
@@ -1584,11 +1592,12 @@
                 <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># non-blocking sleep</span>
                 <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s2"> run --project </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="si">}</span><span class="s2"> dask scheduler --port </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler_port</span><span class="si">}</span><span class="s2"> &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;--host </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler_ip</span><span class="si">}</span><span class="s2"> --pid-file dask_pid&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;--host </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler_ip</span><span class="si">}</span><span class="s2"> --pid-file </span><span class="si">{</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="s1">&#39;dask_scheduler.pid&#39;</span><span class="w"> </span><span class="si">}</span><span class="s2"> &quot;</span>
                 <span class="p">)</span>
                 <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Starting dask scheduler locally: </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                <span class="n">result</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_exec_bg</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">app_abs</span><span class="p">)</span>  <span class="c1"># assuming _exec_bg is sync</span>
-                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_exec_bg</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">app_abs</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">result</span><span class="p">:</span><span class="c1"># assuming _exec_bg is sync</span>
+                    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># Create remote directory</span>
                 <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s2"> run -p </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">python_version</span><span class="si">}</span><span class="s2"> python -c </span><span class="se">\&quot;</span><span class="s2">import os; os.makedirs(&#39;</span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2">&#39;, exist_ok=True)</span><span class="se">\&quot;</span><span class="s2">&quot;</span>
@@ -1599,7 +1608,7 @@
 
                 <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> run dask scheduler --port </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler_port</span><span class="si">}</span><span class="s2"> &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;--host </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler_ip</span><span class="si">}</span><span class="s2"> --pid-file dask_pid&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;--host </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler_ip</span><span class="si">}</span><span class="s2"> --pid-file dask_scheduler.pid&quot;</span>
                 <span class="p">)</span>
                 <span class="c1"># Run scheduler asynchronously over SSH without awaiting completion (fire and forget)</span>
                 <span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">exec_ssh_async</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler_ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">))</span>
@@ -1658,20 +1667,20 @@
             <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Starting worker #</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">j</span><span class="si">}</span><span class="s2"> on [</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">]&quot;</span><span class="p">)</span>
-                    <span class="n">pid_file</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;dask_pid_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">j</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="n">pid_file</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;dask_worker_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">j</span><span class="si">}</span><span class="s2">.pid&quot;</span>
 
                     <span class="k">if</span> <span class="n">is_local</span><span class="p">:</span>
                         <span class="n">wenv_abs</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span>
                         <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span>
                             <span class="c1"># f&#39;{export_cmd} &#39;</span>
                             <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s1"> --project </span><span class="si">{</span><span class="n">wenv_abs</span><span class="si">}</span><span class="s1"> run dask worker tcp://</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler</span><span class="si">}</span><span class="s1"> --no-nanny &#39;</span>
-                            <span class="sa">f</span><span class="s1">&#39;--pid-file </span><span class="si">{</span><span class="n">pid_file</span><span class="si">}</span><span class="s1">&#39;</span>
+                            <span class="sa">f</span><span class="s1">&#39;--pid-file </span><span class="si">{</span><span class="n">wenv_abs</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">pid_file</span><span class="si">}</span><span class="s1">&#39;</span>
                         <span class="p">)</span>
                         <span class="c1"># Run locally in background (non-blocking)</span>
                         <span class="n">AGI</span><span class="o">.</span><span class="n">_exec_bg</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">wenv_abs</span><span class="p">))</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">wenv_rel</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span>
-                        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s1"> --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s1"> run dask worker tcp://</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler</span><span class="si">}</span><span class="s1"> --no-nanny --pid-file </span><span class="si">{</span><span class="n">pid_file</span><span class="si">}</span><span class="s1">&#39;</span>
+                        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s1"> --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s1"> run dask worker tcp://</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_scheduler</span><span class="si">}</span><span class="s1"> --no-nanny --pid-file </span><span class="si">{</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">pid_file</span><span class="si">}</span><span class="s1">&#39;</span>
                         <span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">exec_ssh_async</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">))</span>
                         <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Launched remote worker in background on </span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
@@ -1829,7 +1838,7 @@
             <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Worker installlation not found&quot;</span><span class="p">)</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
-        <span class="n">pid_file</span> <span class="o">=</span> <span class="s2">&quot;dask_pid_0&quot;</span>
+        <span class="n">pid_file</span> <span class="o">=</span> <span class="s2">&quot;dask_worker_0.pid&quot;</span>
         <span class="n">current_pid</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">()</span>
         <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">pid_file</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
             <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">current_pid</span><span class="p">))</span>
