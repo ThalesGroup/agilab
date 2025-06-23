@@ -2,7 +2,7 @@
 name = "agi-gui"
 description = "AGI GUI"
 version = "0.3.58"
-requires-python = ">=3.11, <3.13"
+requires-python = ">=3.11"
 readme = "README.md"
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
