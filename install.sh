@@ -65,8 +65,8 @@ if [[ -z "$openai_api_key" ]]; then
     usage
 fi
 
-read -p "Enter Python version [3.12]: " PYTHON_VERSION
-PYTHON_VERSION=${PYTHON_VERSION:-3.12}
+read -p "Enter Python version [3.13]: " PYTHON_VERSION
+PYTHON_VERSION=${PYTHON_VERSION:-3.13}
 echo "You selected Python version $PYTHON_VERSION"
 
 # ================================

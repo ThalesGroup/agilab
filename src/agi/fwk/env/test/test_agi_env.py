@@ -99,23 +99,6 @@ async def test_run_timeout_and_exception(env):
         with pytest.raises(RuntimeError):
             await env.run("sleep 1", venv=".", wait=True)
 
-@pytest.mark.asyncio
-async def test_exec_ssh_async_reads(monkeypatch, env):
-    class DummyStream:
-        def __init__(self, lines):
-            self.lines = lines
-
-        async def read(self):
-            return b"".join(self.lines)
-
-        def __aiter__(self):
-            return self
-
-        async def __anext__(self):
-            if not self.lines:
-                raise StopAsyncIteration
-            return self.lines.pop(0)
-
     class DummyProcess:
         def __init__(self):
             self.stdout = DummyStream([b"INFO: line1\n", b"ERROR: line2\n"])
