@@ -1465,7 +1465,7 @@ class AGI:
             else:
                 AGI._build_lib_local(is_local=True)
 
-        if env._debug:
+        if env.debug:
             AgiWorker.new(env.app, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
             res = AgiWorker.run(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
         else:
