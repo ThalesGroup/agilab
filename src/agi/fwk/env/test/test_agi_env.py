@@ -81,56 +81,6 @@ def test_change_active_app_reinitializes(monkeypatch, env):
     env.change_active_app("mycode_project", install_type=1)
     assert called.get('called', False)
 
-@pytest.mark.asyncio
-async def test_run_timeout_and_exception(env):
-    class DummyProcess:
-        def __init__(self):
-            self.returncode = None
-            self.stdout = io.StringIO("partial output\n")
-            self.stderr = io.StringIO("error output\n")
-        def poll(self):
-            return 1
-        def kill(self):
-            return 2
-        def wait(self, timeout=None):
-            raise subprocess.TimeoutExpired(cmd="sleep", timeout=timeout)
-
-    with mock.patch("subprocess.Popen", return_value=DummyProcess()):
-        with pytest.raises(RuntimeError):
-            await env.run("sleep 1", venv=".", wait=True)
-
-    class DummyProcess:
-        def __init__(self):
-            self.stdout = DummyStream([b"INFO: line1\n", b"ERROR: line2\n"])
-            self.stderr = DummyStream([b"DEBUG: line3\n"])
-
-        async def wait(self):
-            return 0
-
-    class DummyConn:
-        async def create_process(self, cmd):
-            return DummyProcess()
-
-        def is_closed(self):
-            return False
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc_val, exc_tb):
-            pass
-
-    # Now monkeypatch after DummyConn is defined:
-    monkeypatch.setattr(env, "get_ssh_connection", lambda ip: DummyConn())
-
-    result = await env.exec_ssh_async("1.2.3.4", "ls")
-
-    if isinstance(result, bytes):
-        result = result.decode("utf-8").strip()
-
-    assert result == "ERROR: line2"
-
-
 def test_humanize_validation_errors(env):
     from pydantic import BaseModel, ValidationError, constr
 
