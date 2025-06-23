@@ -25,7 +25,6 @@ import shutil
 import socket
 import sys
 import time
-import traceback
 import warnings
 from copy import deepcopy
 from datetime import timedelta
@@ -34,15 +33,18 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from tempfile import gettempdir
 from typing import Any, Dict, List, Optional, Union
 import sysconfig
-from asyncssh import ProcessError
 from contextlib import redirect_stdout, redirect_stderr
+import errno
 
 # External Libraries
+import asyncssh
+from asyncssh.process import ProcessError
+from contextlib import asynccontextmanager
 import humanize
 import numpy as np
 import polars as pl
 import psutil
-from dask.distributed import Client, print
+from dask.distributed import Client
 import json
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
@@ -602,7 +604,7 @@ class AGI:
             else:
                 cli = env.wenv_rel.parent / "cli.py"
                 await env.send_file(ip, env.manager_root / "agi_runner/cli.py", cli.parent)
-                last_res = await env.exec_ssh(ip, cmd)
+                last_res = await AGI.exec_ssh(ip, cmd)
 
             # handle tuple or dict result
             if isinstance(last_res, dict):
@@ -668,7 +670,7 @@ class AGI:
         wenv = env.wenv_rel
         cli = wenv.parent / 'cli.py'
         cmd = (f"{cmd_prefix}{uv} run -p {env.python_version} python {cli} clean {wenv}")
-        await env.exec_ssh(ip, cmd)
+        await AGI.exec_ssh(ip, cmd)
 
 
     @staticmethod
@@ -747,21 +749,21 @@ class AGI:
             uv_is_installed = True
             # 2) Check uv
             try:
-                await env.exec_ssh(ip, f"{cmd_prefix}{env.uv} --version")
-                await env.exec_ssh(ip, f"{cmd_prefix}{env.uv} self update")
+                await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} --version")
+                await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} self update")
             except Exception:
                 uv_is_installed = False
                 # Try Windows installer
                 try:
-                    await env.exec_ssh(ip,
+                    await AGI.exec_ssh(ip,
                                        'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"'
                                        )
                     uv_is_installed = True
                 except Exception:
                     uv_is_installed = False
                     # Fallback to Unix installer
-                    await env.exec_ssh(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
-                    await env.exec_ssh(ip, 'source $HOME/.local/bin/env')
+                    await AGI.exec_ssh(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
+                    await AGI.exec_ssh(ip, 'source $HOME/.local/bin/env')
                     uv_is_installed = True
 
             if not uv_is_installed:
@@ -769,7 +771,7 @@ class AGI:
                 raise EnvironmentError("Failed to install uv")
             
             # 3) Install Python
-            await env.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers}")
+            await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers}")
             await env.send_file(ip, env.manager_root / "agi_runner/cli.py", env.wenv_rel.parent)
             await AGI._kill(ip, force=True)
             await AGI._clean_dirs(ip)
@@ -777,10 +779,10 @@ class AGI:
             cmd = (
                 f"{cmd_prefix}{env.uv} --project {wenv_rel} init --bare --no-workspace"
             )
-            await env.exec_ssh(ip, cmd)
+            await AGI.exec_ssh(ip, cmd)
 
             # cmd = f"{cmd_prefix}{env.uv} --project {wenv_rel} add psutil"
-            # await env.exec_ssh(ip, cmd)
+            # await AGI.exec_ssh(ip, cmd)
 
     @staticmethod
     async def _install(scheduler: Optional[str]) -> None:
@@ -895,7 +897,7 @@ class AGI:
         wenv = await AGI._build_lib_local(is_local=True)
 
         # Lancer le script post_install
-        cmd_post = f"{env.uv} --project {wenv} run -p {pyvers} python {env.app_abs / env.post_install} {env.target} {env.install_type} {env.data_rel}"
+        cmd_post = f"{env.uv} --project {wenv} run python {env.app_abs / env.post_install} {env.target} {env.install_type} {env.data_rel}"
         logging.info(f"Running post-install script: {cmd_post}")
         await AgiEnv.run(cmd_post, wenv)
 
@@ -915,8 +917,8 @@ class AGI:
         uv  = cmd_prefix + env.uv
 
 
-        cmd = f"{uv} run -p {env.python_version} python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
-        await env.exec_ssh(ip, cmd)
+        cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
+        await AGI.exec_ssh(ip, cmd)
 
         # Then send the files to the remote directory
         try:
@@ -936,7 +938,7 @@ class AGI:
             f"for e in (root / 'dist').glob('*.egg')]\""
         )
 
-        await env.exec_ssh(ip, cmd)
+        await AGI.exec_ssh(ip, cmd)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
         has_rapids_hw = False
@@ -944,7 +946,7 @@ class AGI:
             check_rapids = 'nvidia-smi'
 
             try:
-                result = await env.exec_ssh(ip, check_rapids)
+                result = await AGI.exec_ssh(ip, check_rapids)
             except Exception as e:
                 logging.error(f"rapids is requested but not supported by node [{ip}]")
                 raise
@@ -962,17 +964,17 @@ class AGI:
         else:
             sync_cmd = f"{uv} sync --upgrade --project {wenv_rel} {option} --refresh-package dask "
 
-        await env.exec_ssh(ip, sync_cmd)
+        await AGI.exec_ssh(ip, sync_cmd)
 
         #####################################################
         # install env & core for enabling dask worker spawn
         ######################################################
 
         cmd = f"{uv} --project {wenv_rel} run python -m ensurepip"
-        await env.exec_ssh(ip, cmd)
+        await AGI.exec_ssh(ip, cmd)
 
         cmd = f"{uv} --project {wenv_rel} run python -m pip install -e {wenv_rel}"
-        await env.exec_ssh(ip, cmd)
+        await AGI.exec_ssh(ip, cmd)
 
         # build agi_env*.whl
         wenv = env.agi_env_root
@@ -987,7 +989,7 @@ class AGI:
             raise RuntimeError(cmd)
 
         cmd = f"{uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
-        await env.exec_ssh(ip, cmd)
+        await AGI.exec_ssh(ip, cmd)
 
         # build agi_core*.whl
         wenv = env.agi_core_root
@@ -1001,15 +1003,15 @@ class AGI:
             raise RuntimeError(cmd)
 
         cmd = f"{uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
-        await env.exec_ssh(ip, cmd)
+        await AGI.exec_ssh(ip, cmd)
 
         # Post-install script
         cmd = f"{uv} --project {wenv_rel} run python {env.post_install_rel} --install-type 2 {env.data_rel}"
-        await env.exec_ssh(ip, cmd)
+        await AGI.exec_ssh(ip, cmd)
 
         # build target_worker lib
         cmd = f"{uv} --project {wenv_rel} run python {wenv_rel / env.setup_app.name} build_ext -i 2 -b {wenv_rel}"
-        await env.exec_ssh(ip, cmd)
+        await AGI.exec_ssh(ip, cmd)
 
     @staticmethod
     def _should_install_pip() -> bool:
@@ -1210,7 +1212,7 @@ class AGI:
             else:
                 # Create remote directory
                 cmd = f"{env.uv} run -p {env.python_version} python -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
-                await env.exec_ssh(AGI._scheduler_ip, cmd)
+                await AGI.exec_ssh(AGI._scheduler_ip, cmd)
 
                 toml_wenv = wenv_rel / "pyproject.toml"
                 await env.send_file(AGI._scheduler_ip, toml_local, toml_wenv)
@@ -1220,7 +1222,7 @@ class AGI:
                     f"--host {AGI._scheduler_ip} --pid-file dask_scheduler.pid"
                 )
                 # Run scheduler asynchronously over SSH without awaiting completion (fire and forget)
-                asyncio.create_task(env.exec_ssh_async(AGI._scheduler_ip, cmd))
+                asyncio.create_task(AGI.exec_ssh_async(AGI._scheduler_ip, cmd))
 
             try:
                 await asyncio.sleep(1)  # Give scheduler a moment to start
@@ -1247,7 +1249,7 @@ class AGI:
 
         # probe remote OS via SSH
         try:
-            os_id = await AGI.env.exec_ssh(ip, "uname -s")
+            os_id = await AGI.exec_ssh(ip, "uname -s")
         except Exception:
             os_id = ''
 
@@ -1290,7 +1292,7 @@ class AGI:
                     else:
                         wenv_rel = env.wenv_rel
                         cmd = f'{cmd_prefix}{env.uv} --project {wenv_rel} run dask worker tcp://{AGI._scheduler} --no-nanny --pid-file {wenv_rel.parent / pid_file}'
-                        asyncio.create_task(env.exec_ssh_async(ip, cmd))
+                        asyncio.create_task(AGI.exec_ssh_async(ip, cmd))
                         logging.info(f"Launched remote worker in background on {ip}: {cmd}")
 
                 except Exception as e:
@@ -1992,3 +1994,137 @@ class AGI:
 
         if not AGI._jobs.result(0):
             raise RuntimeError(f"running {cmd} at {cwd}")
+
+    @asynccontextmanager
+    async def get_ssh_connection(self, ip: str, timeout_sec: int = 5):
+
+        if AgiEnv.is_local(ip):
+            self.user = getpass.getuser()
+
+        if not self.user:
+            raise ValueError("SSH username is not configured. Please set 'user' in your .env file.")
+
+        conn = self._ssh_connections.get(ip)
+        if conn and not conn.is_closed():
+            yield conn
+            return
+
+        try:
+            ssh_dir = Path("~/.ssh").expanduser()
+            keys = []
+
+            for file in ssh_dir.iterdir():
+                if not file.is_file():
+                    continue
+
+                name = file.name
+                if name.startswith('authorized_keys'):
+                    continue
+                if name.startswith('known_hosts'):
+                    continue
+                if name.startswith('id_') and name.endswith('.pub'):
+                    continue
+
+                keys.append(str(file))
+
+            client_keys = keys if keys else None
+
+            conn = await asyncio.wait_for(
+                asyncssh.connect(
+                    ip,
+                    username=self.user,
+                    password=self.password,
+                    known_hosts=None,
+                    client_keys=client_keys,
+                ),
+                timeout=timeout_sec
+            )
+
+            self._ssh_connections[ip] = conn
+            yield conn
+
+        except asyncio.TimeoutError:
+            err_msg = f"Connection to {ip} timed out after {timeout_sec} seconds."
+            logging.error(err_msg)
+            raise
+
+        except asyncssh.PermissionDenied:
+            err_msg = f"Authentication failed for SSH user '{self.user}' on host {ip}."
+            logging.error(err_msg)
+            raise
+
+        except OSError as e:
+            if e.errno == errno.EHOSTUNREACH:
+                err_msg = (
+                    f"Unable to connect to {ip} on SSH port 22. "
+                    "Please check that the device is powered on, network cable connected, and SSH service running."
+                )
+                raise ConnectionError(err_msg)
+            elif e.errno in (errno.EACCES, errno.ECONNREFUSED):
+                logging.error(str(e))
+            else:
+                logging.error(str(e))
+            raise
+
+        except asyncssh.Error as e:
+            logging.error(e.command if hasattr(e, 'command') else "No command attribute")
+            logging.error(e)
+            raise
+
+        except Exception as e:
+            logging.error(f"Unexpected error while connecting to {ip}: {e}")
+            raise
+
+    @staticmethod
+    async def exec_ssh(ip: str, cmd: str) -> str:
+        try:
+            async with self.get_ssh_connection(ip) as conn:
+                msg = f"[{ip}] {cmd}"
+                if AgiEnv.verbose > 1 or AgiEnv.debug:
+                    logging.info(msg)
+                result = await conn.run(cmd, check=True)
+                stdout = result.stdout
+                if isinstance(stdout, bytes):
+                    stdout = stdout.decode('utf-8', errors='replace')
+                if AgiEnv.verbose > 1 or AgiEnv.debug:
+                    logging.info(f"[{ip}] {stdout.strip()}")
+                return stdout.strip()
+
+        except ConnectionError:
+            raise
+
+        except ProcessError as e:
+            stdout = getattr(e, 'stdout', '')
+            stderr = getattr(e, 'stderr', '')
+            if isinstance(stdout, bytes):
+                stdout = stdout.decode('utf-8', errors='replace')
+            if isinstance(stderr, bytes):
+                stderr = stderr.decode('utf-8', errors='replace')
+            logging.error(f"Remote command stderr: {stderr.strip()}")
+            raise
+
+        except (asyncssh.Error, OSError) as e:
+            logging.error(e)
+            raise
+
+    @staticmethod
+    async def exec_ssh_async(ip: str, cmd: str) -> str:
+        """
+        Execute a remote command via SSH and return the last line of its stdout output.
+        """
+        async with self.get_ssh_connection(ip) as conn:
+            process = await conn.create_process(cmd)
+
+            # Read entire stdout output as bytes
+            stdout = await process.stdout.read()
+            await process.wait()
+
+            # Decode output safely
+            #stdout_str = stdout.decode('utf-8', errors='replace')
+
+            # Split output into lines and get the last non-empty line
+            lines = [line.strip() for line in stdout.splitlines() if line.strip()]
+            if lines:
+                return lines[-1]
+            else:
+                return ""  # or None if no output

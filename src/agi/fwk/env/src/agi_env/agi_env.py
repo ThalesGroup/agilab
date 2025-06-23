@@ -9,16 +9,12 @@ import psutil
 import socket
 import subprocess
 import sys
-import asyncssh
-from asyncssh.process import ProcessError
-from contextlib import asynccontextmanager
 import traceback
 from pathlib import Path, PureWindowsPath, PurePosixPath
 from dotenv import dotenv_values, set_key
 import tomlkit
 import logging
 import inspect
-import errno
 import astor
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
@@ -1057,138 +1053,6 @@ class AgiEnv:
                     return True
 
         return False
-
-    @asynccontextmanager
-    async def get_ssh_connection(self, ip: str, timeout_sec: int = 5):
-
-        if AgiEnv.is_local(ip):
-            self.user = getpass.getuser()
-
-        if not self.user:
-            raise ValueError("SSH username is not configured. Please set 'user' in your .env file.")
-
-        conn = self._ssh_connections.get(ip)
-        if conn and not conn.is_closed():
-            yield conn
-            return
-
-        try:
-            ssh_dir = Path("~/.ssh").expanduser()
-            keys = []
-
-            for file in ssh_dir.iterdir():
-                if not file.is_file():
-                    continue
-
-                name = file.name
-                if name.startswith('authorized_keys'):
-                    continue
-                if name.startswith('known_hosts'):
-                    continue
-                if name.startswith('id_') and name.endswith('.pub'):
-                    continue
-
-                keys.append(str(file))
-
-            client_keys = keys if keys else None
-
-            conn = await asyncio.wait_for(
-                asyncssh.connect(
-                    ip,
-                    username=self.user,
-                    password=self.password,
-                    known_hosts=None,
-                    client_keys=client_keys,
-                ),
-                timeout=timeout_sec
-            )
-
-            self._ssh_connections[ip] = conn
-            yield conn
-
-        except asyncio.TimeoutError:
-            err_msg = f"Connection to {ip} timed out after {timeout_sec} seconds."
-            logging.error(err_msg)
-            raise
-
-        except asyncssh.PermissionDenied:
-            err_msg = f"Authentication failed for SSH user '{self.user}' on host {ip}."
-            logging.error(err_msg)
-            raise
-
-        except OSError as e:
-            if e.errno == errno.EHOSTUNREACH:
-                err_msg = (
-                    f"Unable to connect to {ip} on SSH port 22. "
-                    "Please check that the device is powered on, network cable connected, and SSH service running."
-                )
-                raise ConnectionError(err_msg)
-            elif e.errno in (errno.EACCES, errno.ECONNREFUSED):
-                logging.error(str(e))
-            else:
-                logging.error(str(e))
-            raise
-
-        except asyncssh.Error as e:
-            logging.error(e.command if hasattr(e, 'command') else "No command attribute")
-            logging.error(e)
-            raise
-
-        except Exception as e:
-            logging.error(f"Unexpected error while connecting to {ip}: {e}")
-            raise
-
-    async def exec_ssh(self, ip: str, cmd: str) -> str:
-        try:
-            async with self.get_ssh_connection(ip) as conn:
-                msg = f"[{ip}] {cmd}"
-                if AgiEnv.verbose > 1 or AgiEnv.debug:
-                    logging.info(msg)
-                result = await conn.run(cmd, check=True)
-                stdout = result.stdout
-                if isinstance(stdout, bytes):
-                    stdout = stdout.decode('utf-8', errors='replace')
-                if AgiEnv.verbose > 1 or AgiEnv.debug:
-                    logging.info(f"[{ip}] {stdout.strip()}")
-                return stdout.strip()
-
-        except ConnectionError:
-            raise
-
-        except ProcessError as e:
-            stdout = getattr(e, 'stdout', '')
-            stderr = getattr(e, 'stderr', '')
-            if isinstance(stdout, bytes):
-                stdout = stdout.decode('utf-8', errors='replace')
-            if isinstance(stderr, bytes):
-                stderr = stderr.decode('utf-8', errors='replace')
-            logging.error(f"Remote command stderr: {stderr.strip()}")
-            raise
-
-        except (asyncssh.Error, OSError) as e:
-            logging.error(e)
-            raise
-
-    async def exec_ssh_async(self, ip: str, cmd: str) -> str:
-        """
-        Execute a remote command via SSH and return the last line of its stdout output.
-        """
-        async with self.get_ssh_connection(ip) as conn:
-            process = await conn.create_process(cmd)
-
-            # Read entire stdout output as bytes
-            stdout = await process.stdout.read()
-            await process.wait()
-
-            # Decode output safely
-            #stdout_str = stdout.decode('utf-8', errors='replace')
-
-            # Split output into lines and get the last non-empty line
-            lines = [line.strip() for line in stdout.splitlines() if line.strip()]
-            if lines:
-                return lines[-1]
-            else:
-                return ""  # or None if no output
 
     async def send_file(
             self,
