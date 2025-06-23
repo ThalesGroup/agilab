@@ -852,7 +852,7 @@ class AGI:
             options: dict contenant les options 'manager' et 'worker' pour la commande uv
         """
         env = AGI.env
-        pyvers = env.python_version
+        pyvers = env.python_version + env.python_variante
         run_type = AGI._run_type
         ip = "127.0.0.1"
         has_rapids_hw = AGI._hardware_supports_rapids() and AGI._rapids_enabled
@@ -886,9 +886,9 @@ class AGI:
 
         # Commande pour workers selon si rapids supporté
         if has_rapids_hw:
-            cmd_worker = f"{env.uv} --config-file uv.toml {run_type} --project {wenv_abs} {options['worker']} --extra workers"
+            cmd_worker = f"{env.uv} --config-file uv.toml {run_type} -p {pyvers} --project {wenv_abs} {options['worker']} --extra workers"
         else:
-            cmd_worker = f"{env.uv} {run_type} --project {wenv_abs} {options['worker']} --extra workers"
+            cmd_worker = f"{env.uv} {run_type} -p {pyvers} --project {wenv_abs} {options['worker']} --extra workers"
 
         logging.info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
@@ -915,6 +915,7 @@ class AGI:
         dist_abs = env.dist_abs
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         uv  = cmd_prefix + env.uv
+        pyvers = env.python_version + env.python_variante
 
 
         cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
@@ -959,10 +960,10 @@ class AGI:
 
         # 6) Build and run uv sync, adding --config-file only when has_rapids_hw
         if has_rapids_hw:
-            sync_cmd = (f"{uv} sync --upgrade --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option}"
+            sync_cmd = (f"{uv} sync --upgrade -p {pyvers} --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option}"
                         f" --refresh-package dask")
         else:
-            sync_cmd = f"{uv} sync --upgrade --project {wenv_rel} {option} --refresh-package dask "
+            sync_cmd = f"{uv} sync --upgrade -p {pyvers} --project {wenv_rel} {option} --refresh-package dask "
 
         await AGI.exec_ssh(ip, sync_cmd)
 

@@ -166,9 +166,10 @@ class AgiEnv:
 
 
     def __init__(self, install_type: int = None, apps_dir: Path = None,
-                 active_app: Path | str = None, verbose: int = None, debug=False):
+                 active_app: Path | str = None, verbose: int = None, debug=False, python_variante: str = None):
         AgiEnv.verbose = verbose
         self.verbose = verbose
+        AgiEnv.python_variante = python_variante
         self.init_logging(verbose)
         AgiEnv.debug = debug
         self.is_managed_pc = getpass.getuser().startswith("T0")
