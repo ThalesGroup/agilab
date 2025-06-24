@@ -172,9 +172,9 @@ class AgiEnv:
         AgiEnv.python_variante = python_variante
         self.init_logging(verbose)
         AgiEnv.debug = debug
-        self.is_managed_pc = getpass.getuser().startswith("T0")
+        AgiEnv.is_managed_pc = getpass.getuser().startswith("T0")
         self.agi_resources = Path("resources/.agi")
-        home_abs = Path.home() / "MyApp" if self.is_managed_pc else Path.home()
+        home_abs = Path.home() / "MyApp" if AgiEnv.is_managed_pc else Path.home()
         self.home_abs = home_abs
 
         self.resource_path = home_abs / self.agi_resources.name
@@ -822,8 +822,9 @@ class AgiEnv:
                 result = ""
                 while True:
                     out_line = process.stdout.readline()
-                    # err_line = process.stderr.readline()
                     err_line = ""
+                    if not AgiEnv.is_managed_pc:
+                        err_line = process.stderr.readline()
 
                     result += out_line
 

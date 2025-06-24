@@ -344,7 +344,7 @@ def render_cluster_settings_ui():
         cluster_params.pop("workers", None)
 
     boolean_params = ["verbose", "cython", "pool"]
-    if env.is_managed_pc:
+    if AgiEnv.is_managed_pc:
         cluster_params["rapids"] = False
     else:
         boolean_params.append("rapids")

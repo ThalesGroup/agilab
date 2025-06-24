@@ -126,7 +126,7 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
 
     if not dest.exists():
         logging.info(f"Linking {src_abs} -> {dest}")
-        if env.is_managed_pc:
+        if AgiEnv.is_managed_pc:
             try:
                 AgiEnv.create_junction_windows(src_abs, dest)
             except Exception as link_err:
