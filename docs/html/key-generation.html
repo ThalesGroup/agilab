@@ -6,12 +6,13 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Key Generation and Deployment Guide &mdash; AGILab 1.0.0 documentation</title>
+  <title>Key Generation &mdash; AGILab 1.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
       <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
-      <link rel="stylesheet" type="text/css" href="_static/custom.css" />
+      <link rel="stylesheet" type="text/css" href="_static/tabs.css?v=a5c4661c" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css?v=28052664" />
 
   
     <link rel="canonical" href="https://thalesgroup.github.io/agilab/key-generation.html" />
@@ -21,6 +22,7 @@
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
       <script src="_static/design-tabs.js?v=f930bc37"></script>
+      <script src="_static/tabs.js?v=3030b3cb"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -79,14 +81,26 @@
 <li class="toctree-l3"><a class="reference internal" href="cluster-help.html#principle">Principle</a></li>
 </ul>
 </li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Key Generation and Deployment Guide</a><ul>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Key Generation</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#introduction">Introduction</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#terminology">Terminology</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#use-case-1-manager-linux-worker-linux">Use Case 1: Manager Linux → Worker Linux</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#use-case-2-manager-linux-worker-windows">Use Case 2: Manager Linux → Worker Windows</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#use-case-3-manager-windows-worker-linux">Use Case 3: Manager Windows → Worker Linux</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#use-case-4-manager-windows-worker-windows">Use Case 4: Manager Windows → Worker Windows</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#end-of-guide">End of Guide</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#generate-the-keys">Generate the keys</a><ul class="simple">
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#loading-the-private-key-in-ssh-agent">Loading the private key in SSH Agent</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#load-the-private-key">Load the private key</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#verify-the-key-addition">Verify the key Addition</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#copy-the-public-key-to-the-server">Copy the public key to the server</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sshd-service">SSHD Service</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#check-the-configuration">Check the configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#restart-the-sshd-service">Restart the SSHD service</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#check-the-service-status">Check the service status:</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#permissions">Permissions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#useful-links">Useful links</a></li>
 </ul>
 </li>
 </ul>
@@ -361,7 +375,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="cluster.html">Cluster</a></li>
-      <li class="breadcrumb-item active">Key Generation and Deployment Guide</li>
+      <li class="breadcrumb-item active">Key Generation</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/key-generation.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -371,141 +385,191 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="key-generation-and-deployment-guide">
-<h1>Key Generation and Deployment Guide<a class="headerlink" href="#key-generation-and-deployment-guide" title="Link to this heading"></a></h1>
+  <script>
+function copyCode(button) {
+  const codeBlock = button.nextElementSibling;
+  if (!codeBlock) return;
+  const text = codeBlock.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    button.innerText = 'Copied';
+    button.disabled = true;
+    setTimeout(() => {
+      button.innerText = button.getAttribute('data-label');
+      button.disabled = false;
+    }, 2000);
+  }).catch(() => {
+    button.innerText = 'Failed';
+  });
+}
+</script><section id="key-generation">
+<h1>Key Generation<a class="headerlink" href="#key-generation" title="Link to this heading"></a></h1>
 <section id="introduction">
 <h2>Introduction<a class="headerlink" href="#introduction" title="Link to this heading"></a></h2>
-<p>This guide provides detailed instructions for generating SSH key pairs and securely deploying
-public keys to remote worker machines in various operating system configurations within the Agilab environment.</p>
+<p>This guide provides detailed instructions for generating SSH key pairs and securely deploying public keys to remote worker machines in various operating system configurations within the Agilab environment.</p>
 </section>
 <section id="terminology">
 <h2>Terminology<a class="headerlink" href="#terminology" title="Link to this heading"></a></h2>
-<ul class="simple">
-<li><p><strong>Manager</strong>: The local machine from which SSH connections are initiated.</p></li>
-<li><p><strong>Worker</strong>: The remote machine that accepts SSH connections.</p></li>
-<li><p><strong>Remote account</strong>: The user account on the worker machine used for SSH login.</p></li>
+<blockquote>
+<div><ul class="simple">
+<li><p>Manager: The local machine from which SSH connections are initiated.</p></li>
+<li><p>Worker: The remote machine that accepts SSH connections.</p></li>
+<li><p>Remote account: The user account on the worker machine used for SSH login.</p></li>
 </ul>
-<p>—</p>
+</div></blockquote>
 </section>
-<section id="use-case-1-manager-linux-worker-linux">
-<h2>Use Case 1: Manager Linux → Worker Linux<a class="headerlink" href="#use-case-1-manager-linux-worker-linux" title="Link to this heading"></a></h2>
-<p>### Step 1: Generate SSH Key Pair on Manager Linux</p>
-<p><strong>Execute on the Manager Linux terminal:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh-keygen<span class="w"> </span>-a<span class="w"> </span><span class="m">100</span><span class="w"> </span>-t<span class="w"> </span>ed25519
+<section id="generate-the-keys">
+<h2>Generate the keys<a class="headerlink" href="#generate-the-keys" title="Link to this heading"></a></h2>
+<div class="toctree-wrapper compound">
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">In</span> <span class="pre">the</span> <span class="pre">manager</span> <span class="pre">terminal</span></code></p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Global</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh-keygen<span class="w"> </span>-a<span class="w"> </span><span class="m">100</span><span class="w"> </span>-t<span class="w"> </span>ed25519
 </pre></div>
 </div>
+</div></div>
+<p>You will be prompted for a passphrase. don’t enter one (double return).</p>
+<p>If you have not changed the default path, the public key will be stored in <code class="docutils literal notranslate"><span class="pre">~/.ssh/id_ed25519.pub</span></code> and the private key in <code class="docutils literal notranslate"><span class="pre">~/.ssh/id_ed25519</span></code>.</p>
+</section>
+<section id="loading-the-private-key-in-ssh-agent">
+<h2>Loading the private key in SSH Agent<a class="headerlink" href="#loading-the-private-key-in-ssh-agent" title="Link to this heading"></a></h2>
+<section id="load-the-private-key">
+<h3>Load the private key<a class="headerlink" href="#load-the-private-key" title="Link to this heading"></a></h3>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-1-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-1-1-0" name="1-0" role="tab" tabindex="0"><strong>Windows</strong></button><button aria-controls="panel-1-1-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-1" name="1-1" role="tab" tabindex="-1"><strong>Linux</strong></button></div><div aria-labelledby="tab-1-1-0" class="sphinx-tabs-panel" id="panel-1-1-0" name="1-0" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">ssh-add</span> <span class="nv">$env:USERPROFILE</span><span class="p">/.</span><span class="n">ssh</span><span class="p">/</span><span class="n">id_ed25519</span>
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-1-1-1" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-1" name="1-1" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh-add<span class="w"> </span>~/.ssh/id_ed25519
+</pre></div>
+</div>
+</div></div>
+</section>
+<section id="verify-the-key-addition">
+<h3>Verify the key Addition<a class="headerlink" href="#verify-the-key-addition" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">In</span> <span class="pre">the</span> <span class="pre">manager</span> <span class="pre">terminal</span></code></p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-2-2-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-2-2-0" name="2-0" role="tab" tabindex="0">Global</button></div><div aria-labelledby="tab-2-2-0" class="sphinx-tabs-panel" id="panel-2-2-0" name="2-0" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh-add<span class="w"> </span>-l
+</pre></div>
+</div>
+</div></div>
+<p>It should display the <strong>public key</strong> (not private). To manually check the public key:</p>
+<p><code class="docutils literal notranslate"><span class="pre">In</span> <span class="pre">the</span> <span class="pre">manager</span> <span class="pre">terminal</span></code></p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-3-3-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-3-3-0" name="3-0" role="tab" tabindex="0"><strong>Windows</strong></button><button aria-controls="panel-3-3-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-3-3-1" name="3-1" role="tab" tabindex="-1"><strong>Linux</strong></button></div><div aria-labelledby="tab-3-3-0" class="sphinx-tabs-panel" id="panel-3-3-0" name="3-0" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">cat </span><span class="nv">$env:USERPROFILE</span><span class="p">/.</span><span class="n">ssh</span><span class="p">/</span><span class="n">id_ed25519</span><span class="p">.</span><span class="n">pub</span>
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-3-3-1" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-1" name="3-1" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>~/.ssh/id_ed25519.pub
+</pre></div>
+</div>
+</div></div>
+<p>If you have set a passphrase, you will be asked to enter it. If you encounter any permission-related errors, refer to the <a class="reference internal" href="#permissions">Permissions</a> section.</p>
+<p>On Linux, if a window titled “Enter password to unlock the private key” appears when trying to establish an SSH connection, enter the passphrase and check the box “Automatically unlock this key whenever I’m logged in”.</p>
+</section>
+</section>
+<section id="copy-the-public-key-to-the-server">
+<h2>Copy the public key to the server<a class="headerlink" href="#copy-the-public-key-to-the-server" title="Link to this heading"></a></h2>
+<p>Follow these steps to add your key to the <cite>authorized_keys</cite> file of each workers:</p>
+<p><code class="docutils literal notranslate"><span class="pre">In</span> <span class="pre">the</span> <span class="pre">manager</span> <span class="pre">terminal</span></code></p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-4-4-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-4-4-0" name="4-0" role="tab" tabindex="0"><strong>Manager Unix</strong></button><button aria-controls="panel-4-4-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-4-4-1" name="4-1" role="tab" tabindex="-1"><strong>Manager Windows</strong></button></div><div aria-labelledby="tab-4-4-0" class="sphinx-tabs-panel" id="panel-4-4-0" name="4-0" role="tabpanel" tabindex="0"><p>Worker Linux:</p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh-copy-id<span class="w"> </span>-i<span class="w"> </span>~/.ssh/id_ed25519<span class="w"> </span>&lt;remote<span class="w"> </span>account&gt;@&lt;worker<span class="w"> </span>ip&gt;
+</pre></div>
+</div>
+<p>Worker Windows:</p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>~/.ssh/id_ed25519.pub<span class="w"> </span><span class="p">|</span><span class="w"> </span>ssh<span class="w"> </span>nsbl@192.168.20.222<span class="w"> </span>powershell<span class="w"> </span>-NoProfile<span class="w"> </span>-Command<span class="w"> </span><span class="s2">&quot;Add-Content -Encoding ascii -Path &#39;C:\\Users\\nsbl\\.ssh\\authorized_keys&#39; -Value &#39;([Console]::In.ReadToEnd())&#39;&quot;</span>
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-4-4-1" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-1" name="4-1" role="tabpanel" tabindex="0"><p>Worker Unix:</p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">Get-Content</span> <span class="n">-Raw</span> <span class="s2">&quot;${env:USERPROFILE}\\.ssh\\id_ed25519.pub&quot;</span> <span class="p">|</span> <span class="n">ssh</span> <span class="p">&lt;</span><span class="n">remote</span> <span class="n">account</span><span class="p">&gt;@&lt;</span><span class="n">worker</span> <span class="n">ip</span><span class="p">&gt;</span> <span class="s2">&quot;cat &gt;&gt; ~/.ssh/authorized_keys&quot;</span>
+</pre></div>
+</div>
+<p>Worker Windows:</p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">Get-Content</span> <span class="n">-Raw</span> <span class="s2">&quot;${env:USERPROFILE}\\.ssh\\id_ed25519.pub&quot;</span> <span class="p">|</span> <span class="n">powershell</span> <span class="n">-NoProfile</span> <span class="n">-Command</span> <span class="s2">&quot;Add-Content -Encoding ascii -Path &#39;C:\\Users\\nsbl\\.ssh\\authorized_keys&#39; -Value &#39;([Console]::In.ReadToEnd())&#39;&quot;</span>
+</pre></div>
+</div>
+</div></div>
+</section>
+<section id="sshd-service">
+<h2>SSHD Service<a class="headerlink" href="#sshd-service" title="Link to this heading"></a></h2>
+<section id="check-the-configuration">
+<h3>Check the configuration<a class="headerlink" href="#check-the-configuration" title="Link to this heading"></a></h3>
+<p>Check the SSH server configuration in the <code class="docutils literal notranslate"><span class="pre">sshd_config</span></code> file:</p>
 <ul class="simple">
-<li><p>Accept defaults and leave passphrase empty for automation.</p></li>
+<li><p><strong>Windows Server</strong>: <code class="docutils literal notranslate"><span class="pre">C:\ProgramData\ssh\sshd_config</span></code></p></li>
+<li><p><strong>Unix Server</strong>: <code class="docutils literal notranslate"><span class="pre">/etc/ssh/sshd_config</span></code></p></li>
 </ul>
-<p>### Step 2: Deploy Public Key to Worker Linux</p>
-<p><strong>Execute on the Manager Linux terminal:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh-copy-id<span class="w"> </span>&lt;remote_account&gt;@&lt;worker_ip&gt;
+<p><code class="docutils literal notranslate"><span class="pre">In</span> <span class="pre">the</span> <span class="pre">workers</span> <span class="pre">terminal</span></code></p>
+<p>Ensure the following configuration is set:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>PubkeyAuthentication yes
+PasswordAuthentication no
 </pre></div>
 </div>
-<p><em>Or</em> manually:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>~/.ssh/id_ed25519.pub<span class="w"> </span><span class="p">|</span><span class="w"> </span>ssh<span class="w"> </span>&lt;remote_account&gt;@&lt;worker_ip&gt;<span class="w"> </span><span class="s1">&#39;mkdir -p ~/.ssh &amp;&amp; cat &gt;&gt; ~/.ssh/authorized_keys &amp;&amp; chmod 700 ~/.ssh &amp;&amp; chmod 600 ~/.ssh/authorized_keys&#39;</span>
-</pre></div>
-</div>
-<p>### Step 3: Test SSH Access</p>
-<p><strong>Execute on the Manager Linux terminal:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>&lt;remote_account&gt;@&lt;worker_ip&gt;
-</pre></div>
-</div>
-<p>—</p>
+<p>To modify, open the file in an <strong>elevated text editor</strong>, update the lines as shown above, and restart the SSH server (see <a class="reference internal" href="#restart-the-sshd-service">Restart the SSHD service</a> section).</p>
 </section>
-<section id="use-case-2-manager-linux-worker-windows">
-<h2>Use Case 2: Manager Linux → Worker Windows<a class="headerlink" href="#use-case-2-manager-linux-worker-windows" title="Link to this heading"></a></h2>
-<p>### Step 1: Prepare PowerShell Script for Windows Worker</p>
-<p><strong>This script will run remotely on the Worker Windows machine via PowerShell.</strong></p>
-<p>Replace <cite>&lt;remote_account&gt;</cite> accordingly.</p>
-<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="p">(</span><span class="o">-not</span> <span class="p">(</span><span class="nb">Test-Path</span> <span class="n">-Path</span> <span class="s2">&quot;C:/Users/&lt;remote_account&gt;/.ssh&quot;</span><span class="p">))</span> <span class="p">{</span>
-    <span class="nb">New-Item</span> <span class="n">-ItemType</span> <span class="n">Directory</span> <span class="n">-Path</span> <span class="s2">&quot;C:/Users/&lt;remote_account&gt;/.ssh&quot;</span> <span class="p">|</span> <span class="nb">Out-Null</span>
-<span class="p">}</span>
-<span class="k">if</span> <span class="p">(</span><span class="o">-not</span> <span class="p">(</span><span class="nb">Test-Path</span> <span class="n">-Path</span> <span class="s2">&quot;C:/Users/&lt;remote_account&gt;/.ssh/authorized_keys&quot;</span><span class="p">))</span> <span class="p">{</span>
-    <span class="nb">New-Item</span> <span class="n">-ItemType</span> <span class="n">File</span> <span class="n">-Path</span> <span class="s2">&quot;C:/Users/&lt;remote_account&gt;/.ssh/authorized_keys&quot;</span> <span class="p">|</span> <span class="nb">Out-Null</span>
-<span class="p">}</span>
-<span class="nb">Add-Content</span> <span class="n">-Path</span> <span class="s2">&quot;C:/Users/&lt;remote_account&gt;/.ssh/authorized_keys&quot;</span> <span class="n">-Value</span> <span class="p">(</span><span class="no">[Console]</span><span class="p">::</span><span class="k">In</span><span class="p">.</span><span class="n">ReadToEnd</span><span class="p">())</span>
+<section id="restart-the-sshd-service">
+<h3>Restart the SSHD service<a class="headerlink" href="#restart-the-sshd-service" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">In</span> <span class="pre">the</span> <span class="pre">workers</span> <span class="pre">terminal</span></code></p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-5-5-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-5-5-0" name="5-0" role="tab" tabindex="0"><strong>Windows (admin)</strong></button><button aria-controls="panel-5-5-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-1" name="5-1" role="tab" tabindex="-1"><strong>Linux</strong></button></div><div aria-labelledby="tab-5-5-0" class="sphinx-tabs-panel" id="panel-5-5-0" name="5-0" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">Restart-Service</span> <span class="n">sshd</span>   <span class="c"># Restart SSH Server</span>
+<span class="nb">Restart-Service</span> <span class="n">ssh-agent</span>   <span class="c"># Restart SSH Agent</span>
 </pre></div>
 </div>
-<p>### Step 2: Encode the Script on Manager Linux</p>
-<p><strong>Execute on the Manager Linux terminal:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PS_COMMAND</span><span class="o">=</span><span class="s1">&#39;if (-not (Test-Path -Path &quot;C:/Users/&lt;remote_account&gt;/.ssh&quot;)) { New-Item -ItemType Directory -Path &quot;C:/Users/&lt;remote_account&gt;/.ssh&quot; | Out-Null }; if (-not (Test-Path -Path &quot;C:/Users/&lt;remote_account&gt;/.ssh/authorized_keys&quot;)) { New-Item -ItemType File -Path &quot;C:/Users/&lt;remote_account&gt;/.ssh/authorized_keys&quot; | Out-Null }; Add-Content -Path &quot;C:/Users/&lt;remote_account&gt;/.ssh/authorized_keys&quot; -Value ([Console]::In.ReadToEnd())&#39;</span>
-
-<span class="nv">ENCODED_COMMAND</span><span class="o">=</span><span class="k">$(</span><span class="nb">echo</span><span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PS_COMMAND</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>iconv<span class="w"> </span>-f<span class="w"> </span>utf-8<span class="w"> </span>-t<span class="w"> </span>utf-16le<span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span>-w<span class="w"> </span><span class="m">0</span><span class="k">)</span>
+</div><div aria-labelledby="tab-5-5-1" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-1" name="5-1" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>ssh<span class="w">  </span><span class="c1"># Restart SSH Server</span>
+<span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>ssh-agent<span class="w"> </span>-s<span class="k">)</span><span class="s2">&quot;</span><span class="w">  </span><span class="c1"># Restart SSH Agent</span>
 </pre></div>
 </div>
-<p>### Step 3: Send Public Key to Worker Windows</p>
-<p><strong>Execute on the Manager Linux terminal:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>~/.ssh/id_ed25519.pub<span class="w"> </span><span class="p">|</span><span class="w"> </span>ssh<span class="w"> </span>&lt;remote_account&gt;@&lt;worker_ip&gt;<span class="w"> </span>powershell.exe<span class="w"> </span>-EncodedCommand<span class="w"> </span><span class="nv">$ENCODED_COMMAND</span>
-</pre></div>
-</div>
-<p>### Step 4: Verify Key on Worker Windows</p>
-<p><strong>Execute on the Manager Linux terminal:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>&lt;remote_account&gt;@&lt;worker_ip&gt;<span class="w"> </span><span class="s2">&quot;Get-Content C:/Users/&lt;remote_account&gt;/.ssh/authorized_keys&quot;</span>
-</pre></div>
-</div>
-<p>—</p>
+</div></div>
 </section>
-<section id="use-case-3-manager-windows-worker-linux">
-<h2>Use Case 3: Manager Windows → Worker Linux<a class="headerlink" href="#use-case-3-manager-windows-worker-linux" title="Link to this heading"></a></h2>
-<p>### Step 1: Generate SSH Key Pair on Manager Windows</p>
-<p><strong>Execute in Windows PowerShell or Git Bash on the Manager:</strong></p>
-<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">ssh-keygen</span> <span class="n">-a</span> <span class="n">100</span> <span class="n">-t</span> <span class="n">ed25519</span>
+<section id="check-the-service-status">
+<h3>Check the service status:<a class="headerlink" href="#check-the-service-status" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">In</span> <span class="pre">the</span> <span class="pre">workers</span> <span class="pre">terminal</span></code></p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-6-6-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-6-6-0" name="6-0" role="tab" tabindex="0"><strong>Windows (admin)</strong></button><button aria-controls="panel-6-6-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-6-6-1" name="6-1" role="tab" tabindex="-1"><strong>Linux</strong></button></div><div aria-labelledby="tab-6-6-0" class="sphinx-tabs-panel" id="panel-6-6-0" name="6-0" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">Get-Service</span> <span class="n">sshd</span>
+<span class="nb">Get-Service</span> <span class="n">ssh-agent</span>
 </pre></div>
 </div>
-<p>### Step 2: Copy Public Key to Worker Linux</p>
-<p><strong>Execute in Windows PowerShell or Git Bash on the Manager:</strong></p>
-<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">type </span><span class="nv">$env:USERPROFILE</span><span class="p">\.</span><span class="n">ssh</span><span class="p">\</span><span class="n">id_ed25519</span><span class="p">.</span><span class="n">pub</span> <span class="p">|</span> <span class="n">ssh</span> <span class="p">&lt;</span><span class="n">remote_account</span><span class="p">&gt;@&lt;</span><span class="n">worker_ip</span><span class="p">&gt;</span> <span class="s1">&#39;mkdir -p ~/.ssh &amp;&amp; cat &gt;&gt; ~/.ssh/authorized_keys &amp;&amp; chmod 700 ~/.ssh &amp;&amp; chmod 600 ~/.ssh/authorized_keys&#39;</span>
+</div><div aria-labelledby="tab-6-6-1" class="sphinx-tabs-panel" hidden="true" id="panel-6-6-1" name="6-1" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>systemctl<span class="w"> </span>status<span class="w"> </span>ssh<span class="w">  </span><span class="c1"># Check SSH Server status</span>
+ssh-add<span class="w"> </span>-L<span class="w">  </span><span class="c1"># Check if the SSH agent is running</span>
 </pre></div>
 </div>
-<p>### Step 3: Test SSH Access</p>
-<p><strong>Execute in Windows PowerShell or Git Bash on the Manager:</strong></p>
-<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">ssh</span> <span class="p">&lt;</span><span class="n">remote_account</span><span class="p">&gt;@&lt;</span><span class="n">worker_ip</span><span class="p">&gt;</span>
-</pre></div>
-</div>
-<p>—</p>
+</div></div>
 </section>
-<section id="use-case-4-manager-windows-worker-windows">
-<h2>Use Case 4: Manager Windows → Worker Windows<a class="headerlink" href="#use-case-4-manager-windows-worker-windows" title="Link to this heading"></a></h2>
-<p>### Step 1: Prepare PowerShell Script for Windows Worker</p>
-<p><strong>Prepare and run remotely via PowerShell on the Worker Windows machine.</strong></p>
-<p>Replace <cite>&lt;remote_account&gt;</cite> accordingly.</p>
-<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nv">$psCommand</span> <span class="p">=</span> <span class="sh">@&#39;</span>
-<span class="sh">if (-not (Test-Path -Path &quot;C:/Users/&lt;remote_account&gt;/.ssh&quot;)) {</span>
-<span class="sh">  New-Item -ItemType Directory -Path &quot;C:/Users/&lt;remote_account&gt;/.ssh&quot; | Out-Null</span>
-<span class="sh">}</span>
-<span class="sh">if (-not (Test-Path -Path &quot;C:/Users/&lt;remote_account&gt;/.ssh/authorized_keys&quot;)) {</span>
-<span class="sh">  New-Item -ItemType File -Path &quot;C:/Users/&lt;remote_account&gt;/.ssh/authorized_keys&quot; | Out-Null</span>
-<span class="sh">}</span>
-<span class="sh">Add-Content -Path &quot;C:/Users/&lt;remote_account&gt;/.ssh/authorized_keys&quot; -Value ([Console]::In.ReadToEnd())</span>
-<span class="sh">&#39;@</span>
-</pre></div>
-</div>
-<p>### Step 2: Encode PowerShell Script on Manager Windows</p>
-<p><strong>Execute in Windows PowerShell on the Manager:</strong></p>
-<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nv">$bytes</span> <span class="p">=</span> <span class="no">[System.Text.Encoding]</span><span class="p">::</span><span class="n">Unicode</span><span class="p">.</span><span class="n">GetBytes</span><span class="p">(</span><span class="nv">$psCommand</span><span class="p">)</span>
-<span class="nv">$encodedCommand</span> <span class="p">=</span> <span class="no">[Convert]</span><span class="p">::</span><span class="n">ToBase64String</span><span class="p">(</span><span class="nv">$bytes</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>### Step 3: Send Public Key to Worker Windows</p>
-<p><strong>Execute in Windows PowerShell or Git Bash on the Manager:</strong></p>
-<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nb">Get-Content</span> <span class="nv">$env:USERPROFILE</span><span class="p">\.</span><span class="n">ssh</span><span class="p">\</span><span class="n">id_ed25519</span><span class="p">.</span><span class="n">pub</span> <span class="p">|</span> <span class="n">ssh</span> <span class="p">&lt;</span><span class="n">remote_account</span><span class="p">&gt;@&lt;</span><span class="n">worker_ip</span><span class="p">&gt;</span> <span class="n">powershell</span><span class="p">.</span><span class="n">exe</span> <span class="n">-EncodedCommand</span> <span class="nv">$encodedCommand</span>
-</pre></div>
-</div>
-<p>### Step 4: Verify Key on Worker Windows</p>
-<p><strong>Execute in Windows PowerShell or Git Bash on the Manager:</strong></p>
-<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">ssh</span> <span class="p">&lt;</span><span class="n">remote_account</span><span class="p">&gt;@&lt;</span><span class="n">worker_ip</span><span class="p">&gt;</span> <span class="s2">&quot;Get-Content C:/Users/&lt;remote_account&gt;/.ssh/authorized_keys&quot;</span>
-</pre></div>
-</div>
-<p>—</p>
 </section>
-<section id="end-of-guide">
-<h2>End of Guide<a class="headerlink" href="#end-of-guide" title="Link to this heading"></a></h2>
-<p>Replace all placeholders (<cite>&lt;remote_account&gt;</cite>, <cite>&lt;remote_ip&gt;</cite>) with your actual usernames and IP addresses.</p>
-<p>For further reading:
-- Linux SSH key basics: <a class="reference external" href="https://linuxize.com/post/how-to-set-up-ssh-keys/">https://linuxize.com/post/how-to-set-up-ssh-keys/</a>
-- Windows OpenSSH: <a class="reference external" href="https://learn.microsoft.com/en-us/windows-server/remote/remote-desktop-services/clients/ssh-authentication">https://learn.microsoft.com/en-us/windows-server/remote/remote-desktop-services/clients/ssh-authentication</a>
-- PowerShell remoting overview: <a class="reference external" href="https://docs.microsoft.com/en-us/powershell/scripting/learn/remoting/overview">https://docs.microsoft.com/en-us/powershell/scripting/learn/remoting/overview</a></p>
+<section id="permissions">
+<h2>Permissions<a class="headerlink" href="#permissions" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">In</span> <span class="pre">the</span> <span class="pre">workers</span> <span class="pre">terminal</span></code></p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-7-7-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-7-7-0" name="7-0" role="tab" tabindex="0"><strong>Windows</strong></button><button aria-controls="panel-7-7-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-7-7-1" name="7-1" role="tab" tabindex="-1"><strong>Linux</strong></button></div><div aria-labelledby="tab-7-7-0" class="sphinx-tabs-panel" id="panel-7-7-0" name="7-0" role="tabpanel" tabindex="0"><p>Ensure that the <code class="docutils literal notranslate"><span class="pre">.ssh</span></code> folder and files <code class="docutils literal notranslate"><span class="pre">id_ed25519</span></code> and <code class="docutils literal notranslate"><span class="pre">authorized_keys</span></code> have the correct permissions:</p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>.ssh<span class="se">\i</span>d_rsa<span class="w">        </span>AUTORITE<span class="w"> </span>NT<span class="se">\S</span>ystème:<span class="o">(</span>F<span class="o">)</span>
+<span class="w">           </span>BUILTIN<span class="se">\A</span>dministrateurs:<span class="o">(</span>F<span class="o">)</span>
+<span class="w">           </span>%USERNAME%:<span class="o">(</span>M<span class="o">)</span>
+</pre></div>
+</div>
+<p>To view permissions:</p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">icacls</span> <span class="s2">&quot;$env:userprofile\.ssh&quot;</span>
+</pre></div>
+</div>
+<p>To set correct permissions:</p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">icacls</span> <span class="s2">&quot;$env:userprofile\.ssh\id_ed25519&quot;</span> <span class="p">/</span><span class="n">inheritance</span><span class="p">:</span><span class="nb">r </span><span class="p">/</span><span class="n">grant</span> <span class="s2">&quot;AUTORITE NT\Système:(F)&quot;</span> <span class="s2">&quot;BUILTIN\Administrateurs:(F)&quot;</span> <span class="s2">&quot;$env:username:(M)&quot;</span>
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-7-7-1" class="sphinx-tabs-panel" hidden="true" id="panel-7-7-1" name="7-1" role="tabpanel" tabindex="0"><button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>chmod<span class="w"> </span><span class="m">700</span><span class="w"> </span>~/.ssh
+chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>~/.ssh/id_ed25519
+chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>~/.ssh/authorized_keys
+</pre></div>
+</div>
+<p>To verify:</p>
+<button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls<span class="w"> </span>-l<span class="w"> </span><span class="s2">&quot;~/.ssh&quot;</span>
+</pre></div>
+</div>
+</div></div>
+</section>
+<section id="useful-links">
+<h2>Useful links<a class="headerlink" href="#useful-links" title="Link to this heading"></a></h2>
+<p>If you need more informations about ssh configuration, the following guides may be helpful:</p>
+<ul class="simple">
+<li><p>For <strong>Unix</strong>: <a class="reference external" href="https://wiki.debian.org/SSH">Debian documentation</a></p></li>
+<li><p>For <strong>Windows</strong>/ <a class="reference external" href="https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh-server-configuration">Microsoft documentation</a></p></li>
+</ul>
 </section>
 </section>
 
