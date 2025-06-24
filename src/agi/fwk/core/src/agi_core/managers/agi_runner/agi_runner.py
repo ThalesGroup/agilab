@@ -1398,7 +1398,7 @@ class AGI:
                 if time.time() - start > timeout:
                     logging.error("Timeout waiting for all workers. {remaining} workers missing.")
                     sys.exit(1)
-                await asyncio.sleep(1)
+                await asyncio.sleep(3)
 
             except Exception as e:
                 logging.info(f"Exception in _sync: {e}")
