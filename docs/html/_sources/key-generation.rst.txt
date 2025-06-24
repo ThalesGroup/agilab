@@ -18,38 +18,29 @@
    }
    </script>
 
-
 Key Generation
 ==============
 
-Introduction
-~~~~~~~~~~~~
-
 This guide provides detailed instructions for generating SSH key pairs and securely deploying public keys to remote worker machines in various operating system configurations within the Agilab environment.
 
-Terminology
-~~~~~~~~~~~
+In the rest of the guide, I would refer to:
 
-    - Manager: The local machine from which SSH connections are initiated.
-    - Worker: The remote machine that accepts SSH connections.
-    - Remote account: The user account on the worker machine used for SSH login.
+- Manager: The local machine from which SSH connections are initiated.
+- Worker: The remote machine that accepts SSH connections.
+- Remote account: The user account on the worker machine used for SSH login.
 
-Generate the keys
-~~~~~~~~~~~~~~~~~
+1. Generate the keys
+~~~~~~~~~~~~~~~~~~~~
 
-.. toctree::
-   :hidden:
-
-
-``In the manager terminal``
-
-.. raw:: html
-
-   <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+.. caution:: In the manager terminal
 
 .. tabs::
 
     .. tab:: Global
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
 
         .. code-block:: bash
 
@@ -59,11 +50,13 @@ You will be prompted for a passphrase. don't enter one (double return).
 
 If you have not changed the default path, the public key will be stored in ``~/.ssh/id_ed25519.pub`` and the private key in ``~/.ssh/id_ed25519``.
 
-Loading the private key in SSH Agent
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2. Loading the private key in SSH Agent
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Load the private key
-^^^^^^^^^^^^^^^^^^^^
+.. caution:: In the manager terminal
+
+2.1 Load the private key
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. tabs::
 
@@ -87,27 +80,22 @@ Load the private key
 
             ssh-add ~/.ssh/id_ed25519
 
-Verify the key Addition
+2.2 Verify the key Addition
 ^^^^^^^^^^^^^^^^^^^^^^^
-
-
-``In the manager terminal``
-
-.. raw:: html
-
-   <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
 
 .. tabs::
 
     .. tab:: Global
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
 
         .. code-block:: bash
 
             ssh-add -l
 
 It should display the **public key** (not private). To manually check the public key:
-
-``In the manager terminal``
 
 .. tabs::
 
@@ -135,12 +123,15 @@ If you have set a passphrase, you will be asked to enter it. If you encounter an
 
 On Linux, if a window titled "Enter password to unlock the private key" appears when trying to establish an SSH connection, enter the passphrase and check the box "Automatically unlock this key whenever I'm logged in".
 
-Copy the public key to the server
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+3. Copy the public key to the server
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. caution:: In the manager terminal
+
+3.1 Allow your key
+^^^^^^^^^^^^^^^^^^
 
 Follow these steps to add your key to the `authorized_keys` file of each workers:
-
-``In the manager terminal``
 
 .. tabs::
 
@@ -164,7 +155,7 @@ Follow these steps to add your key to the `authorized_keys` file of each workers
 
         .. code-block:: bash
 
-            cat ~/.ssh/id_ed25519.pub | ssh nsbl@192.168.20.222 powershell -NoProfile -Command "Add-Content -Encoding ascii -Path 'C:\\Users\\nsbl\\.ssh\\authorized_keys' -Value '([Console]::In.ReadToEnd())'"
+            cat ~/.ssh/id_ed25519.pub | ssh <remote account>@<worker ip> powershell -NoProfile -Command "Add-Content -Encoding ascii -Path 'C:\\Users\\<worker ip>\\.ssh\\authorized_keys' -Value '([Console]::In.ReadToEnd())'"
 
     .. tab:: **Manager Windows**
 
@@ -188,63 +179,33 @@ Follow these steps to add your key to the `authorized_keys` file of each workers
 
            Get-Content -Raw "${env:USERPROFILE}\\.ssh\\id_ed25519.pub" | powershell -NoProfile -Command "Add-Content -Encoding ascii -Path 'C:\\Users\\nsbl\\.ssh\\authorized_keys' -Value '([Console]::In.ReadToEnd())'"
 
-
-SSHD Service
-~~~~~~~~~~~~
-
-Check the configuration
-^^^^^^^^^^^^^^^^^^^^^^^
-
-Check the SSH server configuration in the ``sshd_config`` file:
-
-- **Windows Server**: ``C:\ProgramData\ssh\sshd_config``
-- **Unix Server**: ``/etc/ssh/sshd_config``
-
-
-``In the workers terminal``
-
-Ensure the following configuration is set:
-
-.. code-block:: none
-
-    PubkeyAuthentication yes
-    PasswordAuthentication no
-
-To modify, open the file in an **elevated text editor**, update the lines as shown above, and restart the SSH server (see `Restart the SSHD service`_ section).
-
-Restart the SSHD service
-^^^^^^^^^^^^^^^^^^^^^^^^
-
-``In the workers terminal``
+3.2 Verification
+^^^^^^^^^^^^^^^^
 
 .. tabs::
 
-    .. tab:: **Windows (admin)**
+    .. tab:: Global
 
         .. raw:: html
 
            <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
 
-        .. code-block:: powershell
-
-           Restart-Service sshd   # Restart SSH Server
-           Restart-Service ssh-agent   # Restart SSH Agent
-
-    .. tab:: **Linux**
-
-        .. raw:: html
-
-          <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
-
         .. code-block:: bash
 
-           sudo systemctl restart ssh  # Restart SSH Server
-           eval "$(ssh-agent -s)"  # Restart SSH Agent
+            ssh <remote account>@<worker ip>
+
+.. note:: It should connect without asking the account password !
+
+Troubleshooting
+~~~~~~~~~~~~~~~~~~
+
+SSHD Service
+^^^^^^^^^^^^
 
 Check the service status:
-^^^^^^^^^^^^^^^^^^^^^^^^^
+-------------------------
 
-``In the workers terminal``
+.. caution:: In the workers terminal
 
 .. tabs::
 
@@ -270,16 +231,66 @@ Check the service status:
            sudo systemctl status ssh  # Check SSH Server status
            ssh-add -L  # Check if the SSH agent is running
 
-Permissions
-~~~~~~~~~~~
+Check the configuration
+-----------------------
 
-``In the workers terminal``
+.. caution:: In the workers terminal
+
+Check the SSH server configuration in the ``sshd_config`` file:
+
+- **Windows Server**: ``C:\ProgramData\ssh\sshd_config``
+- **Unix Server**: ``/etc/ssh/sshd_config``
+
+
+Ensure the following configuration is set:
+
+.. code-block:: none
+
+    PubkeyAuthentication yes
+    PasswordAuthentication no
+
+To modify, open the file in an **elevated text editor**, update the lines as shown above, and restart the SSH server (see `Restart the SSHD service`_ section).
+
+Restart the SSHD service
+------------------------
+
+.. caution:: In the manager and workers terminal
+
+.. tabs::
+
+    .. tab:: **Windows (admin)**
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: powershell
+
+           Restart-Service sshd   # Restart SSH Server
+           Restart-Service ssh-agent   # Restart SSH Agent
+
+    .. tab:: **Linux**
+
+        .. raw:: html
+
+          <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: bash
+
+           sudo systemctl restart ssh  # Restart SSH Server
+           eval "$(ssh-agent -s)"  # Restart SSH Agent
+
+
+Permissions
+-----------
+
+.. caution:: In the manager terminal
 
 .. tabs::
 
     .. tab:: **Windows**
 
-        Ensure that the ``.ssh`` folder and files ``id_ed25519`` and ``authorized_keys`` have the correct permissions:
+        Ensure that the ``.ssh`` folder and the ``id_ed25519`` file have the correct permissions:
 
         .. raw:: html
 
@@ -287,7 +298,7 @@ Permissions
 
         .. code-block:: bash
 
-           .ssh\id_rsa        AUTORITE NT\Système:(F)
+           .ssh\id_ed25519        AUTORITE NT\Système:(F)
                       BUILTIN\Administrateurs:(F)
                       %USERNAME%:(M)
 
@@ -321,7 +332,6 @@ Permissions
 
             chmod 700 ~/.ssh
             chmod 600 ~/.ssh/id_ed25519
-            chmod 600 ~/.ssh/authorized_keys
 
         To verify:
 
