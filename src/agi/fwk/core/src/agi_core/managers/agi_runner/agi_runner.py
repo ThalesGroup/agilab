@@ -127,6 +127,7 @@ class AGI:
     _sys_path_to_clean: List[str] = []
     _target_built: Optional[Any] = None
     _module_to_clean: List[str] = []
+    _ssh_connections = {}
     best_mode: Dict[str, Any] = {}
     workers_tree: Optional[Any] = None
     workers_tree_info: Optional[Any] = None
@@ -792,7 +793,7 @@ class AGI:
         wenv_rel = env.wenv_rel
         wenv_abs = env.wenv_abs
         pyvers = env.python_version
-        extras = "--dev -p " + pyvers
+        extras = "--dev -p " + pyvers + env.python_variante
         extras += " --config-file uv.toml" if AGI._rapids_enabled else ""
         options = {"manager": extras, "worker": extras}
         if isinstance(env.base_worker_cls, str):
@@ -886,7 +887,7 @@ class AGI:
 
         # Commande pour workers selon si rapids supporté
         if has_rapids_hw:
-            cmd_worker = f"{env.uv} --config-file uv.toml {run_type} -p {pyvers} --project {wenv_abs} {options['worker']} --extra workers"
+            cmd_worker = f"{env.uv} --config-file uv.toml {run_type} --project {wenv_abs} {options['worker']} --extra workers"
         else:
             cmd_worker = f"{env.uv} {run_type} -p {pyvers} --project {wenv_abs} {options['worker']} --extra workers"
 
@@ -1997,15 +1998,16 @@ class AGI:
             raise RuntimeError(f"running {cmd} at {cwd}")
 
     @asynccontextmanager
-    async def get_ssh_connection(self, ip: str, timeout_sec: int = 5):
+    async def get_ssh_connection(ip: str, timeout_sec: int = 5):
 
+        env = AGI.env
         if AgiEnv.is_local(ip):
-            self.user = getpass.getuser()
+            env.user = getpass.getuser()
 
-        if not self.user:
+        if not env.user:
             raise ValueError("SSH username is not configured. Please set 'user' in your .env file.")
 
-        conn = self._ssh_connections.get(ip)
+        conn = AGI._ssh_connections.get(ip)
         if conn and not conn.is_closed():
             yield conn
             return
@@ -2033,15 +2035,15 @@ class AGI:
             conn = await asyncio.wait_for(
                 asyncssh.connect(
                     ip,
-                    username=self.user,
-                    password=self.password,
+                    username=env.user,
+                    password=env.password,
                     known_hosts=None,
                     client_keys=client_keys,
                 ),
                 timeout=timeout_sec
             )
 
-            self._ssh_connections[ip] = conn
+            AGI._ssh_connections[ip] = conn
             yield conn
 
         except asyncio.TimeoutError:
@@ -2079,7 +2081,7 @@ class AGI:
     @staticmethod
     async def exec_ssh(ip: str, cmd: str) -> str:
         try:
-            async with self.get_ssh_connection(ip) as conn:
+            async with AGI.get_ssh_connection(ip) as conn:
                 msg = f"[{ip}] {cmd}"
                 if AgiEnv.verbose > 1 or AgiEnv.debug:
                     logging.info(msg)
@@ -2113,7 +2115,7 @@ class AGI:
         """
         Execute a remote command via SSH and return the last line of its stdout output.
         """
-        async with self.get_ssh_connection(ip) as conn:
+        async with AGI.get_ssh_connection(ip) as conn:
             process = await conn.create_process(cmd)
 
             # Read entire stdout output as bytes

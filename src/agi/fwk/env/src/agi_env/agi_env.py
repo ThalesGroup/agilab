@@ -411,7 +411,6 @@ class AgiEnv:
             AgiEnv.export_local_bin = None
         else:
             AgiEnv.export_local_bin = 'export PATH="$HOME/.local/bin:$PATH";'
-        self._ssh_connections = {}
 
     def active(self, target, install_type):
         if self.module != target:
