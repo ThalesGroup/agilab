@@ -1316,7 +1316,7 @@ class AGI:
             #         AGI._dask_client.upload_file(str(egg_file))
 
     @staticmethod
-    async def _sync(timeout: int = 60) -> None:
+    async def _sync(timeout: int = 20) -> None:
         if not isinstance(AGI._dask_client, Client):
             return
         start = time.time()
@@ -1328,7 +1328,7 @@ class AGI:
                 workers_info = info.get("workers")
                 if workers_info is None:
                     logging.info("Scheduler info 'workers' not ready yet.")
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(2)
                     if time.time() - start > timeout:
                         logging.error(f"Timeout waiting for scheduler workers info.")
                         sys.exit(1)
