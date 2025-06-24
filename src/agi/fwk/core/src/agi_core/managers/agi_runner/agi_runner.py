@@ -1261,7 +1261,7 @@ class AGI:
             os_id = ''
 
         if any(x in os_id for x in ('Linux', 'Darwin', 'BSD')):
-            return 'export PATH="$HOME/.local/bin:$PATH";'
+            return 'export PATH="$HOME/.local/bin:$PATH";export PYTHON_GIL=0;'
         else:
             return ""  # 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
 
