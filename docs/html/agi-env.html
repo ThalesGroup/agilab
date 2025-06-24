@@ -11,7 +11,7 @@
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
       <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
-      <link rel="stylesheet" type="text/css" href="_static/custom.css" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css?v=28052664" />
 
   
     <link rel="canonical" href="https://thalesgroup.github.io/agilab/agi-env.html" />
@@ -79,14 +79,23 @@
 <li class="toctree-l3"><a class="reference internal" href="cluster-help.html#principle">Principle</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation and Deployment Guide</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#introduction">Introduction</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#terminology">Terminology</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-1-manager-linux-worker-linux">Use Case 1: Manager Linux → Worker Linux</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-2-manager-linux-worker-windows">Use Case 2: Manager Linux → Worker Windows</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-3-manager-windows-worker-linux">Use Case 3: Manager Windows → Worker Linux</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-4-manager-windows-worker-windows">Use Case 4: Manager Windows → Worker Windows</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#end-of-guide">End of Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#generate-the-keys">1. Generate the keys</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#loading-the-private-key-in-ssh-agent">2. Loading the private key in SSH Agent</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#load-the-private-key">2.1 Load the private key</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verify-the-key-addition">2.2 Verify the key Addition</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#copy-the-public-key-to-the-server">3. Copy the public key to the server</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#allow-your-key">3.1 Allow your key</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verification">3.2 Verification</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#sshd-service">SSHD Service</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#useful-links">Useful links</a></li>
 </ul>
 </li>
 </ul>
@@ -395,7 +404,7 @@
 </a>
 <dl class="py class" id="module-agi_env.agi_env">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agi_env.agi_env.</span></span><span class="sig-name descname"><span class="pre">AgiEnv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">install_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">apps_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active_app</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">debug</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agi_env.agi_env.</span></span><span class="sig-name descname"><span class="pre">AgiEnv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">install_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">apps_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active_app</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">debug</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">python_variante</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.GUI_NROW">
@@ -409,7 +418,7 @@
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">install_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">apps_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active_app</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">debug</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.__init__" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">install_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">apps_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active_app</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">debug</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">python_variante</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.__init__" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -528,27 +537,6 @@ in-file identifiers and class names.</p>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.exec_ssh">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec_ssh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.exec_ssh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.exec_ssh" title="Link to this definition"></a></dt>
-<dd><dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></span></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.exec_ssh_async">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec_ssh_async</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.exec_ssh_async"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.exec_ssh_async" title="Link to this definition"></a></dt>
-<dd><p>Execute a remote command via SSH and return the last line of its stdout output.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></span></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.extract_base_info">
 <span class="sig-name descname"><span class="pre">extract_base_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">import_mapping</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.extract_base_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.extract_base_info" title="Link to this definition"></a></dt>
 <dd></dd></dl>
@@ -581,11 +569,6 @@ in-file identifiers and class names.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.get_projects">
 <span class="sig-name descname"><span class="pre">get_projects</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.get_projects"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.get_projects" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.get_ssh_connection">
-<span class="sig-name descname"><span class="pre">get_ssh_connection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout_sec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.get_ssh_connection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.get_ssh_connection" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
