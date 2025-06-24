@@ -166,7 +166,7 @@ class AgiEnv:
 
 
     def __init__(self, install_type: int = None, apps_dir: Path = None,
-                 active_app: Path | str = None, verbose: int = None, debug=False, python_variante: str = None):
+                 active_app: Path | str = None, verbose: int = None, debug=False, python_variante: str = ''):
         AgiEnv.verbose = verbose
         self.verbose = verbose
         AgiEnv.python_variante = python_variante
