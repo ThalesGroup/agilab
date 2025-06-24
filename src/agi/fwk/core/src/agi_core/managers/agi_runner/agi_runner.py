@@ -577,7 +577,7 @@ class AGI:
                 cmd = f"{kill_prefix} {clean_abs} kill"
                 cmds.append(cmd)
         else:
-            await env.send_file(ip, env.manager_root / "agi_runner/cli.py", clean_rel.parent)
+            #await env.send_file(ip, env.manager_root / "agi_runner/cli.py", clean_rel.parent)
             kill_prefix = f'{cmd_prefix}{uv} run -p {env.python_version} python'
             if force:
                 cmd = f"{kill_prefix} {clean_rel}"
@@ -604,7 +604,7 @@ class AGI:
                     await AgiEnv.run(cmd, cwd)
             else:
                 cli = env.wenv_rel.parent / "cli.py"
-                await env.send_file(ip, env.manager_root / "agi_runner/cli.py", cli.parent)
+                #await env.send_file(ip, env.manager_root / "agi_runner/cli.py", cli.parent)
                 last_res = await AGI.exec_ssh(ip, cmd)
 
             # handle tuple or dict result
@@ -723,7 +723,7 @@ class AGI:
         list_ip = set(list(AGI.workers) + [AGI._get_scheduler(scheduler)[0]])
         localhost_ip = socket.gethostbyname("localhost")
         env = AGI.env
-        pyvers = env.python_version
+        clean_rel = env.wenv_rel.parent / "cli.py"
 
         # You can remove this check or keep it if you expect no scheduler/workers (rare)
         if not list_ip:
@@ -733,6 +733,8 @@ class AGI:
         for ip in list_ip:
             if not env.is_local(ip) and not is_ip(ip):
                 raise ValueError(f"Invalid IP address: {ip}")
+            else:
+                await env.send_file(ip, env.manager_root / "agi_runner/cli.py", clean_rel.parent)
 
         # Prepare each remote node (skip local)
         AGI.list_ip = list_ip
@@ -773,7 +775,7 @@ class AGI:
             
             # 3) Install Python
             await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers}")
-            await env.send_file(ip, env.manager_root / "agi_runner/cli.py", env.wenv_rel.parent)
+            #await env.send_file(ip, env.manager_root / "agi_runner/cli.py", env.wenv_rel.parent)
             await AGI._kill(ip, force=True)
             await AGI._clean_dirs(ip)
 
@@ -1172,6 +1174,8 @@ class AGI:
             SystemExit: on fatal error starting scheduler or Dask client.
         """
         env = AGI.env
+        clean_rel = env.wenv_rel.parent / "cli.py"
+
         if (AGI._mode_auto and AGI._mode == AGI.DASK_MODE) or not AGI._mode_auto:
             env.has_rapids_hw = True
             if AGI._mode & AGI.DASK_MODE:
@@ -1185,6 +1189,7 @@ class AGI:
 
             # Clean worker
             for ip in list(AGI.workers):
+                await env.send_file(ip, env.manager_root / "agi_runner/cli.py", clean_rel.parent)
                 if not env.envars.get(ip, None):
                     env.has_rapids_hw = False
                 try:
@@ -1268,13 +1273,13 @@ class AGI:
         compatible with Windows and POSIX.
         """
         env = AGI.env
+
         # Start scheduler first
         if not await AGI._start_scheduler(scheduler):
             return False
 
         for i, (ip, n) in enumerate(AGI.workers.items()):
             is_local = env.is_local(ip)
-
             cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
 
             for j in range(n):
@@ -1328,7 +1333,7 @@ class AGI:
                 workers_info = info.get("workers")
                 if workers_info is None:
                     logging.info("Scheduler info 'workers' not ready yet.")
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(3)
                     if time.time() - start > timeout:
                         logging.error(f"Timeout waiting for scheduler workers info.")
                         sys.exit(1)
@@ -1564,7 +1569,7 @@ class AGI:
             # case install modes
             t = time.time()
 
-            if AGI._mode & 4:
+            if AGI._mode & AGI.DASK_MODE:
                 await AGI._install_cluster(scheduler)
             else:
                 AGI._clean_dirs_local()
