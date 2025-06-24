@@ -16,6 +16,7 @@ dev = [
     "pytest",
     "licensecheck",
     "your_pandas_project",
+    "psutil",
 ]
 
 [project.optional-dependencies]

@@ -20,6 +20,7 @@ dependencies = [
     "ipython",
     "polars",
     "logging",
+    "psutil",
     "scipy==1.15.2",
 ]
 

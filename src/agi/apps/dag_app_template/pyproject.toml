@@ -15,6 +15,7 @@ dependencies = [
     "py7zr",
     "python-dotenv",
     "ipython",
+    "psutil",
 ]
 
 [dependency-groups]

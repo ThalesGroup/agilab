@@ -10,6 +10,7 @@ dependencies = [
     "parso",
     "py7zr",
     "python-dotenv",
+    "psutil",
 ]
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
