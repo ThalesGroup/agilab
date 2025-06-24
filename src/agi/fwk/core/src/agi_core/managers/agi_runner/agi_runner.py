@@ -795,11 +795,11 @@ class AGI:
         wenv_rel = env.wenv_rel
         wenv_abs = env.wenv_abs
         pyvers = env.python_version
-        extras = "--dev -p " + pyvers + env.python_variante
-        extras += " --config-file uv.toml" if AGI._rapids_enabled else ""
-        options = {"manager": extras, "worker": extras}
+        extras = " --config-file uv.toml" if AGI._rapids_enabled else ""
+        extra1 = "--dev -p " + pyvers + env.python_variante
+        options = {"manager": extras, "worker": extras + extra1}
         if isinstance(env.base_worker_cls, str):
-            options["worker"] += " --extra " + " --extra ".join(AGI.install_worker_group)
+            options["worker"] += extras + " --extra " + " --extra ".join(AGI.install_worker_group)
 
         #node_ips = await AGI._clean_nodes(scheduler)
         node_ips = set(list(AGI.workers) + [AGI._get_scheduler(scheduler)[0]])
@@ -852,7 +852,7 @@ class AGI:
         Args:
             src: chemin vers la racine du projet local
             wenv_rel: chemin relatif vers l’environnement virtuel local
-            options: dict contenant les options 'manager' et 'worker' pour la commande uv
+            x: dict contenant les options 'manager' et 'worker' pour la commande uv
         """
         env = AGI.env
         pyvers = env.python_version + env.python_variante
@@ -880,7 +880,7 @@ class AGI:
         # Copier les fichiers pyproject.toml et setup_core dans wenv_abs
         wenv_abs = env.wenv_abs
         os.makedirs(wenv_abs, exist_ok=True)
-        file = src / 'pyproject.toml'
+        file = env.worker_pyproject
         logging.info(f"Copying {file} -> {wenv_abs}")
         shutil.copy(file, wenv_abs / file.name)
         file = env.setup_core
@@ -889,9 +889,9 @@ class AGI:
 
         # Commande pour workers selon si rapids supporté
         if has_rapids_hw:
-            cmd_worker = f"{env.uv} --config-file uv.toml {run_type} --project {wenv_abs} {options['worker']} --extra workers"
+            cmd_worker = f"{env.uv} --config-file uv.toml {run_type} --project {wenv_abs} {options['worker']}"
         else:
-            cmd_worker = f"{env.uv} {run_type} --project {wenv_abs} {options['worker']} --extra workers"
+            cmd_worker = f"{env.uv} {run_type} --project {wenv_abs} {options['worker']}"
 
         logging.info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
