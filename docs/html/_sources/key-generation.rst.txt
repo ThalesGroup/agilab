@@ -1,189 +1,347 @@
-Key Generation and Deployment Guide
-===================================
+.. raw:: html
 
-Introduction
-------------
+   <script>
+   function copyCode(button) {
+     const codeBlock = button.nextElementSibling;
+     if (!codeBlock) return;
+     const text = codeBlock.innerText;
 
-This guide provides detailed instructions for generating SSH key pairs and securely deploying
-public keys to remote worker machines in various operating system configurations within the Agilab environment.
+     const parts = text.split('$');
+     const rightPart = parts.slice(1).join('$');;
 
-Terminology
+     navigator.clipboard.writeText(rightPart).then(() => {
+       button.innerText = 'Copied';
+       button.disabled = true;
+       setTimeout(() => {
+         button.innerText = button.getAttribute('data-label');
+         button.disabled = false;
+       }, 2000);
+     }).catch(() => {
+       button.innerText = 'Failed';
+     });
+   }
+   </script>
+
+Key Generation
+==============
+
+This guide provides detailed instructions for generating SSH key pairs and securely deploying public keys to remote worker machines in various operating system configurations within the Agilab environment.
+
+In the rest of the guide, I would refer to:
+
+- Manager: The local machine from which SSH connections are initiated.
+- Worker: The remote machine that accepts SSH connections.
+- Remote account: The user account on the worker machine used for SSH login.
+
+1. Generate the keys
+~~~~~~~~~~~~~~~~~~~~
+
+.. tabs::
+
+    .. tab:: Global
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: bash
+
+           manager-terminal$ ssh-keygen -a 100 -t ed25519
+
+You will be prompted for a passphrase. don't enter one (double return).
+
+If you have not changed the default path, the public key will be stored in ``~/.ssh/id_ed25519.pub`` and the private key in ``~/.ssh/id_ed25519``.
+
+2. Loading the private key in SSH Agent
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+2.1 Load the private key
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. tabs::
+
+    .. tab:: **Linux**
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: bash
+
+            manager-terminal$ ssh-add ~/.ssh/id_ed25519
+
+    .. tab:: **Windows**
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: powershell
+
+            manager-terminal$ ssh-add $env:USERPROFILE/.ssh/id_ed25519
+
+
+2.2 Verify the key Addition
+^^^^^^^^^^^^^^^^^^^^^^^
+
+.. tabs::
+
+    .. tab:: Global
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: bash
+
+            manager-terminal$ ssh-add -l
+
+It should display the **public key** (not private). To manually check the public key:
+
+.. tabs::
+
+    .. tab:: **Linux**
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: bash
+
+           manager-terminal$ cat ~/.ssh/id_ed25519.pub
+
+    .. tab:: **Windows**
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: powershell
+
+           manager-terminal$ cat $env:USERPROFILE/.ssh/id_ed25519.pub
+
+
+If you have set a passphrase, you will be asked to enter it. If you encounter any permission-related errors, refer to the `Permissions`_ section.
+
+On Linux, if a window titled "Enter password to unlock the private key" appears when trying to establish an SSH connection, enter the passphrase and check the box "Automatically unlock this key whenever I'm logged in".
+
+3. Copy the public key to the server
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+3.1 Allow your key
+^^^^^^^^^^^^^^^^^^
+
+Follow these steps to add your key to the `authorized_keys` file of each workers:
+
+.. tabs::
+
+    .. tab:: **Manager Unix**
+
+        Worker Linux:
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: bash
+
+           manager-terminal$ ssh-copy-id -i ~/.ssh/id_ed25519 <remote account>@<worker ip>
+
+        Worker Windows:
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: bash
+
+            manager-terminal$ cat ~/.ssh/id_ed25519.pub | ssh <remote account>@<worker ip> powershell -NoProfile -Command "Add-Content -Encoding ascii -Path 'C:\\Users\\<worker ip>\\.ssh\\authorized_keys' -Value '([Console]::In.ReadToEnd())'"
+
+    .. tab:: **Manager Windows**
+
+        Worker Unix:
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: powershell
+
+           manager-terminal$ Get-Content -Raw "${env:USERPROFILE}\\.ssh\\id_ed25519.pub" | ssh <remote account>@<worker ip> "cat >> ~/.ssh/authorized_keys"
+
+        Worker Windows:
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: powershell
+
+           manager-terminal$ Get-Content -Raw "${env:USERPROFILE}\\.ssh\\id_ed25519.pub" | powershell -NoProfile -Command "Add-Content -Encoding ascii -Path 'C:\\Users\\nsbl\\.ssh\\authorized_keys' -Value '([Console]::In.ReadToEnd())'"
+
+3.2 Verification
+^^^^^^^^^^^^^^^^
+
+.. tabs::
+
+    .. tab:: Global
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: bash
+
+            manager-terminal$ ssh <remote account>@<worker ip>
+
+
+.. admonition:: Success
+
+    It should connect without asking the account password !
+
+Troubleshooting
+~~~~~~~~~~~~~~~~~~
+
+SSHD Service
+^^^^^^^^^^^^
+
+Check the service status:
+-------------------------
+
+.. tabs::
+
+    .. tab:: **Linux**
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: bash
+
+           sudo systemctl status ssh  # Check SSH Server status
+           ssh-add -L  # Check if the SSH agent is running
+
+    .. tab:: **Windows (admin)**
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: powershell
+
+           Get-Service sshd
+           Get-Service ssh-agent
+
+Check the configuration
+-----------------------
+
+Check the SSH server configuration in the ``sshd_config`` file:
+
+- **Windows Server**: ``C:\ProgramData\ssh\sshd_config``
+- **Unix Server**: ``/etc/ssh/sshd_config``
+
+
+Ensure the following configuration is set:
+
+.. code-block:: none
+
+    PubkeyAuthentication yes
+    PasswordAuthentication no
+
+To modify, open the file in an **elevated text editor**, update the lines as shown above, and restart the SSH server (see `Restart the SSHD service`_ section).
+
+Restart the SSHD service
+------------------------
+
+.. tabs::
+
+    .. tab:: **Linux**
+
+        .. raw:: html
+
+          <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: bash
+
+           workers-terminal$ sudo systemctl restart ssh  # Restart SSH Server
+           workers-terminal$ eval "$(ssh-agent -s)"  # Restart SSH Agent
+
+    .. tab:: **Windows (admin)**
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: powershell
+
+           workers-terminal$ Restart-Service sshd   # Restart SSH Server
+           workers-terminal$ Restart-Service ssh-agent   # Restart SSH Agent
+
+Permissions
 -----------
 
-- **Manager**: The local machine from which SSH connections are initiated.
-- **Worker**: The remote machine that accepts SSH connections.
-- **Remote account**: The user account on the worker machine used for SSH login.
+.. tabs::
 
----
+    .. tab:: **Linux**
 
-Use Case 1: Manager Linux → Worker Linux
-----------------------------------------
+        .. raw:: html
 
-### Step 1: Generate SSH Key Pair on Manager Linux
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
 
-**Execute on the Manager Linux terminal:**
+        .. code-block:: bash
 
-.. code-block:: bash
+            chmod 700 ~/.ssh
+            chmod 600 ~/.ssh/id_ed25519
 
-   ssh-keygen -a 100 -t ed25519
+        To verify:
 
-- Accept defaults and leave passphrase empty for automation.
+        .. raw:: html
 
-### Step 2: Deploy Public Key to Worker Linux
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
 
-**Execute on the Manager Linux terminal:**
+        .. code-block:: bash
 
-.. code-block:: bash
+            ls -l "~/.ssh"
 
-   ssh-copy-id <remote_account>@<worker_ip>
+    .. tab:: **Windows**
 
-*Or* manually:
+        Ensure that the ``.ssh`` folder and the ``id_ed25519`` file have the correct permissions:
 
-.. code-block:: bash
+        .. raw:: html
 
-   cat ~/.ssh/id_ed25519.pub | ssh <remote_account>@<worker_ip> 'mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys'
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
 
-### Step 3: Test SSH Access
+        .. code-block:: bash
 
-**Execute on the Manager Linux terminal:**
+           .ssh\id_ed25519        AUTORITE NT\Système:(F)
+                      BUILTIN\Administrateurs:(F)
+                      %USERNAME%:(M)
 
-.. code-block:: bash
+        To view permissions:
 
-   ssh <remote_account>@<worker_ip>
+        .. raw:: html
 
----
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
 
-Use Case 2: Manager Linux → Worker Windows
-------------------------------------------
+        .. code-block:: powershell
 
-### Step 1: Prepare PowerShell Script for Windows Worker
+            icacls "$env:userprofile\.ssh"
 
-**This script will run remotely on the Worker Windows machine via PowerShell.**
+        To set correct permissions:
 
-Replace `<remote_account>` accordingly.
+        .. raw:: html
 
-.. code-block:: powershell
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
 
-   if (-not (Test-Path -Path "C:/Users/<remote_account>/.ssh")) {
-       New-Item -ItemType Directory -Path "C:/Users/<remote_account>/.ssh" | Out-Null
-   }
-   if (-not (Test-Path -Path "C:/Users/<remote_account>/.ssh/authorized_keys")) {
-       New-Item -ItemType File -Path "C:/Users/<remote_account>/.ssh/authorized_keys" | Out-Null
-   }
-   Add-Content -Path "C:/Users/<remote_account>/.ssh/authorized_keys" -Value ([Console]::In.ReadToEnd())
+        .. code-block:: powershell
 
-### Step 2: Encode the Script on Manager Linux
+            icacls "$env:userprofile\.ssh\id_ed25519" /inheritance:r /grant "AUTORITE NT\Système:(F)" "BUILTIN\Administrateurs:(F)" "$env:username:(M)"
 
-**Execute on the Manager Linux terminal:**
+Useful links
+~~~~~~~~~~~~
 
-.. code-block:: bash
+If you need more informations about ssh configuration, the following guides might be helpful:
 
-   PS_COMMAND='if (-not (Test-Path -Path "C:/Users/<remote_account>/.ssh")) { New-Item -ItemType Directory -Path "C:/Users/<remote_account>/.ssh" | Out-Null }; if (-not (Test-Path -Path "C:/Users/<remote_account>/.ssh/authorized_keys")) { New-Item -ItemType File -Path "C:/Users/<remote_account>/.ssh/authorized_keys" | Out-Null }; Add-Content -Path "C:/Users/<remote_account>/.ssh/authorized_keys" -Value ([Console]::In.ReadToEnd())'
+- For **Unix**: `Debian documentation <https://wiki.debian.org/SSH>`__
 
-   ENCODED_COMMAND=$(echo -n "$PS_COMMAND" | iconv -f utf-8 -t utf-16le | base64 -w 0)
-
-### Step 3: Send Public Key to Worker Windows
-
-**Execute on the Manager Linux terminal:**
-
-.. code-block:: bash
-
-   cat ~/.ssh/id_ed25519.pub | ssh <remote_account>@<worker_ip> powershell.exe -EncodedCommand $ENCODED_COMMAND
-
-### Step 4: Verify Key on Worker Windows
-
-**Execute on the Manager Linux terminal:**
-
-.. code-block:: bash
-
-   ssh <remote_account>@<worker_ip> "Get-Content C:/Users/<remote_account>/.ssh/authorized_keys"
-
----
-
-Use Case 3: Manager Windows → Worker Linux
-------------------------------------------
-
-### Step 1: Generate SSH Key Pair on Manager Windows
-
-**Execute in Windows PowerShell or Git Bash on the Manager:**
-
-.. code-block:: powershell
-
-   ssh-keygen -a 100 -t ed25519
-
-### Step 2: Copy Public Key to Worker Linux
-
-**Execute in Windows PowerShell or Git Bash on the Manager:**
-
-.. code-block:: powershell
-
-   type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh <remote_account>@<worker_ip> 'mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys'
-
-### Step 3: Test SSH Access
-
-**Execute in Windows PowerShell or Git Bash on the Manager:**
-
-.. code-block:: powershell
-
-   ssh <remote_account>@<worker_ip>
-
----
-
-Use Case 4: Manager Windows → Worker Windows
---------------------------------------------
-
-### Step 1: Prepare PowerShell Script for Windows Worker
-
-**Prepare and run remotely via PowerShell on the Worker Windows machine.**
-
-Replace `<remote_account>` accordingly.
-
-.. code-block:: powershell
-
-   $psCommand = @'
-   if (-not (Test-Path -Path "C:/Users/<remote_account>/.ssh")) {
-     New-Item -ItemType Directory -Path "C:/Users/<remote_account>/.ssh" | Out-Null
-   }
-   if (-not (Test-Path -Path "C:/Users/<remote_account>/.ssh/authorized_keys")) {
-     New-Item -ItemType File -Path "C:/Users/<remote_account>/.ssh/authorized_keys" | Out-Null
-   }
-   Add-Content -Path "C:/Users/<remote_account>/.ssh/authorized_keys" -Value ([Console]::In.ReadToEnd())
-   '@
-
-### Step 2: Encode PowerShell Script on Manager Windows
-
-**Execute in Windows PowerShell on the Manager:**
-
-.. code-block:: powershell
-
-   $bytes = [System.Text.Encoding]::Unicode.GetBytes($psCommand)
-   $encodedCommand = [Convert]::ToBase64String($bytes)
-
-### Step 3: Send Public Key to Worker Windows
-
-**Execute in Windows PowerShell or Git Bash on the Manager:**
-
-.. code-block:: powershell
-
-   Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub | ssh <remote_account>@<worker_ip> powershell.exe -EncodedCommand $encodedCommand
-
-### Step 4: Verify Key on Worker Windows
-
-**Execute in Windows PowerShell or Git Bash on the Manager:**
-
-.. code-block:: powershell
-
-   ssh <remote_account>@<worker_ip> "Get-Content C:/Users/<remote_account>/.ssh/authorized_keys"
-
----
-
-End of Guide
-------------
-
-Replace all placeholders (`<remote_account>`, `<remote_ip>`) with your actual usernames and IP addresses.
-
-For further reading:
-- Linux SSH key basics: https://linuxize.com/post/how-to-set-up-ssh-keys/
-- Windows OpenSSH: https://learn.microsoft.com/en-us/windows-server/remote/remote-desktop-services/clients/ssh-authentication
-- PowerShell remoting overview: https://docs.microsoft.com/en-us/powershell/scripting/learn/remoting/overview
-
+- For **Windows**/ `Microsoft documentation <https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh-server-configuration>`__

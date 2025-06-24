@@ -11,7 +11,7 @@
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
       <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
-      <link rel="stylesheet" type="text/css" href="_static/custom.css" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css?v=28052664" />
 
   
     <link rel="canonical" href="https://thalesgroup.github.io/agilab/directory-structure.html" />
@@ -79,14 +79,23 @@
 <li class="toctree-l3"><a class="reference internal" href="cluster-help.html#principle">Principle</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation and Deployment Guide</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#introduction">Introduction</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#terminology">Terminology</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-1-manager-linux-worker-linux">Use Case 1: Manager Linux → Worker Linux</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-2-manager-linux-worker-windows">Use Case 2: Manager Linux → Worker Windows</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-3-manager-windows-worker-linux">Use Case 3: Manager Windows → Worker Linux</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#use-case-4-manager-windows-worker-windows">Use Case 4: Manager Windows → Worker Windows</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#end-of-guide">End of Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#generate-the-keys">1. Generate the keys</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#loading-the-private-key-in-ssh-agent">2. Loading the private key in SSH Agent</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#load-the-private-key">2.1 Load the private key</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verify-the-key-addition">2.2 Verify the key Addition</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#copy-the-public-key-to-the-server">3. Copy the public key to the server</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#allow-your-key">3.1 Allow your key</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verification">3.2 Verification</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#sshd-service">SSHD Service</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#useful-links">Useful links</a></li>
 </ul>
 </li>
 </ul>
@@ -375,19 +384,18 @@
 <p>This is the Agilab project files tree:</p>
 <div class="code text highlight-default notranslate"><div class="highlight"><pre><span></span>.
 ├── apps
-│   ├── README.md
 │   ├── agent_app_template
 │   │   ├── MANIFEST.in
 │   │   ├── MANIFEST.in.in
-│   │   ├── README.md
 │   │   ├── pyproject.toml
+│   │   ├── README.md
 │   │   ├── src
 │   │   │   ├── agent_app
-│   │   │   │   ├── __init__.py
-│   │   │   │   └── agent_app.py
+│   │   │   │   ├── agent_app.py
+│   │   │   │   └── __init__.py
 │   │   │   ├── agent_app_worker
-│   │   │   │   ├── __init__.py
 │   │   │   │   ├── agent_app_worker.py
+│   │   │   │   ├── __init__.py
 │   │   │   │   ├── post_install.py
 │   │   │   │   ├── pre_install.py
 │   │   │   │   └── pyproject.toml
@@ -397,49 +405,47 @@
 │   │   └── uv_config.toml
 │   ├── dag_app_template
 │   │   ├── MANIFEST.in
-│   │   ├── README.md
 │   │   ├── pyproject.toml
+│   │   ├── README.md
 │   │   ├── src
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
 │   │   │   ├── dag_app
-│   │   │   │   ├── __init__.py
-│   │   │   │   └── dag_app.py
+│   │   │   │   ├── dag_app.py
+│   │   │   │   └── __init__.py
 │   │   │   ├── dag_app_worker
-│   │   │   │   ├── __init__.py
 │   │   │   │   ├── dag_app_worker.py
+│   │   │   │   ├── __init__.py
 │   │   │   │   ├── post_install.py
 │   │   │   │   ├── pre_install.py
 │   │   │   │   └── pyproject.toml
 │   │   │   └── pre_prompt.json
 │   │   └── uv_config.toml
 │   ├── flight_project
-│   │   ├── MANIFEST.in
-│   │   ├── README.md
-│   │   ├── apps
 │   │   ├── build.py
+│   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
+│   │   ├── README.md
 │   │   ├── run_test.sh
 │   │   ├── src
 │   │   │   ├── app_settings.toml
-│   │   │   ├── apps
 │   │   │   ├── args_ui_snippet.py
 │   │   │   ├── flight
-│   │   │   │   ├── __init__.py
-│   │   │   │   └── flight.py
+│   │   │   │   ├── flight.py
+│   │   │   │   └── __init__.py
 │   │   │   ├── flight_project.egg-info
-│   │   │   │   ├── PKG-INFO
-│   │   │   │   ├── SOURCES.txt
 │   │   │   │   ├── dependency_links.txt
 │   │   │   │   ├── not-zip-safe
+│   │   │   │   ├── PKG-INFO
 │   │   │   │   ├── requires.txt
+│   │   │   │   ├── SOURCES.txt
 │   │   │   │   └── top_level.txt
 │   │   │   ├── flight_worker
-│   │   │   │   ├── __init__.py
 │   │   │   │   ├── dataset.7z
 │   │   │   │   ├── flight_worker.c
 │   │   │   │   ├── flight_worker.py
 │   │   │   │   ├── flight_worker.pyx
+│   │   │   │   ├── __init__.py
 │   │   │   │   ├── post_install.py
 │   │   │   │   ├── pre_install.py
 │   │   │   │   └── pyproject.toml
@@ -448,23 +454,23 @@
 │   │   │   └── pre_prompt.json
 │   │   ├── test
 │   │   │   ├── __init__.py
-│   │   │   ├── _test_flight_manager.py
-│   │   │   ├── _test_flight_worker.py
 │   │   │   ├── test_df.ipynb
-│   │   │   ├── test_flight.py
+│   │   │   ├── _test_flight_manager.py
 │   │   │   ├── test_flight_manager.py
+│   │   │   ├── test_flight.py
+│   │   │   ├── _test_flight_worker.py
 │   │   │   └── test_flight_worker.py
-│   │   ├── uv.lock
-│   │   └── uv_config.toml
+│   │   ├── uv_config.toml
+│   │   └── uv.lock
 │   ├── install.ps1
 │   ├── install.py
 │   ├── install.sh
 │   ├── mycode_project
-│   │   ├── MANIFEST.in
-│   │   ├── README.md
 │   │   ├── build.py
 │   │   ├── install.py
+│   │   ├── MANIFEST.in
 │   │   ├── pyproject.toml
+│   │   ├── README.md
 │   │   ├── src
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
@@ -472,11 +478,11 @@
 │   │   │   │   ├── __init__.py
 │   │   │   │   └── mycode.py
 │   │   │   ├── mycode_project.egg-info
-│   │   │   │   ├── PKG-INFO
-│   │   │   │   ├── SOURCES.txt
 │   │   │   │   ├── dependency_links.txt
 │   │   │   │   ├── not-zip-safe
+│   │   │   │   ├── PKG-INFO
 │   │   │   │   ├── requires.txt
+│   │   │   │   ├── SOURCES.txt
 │   │   │   │   └── top_level.txt
 │   │   │   ├── mycode_worker
 │   │   │   │   ├── __init__.py
@@ -490,15 +496,15 @@
 │   │   ├── test
 │   │   │   ├── __init__.py
 │   │   │   ├── _test_mycode_manager.py
-│   │   │   ├── _test_mycode_worker.py
 │   │   │   ├── test_mycode_manager.py
+│   │   │   ├── _test_mycode_worker.py
 │   │   │   └── test_mycode_worker.py
-│   │   ├── uv.lock
-│   │   └── uv_config.toml
+│   │   ├── uv_config.toml
+│   │   └── uv.lock
 │   ├── pandas_app_template
 │   │   ├── MANIFEST.in
-│   │   ├── README.md
 │   │   ├── pyproject.toml
+│   │   ├── README.md
 │   │   ├── src
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
@@ -515,8 +521,8 @@
 │   │   └── uv_config.toml
 │   ├── polars_app_template
 │   │   ├── MANIFEST.in
-│   │   ├── README.md
 │   │   ├── pyproject.toml
+│   │   ├── README.md
 │   │   ├── src
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
@@ -531,97 +537,91 @@
 │   │   │   │   └── pyproject.toml
 │   │   │   └── pre_prompt.json
 │   │   └── uv_config.toml
+│   ├── README.md
 │   └── run-all-test.py
 ├── fwk
 │   ├── core
+│   │   ├── build.py
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
+│   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── SECURITY.md
-│   │   ├── build.py
-│   │   ├── coverage.xml
-│   │   ├── dist
-│   │   │   └── agi_core-0.3.57-py3-none-any.whl
-│   │   ├── pyproject.toml
 │   │   ├── src
-│   │   │   ├── __init__.py
 │   │   │   ├── agi_core
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── managers
 │   │   │   │   └── workers
 │   │   │   ├── agi_core.egg-info
-│   │   │   │   ├── PKG-INFO
-│   │   │   │   ├── SOURCES.txt
 │   │   │   │   ├── dependency_links.txt
+│   │   │   │   ├── PKG-INFO
 │   │   │   │   ├── requires.txt
+│   │   │   │   ├── SOURCES.txt
 │   │   │   │   └── top_level.txt
-│   │   │   └── coverage.xml
+│   │   │   └── __init__.py
 │   │   ├── test
 │   │   │   ├── __init__.py
-│   │   │   ├── _test_dask.py
-│   │   │   ├── _test_kill.py
 │   │   │   ├── test_agi_manager.py
 │   │   │   ├── test_agi_runner.py
 │   │   │   ├── test_agi_worker.py
 │   │   │   ├── test_dag_worker.py
+│   │   │   ├── _test_dask.py
+│   │   │   ├── _test_kill.py
 │   │   │   ├── test_pandas_worker.py
 │   │   │   └── test_polars_worker.py
-│   │   ├── uv.lock
-│   │   └── uv_config.toml
+│   │   ├── uv_config.toml
+│   │   └── uv.lock
 │   ├── coverage.xml
 │   ├── env
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
+│   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── SECURITY.md
-│   │   ├── coverage.xml
-│   │   ├── dist
-│   │   │   └── agi_env-0.3.57-py3-none-any.whl
-│   │   ├── pyproject.toml
 │   │   ├── src
 │   │   │   ├── agi_env
-│   │   │   │   ├── __init__.py
 │   │   │   │   ├── agi_env.py
+│   │   │   │   ├── __init__.py
 │   │   │   │   └── resources
 │   │   │   ├── agi_env.egg-info
-│   │   │   │   ├── PKG-INFO
-│   │   │   │   ├── SOURCES.txt
 │   │   │   │   ├── dependency_links.txt
+│   │   │   │   ├── PKG-INFO
 │   │   │   │   ├── requires.txt
+│   │   │   │   ├── SOURCES.txt
 │   │   │   │   └── top_level.txt
 │   │   │   └── pyproject.toml
 │   │   ├── test
-│   │   │   ├── __init__.py
-│   │   │   ├── _test_ssh.py
-│   │   │   ├── _test_ssh_cmd.py
 │   │   │   ├── clean_csv.py
 │   │   │   ├── dummy_cmd.py
-│   │   │   └── test_agi_env.py
-│   │   ├── uv.lock
-│   │   └── uv_config.toml
+│   │   │   ├── __init__.py
+│   │   │   ├── test_agi_env.py
+│   │   │   ├── _test_ssh_cmd.py
+│   │   │   └── _test_ssh.py
+│   │   ├── uv_config.toml
+│   │   └── uv.lock
 │   ├── gen-app-script.py
 │   ├── get_supported_python_versions.py
 │   ├── gui
 │   │   ├── LICENSE
 │   │   ├── MANIFEST.in
-│   │   ├── README.md
 │   │   ├── pyproject.toml
+│   │   ├── README.md
 │   │   ├── src
 │   │   │   ├── agi_gui
+│   │   │   │   ├── agi_copilot.py
 │   │   │   │   ├── AGILAB.py
 │   │   │   │   ├── __init__.py
-│   │   │   │   ├── agi_copilot.py
 │   │   │   │   ├── lab_run.py
 │   │   │   │   ├── pagelib.py
 │   │   │   │   ├── pages
 │   │   │   │   ├── resources
 │   │   │   │   └── steps.toml
 │   │   │   └── agi_gui.egg-info
-│   │   │       ├── PKG-INFO
-│   │   │       ├── SOURCES.txt
 │   │   │       ├── dependency_links.txt
 │   │   │       ├── entry_points.txt
+│   │   │       ├── PKG-INFO
 │   │   │       ├── requires.txt
+│   │   │       ├── SOURCES.txt
 │   │   │       └── top_level.txt
 │   │   ├── test
 │   │   │   ├── __init__.py
@@ -631,16 +631,15 @@
 │   ├── install.sh
 │   └── run-all-test.py
 ├── pycharm
+│   ├── gen-app-script.py
 │   ├── _template_app_egg_manager.xml
 │   ├── _template_app_lib_worker.xml
 │   ├── _template_app_postinstall_worker.xml
 │   ├── _template_app_preinstall_manager.xml
 │   ├── _template_app_run.xml
 │   ├── _template_app_test_manager.xml
-│   ├── _template_app_test_worker.xml
-│   └── gen-app-script.py
+│   └── _template_app_test_worker.xml
 └── views
-    ├── README.md
     ├── maps
     │   └── src
     │       └── maps
@@ -651,9 +650,10 @@
     │       └── maps_3d
     │           ├── __init__.py
     │           └── maps_3d.py
-    └── pyproject.toml
+    ├── pyproject.toml
+    └── README.md
 
-63 directories, 216 files
+59 directories, 211 files
 </pre></div>
 </div>
 </section>
