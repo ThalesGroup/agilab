@@ -775,7 +775,7 @@ class AGI:
             
             # 3) Install Python
             await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers}")
-            #await env.send_file(ip, env.manager_root / "agi_runner/cli.py", env.wenv_rel.parent)
+            await env.send_file(ip, env.manager_root / "agi_runner/cli.py", env.wenv_rel.parent)
             await AGI._kill(ip, force=True)
             await AGI._clean_dirs(ip)
 
