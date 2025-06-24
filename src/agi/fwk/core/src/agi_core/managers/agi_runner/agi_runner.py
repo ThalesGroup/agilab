@@ -855,11 +855,25 @@ class AGI:
             x: dict contenant les options 'manager' et 'worker' pour la commande uv
         """
         env = AGI.env
-        pyvers = env.python_version + env.python_variante
+        dist_abs = env.dist_abs
         run_type = AGI._run_type
         ip = "127.0.0.1"
         has_rapids_hw = AGI._hardware_supports_rapids() and AGI._rapids_enabled
         env.has_rapids_hw = has_rapids_hw
+        wenv_abs = env.wenv_abs
+        cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
+        uv = cmd_prefix + env.uv
+
+        os.makedirs(wenv_abs, exist_ok=True)
+        file = env.worker_pyproject
+        logging.info(f"Copying {file} -> {wenv_abs}")
+
+        shutil.copy(file, wenv_abs / file.name)
+        file = env.setup_core
+        logging.info(f"Copying {file} -> {wenv_abs}")
+
+        shutil.copy2(file, wenv_abs)
+
         if has_rapids_hw:
             env.set_env_var(ip, "has_rapids_hw")
         else:
@@ -870,28 +884,18 @@ class AGI:
         # Commande pour manager selon si rapids supporté
         app_path = env.app_abs
         if has_rapids_hw:
-            cmd_manager = f"{env.uv} --config-file uv.toml {run_type} {options['manager']} --extra managers --project {app_path}"
+            cmd_manager = f"{uv} --config-file uv.toml {run_type} {options['manager']} --extra managers --project {app_path}"
         else:
-            cmd_manager = f"{env.uv} {run_type} {options['manager']} --extra managers --project {app_path}"
+            cmd_manager = f"{uv} {run_type} {options['manager']} --extra managers --project {app_path}"
 
         logging.info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
 
-        # Copier les fichiers pyproject.toml et setup_core dans wenv_abs
-        wenv_abs = env.wenv_abs
-        os.makedirs(wenv_abs, exist_ok=True)
-        file = env.worker_pyproject
-        logging.info(f"Copying {file} -> {wenv_abs}")
-        shutil.copy(file, wenv_abs / file.name)
-        file = env.setup_core
-        logging.info(f"Copying {file} -> {wenv_abs}")
-        shutil.copy2(file, wenv_abs)
-
         # Commande pour workers selon si rapids supporté
         if has_rapids_hw:
-            cmd_worker = f"{env.uv} --config-file uv.toml {run_type} --project {wenv_abs} {options['worker']}"
+            cmd_worker = f"{uv} --config-file uv.toml {run_type} --project {wenv_abs} {options['worker']}"
         else:
-            cmd_worker = f"{env.uv} {run_type} --project {wenv_abs} {options['worker']}"
+            cmd_worker = f"{uv} {run_type} --project {wenv_abs} {options['worker']}"
 
         logging.info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
@@ -899,8 +903,48 @@ class AGI:
         # Build worker lib local
         wenv = await AGI._build_lib_local(is_local=True)
 
+        ######################
+        # install env & core
+        ######################
+
+        cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_abs}', exist_ok=True)\""
+        await AgiEnv.run(cmd, wenv_abs)
+
+        cmd = f"{uv} --project {wenv_abs} run python -m ensurepip"
+        await AgiEnv.run(cmd, wenv_abs)
+
+        cmd = f"{uv} --project {wenv_abs} run python -m pip install -e {wenv_rel}"
+        await AgiEnv.run(cmd, wenv_abs)
+
+        # build agi_env*.whl
+        wenv = env.agi_env_root
+        cmd = f"{uv} --project {wenv} build --wheel"
+        await AgiEnv.run(cmd, wenv)
+        src = wenv / "dist"
+        try:
+
+            whl = next(iter(src.glob("agi_env*.whl")))
+            shutil.copy2(whl, dist_abs)
+        except StopIteration:
+            raise RuntimeError(cmd)
+
+        cmd = f"{uv} --project {dist_abs} add --upgrade {dist_abs / whl.name}"
+        await AgiEnv.run(cmd, dist_abs)
+
+        # build agi_core*.whl
+        wenv = env.agi_core_root
+        src = wenv / "dist"
+        cmd = f"{uv} --project {wenv} build --wheel"
+        await AgiEnv.run(cmd, venv=wenv)
+        try:
+            whl = next(iter(src.glob("agi_core*.whl")))
+            shutil.copy2(whl, dist_abs)
+        except StopIteration:
+            raise RuntimeError(cmd)
+
+
         # Lancer le script post_install
-        cmd_post = f"{env.uv} --project {wenv} run python {env.app_abs / env.post_install} {env.target} {env.install_type} {env.data_rel}"
+        cmd_post = f"{uv} --project {wenv} run python {env.app_abs / env.post_install} {env.target} {env.install_type} {env.data_rel}"
         logging.info(f"Running post-install script: {cmd_post}")
         await AgiEnv.run(cmd_post, wenv)
 
@@ -918,8 +962,6 @@ class AGI:
         dist_abs = env.dist_abs
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         uv  = cmd_prefix + env.uv
-        pyvers = env.python_version + env.python_variante
-
 
         cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
         await AGI.exec_ssh(ip, cmd)
