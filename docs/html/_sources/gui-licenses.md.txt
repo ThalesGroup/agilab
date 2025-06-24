@@ -136,6 +136,7 @@
 | langchain-cohere | MIT LICENSE |
 | langchain-community | MIT |
 | langchain-core | MIT |
+| langchain-experimental | MIT LICENSE |
 | langchain-google-genai | MIT LICENSE |
 | langchain-mistralai | MIT |
 | langchain-nvidia-ai-endpoints | MIT LICENSE |
@@ -186,6 +187,7 @@
 | pandas | BSD LICENSE |
 | pandas-profiling | MIT LICENSE |
 | pandocfilters | BSD LICENSE |
+| parameterized | BSD LICENSE |
 | paramiko | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
 | parso | MIT LICENSE |
 | partd | BSD |
@@ -299,7 +301,6 @@
 | typeguard | MIT |
 | typer | MIT LICENSE |
 | types-python-dateutil | APACHE-2.0 |
-| types-pyyaml | APACHE-2.0 |
 | types-requests | APACHE-2.0 |
 | typing-extensions | PSF-2.0 |
 | typing-inspect | MIT LICENSE |
