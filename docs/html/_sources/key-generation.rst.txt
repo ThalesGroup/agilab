@@ -5,7 +5,11 @@
      const codeBlock = button.nextElementSibling;
      if (!codeBlock) return;
      const text = codeBlock.innerText;
-     navigator.clipboard.writeText(text).then(() => {
+
+     const parts = text.split('$');
+     const rightPart = parts.slice(1).join('$');;
+
+     navigator.clipboard.writeText(rightPart).then(() => {
        button.innerText = 'Copied';
        button.disabled = true;
        setTimeout(() => {
@@ -32,8 +36,6 @@ In the rest of the guide, I would refer to:
 1. Generate the keys
 ~~~~~~~~~~~~~~~~~~~~
 
-.. caution:: In the manager terminal
-
 .. tabs::
 
     .. tab:: Global
@@ -44,7 +46,7 @@ In the rest of the guide, I would refer to:
 
         .. code-block:: bash
 
-           ssh-keygen -a 100 -t ed25519
+           manager-terminal$ ssh-keygen -a 100 -t ed25519
 
 You will be prompted for a passphrase. don't enter one (double return).
 
@@ -53,22 +55,10 @@ If you have not changed the default path, the public key will be stored in ``~/.
 2. Loading the private key in SSH Agent
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. caution:: In the manager terminal
-
 2.1 Load the private key
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. tabs::
-
-    .. tab:: **Windows**
-
-        .. raw:: html
-
-           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
-
-        .. code-block:: powershell
-
-            ssh-add $env:USERPROFILE/.ssh/id_ed25519
 
     .. tab:: **Linux**
 
@@ -78,7 +68,18 @@ If you have not changed the default path, the public key will be stored in ``~/.
 
         .. code-block:: bash
 
-            ssh-add ~/.ssh/id_ed25519
+            manager-terminal$ ssh-add ~/.ssh/id_ed25519
+
+    .. tab:: **Windows**
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: powershell
+
+            manager-terminal$ ssh-add $env:USERPROFILE/.ssh/id_ed25519
+
 
 2.2 Verify the key Addition
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -93,21 +94,11 @@ If you have not changed the default path, the public key will be stored in ``~/.
 
         .. code-block:: bash
 
-            ssh-add -l
+            manager-terminal$ ssh-add -l
 
 It should display the **public key** (not private). To manually check the public key:
 
 .. tabs::
-
-    .. tab:: **Windows**
-
-        .. raw:: html
-
-           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
-
-        .. code-block:: powershell
-
-           cat $env:USERPROFILE/.ssh/id_ed25519.pub
 
     .. tab:: **Linux**
 
@@ -117,7 +108,18 @@ It should display the **public key** (not private). To manually check the public
 
         .. code-block:: bash
 
-           cat ~/.ssh/id_ed25519.pub
+           manager-terminal$ cat ~/.ssh/id_ed25519.pub
+
+    .. tab:: **Windows**
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: powershell
+
+           manager-terminal$ cat $env:USERPROFILE/.ssh/id_ed25519.pub
+
 
 If you have set a passphrase, you will be asked to enter it. If you encounter any permission-related errors, refer to the `Permissions`_ section.
 
@@ -125,8 +127,6 @@ On Linux, if a window titled "Enter password to unlock the private key" appears 
 
 3. Copy the public key to the server
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. caution:: In the manager terminal
 
 3.1 Allow your key
 ^^^^^^^^^^^^^^^^^^
@@ -145,7 +145,7 @@ Follow these steps to add your key to the `authorized_keys` file of each workers
 
         .. code-block:: bash
 
-           ssh-copy-id -i ~/.ssh/id_ed25519 <remote account>@<worker ip>
+           manager-terminal$ ssh-copy-id -i ~/.ssh/id_ed25519 <remote account>@<worker ip>
 
         Worker Windows:
 
@@ -155,7 +155,7 @@ Follow these steps to add your key to the `authorized_keys` file of each workers
 
         .. code-block:: bash
 
-            cat ~/.ssh/id_ed25519.pub | ssh <remote account>@<worker ip> powershell -NoProfile -Command "Add-Content -Encoding ascii -Path 'C:\\Users\\<worker ip>\\.ssh\\authorized_keys' -Value '([Console]::In.ReadToEnd())'"
+            manager-terminal$ cat ~/.ssh/id_ed25519.pub | ssh <remote account>@<worker ip> powershell -NoProfile -Command "Add-Content -Encoding ascii -Path 'C:\\Users\\<worker ip>\\.ssh\\authorized_keys' -Value '([Console]::In.ReadToEnd())'"
 
     .. tab:: **Manager Windows**
 
@@ -167,7 +167,7 @@ Follow these steps to add your key to the `authorized_keys` file of each workers
 
         .. code-block:: powershell
 
-           Get-Content -Raw "${env:USERPROFILE}\\.ssh\\id_ed25519.pub" | ssh <remote account>@<worker ip> "cat >> ~/.ssh/authorized_keys"
+           manager-terminal$ Get-Content -Raw "${env:USERPROFILE}\\.ssh\\id_ed25519.pub" | ssh <remote account>@<worker ip> "cat >> ~/.ssh/authorized_keys"
 
         Worker Windows:
 
@@ -177,7 +177,7 @@ Follow these steps to add your key to the `authorized_keys` file of each workers
 
         .. code-block:: powershell
 
-           Get-Content -Raw "${env:USERPROFILE}\\.ssh\\id_ed25519.pub" | powershell -NoProfile -Command "Add-Content -Encoding ascii -Path 'C:\\Users\\nsbl\\.ssh\\authorized_keys' -Value '([Console]::In.ReadToEnd())'"
+           manager-terminal$ Get-Content -Raw "${env:USERPROFILE}\\.ssh\\id_ed25519.pub" | powershell -NoProfile -Command "Add-Content -Encoding ascii -Path 'C:\\Users\\nsbl\\.ssh\\authorized_keys' -Value '([Console]::In.ReadToEnd())'"
 
 3.2 Verification
 ^^^^^^^^^^^^^^^^
@@ -192,9 +192,12 @@ Follow these steps to add your key to the `authorized_keys` file of each workers
 
         .. code-block:: bash
 
-            ssh <remote account>@<worker ip>
+            manager-terminal$ ssh <remote account>@<worker ip>
 
-.. note:: It should connect without asking the account password !
+
+.. admonition:: Success
+
+    It should connect without asking the account password !
 
 Troubleshooting
 ~~~~~~~~~~~~~~~~~~
@@ -205,20 +208,7 @@ SSHD Service
 Check the service status:
 -------------------------
 
-.. caution:: In the workers terminal
-
 .. tabs::
-
-    .. tab:: **Windows (admin)**
-
-        .. raw:: html
-
-           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
-
-        .. code-block:: powershell
-
-           Get-Service sshd
-           Get-Service ssh-agent
 
     .. tab:: **Linux**
 
@@ -231,10 +221,19 @@ Check the service status:
            sudo systemctl status ssh  # Check SSH Server status
            ssh-add -L  # Check if the SSH agent is running
 
+    .. tab:: **Windows (admin)**
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: powershell
+
+           Get-Service sshd
+           Get-Service ssh-agent
+
 Check the configuration
 -----------------------
-
-.. caution:: In the workers terminal
 
 Check the SSH server configuration in the ``sshd_config`` file:
 
@@ -254,20 +253,7 @@ To modify, open the file in an **elevated text editor**, update the lines as sho
 Restart the SSHD service
 ------------------------
 
-.. caution:: In the manager and workers terminal
-
 .. tabs::
-
-    .. tab:: **Windows (admin)**
-
-        .. raw:: html
-
-           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
-
-        .. code-block:: powershell
-
-           Restart-Service sshd   # Restart SSH Server
-           Restart-Service ssh-agent   # Restart SSH Agent
 
     .. tab:: **Linux**
 
@@ -277,16 +263,45 @@ Restart the SSHD service
 
         .. code-block:: bash
 
-           sudo systemctl restart ssh  # Restart SSH Server
-           eval "$(ssh-agent -s)"  # Restart SSH Agent
+           workers-terminal$ sudo systemctl restart ssh  # Restart SSH Server
+           workers-terminal$ eval "$(ssh-agent -s)"  # Restart SSH Agent
 
+    .. tab:: **Windows (admin)**
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: powershell
+
+           workers-terminal$ Restart-Service sshd   # Restart SSH Server
+           workers-terminal$ Restart-Service ssh-agent   # Restart SSH Agent
 
 Permissions
 -----------
 
-.. caution:: In the manager terminal
-
 .. tabs::
+
+    .. tab:: **Linux**
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: bash
+
+            chmod 700 ~/.ssh
+            chmod 600 ~/.ssh/id_ed25519
+
+        To verify:
+
+        .. raw:: html
+
+           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
+
+        .. code-block:: bash
+
+            ls -l "~/.ssh"
 
     .. tab:: **Windows**
 
@@ -322,31 +337,10 @@ Permissions
 
             icacls "$env:userprofile\.ssh\id_ed25519" /inheritance:r /grant "AUTORITE NT\Système:(F)" "BUILTIN\Administrateurs:(F)" "$env:username:(M)"
 
-    .. tab:: **Linux**
-
-        .. raw:: html
-
-           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
-
-        .. code-block:: bash
-
-            chmod 700 ~/.ssh
-            chmod 600 ~/.ssh/id_ed25519
-
-        To verify:
-
-        .. raw:: html
-
-           <button class="copy-btn-left" data-label="Copy" onclick="copyCode(this)" aria-label="Copy">Copy</button>
-
-        .. code-block:: bash
-
-            ls -l "~/.ssh"
-
 Useful links
 ~~~~~~~~~~~~
 
-If you need more informations about ssh configuration, the following guides may be helpful:
+If you need more informations about ssh configuration, the following guides might be helpful:
 
 - For **Unix**: `Debian documentation <https://wiki.debian.org/SSH>`__
 
