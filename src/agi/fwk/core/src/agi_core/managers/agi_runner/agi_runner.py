@@ -889,7 +889,7 @@ class AGI:
         if has_rapids_hw:
             cmd_worker = f"{env.uv} --config-file uv.toml {run_type} --project {wenv_abs} {options['worker']} --extra workers"
         else:
-            cmd_worker = f"{env.uv} {run_type} -p {pyvers} --project {wenv_abs} {options['worker']} --extra workers"
+            cmd_worker = f"{env.uv} {run_type} --project {wenv_abs} {options['worker']} --extra workers"
 
         logging.info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
