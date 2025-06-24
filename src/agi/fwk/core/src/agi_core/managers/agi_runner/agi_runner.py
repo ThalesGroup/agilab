@@ -733,8 +733,8 @@ class AGI:
         for ip in list_ip:
             if not env.is_local(ip) and not is_ip(ip):
                 raise ValueError(f"Invalid IP address: {ip}")
-            else:
-                await env.send_file(ip, env.manager_root / "agi_runner/cli.py", clean_rel.parent)
+            #else:
+                #await env.send_file(ip, env.manager_root / "agi_runner/cli.py", clean_rel.parent)
 
         # Prepare each remote node (skip local)
         AGI.list_ip = list_ip
