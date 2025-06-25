@@ -22,7 +22,6 @@ polars-worker = [ "polars",]
 
 [tool.uv.sources]
 agi-env = {path = "/Users/jpm/PycharmProjects/agilab/src/agi/fwk/env", editable = true}
-agi-core = {path = "/Users/jpm/PycharmProjects/agilab/src/agi/fwk/core", editable = true}
 
 [tool.uv.sources.flight_project]
 workspace = true

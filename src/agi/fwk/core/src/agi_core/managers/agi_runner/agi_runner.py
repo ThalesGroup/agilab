@@ -772,7 +772,7 @@ class AGI:
             if not uv_is_installed:
                 logging.error("Failed to install uv")
                 raise EnvironmentError("Failed to install uv")
-            
+
             # 3) Install Python
             await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers}")
             await env.send_file(ip, env.manager_root / "agi_runner/cli.py", env.wenv_rel.parent)
@@ -944,19 +944,26 @@ class AGI:
         # Build target_worker lib local
         await AGI._build_lib_local()
 
-        cmd = f"{uv} --project {wenv_abs} build --wheel"
-        await AgiEnv.run(cmd, dist_abs)
+        # Install app worker in wenv through the src in editable mode
+        cmd = f"{env.uv} --project {wenv_abs} pip install -e ."
+        await AgiEnv.run(cmd, wenv_abs)
 
-        # build target_worker*.whl
-        src = wenv_abs / "dist"
-        try:
-            whl = next(iter(src.glob(f"{env.target}_worker*.whl")))
-        except StopIteration:
-            raise RuntimeError(cmd)
+        cmd = f"{env.uv} --project {wenv_abs} sync {options['worker']}"
+        await AgiEnv.run(cmd, wenv_abs)
 
-        # install target
-        cmd = f"{uv} --project {wenv_abs} add --upgrade {dist_abs / whl.name}"
-        await  AgiEnv.run(cmd, wenv_abs)
+        # cmd = f"{uv} --project {wenv_abs} build --wheel"
+        # await AgiEnv.run(cmd, dist_abs)
+        #
+        # # build target_worker*.whl
+        # src = wenv_abs / "dist"
+        # try:
+        #     whl = next(iter(src.glob(f"{env.target}_worker*.whl")))
+        # except StopIteration:
+        #     raise RuntimeError(cmd)
+        #
+        # # install target
+        # cmd = f"{uv} --project {wenv_abs} add --upgrade {dist_abs / whl.name}"
+        # await  AgiEnv.run(cmd, wenv_abs)
 
         # Lancer le script post_install
         cmd_post = f"{uv} --project {wenv_abs} run python {env.app_abs / env.post_install} {env.target} {env.install_type} {env.data_rel}"
@@ -1717,7 +1724,7 @@ class AGI:
         ) or not AGI._mode_auto:
             AGI._dask_client.shutdown()
 
-        await env.close_all_connections()
+        await AGI.close_all_connections()
 
     @staticmethod
     def make_chunks(
@@ -2193,3 +2200,14 @@ class AGI:
                 return lines[-1]
             else:
                 return ""  # or None if no output
+
+    @staticmethod
+    async def close_all_connections():
+        """
+        Ferme proprement toutes les connexions SSH ouvertes.
+        À appeler à la fin de ton programme ou avant arrêt.
+        """
+        for conn in self._ssh_connections.values():
+            conn.close()
+            await conn.wait_closed()
+        AGI._ssh_connections.clear()
