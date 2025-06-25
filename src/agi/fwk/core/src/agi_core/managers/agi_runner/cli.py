@@ -7,6 +7,7 @@ from pathlib import Path
 from tempfile import gettempdir
 import shutil
 import subprocess
+import zipfile
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -137,6 +138,16 @@ def kill(exclude_pids=None):
     else:
         logger.info("No Dask process running.")
 
+def unzip(wenv=None):
+    root = pathlib.Path(wenv)
+    root_src = root / 'src'
+    eggs = (root / 'dist').glob('*.egg')
+
+    for e in eggs:
+          zipfile.ZipFile(str(e)).extractall(str(root_src))
+
+    logger.info(f"Unzipped: {eggs}")
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "kill"
     arg = sys.argv[2] if len(sys.argv) > 2 else None
@@ -148,9 +159,17 @@ if __name__ == "__main__":
             except Exception:
                 logger.warning(f"Invalid PID to exclude: {pid_str}")
 
+    # Usage: python cli.py unzip <arg>
+    if len(sys.argv) < 2:
+        logger.error("Usage: python cli.py cmd <arg>")
+        sys.exit(1)
+
     if cmd == "kill":
         kill(exclude_pids=exclude_pids)
     elif cmd == "clean":
         clean(wenv=arg)
+    elif cmd == "unzip":
+        unzip(wenv=arg)
     else:
-        logger.error(f"Unknown command: {cmd}. Use 'kill' or 'clean'.")
+        logger.error(f"Unknown command: {cmd}. Use 'kill', 'clean', or 'unzip'.")
+
