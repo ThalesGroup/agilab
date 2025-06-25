@@ -861,6 +861,7 @@ class AGI:
         has_rapids_hw = AGI._hardware_supports_rapids() and AGI._rapids_enabled
         env.has_rapids_hw = has_rapids_hw
         wenv_abs = env.wenv_abs
+        dist_abs = env.dist_abs
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         uv = cmd_prefix + env.uv
 
@@ -919,7 +920,6 @@ class AGI:
         await AgiEnv.run(cmd, wenv)
         src = wenv / "dist"
         try:
-
             whl = next(iter(src.glob("agi_env*.whl")))
             shutil.copy2(whl, dist_abs)
         except StopIteration:
@@ -942,12 +942,22 @@ class AGI:
         cmd = f"{uv} --project {dist_abs} add --upgrade {dist_abs / whl.name}"
         await AgiEnv.run(cmd, dist_abs)
 
-        # Build worker lib local
-        wenv = await AGI._build_lib_local()
+        # Build target_worker lib local
+        await AGI._build_lib_local()
 
-        # Install app worker in wenv through the src in editable mode
-        cmd = f"{env.uv} --project {wenv_abs} pip install -e ."
-        await AgiEnv.run(cmd, wenv_abs)
+        cmd = f"{uv} --project {dist_abs} build --wheel"
+        await AgiEnv.run(cmd, dist_abs)
+
+        # build target_worker*.whl
+        src = wenv_abs / "dist"
+        try:
+            whl = next(iter(src.glob(f"{env.target}_worker*.whl")))
+        except StopIteration:
+            raise RuntimeError(cmd)
+
+        # install target
+        cmd = f"{uv} --project {dist_rel} add --upgrade {dist_abs / whl.name}"
+        await AGI.exec_ssh(ip, cmd)
 
         # Lancer le script post_install
         cmd_post = f"{uv} --project {wenv_abs} run python {env.app_abs / env.post_install} {env.target} {env.install_type} {env.data_rel}"
@@ -1419,7 +1429,7 @@ class AGI:
         logging.info("All workers successfully attached to scheduler")
 
     @staticmethod
-    async def _build_lib_local() -> Path:
+    async def _build_lib_local():
         """
 
         Returns:
@@ -1477,7 +1487,7 @@ class AGI:
             shutil.copy2(worker_lib, destination)
             logging.info(res)
 
-        return wenv
+        return
 
     @staticmethod
     async def _build_lib_remote() -> None:
