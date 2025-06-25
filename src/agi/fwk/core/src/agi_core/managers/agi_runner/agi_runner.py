@@ -795,11 +795,10 @@ class AGI:
         wenv_rel = env.wenv_rel
         wenv_abs = env.wenv_abs
         pyvers = env.python_version
-        extras = " --config-file uv.toml" if AGI._rapids_enabled else ""
-        extra1 = "--dev -p " + pyvers + env.python_variante
-        options = {"manager": extras, "worker": extras + extra1}
+        extras = "--dev -p " + pyvers
+        options = {"manager": extras, "worker": extras + env.python_variante}
         if isinstance(env.base_worker_cls, str):
-            options["worker"] += extras + " --extra " + " --extra ".join(AGI.install_worker_group)
+            options["worker"] += " --extra " + " --extra ".join(AGI.install_worker_group)
 
         #node_ips = await AGI._clean_nodes(scheduler)
         node_ips = set(list(AGI.workers) + [AGI._get_scheduler(scheduler)[0]])
