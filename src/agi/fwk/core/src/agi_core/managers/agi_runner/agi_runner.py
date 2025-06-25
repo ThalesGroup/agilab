@@ -1062,10 +1062,10 @@ class AGI:
         # await AGI.exec_ssh(ip, cmd)
 
         if has_rapids_hw:
-            sync_cmd = (f"{uv} sync --upgrade --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option}"
+            sync_cmd = (f"{uv} sync --upgrade --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'}"
                         f" --refresh-package dask")
         else:
-            sync_cmd = f"{uv} sync --upgrade --project {wenv_rel} {option} --refresh-package dask "
+            sync_cmd = f"{uv} sync --upgrade --project {wenv_rel} --refresh-package dask "
 
         await AGI.exec_ssh(ip, sync_cmd)
 
