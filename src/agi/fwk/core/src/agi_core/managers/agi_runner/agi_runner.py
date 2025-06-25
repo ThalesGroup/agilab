@@ -881,7 +881,7 @@ class AGI:
         # Commande pour manager selon si rapids supporté
         app_path = env.app_abs
         if has_rapids_hw:
-            cmd_manager = f"{uv} --config-file uv.toml {run_type} {options['manager']} --extra managers --project {app_path}"
+            cmd_manager = f"{uv} --config-file uv_config.toml {run_type} {options['manager']} --extra managers --project {app_path}"
         else:
             cmd_manager = f"{uv} {run_type} {options['manager']} --extra managers --project {app_path}"
 
@@ -890,7 +890,7 @@ class AGI:
 
         # Commande pour workers selon si rapids supporté
         if has_rapids_hw:
-            cmd_worker = f"{uv} --config-file uv.toml {run_type} --project {wenv_abs} {options['worker']}"
+            cmd_worker = f"{uv} --config-file uv_config.toml {run_type} --project {wenv_abs} {options['worker']}"
         else:
             cmd_worker = f"{uv} {run_type} --project {wenv_abs} {options['worker']}"
 

@@ -1146,7 +1146,7 @@ def _render_python_env(env):
         st.warning("App settings file not found.")
 
 def _render_uv_env(env):
-    app_venv_file = env.app_abs / "uv.toml"
+    app_venv_file = env.app_abs / "uv_config.toml"
     if app_venv_file.exists():
         app_venv = app_venv_file.read_text()
         if "-cu12" in app_venv:
