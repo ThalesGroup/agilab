@@ -1438,8 +1438,13 @@ class AGI:
         wenv_abs = env.wenv_abs
         shutil.copy2(env.setup_core, app_path)
 
+        # build egg and unzip it in wenv
         cmd = f"{env.uv} --project {app_path} run python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d {wenv_abs}"
         await AgiEnv.run(cmd, app_path)
+
+        # install the src in editable mode
+        cmd = f"{env.uv} --project {wenv_abs} pip install -e ."
+        await AgiEnv.run(cmd, wenv_abs)
 
         dask_client = AGI._dask_client
         if dask_client:
@@ -1448,11 +1453,8 @@ class AGI:
                 dask_client.upload_file(str(egg_file))
 
         # compile in cython when cython is requested
-        cmd = f"{env.uv} --project {wenv_abs} pip install -e ."
-        await AgiEnv.run(cmd, wenv_abs)
-
         if is_cy:
-            # cython compilation of wenv/src into wenw
+            # cython compilation of wenv/src into wenv
             shutil.copy2(env.setup_core, wenv_abs)
             cmd = f"{env.uv} --project {app_path} run python {env.setup_app} build_ext -b {wenv_abs}"
             res = await AgiEnv.run(cmd, app_path)
