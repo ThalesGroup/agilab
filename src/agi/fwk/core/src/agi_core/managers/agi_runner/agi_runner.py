@@ -966,9 +966,9 @@ class AGI:
         # await  AgiEnv.run(cmd, wenv_abs)
 
         # Lancer le script post_install
-        cmd_post = f"{uv} --project {wenv_abs} run python {env.app_abs / env.post_install} {env.target} {env.install_type} {env.data_rel}"
-        logging.info(f"Running post-install script: {cmd_post}")
-        await AgiEnv.run(cmd_post, wenv_abs)
+        # cmd_post = f"{uv} --project {wenv_abs} run python {env.app_abs / env.post_install} {env.target} {env.install_type} {env.data_rel}"
+        # logging.info(f"Running post-install script: {cmd_post}")
+        # await AgiEnv.run(cmd_post, wenv_abs)
 
         # Cleanup modules
         await AGI._uninstall_modules()
