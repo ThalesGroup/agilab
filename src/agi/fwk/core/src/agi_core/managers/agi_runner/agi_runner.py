@@ -945,6 +945,10 @@ class AGI:
         # Build worker lib local
         wenv = await AGI._build_lib_local()
 
+        # Install app worker in wenv through the src in editable mode
+        cmd = f"{env.uv} --project {wenv_abs} pip install -e ."
+        await AgiEnv.run(cmd, wenv_abs)
+
         # Lancer le script post_install
         cmd_post = f"{uv} --project {wenv_abs} run python {env.app_abs / env.post_install} {env.target} {env.install_type} {env.data_rel}"
         logging.info(f"Running post-install script: {cmd_post}")
@@ -1037,6 +1041,7 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
+        # install env
         cmd = f"{uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
         await AGI.exec_ssh(ip, cmd)
 
@@ -1052,6 +1057,7 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
+        # install core
         cmd = f"{uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
         await AGI.exec_ssh(ip, cmd)
 
@@ -1441,10 +1447,6 @@ class AGI:
         # build egg and unzip it into wenv
         cmd = f"{env.uv} --project {app_path} run python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d {wenv_abs}"
         await AgiEnv.run(cmd, app_path)
-
-        # install the src in editable mode
-        cmd = f"{env.uv} --project {wenv_abs} pip install -e ."
-        await AgiEnv.run(cmd, wenv_abs)
 
         dask_client = AGI._dask_client
         if dask_client:
