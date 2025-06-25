@@ -1438,7 +1438,7 @@ class AGI:
         wenv_abs = env.wenv_abs
         shutil.copy2(env.setup_core, app_path)
 
-        # build egg and unzip it in wenv
+        # build egg and unzip it into wenv
         cmd = f"{env.uv} --project {app_path} run python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d {wenv_abs}"
         await AgiEnv.run(cmd, app_path)
 
