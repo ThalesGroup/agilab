@@ -1517,8 +1517,8 @@ class AGI:
             cython_libs = list(cython_lib_path.glob("*cy*"))
             if cython_libs:
                 lib_path = normalize_path(cython_libs[0])
-            else:
-                AGI._build_lib_local()
+            # else:
+            #     AGI._build_lib_local()
 
         if env.debug:
             AgiWorker.new(env.app, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
