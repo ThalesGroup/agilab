@@ -1042,24 +1042,24 @@ class AGI:
         cmd = f"{uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
         await AGI.exec_ssh(ip, cmd)
 
-        # build agi_core*.whl
-        wenv = env.agi_core_root
-        src = wenv / "dist"
-        # already done in _install_app_local
-        # cmd = f"{uv} --project {wenv} build --wheel"
-        # await AgiEnv.run(cmd, venv=wenv)
-        try:
-            whl = next(iter(src.glob("agi_core*.whl")))
-        except StopIteration:
-            raise RuntimeError(cmd)
-
-        # install core
-        cmd = f"{uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
-        await AGI.exec_ssh(ip, cmd)
-
-        cli = env.wenv_abs.parent / "cli.py"
-        cmd = f"{cmd_prefix} run python {cli} unzip {wenv_rel}"
-        await AGI.exec_ssh(ip, cmd)
+        # # build agi_core*.whl
+        # wenv = env.agi_core_root
+        # src = wenv / "dist"
+        # # already done in _install_app_local
+        # # cmd = f"{uv} --project {wenv} build --wheel"
+        # # await AgiEnv.run(cmd, venv=wenv)
+        # try:
+        #     whl = next(iter(src.glob("agi_core*.whl")))
+        # except StopIteration:
+        #     raise RuntimeError(cmd)
+        #
+        # # install core
+        # cmd = f"{uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
+        # await AGI.exec_ssh(ip, cmd)
+        #
+        # cli = env.wenv_abs.parent / "cli.py"
+        # cmd = f"{cmd_prefix} run python {cli} unzip {wenv_rel}"
+        # await AGI.exec_ssh(ip, cmd)
 
         if has_rapids_hw:
             sync_cmd = (f"{uv} sync --upgrade --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'} {option}"
