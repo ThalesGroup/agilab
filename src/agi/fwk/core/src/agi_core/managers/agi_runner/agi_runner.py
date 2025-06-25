@@ -923,10 +923,7 @@ class AGI:
             shutil.copy2(whl, dist_abs)
         except StopIteration:
             raise RuntimeError(cmd)
-        #
-        # cmd = f"{uv} --project {wenv_abs} add --upgrade {dist_abs / whl.name}"
-        # await AgiEnv.run(cmd, dist_abs)
-        #
+
         # build agi_core*.whl
         wenv = env.agi_core_root
         src = wenv / "dist"
@@ -937,38 +934,9 @@ class AGI:
             shutil.copy2(whl, dist_abs)
         except StopIteration:
             raise RuntimeError(cmd)
-        #
-        # cmd = f"{uv} --project {wenv_abs} add --upgrade {dist_abs / whl.name}"
-        # await AgiEnv.run(cmd, dist_abs)
-        #
+
         # Build target_worker lib local
         await AGI._build_lib_local()
-        #
-        # # Install app worker in wenv through the src in editable mode
-        # cmd = f"{env.uv} --project {wenv_abs} pip install -e ."
-        # await AgiEnv.run(cmd, wenv_abs)
-        #
-        # cmd = f"{env.uv} --project {wenv_abs} sync {options['worker']}"
-        # await AgiEnv.run(cmd, wenv_abs)
-
-        # cmd = f"{uv} --project {wenv_abs} build --wheel"
-        # await AgiEnv.run(cmd, dist_abs)
-        #
-        # # build target_worker*.whl
-        # src = wenv_abs / "dist"
-        # try:
-        #     whl = next(iter(src.glob(f"{env.target}_worker*.whl")))
-        # except StopIteration:
-        #     raise RuntimeError(cmd)
-        #
-        # # install target
-        # cmd = f"{uv} --project {wenv_abs} add --upgrade {dist_abs / whl.name}"
-        # await  AgiEnv.run(cmd, wenv_abs)
-
-        # Lancer le script post_install
-        # cmd_post = f"{uv} --project {wenv_abs} run python {env.app_abs / env.post_install} {env.target} {env.install_type} {env.data_rel}"
-        # logging.info(f"Running post-install script: {cmd_post}")
-        # await AgiEnv.run(cmd_post, wenv_abs)
 
         # Cleanup modules
         await AGI._uninstall_modules()
@@ -1027,9 +995,6 @@ class AGI:
 
         # build agi_env*.whl
         wenv = env.agi_env_root
-        # already done in _install_app_local
-        # cmd = f"{uv} --project {wenv} build --wheel"
-        # await AgiEnv.run(cmd, venv=wenv)
         src = wenv / "dist"
         try:
 
@@ -1041,33 +1006,6 @@ class AGI:
         # install env
         cmd = f"{uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
         await AGI.exec_ssh(ip, cmd)
-
-        # # build agi_core*.whl
-        # wenv = env.agi_core_root
-        # src = wenv / "dist"
-        # # already done in _install_app_local
-        # # cmd = f"{uv} --project {wenv} build --wheel"
-        # # await AgiEnv.run(cmd, venv=wenv)
-        # try:
-        #     whl = next(iter(src.glob("agi_core*.whl")))
-        # except StopIteration:
-        #     raise RuntimeError(cmd)
-        #
-        # # install core
-        # cmd = f"{uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
-        # await AGI.exec_ssh(ip, cmd)
-        #
-        # cli = env.wenv_abs.parent / "cli.py"
-        # cmd = f"{cmd_prefix} run python {cli} unzip {wenv_rel}"
-        # await AGI.exec_ssh(ip, cmd)
-
-        if has_rapids_hw:
-            sync_cmd = (f"{uv} sync --upgrade --project {wenv_rel} --config-file {wenv_rel / 'uv.toml'}"
-                        f" --refresh-package dask")
-        else:
-            sync_cmd = f"{uv} sync --upgrade --project {wenv_rel} --refresh-package dask "
-
-        await AGI.exec_ssh(ip, sync_cmd)
 
         # Post-install script
         cmd = f"{uv} --project {wenv_rel} run python {env.post_install_rel} --install-type 2 {env.data_rel}"
