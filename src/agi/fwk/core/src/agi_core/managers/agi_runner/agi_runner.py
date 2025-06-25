@@ -897,11 +897,13 @@ class AGI:
         else:
             cmd_worker = f"{uv} {run_type} --project {wenv_abs} {options['worker']}"
 
+        # Lancer le script post_install
+        cmd_post = f"{uv} --project {wenv} run python {env.app_abs / env.post_install} {env.target} {env.install_type} {env.data_rel}"
+        logging.info(f"Running post-install script: {cmd_post}")
+        await AgiEnv.run(cmd_post, wenv)
+
         logging.info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
-
-        # Build worker lib local
-        wenv = await AGI._build_lib_local(is_local=True)
 
         ######################
         # install env & core
@@ -942,11 +944,11 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
+        cmd = f"{uv} --project {dist_abs} add --upgrade {dist_abs / whl.name}"
+        await AgiEnv.run(cmd, dist_abs)
 
-        # Lancer le script post_install
-        cmd_post = f"{uv} --project {wenv} run python {env.app_abs / env.post_install} {env.target} {env.install_type} {env.data_rel}"
-        logging.info(f"Running post-install script: {cmd_post}")
-        await AgiEnv.run(cmd_post, wenv)
+        # Build worker lib local
+        wenv = await AGI._build_lib_local(is_local=True)
 
         # Cleanup modules
         await AGI._uninstall_modules()
@@ -1024,8 +1026,9 @@ class AGI:
 
         # build agi_env*.whl
         wenv = env.agi_env_root
-        cmd = f"{uv} --project {wenv} build --wheel"
-        await AgiEnv.run(cmd, venv=wenv)
+        # already done in _install_app_local
+        # cmd = f"{uv} --project {wenv} build --wheel"
+        # await AgiEnv.run(cmd, venv=wenv)
         src = wenv / "dist"
         try:
 
@@ -1040,8 +1043,9 @@ class AGI:
         # build agi_core*.whl
         wenv = env.agi_core_root
         src = wenv / "dist"
-        cmd = f"{uv} --project {wenv} build --wheel"
-        await AgiEnv.run(cmd, venv=wenv)
+        # already done in _install_app_local
+        # cmd = f"{uv} --project {wenv} build --wheel"
+        # await AgiEnv.run(cmd, venv=wenv)
         try:
             whl = next(iter(src.glob("agi_core*.whl")))
             await env.send_file(ip, whl, dist_rel)
@@ -1445,6 +1449,7 @@ class AGI:
             egg_files = list((wenv_abs / "dist").glob("*.egg"))
             for egg_file in egg_files:
                 dask_client.upload_file(str(egg_file))
+
         # compile in cython when cython is requested
         if is_local:
             cmd = f"{env.uv} --project {wenv_abs} pip install -e ."
@@ -1471,6 +1476,7 @@ class AGI:
                 os.makedirs(destination_dir, exist_ok=True)  # create directory if missing
                 shutil.copy2(worker_lib, destination)
                 logging.info(res)
+
         return wenv
 
     @staticmethod
