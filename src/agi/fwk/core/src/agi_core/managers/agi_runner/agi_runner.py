@@ -1359,7 +1359,7 @@ class AGI:
 
         if not AGI._mode_auto or (AGI._mode_auto and AGI._mode == 0):
             # in case of core src has changed
-            AGI._build_lib_local(is_local=True)
+            AGI._build_lib_local()
             await AGI._build_lib_remote()
             # if not (AGI._mode & AGI.DASK_MODE):
             #     # load lib
@@ -1413,7 +1413,7 @@ class AGI:
         logging.info("All workers successfully attached to scheduler")
 
     @staticmethod
-    async def _build_lib_local(is_local: bool = True) -> Path:
+    async def _build_lib_local() -> Path:
         """
 
         Args:
@@ -1451,31 +1451,30 @@ class AGI:
                 dask_client.upload_file(str(egg_file))
 
         # compile in cython when cython is requested
-        if is_local:
-            cmd = f"{env.uv} --project {wenv_abs} pip install -e ."
-            await AgiEnv.run(cmd, wenv_abs)
+        cmd = f"{env.uv} --project {wenv_abs} pip install -e ."
+        await AgiEnv.run(cmd, wenv_abs)
 
-            if is_cy:
-                # cython compilation of wenv/src into wenw
-                shutil.copy2(env.setup_core, wenv_abs)
-                cmd = f"{env.uv} --project {app_path} run python {env.setup_app} build_ext -b {wenv_abs}"
-                res = await AgiEnv.run(cmd, app_path)
-                try:
-                    worker_lib = next(iter((wenv_abs / 'dist').glob("*_cy.*")), None)
-                except StopIteration:
-                    raise RuntimeError(cmd)
+        if is_cy:
+            # cython compilation of wenv/src into wenw
+            shutil.copy2(env.setup_core, wenv_abs)
+            cmd = f"{env.uv} --project {app_path} run python {env.setup_app} build_ext -b {wenv_abs}"
+            res = await AgiEnv.run(cmd, app_path)
+            try:
+                worker_lib = next(iter((wenv_abs / 'dist').glob("*_cy.*")), None)
+            except StopIteration:
+                raise RuntimeError(cmd)
 
-                platlib = sysconfig.get_path("platlib")
-                platlib_idx = platlib.index('.venv')
-                wenv_platlib = platlib[platlib_idx:]
-                target_platlib = wenv_abs / wenv_platlib
-                destination = os.path.join(target_platlib, os.path.basename(worker_lib))
+            platlib = sysconfig.get_path("platlib")
+            platlib_idx = platlib.index('.venv')
+            wenv_platlib = platlib[platlib_idx:]
+            target_platlib = wenv_abs / wenv_platlib
+            destination = os.path.join(target_platlib, os.path.basename(worker_lib))
 
-                # Copy the file while preserving metadata.
-                destination_dir = os.path.dirname(destination)
-                os.makedirs(destination_dir, exist_ok=True)  # create directory if missing
-                shutil.copy2(worker_lib, destination)
-                logging.info(res)
+            # Copy the file while preserving metadata.
+            destination_dir = os.path.dirname(destination)
+            os.makedirs(destination_dir, exist_ok=True)  # create directory if missing
+            shutil.copy2(worker_lib, destination)
+            logging.info(res)
 
         return wenv
 
@@ -1520,7 +1519,7 @@ class AGI:
             if cython_libs:
                 lib_path = normalize_path(cython_libs[0])
             else:
-                AGI._build_lib_local(is_local=True)
+                AGI._build_lib_local()
 
         if env.debug:
             AgiWorker.new(env.app, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
