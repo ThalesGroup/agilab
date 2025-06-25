@@ -942,13 +942,13 @@ class AGI:
         cmd = f"{uv} --project {dist_abs} add --upgrade {dist_abs / whl.name}"
         await AgiEnv.run(cmd, dist_abs)
 
+        # Build worker lib local
+        wenv = await AGI._build_lib_local(is_local=True)
+
         # Lancer le script post_install
         cmd_post = f"{uv} --project {wenv_abs} run python {env.app_abs / env.post_install} {env.target} {env.install_type} {env.data_rel}"
         logging.info(f"Running post-install script: {cmd_post}")
         await AgiEnv.run(cmd_post, wenv_abs)
-
-        # Build worker lib local
-        wenv = await AGI._build_lib_local(is_local=True)
 
         # Cleanup modules
         await AGI._uninstall_modules()
