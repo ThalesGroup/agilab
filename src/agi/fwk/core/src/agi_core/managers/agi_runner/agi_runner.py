@@ -784,9 +784,6 @@ class AGI:
             )
             await AGI.exec_ssh(ip, cmd)
 
-            # cmd = f"{cmd_prefix}{env.uv} --project {wenv_rel} add psutil"
-            # await AGI.exec_ssh(ip, cmd)
-
     @staticmethod
     async def _install(scheduler: Optional[str]) -> None:
         AGI._initialize_installation()
