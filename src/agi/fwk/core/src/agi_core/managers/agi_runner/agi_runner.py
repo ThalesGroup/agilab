@@ -998,10 +998,6 @@ class AGI:
         await env.send_files(ip, [env.setup_core, env.worker_pyproject, env.uvproject], wenv_rel)
         await env.send_file(ip, egg_file, dist_rel)
 
-        cli = env.wenv_abs.parent / "cli.py"
-        cmd = f"{cmd_prefix} run python {cli} unzip {wenv_rel}"
-        await AGI.exec_ssh(ip, cmd)
-
         # 5) Check remote Rapids hardware support via nvidia-smi
         has_rapids_hw = False
         if AGI._rapids_enabled:
@@ -1059,6 +1055,10 @@ class AGI:
 
         # install core
         cmd = f"{uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
+        await AGI.exec_ssh(ip, cmd)
+
+        cli = env.wenv_abs.parent / "cli.py"
+        cmd = f"{cmd_prefix} run python {cli} unzip {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
 
         if has_rapids_hw:
