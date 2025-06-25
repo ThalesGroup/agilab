@@ -956,7 +956,7 @@ class AGI:
 
         # install target
         cmd = f"{uv} --project {wenv_abs} add --upgrade {dist_abs / whl.name}"
-        await AGI.exec_ssh(ip, cmd)
+        await  AgiEnv.run(cmd, wenv_abs)
 
         # Lancer le script post_install
         cmd_post = f"{uv} --project {wenv_abs} run python {env.app_abs / env.post_install} {env.target} {env.install_type} {env.data_rel}"
