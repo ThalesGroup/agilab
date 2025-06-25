@@ -708,12 +708,12 @@ class AgiEnv:
                 if not any(dep.split()[0] == "agi-core" for dep in deps):
                     deps.append("agi-core")
                     doc["project"]["dependencies"] = deps
-            else:
-                agi_core_path = str((agi_root / "fwk" / "core").resolve())
-                tbl = tomlkit.inline_table()
-                tbl["path"] = agi_core_path
-                tbl["editable"] = True
-                sources["agi-core"] = tbl
+            # else:
+            #     agi_core_path = str((agi_root / "fwk" / "core").resolve())
+            #     tbl = tomlkit.inline_table()
+            #     tbl["path"] = agi_core_path
+            #     tbl["editable"] = True
+            #     sources["agi-core"] = tbl
 
             file.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
@@ -1149,16 +1149,6 @@ class AgiEnv:
             except Exception as e2:
                 logging.error(f"Second failure deleting {path}: {e2}")
                 raise
-
-    async def close_all_connections(self):
-        """
-        Ferme proprement toutes les connexions SSH ouvertes.
-        À appeler à la fin de ton programme ou avant arrêt.
-        """
-        for conn in self._ssh_connections.values():
-            conn.close()
-            await conn.wait_closed()
-        self._ssh_connections.clear()
 
 
     @staticmethod
