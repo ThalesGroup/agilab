@@ -924,7 +924,7 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"{uv} --project {dist_abs} add --upgrade {dist_abs / whl.name}"
+        cmd = f"{uv} --project {wenv_abs} add --upgrade {dist_abs / whl.name}"
         await AgiEnv.run(cmd, dist_abs)
 
         # build agi_core*.whl
@@ -944,7 +944,7 @@ class AGI:
         # Build target_worker lib local
         await AGI._build_lib_local()
 
-        cmd = f"{uv} --project {dist_abs} build --wheel"
+        cmd = f"{uv} --project {wenv_abs} build --wheel"
         await AgiEnv.run(cmd, dist_abs)
 
         # build target_worker*.whl
@@ -955,7 +955,7 @@ class AGI:
             raise RuntimeError(cmd)
 
         # install target
-        cmd = f"{uv} --project {dist_rel} add --upgrade {dist_abs / whl.name}"
+        cmd = f"{uv} --project {wenv_abs} add --upgrade {dist_abs / whl.name}"
         await AGI.exec_ssh(ip, cmd)
 
         # Lancer le script post_install
