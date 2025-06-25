@@ -898,9 +898,9 @@ class AGI:
             cmd_worker = f"{uv} {run_type} --project {wenv_abs} {options['worker']}"
 
         # Lancer le script post_install
-        cmd_post = f"{uv} --project {wenv} run python {env.app_abs / env.post_install} {env.target} {env.install_type} {env.data_rel}"
+        cmd_post = f"{uv} --project {wenv_abs} run python {env.app_abs / env.post_install} {env.target} {env.install_type} {env.data_rel}"
         logging.info(f"Running post-install script: {cmd_post}")
-        await AgiEnv.run(cmd_post, wenv)
+        await AgiEnv.run(cmd_post, wenv_abs)
 
         logging.info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
