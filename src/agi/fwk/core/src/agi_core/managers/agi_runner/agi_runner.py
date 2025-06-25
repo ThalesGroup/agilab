@@ -938,7 +938,7 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"{uv} --project {dist_abs} add --upgrade {dist_abs / whl.name}"
+        cmd = f"{uv} --project {wenv_abs} add --upgrade {dist_abs / whl.name}"
         await AgiEnv.run(cmd, dist_abs)
 
         # Build target_worker lib local
