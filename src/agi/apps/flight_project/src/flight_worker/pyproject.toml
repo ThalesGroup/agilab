@@ -19,9 +19,8 @@ agent-worker = []
 dag-worker = []
 polars-worker = [ "polars",]
 
+[tool.uv.sources.flight-worker]
+path = "."
+editable = true
 
-[tool.uv.sources]
-agi-env = {path = "/Users/jpm/PycharmProjects/agilab/src/agi/fwk/env", editable = true}
 
-[tool.uv.sources.flight_project]
-workspace = true

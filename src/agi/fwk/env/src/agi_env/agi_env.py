@@ -1075,7 +1075,7 @@ class AgiEnv:
         user_at_ip = f"{user}@{ip}" if user else ip
         remote = f"{user_at_ip}:{remote_path}"
 
-        cmd = []
+        cmd, cmd_base = [], []
 
         if password and os.name != "nt":
             cmd_base = ["sshpass"]
