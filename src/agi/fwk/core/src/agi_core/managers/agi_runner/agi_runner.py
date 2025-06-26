@@ -54,7 +54,6 @@ import runpy
 
 # Project Libraries:
 from agi_env import AgiEnv, normalize_path
-from agi_core.managers.agi_manager import AgiManager
 from agi_core.workers.agi_worker import AgiWorker
 
 # os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"
@@ -242,7 +241,7 @@ class AGI:
             else:
                 AGI._train_model(env.home_abs)
 
-            # import of derived Class of AgiManager, name target_inst which is typically instance of Flight or MyCode
+            # import of derived Class of AgiHandler, name target_inst which is typically instance of Flight or MyCode
             AGI.agi_workers = {
                 "PolarsWorker": "polars-worker",
                 "PandasWorker": "pandas-worker",
@@ -582,14 +581,14 @@ class AGI:
                 cmd = f"{kill_prefix} {cli_rel} kill"
                 cmds.append(cmd)
 
-        # 3) If we found any explicit pid files, terminate those PIDs
-        if pids_to_kill:
-            cmds.append(
-                f'{kill_prefix} -c "import os, psutil; '
-                f"pids={pids_to_kill}; "
-                "[psutil.Process(p).kill() for p in pids if p!=os.getpid()]"
-                '"'
-            )
+        # # 3) If we found any explicit pid files, terminate those PIDs
+        # if pids_to_kill:
+        #     cmds.append(
+        #         f'{kill_prefix} -c "import os, psutil; '
+        #         f"pids={pids_to_kill}; "
+        #         "[psutil.Process(p).kill() for p in pids if p!=os.getpid()]"
+        #         '"'
+        #     )
 
         last_res = None
         for cmd in cmds:
@@ -1322,7 +1321,7 @@ class AGI:
             #         AGI._dask_client.upload_file(str(egg_file))
 
     @staticmethod
-    async def _sync(timeout: int = 20) -> None:
+    async def _sync(timeout: int = 60) -> None:
         if not isinstance(AGI._dask_client, Client):
             return
         start = time.time()
@@ -1509,7 +1508,7 @@ class AGI:
         ]
         logging.info(f"AGI run mode={AGI._mode} on {list(AGI._dask_workers)} ... ")
 
-        AGI.workers, workers_tree, workers_tree_info = AgiManager.do_distrib(
+        AGI.workers, workers_tree, workers_tree_info = AgiHandler.do_distrib(
             AGI._target_inst, env, AGI.workers
         )
         AGI.workers_tree = workers_tree

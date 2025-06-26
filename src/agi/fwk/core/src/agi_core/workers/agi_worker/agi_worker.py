@@ -30,27 +30,27 @@ import sys
 import stat
 import tempfile
 import time
-import sysconfig
 import subprocess
 import warnings
 import abc
 import traceback
+import json
+from pathlib import Path
 
 # External Libraries:
-from contextlib import redirect_stdout
 from distutils.sysconfig import get_python_lib
-from pathlib import Path, PureWindowsPath, PurePosixPath
-from zipfile import ZipFile
 import psutil
-import parso
 import humanize
 from datetime import timedelta
-from agi_env import AgiEnv, normalize_path
-from agi_core.managers.agi_manager import AgiManager
 import logging
+import socket
 
-warnings.filterwarnings("ignore")
+from agi_env import AgiEnv, normalize_path
+
 logger = logging.getLogger(__name__)
+warnings.filterwarnings("ignore")
+workers_default = {socket.gethostbyname("localhost"): 1}
+
 
 class AgiWorker(abc.ABC):
     """
@@ -314,7 +314,7 @@ class AgiWorker(abc.ABC):
         target_inst = target_class(env, **args)
 
         try:
-            workers, workers_tree, workers_tree_info = AgiManager.do_distrib(
+            workers, workers_tree, workers_tree_info = AgiHandler.do_distrib(
                 target_inst, env, workers
             )
         except Exception as err:
@@ -387,7 +387,7 @@ class AgiWorker(abc.ABC):
             logging.info(f"venv: {sys.prefix}")
             logging.info(f"AgiWorker.new - worker #{worker_id}: {worker} from: {os.path.relpath(__file__)}")
 
-            # import of derived Class of AgiManager, name target_inst which is typically an instance of MyCode
+            # import of derived Class of AgiHandler, name target_inst which is typically an instance of MyCode
             worker_class = AgiWorker._load_worker(mode)
 
             # Instantiate the class with arguments
@@ -559,3 +559,128 @@ class AgiWorker(abc.ABC):
             import traceback
             logging.error(traceback.format_exc())
             raise
+
+class AgiHandler:
+    """
+    Class AgiHandler for orchestration of jobs by the target.
+    """
+
+    args = {}
+    verbose = None
+
+    def __init__(self, args=None):
+        """
+        Initialize the AgiHandler with input arguments.
+
+        Args:
+            args: The input arguments for initializing the AgiHandler.
+
+        Returns:
+            None
+        """
+        AgiHandler.args = args
+
+    @staticmethod
+    def convert_functions_to_names(workers_tree):
+        """
+        Converts functions in a nested structure to their names.
+        """
+        def _convert(val):
+            if isinstance(val, list):
+                return [_convert(item) for item in val]
+            elif isinstance(val, tuple):
+                return tuple(_convert(item) for item in val)
+            elif isinstance(val, dict):
+                return {key: _convert(value) for key, value in val.items()}
+            elif callable(val):
+                return val.__name__
+            else:
+                return val
+
+        return _convert(workers_tree)
+
+    @staticmethod
+    def do_distrib(inst, agi_env, workers):
+        """
+        Build the distribution tree.
+
+        Args:
+            inst: The instance for building the distribution tree.
+
+        Returns:
+            None
+        """
+        file = agi_env.distribution_tree
+        workers_tree = []
+        workers_tree_info = []
+        rebuild_tree = False
+        if file.exists():
+            with open(file, "r") as f:
+                data = json.load(f)
+            workers_tree = data["workers_tree"]
+            if (
+                data["workers"] != workers
+                or data["target_args"] != AgiHandler.args
+            ):
+                rebuild_tree = True
+
+        if not file.exists() or rebuild_tree:
+            workers_tree, workers_tree_info, part, nb_unit, weight_unit = (
+                inst.build_distribution()
+            )
+
+            data = {
+                "target_args": inst.args,
+                "workers": workers,
+                "workers_chunks": workers_tree_info,
+                "workers_tree": AgiHandler.convert_functions_to_names(workers_tree),
+                "partition_key": part,
+                "nb_unit": nb_unit,
+                "weights_unit": weight_unit,
+            }
+
+            with open(file, "w") as f:
+                json.dump(data, f)
+
+        loaded_workers = {}
+        workers_work_item_tree_iter = iter(workers_tree)
+        for ip, nb_workers in workers.items():
+            for i, chunks in enumerate(workers_work_item_tree_iter):
+                if ip not in loaded_workers:
+                    loaded_workers[ip] = 0
+                if chunks:
+                    loaded_workers[ip] += 1
+
+        workers_tree = [chunks for chunks in workers_tree if chunks]
+
+        return loaded_workers.copy(), workers_tree, workers_tree_info
+
+    @staticmethod
+    def onerror(func, path, exc_info):
+        """
+        Error handler for `shutil.rmtree`.
+
+        If the error is due to an access error (read-only file),
+        it attempts to add write permission and then retries.
+
+        If the error is for another reason, it re-raises the error.
+
+        Usage: `shutil.rmtree(path, onerror=onerror)`
+
+        Args:
+            func (function): The function that raised the error.
+            path (str): The path name passed to the function.
+            exc_info (tuple): The exception information returned by `sys.exc_info()`.
+
+        Returns:
+            None
+        """
+        # Check if file access issue
+        if not os.access(path, os.W_OK):
+            # Try to change the permissions of the file to writable
+            os.chmod(path, stat.S_IWUSR)
+            # Try the operation again
+            func(path)
+        # else:
+        # Reraise the error if it's not a permission issue
+        # raise
