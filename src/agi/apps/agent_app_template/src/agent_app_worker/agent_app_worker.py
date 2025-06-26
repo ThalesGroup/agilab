@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from agi_env.agi_env import AgiEnv  # Added import for environment-specific checks
 
-from agi_core.workers.agent_worker import AgiAgentWorker  # Corrected import
+from agent_worker import AgiAgentWorker  # Corrected import
 
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
