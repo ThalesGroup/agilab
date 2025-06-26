@@ -206,7 +206,7 @@ def render_logo(edit_text):
             }}
             /* Display the version text on the right side using the ::before pseudo-element */
             [data-testid="stSidebar"]::before {{
-                content: "v{2025.1}";
+                content: "v{2025.2}";
                 position: absolute;
                 bottom: 10px;       /* align vertically with the logo */
                 right: 18px;     /* position on the right side */

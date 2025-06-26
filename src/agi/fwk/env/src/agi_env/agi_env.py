@@ -219,7 +219,7 @@ class AgiEnv:
                     self.agi_core_root = self.agi_root / "fwk/core"
                 else:
                     self.agi_env_root = list(Path(sys.prefix).rglob('agi_env'))[0]
-                    self.agi_core_root = list(Path(sys.prefix).rglob('agi_core'))[0]
+                    # self.agi_core_root = list(Path(sys.prefix).rglob('agi_core'))[0]
         elif install_type == 0:
                 head, sep, _ = __file__.partition("site-packages")
                 if not sep:
