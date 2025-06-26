@@ -371,7 +371,7 @@ class AgiEnv:
             logging.info(f"Could not find any target project app in {self.agi_root / 'apps'}.")
 
         self.setup_app = app_abs / "build.py"
-        self.setup_core = agi_core / "build.py"
+        self.setup_core = agi_core / "agi_worker/build.py"
 
         if isinstance(module, Path):
             module_path = module.expanduser().resolve()
