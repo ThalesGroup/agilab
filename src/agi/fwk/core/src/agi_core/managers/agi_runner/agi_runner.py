@@ -54,7 +54,7 @@ import runpy
 
 # Project Libraries:
 from agi_env import AgiEnv, normalize_path
-from agi_core.workers.agi_worker import AgiWorker
+from agi_core.workers.agi_worker import AgiHandler, AgiWorker
 
 # os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"
 logger = logging.getLogger(__name__)
@@ -1519,20 +1519,26 @@ class AGI:
         if AGI._mode == AGI.INSTALL_MODE:
             workers_tree
 
+        mode = str(AGI._mode)
+        verbose = str(AGI._verbose)
+        dask_workers = list(AGI._dask_workers)
+        args = dict(AGI._args)
+        client = AGI._dask_client
+
         AGI._dask_client.gather(
             [
-                AGI._dask_client.submit(
+                client.submit(
                     AgiWorker.new,
                     env.app,
                     env= 0 if env.debug else None,
-                    mode=AGI._mode,
-                    verbose=AGI._verbose,
-                    worker_id=list(AGI._dask_workers).index(worker),
+                    mode=mode,
+                    verbose=verbose,
+                    worker_id=dask_workers.index(worker),
                     worker=worker,
-                    args=AGI._args,
+                    args=args,
                     workers=[worker],
                 )
-                for worker in AGI._dask_workers
+                for worker in dask_workers
             ]
         )
 
@@ -1544,7 +1550,7 @@ class AGI:
             AgiWorker.do_works,
             workers_tree,
             workers_tree_info,
-            workers=AGI._dask_workers,
+            workers=dask_workers,
         )
 
         runtime = time.time() - t

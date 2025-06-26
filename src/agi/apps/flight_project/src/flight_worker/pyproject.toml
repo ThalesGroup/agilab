@@ -9,6 +9,7 @@ dependencies = [
     "dask[distributed]",
     "numpy",
     "geopy",
+    "humanize",
     "setuptools",
     "cython",
     "parso",
