@@ -1,4 +1,3 @@
-import pandas as pd
 import pytest
 import multiprocessing
 
@@ -15,9 +14,9 @@ for src in [data_src, worker_root / "dag_worker", worker_root / "agent_worker", 
         sys.path.insert(0, str(path))
 
 # Now import modules
-from agi_core.workers.pandas_worker import PandasWorker
+from pandas_worker import PandasWorker
 import  pandas as pd
-from agi_core.workers.agi_worker import AgiWorker
+from agi_worker import AgiWorker
 
 # DummyWorker can be defined if needed for instance methods test.
 class DummyWorker(AgiWorker):

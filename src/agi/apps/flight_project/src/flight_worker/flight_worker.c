@@ -2573,6 +2573,7 @@ static const char __pyx_k_work_pool[] = "work_pool";
 static const char __pyx_k_worker_df[] = "worker_df";
 static const char __pyx_k_worker_id[] = "worker_id";
 static const char __pyx_k_write_csv[] = "write_csv";
+static const char __pyx_k_agi_worker[] = "agi_worker";
 static const char __pyx_k_dataframes[] = "dataframes";
 static const char __pyx_k_expanduser[] = "expanduser";
 static const char __pyx_k_format_exc[] = "format_exc";
@@ -2600,6 +2601,7 @@ static const char __pyx_k_with_columns[] = "with_columns";
 static const char __pyx_k_A_a_3a_Q_c_AQ[] = "\220A\330\030\031\330\033\036\230a\230|\2503\250a\330\035%\240Q\330\035 \240\001\240\035\250c\260\021\260!\330\035 \240\001\240\030\250\023\250A\250Q\330\031\032";
 static const char __pyx_k_ignore_errors[] = "ignore_errors";
 static const char __pyx_k_output_format[] = "output_format";
+static const char __pyx_k_polars_worker[] = "polars_worker";
 static const char __pyx_k_preprocess_df[] = "preprocess_df";
 static const char __pyx_k_write_parquet[] = "write_parquet";
 static const char __pyx_k_filterwarnings[] = "filterwarnings";
@@ -2627,9 +2629,7 @@ static const char __pyx_k_FlightWorker_work_pool_2[] = "FlightWorker.work_pool";
 static const char __pyx_k_Saved_dataframe_for_plane[] = "Saved dataframe for plane ";
 static const char __pyx_k_FlightWorker_preprocess_df[] = "FlightWorker.preprocess_df";
 static const char __pyx_k_Failed_to_map_network_drive[] = "Failed to map network drive: ";
-static const char __pyx_k_agi_core_workers_agi_worker[] = "agi_core.workers.agi_worker";
 static const char __pyx_k_FlightWorker_calculate_speed[] = "FlightWorker.calculate_speed";
-static const char __pyx_k_agi_core_workers_polars_worker[] = "agi_core.workers.polars_worker";
 static const char __pyx_k_1_R_A_aq_IQb_7_aq_avV1BfAQ_awfA[] = "\320\004 \320 1\260\021\360\n\000\t\016\210R\210}\230A\330\014\r\340\020\022\220$\220a\220q\330\020\024\220I\230Q\230b\240\013\2507\260!\330\020\026\220a\220q\340\020\022\220$\220a\220v\230V\2401\240B\240f\250A\250Q\330\020\022\220$\220a\220w\230f\240A\240R\240v\250Q\250a\360\006\000\t\020\210q";
 static const char __pyx_k_A_9IQ_1D_9A_IYgQb_A_A_y_q_a_3fE[] = "\200A\360\016\000\t\014\2109\220I\230Q\330\014\r\340\010\n\210)\2201\220D\230\013\2409\250A\360\006\000\t\r\210I\220Y\230g\240Q\240b\250\004\250A\250\\\270\027\300\002\300*\310A\330\014\027\220y\240\007\240q\250\002\250$\250a\250|\2703\270f\300E\310\021\310!\360\006\000\r\030\220x\230}\250A\250R\250t\2601\260K\270v\300Q\300a\340\014\r\330\020\023\2204\220u\230A\320\035.\250c\260\021\330\024 \240\004\240A\240T\250\033\260B\260c\270\021\270'\300\034\310Q\310a\360\006\000\025\035\230N\250!\2503\250a\250q\330\025\031\230\025\230a\320\0370\260\003\2601\330\024 \240\002\240$\240b\250\t\260\021\260!\330\024\037\230r\240\024\240T\250\034\260S\270\001\270\026\270q\300\003\3001\300A\330\024\034\230J\240a\240s\250!\2501\330\020\023\2204\220y\240\002\240!\330\024\033\2305\240\001\240\022\320#A\320AT\320T\\\320\\h\320hi\330\014\023\220=\240\001\330\020\027\220u\230A\230Y\240k\260\021\330\020\027\220u\230A\230R\320\037D\300I\310Q";
 static const char __pyx_k_src_flight_worker_flight_worker[] = "src/flight_worker/flight_worker.pyx";
@@ -2781,106 +2781,106 @@ static __pyx_mstatetype * const __pyx_mstate_global = &__pyx_mstate_global_stati
 #define __pyx_kp_u__8 __pyx_string_tab[44]
 #define __pyx_kp_u__9 __pyx_string_tab[45]
 #define __pyx_kp_u_add_note __pyx_string_tab[46]
-#define __pyx_n_u_agi_core_workers_agi_worker __pyx_string_tab[47]
-#define __pyx_n_u_agi_core_workers_polars_worker __pyx_string_tab[48]
-#define __pyx_n_u_agi_env __pyx_string_tab[49]
-#define __pyx_n_u_aircraft __pyx_string_tab[50]
-#define __pyx_n_u_alias __pyx_string_tab[51]
-#define __pyx_n_u_args __pyx_string_tab[52]
-#define __pyx_n_u_asyncio_coroutines __pyx_string_tab[53]
-#define __pyx_n_u_calculate_speed __pyx_string_tab[54]
-#define __pyx_n_u_check __pyx_string_tab[55]
-#define __pyx_n_u_cline_in_traceback __pyx_string_tab[56]
-#define __pyx_n_u_cmd __pyx_string_tab[57]
-#define __pyx_n_u_col __pyx_string_tab[58]
-#define __pyx_n_u_columns __pyx_string_tab[59]
-#define __pyx_n_u_csv __pyx_string_tab[60]
-#define __pyx_kp_u_csv_2 __pyx_string_tab[61]
-#define __pyx_kp_u_csv_parquet __pyx_string_tab[62]
-#define __pyx_n_u_data_out __pyx_string_tab[63]
-#define __pyx_n_u_data_source __pyx_string_tab[64]
-#define __pyx_kp_u_dataframe_root_path __pyx_string_tab[65]
-#define __pyx_n_u_dataframes __pyx_string_tab[66]
-#define __pyx_kp_u_dataframes_2 __pyx_string_tab[67]
-#define __pyx_n_u_date __pyx_string_tab[68]
-#define __pyx_n_u_datetime __pyx_string_tab[69]
-#define __pyx_n_u_df __pyx_string_tab[70]
-#define __pyx_n_u_df_files __pyx_string_tab[71]
-#define __pyx_n_u_doc __pyx_string_tab[72]
-#define __pyx_n_u_drop __pyx_string_tab[73]
-#define __pyx_n_u_dt __pyx_string_tab[74]
-#define __pyx_n_u_e __pyx_string_tab[75]
-#define __pyx_n_u_err __pyx_string_tab[76]
-#define __pyx_n_u_exist_ok __pyx_string_tab[77]
-#define __pyx_n_u_expanduser __pyx_string_tab[78]
-#define __pyx_n_u_f __pyx_string_tab[79]
-#define __pyx_n_u_file __pyx_string_tab[80]
-#define __pyx_n_u_file_2 __pyx_string_tab[81]
-#define __pyx_n_u_filename __pyx_string_tab[82]
-#define __pyx_n_u_files __pyx_string_tab[83]
-#define __pyx_n_u_filter __pyx_string_tab[84]
-#define __pyx_n_u_filterwarnings __pyx_string_tab[85]
-#define __pyx_n_u_flight_worker_cy __pyx_string_tab[86]
-#define __pyx_n_u_format __pyx_string_tab[87]
-#define __pyx_n_u_format_exc __pyx_string_tab[88]
-#define __pyx_kp_u_from __pyx_string_tab[89]
-#define __pyx_n_u_func __pyx_string_tab[90]
-#define __pyx_n_u_geodesic __pyx_string_tab[91]
-#define __pyx_n_u_geopy_distance __pyx_string_tab[92]
-#define __pyx_n_u_getLogger __pyx_string_tab[93]
-#define __pyx_n_u_getpass __pyx_string_tab[94]
-#define __pyx_n_u_getuser __pyx_string_tab[95]
-#define __pyx_n_u_glob __pyx_string_tab[96]
-#define __pyx_n_u_global_vars __pyx_string_tab[97]
-#define __pyx_n_u_home_rel __pyx_string_tab[98]
-#define __pyx_n_u_ignore __pyx_string_tab[99]
-#define __pyx_n_u_ignore_errors __pyx_string_tab[100]
-#define __pyx_kp_u_in __pyx_string_tab[101]
-#define __pyx_n_u_index __pyx_string_tab[102]
-#define __pyx_n_u_info __pyx_string_tab[103]
-#define __pyx_n_u_initializing __pyx_string_tab[104]
-#define __pyx_n_u_is_coroutine __pyx_string_tab[105]
-#define __pyx_n_u_is_empty __pyx_string_tab[106]
-#define __pyx_n_u_is_file __pyx_string_tab[107]
-#define __pyx_n_u_join __pyx_string_tab[108]
-#define __pyx_n_u_lambda __pyx_string_tab[109]
-#define __pyx_n_u_lat __pyx_string_tab[110]
-#define __pyx_n_u_logger __pyx_string_tab[111]
-#define __pyx_n_u_logging __pyx_string_tab[112]
-#define __pyx_n_u_long __pyx_string_tab[113]
-#define __pyx_n_u_main __pyx_string_tab[114]
-#define __pyx_n_u_makedirs __pyx_string_tab[115]
-#define __pyx_n_u_map_elements __pyx_string_tab[116]
-#define __pyx_n_u_metaclass __pyx_string_tab[117]
-#define __pyx_n_u_meters __pyx_string_tab[118]
-#define __pyx_n_u_module __pyx_string_tab[119]
-#define __pyx_n_u_mro_entries __pyx_string_tab[120]
-#define __pyx_n_u_n_df __pyx_string_tab[121]
-#define __pyx_n_u_name __pyx_string_tab[122]
-#define __pyx_n_u_name_2 __pyx_string_tab[123]
-#define __pyx_n_u_net_path __pyx_string_tab[124]
-#define __pyx_kp_u_net_use_Z __pyx_string_tab[125]
-#define __pyx_n_u_new_column_name __pyx_string_tab[126]
-#define __pyx_n_u_norm __pyx_string_tab[127]
-#define __pyx_n_u_normalize_path __pyx_string_tab[128]
-#define __pyx_n_u_normpath __pyx_string_tab[129]
-#define __pyx_n_u_now __pyx_string_tab[130]
-#define __pyx_n_u_nt __pyx_string_tab[131]
-#define __pyx_n_u_numpy_linalg __pyx_string_tab[132]
-#define __pyx_n_u_onerror __pyx_string_tab[133]
-#define __pyx_n_u_os __pyx_string_tab[134]
-#define __pyx_n_u_output_format __pyx_string_tab[135]
-#define __pyx_n_u_parent __pyx_string_tab[136]
-#define __pyx_n_u_parquet __pyx_string_tab[137]
-#define __pyx_kp_u_parquet_2 __pyx_string_tab[138]
-#define __pyx_n_u_parts __pyx_string_tab[139]
-#define __pyx_n_u_path __pyx_string_tab[140]
-#define __pyx_n_u_pathlib __pyx_string_tab[141]
-#define __pyx_n_u_pl __pyx_string_tab[142]
-#define __pyx_kp_u_pl_DataFrame __pyx_string_tab[143]
-#define __pyx_n_u_plane __pyx_string_tab[144]
-#define __pyx_n_u_plane_df __pyx_string_tab[145]
-#define __pyx_n_u_polars __pyx_string_tab[146]
+#define __pyx_n_u_agi_env __pyx_string_tab[47]
+#define __pyx_n_u_agi_worker __pyx_string_tab[48]
+#define __pyx_n_u_aircraft __pyx_string_tab[49]
+#define __pyx_n_u_alias __pyx_string_tab[50]
+#define __pyx_n_u_args __pyx_string_tab[51]
+#define __pyx_n_u_asyncio_coroutines __pyx_string_tab[52]
+#define __pyx_n_u_calculate_speed __pyx_string_tab[53]
+#define __pyx_n_u_check __pyx_string_tab[54]
+#define __pyx_n_u_cline_in_traceback __pyx_string_tab[55]
+#define __pyx_n_u_cmd __pyx_string_tab[56]
+#define __pyx_n_u_col __pyx_string_tab[57]
+#define __pyx_n_u_columns __pyx_string_tab[58]
+#define __pyx_n_u_csv __pyx_string_tab[59]
+#define __pyx_kp_u_csv_2 __pyx_string_tab[60]
+#define __pyx_kp_u_csv_parquet __pyx_string_tab[61]
+#define __pyx_n_u_data_out __pyx_string_tab[62]
+#define __pyx_n_u_data_source __pyx_string_tab[63]
+#define __pyx_kp_u_dataframe_root_path __pyx_string_tab[64]
+#define __pyx_n_u_dataframes __pyx_string_tab[65]
+#define __pyx_kp_u_dataframes_2 __pyx_string_tab[66]
+#define __pyx_n_u_date __pyx_string_tab[67]
+#define __pyx_n_u_datetime __pyx_string_tab[68]
+#define __pyx_n_u_df __pyx_string_tab[69]
+#define __pyx_n_u_df_files __pyx_string_tab[70]
+#define __pyx_n_u_doc __pyx_string_tab[71]
+#define __pyx_n_u_drop __pyx_string_tab[72]
+#define __pyx_n_u_dt __pyx_string_tab[73]
+#define __pyx_n_u_e __pyx_string_tab[74]
+#define __pyx_n_u_err __pyx_string_tab[75]
+#define __pyx_n_u_exist_ok __pyx_string_tab[76]
+#define __pyx_n_u_expanduser __pyx_string_tab[77]
+#define __pyx_n_u_f __pyx_string_tab[78]
+#define __pyx_n_u_file __pyx_string_tab[79]
+#define __pyx_n_u_file_2 __pyx_string_tab[80]
+#define __pyx_n_u_filename __pyx_string_tab[81]
+#define __pyx_n_u_files __pyx_string_tab[82]
+#define __pyx_n_u_filter __pyx_string_tab[83]
+#define __pyx_n_u_filterwarnings __pyx_string_tab[84]
+#define __pyx_n_u_flight_worker_cy __pyx_string_tab[85]
+#define __pyx_n_u_format __pyx_string_tab[86]
+#define __pyx_n_u_format_exc __pyx_string_tab[87]
+#define __pyx_kp_u_from __pyx_string_tab[88]
+#define __pyx_n_u_func __pyx_string_tab[89]
+#define __pyx_n_u_geodesic __pyx_string_tab[90]
+#define __pyx_n_u_geopy_distance __pyx_string_tab[91]
+#define __pyx_n_u_getLogger __pyx_string_tab[92]
+#define __pyx_n_u_getpass __pyx_string_tab[93]
+#define __pyx_n_u_getuser __pyx_string_tab[94]
+#define __pyx_n_u_glob __pyx_string_tab[95]
+#define __pyx_n_u_global_vars __pyx_string_tab[96]
+#define __pyx_n_u_home_rel __pyx_string_tab[97]
+#define __pyx_n_u_ignore __pyx_string_tab[98]
+#define __pyx_n_u_ignore_errors __pyx_string_tab[99]
+#define __pyx_kp_u_in __pyx_string_tab[100]
+#define __pyx_n_u_index __pyx_string_tab[101]
+#define __pyx_n_u_info __pyx_string_tab[102]
+#define __pyx_n_u_initializing __pyx_string_tab[103]
+#define __pyx_n_u_is_coroutine __pyx_string_tab[104]
+#define __pyx_n_u_is_empty __pyx_string_tab[105]
+#define __pyx_n_u_is_file __pyx_string_tab[106]
+#define __pyx_n_u_join __pyx_string_tab[107]
+#define __pyx_n_u_lambda __pyx_string_tab[108]
+#define __pyx_n_u_lat __pyx_string_tab[109]
+#define __pyx_n_u_logger __pyx_string_tab[110]
+#define __pyx_n_u_logging __pyx_string_tab[111]
+#define __pyx_n_u_long __pyx_string_tab[112]
+#define __pyx_n_u_main __pyx_string_tab[113]
+#define __pyx_n_u_makedirs __pyx_string_tab[114]
+#define __pyx_n_u_map_elements __pyx_string_tab[115]
+#define __pyx_n_u_metaclass __pyx_string_tab[116]
+#define __pyx_n_u_meters __pyx_string_tab[117]
+#define __pyx_n_u_module __pyx_string_tab[118]
+#define __pyx_n_u_mro_entries __pyx_string_tab[119]
+#define __pyx_n_u_n_df __pyx_string_tab[120]
+#define __pyx_n_u_name __pyx_string_tab[121]
+#define __pyx_n_u_name_2 __pyx_string_tab[122]
+#define __pyx_n_u_net_path __pyx_string_tab[123]
+#define __pyx_kp_u_net_use_Z __pyx_string_tab[124]
+#define __pyx_n_u_new_column_name __pyx_string_tab[125]
+#define __pyx_n_u_norm __pyx_string_tab[126]
+#define __pyx_n_u_normalize_path __pyx_string_tab[127]
+#define __pyx_n_u_normpath __pyx_string_tab[128]
+#define __pyx_n_u_now __pyx_string_tab[129]
+#define __pyx_n_u_nt __pyx_string_tab[130]
+#define __pyx_n_u_numpy_linalg __pyx_string_tab[131]
+#define __pyx_n_u_onerror __pyx_string_tab[132]
+#define __pyx_n_u_os __pyx_string_tab[133]
+#define __pyx_n_u_output_format __pyx_string_tab[134]
+#define __pyx_n_u_parent __pyx_string_tab[135]
+#define __pyx_n_u_parquet __pyx_string_tab[136]
+#define __pyx_kp_u_parquet_2 __pyx_string_tab[137]
+#define __pyx_n_u_parts __pyx_string_tab[138]
+#define __pyx_n_u_path __pyx_string_tab[139]
+#define __pyx_n_u_pathlib __pyx_string_tab[140]
+#define __pyx_n_u_pl __pyx_string_tab[141]
+#define __pyx_kp_u_pl_DataFrame __pyx_string_tab[142]
+#define __pyx_n_u_plane __pyx_string_tab[143]
+#define __pyx_n_u_plane_df __pyx_string_tab[144]
+#define __pyx_n_u_polars __pyx_string_tab[145]
+#define __pyx_n_u_polars_worker __pyx_string_tab[146]
 #define __pyx_n_u_pool_init __pyx_string_tab[147]
 #define __pyx_n_u_pool_vars __pyx_string_tab[148]
 #define __pyx_n_u_pop __pyx_string_tab[149]
@@ -8789,8 +8789,8 @@ __Pyx_RefNannySetupContext("PyInit_flight_worker_cy", 0);
  * import logging
  * 
  * from numpy.linalg import norm  # Imported norm             # <<<<<<<<<<<<<<
- * from agi_core.workers.polars_worker import PolarsWorker
- * from agi_core.workers.agi_worker import AgiWorker
+ * from polars_worker import PolarsWorker
+ * from agi_worker import AgiWorker
 */
   __pyx_t_2 = __Pyx_PyList_Pack(1, __pyx_mstate_global->__pyx_n_u_norm); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 19, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
@@ -8806,13 +8806,13 @@ __Pyx_RefNannySetupContext("PyInit_flight_worker_cy", 0);
   /* "src/flight_worker/flight_worker.pyx":20
  * 
  * from numpy.linalg import norm  # Imported norm
- * from agi_core.workers.polars_worker import PolarsWorker             # <<<<<<<<<<<<<<
- * from agi_core.workers.agi_worker import AgiWorker
+ * from polars_worker import PolarsWorker             # <<<<<<<<<<<<<<
+ * from agi_worker import AgiWorker
  * from agi_env import normalize_path
 */
   __pyx_t_3 = __Pyx_PyList_Pack(1, __pyx_mstate_global->__pyx_n_u_PolarsWorker); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 20, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_2 = __Pyx_Import(__pyx_mstate_global->__pyx_n_u_agi_core_workers_polars_worker, __pyx_t_3, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 20, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_Import(__pyx_mstate_global->__pyx_n_u_polars_worker, __pyx_t_3, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 20, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __pyx_t_3 = __Pyx_ImportFrom(__pyx_t_2, __pyx_mstate_global->__pyx_n_u_PolarsWorker); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 20, __pyx_L1_error)
@@ -8823,14 +8823,14 @@ __Pyx_RefNannySetupContext("PyInit_flight_worker_cy", 0);
 
   /* "src/flight_worker/flight_worker.pyx":21
  * from numpy.linalg import norm  # Imported norm
- * from agi_core.workers.polars_worker import PolarsWorker
- * from agi_core.workers.agi_worker import AgiWorker             # <<<<<<<<<<<<<<
+ * from polars_worker import PolarsWorker
+ * from agi_worker import AgiWorker             # <<<<<<<<<<<<<<
  * from agi_env import normalize_path
  * 
 */
   __pyx_t_2 = __Pyx_PyList_Pack(1, __pyx_mstate_global->__pyx_n_u_AgiWorker); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 21, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_3 = __Pyx_Import(__pyx_mstate_global->__pyx_n_u_agi_core_workers_agi_worker, __pyx_t_2, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 21, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_Import(__pyx_mstate_global->__pyx_n_u_agi_worker, __pyx_t_2, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 21, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __pyx_t_2 = __Pyx_ImportFrom(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_AgiWorker); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 21, __pyx_L1_error)
@@ -8840,8 +8840,8 @@ __Pyx_RefNannySetupContext("PyInit_flight_worker_cy", 0);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
   /* "src/flight_worker/flight_worker.pyx":22
- * from agi_core.workers.polars_worker import PolarsWorker
- * from agi_core.workers.agi_worker import AgiWorker
+ * from polars_worker import PolarsWorker
+ * from agi_worker import AgiWorker
  * from agi_env import normalize_path             # <<<<<<<<<<<<<<
  * 
  * logger = logging.getLogger(__name__)
@@ -9223,9 +9223,8 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k__8, sizeof(__pyx_k__8), 0, 1, 0}, /* PyObject cname: __pyx_kp_u__8 */
   {__pyx_k__9, sizeof(__pyx_k__9), 0, 1, 0}, /* PyObject cname: __pyx_kp_u__9 */
   {__pyx_k_add_note, sizeof(__pyx_k_add_note), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_add_note */
-  {__pyx_k_agi_core_workers_agi_worker, sizeof(__pyx_k_agi_core_workers_agi_worker), 0, 1, 1}, /* PyObject cname: __pyx_n_u_agi_core_workers_agi_worker */
-  {__pyx_k_agi_core_workers_polars_worker, sizeof(__pyx_k_agi_core_workers_polars_worker), 0, 1, 1}, /* PyObject cname: __pyx_n_u_agi_core_workers_polars_worker */
   {__pyx_k_agi_env, sizeof(__pyx_k_agi_env), 0, 1, 1}, /* PyObject cname: __pyx_n_u_agi_env */
+  {__pyx_k_agi_worker, sizeof(__pyx_k_agi_worker), 0, 1, 1}, /* PyObject cname: __pyx_n_u_agi_worker */
   {__pyx_k_aircraft, sizeof(__pyx_k_aircraft), 0, 1, 1}, /* PyObject cname: __pyx_n_u_aircraft */
   {__pyx_k_alias, sizeof(__pyx_k_alias), 0, 1, 1}, /* PyObject cname: __pyx_n_u_alias */
   {__pyx_k_args, sizeof(__pyx_k_args), 0, 1, 1}, /* PyObject cname: __pyx_n_u_args */
@@ -9323,6 +9322,7 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k_plane, sizeof(__pyx_k_plane), 0, 1, 1}, /* PyObject cname: __pyx_n_u_plane */
   {__pyx_k_plane_df, sizeof(__pyx_k_plane_df), 0, 1, 1}, /* PyObject cname: __pyx_n_u_plane_df */
   {__pyx_k_polars, sizeof(__pyx_k_polars), 0, 1, 1}, /* PyObject cname: __pyx_n_u_polars */
+  {__pyx_k_polars_worker, sizeof(__pyx_k_polars_worker), 0, 1, 1}, /* PyObject cname: __pyx_n_u_polars_worker */
   {__pyx_k_pool_init, sizeof(__pyx_k_pool_init), 0, 1, 1}, /* PyObject cname: __pyx_n_u_pool_init */
   {__pyx_k_pool_vars, sizeof(__pyx_k_pool_vars), 0, 1, 1}, /* PyObject cname: __pyx_n_u_pool_vars */
   {__pyx_k_pop, sizeof(__pyx_k_pop), 0, 1, 1}, /* PyObject cname: __pyx_n_u_pop */

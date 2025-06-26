@@ -28,7 +28,7 @@ Module mycode_worker extension of your_code
 import warnings
 import logging
 from agi_env import AgiEnv, normalize_path
-from agi_core.workers.dag_worker import DagWorker
+from dag_worker import DagWorker
 
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")

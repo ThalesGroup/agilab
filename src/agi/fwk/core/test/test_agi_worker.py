@@ -1,13 +1,11 @@
 import os
-import subprocess
 import tempfile
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path
 
-import pytest
 from agi_env import AgiEnv, normalize_path
 
 
-from agi_core.workers.agi_worker import AgiWorker
+from agi_worker import AgiWorker
 
 def test_expand():
     # Test expansion of a path starting with '~'
@@ -64,10 +62,7 @@ def test_exec_success():
     assert "Hello" in result.stdout, f"Expected 'Hello' in output but got: {result.stdout}"
 
 
-
 # test AgiHandler
-from agi_core.workers.agi_worker import AgiHandler
-
 
 def dummy_task(x):
     return x * 2

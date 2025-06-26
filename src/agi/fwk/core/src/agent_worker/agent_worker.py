@@ -12,7 +12,7 @@ Module rapids_worker extension of agilab-core
 # Internal Libraries:
 import os
 import warnings
-from agi_worker.agi_worker import AgiWorker
+from agi_worker import AgiWorker
 import logging
 warnings.filterwarnings("ignore")
 logger = logging.getLogger(__name__)

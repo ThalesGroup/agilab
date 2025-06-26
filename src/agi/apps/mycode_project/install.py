@@ -13,7 +13,7 @@
 
 import asyncio
 from pathlib import Path
-from agi_core.managers.agi_runner import AGI
+from agi_runner import AGI
 
 
 project_dir = Path(__file__).parent.name
