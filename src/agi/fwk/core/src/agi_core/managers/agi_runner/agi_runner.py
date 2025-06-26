@@ -1006,8 +1006,8 @@ class AGI:
         await AGI.exec_ssh(ip, cmd)
 
         # unzip egg to get src/
-        cli = env.wenv_abs.parent / "cli.py"
-        cmd = f"{cmd_prefix} run python {cli} unzip {wenv_rel}"
+        cli = env.wenv_rel.parent / "cli.py"
+        cmd = f"{uv} run python {cli} unzip {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
 
         # Post-install script
