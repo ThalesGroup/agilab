@@ -249,7 +249,7 @@ class AGI:
             }
             # AGI.install_worker_group = AGI.agi_workers[env.base_worker_cls]
             AGI.install_worker_group = ["agi-worker ", AGI.agi_workers[env.base_worker_cls]]
-            base_worker_dir = str(env.agi_core / "src")
+            base_worker_dir = str(env.agi_core_root / "src")
             if base_worker_dir not in sys.path:
                 sys.path.insert(0, base_worker_dir)
             AGI._target_module = await AGI._load_module(
@@ -571,7 +571,7 @@ class AGI:
         kill_prefix = f'{cmd_prefix}{uv} run -p {env.python_version} python'
 
         if env.is_local(ip):
-            shutil.copy(env.agi_core / "agi_runner/cli.py", cli_abs)
+            shutil.copy(env.agi_core_root / "agi_runner/cli.py", cli_abs)
             if force:
                 cmd = f"{kill_prefix} {cli_abs} kill"
                 cmds.append(cmd)
@@ -767,7 +767,7 @@ class AGI:
 
             # 3) Install Python
             await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers}")
-            await env.send_file(ip, env.agi_core / "src/agi_runner/cli.py", env.wenv_rel.parent)
+            await env.send_file(ip, env.agi_core_root / "src/agi_runner/cli.py", env.wenv_rel.parent)
             await AGI._kill(ip, force=True)
             await AGI._clean_dirs(ip)
 
@@ -920,7 +920,7 @@ class AGI:
             raise RuntimeError(cmd)
 
         # build agi_core*.whl
-        wenv = env.agi_core
+        wenv = env.agi_core_root
         src = wenv / "dist"
         cmd = f"{uv} --project {wenv} build --wheel"
         await AgiEnv.run(cmd, venv=wenv)
@@ -1187,7 +1187,7 @@ class AGI:
 
             # Clean worker
             for ip in list(AGI.workers):
-                await env.send_file(ip, env.agi_core / "agi_runner/cli.py", cli_rel.parent)
+                await env.send_file(ip, env.agi_core_root / "agi_runner/cli.py", cli_rel.parent)
                 if not env.envars.get(ip, None):
                     env.has_rapids_hw = False
                 try:

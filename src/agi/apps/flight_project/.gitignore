@@ -1,6 +1,5 @@
 setup
-src/agi_core
-src/agi_env
+src/agi_*
 # MacOS files
 .DS_Store
 
