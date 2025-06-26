@@ -981,6 +981,11 @@ class AGI:
                 env.set_env_var(ip, "has_rapids_hw")
             logging.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
+        # unzip egg to get src/
+        cli = env.wenv_rel.parent / "cli.py"
+        cmd = f"{uv} run python {cli} unzip {wenv_rel}"
+        await AGI.exec_ssh(ip, cmd)
+
         #####################################################
         # install env & core for enabling dask worker spawn
         ######################################################
@@ -1003,11 +1008,6 @@ class AGI:
 
         # install env
         cmd = f"{uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
-        await AGI.exec_ssh(ip, cmd)
-
-        # unzip egg to get src/
-        cli = env.wenv_rel.parent / "cli.py"
-        cmd = f"{uv} run python {cli} unzip {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
 
         # Post-install script
