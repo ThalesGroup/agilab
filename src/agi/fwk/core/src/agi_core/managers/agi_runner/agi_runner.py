@@ -1010,7 +1010,6 @@ class AGI:
         cmd = f"{cmd_prefix} run python {cli} unzip {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
 
-
         # Post-install script
         cmd = f"{uv} --project {wenv_rel} run python {env.post_install_rel} --install-type 2 {env.data_rel}"
         await AGI.exec_ssh(ip, cmd)
