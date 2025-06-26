@@ -105,7 +105,6 @@ class AgiEnv:
         # agilab fwk
         logging.getLogger("agi_runner").setLevel(app_level)
         logging.getLogger("agi_worker").setLevel(app_level)
-        logging.getLogger("agi_manager").setLevel(app_level)
         logging.getLogger("agi_env").setLevel(app_level)
         logging.getLogger("dag_worker").setLevel(app_level)
         logging.getLogger("pandas_worker").setLevel(app_level)

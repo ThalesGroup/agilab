@@ -225,8 +225,13 @@ def load_distribution_tree(file_path):
 
 @st.cache_data(show_spinner=False)
 def generate_profile_report(df):
-    from ydata_profiling.profile_report import ProfileReport
-    return ProfileReport(df, minimal=True)
+    env = st.session_state["env"]
+    if env.python_version > "3.12":
+        from ydata_profiling.profile_report import ProfileReport
+        return ProfileReport(df, minimal=True)
+    else:
+        st.info(f"Function not available with this version of Python {env.python_version}.")
+        return None
 
 # ===========================
 # UI Rendering Functions

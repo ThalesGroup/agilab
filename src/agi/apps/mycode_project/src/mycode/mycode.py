@@ -33,7 +33,7 @@ import py7zr
 from datetime import date
 
 from agi_core.managers.agi_runner import AGI
-from agi_core.managers.agi_manager import AgiManager
+from agi_core.workers.agi_worker import AgiHandler
 import logging
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ class MycodeArgs(BaseModel):
     mycode_param1: int = conint
 
 
-class Mycode(AgiManager):
+class Mycode(AgiHandler):
     """Class MyCode provides methods to orchestrate the run"""
 
     def __init__(self, env, **args: Unpack[MycodeArgs]):

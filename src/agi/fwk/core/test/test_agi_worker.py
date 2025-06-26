@@ -4,9 +4,10 @@ import tempfile
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import pytest
-from agi_core.workers.agi_worker import AgiWorker
 from agi_env import AgiEnv, normalize_path
 
+
+from agi_core.workers.agi_worker import AgiWorker
 
 def test_expand():
     # Test expansion of a path starting with '~'
@@ -44,6 +45,8 @@ def test_expand_and_join():
     assert joined == expected, f"Expected {expected} but got {joined}"
 
 
+# test AgiWorker
+
 def testget_logs_and_result():
     # Test the get_logs_and_result method by capturing printed output and the return value.
     def sample_func(x):
@@ -59,3 +62,17 @@ def test_exec_success():
     assert result.returncode == 0, f"Command '{cmd}' did not return 0"
     # The stdout may include a newline; check for substring.
     assert "Hello" in result.stdout, f"Expected 'Hello' in output but got: {result.stdout}"
+
+
+
+# test AgiHandler
+from agi_core.workers.agi_worker import AgiHandler
+
+
+def dummy_task(x):
+    return x * 2
+
+
+def dummy_task2(x, y=0):
+    return x + y
+
