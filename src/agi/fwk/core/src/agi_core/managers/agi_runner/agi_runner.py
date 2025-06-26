@@ -744,6 +744,7 @@ class AGI:
             cmd_prefix = await AGI._detect_export_cmd(ip)
             env.set_env_var(f"{ip}_CMD_PREFIX", cmd_prefix)
             uv_is_installed = True
+
             # 2) Check uv
             try:
                 await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} --version")
@@ -763,7 +764,7 @@ class AGI:
                     await AGI.exec_ssh(ip, 'source $HOME/.local/bin/env')
                     uv_is_installed = True
 
-            if not uv_is_installed:
+            if not uv_is_installed or not AgiEnv.check_internet():
                 logging.error("Failed to install uv")
                 raise EnvironmentError("Failed to install uv")
 

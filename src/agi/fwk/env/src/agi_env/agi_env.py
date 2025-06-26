@@ -19,7 +19,13 @@ import astor
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 import py7zr
+import urllib.request
 
+# ANSI color codes
+BLUE = "\033[34m"
+RED = "\033[31m"
+GREEN = "\033[32m"
+NC = "\033[0m"  # No Color
 # Compile regex once globally
 LOG_LEVEL_RE = re.compile(r'\b(INFO|ERROR|WARNING|DEBUG|CRITICAL)\b')
 
@@ -1516,6 +1522,21 @@ class AgiEnv:
             traceback.print_exc()
             sys.exit(1)
 
+    @staticmethod
+    def check_internet():
+        print(f"{BLUE}Checking internet connectivity...{NC}")
+        try:
+            # HEAD request to Google
+            req = urllib.request.Request("https://www.google.com", method="HEAD")
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                pass  # Success if no exception
+        except Exception:
+            print(f"{RED}No internet connection detected. Aborting.{NC}")
+            return False
+        print(f"{GREEN}Internet connection is OK.{NC}")
+        return True
+
+
 
 class ContentRenamer(ast.NodeTransformer):
     """
@@ -1805,3 +1826,4 @@ class ContentRenamer(ast.NodeTransformer):
 
         me = getpass.getuser()
         my_pid = os.getpid()
+

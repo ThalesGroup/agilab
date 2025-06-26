@@ -79,6 +79,7 @@ managers = [
     "numba",
     "pydantic",
     "requests",
+    "asyncssh",
 ]
 workers = []
 
