@@ -1,6 +1,6 @@
 import warnings
 from agi_env import AgiEnv, normalize_path
-from agi_core.workers.pandas_worker import PandasWorker
+from pandas_worker import PandasWorker
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 

@@ -1,6 +1,6 @@
 import warnings
 from agi_env import AgiEnv, normalize_path
-from agi_core.workers.polars_worker import PolarsWorker
+from polars_worker import PolarsWorker
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
