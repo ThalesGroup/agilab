@@ -39,7 +39,6 @@ dependencies = [
     "pathspec",
     "ipython",
     "py7zr",
-    "urllib",
 ]
 
 [project.urls]

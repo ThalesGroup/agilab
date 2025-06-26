@@ -1009,7 +1009,12 @@ class AGI:
         cmd = f"{uv} --project {wenv_rel} run python {env.post_install_rel} --install-type 2 {env.data_rel}"
         await AGI.exec_ssh(ip, cmd)
 
-        # build target_worker lib
+        # unzip egg to get src/
+        cli = env.wenv_abs.parent / "cli.py"
+        cmd = f"{cmd_prefix} run python {cli} unzip {wenv_rel}"
+        await AGI.exec_ssh(ip, cmd)
+
+        # build target_worker lib from src/
         cmd = f"{uv} --project {wenv_rel} run python {wenv_rel / env.setup_app.name} build_ext -i 2 -b {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
 
