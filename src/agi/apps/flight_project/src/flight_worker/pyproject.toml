@@ -19,7 +19,7 @@ dependencies = [
     "logging",
     "psutil",
     "scipy==1.15.2",
-    "polars"
+    "polars",
 ]
 [[project.authors]]
 name = "Jean-Pierre Morard"
