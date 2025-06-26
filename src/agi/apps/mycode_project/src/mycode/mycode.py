@@ -32,8 +32,8 @@ from typing import Unpack, Literal
 import py7zr
 from datetime import date
 
-from agi_core.managers.agi_runner import AGI
-from agi_core.workers.agi_worker import AgiHandler
+from agi_runner import AGI
+from agi_worker import AgiHandler
 import logging
 
 logger = logging.getLogger(__name__)

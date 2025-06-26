@@ -107,7 +107,7 @@ def kill(exclude_pids=None):
         kill_pids(dask_pids, signal.SIGKILL)
 
     # Collect PID files (dedup)
-    pid_files = set(Path(".").glob("*.pid")) | set(Path(__file__).parent.glob("*.pid"))
+    pid_files = set(Path("").glob("*.pid")) | set(Path(__file__).parent.glob("*.pid"))
     file_pids = set()
     for pid_file in pid_files:
         try:

@@ -9,8 +9,8 @@ for src in [data_src, worker_root / "dag_worker", worker_root / "agent_worker", 
     if path not in sys.path:
         sys.path.insert(0, str(path))
 
-from agi_core.workers.agi_worker import AgiWorker
-from agi_core.workers.dag_worker import DagWorker
+from agi_worker import AgiWorker
+from dag_worker import DagWorker
 
 # --- Dummy functions for testing ---
 def f1():

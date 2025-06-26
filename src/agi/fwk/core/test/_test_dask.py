@@ -4,12 +4,12 @@ import os
 import asyncio
 import warnings
 from IPython.lib import backgroundjobs as bg
-from dask.distributed import Client, print
+from dask.distributed import Client
 import logging
 
 # Project Libraries:
 from agi_env import AgiEnv, normalize_path
-from agi_core.managers.agi_runner import AGI
+from managers import AGI
 
 # os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"
 logger = logging.getLogger(__name__)

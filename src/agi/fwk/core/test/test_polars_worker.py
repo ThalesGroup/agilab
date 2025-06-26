@@ -1,10 +1,5 @@
-import os
-import shutil
 import sys
-import tempfile
-import time
 from pathlib import Path
-import subprocess
 import polars as pl
 import pytest
 
@@ -16,7 +11,7 @@ for src in [data_src, worker_root / "dag_worker", worker_root / "agent_worker", 
         sys.path.insert(0, str(path))
 
 # Import PolarsWorker from your module.
-from agi_core.workers.polars_worker import PolarsWorker
+from polars_worker import PolarsWorker
 
 # Dummy subclass for testing PolarsWorker.
 class DummyPolarsWorker(PolarsWorker):

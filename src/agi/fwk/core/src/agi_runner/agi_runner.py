@@ -10,11 +10,10 @@
 # 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or THALES SIX GTS France SAS, may be used to endorse or promote products derived from this software without specific prior written permission.
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-from typing import Any, Dict, List, Optional, Union, Tuple, Set  # Ajoute Tuple et Set
+from typing import Tuple, Set  # Ajoute Tuple et Set
 from IPython.lib import backgroundjobs as bg
 import asyncio
 import getpass
-import glob
 import importlib
 import io
 import os
@@ -29,7 +28,7 @@ import warnings
 from copy import deepcopy
 from datetime import timedelta
 from ipaddress import ip_address as is_ip
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path
 from tempfile import gettempdir
 from typing import Any, Dict, List, Optional, Union
 import sysconfig
@@ -54,7 +53,7 @@ import runpy
 
 # Project Libraries:
 from agi_env import AgiEnv, normalize_path
-from agi_core.workers.agi_worker import AgiHandler, AgiWorker
+from agi_worker import AgiHandler, AgiWorker
 
 # os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"
 logger = logging.getLogger(__name__)
@@ -66,7 +65,7 @@ class AGI:
     """
     Agi Class.
 
-    Agi (Speedy-Python-Dask) is a scalable fwk based on Cython, Dask, and a pool of processes that supports High-Performance Computing (HPC) with or without output data.
+    Agi (Speedy-Python-Dask) is a scalable fwk based on Cython, Dask, and a pool of processes that supports High-Performance Computing (HPC) with or without out¬put data.
     It offers a command-line interface in Python and an optional LAB with Streamlit, featuring advanced capabilities like embedded ChatGPT and visualizations.
 
     Agi stands for Speedy-Python-Dask.
@@ -250,7 +249,7 @@ class AGI:
             }
             # AGI.install_worker_group = AGI.agi_workers[env.base_worker_cls]
             AGI.install_worker_group = ["agi-worker ", AGI.agi_workers[env.base_worker_cls]]
-            base_worker_dir = str(env.workers_root / "src")
+            base_worker_dir = str(env.agi_core_root / "src")
             if base_worker_dir not in sys.path:
                 sys.path.insert(0, base_worker_dir)
             AGI._target_module = await AGI._load_module(
@@ -1475,7 +1474,7 @@ class AGI:
             res = AgiWorker.run(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
         else:
             cmd = (
-                f"{env.uv} run --project {env.wenv_abs} python -c \"from agi_core.workers.agi_worker import AgiWorker;"
+                f"{env.uv} run --project {env.wenv_abs} python -c \"from agi_worker import AgiWorker;"
                 f"from dask.distributed import print;"
                 f"AgiWorker.new('{env.app}', mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
                 f"res = AgiWorker.run({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"

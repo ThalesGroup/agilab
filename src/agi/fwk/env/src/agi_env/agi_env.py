@@ -203,7 +203,7 @@ class AgiEnv:
         if install_type == 1:
             if "site-packages" in self.agi_root.parts:
                 self.agi_env_root = self.agi_root.parent / "agi_env"
-                self.agi_core_root = self.agi_root.parent / "agi_core"
+                self.agi_core_root = self.agi_root.parent
                 resource_path = self.agi_env_root / self.agi_resources
             else:
                 self.agi_env_root = self.agi_root / "fwk/env"
@@ -342,7 +342,7 @@ class AgiEnv:
         self.base_worker_cls, self.base_worker_module = self.get_base_worker_cls(
             self.worker_path, worker_class
         )
-        self.workers_packages_prefix = "agi_core.workers."
+        self.workers_packages_prefix = "workers."
         if not self.worker_path.exists():
             logging.info(f"Missing {self.target_worker_class} definition; should be in {self.worker_path} but it does not exist")
             sys.exit(1)
@@ -358,24 +358,20 @@ class AgiEnv:
         if "site-packages" in self.agi_root.parts:
             self.agi_core_loc = self.agi_root.parent
         else:
-            self.agi_core_loc = self.agi_root / "fwk/core/src"
+            self.agi_core_loc = self.agi_root / "fwk/core"
 
         if install_type != 2:
             self.resolve_packages_path_in_toml()
 
-        agi_core = self.agi_core_loc / "agi_core"
+        agi_core = self.agi_core_loc
         self.agi_core = agi_core
 
         self.projects = self.get_projects(self.apps_dir)
         if not self.projects:
             logging.info(f"Could not find any target project app in {self.agi_root / 'apps'}.")
 
-        self.workers_root = agi_core / "workers"
-        self.manager_root = agi_core / "managers"
         self.setup_app = app_abs / "build.py"
-
-        self.setup_core_rel = "agi_worker/build.py"
-        self.setup_core = self.workers_root / self.setup_core_rel
+        self.setup_core = agi_core / "build.py"
 
         if isinstance(module, Path):
             module_path = module.expanduser().resolve()

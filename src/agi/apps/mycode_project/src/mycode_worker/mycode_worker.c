@@ -2360,7 +2360,7 @@ static const char __pyx_k_MycodeWorker_algo_X[] = "MycodeWorker.algo_X";
 static const char __pyx_k_MycodeWorker_algo_Y[] = "MycodeWorker.algo_Y";
 static const char __pyx_k_MycodeWorker_algo_Z[] = "MycodeWorker.algo_Z";
 static const char __pyx_k_MycodeWorker_get_work[] = "MycodeWorker.get_work";
-static const char __pyx_k_agi_core_workers_dag_worker[] = "agi_core.workers.dag_worker";
+static const char __pyx_k_agi_core_workers_dag_worker[] = "dag_worker";
 static const char __pyx_k_class_derived_from_DagWorker[] = "class derived from DagWorker";
 static const char __pyx_k_Module_mycode_worker_extension[] = "\nModule mycode_worker extension of your_code\n\n\n    Auteur: yourself\n\n";
 static const char __pyx_k_src_mycode_worker_mycode_worker[] = "src/mycode_worker/mycode_worker.pyx";
@@ -4600,7 +4600,7 @@ __Pyx_RefNannySetupContext("PyInit_mycode_worker_cy", 0);
  * import warnings
  * import logging             # <<<<<<<<<<<<<<
  * from agi_env import AgiEnv, normalize_path
- * from agi_core.workers.dag_worker import DagWorker
+ * from dag_worker import DagWorker
 */
   __pyx_t_2 = __Pyx_ImportDottedModule(__pyx_mstate_global->__pyx_n_u_logging, NULL); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 29, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
@@ -4611,7 +4611,7 @@ __Pyx_RefNannySetupContext("PyInit_mycode_worker_cy", 0);
  * import warnings
  * import logging
  * from agi_env import AgiEnv, normalize_path             # <<<<<<<<<<<<<<
- * from agi_core.workers.dag_worker import DagWorker
+ * from dag_worker import DagWorker
  * 
 */
   __pyx_t_2 = __Pyx_PyList_Pack(2, __pyx_mstate_global->__pyx_n_u_AgiEnv, __pyx_mstate_global->__pyx_n_u_normalize_path); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 30, __pyx_L1_error)
@@ -4632,7 +4632,7 @@ __Pyx_RefNannySetupContext("PyInit_mycode_worker_cy", 0);
   /* "src/mycode_worker/mycode_worker.pyx":31
  * import logging
  * from agi_env import AgiEnv, normalize_path
- * from agi_core.workers.dag_worker import DagWorker             # <<<<<<<<<<<<<<
+ * from dag_worker import DagWorker             # <<<<<<<<<<<<<<
  * 
  * logger = logging.getLogger(__name__)
 */
@@ -4648,7 +4648,7 @@ __Pyx_RefNannySetupContext("PyInit_mycode_worker_cy", 0);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
   /* "src/mycode_worker/mycode_worker.pyx":33
- * from agi_core.workers.dag_worker import DagWorker
+ * from dag_worker import DagWorker
  * 
  * logger = logging.getLogger(__name__)             # <<<<<<<<<<<<<<
  * warnings.filterwarnings("ignore")
