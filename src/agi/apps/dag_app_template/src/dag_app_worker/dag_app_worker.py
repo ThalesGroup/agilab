@@ -12,7 +12,7 @@ from pydantic import BaseModel
 import env  # Added import for environment-specific checks
 import py7zr  # Added import for handling .7z archives
 
-from agi_core.workers.dag_worker import DagWorker  # Corrected import
+from dag_worker import DagWorker  # Corrected import
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
