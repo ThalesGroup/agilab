@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore", category=SetuptoolsDeprecationWarning)
 def main() -> None:
     setup(
         package_dir={"": "src"},
-        packages=find_packages(where="src", exclude=["test", "agi_core/managers"]),
+        packages=find_packages(where="src", exclude=["test", "agi_runner"]),
         zip_safe=False,  # Use our custom bdist_egg command.
     )
 
