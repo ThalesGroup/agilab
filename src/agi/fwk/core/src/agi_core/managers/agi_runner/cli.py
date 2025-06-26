@@ -139,7 +139,7 @@ def kill(exclude_pids=None):
         logger.info("No Dask process running.")
 
 def unzip(wenv=None):
-    root = pathlib.Path(wenv)
+    root = Path(wenv)
     root_src = root / 'src'
     eggs = (root / 'dist').glob('*.egg')
 
