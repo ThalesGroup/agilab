@@ -10,6 +10,7 @@ __pycache__/
 .mypy_cache/
 __pypackages__/
 ._*
+docs/html/
 
 # Miscellaneous files
 *.lock
