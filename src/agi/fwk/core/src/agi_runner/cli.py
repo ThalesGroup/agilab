@@ -150,6 +150,33 @@ def unzip(wenv=None):
 
     logger.info(f"Unzipped: {eggs}")
 
+import threading
+import time
+
+def cpu_task():
+    x = 0
+    for _ in range(10**8):
+        x += 1
+
+def run_threads(n):
+    threads = [threading.Thread(target=cpu_task) for _ in range(n)]
+    start = time.time()
+    for t in threads: t.start()
+    for t in threads: t.join()
+    return time.time() - start
+
+def test_python_threads():
+    t1 = run_threads(1)
+    t2 = run_threads(2)
+
+    logger.info(f"Time with 1 thread: {t1:.2f} s")
+    logger.info(f"Time with 2 threads: {t2:.2f} s")
+
+    if t2 < t1 * 1.5:
+        logger.info("Likely freethreaded (true parallelism!)")
+    else:
+        logger.info("Likely normal Python (GIL active)")
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "kill"
     arg = sys.argv[2] if len(sys.argv) > 2 else None
@@ -172,6 +199,8 @@ if __name__ == "__main__":
         clean(wenv=arg)
     elif cmd == "unzip":
         unzip(wenv=arg)
+    elif cmd == "test_python":
+        test_python_threads()
     else:
         logger.error(f"Unknown command: {cmd}. Use 'kill', 'clean', or 'unzip'.")
 

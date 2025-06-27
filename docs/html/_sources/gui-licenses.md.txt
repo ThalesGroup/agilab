@@ -42,7 +42,6 @@
 | cryptography | APACHE-2.0;; BSD-3-CLAUSE |
 | cycler | BSD LICENSE |
 | cython | APACHE SOFTWARE LICENSE |
-| dacite | MIT LICENSE |
 | dask | BSD LICENSE |
 | databricks-sdk | APACHE SOFTWARE LICENSE |
 | dataclasses-json | MIT LICENSE |
@@ -86,7 +85,6 @@
 | graphene | MIT |
 | graphql-core | MIT LICENSE |
 | graphql-relay | MIT LICENSE |
-| greenlet | MIT;; PYTHON-2.0 |
 | grpcio | APACHE SOFTWARE LICENSE |
 | grpcio-status | APACHE SOFTWARE LICENSE |
 | gunicorn | MIT LICENSE |
@@ -94,14 +92,12 @@
 | h5py | BSD-3-CLAUSE |
 | hf-xet | APACHE-2.0 |
 | htbuilder | APACHE SOFTWARE LICENSE |
-| htmlmin | BSD LICENSE |
 | httpcore | BSD LICENSE |
 | httpx | BSD LICENSE |
 | httpx-sse | MIT |
 | huggingface-hub | APACHE SOFTWARE LICENSE |
 | humanize | MIT License |
 | idna | BSD LICENSE |
-| imagehash | 2-CLAUSE BSD LICENSE |
 | importlib-metadata | APACHE SOFTWARE LICENSE |
 | inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | ipython | BSD LICENSE |
@@ -136,7 +132,6 @@
 | langchain-cohere | MIT LICENSE |
 | langchain-community | MIT |
 | langchain-core | MIT |
-| langchain-experimental | MIT LICENSE |
 | langchain-google-genai | MIT LICENSE |
 | langchain-mistralai | MIT |
 | langchain-nvidia-ai-endpoints | MIT LICENSE |
@@ -163,7 +158,6 @@
 | mlflow-skinny | APACHE SOFTWARE LICENSE |
 | msgpack | APACHE 2.0 |
 | multidict | APACHE SOFTWARE LICENSE |
-| multimethod | APACHE SOFTWARE LICENSE |
 | multiprocess | BSD LICENSE |
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | mypy-extensions |  |
@@ -172,7 +166,6 @@
 | nbclient | BSD LICENSE |
 | nbconvert | BSD LICENSE |
 | nbformat | BSD LICENSE |
-| networkx | BSD LICENSE |
 | numba | BSD LICENSE |
 | numpy | BSD LICENSE |
 | ollama |  |
@@ -185,16 +178,12 @@
 | overrides | APACHE LICENSE_ VERSION 2.0 |
 | packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | pandas | BSD LICENSE |
-| pandas-profiling | MIT LICENSE |
 | pandocfilters | BSD LICENSE |
-| parameterized | BSD LICENSE |
 | paramiko | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
 | parso | MIT LICENSE |
 | partd | BSD |
 | pathspec | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
-| patsy | BSD LICENSE |
 | pexpect | ISC LICENSE _ISCL_ |
-| phik | MIT LICENSE |
 | pillow | MIT-CMU |
 | platformdirs | MIT LICENSE |
 | plotly | MIT LICENSE |
@@ -208,7 +197,6 @@
 | psutil | BSD LICENSE |
 | ptyprocess | ISC LICENSE _ISCL_ |
 | pure-eval | MIT LICENSE |
-| puremagic | MIT LICENSE |
 | py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pyarrow | APACHE SOFTWARE LICENSE |
 | pyasn1 | BSD LICENSE |
@@ -231,7 +219,6 @@
 | python-dotenv | BSD LICENSE |
 | python-json-logger | BSD LICENSE |
 | pytz | MIT LICENSE |
-| pywavelets | MIT LICENSE |
 | pyyaml | MIT LICENSE |
 | pyzmq | BSD LICENSE |
 | pyzstd | BSD LICENSE |
@@ -265,7 +252,6 @@
 | st-theme | MIT LICENSE |
 | stack-data | MIT LICENSE |
 | starlette | BSD LICENSE |
-| statsmodels | BSD LICENSE |
 | streamlit | APACHE SOFTWARE LICENSE |
 | streamlit-avatar |  |
 | streamlit-camera-input-live | MIT License |
@@ -277,7 +263,6 @@
 | streamlit-image-coordinates | MIT LICENSE |
 | streamlit-keyup | MIT License |
 | streamlit-modal | BSD |
-| streamlit-pandas-profiling | MIT |
 | streamlit-toggle-switch | MIT License |
 | streamlit-vertical-slider | MIT License |
 | tabulate | MIT LICENSE |
@@ -298,9 +283,9 @@
 | tornado | APACHE SOFTWARE LICENSE |
 | tqdm | MIT LICENSE;; MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | traitlets | BSD LICENSE |
-| typeguard | MIT |
 | typer | MIT LICENSE |
 | types-python-dateutil | APACHE-2.0 |
+| types-pyyaml | APACHE-2.0 |
 | types-requests | APACHE-2.0 |
 | typing-extensions | PSF-2.0 |
 | typing-inspect | MIT LICENSE |
@@ -310,7 +295,6 @@
 | urllib3 | MIT |
 | uvicorn | BSD LICENSE |
 | validators | MIT LICENSE |
-| visions | BSD LICENSE |
 | watchdog | APACHE SOFTWARE LICENSE |
 | wcwidth | MIT LICENSE |
 | webcolors | BSD LICENSE |
@@ -319,10 +303,8 @@
 | werkzeug | BSD LICENSE |
 | wheel | MIT LICENSE |
 | widgetsnbextension | BSD LICENSE |
-| wordcloud | MIT LICENSE |
 | yarl | APACHE SOFTWARE LICENSE |
 | ydata | MIT LICENSE |
-| ydata-profiling | MIT LICENSE |
 | zict | BSD LICENSE |
 | zipp | MIT |
 | zstandard | BSD LICENSE |

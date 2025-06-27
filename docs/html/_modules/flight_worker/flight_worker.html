@@ -10,7 +10,7 @@
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
       <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
-      <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=28052664" />
 
   
     <link rel="canonical" href="https://thalesgroup.github.io/agilab/_modules/flight_worker/flight_worker.html" />
@@ -77,25 +77,22 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../../key-generation.html">Key Generation</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#introduction">Introduction</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#terminology">Terminology</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#generate-the-keys">Generate the keys</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#loading-the-private-key-in-ssh-agent">Loading the private key in SSH Agent</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#generate-the-keys">Generate the keys</a><ul class="simple">
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#load-the-private-key">Load the private key</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#verify-the-key-addition">Verify the key Addition</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#copy-the-public-key-to-the-server">Copy the public key to the server</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#sshd-service">SSHD Service</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#loading-the-private-key-in-ssh-agent">Loading the private key in SSH Agent</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#load-the-public-key">Load the public key</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#verify-the-key-addition">Verify the key Addition</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#check-the-configuration">Check the configuration</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#restart-the-sshd-service">Restart the SSHD service</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#check-the-service-status">Check the service status:</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#permissions">Permissions</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#useful-links">Useful links</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#sshd-service">SSHD Service</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#check-the-configuration">Check the configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#restart-the-sshd-service">Restart the SSHD service</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#check-the-service-status">Check the service status:</a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#permissions">Permissions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#useful-links">Useful links</a></li>
 </ul>
 </li>
 </ul>
@@ -148,11 +145,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../agi-managers.html#run">Run</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../../agi-managers.html#reference">Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../agi-managers.html#agi_core.managers.agi_manager.agi_manager.AgiManager"><code class="docutils literal notranslate"><span class="pre">AgiManager</span></code></a></li>
-</ul>
-</li>
+<li class="toctree-l3"><a class="reference internal" href="../../agi-managers.html#reference">Reference</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../../agi-workers.html">agi_core.workers API</a><ul>
@@ -399,8 +392,8 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">numpy.linalg</span><span class="w"> </span><span class="kn">import</span> <span class="n">norm</span>  <span class="c1"># Imported norm</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">agi_core.workers.polars_worker</span><span class="w"> </span><span class="kn">import</span> <span class="n">PolarsWorker</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">agi_core.workers.agi_worker</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiWorker</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">polars_worker</span><span class="w"> </span><span class="kn">import</span> <span class="n">PolarsWorker</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_worker</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiWorker</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">normalize_path</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>

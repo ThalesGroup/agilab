@@ -77,21 +77,21 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#generate-the-keys">1. Generate the keys</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#loading-the-private-key-in-ssh-agent">2. Loading the private key in SSH Agent</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#load-the-private-key">2.1 Load the private key</a></li>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verify-the-key-addition">2.2 Verify the key Addition</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#generate-the-keys">Generate the keys</a><ul class="simple">
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#copy-the-public-key-to-the-server">3. Copy the public key to the server</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#allow-your-key">3.1 Allow your key</a></li>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verification">3.2 Verification</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#loading-the-private-key-in-ssh-agent">Loading the private key in SSH Agent</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#load-the-public-key">Load the public key</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verify-the-key-addition">Verify the key Addition</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#troubleshooting">Troubleshooting</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#sshd-service">SSHD Service</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#sshd-service">SSHD Service</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#check-the-configuration">Check the configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#restart-the-sshd-service">Restart the SSHD service</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#check-the-service-status">Check the service status:</a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#permissions">Permissions</a></li>
 <li class="toctree-l3"><a class="reference internal" href="key-generation.html#useful-links">Useful links</a></li>
 </ul>
 </li>
@@ -145,11 +145,7 @@
 <li class="toctree-l4"><a class="reference internal" href="agi-managers.html#run">Run</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="agi-managers.html#reference">Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-managers.html#agi_core.managers.agi_manager.agi_manager.AgiManager"><code class="docutils literal notranslate"><span class="pre">AgiManager</span></code></a></li>
-</ul>
-</li>
+<li class="toctree-l3"><a class="reference internal" href="agi-managers.html#reference">Reference</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="agi-workers.html">agi_core.workers API</a><ul>
@@ -406,13 +402,9 @@
 <h2 id="_">_</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-managers.html#agi_core.managers.agi_manager.agi_manager.AgiManager.__init__">__init__() (agi_core.managers.agi_manager.agi_manager.AgiManager method)</a>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.__init__">__init__() (agi_env.agi_env.AgiEnv method)</a>
 
       <ul>
-        <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.__init__">(agi_core.managers.agi_runner.agi_runner.AGI method)</a>
-</li>
-        <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.__init__">(agi_env.agi_env.AgiEnv method)</a>
-</li>
         <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.__init__">(agi_env.agi_env.ContentRenamer method)</a>
 </li>
         <li><a href="flight-project.html#flight.flight.Flight.__init__">(flight.flight.Flight method)</a>
@@ -428,50 +420,6 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.active">active() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI">AGI (class in agi_core.managers.agi_runner.agi_runner)</a>
-</li>
-      <li>
-    agi_core.managers.agi_manager.agi_manager
-
-      <ul>
-        <li><a href="agi-managers.html#module-agi_core.managers.agi_manager.agi_manager">module</a>
-</li>
-      </ul></li>
-      <li>
-    agi_core.managers.agi_runner.agi_runner
-
-      <ul>
-        <li><a href="agi-managers.html#module-agi_core.managers.agi_runner.agi_runner">module</a>
-</li>
-      </ul></li>
-      <li>
-    agi_core.workers.agi_worker.agi_worker
-
-      <ul>
-        <li><a href="agi-workers.html#module-agi_core.workers.agi_worker.agi_worker">module</a>
-</li>
-      </ul></li>
-      <li>
-    agi_core.workers.dag_worker.dag_worker
-
-      <ul>
-        <li><a href="agi-workers.html#module-agi_core.workers.dag_worker.dag_worker">module</a>
-</li>
-      </ul></li>
-      <li>
-    agi_core.workers.pandas_worker.pandas_worker
-
-      <ul>
-        <li><a href="agi-workers.html#module-agi_core.workers.pandas_worker.pandas_worker">module</a>
-</li>
-      </ul></li>
-      <li>
-    agi_core.workers.polars_worker.polars_worker
-
-      <ul>
-        <li><a href="agi-workers.html#module-agi_core.workers.polars_worker.polars_worker">module</a>
-</li>
-      </ul></li>
       <li>
     agi_env.agi_env
 
@@ -479,18 +427,14 @@
         <li><a href="agi-env.html#module-agi_env.agi_env">module</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv">AgiEnv (class in agi_env.agi_env)</a>
-</li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_manager.agi_manager.AgiManager">AgiManager (class in agi_core.managers.agi_manager.agi_manager)</a>
-</li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker">AgiWorker (class in agi_core.workers.agi_worker.agi_worker)</a>
 </li>
       <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_A">algo_A() (mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
       <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_B">algo_B() (mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_C">algo_C() (mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
       <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_X">algo_X() (mycode_worker.mycode_worker.MycodeWorker method)</a>
@@ -503,16 +447,8 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.apps_dir">apps_dir (agi_env.agi_env.AgiEnv attribute)</a>
 </li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_manager.agi_manager.AgiManager.args">args (agi_core.managers.agi_manager.agi_manager.AgiManager attribute)</a>
-
-      <ul>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.args">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker attribute)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.args">args (flight.flight.Flight attribute)</a>
 </li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.args">(agi_core.workers.polars_worker.polars_worker.PolarsWorker attribute)</a>
-</li>
-        <li><a href="flight-project.html#flight.flight.Flight.args">(flight.flight.Flight attribute)</a>
-</li>
-      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -521,19 +457,9 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.benchmark">benchmark (agi_env.agi_env.AgiEnv attribute)</a>
 </li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.best_mode">best_mode (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
-</li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.build">build() (agi_core.workers.agi_worker.agi_worker.AgiWorker static method)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.build">build() (flight_worker.flight_worker.FlightWorker static method)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.build">(agi_core.workers.dag_worker.dag_worker.DagWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.build">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.build">(agi_core.workers.polars_worker.polars_worker.PolarsWorker static method)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.build">(flight_worker.flight_worker.FlightWorker static method)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.build">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
@@ -557,26 +483,22 @@
 </li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.check_date_order">check_date_order() (flight.flight.FlightArgs class method)</a>
 </li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.check_internet">check_internet() (agi_env.agi_env.AgiEnv static method)</a>
+</li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.check_valid_regex">check_valid_regex() (flight.flight.FlightArgs class method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.clone_directory">clone_directory() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.clone_project">clone_project() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.close_all_connections">close_all_connections() (agi_env.agi_env.AgiEnv method)</a>
-</li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.construct">construct() (flight.flight.FlightArgs class method)</a>
 </li>
-      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer">ContentRenamer (class in agi_env.agi_env)</a>
-</li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_manager.agi_manager.AgiManager.convert_functions_to_names">convert_functions_to_names() (agi_core.managers.agi_manager.agi_manager.AgiManager static method)</a>
-
-      <ul>
-        <li><a href="flight-project.html#flight.flight.Flight.convert_functions_to_names">(flight.flight.Flight static method)</a>
-</li>
-      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer">ContentRenamer (class in agi_env.agi_env)</a>
+</li>
+      <li><a href="flight-project.html#flight.flight.Flight.convert_functions_to_names">convert_functions_to_names() (flight.flight.Flight static method)</a>
+</li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.copy">copy() (flight.flight.FlightArgs method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.copy_missing">copy_missing() (agi_env.agi_env.AgiEnv method)</a>
@@ -589,56 +511,26 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.create_symlink_windows">create_symlink_windows() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.cython_decorators">cython_decorators (agi_core.workers.agi_worker.agi_worker.AgiWorker attribute)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.cython_decorators">cython_decorators (flight_worker.flight_worker.FlightWorker attribute)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.cython_decorators">(agi_core.workers.dag_worker.dag_worker.DagWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.cython_decorators">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.cython_decorators">(agi_core.workers.polars_worker.polars_worker.PolarsWorker attribute)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.cython_decorators">(flight_worker.flight_worker.FlightWorker attribute)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.cython_decorators">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.CYTHON_MODE">CYTHON_MODE (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
-</li>
   </ul></td>
 </tr></table>
 
 <h2 id="D">D</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker">DagWorker (class in agi_core.workers.dag_worker.dag_worker)</a>
-</li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.dask_home">dask_home (agi_core.workers.agi_worker.agi_worker.AgiWorker attribute)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.dask_home">dask_home (flight_worker.flight_worker.FlightWorker attribute)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.dask_home">(agi_core.workers.dag_worker.dag_worker.DagWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.dask_home">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.dask_home">(agi_core.workers.polars_worker.polars_worker.PolarsWorker attribute)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.dask_home">(flight_worker.flight_worker.FlightWorker attribute)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.dask_home">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.DASK_MODE">DASK_MODE (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.data_out">data_out (flight.flight.Flight attribute)</a>
 </li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.DASK_RESET">DASK_RESET (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
-</li>
-      <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.data_out">data_out (agi_core.workers.pandas_worker.pandas_worker.PandasWorker attribute)</a>
-
-      <ul>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.data_out">(agi_core.workers.polars_worker.polars_worker.PolarsWorker attribute)</a>
-</li>
-        <li><a href="flight-project.html#flight.flight.Flight.data_out">(flight.flight.Flight attribute)</a>
-</li>
-      </ul></li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.data_source">data_source (flight.flight.FlightArgs attribute)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.datemax">datemax (flight.flight.FlightArgs attribute)</a>
@@ -647,35 +539,15 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="flight-project.html#flight.flight.FlightArgs.datemin">datemin (flight.flight.FlightArgs attribute)</a>
 </li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.debug">debug (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
-
-      <ul>
-        <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.debug">(agi_env.agi_env.AgiEnv attribute)</a>
-</li>
-      </ul></li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.DEPLOYEMENT_MASK">DEPLOYEMENT_MASK (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.debug">debug (agi_env.agi_env.AgiEnv attribute)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.dict">dict() (flight.flight.FlightArgs method)</a>
 </li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.distribute">distribute() (agi_core.managers.agi_runner.agi_runner.AGI static method)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.do_distrib">do_distrib() (flight.flight.Flight static method)</a>
 </li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_manager.agi_manager.AgiManager.do_distrib">do_distrib() (agi_core.managers.agi_manager.agi_manager.AgiManager static method)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.do_works">do_works() (flight_worker.flight_worker.FlightWorker static method)</a>
 
       <ul>
-        <li><a href="flight-project.html#flight.flight.Flight.do_distrib">(flight.flight.Flight static method)</a>
-</li>
-      </ul></li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.do_works">do_works() (agi_core.workers.agi_worker.agi_worker.AgiWorker static method)</a>
-
-      <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.do_works">(agi_core.workers.dag_worker.dag_worker.DagWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.do_works">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.do_works">(agi_core.workers.polars_worker.polars_worker.PolarsWorker static method)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.do_works">(flight_worker.flight_worker.FlightWorker static method)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.do_works">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
@@ -685,91 +557,41 @@
 <h2 id="E">E</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.env">env (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.env">env (flight_worker.flight_worker.FlightWorker attribute)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.env">(agi_core.workers.agi_worker.agi_worker.AgiWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.env">(agi_core.workers.dag_worker.dag_worker.DagWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.env">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.env">(agi_core.workers.polars_worker.polars_worker.PolarsWorker attribute)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.env">(flight_worker.flight_worker.FlightWorker attribute)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.env">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.exec">exec() (agi_core.workers.agi_worker.agi_worker.AgiWorker static method)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec">exec() (flight_worker.flight_worker.FlightWorker static method)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.exec">(agi_core.workers.dag_worker.dag_worker.DagWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.exec">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.exec">(agi_core.workers.polars_worker.polars_worker.PolarsWorker static method)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec">(flight_worker.flight_worker.FlightWorker static method)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.exec">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
-      <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.exec_mono_process">exec_mono_process() (agi_core.workers.dag_worker.dag_worker.DagWorker method)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec_mono_process">exec_mono_process() (flight_worker.flight_worker.FlightWorker method)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.exec_mono_process">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.exec_mono_process">(agi_core.workers.polars_worker.polars_worker.PolarsWorker method)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec_mono_process">(flight_worker.flight_worker.FlightWorker method)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.exec_mono_process">(mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
       </ul></li>
-      <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.exec_multi_process">exec_multi_process() (agi_core.workers.dag_worker.dag_worker.DagWorker method)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec_multi_process">exec_multi_process() (flight_worker.flight_worker.FlightWorker method)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.exec_multi_process">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.exec_multi_process">(agi_core.workers.polars_worker.polars_worker.PolarsWorker method)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec_multi_process">(flight_worker.flight_worker.FlightWorker method)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.exec_multi_process">(mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.exec_ssh">exec_ssh() (agi_core.managers.agi_runner.agi_runner.AGI static method)</a>
-</li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.exec_ssh_async">exec_ssh_async() (agi_core.managers.agi_runner.agi_runner.AGI static method)</a>
-</li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.expand">expand() (agi_core.workers.agi_worker.agi_worker.AgiWorker static method)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand">expand() (flight_worker.flight_worker.FlightWorker static method)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.expand">(agi_core.workers.dag_worker.dag_worker.DagWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.expand">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.expand">(agi_core.workers.polars_worker.polars_worker.PolarsWorker static method)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand">(flight_worker.flight_worker.FlightWorker static method)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.expand">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.expand_and_join">expand_and_join() (agi_core.workers.agi_worker.agi_worker.AgiWorker static method)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand_and_join">expand_and_join() (flight_worker.flight_worker.FlightWorker static method)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.expand_and_join">(agi_core.workers.dag_worker.dag_worker.DagWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.expand_and_join">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.expand_and_join">(agi_core.workers.polars_worker.polars_worker.PolarsWorker static method)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand_and_join">(flight_worker.flight_worker.FlightWorker static method)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.expand_and_join">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
@@ -784,8 +606,6 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="flight-project.html#flight.flight.FlightArgs.files">files (flight.flight.FlightArgs attribute)</a>
-</li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.find_free_port">find_free_port() (agi_core.managers.agi_runner.agi_runner.AGI static method)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.Flight">Flight (class in flight.flight)</a>
 </li>
@@ -827,23 +647,13 @@
 </li>
       <li><a href="flight-project.html#flight.flight.Flight.get_data_from_hawk">get_data_from_hawk() (flight.flight.Flight method)</a>
 </li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.get_default_local_ip">get_default_local_ip() (agi_core.managers.agi_runner.agi_runner.AGI static method)</a>
-</li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.get_full_attribute_name">get_full_attribute_name() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.get_import_mapping">get_import_mapping() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.get_logs_and_result">get_logs_and_result() (agi_core.workers.agi_worker.agi_worker.AgiWorker method)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_logs_and_result">get_logs_and_result() (flight_worker.flight_worker.FlightWorker method)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.get_logs_and_result">(agi_core.workers.dag_worker.dag_worker.DagWorker method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.get_logs_and_result">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.get_logs_and_result">(agi_core.workers.polars_worker.polars_worker.PolarsWorker method)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_logs_and_result">(flight_worker.flight_worker.FlightWorker method)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.get_logs_and_result">(mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
       </ul></li>
@@ -855,21 +665,11 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.get_projects">get_projects() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.get_ssh_connection">get_ssh_connection() (agi_core.managers.agi_runner.agi_runner.AGI method)</a>
-</li>
       <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.get_work">get_work() (mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.get_worker_info">get_worker_info() (agi_core.workers.agi_worker.agi_worker.AgiWorker static method)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_worker_info">get_worker_info() (flight_worker.flight_worker.FlightWorker static method)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.get_worker_info">(agi_core.workers.dag_worker.dag_worker.DagWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.get_worker_info">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.get_worker_info">(agi_core.workers.polars_worker.polars_worker.PolarsWorker static method)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_worker_info">(flight_worker.flight_worker.FlightWorker static method)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.get_worker_info">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
@@ -889,22 +689,14 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.has_rapids_hw">has_rapids_hw (agi_env.agi_env.AgiEnv attribute)</a>
 </li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.home_dir">home_dir (agi_core.workers.agi_worker.agi_worker.AgiWorker attribute)</a>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.home_dir">home_dir (flight_worker.flight_worker.FlightWorker attribute)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.home_dir">(agi_core.workers.dag_worker.dag_worker.DagWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.home_dir">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.home_dir">(agi_core.workers.polars_worker.polars_worker.PolarsWorker attribute)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.home_dir">(flight_worker.flight_worker.FlightWorker attribute)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.home_dir">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.humanize_validation_errors">humanize_validation_errors() (agi_env.agi_env.AgiEnv method)</a>
 </li>
   </ul></td>
@@ -919,29 +711,15 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.init_logging">init_logging() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.install">install() (agi_core.managers.agi_runner.agi_runner.AGI static method)</a>
-</li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.INSTALL_MASK">INSTALL_MASK (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
-</li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.INSTALL_MODE">INSTALL_MODE (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
-</li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.install_type">install_type (agi_env.agi_env.AgiEnv attribute)</a>
-</li>
-      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.is_local">is_local() (agi_env.agi_env.AgiEnv static method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.is_managed_pc">is_managed_pc (agi_core.workers.agi_worker.agi_worker.AgiWorker attribute)</a>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.is_local">is_local() (agi_env.agi_env.AgiEnv static method)</a>
+</li>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.is_managed_pc">is_managed_pc (flight_worker.flight_worker.FlightWorker attribute)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.is_managed_pc">(agi_core.workers.dag_worker.dag_worker.DagWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.is_managed_pc">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.is_managed_pc">(agi_core.workers.polars_worker.polars_worker.PolarsWorker attribute)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.is_managed_pc">(flight_worker.flight_worker.FlightWorker attribute)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.is_managed_pc">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
@@ -955,17 +733,9 @@
 <h2 id="J">J</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.join">join() (agi_core.workers.agi_worker.agi_worker.AgiWorker static method)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.join">join() (flight_worker.flight_worker.FlightWorker static method)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.join">(agi_core.workers.dag_worker.dag_worker.DagWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.join">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.join">(agi_core.workers.polars_worker.polars_worker.PolarsWorker static method)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.join">(flight_worker.flight_worker.FlightWorker static method)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.join">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
@@ -985,19 +755,13 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.log_info">log_info() (agi_env.agi_env.AgiEnv static method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.log_remote_line">log_remote_line() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.logs">logs (agi_core.workers.agi_worker.agi_worker.AgiWorker attribute)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.logs">logs (flight_worker.flight_worker.FlightWorker attribute)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.logs">(agi_core.workers.dag_worker.dag_worker.DagWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.logs">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.logs">(agi_core.workers.polars_worker.polars_worker.PolarsWorker attribute)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.logs">(flight_worker.flight_worker.FlightWorker attribute)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.logs">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
@@ -1007,21 +771,9 @@
 <h2 id="M">M</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.main">main() (agi_core.managers.agi_runner.agi_runner.AGI static method)</a>
-</li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.make_chunks">make_chunks() (agi_core.managers.agi_runner.agi_runner.AGI static method)</a>
-</li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.mode">mode (agi_core.workers.agi_worker.agi_worker.AgiWorker attribute)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.mode">mode (flight_worker.flight_worker.FlightWorker attribute)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.mode">(agi_core.workers.dag_worker.dag_worker.DagWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.mode">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.mode">(agi_core.workers.polars_worker.polars_worker.PolarsWorker attribute)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.mode">(flight_worker.flight_worker.FlightWorker attribute)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.mode">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
@@ -1067,18 +819,6 @@
     module
 
       <ul>
-        <li><a href="agi-managers.html#module-agi_core.managers.agi_manager.agi_manager">agi_core.managers.agi_manager.agi_manager</a>
-</li>
-        <li><a href="agi-managers.html#module-agi_core.managers.agi_runner.agi_runner">agi_core.managers.agi_runner.agi_runner</a>
-</li>
-        <li><a href="agi-workers.html#module-agi_core.workers.agi_worker.agi_worker">agi_core.workers.agi_worker.agi_worker</a>
-</li>
-        <li><a href="agi-workers.html#module-agi_core.workers.dag_worker.dag_worker">agi_core.workers.dag_worker.dag_worker</a>
-</li>
-        <li><a href="agi-workers.html#module-agi_core.workers.pandas_worker.pandas_worker">agi_core.workers.pandas_worker.pandas_worker</a>
-</li>
-        <li><a href="agi-workers.html#module-agi_core.workers.polars_worker.polars_worker">agi_core.workers.polars_worker.polars_worker</a>
-</li>
         <li><a href="agi-env.html#module-agi_env.agi_env">agi_env.agi_env</a>
 </li>
         <li><a href="flight-project.html#module-flight.flight">flight.flight</a>
@@ -1105,24 +845,16 @@
 <h2 id="N">N</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.new">new() (agi_core.workers.agi_worker.agi_worker.AgiWorker static method)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.new">new() (flight_worker.flight_worker.FlightWorker static method)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.new">(agi_core.workers.dag_worker.dag_worker.DagWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.new">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.new">(agi_core.workers.polars_worker.polars_worker.PolarsWorker static method)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.new">(flight_worker.flight_worker.FlightWorker static method)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.new">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="flight-project.html#flight.flight.FlightArgs.nfile">nfile (flight.flight.FlightArgs attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.normalize_path">normalize_path() (in module agi_env.agi_env)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.nread">nread (flight.flight.FlightArgs attribute)</a>
@@ -1135,19 +867,9 @@
 <h2 id="O">O</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-managers.html#agi_core.managers.agi_manager.agi_manager.AgiManager.onerror">onerror() (agi_core.managers.agi_manager.agi_manager.AgiManager static method)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.onerror">onerror() (flight.flight.Flight static method)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.onerror">(agi_core.workers.agi_worker.agi_worker.AgiWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.onerror">(agi_core.workers.dag_worker.dag_worker.DagWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.onerror">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.onerror">(agi_core.workers.polars_worker.polars_worker.PolarsWorker static method)</a>
-</li>
-        <li><a href="flight-project.html#flight.flight.Flight.onerror">(flight.flight.Flight static method)</a>
-</li>
         <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.onerror">(flight_worker.flight_worker.FlightWorker static method)</a>
 </li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.onerror">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
@@ -1163,19 +885,15 @@
 <h2 id="P">P</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker">PandasWorker (class in agi_core.workers.pandas_worker.pandas_worker)</a>
-</li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.parse_file">parse_file() (flight.flight.FlightArgs class method)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.parse_obj">parse_obj() (flight.flight.FlightArgs class method)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.parse_raw">parse_raw() (flight.flight.FlightArgs class method)</a>
 </li>
-      <li><a href="flight-project.html#flight.flight.FlightArgs.path">path (flight.flight.FlightArgs attribute)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker">PolarsWorker (class in agi_core.workers.polars_worker.polars_worker)</a>
+      <li><a href="flight-project.html#flight.flight.FlightArgs.path">path (flight.flight.FlightArgs attribute)</a>
 </li>
       <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.pool_init">pool_init() (flight_worker.flight_worker.FlightWorker method)</a>
 </li>
@@ -1183,20 +901,12 @@
 </li>
       <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.preprocess_df">preprocess_df() (flight_worker.flight_worker.FlightWorker method)</a>
 </li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.PYTHON_MODE">PYTHON_MODE (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
-</li>
   </ul></td>
 </tr></table>
 
 <h2 id="R">R</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.RAPIDS_MODE">RAPIDS_MODE (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
-</li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.RAPIDS_RESET">RAPIDS_RESET (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
-</li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.RAPIDS_SET">RAPIDS_SET (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
-</li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.read_gitignore">read_gitignore() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.remove_dir_forcefully">remove_dir_forcefully() (agi_env.agi_env.AgiEnv method)</a>
@@ -1205,31 +915,19 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.resolve_packages_path_in_toml">resolve_packages_path_in_toml() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.run">run() (agi_core.managers.agi_runner.agi_runner.AGI static method)</a>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.run">run() (agi_env.agi_env.AgiEnv static method)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.run">(agi_core.workers.agi_worker.agi_worker.AgiWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.run">(agi_core.workers.dag_worker.dag_worker.DagWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.run">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker static method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.run">(agi_core.workers.polars_worker.polars_worker.PolarsWorker static method)</a>
-</li>
-        <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.run">(agi_env.agi_env.AgiEnv static method)</a>
-</li>
         <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.run">(flight_worker.flight_worker.FlightWorker static method)</a>
 </li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.run">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.run_agi">run_agi() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.run_async">run_async() (agi_env.agi_env.AgiEnv static method)</a>
-</li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.RUN_MASK">RUN_MASK (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -1253,55 +951,29 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.set_cluster_credentials">set_cluster_credentials() (agi_env.agi_env.AgiEnv method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.set_env_var">set_env_var() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.set_install_type">set_install_type() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.set_openai_api_key">set_openai_api_key() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.share_path">share_path (agi_core.workers.agi_worker.agi_worker.AgiWorker attribute)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.share_path">share_path (flight_worker.flight_worker.FlightWorker attribute)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.share_path">(agi_core.workers.dag_worker.dag_worker.DagWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.share_path">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.share_path">(agi_core.workers.polars_worker.polars_worker.PolarsWorker attribute)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.share_path">(flight_worker.flight_worker.FlightWorker attribute)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.share_path">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.SIMULATE_MODE">SIMULATE_MODE (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
-</li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.start">start() (agi_core.workers.agi_worker.agi_worker.AgiWorker method)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.start">start() (flight_worker.flight_worker.FlightWorker method)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.start">(agi_core.workers.dag_worker.dag_worker.DagWorker method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.start">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.start">(agi_core.workers.polars_worker.polars_worker.PolarsWorker method)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.start">(flight_worker.flight_worker.FlightWorker method)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.start">(mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
       </ul></li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.stop">stop() (agi_core.workers.agi_worker.agi_worker.AgiWorker method)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.stop">stop() (flight_worker.flight_worker.FlightWorker method)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.stop">(agi_core.workers.dag_worker.dag_worker.DagWorker method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.stop">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.stop">(agi_core.workers.polars_worker.polars_worker.PolarsWorker method)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.stop">(flight_worker.flight_worker.FlightWorker method)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.stop">(mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
       </ul></li>
@@ -1311,30 +983,16 @@
 <h2 id="T">T</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.t0">t0 (agi_core.workers.agi_worker.agi_worker.AgiWorker attribute)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.t0">t0 (flight_worker.flight_worker.FlightWorker attribute)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.t0">(agi_core.workers.dag_worker.dag_worker.DagWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.t0">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.t0">(agi_core.workers.polars_worker.polars_worker.PolarsWorker attribute)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.t0">(flight_worker.flight_worker.FlightWorker attribute)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.t0">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.TIMEOUT">TIMEOUT (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.topological_sort">topological_sort() (mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
-      <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.topological_sort">topological_sort() (agi_core.workers.dag_worker.dag_worker.DagWorker method)</a>
-
-      <ul>
-        <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.topological_sort">(mycode_worker.mycode_worker.MycodeWorker method)</a>
-</li>
-      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -1343,13 +1001,9 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.unzip_data">unzip_data() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.update">update() (agi_core.managers.agi_runner.agi_runner.AGI static method)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="flight-project.html#flight.flight.FlightArgs.update_forward_refs">update_forward_refs() (flight.flight.FlightArgs class method)</a>
-</li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.UPDATE_MODE">UPDATE_MODE (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.uv">uv (agi_env.agi_env.AgiEnv attribute)</a>
 </li>
@@ -1361,19 +1015,9 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="flight-project.html#flight.flight.FlightArgs.validate">validate() (flight.flight.FlightArgs class method)</a>
 </li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_manager.agi_manager.AgiManager.verbose">verbose (agi_core.managers.agi_manager.agi_manager.AgiManager attribute)</a>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.verbose">verbose (agi_env.agi_env.AgiEnv attribute)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.verbose">(agi_core.workers.agi_worker.agi_worker.AgiWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.verbose">(agi_core.workers.dag_worker.dag_worker.DagWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.verbose">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker attribute)</a>, <a href="agi-workers.html#id0">[1]</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.verbose">(agi_core.workers.polars_worker.polars_worker.PolarsWorker attribute)</a>, <a href="agi-workers.html#id2">[1]</a>
-</li>
-        <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.verbose">(agi_env.agi_env.AgiEnv attribute)</a>
-</li>
         <li><a href="flight-project.html#flight.flight.Flight.verbose">(flight.flight.Flight attribute)</a>
 </li>
         <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.verbose">(flight_worker.flight_worker.FlightWorker attribute)</a>
@@ -1385,12 +1029,12 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_AnnAssign">visit_AnnAssign() (agi_env.agi_env.ContentRenamer method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_arg">visit_arg() (agi_env.agi_env.ContentRenamer method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_Assign">visit_Assign() (agi_env.agi_env.ContentRenamer method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_Attribute">visit_Attribute() (agi_env.agi_env.ContentRenamer method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.visit_ClassDef">visit_ClassDef() (agi_env.agi_env.ContentRenamer method)</a>
@@ -1417,69 +1061,29 @@
 <h2 id="W">W</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.work_done">work_done() (agi_core.workers.pandas_worker.pandas_worker.PandasWorker method)</a>
-
-      <ul>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.work_done">(agi_core.workers.polars_worker.polars_worker.PolarsWorker method)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.work_done">work_done() (flight_worker.flight_worker.FlightWorker method)</a>
 </li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.work_done">(flight_worker.flight_worker.FlightWorker method)</a>
-</li>
-      </ul></li>
       <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.work_init">work_init() (flight_worker.flight_worker.FlightWorker method)</a>
 </li>
-      <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.work_pool">work_pool() (agi_core.workers.pandas_worker.pandas_worker.PandasWorker method)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.work_pool">work_pool() (flight_worker.flight_worker.FlightWorker method)</a>
+</li>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.worker">worker (flight_worker.flight_worker.FlightWorker attribute)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.work_pool">(agi_core.workers.polars_worker.polars_worker.PolarsWorker method)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.work_pool">(flight_worker.flight_worker.FlightWorker method)</a>
-</li>
-      </ul></li>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.worker">worker (agi_core.workers.agi_worker.agi_worker.AgiWorker attribute)</a>
-
-      <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.worker">(agi_core.workers.dag_worker.dag_worker.DagWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.worker">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.worker">(agi_core.workers.polars_worker.polars_worker.PolarsWorker attribute)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.worker">(flight_worker.flight_worker.FlightWorker attribute)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.worker">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-workers.html#agi_core.workers.agi_worker.agi_worker.AgiWorker.worker_id">worker_id (agi_core.workers.agi_worker.agi_worker.AgiWorker attribute)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.worker_id">worker_id (flight_worker.flight_worker.FlightWorker attribute)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.worker_id">(agi_core.workers.dag_worker.dag_worker.DagWorker attribute)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.worker_id">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker attribute)</a>, <a href="agi-workers.html#id1">[1]</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.worker_id">(agi_core.workers.polars_worker.polars_worker.PolarsWorker attribute)</a>, <a href="agi-workers.html#id3">[1]</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.worker_id">(flight_worker.flight_worker.FlightWorker attribute)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.worker_id">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.workers">workers (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
-</li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.workers_tree">workers_tree (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
-</li>
-      <li><a href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI.workers_tree_info">workers_tree_info (agi_core.managers.agi_runner.agi_runner.AGI attribute)</a>
-</li>
-      <li><a href="agi-workers.html#agi_core.workers.dag_worker.dag_worker.DagWorker.works">works() (agi_core.workers.dag_worker.dag_worker.DagWorker method)</a>
+      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.works">works() (flight_worker.flight_worker.FlightWorker method)</a>
 
       <ul>
-        <li><a href="agi-workers.html#agi_core.workers.pandas_worker.pandas_worker.PandasWorker.works">(agi_core.workers.pandas_worker.pandas_worker.PandasWorker method)</a>
-</li>
-        <li><a href="agi-workers.html#agi_core.workers.polars_worker.polars_worker.PolarsWorker.works">(agi_core.workers.polars_worker.polars_worker.PolarsWorker method)</a>
-</li>
-        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.works">(flight_worker.flight_worker.FlightWorker method)</a>
-</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.works">(mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
       </ul></li>
