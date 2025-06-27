@@ -1523,10 +1523,7 @@ class AGI:
         if AGI._mode == AGI.INSTALL_MODE:
             workers_tree
 
-        mode = str(AGI._mode)
-        verbose = str(AGI._verbose)
         dask_workers = list(AGI._dask_workers)
-        args = dict(AGI._args)
         client = AGI._dask_client
 
         AGI._dask_client.gather(
@@ -1535,11 +1532,11 @@ class AGI:
                     AgiWorker.new,
                     env.app,
                     env= 0 if env.debug else None,
-                    mode=mode,
-                    verbose=verbose,
+                    mode= AGI._mode,
+                    verbose=AGI._verbose,
                     worker_id=dask_workers.index(worker),
                     worker=worker,
-                    args=args,
+                    args=AGI._args,
                     workers=[worker],
                 )
                 for worker in dask_workers
@@ -1550,7 +1547,7 @@ class AGI:
 
         t = time.time()
 
-        AGI._run_time = AGI._dask_client.run(
+        AGI._run_time = client.run(
             AgiWorker.do_works,
             workers_tree,
             workers_tree_info,
@@ -2149,7 +2146,7 @@ class AGI:
         Ferme proprement toutes les connexions SSH ouvertes.
         À appeler à la fin de ton programme ou avant arrêt.
         """
-        for conn in self._ssh_connections.values():
+        for conn in AGI._ssh_connections.values():
             conn.close()
             await conn.wait_closed()
         AGI._ssh_connections.clear()
