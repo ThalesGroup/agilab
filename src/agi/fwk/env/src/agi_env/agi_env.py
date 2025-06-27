@@ -20,12 +20,15 @@ from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 import py7zr
 import urllib.request
+from colorama import init
 
-# ANSI color codes
-BLUE = "\033[34m"
-RED = "\033[31m"
-GREEN = "\033[32m"
-NC = "\033[0m"  # No Color
+init(autoreset=True)
+
+BLUE = "\033[94m"
+RED = "\033[91m"
+GREEN = "\033[92m"
+NC = "\033[0m"
+
 # Compile regex once globally
 LOG_LEVEL_RE = re.compile(r'\b(INFO|ERROR|WARNING|DEBUG|CRITICAL)\b')
 

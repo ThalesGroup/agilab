@@ -39,6 +39,7 @@ dependencies = [
     "pathspec",
     "ipython",
     "py7zr",
+    "colorama"
 ]
 
 [project.urls]
