@@ -14,25 +14,28 @@ from pathlib import Path, PureWindowsPath, PurePosixPath
 from dotenv import dotenv_values, set_key
 import tomlkit
 import logging
-import inspect
 import astor
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 import py7zr
 import urllib.request
+from IPython.core.ultratb import FormattedTB
+import inspect
+
+# Get constructor parameters of FormattedTB
+_sig = inspect.signature(FormattedTB.__init__).parameters
+
+_tb_kwargs = dict(mode='Verbose', call_pdb=True)
+if 'color_scheme' in _sig:
+    _tb_kwargs['color_scheme'] = 'NoColor'
+else:
+    _tb_kwargs['theme_name'] = 'NoColor'
+
+sys.excepthook = FormattedTB(**_tb_kwargs)
+
 
 # Compile regex once globally
 LOG_LEVEL_RE = re.compile(r'\b(INFO|ERROR|WARNING|DEBUG|CRITICAL)\b')
-
-# Patch for IPython ≥8.37 (theme_name) vs ≤8.36 (color_scheme)
-_sig = inspect.signature(FormattedTB.__init__).parameters
-_tb_kwargs = dict(mode='Verbose', call_pdb=True)
-if 'color_scheme' in _sig:
-    _tb_kwargs['color_scheme'] = 'Linux'
-else:
-    _tb_kwargs['theme_name'] = 'Linux'
-
-sys.excepthook = FormattedTB(**_tb_kwargs)
 
 logger = logging.getLogger(__name__)
 

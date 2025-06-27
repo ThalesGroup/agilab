@@ -1,0 +1,74 @@
+agi_runner API
+======================
+
+Usage Example
+-------------
+
+Installation
+^^^^^^^^^^^^
+
+.. literalinclude:: log/AGI.install-.py
+   :language: python
+
+------
+
+Update
+^^^^^^
+
+.. literalinclude:: log/AGI.update-.py
+   :language: python
+
+----
+
+Distribute
+^^^^^^^^^^^^
+
+.. literalinclude:: log/AGI.distribute-flight.py
+   :language: python
+
+-----
+
+.. literalinclude:: log/AGI.distribute-.py
+   :language: python
+
+----
+
+Run
+^^^
+
+.. literalinclude:: log/AGI.run-.py
+   :language: python
+
+----
+
+.. literalinclude:: log/AGI.run-flight.py
+   :language: python
+
+----
+
+Reference
+----------
+
+agi_runner
+~~~~~~~~~~
+
+.. image:: diagrams/packages_agi_runner.png
+   :width: 400
+   :alt: Packages diagram for agi_runner
+   :align: center
+
+----
+
+.. image:: diagrams/classes_agi_runner.png
+   :width: 400
+   :alt: Classes diagram for agi_runner
+   :align: center
+
+----
+
+.. automodule:: agi_runner.agi_runner
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----

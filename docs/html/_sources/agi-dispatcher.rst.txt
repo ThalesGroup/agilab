@@ -1,0 +1,50 @@
+agi_disptacher API
+===============
+
+agi_disptacher
+~~~~~~~~~~~~
+
+.. image:: diagrams/packages_agi_dispatcher.png
+   :width: 400
+   :alt: Packages diagram for agi_dispatcher
+   :align: center
+
+----
+
+.. image:: diagrams/classes_agi_dispatcher.png
+   :width: 400
+   :alt: Classes diagram for agi_dispatcher
+   :align: center
+
+----
+
+.. automodule:: agi_dispatcher
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----
+
+agi_worker
+~~~~~~~~~~~~
+
+.. image:: diagrams/packages_agi_worker.png
+   :width: 400
+   :alt: Packages diagram for agi_worker
+   :align: center
+
+----
+
+.. image:: diagrams/classes_agi_worker.png
+   :width: 400
+   :alt: Classes diagram for agi_worker
+   :align: center
+
+----
+
+.. automodule:: agi_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----

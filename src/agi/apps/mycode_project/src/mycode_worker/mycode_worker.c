@@ -2826,7 +2826,7 @@ static PyObject *__pyx_pf_16mycode_worker_cy_12MycodeWorker_start(CYTHON_UNUSED 
  * 
  *     def get_work(self, work: str):             # <<<<<<<<<<<<<<
  *         """
- *         :param work: contain the worker function name called by AgiWorker.do_work
+ *         :param work: contain the worker function name called by AgiHandler.do_work
 */
 
 /* Python wrapper */
@@ -2837,7 +2837,7 @@ PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_16mycode_worker_cy_12MycodeWorker_2get_work, "\n        :param work: contain the worker function name called by AgiWorker.do_work\n        this is type string and not type function to avoid manager (e.g. Mycode) to be dependant of MyCodeWorker\n        :return:\n        ");
+PyDoc_STRVAR(__pyx_doc_16mycode_worker_cy_12MycodeWorker_2get_work, "\n        :param work: contain the worker function name called by AgiHandler.do_work\n        this is type string and not type function to avoid manager (e.g. Mycode) to be dependant of MyCodeWorker\n        :return:\n        ");
 static PyMethodDef __pyx_mdef_16mycode_worker_cy_12MycodeWorker_3get_work = {"get_work", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16mycode_worker_cy_12MycodeWorker_3get_work, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16mycode_worker_cy_12MycodeWorker_2get_work};
 static PyObject *__pyx_pw_16mycode_worker_cy_12MycodeWorker_3get_work(PyObject *__pyx_self, 
 #if CYTHON_METH_FASTCALL
@@ -3061,7 +3061,7 @@ static PyObject *__pyx_pf_16mycode_worker_cy_12MycodeWorker_2get_work(CYTHON_UNU
  * 
  *     def get_work(self, work: str):             # <<<<<<<<<<<<<<
  *         """
- *         :param work: contain the worker function name called by AgiWorker.do_work
+ *         :param work: contain the worker function name called by AgiHandler.do_work
 */
 
   /* function exit code */
@@ -4741,7 +4741,7 @@ __Pyx_RefNannySetupContext("PyInit_mycode_worker_cy", 0);
  * 
  *     def get_work(self, work: str):             # <<<<<<<<<<<<<<
  *         """
- *         :param work: contain the worker function name called by AgiWorker.do_work
+ *         :param work: contain the worker function name called by AgiHandler.do_work
 */
   __pyx_t_7 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 60, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);

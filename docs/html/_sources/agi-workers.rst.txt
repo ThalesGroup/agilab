@@ -1,76 +1,53 @@
-agi_core.workers API
+workers API
 =====================
 
 
 Workers Reference
 -------
 
-agi_core.workers.agi-worker
+
+agent_worker
 ~~~~~~~~~~~~
 
-.. image:: diagrams/packages_agi_core.workers.agi_worker.png
+.. image:: diagrams/packages_agent_worker.png
    :width: 400
-   :alt: Packages diagram for agi_core.workers.agi_worker
+   :alt: Packages diagram for agent_worker
    :align: center
 
 ----
 
-.. image:: diagrams/classes_agi_core.workers.agi_worker.png
+.. image:: diagrams/classes_agent_worker.png
    :width: 400
-   :alt: Classes diagram for agi_core.workers.agi_worker
+   :alt: Classes diagram for agent_worker
    :align: center
 
 ----
 
-.. automodule:: agi_core.workers.agi_worker.agi_worker
+.. automodule:: agent_worker
    :members:
    :undoc-members:
    :show-inheritance:
 
 ----
 
-agi_core.workers.agent-worker
-~~~~~~~~~~~~
-
-.. image:: diagrams/packages_agi_core.workers.agent_worker.png
-   :width: 400
-   :alt: Packages diagram for agi_core.workers.agent_worker
-   :align: center
-
-----
-
-.. image:: diagrams/classes_agi_core.workers.agent_worker.png
-   :width: 400
-   :alt: Classes diagram for agi_core.workers.agent_worker
-   :align: center
-
-----
-
-.. automodule:: agi-core.workers.agent_worker.agent_worker.agent_worker
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-----
-
-agi_core.workers.dag-worker
+dag_worker
 ~~~~~~~~~~
 
-.. image:: diagrams/packages_agi_core.workers.dag_worker.png
+.. image:: diagrams/packages_dag_worker.png
    :width: 400
-   :alt: Packages diagram for agi_core.workers.dag_worker
+   :alt: Packages diagram for dag_worker
    :align: center
 
 ----
 
-.. image:: diagrams/classes_agi_core.workers.dag_worker.png
+.. image:: diagrams/classes_dag_worker.png
    :width: 400
-   :alt: Classes diagram for agi_core.workers.dag_worker
+   :alt: Classes diagram for dag_worker
    :align: center
 
 ----
 
-.. automodule:: agi_core.workers.dag_worker.dag_worker
+.. automodule:: dag_worker
    :members:
    :undoc-members:
    :show-inheritance:
@@ -78,24 +55,24 @@ agi_core.workers.dag-worker
 ----
 
 
-agi_core.workers.pandas-worker
+pandas_worker
 ~~~~~~~~~~~
 
-.. image:: diagrams/packages_agi_core.workers.pandas_worker.png
+.. image:: diagrams/packages_pandas_worker.png
    :width: 400
-   :alt: Packages diagram for agi_core.workers.pandas_workers
+   :alt: Packages diagram for pandas_worker
    :align: center
 
 ----
 
-.. image:: diagrams/classes_agi_core.workers.pandas_worker.png
+.. image:: diagrams/classes_pandas_worker.png
    :width: 400
-   :alt: Classes diagram for agi_core.workers.pandas_worker
+   :alt: Classes diagram for pandas_worker
    :align: center
 
 ----
 
-.. automodule:: agi_core.workers.pandas_worker.pandas_worker
+.. automodule:: agi_core.pandas_worker
    :members:
    :undoc-members:
    :show-inheritance:
@@ -103,24 +80,24 @@ agi_core.workers.pandas-worker
 ----
 
 
-agi_core.workers.polars-worker
+polars_worker
 ~~~~~~~~~~~
 
-.. image:: diagrams/packages_agi_core.workers.polars_worker.png
+.. image:: diagrams/packages_polars_worker.png
    :width: 400
-   :alt: Packages diagram for agi_core.workers.polars_workers
+   :alt: Packages diagram for polars_worker
    :align: center
 
 ----
 
-.. image:: diagrams/classes_agi_core.workers.polars_worker.png
+.. image:: diagrams/classes_polars_worker.png
    :width: 400
-   :alt: Classes diagram for agi_core.workers.polars_worker
+   :alt: Classes diagram for polars_worker
    :align: center
 
 ----
 
-.. automodule:: agi_core.workers.polars_worker.polars_worker
+.. automodule:: polars_worker
    :members:
    :undoc-members:
    :show-inheritance:

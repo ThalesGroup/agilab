@@ -1,4 +1,4 @@
-agi_core.managers API
+agi_runner API
 ======================
 
 Usage Example
@@ -49,48 +49,48 @@ Run
 Reference
 ----------
 
-agi_core.managers.agi_runner
+agi_runner
 ~~~~~~~~~~
 
-.. image:: diagrams/packages_agi_core.managers.agi_runner.png
+.. image:: diagrams/packages_agi_runner.agi_runner.png
    :width: 400
    :alt: Packages diagram for agi_runner
    :align: center
 
 ----
 
-.. image:: diagrams/classes_agi_core.managers.agi_runner.png
+.. image:: diagrams/classes_agi_runner.agi_runner.png
    :width: 400
-   :alt: Classes diagram for agi_core.managers.agi_runner
+   :alt: Classes diagram for agi_runner.agi_runner
    :align: center
 
 ----
 
-.. automodule:: agi_core.managers.agi_runner.agi_runner
+.. automodule:: agi_runner.agi_runner
    :members:
    :undoc-members:
    :show-inheritance:
 
 ----
 
-agi_core.managers.agi_manager
+agi_disptacher.agi_dispatcher
 ~~~~~~~~~~~~
 
-.. image:: diagrams/packages_agi_core.managers.agi_manager.png
+.. image:: diagrams/packages_agi_dispatcher.agi_dispatcher.png
    :width: 400
-   :alt: Packages diagram for agi_core.managers.agi_manager
+   :alt: Packages diagram for agi_dispatcher.agi_dispatcher
    :align: center
 
 ----
 
-.. image:: diagrams/classes_agi_core.managers.agi_manager.png
+.. image:: diagrams/classes_agi_dispatcher.agi_dispatcher.png
    :width: 400
-   :alt: Classes diagram for agi_core.managers.agi_manager
+   :alt: Classes diagram for agi_dispatcher.agi_dispatcher
    :align: center
 
 ----
 
-.. automodule:: agi_core.managers.agi_manager.agi_manager
+.. automodule:: agi_dispatcher.agi_dispatcher
    :members:
    :undoc-members:
    :show-inheritance:

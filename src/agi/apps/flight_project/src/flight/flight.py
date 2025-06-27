@@ -23,8 +23,8 @@ from typing import Unpack, Literal
 import py7zr
 import polars as pl
 from datetime import date
-from agi_runner import AGI
-from agi_worker import AgiHandler
+from agi_core.agi_runner import AGI
+from agi_core.agi_worker import AgiHandler import AgiDispatcher
 from agi_env import AgiEnv, normalize_path
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
@@ -108,7 +108,7 @@ class FlightArgs(BaseModel):
         return value
 
 
-class Flight(AgiHandler):
+class Flight(AgiDispatcher):
     """Flight class provides methods to orchester the run"""
 
     ivq_logs = None
@@ -155,7 +155,7 @@ class Flight(AgiHandler):
         self.path = normalize_path(base_path)
         self.files = args["files"]
         self.nfile = args["nfile"]
-        AgiHandler.args = args
+        AgiDispatcher.args = args
         self.data_out = normalize_path(base_path / "dataframes")
 
         """
@@ -163,7 +163,7 @@ class Flight(AgiHandler):
           """
         try:
             if os.path.exists(self.data_out):
-                shutil.rmtree(self.data_out, ignore_errors=True, onerror=AgiHandler.onerror)
+                shutil.rmtree(self.data_out, ignore_errors=True, onerror=AgiDispatcher.onerror)
             os.makedirs(self.data_out, exist_ok=True)
         except Exception as e:
             print(f"warning issue while trying to remove directory: {e}")
