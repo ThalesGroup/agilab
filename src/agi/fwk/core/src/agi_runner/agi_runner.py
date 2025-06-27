@@ -670,9 +670,9 @@ class AGI:
 
 
     @staticmethod
-    async def _clean_nodes(scheduler: Optional[str], force: bool = True) -> Set[str]:
+    async def _clean_nodes(scheduler_addr: Optional[str], force: bool = True) -> Set[str]:
         # Compose list of IPs: workers plus scheduler's IP
-        list_ip = set(list(AGI.workers) + [AGI._get_scheduler(scheduler)[0]])
+        list_ip = set(list(AGI.workers) + [AGI._get_scheduler(scheduler_addr)[0]])
         localhost_ip = socket.gethostbyname("localhost")
         if not list_ip:
             list_ip.add(localhost_ip)
@@ -707,15 +707,16 @@ class AGI:
             await asyncio.gather(*tasks)
 
     @staticmethod
-    async def _install_venv_cluster(scheduler: Optional[str]) -> None:
+    async def _install_venv_cluster(scheduler_addr: Optional[str]) -> None:
         """
         Validate and prepare each remote node in the cluster:
         - Verify each IP is valid and reachable.
         - Detect and install Python interpreters if missing.
         - Detect and install 'uv' CLI via pip if missing.
-        - Use 'uv' to install the specified Python version, create necessary directories, and install packages.
+        - Use 'uv' to install the specified Pytho
+        n version, create necessary directories, and install packages.
         """
-        list_ip = set(list(AGI.workers) + [AGI._get_scheduler(scheduler)[0]])
+        list_ip = set(list(AGI.workers) + [AGI._get_scheduler(scheduler_addr)[0]])
         localhost_ip = socket.gethostbyname("localhost")
         env = AGI.env
         dist_rel = env.dist_rel
@@ -783,7 +784,7 @@ class AGI:
             await AGI.exec_ssh(ip, cmd)
 
     @staticmethod
-    async def _install(scheduler: Optional[str]) -> None:
+    async def _install(scheduler_addr: Optional[str]) -> None:
         AGI._initialize_installation()
         env = AGI.env
         app_path = env.app_abs
@@ -796,7 +797,7 @@ class AGI:
             options["worker"] += " --extra " + " --extra ".join(AGI.install_worker_group)
 
         #node_ips = await AGI._clean_nodes(scheduler)
-        node_ips = set(list(AGI.workers) + [AGI._get_scheduler(scheduler)[0]])
+        node_ips = set(list(AGI.workers) + [AGI._get_scheduler(scheduler_addr)[0]])
         AGI._venv_todo(node_ips)
         start_time = time.time()
         logging.info(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1")
@@ -876,7 +877,7 @@ class AGI:
 
         logging.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
-        # Commande pour manager selon si rapids supporté
+        # manager install command with and without rapids capable
         app_path = env.app_abs
         if has_rapids_hw:
             cmd_manager = f"{uv} --config-file uv_config.toml {run_type} {options['manager']} --extra managers --project {app_path}"
@@ -886,7 +887,7 @@ class AGI:
         logging.info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
 
-        # Commande pour workers selon si rapids supporté
+        # worker install command with and without rapids capable
         if has_rapids_hw:
             cmd_worker = f"{uv} --config-file uv_config.toml {run_type} --project {wenv_abs}"
         else:
@@ -899,8 +900,8 @@ class AGI:
         # install env & core
         ######################
 
-        cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_abs}', exist_ok=True)\""
-        await AgiEnv.run(cmd, wenv_abs)
+        # cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_abs}', exist_ok=True)\""
+        # await AgiEnv.run(cmd, wenv_abs)
 
         cmd = f"{uv} --project {wenv_abs} run python -m ensurepip"
         await AgiEnv.run(cmd, wenv_abs)
@@ -919,16 +920,19 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
+        cmd = f"{uv} --project {wenv_abs} add {whl}"
+        await AgiEnv.run(cmd, wenv_abs)
+
         # build agi_core*.whl
-        wenv = env.agi_core_root
-        src = wenv / "dist"
-        cmd = f"{uv} --project {wenv} build --wheel"
-        await AgiEnv.run(cmd, venv=wenv)
-        try:
-            whl = next(iter(src.glob("agi_core*.whl")))
-            shutil.copy2(whl, dist_abs)
-        except StopIteration:
-            raise RuntimeError(cmd)
+        # wenv = env.agi_core_root
+        # src = wenv / "dist"
+        # cmd = f"{uv} --project {wenv} build --wheel"
+        # await AgiEnv.run(cmd, venv=wenv)
+        # try:
+        #     whl = next(iter(src.glob("agi_core*.whl")))
+        #     shutil.copy2(whl, dist_abs)
+        # except StopIteration:
+        #     raise RuntimeError(cmd)
 
         # Build target_worker lib local
         await AGI._build_lib_local()

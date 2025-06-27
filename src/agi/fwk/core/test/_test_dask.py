@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore")
 
 async def main():
     ip_worker1= "192.168.3.24"
-    ip_scheduler = "192.168.3.86"
+    scheduler_addr = "192.168.3.86"
     agipath = AgiEnv.locate_agi_installation(verbose=0)
     env = AgiEnv(active_app="flight", apps_dir=agipath / "apps", install_type=1, verbose=1)
     env.user = "nsbl"
@@ -33,7 +33,7 @@ async def main():
     # start scheduler
     cmd = (
         f"uv run --project '/Users/nsbl/wenv/flight/worker' dask scheduler --port 8786 "
-        f"--host '{ip_scheduler}' --pid-file scheduler_pid"
+        f"--host '{scheduler_addr}' --pid-file scheduler_pid"
     )
     logging.info(f"Starting dask scheduler locally: {cmd}")
     AGI._jobs = bg.BackgroundJobManager()
@@ -50,7 +50,7 @@ async def main():
     # start worker
     cmd = (
         # f'{export_cmd} '
-        f'export PATH="$HOME/.local/bin:$PATH"; uv run --project "wenv/flight_worker" run dask worker tcp://{ip_scheduler}:8786 --no-nanny '
+        f'export PATH="$HOME/.local/bin:$PATH"; uv run --project "wenv/flight_worker" run dask worker tcp://{scheduler_addr}:8786 --no-nanny '
         f'--pid-file worker_pid'
     )
     asyncio.sleep(5)

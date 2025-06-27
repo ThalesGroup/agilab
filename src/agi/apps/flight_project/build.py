@@ -106,7 +106,7 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
     pck_src = pck.replace('.', '/')            # -> Path("agi_core")/"workers"/"agi_worker"
     # extract "core" from "agi_core"
     pck_root = pck.split('.')[0]
-    src_abs = env.agi_core_root / 'src' / pck_src
+    src_abs = env.workers_root / pck_src
     if pck_root == "agi_env":
         src_abs = env.env_src / pck_src
     elif pck_root == env.target_worker:
