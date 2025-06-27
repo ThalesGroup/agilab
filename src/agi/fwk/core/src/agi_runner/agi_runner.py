@@ -1193,7 +1193,7 @@ class AGI:
 
             # Clean worker
             for ip in list(AGI.workers):
-                await env.send_file(ip, env.agi_core_root / "agi_runner/cli.py", cli_rel.parent)
+                await env.send_file(ip, env.agi_core_root / "src/agi_runner/cli.py", cli_rel.parent)
                 if not env.envars.get(ip, None):
                     env.has_rapids_hw = False
                 try:
