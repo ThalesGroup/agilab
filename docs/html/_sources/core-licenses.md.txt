@@ -4,7 +4,6 @@
 | annotated-types | MIT LICENSE |
 | astor | BSD LICENSE |
 | asttokens | APACHE 2.0 |
-| asyncssh | EPL-2.0;; GPL-2.0-OR-LATER |
 | bcrypt | APACHE SOFTWARE LICENSE |
 | brotli | MIT LICENSE |
 | cffi | MIT LICENSE |

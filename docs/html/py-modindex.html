@@ -80,21 +80,21 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#generate-the-keys">1. Generate the keys</a></li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#loading-the-private-key-in-ssh-agent">2. Loading the private key in SSH Agent</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#load-the-private-key">2.1 Load the private key</a></li>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verify-the-key-addition">2.2 Verify the key Addition</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#generate-the-keys">Generate the keys</a><ul class="simple">
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#copy-the-public-key-to-the-server">3. Copy the public key to the server</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#allow-your-key">3.1 Allow your key</a></li>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verification">3.2 Verification</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#loading-the-private-key-in-ssh-agent">Loading the private key in SSH Agent</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#load-the-public-key">Load the public key</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verify-the-key-addition">Verify the key Addition</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="key-generation.html#troubleshooting">Troubleshooting</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="key-generation.html#sshd-service">SSHD Service</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#sshd-service">SSHD Service</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#check-the-configuration">Check the configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#restart-the-sshd-service">Restart the SSHD service</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#check-the-service-status">Check the service status:</a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#permissions">Permissions</a></li>
 <li class="toctree-l3"><a class="reference internal" href="key-generation.html#useful-links">Useful links</a></li>
 </ul>
 </li>
@@ -148,11 +148,7 @@
 <li class="toctree-l4"><a class="reference internal" href="agi-managers.html#run">Run</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="agi-managers.html#reference">Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="agi-managers.html#agi_core.managers.agi_runner.agi_runner.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-managers.html#agi_core.managers.agi_manager.agi_manager.AgiManager"><code class="docutils literal notranslate"><span class="pre">AgiManager</span></code></a></li>
-</ul>
-</li>
+<li class="toctree-l3"><a class="reference internal" href="agi-managers.html#reference">Reference</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="agi-workers.html">agi_core.workers API</a><ul>
@@ -395,45 +391,9 @@
        <td><img src="_static/minus.png" class="toggler"
               id="toggle-1" style="display: none" alt="-" /></td>
        <td>
-       <code class="xref">agi_core</code></td><td>
-       <em></em></td></tr>
-     <tr class="cg-1">
-       <td></td>
-       <td>&#160;&#160;&#160;
-       <a href="agi-managers.html#module-agi_core.managers.agi_manager.agi_manager"><code class="xref">agi_core.managers.agi_manager.agi_manager</code></a></td><td>
-       <em></em></td></tr>
-     <tr class="cg-1">
-       <td></td>
-       <td>&#160;&#160;&#160;
-       <a href="agi-managers.html#module-agi_core.managers.agi_runner.agi_runner"><code class="xref">agi_core.managers.agi_runner.agi_runner</code></a></td><td>
-       <em></em></td></tr>
-     <tr class="cg-1">
-       <td></td>
-       <td>&#160;&#160;&#160;
-       <a href="agi-workers.html#module-agi_core.workers.agi_worker.agi_worker"><code class="xref">agi_core.workers.agi_worker.agi_worker</code></a></td><td>
-       <em></em></td></tr>
-     <tr class="cg-1">
-       <td></td>
-       <td>&#160;&#160;&#160;
-       <a href="agi-workers.html#module-agi_core.workers.dag_worker.dag_worker"><code class="xref">agi_core.workers.dag_worker.dag_worker</code></a></td><td>
-       <em></em></td></tr>
-     <tr class="cg-1">
-       <td></td>
-       <td>&#160;&#160;&#160;
-       <a href="agi-workers.html#module-agi_core.workers.pandas_worker.pandas_worker"><code class="xref">agi_core.workers.pandas_worker.pandas_worker</code></a></td><td>
-       <em></em></td></tr>
-     <tr class="cg-1">
-       <td></td>
-       <td>&#160;&#160;&#160;
-       <a href="agi-workers.html#module-agi_core.workers.polars_worker.polars_worker"><code class="xref">agi_core.workers.polars_worker.polars_worker</code></a></td><td>
-       <em></em></td></tr>
-     <tr>
-       <td><img src="_static/minus.png" class="toggler"
-              id="toggle-2" style="display: none" alt="-" /></td>
-       <td>
        <code class="xref">agi_env</code></td><td>
        <em></em></td></tr>
-     <tr class="cg-2">
+     <tr class="cg-1">
        <td></td>
        <td>&#160;&#160;&#160;
        <a href="agi-env.html#module-agi_env.agi_env"><code class="xref">agi_env.agi_env</code></a></td><td>
@@ -443,22 +403,22 @@
        <strong>f</strong></td><td></td></tr>
      <tr>
        <td><img src="_static/minus.png" class="toggler"
-              id="toggle-3" style="display: none" alt="-" /></td>
+              id="toggle-2" style="display: none" alt="-" /></td>
        <td>
        <code class="xref">flight</code></td><td>
        <em></em></td></tr>
-     <tr class="cg-3">
+     <tr class="cg-2">
        <td></td>
        <td>&#160;&#160;&#160;
        <a href="flight-project.html#module-flight.flight"><code class="xref">flight.flight</code></a></td><td>
        <em></em></td></tr>
      <tr>
        <td><img src="_static/minus.png" class="toggler"
-              id="toggle-4" style="display: none" alt="-" /></td>
+              id="toggle-3" style="display: none" alt="-" /></td>
        <td>
        <code class="xref">flight_worker</code></td><td>
        <em></em></td></tr>
-     <tr class="cg-4">
+     <tr class="cg-3">
        <td></td>
        <td>&#160;&#160;&#160;
        <a href="flight-project.html#module-flight_worker.flight_worker"><code class="xref">flight_worker.flight_worker</code></a></td><td>
@@ -468,11 +428,11 @@
        <strong>m</strong></td><td></td></tr>
      <tr>
        <td><img src="_static/minus.png" class="toggler"
-              id="toggle-5" style="display: none" alt="-" /></td>
+              id="toggle-4" style="display: none" alt="-" /></td>
        <td>
        <code class="xref">mycode_worker</code></td><td>
        <em></em></td></tr>
-     <tr class="cg-5">
+     <tr class="cg-4">
        <td></td>
        <td>&#160;&#160;&#160;
        <a href="my-code-project.html#module-mycode_worker.mycode_worker"><code class="xref">mycode_worker.mycode_worker</code></a></td><td>

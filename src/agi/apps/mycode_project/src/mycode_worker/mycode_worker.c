@@ -2331,6 +2331,7 @@ static const char __pyx_k_warnings[] = "warnings";
 static const char __pyx_k_DagWorker[] = "DagWorker";
 static const char __pyx_k_getLogger[] = "getLogger";
 static const char __pyx_k_metaclass[] = "__metaclass__";
+static const char __pyx_k_dag_worker[] = "dag_worker";
 static const char __pyx_k_mro_entries[] = "__mro_entries__";
 static const char __pyx_k_MycodeWorker[] = "MycodeWorker";
 static const char __pyx_k_RuntimeError[] = "RuntimeError";
@@ -2360,7 +2361,6 @@ static const char __pyx_k_MycodeWorker_algo_X[] = "MycodeWorker.algo_X";
 static const char __pyx_k_MycodeWorker_algo_Y[] = "MycodeWorker.algo_Y";
 static const char __pyx_k_MycodeWorker_algo_Z[] = "MycodeWorker.algo_Z";
 static const char __pyx_k_MycodeWorker_get_work[] = "MycodeWorker.get_work";
-static const char __pyx_k_agi_core_workers_dag_worker[] = "dag_worker";
 static const char __pyx_k_class_derived_from_DagWorker[] = "class derived from DagWorker";
 static const char __pyx_k_Module_mycode_worker_extension[] = "\nModule mycode_worker extension of your_code\n\n\n    Auteur: yourself\n\n";
 static const char __pyx_k_src_mycode_worker_mycode_worker[] = "src/mycode_worker/mycode_worker.pyx";
@@ -2481,19 +2481,19 @@ static __pyx_mstatetype * const __pyx_mstate_global = &__pyx_mstate_global_stati
 #define __pyx_n_u_RuntimeError __pyx_string_tab[23]
 #define __pyx_kp_u__2 __pyx_string_tab[24]
 #define __pyx_kp_u_add_note __pyx_string_tab[25]
-#define __pyx_n_u_agi_core_workers_dag_worker __pyx_string_tab[26]
-#define __pyx_n_u_agi_env __pyx_string_tab[27]
-#define __pyx_n_u_algo_A __pyx_string_tab[28]
-#define __pyx_n_u_algo_B __pyx_string_tab[29]
-#define __pyx_n_u_algo_C __pyx_string_tab[30]
-#define __pyx_n_u_algo_X __pyx_string_tab[31]
-#define __pyx_n_u_algo_Y __pyx_string_tab[32]
-#define __pyx_n_u_algo_Z __pyx_string_tab[33]
-#define __pyx_n_u_asyncio_coroutines __pyx_string_tab[34]
-#define __pyx_n_u_class __pyx_string_tab[35]
-#define __pyx_kp_u_class_derived_from_DagWorker __pyx_string_tab[36]
-#define __pyx_n_u_cline_in_traceback __pyx_string_tab[37]
-#define __pyx_n_u_cy __pyx_string_tab[38]
+#define __pyx_n_u_agi_env __pyx_string_tab[26]
+#define __pyx_n_u_algo_A __pyx_string_tab[27]
+#define __pyx_n_u_algo_B __pyx_string_tab[28]
+#define __pyx_n_u_algo_C __pyx_string_tab[29]
+#define __pyx_n_u_algo_X __pyx_string_tab[30]
+#define __pyx_n_u_algo_Y __pyx_string_tab[31]
+#define __pyx_n_u_algo_Z __pyx_string_tab[32]
+#define __pyx_n_u_asyncio_coroutines __pyx_string_tab[33]
+#define __pyx_n_u_class __pyx_string_tab[34]
+#define __pyx_kp_u_class_derived_from_DagWorker __pyx_string_tab[35]
+#define __pyx_n_u_cline_in_traceback __pyx_string_tab[36]
+#define __pyx_n_u_cy __pyx_string_tab[37]
+#define __pyx_n_u_dag_worker __pyx_string_tab[38]
 #define __pyx_n_u_doc __pyx_string_tab[39]
 #define __pyx_n_u_file __pyx_string_tab[40]
 #define __pyx_n_u_filterwarnings __pyx_string_tab[41]
@@ -4638,7 +4638,7 @@ __Pyx_RefNannySetupContext("PyInit_mycode_worker_cy", 0);
 */
   __pyx_t_3 = __Pyx_PyList_Pack(1, __pyx_mstate_global->__pyx_n_u_DagWorker); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 31, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_2 = __Pyx_Import(__pyx_mstate_global->__pyx_n_u_agi_core_workers_dag_worker, __pyx_t_3, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 31, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_Import(__pyx_mstate_global->__pyx_n_u_dag_worker, __pyx_t_3, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 31, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __pyx_t_3 = __Pyx_ImportFrom(__pyx_t_2, __pyx_mstate_global->__pyx_n_u_DagWorker); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 31, __pyx_L1_error)
@@ -4954,7 +4954,6 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k_RuntimeError, sizeof(__pyx_k_RuntimeError), 0, 1, 1}, /* PyObject cname: __pyx_n_u_RuntimeError */
   {__pyx_k__2, sizeof(__pyx_k__2), 0, 1, 0}, /* PyObject cname: __pyx_kp_u__2 */
   {__pyx_k_add_note, sizeof(__pyx_k_add_note), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_add_note */
-  {__pyx_k_agi_core_workers_dag_worker, sizeof(__pyx_k_agi_core_workers_dag_worker), 0, 1, 1}, /* PyObject cname: __pyx_n_u_agi_core_workers_dag_worker */
   {__pyx_k_agi_env, sizeof(__pyx_k_agi_env), 0, 1, 1}, /* PyObject cname: __pyx_n_u_agi_env */
   {__pyx_k_algo_A, sizeof(__pyx_k_algo_A), 0, 1, 1}, /* PyObject cname: __pyx_n_u_algo_A */
   {__pyx_k_algo_B, sizeof(__pyx_k_algo_B), 0, 1, 1}, /* PyObject cname: __pyx_n_u_algo_B */
@@ -4967,6 +4966,7 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k_class_derived_from_DagWorker, sizeof(__pyx_k_class_derived_from_DagWorker), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_class_derived_from_DagWorker */
   {__pyx_k_cline_in_traceback, sizeof(__pyx_k_cline_in_traceback), 0, 1, 1}, /* PyObject cname: __pyx_n_u_cline_in_traceback */
   {__pyx_k_cy, sizeof(__pyx_k_cy), 0, 1, 1}, /* PyObject cname: __pyx_n_u_cy */
+  {__pyx_k_dag_worker, sizeof(__pyx_k_dag_worker), 0, 1, 1}, /* PyObject cname: __pyx_n_u_dag_worker */
   {__pyx_k_doc, sizeof(__pyx_k_doc), 0, 1, 1}, /* PyObject cname: __pyx_n_u_doc */
   {__pyx_k_file, sizeof(__pyx_k_file), 0, 1, 1}, /* PyObject cname: __pyx_n_u_file */
   {__pyx_k_filterwarnings, sizeof(__pyx_k_filterwarnings), 0, 1, 1}, /* PyObject cname: __pyx_n_u_filterwarnings */

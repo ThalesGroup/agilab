@@ -4,10 +4,7 @@
 | annotated-types | MIT LICENSE |
 | astor | BSD LICENSE |
 | asttokens | APACHE 2.0 |
-| asyncssh | EPL-2.0;; GPL-2.0-OR-LATER |
 | brotli | MIT LICENSE |
-| cffi | MIT LICENSE |
-| cryptography | APACHE-2.0;; BSD-3-CLAUSE |
 | decorator | BSD LICENSE |
 | executing | MIT LICENSE |
 | humanize | MIT License |
@@ -26,7 +23,6 @@
 | pure-eval | MIT LICENSE |
 | py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| pycparser | BSD LICENSE |
 | pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
 | pydantic | MIT LICENSE |
 | pydantic-core | MIT LICENSE |
