@@ -22,7 +22,7 @@ cython = false
 cluster_enabled = true
 rapids = false
 pool = false
-scheduler = "192.168.137.89"
+scheduler = "192.168.137.104"
 
 [cluster.workers]
 "192.168.137.1" = 1

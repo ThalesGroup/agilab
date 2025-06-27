@@ -166,6 +166,7 @@
 | nbclient | BSD LICENSE |
 | nbconvert | BSD LICENSE |
 | nbformat | BSD LICENSE |
+| networkx | BSD LICENSE |
 | numba | BSD LICENSE |
 | numpy | BSD LICENSE |
 | ollama |  |

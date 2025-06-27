@@ -1514,16 +1514,16 @@ class AgiEnv:
 
     @staticmethod
     def check_internet():
-        logging.info(f"Checking internet connectivity...{NC}")
+        logging.info(f"Checking internet connectivity...")
         try:
             # HEAD request to Google
             req = urllib.request.Request("https://www.google.com", method="HEAD")
             with urllib.request.urlopen(req, timeout=3) as resp:
                 pass  # Success if no exception
         except Exception:
-            logging.error(f"No internet connection detected. Aborting.{NC}")
+            logging.error(f"No internet connection detected. Aborting.")
             return False
-        logging.info(f"Internet connection is OK.{NC}")
+        logging.info(f"Internet connection is OK.")
         return True
 
 
