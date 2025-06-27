@@ -141,7 +141,9 @@ def kill(exclude_pids=None):
 def unzip(wenv=None):
     root = Path(wenv)
     root_src = root / 'src'
-    eggs = (root / 'dist').glob('*.egg')
+    if not root_src.exists():
+        os.makedirs(root_src, exist_ok=True)
+    eggs = root.glob('*.egg')
 
     for e in eggs:
           zipfile.ZipFile(str(e)).extractall(str(root_src))
