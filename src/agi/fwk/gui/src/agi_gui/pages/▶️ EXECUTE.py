@@ -23,7 +23,6 @@ import matplotlib.pyplot as plt
 import textwrap
 from matplotlib.patches import Patch
 from collections import defaultdict
-import numbers
 import streamlit as st
 import tomli         # For reading TOML files
 import tomli_w       # For writing TOML files
@@ -59,39 +58,52 @@ def clear_log():
     """
     st.session_state["log_text"] = ""
 
-def update_log(live_log_placeholder, message):
+def update_log(live_log_placeholder, message, max_lines=1000):
     """
-    Append a message to the accumulated log and update the live display.
-    The log is displayed as a formatted code block.
+    Append a cleaned message to the accumulated log and update the live display.
+    Keeps only the last max_lines lines in the log.
     """
     if "log_text" not in st.session_state:
         st.session_state["log_text"] = ""
-    st.session_state["log_text"] += message + "\n"
 
-    live_log_placeholder.empty()
-    live_log_placeholder.code(st.session_state["log_text"], language="python", height=min(500, len(st.session_state["log_text"])))
+    clean_msg = strip_ansi(message).rstrip()
+    if clean_msg:
+        st.session_state["log_text"] += clean_msg + "\n"
+
+    # Keep only last max_lines lines to avoid huge memory/logs
+    lines = st.session_state["log_text"].splitlines()
+    if len(lines) > max_lines:
+        lines = lines[-max_lines:]
+        st.session_state["log_text"] = "\n".join(lines) + "\n"
+
+    # Calculate height in pixels roughly: 20px per line, capped at 500px
+    height_px = min(20 * len(lines), 500)
+
+    live_log_placeholder.code(st.session_state["log_text"], language="python", height=height_px)
+
+
+
+def strip_ansi(text: str) -> str:
+    if not text:
+        return ""
+    ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
+    return ansi_escape.sub('', text)
+
 
 def display_log(stdout, stderr):
-    """
-    Clean and display final log messages.
-    If stdout is empty, fall back to the accumulated live log.
-    - Removes ANSI escape codes and normalizes newlines.
-    - If warnings or errors are detected, display them accordingly.
-    - Otherwise, display the final log in a code block.
-    """
-    # Fallback: if stdout is empty, use the accumulated live log.
+    # Use cached log if stdout empty
     if not stdout.strip() and "log_text" in st.session_state:
         stdout = st.session_state["log_text"]
 
-    # Remove ANSI escape codes.
-    clean_stdout = re.sub(r'\x1b\[[0-9;]*m', '', stdout or "")
-    clean_stderr = re.sub(r'\x1b\[[0-9;]*m', '', stderr or "")
+    # Strip ANSI color codes from both stdout and stderr
+    # Strip ANSI color codes before any processing
+    clean_stdout = strip_ansi(stdout or "")
+    clean_stderr = strip_ansi(stderr or "")
 
-    # Normalize newlines.
-    clean_stdout = "\n".join(line for line in clean_stdout.splitlines()[:-3] if line.strip())
+    # Clean up extra blank lines
+    clean_stdout = "\n".join(line for line in clean_stdout.splitlines() if line.strip())
     clean_stderr = "\n".join(line for line in clean_stderr.splitlines() if line.strip())
 
-    # Combine for checking.
     combined = "\n".join([clean_stdout, clean_stderr]).strip()
 
     if "warning:" in combined.lower():
@@ -99,9 +111,10 @@ def display_log(stdout, stderr):
         st.code(combined, language="python", height=400)
     elif clean_stderr:
         st.error("Errors occurred during cluster installation:")
-        st.code(clean_stderr, language="python", height=200)
+        st.code(clean_stderr, language="python", height=400)
     else:
-        st.code(clean_stdout or "No logs available", language="python")
+        st.code(clean_stdout or "No logs available", language="python", height=400)
+
 
 def parse_benchmark(benchmark_str):
     """
@@ -701,7 +714,7 @@ async def page():
             workers = str(workers) if enabled and workers else "None"
             cmd = f"""
 import asyncio
-from agi_runner import AGI
+from agi_core.agi_runner import AGI
 from agi_env import AgiEnv, normalize_path
 
 async def main():
@@ -777,7 +790,7 @@ if __name__ == '__main__':
             workers = str(workers) if enabled and workers else "None"
             cmd = f"""
 import asyncio
-from agi_runner import AGI
+from agi_core.agi_runner import AGI
 from agi_env import AgiEnv, normalize_path
 
 async def main():
@@ -878,7 +891,7 @@ if __name__ == '__main__':
             workers = str(cluster_params.get("workers")) if enabled else "None"
             cmd = f"""
 import asyncio
-from agi_runner import AGI
+from agi_core.agi_runner import AGI
 from agi_env import AgiEnv, normalize_path
 
 async def main():

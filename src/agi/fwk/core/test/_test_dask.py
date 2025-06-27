@@ -28,7 +28,7 @@ async def main():
     AGI.env = env
     env.user = "nsbl"
     await AGI._kill(ip_worker1 , current_pid=os.getpid(), force=True)
-    runpy.run_path(env.manager_root / "agi_runner/cli.py")
+    runpy.run_path(env.agi_core_root / "src/agi_runner/cli.py")
 
     # start scheduler
     cmd = (
@@ -70,7 +70,7 @@ async def main():
 
     logging.info(f"worker.getcwd() return: {res}")
     local_dirs = {w: info['local_directory'] for w, info in client.scheduler_info()['workers'].items()}
-    await env.send_file(ip_worker1,  env.manager_root / "agi_runner/clean.py", env.wenv_rel)
+    await env.send_file(ip_worker1,  env.agi_core_root / "src/agi_runner/clean.py", env.wenv_rel)
 
     for ipc, d in local_dirs.items():
         ip = ipc.split('/')[-1].split(":")[0]

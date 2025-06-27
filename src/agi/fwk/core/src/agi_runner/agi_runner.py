@@ -53,7 +53,7 @@ import runpy
 
 # Project Libraries:
 from agi_env import AgiEnv, normalize_path
-from agi_worker import AgiHandler, AgiWorker
+from agi_manager import AgiDispatcher, AgiHandler
 
 # os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"
 logger = logging.getLogger(__name__)
@@ -240,7 +240,7 @@ class AGI:
             else:
                 AGI._train_model(env.home_abs)
 
-            # import of derived Class of AgiHandler, name target_inst which is typically instance of Flight or MyCode
+            # import of derived Class of AgiDispatcher, name target_inst which is typically instance of Flight or MyCode
             AGI.agi_workers = {
                 "PolarsWorker": "polars-worker",
                 "PandasWorker": "pandas-worker",
@@ -592,7 +592,7 @@ class AGI:
         last_res = None
         for cmd in cmds:
             # choose working directory based on local vs remote
-            cwd = env.manager_root if ip == localhost else str(env.wenv_abs)
+            cwd = env.agi_core_root if ip == localhost else str(env.wenv_abs)
             if env.is_local(ip):
                 if env.debug:
                     sys.argv = cmd.split('python ')[1].split(" ")
@@ -1380,7 +1380,7 @@ class AGI:
         env = AGI.env
         wenv = normalize_path(str(env.wenv_abs))
         is_cy = AGI._mode & AGI.CYTHON_MODE
-        packages = "agi_worker, "
+        packages = "agi_manager, "
 
         baseworker = env.base_worker_cls
         if baseworker.startswith("Agent"):
@@ -1475,14 +1475,14 @@ class AGI:
             #     AGI._build_lib_local()
 
         if env.debug:
-            AgiWorker.new(env.app, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
-            res = AgiWorker.run(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
+            AgiHandler.new(env.app, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
+            res = AgiHandler.run(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
         else:
             cmd = (
-                f"{env.uv} run --project {env.wenv_abs} python -c \"from agi_worker import AgiWorker;"
+                f"{env.uv} run --project {env.wenv_abs} python -c \"from agi_manager import AgiHandler"
                 f"from dask.distributed import print;"
-                f"AgiWorker.new('{env.app}', mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
-                f"res = AgiWorker.run({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
+                f"AgiHandler.new('{env.app}', mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
+                f"res = AgiDispatcher.run({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
                 f"print(res)\""
             )
 
@@ -1512,7 +1512,7 @@ class AGI:
         ]
         logging.info(f"AGI run mode={AGI._mode} on {list(AGI._dask_workers)} ... ")
 
-        AGI.workers, workers_tree, workers_tree_info = AgiHandler.do_distrib(
+        AGI.workers, workers_tree, workers_tree_info = AgiDispatcher.do_distrib(
             AGI._target_inst, env, AGI.workers
         )
         AGI.workers_tree = workers_tree
@@ -1529,7 +1529,7 @@ class AGI:
         AGI._dask_client.gather(
             [
                 client.submit(
-                    AgiWorker.new,
+                    AgiHandler.new,
                     env.app,
                     env= 0 if env.debug else None,
                     mode= AGI._mode,
@@ -1548,7 +1548,7 @@ class AGI:
         t = time.time()
 
         AGI._run_time = client.run(
-            AgiWorker.do_works,
+            AgiHandler.do_works,
             workers_tree,
             workers_tree_info,
             workers=dask_workers,
@@ -1829,9 +1829,9 @@ class AGI:
         res_workers_info = AGI._dask_client.gather(
             [
                 AGI._dask_client.run(
-                    # AgiWorker.get_logs_and_result,
-                    AgiWorker.get_worker_info,
-                    AgiWorker.worker_id,
+                    # AgiHandler.get_logs_and_result,
+                    AgiHandler.get_worker_info,
+                    AgiHandler.worker_id,
                     workers=AGI._dask_workers,
                 )
             ]
@@ -1986,7 +1986,7 @@ class AGI:
                         line_terminator="\r",
                     )
             else:
-                raise RuntimeError(f"{w} workers AgiWorker.do_works failed")
+                raise RuntimeError(f"{w} workers AgiHandler.do_works failed")
 
         AGI._train_model(AGI.env.home_abs)
 

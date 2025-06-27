@@ -82,7 +82,7 @@ Main Content Area
          pool = false
 
          [cluster.workers]
-         The default value for your workers.
+         The default value for your
          This is a list of IP addresses with the number of workers per address:
          "127.0.0.1" = 2
 
