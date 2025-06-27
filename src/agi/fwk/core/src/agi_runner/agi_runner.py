@@ -910,13 +910,13 @@ class AGI:
         await AgiEnv.run(cmd, wenv_abs)
 
         # build agi_env*.whl
-        wenv = env.agi_env_root
-        cmd = f"{uv} --project {wenv} build --wheel"
-        await AgiEnv.run(cmd, wenv)
-        src = wenv / "dist"
+        menv = env.agi_env_root
+        cmd = f"{uv} --project {menv} build --wheel"
+        await AgiEnv.run(cmd, menv)
+        src = menv / "dist"
         try:
             whl = next(iter(src.glob("agi_env*.whl")))
-            shutil.copy2(whl, dist_abs)
+            #shutil.copy2(whl, wenv_abs)
         except StopIteration:
             raise RuntimeError(cmd)
 
@@ -963,7 +963,7 @@ class AGI:
             raise FileNotFoundError("no existing egg file")
 
         await env.send_files(ip, [env.setup_core, env.worker_pyproject, env.uvproject], wenv_rel)
-        await env.send_file(ip, egg_file, dist_rel)
+        await env.send_file(ip, egg_file, wenv_rel)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
         has_rapids_hw = False
@@ -999,16 +999,15 @@ class AGI:
 
         # build agi_env*.whl
         wenv = env.agi_env_root
-        src = wenv / "dist"
         try:
 
-            whl = next(iter(src.glob("agi_env*.whl")))
-            await env.send_file(ip, whl, dist_rel)
+            whl = next(iter(wenv.glob("agi_env*.whl")))
+            await env.send_file(ip, whl, wenv_rel)
         except StopIteration:
             raise RuntimeError(cmd)
 
         # install env
-        cmd = f"{uv} --project {dist_rel} add --upgrade {dist_rel / whl.name}"
+        cmd = f"{uv} --project {wenv_rel} add --upgrade {wenv_rel / whl.name}"
         await AGI.exec_ssh(ip, cmd)
 
         # Post-install script
