@@ -28,16 +28,13 @@ dependencies = [
 text = "Thales SIX GTS France SAS"
 
 [project.optional-dependencies]
-agi-worker = []
+agi-manager = []
 polars-worker = [
     "polars",
 ]
 workers = [
-    "agi-core[agi-worker]",
-    "agi-core[polars-worker]",
-]
-managers = [
-    "agi-core[managers]",
+    "agi-node[agi-worker]",
+    "agi-node[polars-worker]",
 ]
 
 [dependency-groups]
@@ -50,7 +47,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-agi-core = {path = "/Users/jpm/PycharmProjects/agilab/src/agi/fwk/core", editable = true}
+agi-cluster = {path = "/Users/jpm/PycharmProjects/agilab/src/agi/fwk/cluster", editable = true}
 
 [tool.uv.sources.flight_project]
 workspace = true

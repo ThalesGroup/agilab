@@ -20,15 +20,29 @@ uv sync -p $env:PYTHON_VERSION --dev --directory (Resolve-Path "$($FrameworkDir)
 uv pip install -e .
 Pop-Location
 
-# Install core
-Write-Host "Installing core..." -ForegroundColor Blue
-Push-Location "core"
+# Install cluster
+Write-Host "Installing cluster..." -ForegroundColor Blue
+Push-Location "cluster"
+
+Push-Location "cluster"
 if ($Offline) {
-    uv sync -p $env:PYTHON_VERSION --extra managers --dev --directory (Resolve-Path "$($FrameworkDir)\core")
+    uv sync -p $env:PYTHON_VERSION --extra managers --dev --directory (Resolve-Path "$($FrameworkDir)\cluster")
 } else {
-    uv sync -p $env:PYTHON_VERSION --config-file uv_config.toml --extra managers --dev --directory (Resolve-Path "$($FrameworkDir)\core")
+    uv sync -p $env:PYTHON_VERSION --config-file uv_config.toml --extra managers --dev --directory (Resolve-Path "$($FrameworkDir)\cluster")
 }
 uv pip install -e .
+Pop-Location
+
+Write-Host "Installing node..." -ForegroundColor Blue
+Push-Location "node"
+if ($Offline) {
+    uv sync -p $env:PYTHON_VERSION --extra managers --dev --directory (Resolve-Path "$($FrameworkDir)\node")
+} else {
+    uv sync -p $env:PYTHON_VERSION --config-file uv_config.toml --extra managers --dev --directory (Resolve-Path "$($FrameworkDir)\node")
+}
+uv pip install -e .
+Pop-Location
+
 Pop-Location
 
 # Install gui
@@ -37,9 +51,4 @@ Push-Location "gui"
 uv sync -p $env:PYTHON_VERSION --dev --directory (Resolve-Path "$($FrameworkDir)\gui")
 Pop-Location
 
-# Write-Host "Checking installation..." -ForegroundColor Green
-# uv run -p $env:PYTHON_VERSION --project "core" python run-all-test.py
-# if ($LASTEXITCODE -ne 0) {
-#     Write-Host "Tests failed with exit code $LASTEXITCODE" -ForegroundColor Red
-#     exit $LASTEXITCODE
-# }
+

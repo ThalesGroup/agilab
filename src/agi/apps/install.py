@@ -24,7 +24,7 @@ import argparse
 
 core_src = str(Path(__file__).parent.parent / 'fwk/core/src')
 sys.path.insert(0, core_src)
-from agi_runner import AGI
+from agi_cluster import AGI
 from agi_env import AgiEnv
 
 # Take the first argument from the command line as the module name

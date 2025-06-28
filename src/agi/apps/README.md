@@ -6,9 +6,9 @@ installation:
 
 - Python
 
-uv run -_project ..\fwk\core\managers python .\install.py <module>
+uv run -_project ..\fwk\cluster python .\install.py <module>
 
-Example with uv run -_project ../fwk/core/managers python ./install.py flight<br>
-uv run -_project ..\fwk\core\managers python .\install.py fwk\core\managers python .\install.py /uv
+Example with uv run -_project ../fwk/cluster python ./install.py flight<br>
+uv run -_project ..\fwk\cluster python .\install.py fwk\cluster python .\install.py /uv
 run
--_project ../fwk/core/manager python ./install.py flight
+-_project ../fwk/cluster/manager python ./install.py flight

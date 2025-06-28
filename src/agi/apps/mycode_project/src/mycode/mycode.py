@@ -32,7 +32,7 @@ from typing import Unpack, Literal
 import py7zr
 from datetime import date
 
-from agi_runner import AGI
+from agi_cluster import AGI
 from agi_manager import BaseWorker
 import logging
 

@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>agi_runner.agi_runner &mdash; AGILab 1.0.0 documentation</title>
+  <title>agi_cluster.agi_cluster &mdash; AGILab 1.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
@@ -13,7 +13,7 @@
       <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=28052664" />
 
   
-    <link rel="canonical" href="https://thalesgroup.github.io/agilab/_modules/agi_runner/agi_runner.html" />
+    <link rel="canonical" href="https://thalesgroup.github.io/agilab/_modules/agi_cluster/agi_cluster.html" />
       <script src="../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="../../_static/documentation_options.js?v=8d563738"></script>
@@ -137,7 +137,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../../agi-runner.html">agi_runner API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../agi-runner.html">agi_cluster API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../agi-runner.html#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#installation">Installation</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#update">Update</a></li>
@@ -146,7 +146,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../agi-runner.html#reference">Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#agi_runner.agi_runner.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -262,7 +262,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
-      <li class="breadcrumb-item active">agi_runner.agi_runner</li>
+      <li class="breadcrumb-item active">agi_cluster.agi_cluster</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -271,7 +271,7 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <h1>Source code for agi_runner.agi_runner</h1><div class="highlight"><pre>
+  <h1>Source code for agi_cluster.agi_cluster</h1><div class="highlight"><pre>
 <span></span><span class="c1"># BSD 3-Clause License</span>
 <span class="c1">#</span>
 <span class="c1"># Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS</span>
@@ -336,7 +336,7 @@
 
 
 <div class="viewcode-block" id="AGI">
-<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">AGI</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Agi Class.</span>
@@ -409,7 +409,7 @@
     <span class="n">env</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">AgiEnv</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 
 <div class="viewcode-block" id="AGI.__init__">
-<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.__init__">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.__init__">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">verbose</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Initialize a Agi object with a target and verbosity level.</span>
@@ -431,7 +431,7 @@
 
 
 <div class="viewcode-block" id="AGI.run">
-<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.run">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.run">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span>
             <span class="n">target</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -530,7 +530,7 @@
             <span class="p">}</span>
             <span class="c1"># AGI.install_worker_group = AGI.agi_workers[env.base_worker_cls]</span>
             <span class="n">AGI</span><span class="o">.</span><span class="n">install_worker_group</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;agi-worker &quot;</span><span class="p">,</span> <span class="n">AGI</span><span class="o">.</span><span class="n">agi_workers</span><span class="p">[</span><span class="n">env</span><span class="o">.</span><span class="n">base_worker_cls</span><span class="p">]]</span>
-            <span class="n">base_worker_dir</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">agi_core_root</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span><span class="p">)</span>
+            <span class="n">base_worker_dir</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">base_worker_dir</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
                 <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">base_worker_dir</span><span class="p">)</span>
             <span class="n">AGI</span><span class="o">.</span><span class="n">_target_module</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_load_module</span><span class="p">(</span>
@@ -646,7 +646,7 @@
         <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">runs_str_keys</span><span class="p">)</span>
 
 <div class="viewcode-block" id="AGI.get_default_local_ip">
-<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.get_default_local_ip">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.get_default_local_ip">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">get_default_local_ip</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -669,7 +669,7 @@
 
 
 <div class="viewcode-block" id="AGI.find_free_port">
-<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.find_free_port">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.find_free_port">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">find_free_port</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5000</span><span class="p">,</span> <span class="n">end</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10000</span><span class="p">,</span> <span class="n">attempts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">attempts</span><span class="p">):</span>
@@ -859,7 +859,7 @@
         <span class="n">kill_prefix</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">uv</span><span class="si">}</span><span class="s1"> run -p </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">python_version</span><span class="si">}</span><span class="s1"> python&#39;</span>
 
         <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">is_local</span><span class="p">(</span><span class="n">ip</span><span class="p">):</span>
-            <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">agi_core_root</span> <span class="o">/</span> <span class="s2">&quot;src/agi_runner/cli.py&quot;</span><span class="p">,</span> <span class="n">cli_abs</span><span class="p">)</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src/agi_cluster/cli.py&quot;</span><span class="p">,</span> <span class="n">cli_abs</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">force</span><span class="p">:</span>
                 <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">kill_prefix</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">cli_abs</span><span class="si">}</span><span class="s2"> kill&quot;</span>
                 <span class="n">cmds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
@@ -880,7 +880,7 @@
         <span class="n">last_res</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">for</span> <span class="n">cmd</span> <span class="ow">in</span> <span class="n">cmds</span><span class="p">:</span>
             <span class="c1"># choose working directory based on local vs remote</span>
-            <span class="n">cwd</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">agi_core_root</span> <span class="k">if</span> <span class="n">ip</span> <span class="o">==</span> <span class="n">localhost</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">)</span>
+            <span class="n">cwd</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="k">if</span> <span class="n">ip</span> <span class="o">==</span> <span class="n">localhost</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">is_local</span><span class="p">(</span><span class="n">ip</span><span class="p">):</span>
                 <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
                     <span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="o">=</span> <span class="n">cmd</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;python &#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">)</span>
@@ -1056,7 +1056,7 @@
 
             <span class="c1"># 3) Install Python</span>
             <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s2"> python install </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">agi_core_root</span> <span class="o">/</span> <span class="s2">&quot;src/agi_runner/cli.py&quot;</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
+            <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src/agi_cluster/cli.py&quot;</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
             <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_kill</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_clean_dirs</span><span class="p">(</span><span class="n">ip</span><span class="p">)</span>
 
@@ -1212,7 +1212,7 @@
         <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">wenv_abs</span><span class="p">)</span>
 
         <span class="c1"># build agi_core*.whl</span>
-        <span class="c1"># wenv = env.agi_core_root</span>
+        <span class="c1"># wenv = env.cluster_root</span>
         <span class="c1"># src = wenv / &quot;dist&quot;</span>
         <span class="c1"># cmd = f&quot;{uv} --project {wenv} build --wheel&quot;</span>
         <span class="c1"># await AgiEnv.run(cmd, venv=wenv)</span>
@@ -1354,7 +1354,7 @@
         <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;********   </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_install_todo</span><span class="si">}</span><span class="s2"> remote .venv to </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_run_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
 <div class="viewcode-block" id="AGI.install">
-<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.install">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.install">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">install</span><span class="p">(</span>
     <span class="n">module_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -1403,7 +1403,7 @@
 
 
 <div class="viewcode-block" id="AGI.update">
-<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.update">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.update">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span>
     <span class="n">module_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -1436,7 +1436,7 @@
 
 
 <div class="viewcode-block" id="AGI.distribute">
-<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.distribute">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.distribute">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">distribute</span><span class="p">(</span>
     <span class="n">app</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -1490,7 +1490,7 @@
 
             <span class="c1"># Clean worker</span>
             <span class="k">for</span> <span class="n">ip</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">workers</span><span class="p">):</span>
-                <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">agi_core_root</span> <span class="o">/</span> <span class="s2">&quot;src/agi_runner/cli.py&quot;</span><span class="p">,</span> <span class="n">cli_rel</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
+                <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src/agi_cluster/cli.py&quot;</span><span class="p">,</span> <span class="n">cli_rel</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">env</span><span class="o">.</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
                     <span class="n">env</span><span class="o">.</span><span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="kc">False</span>
                 <span class="k">try</span><span class="p">:</span>
@@ -1856,7 +1856,7 @@
         <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">mode2str</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">runtime</span><span class="si">}</span><span class="s2">&quot;</span>
 
 <div class="viewcode-block" id="AGI.main">
-<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.main">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.main">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">scheduler</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
         <span class="n">cond_clean</span> <span class="o">=</span> <span class="kc">True</span>
@@ -1966,7 +1966,7 @@
         <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">close_all_connections</span><span class="p">()</span>
 
 <div class="viewcode-block" id="AGI.make_chunks">
-<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.make_chunks">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.make_chunks">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">make_chunks</span><span class="p">(</span>
     <span class="n">nchunk2</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
@@ -2309,7 +2309,7 @@
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;running </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2"> at </span><span class="si">{</span><span class="n">cwd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
 <div class="viewcode-block" id="AGI.get_ssh_connection">
-<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.get_ssh_connection">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.get_ssh_connection">[docs]</a>
     <span class="nd">@asynccontextmanager</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_ssh_connection</span><span class="p">(</span><span class="n">ip</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout_sec</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">):</span>
 
@@ -2393,7 +2393,7 @@
 
 
 <div class="viewcode-block" id="AGI.exec_ssh">
-<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.exec_ssh">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.exec_ssh">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cmd</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
@@ -2428,7 +2428,7 @@
 
 
 <div class="viewcode-block" id="AGI.exec_ssh_async">
-<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.exec_ssh_async">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.exec_ssh_async">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">exec_ssh_async</span><span class="p">(</span><span class="n">ip</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cmd</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -2453,7 +2453,7 @@
 
 
 <div class="viewcode-block" id="AGI.close_all_connections">
-<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.close_all_connections">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.close_all_connections">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">close_all_connections</span><span class="p">():</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>

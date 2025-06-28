@@ -12,7 +12,7 @@
 AGI-ENV
 =======
 
-agi-env is the environment component required for [agi-core](https://thalesgroup.github.io/agilab/features.html#agi-core)
+agi-env is the environment component required for [agi-cluster](https://thalesgroup.github.io/agilab/features.html#agi-cluster)
 
 
 
