@@ -53,7 +53,7 @@ import runpy
 
 # Project Libraries:
 from agi_env import AgiEnv, normalize_path
-from agi_manager import AgiDispatcher, BaseWorker
+from agi_manager import WorkDispatcher, BaseWorker
 
 # os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"
 logger = logging.getLogger(__name__)
@@ -240,7 +240,7 @@ class AGI:
             else:
                 AGI._train_model(env.home_abs)
 
-            # import of derived Class of AgiDispatcher, name target_inst which is typically instance of Flight or MyCode
+            # import of derived Class of WorkDispatcher, name target_inst which is typically instance of Flight or MyCode
             AGI.agi_workers = {
                 "PolarsWorker": "polars-worker",
                 "PandasWorker": "pandas-worker",
@@ -1482,7 +1482,7 @@ class AGI:
                 f"{env.uv} run --project {env.wenv_abs} python -c \"from agi_manager import BaseWorker"
                 f"from dask.distributed import print;"
                 f"BaseWorker.new('{env.app}', mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
-                f"res = AgiDispatcher.run({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
+                f"res = WorkDispatcher.run({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
                 f"print(res)\""
             )
 
@@ -1512,7 +1512,7 @@ class AGI:
         ]
         logging.info(f"AGI run mode={AGI._mode} on {list(AGI._dask_workers)} ... ")
 
-        AGI.workers, workers_tree, workers_tree_info = AgiDispatcher.do_distrib(
+        AGI.workers, workers_tree, workers_tree_info = WorkDispatcher.do_distrib(
             AGI._target_inst, env, AGI.workers
         )
         AGI.workers_tree = workers_tree

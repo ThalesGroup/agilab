@@ -46,7 +46,7 @@ class MycodeArgs(BaseModel):
     mycode_param1: int = conint
 
 
-class Mycode(AgiDispatcher):
+class Mycode(WorkDispatcher):
     """Class MyCode provides methods to orchestrate the run"""
 
     def __init__(self, env, **args: Unpack[MycodeArgs]):
