@@ -9178,7 +9178,7 @@ static const char * const __pyx_string_tab_encodings[] = { 0 };
 static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k_, sizeof(__pyx_k_), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_ */
   {__pyx_k_127_0_0_1, sizeof(__pyx_k_127_0_0_1), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_127_0_0_1 */
-  {__pyx_k_AgiWorker, sizeof(__pyx_k_AgiWorker), 0, 1, 1}, /* PyObject cname: __pyx_n_u_AgiWorker */
+  {__pyx_k_BaseWorker, sizeof(__pyx_k_BaseWorker), 0, 1, 1}, /* PyObject cname: __pyx_n_u_BaseWorker */
   {__pyx_k_Class_derived_from_AgiDataWorker, sizeof(__pyx_k_Class_derived_from_AgiDataWorker), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Class_derived_from_AgiDataWorker */
   {__pyx_k_Datetime, sizeof(__pyx_k_Datetime), 0, 1, 1}, /* PyObject cname: __pyx_n_u_Datetime */
   {__pyx_k_Error_removing_directory, sizeof(__pyx_k_Error_removing_directory), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Error_removing_directory */
