@@ -1,7 +1,7 @@
 import asyncio
 import sys
-from managers import AGI
-
+from agi_runner import AGI
+from agi_env import AgiEnv
 
 
 async def main(method_name):
@@ -11,12 +11,13 @@ async def main(method_name):
     except AttributeError:
         print(f"AGI has no method named '{method_name}'")
         exit(1)
-
+    env = AgiEnv(active_app="flight", install_type=1, verbose=True)
     if method_name == "install":
         res = await method('flight', verbose=3, modes_enabled=0b0111, list_ip=None)
     elif method_name == "distribute":
         res = await method(
             'flight',
+            env=env,
             verbose=True,
             data_source="file",
             path="data/flight/dataset",
@@ -30,6 +31,7 @@ async def main(method_name):
     elif method_name == "run":
         res = await method(
             'flight',
+            env=env,
             mode=3,
             verbose=True,
             data_source="file",
@@ -47,8 +49,11 @@ async def main(method_name):
     print(res)
 
 if __name__ == '__main__':
+    method_name = None
     if len(sys.argv) < 2:
         print("Usage: _test_flight_manager.py <method_name>")
-        sys.exit(1)
-    method_name = sys.argv[1]
+    else:
+        method_name = sys.argv[1]
+    if not method_name:
+        method_name = "run"
     asyncio.run(main(method_name))
