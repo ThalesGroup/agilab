@@ -33,7 +33,7 @@ import py7zr
 from datetime import date
 
 from agi_runner import AGI
-from agi_worker import BaseWorker
+from agi_manager import BaseWorker
 import logging
 
 logger = logging.getLogger(__name__)

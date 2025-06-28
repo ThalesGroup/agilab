@@ -26,8 +26,9 @@ def main():
 
     # Coverage packages updated (base_worker removed)
     coverage_packages = [
-        "agi_manager",
-        "agi_runner",
+        "agi_runnner",
+        "work_dispatcher",
+        "base_worker",
         "agent_worker",
         "dag_worker",
         "pandas_worker",
