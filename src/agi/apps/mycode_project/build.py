@@ -102,8 +102,8 @@ def find_sys_prefix(base_dir: str) -> str:
 
 
 def create_symlink_for_module(env, pck: str) -> list[Path]:
-    # e.g. "agi_manager"
-    pck_src = pck.replace('.', '/')
+    # e.g. "node"
+    pck_src = pck.replace('.', '/')            # -> Path("agi_core")/"workers"/"node"
     # extract "core" from "agi_core"
     pck_root = pck.split('.')[0]
     src_abs = env.cluster_root / "src" / pck_src

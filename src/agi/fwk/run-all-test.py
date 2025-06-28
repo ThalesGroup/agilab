@@ -4,18 +4,27 @@ from pathlib import Path
 import sys
 import subprocess
 
-# Set PYTHONPATH to include core/src for imports
-core_src_path = str((Path(__file__).parent / "cluster" / "src").resolve())
+# Prepare PYTHONPATH to include cluster/src and node/src
+paths = []
 pp = os.environ.get("PYTHONPATH", "")
-if core_src_path not in pp.split(os.pathsep):
-    os.environ["PYTHONPATH"] = core_src_path + (os.pathsep + pp if pp else "")
+if pp:
+    paths.extend(pp.split(os.pathsep))
+
+cluster_src = str((Path(__file__).parent / "cluster" / "src").resolve())
+node_src = str((Path(__file__).parent / "node" / "src").resolve())
+
+if cluster_src not in paths:
+    paths.insert(0, cluster_src)
+if node_src not in paths:
+    paths.insert(0, node_src)
+
+os.environ["PYTHONPATH"] = os.pathsep.join(paths)
 
 def main():
     repo_root = Path(__file__).parent.absolute()
     badges_root = repo_root.parent.parent.parent / 'docs/html'
     os.makedirs(badges_root, exist_ok=True)
 
-    # Find all test files (excluding those in .venv)
     test_files = sorted(
         p for p in repo_root.rglob("test*.py")
         if p.is_file() and ".venv" not in p.parts
@@ -24,7 +33,6 @@ def main():
         print("No test files found.")
         sys.exit(1)
 
-    # Coverage packages updated (base_worker removed)
     coverage_packages = [
         "agi_runner",
         "agi_manager",
@@ -34,9 +42,7 @@ def main():
         "polars_worker",
     ]
 
-    cov_args = []
-    for pkg in coverage_packages:
-        cov_args.append(f"--cov={pkg}")
+    cov_args = [f"--cov={pkg}" for pkg in coverage_packages]
 
     cmd = [
         sys.executable, "-m", "pytest",

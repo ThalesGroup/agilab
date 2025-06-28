@@ -45,7 +45,5 @@ uv sync -p "$AGI_PYTHON_VERSION" --dev --directory "$(realpath "$1/gui")"
 uv run python -m ensurepip
 popd > /dev/null
 
-pushd node > /dev/null
 echo -e "${GREEN}Checking installation...${NC}"
-uv run -p "$AGI_PYTHON_VERSION" --project core python run-all-test.py
-popd > /dev/null
+uv run -p "$AGI_PYTHON_VERSION" --project cluster python run-all-test.py

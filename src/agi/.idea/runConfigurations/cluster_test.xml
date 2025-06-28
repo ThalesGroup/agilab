@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="core test" type="PythonConfigurationType" factoryName="Python">
-    <module name="core" />
+  <configuration default="false" name="cluster test" type="PythonConfigurationType" factoryName="Python">
+    <module name="cluster" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />

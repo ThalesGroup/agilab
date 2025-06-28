@@ -5,6 +5,7 @@
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/agilab/fwk/core/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/agilab/fwk/env/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/agi/fwk/node/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
       <excludeFolder url="file://$MODULE_DIR$/src/agi/apps/mycode_project/.idea" />
     </content>

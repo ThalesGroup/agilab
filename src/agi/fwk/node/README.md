@@ -9,21 +9,10 @@
 [![docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://thalesgroup.github.io/agilab)
 [![ORCID](https://img.shields.io/badge/ORCID-0009--0003--5375--368X-A6CE39?logo=orcid)](https://orcid.org/0009-0003-5375-368X)
 
-AGI-CLUSTER Framework
-=====================
+AGI-NODE Component
+========
 
-agi-cluster is an AI framework for engineering distributed under the BSD License. See [documentation](https://thalesgroup.github.io/agilab).
+agi-node is the local code for  AI framework under the BSD License. See [documentation](https://thalesgroup.github.io/agilab).
 
-### Install
 
-```bash
-
-mkdir agi-workspace && cd agi-workspace
-uv init && uv add agi-core
-```
-
-### Run
-
-```bash
-uv run agilab
 ```

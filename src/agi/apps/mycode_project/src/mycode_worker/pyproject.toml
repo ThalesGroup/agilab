@@ -16,12 +16,11 @@ dev = [ "black", "pytest", "licensecheck", "flight_project",]
 text = "Thales SIX GTS France SAS"
 
 [project.optional-dependencies]
-agi-worker = []
+base-worker = []
 agent-worker = []
 dag-worker = []
 data-worker = [ "polars",]
-workers = [ "agi-core[agi-worker]", "agi-core[data-worker]",]
-managers = [ "agi-core[managers]",]
+workers = [ "agi-manager[base-worker]", "agi-manager[data-worker]",]
 
 [tool.mypy]
 mypy_path = [ "stubs",]
@@ -29,6 +28,6 @@ disallow_untyped_defs = false
 ignore_missing_imports = true
 
 [tool.uv.sources]
-agi-core = {path = "/Users/jpm/PycharmProjects/agilab/src/agi/fwk/core", editable = true}
+agi-cluster = {path = "/Users/jpm/PycharmProjects/agilab/src/agi/fwk/cluster", editable = true}
 [tool.uv.sources.flight_project]
 workspace = true

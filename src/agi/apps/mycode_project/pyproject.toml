@@ -47,7 +47,7 @@ dev = [
 
 # do not remove
 [tool.uv.sources]
-agi-core = {path = "/Users/jpm/PycharmProjects/agilab/src/agi/fwk/core", editable = true}
+agi-core = {path = "/Users/jpm/PycharmProjects/agilab/src/agi/fwk/cluster", editable = true}
 [tool.uv.sources.mycode_project]
 workspace = true
 
