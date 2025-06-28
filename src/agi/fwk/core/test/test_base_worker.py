@@ -3,9 +3,8 @@ import tempfile
 from pathlib import Path
 
 from agi_env import AgiEnv, normalize_path
-
-
 from agi_manager import BaseWorker
+
 
 def test_expand():
     # Test expansion of a path starting with '~'

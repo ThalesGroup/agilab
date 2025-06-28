@@ -2,14 +2,13 @@
 import os
 from pathlib import Path
 import sys
-from pathlib import Path
 import subprocess
 
-# Set PYTHONPATH to the directory containing the 'test' directory
-core_path = str((Path(__file__).parent / "core").resolve())
+# Set PYTHONPATH to include core/src for imports
+core_src_path = str((Path(__file__).parent / "core" / "src").resolve())
 pp = os.environ.get("PYTHONPATH", "")
-if not pp.startswith(core_path):
-    os.environ["PYTHONPATH"] = core_path + (os.pathsep + pp if pp else "")
+if core_src_path not in pp.split(os.pathsep):
+    os.environ["PYTHONPATH"] = core_src_path + (os.pathsep + pp if pp else "")
 
 def main():
     repo_root = Path(__file__).parent.absolute()
@@ -25,10 +24,24 @@ def main():
         print("No test files found.")
         sys.exit(1)
 
+    # Coverage packages updated (base_worker removed)
+    coverage_packages = [
+        "agi_manager",
+        "agi_runner",
+        "agent_worker",
+        "dag_worker",
+        "pandas_worker",
+        "polars_worker",
+    ]
+
+    cov_args = []
+    for pkg in coverage_packages:
+        cov_args.append(f"--cov={pkg}")
+
     cmd = [
         sys.executable, "-m", "pytest",
         "--rootdir", str(repo_root),
-        "--cov=agi_core",
+        *cov_args,
         "--cov-report=term",
         "--cov-report=xml",
         "--import-mode=importlib",

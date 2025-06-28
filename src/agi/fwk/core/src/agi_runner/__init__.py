@@ -1,1 +1,1 @@
-from .agi_runner import *
+from .agi_runner import AGI

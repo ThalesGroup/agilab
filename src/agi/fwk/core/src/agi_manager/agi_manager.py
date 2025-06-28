@@ -52,7 +52,7 @@ warnings.filterwarnings("ignore")
 workers_default = {socket.gethostbyname("localhost"): 1}
 
 
-class AgiWorker(abc.ABC):
+class BaseWorker(abc.ABC):
     """
     class BaseWorker v1.0
     """
@@ -87,7 +87,7 @@ class AgiWorker(abc.ABC):
         """
         """ """
         logging.info(
-            f"BaseWorker.start - worker #{AgiWorker.worker_id}: {AgiWorker.worker} - mode: {self.mode}")
+            f"BaseWorker.start - worker #{BaseWorker.worker_id}: {BaseWorker.worker} - mode: {self.mode}")
         self.start()
 
     def stop(self):
@@ -109,13 +109,13 @@ class AgiWorker(abc.ABC):
         Returns:
             str: The joined path.
         """
-        if os.name == "nt" and not AgiWorker.is_managed_pc:
+        if os.name == "nt" and not BaseWorker.is_managed_pc:
             path = Path(path1)
             parts = path.parts
             if "Users" in parts:
                 index = parts.index("Users") + 2
                 path = Path(*parts[index:])
-            net_path = AgiWorker.normalize_path("\\\\127.0.0.1\\" + str(path))
+            net_path = BaseWorker.normalize_path("\\\\127.0.0.1\\" + str(path))
             try:
                 # your nfs account in order to mount it as net drive on windows
                 cmd = f'net use Z: "{net_path}" /user:your-name your-password'
@@ -123,7 +123,7 @@ class AgiWorker(abc.ABC):
                 subprocess.run(cmd, shell=True, check=True)
             except Exception as e:
                 logging.error(f"Mount failed: {e}")
-        return AgiWorker.join(AgiWorker.expand(path1), path2)
+        return BaseWorker.join(BaseWorker.expand(path1), path2)
 
     @staticmethod
     def expand(path, base_directory=None):
@@ -178,7 +178,7 @@ class AgiWorker(abc.ABC):
         Raises:
             None
         """
-        path = os.path.join(AgiWorker.expand(path1), path2)
+        path = os.path.join(BaseWorker.expand(path1), path2)
 
         if os.name != "nt":
             path = path.replace("\\", "/")
@@ -253,17 +253,17 @@ class AgiWorker(abc.ABC):
 
     @staticmethod
     def _load_manager():
-        env = AgiWorker.env
+        env = BaseWorker.env
         module_name = env.module
         module_class = env.target_class
         module_name += '.' + module_name
         if module_name in sys.modules:
             del sys.modules[module_name]
-        return AgiWorker._load_module(module_name, module_class)
+        return BaseWorker._load_module(module_name, module_class)
 
     @staticmethod
     def _load_worker(mode):
-        env = AgiWorker.env
+        env = BaseWorker.env
         module_name = env.target_worker
         module_class = env.target_worker_class
         if module_name in sys.modules:
@@ -273,7 +273,7 @@ class AgiWorker(abc.ABC):
         else:
             module_name += '.' + module_name
 
-        return AgiWorker._load_module(module_name, module_class)
+        return BaseWorker._load_module(module_name, module_class)
 
     @staticmethod
     def run(workers={"127.0.0.1": 1}, mode=0, env=None, verbose=None, args=None):
@@ -286,9 +286,9 @@ class AgiWorker(abc.ABC):
         :return:
         """
         if not env:
-            env = AgiWorker.env
+            env = BaseWorker.env
         else:
-            AgiWorker.env = env
+            BaseWorker.env = env
 
         if mode & 2:
             wenv_abs = env.wenv_abs
@@ -308,7 +308,7 @@ class AgiWorker(abc.ABC):
                 logging.info(f"warning: no cython library found at {lib_path}")
                 exit(0)
 
-        target_class = AgiWorker._load_manager()
+        target_class = BaseWorker._load_manager()
 
         # Instantiate the class with arguments
         target_inst = target_class(env, **args)
@@ -325,7 +325,7 @@ class AgiWorker(abc.ABC):
             return workers_tree
 
         t = time.time()
-        AgiWorker.do_works(workers_tree, workers_tree_info)
+        BaseWorker.do_works(workers_tree, workers_tree_info)
         runtime = time.time() - t
         env._run_time = runtime
 
@@ -377,18 +377,18 @@ class AgiWorker(abc.ABC):
         try:
             if env == None:
                 install_type = 1 if worker.startswith("localhost") or worker.startswith("127.0.0.1") else 2
-                AgiWorker.env = AgiEnv(active_app=app, install_type=install_type, verbose=verbose)
+                BaseWorker.env = AgiEnv(active_app=app, install_type=install_type, verbose=verbose)
             elif env == 0:
                 install_type = 1 if worker.startswith("localhost") or worker.startswith("127.0.0.1") else 2
-                AgiWorker.env = AgiEnv(active_app=app, install_type=install_type, verbose=verbose, debug=True)
+                BaseWorker.env = AgiEnv(active_app=app, install_type=install_type, verbose=verbose, debug=True)
             else:
-                AgiWorker.env = env
+                BaseWorker.env = env
 
             logging.info(f"venv: {sys.prefix}")
             logging.info(f"BaseWorker.new - worker #{worker_id}: {worker} from: {os.path.relpath(__file__)}")
 
             # import of derived Class of WorkDispatcher, name target_inst which is typically an instance of MyCode
-            worker_class = AgiWorker._load_worker(mode)
+            worker_class = BaseWorker._load_worker(mode)
 
             # Instantiate the class with arguments
             worker_inst = worker_class()
@@ -397,16 +397,16 @@ class AgiWorker(abc.ABC):
             worker_inst.verbose = verbose
 
             # Instantiate the base class
-            AgiWorker.verbose = verbose
+            BaseWorker.verbose = verbose
             # BaseWorker._pool_init = worker_inst.pool_init
             # BaseWorker._work_pool = worker_inst.work_pool
-            AgiWorker._insts[worker_id] = worker_inst
-            AgiWorker._built = False
-            AgiWorker.worker = Path(worker).name
-            AgiWorker.worker_id = worker_id
-            AgiWorker.t0 = time.time()
+            BaseWorker._insts[worker_id] = worker_inst
+            BaseWorker._built = False
+            BaseWorker.worker = Path(worker).name
+            BaseWorker.worker_id = worker_id
+            BaseWorker.t0 = time.time()
             logging.info(f"worker #{worker_id}: {worker} starting...")
-            AgiWorker.start(worker_inst)
+            BaseWorker.start(worker_inst)
 
         except Exception as e:
             logging.error(traceback.format_exc())
@@ -421,7 +421,7 @@ class AgiWorker(abc.ABC):
         Returns:
         """
 
-        worker = AgiWorker.worker
+        worker = BaseWorker.worker
 
         # Informations sur la RAM
         ram = psutil.virtual_memory()
@@ -436,10 +436,10 @@ class AgiWorker(abc.ABC):
 
         # Vitesse du réseau
         # path = BaseWorker.share_path
-        if not AgiWorker.share_path:
+        if not BaseWorker.share_path:
             path = tempfile.gettempdir()
         else:
-            path = normalize_path(AgiWorker.share_path)
+            path = normalize_path(BaseWorker.share_path)
         if not os.path.exists(path):
             os.makedirs(path, exist_ok=True)
 
@@ -487,13 +487,13 @@ class AgiWorker(abc.ABC):
             prefix = "~/MyApp/"
         else:
             prefix = "~/"
-        AgiWorker.home_dir = Path(prefix).expanduser().absolute()
-        AgiWorker.logs = AgiWorker.home_dir / f"{target_worker}_trace.txt"
-        AgiWorker.dask_home = dask_home
-        AgiWorker.worker = worker
+        BaseWorker.home_dir = Path(prefix).expanduser().absolute()
+        BaseWorker.logs = BaseWorker.home_dir / f"{target_worker}_trace.txt"
+        BaseWorker.dask_home = dask_home
+        BaseWorker.worker = worker
 
         logging.info(
-            f"build - worker #{AgiWorker.worker_id}: {worker} from: {os.path.relpath(__file__)}"
+            f"build - worker #{BaseWorker.worker_id}: {worker} from: {os.path.relpath(__file__)}"
         )
 
         try:
@@ -501,7 +501,7 @@ class AgiWorker(abc.ABC):
 
             if verbose > 2:
                 logging.info("starting worker_build ...")
-                logging.info(f"home_dir: {AgiWorker.home_dir}")
+                logging.info(f"home_dir: {BaseWorker.home_dir}")
                 logging.info(
                     f"worker_build(target_worker={target_worker}, dask_home={dask_home}, mode={mode}, verbose={verbose}, worker={worker})"
                 )
@@ -511,7 +511,7 @@ class AgiWorker(abc.ABC):
             # Exemple supposé : définir egg_src (non défini dans ton code)
             egg_src = dask_home + "/some_egg_file"  # adapte selon contexte réel
 
-            extract_path = AgiWorker.home_dir / "wenv" / target_worker
+            extract_path = BaseWorker.home_dir / "wenv" / target_worker
             extract_src = extract_path / "src"
 
             if not mode & 2:
@@ -532,7 +532,7 @@ class AgiWorker(abc.ABC):
 
         except Exception as err:
             logging.error(
-                f"worker<{worker}> - fail to build {target_worker} from {dask_home}, see {AgiWorker.logs} for details"
+                f"worker<{worker}> - fail to build {target_worker} from {dask_home}, see {BaseWorker.logs} for details"
             )
             raise err
 
@@ -546,11 +546,11 @@ class AgiWorker(abc.ABC):
         Returns:
         """
         try:
-            worker_id = AgiWorker.worker_id
+            worker_id = BaseWorker.worker_id
             if worker_id is not None:
-                logging.info(f"do_works - worker #{worker_id}: {AgiWorker.worker} from {os.path.relpath(__file__)}")
+                logging.info(f"do_works - worker #{worker_id}: {BaseWorker.worker} from {os.path.relpath(__file__)}")
                 logging.info(f"BaseWorker.work - #{worker_id + 1} / {len(workers_tree)}")
-                AgiWorker._insts[worker_id].works(workers_tree, workers_tree_info)
+                BaseWorker._insts[worker_id].works(workers_tree, workers_tree_info)
             else:
                 logging.error(f"this worker is not initialized")
                 raise Exception(f"failed to do_works")
