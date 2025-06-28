@@ -11,7 +11,7 @@ from pydantic import BaseModel
 import py7zr  # Added import for py7zr
 from agi_env import AgiEnv, normalize_path   # Added import for Agienv
 
-from agi_cluster import AGI
+from agi_runner import AGI
 from agi_manager import BaseWorker
 from agi_env import AgiEnv, normalize_path
 logger = logging.getLogger(__name__)

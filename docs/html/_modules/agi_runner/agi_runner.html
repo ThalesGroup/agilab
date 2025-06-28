@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>agi_cluster.agi_cluster &mdash; AGILab 1.0.0 documentation</title>
+  <title>agi_runner.agi_runner &mdash; AGILab 1.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
@@ -13,7 +13,7 @@
       <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=28052664" />
 
   
-    <link rel="canonical" href="https://thalesgroup.github.io/agilab/_modules/agi_cluster/agi_cluster.html" />
+    <link rel="canonical" href="https://thalesgroup.github.io/agilab/_modules/agi_runner/agi_runner.html" />
       <script src="../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="../../_static/documentation_options.js?v=8d563738"></script>
@@ -137,7 +137,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../../agi-runner.html">agi_cluster API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../agi-runner.html">agi_runner API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../agi-runner.html#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#installation">Installation</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#update">Update</a></li>
@@ -146,17 +146,17 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../agi-runner.html#reference">Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#agi_runner.agi_runner.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
 </ul>
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../../agi-workers.html">workers API</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../agi-workers.html#workers-reference">Workers Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../agi-workers.html#agent-worker">agent_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../agi-workers.html#dag-worker">dag_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../agi-workers.html#pandas-worker">pandas_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../agi-workers.html#polars-worker">polars_worker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workers.html">workers API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../workers.html#workers-reference">Workers Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../workers.html#agent-worker">agent_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../workers.html#dag-worker">dag_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../workers.html#pandas-worker">pandas_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../workers.html#polars-worker">polars_worker</a></li>
 </ul>
 </li>
 </ul>
@@ -180,7 +180,6 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../license.html">Licenses</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../gui-licenses.html">Gui Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../core-licenses.html">Core Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../env-licenses.html">Env Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../my-code-project-licenses.html">My-code-project Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../flight-project-licenses.html">Flight-project Licenses</a></li>
@@ -236,8 +235,111 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../flight-project.html">Example2: Flight-Project</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../flight-project.html#manager-flight">manager: flight</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../flight-project.html#worker-flight-worker">worker: flight_worker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../flight-project.html#manager-flight">manager: flight</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight"><code class="docutils literal notranslate"><span class="pre">Flight</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.__init__"><code class="docutils literal notranslate"><span class="pre">Flight.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.args"><code class="docutils literal notranslate"><span class="pre">Flight.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.build_distribution"><code class="docutils literal notranslate"><span class="pre">Flight.build_distribution()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.convert_functions_to_names"><code class="docutils literal notranslate"><span class="pre">Flight.convert_functions_to_names()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.data_out"><code class="docutils literal notranslate"><span class="pre">Flight.data_out</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.do_distrib"><code class="docutils literal notranslate"><span class="pre">Flight.do_distrib()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.extract_plane_from_file_name"><code class="docutils literal notranslate"><span class="pre">Flight.extract_plane_from_file_name()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_data_from_files"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_files()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_data_from_hawk"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_hawk()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_partition_by_planes"><code class="docutils literal notranslate"><span class="pre">Flight.get_partition_by_planes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.ivq_logs"><code class="docutils literal notranslate"><span class="pre">Flight.ivq_logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.onerror"><code class="docutils literal notranslate"><span class="pre">Flight.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.verbose"><code class="docutils literal notranslate"><span class="pre">Flight.verbose</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs"><code class="docutils literal notranslate"><span class="pre">FlightArgs</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.__init__"><code class="docutils literal notranslate"><span class="pre">FlightArgs.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.check_date"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_date()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.check_date_order"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_date_order()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.check_valid_regex"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_valid_regex()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.construct"><code class="docutils literal notranslate"><span class="pre">FlightArgs.construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.copy"><code class="docutils literal notranslate"><span class="pre">FlightArgs.copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.data_source"><code class="docutils literal notranslate"><span class="pre">FlightArgs.data_source</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.datemax"><code class="docutils literal notranslate"><span class="pre">FlightArgs.datemax</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.datemin"><code class="docutils literal notranslate"><span class="pre">FlightArgs.datemin</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.dict"><code class="docutils literal notranslate"><span class="pre">FlightArgs.dict()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.files"><code class="docutils literal notranslate"><span class="pre">FlightArgs.files</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.from_orm"><code class="docutils literal notranslate"><span class="pre">FlightArgs.from_orm()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_computed_fields"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_computed_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_config"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_config</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_construct"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_copy"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_dump"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_dump()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_dump_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_dump_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_extra"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_extra</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_fields"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_fields_set"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_fields_set</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_json_schema"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_json_schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_parametrized_name"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_parametrized_name()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_post_init"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_post_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_rebuild"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_rebuild()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_validate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_validate_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_validate_strings"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate_strings()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.nfile"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nfile</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.nread"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nread</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.nskip"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nskip</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.output_format"><code class="docutils literal notranslate"><span class="pre">FlightArgs.output_format</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.parse_file"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.parse_obj"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_obj()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.parse_raw"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_raw()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.path"><code class="docutils literal notranslate"><span class="pre">FlightArgs.path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.sampling_rate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.sampling_rate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.schema"><code class="docutils literal notranslate"><span class="pre">FlightArgs.schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.schema_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.schema_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.update_forward_refs"><code class="docutils literal notranslate"><span class="pre">FlightArgs.update_forward_refs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.validate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.validate()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../flight-project.html#worker-flight-worker">worker: flight_worker</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker"><code class="docutils literal notranslate"><span class="pre">FlightWorker</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.build"><code class="docutils literal notranslate"><span class="pre">FlightWorker.build()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.calculate_speed"><code class="docutils literal notranslate"><span class="pre">FlightWorker.calculate_speed()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">FlightWorker.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">FlightWorker.dask_home</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.do_works"><code class="docutils literal notranslate"><span class="pre">FlightWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.env"><code class="docutils literal notranslate"><span class="pre">FlightWorker.env</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.exec"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_mono_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_multi_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.expand"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_logs_and_result()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">FlightWorker.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">FlightWorker.is_managed_pc</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.join"><code class="docutils literal notranslate"><span class="pre">FlightWorker.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.logs"><code class="docutils literal notranslate"><span class="pre">FlightWorker.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.mode"><code class="docutils literal notranslate"><span class="pre">FlightWorker.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.new"><code class="docutils literal notranslate"><span class="pre">FlightWorker.new()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.onerror"><code class="docutils literal notranslate"><span class="pre">FlightWorker.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.pool_init"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.pool_vars"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_vars</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.preprocess_df"><code class="docutils literal notranslate"><span class="pre">FlightWorker.preprocess_df()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.run"><code class="docutils literal notranslate"><span class="pre">FlightWorker.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.share_path"><code class="docutils literal notranslate"><span class="pre">FlightWorker.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.start"><code class="docutils literal notranslate"><span class="pre">FlightWorker.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.stop"><code class="docutils literal notranslate"><span class="pre">FlightWorker.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.t0"><code class="docutils literal notranslate"><span class="pre">FlightWorker.t0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.verbose"><code class="docutils literal notranslate"><span class="pre">FlightWorker.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.work_done"><code class="docutils literal notranslate"><span class="pre">FlightWorker.work_done()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.work_init"><code class="docutils literal notranslate"><span class="pre">FlightWorker.work_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.work_pool"><code class="docutils literal notranslate"><span class="pre">FlightWorker.work_pool()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.worker"><code class="docutils literal notranslate"><span class="pre">FlightWorker.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.worker_id"><code class="docutils literal notranslate"><span class="pre">FlightWorker.worker_id</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.works"><code class="docutils literal notranslate"><span class="pre">FlightWorker.works()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -262,7 +364,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
-      <li class="breadcrumb-item active">agi_cluster.agi_cluster</li>
+      <li class="breadcrumb-item active">agi_runner.agi_runner</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -271,7 +373,7 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <h1>Source code for agi_cluster.agi_cluster</h1><div class="highlight"><pre>
+  <h1>Source code for agi_runner.agi_runner</h1><div class="highlight"><pre>
 <span></span><span class="c1"># BSD 3-Clause License</span>
 <span class="c1">#</span>
 <span class="c1"># Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS</span>
@@ -336,7 +438,7 @@
 
 
 <div class="viewcode-block" id="AGI">
-<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">AGI</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Agi Class.</span>
@@ -409,7 +511,7 @@
     <span class="n">env</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">AgiEnv</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 
 <div class="viewcode-block" id="AGI.__init__">
-<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.__init__">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.__init__">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">verbose</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Initialize a Agi object with a target and verbosity level.</span>
@@ -431,7 +533,7 @@
 
 
 <div class="viewcode-block" id="AGI.run">
-<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.run">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.run">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span>
             <span class="n">target</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -529,7 +631,7 @@
                 <span class="s2">&quot;AgentWorker&quot;</span><span class="p">:</span> <span class="s2">&quot;agent-worker&quot;</span><span class="p">,</span>
             <span class="p">}</span>
             <span class="c1"># AGI.install_worker_group = AGI.agi_workers[env.base_worker_cls]</span>
-            <span class="n">AGI</span><span class="o">.</span><span class="n">install_worker_group</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;agi-worker &quot;</span><span class="p">,</span> <span class="n">AGI</span><span class="o">.</span><span class="n">agi_workers</span><span class="p">[</span><span class="n">env</span><span class="o">.</span><span class="n">base_worker_cls</span><span class="p">]]</span>
+            <span class="n">AGI</span><span class="o">.</span><span class="n">install_worker_group</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;agi-manager &quot;</span><span class="p">,</span> <span class="n">AGI</span><span class="o">.</span><span class="n">agi_workers</span><span class="p">[</span><span class="n">env</span><span class="o">.</span><span class="n">base_worker_cls</span><span class="p">]]</span>
             <span class="n">base_worker_dir</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">base_worker_dir</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
                 <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">base_worker_dir</span><span class="p">)</span>
@@ -646,7 +748,7 @@
         <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">runs_str_keys</span><span class="p">)</span>
 
 <div class="viewcode-block" id="AGI.get_default_local_ip">
-<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.get_default_local_ip">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.get_default_local_ip">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">get_default_local_ip</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -669,7 +771,7 @@
 
 
 <div class="viewcode-block" id="AGI.find_free_port">
-<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.find_free_port">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.find_free_port">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">find_free_port</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5000</span><span class="p">,</span> <span class="n">end</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10000</span><span class="p">,</span> <span class="n">attempts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">attempts</span><span class="p">):</span>
@@ -859,7 +961,7 @@
         <span class="n">kill_prefix</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">uv</span><span class="si">}</span><span class="s1"> run -p </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">python_version</span><span class="si">}</span><span class="s1"> python&#39;</span>
 
         <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">is_local</span><span class="p">(</span><span class="n">ip</span><span class="p">):</span>
-            <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src/agi_cluster/cli.py&quot;</span><span class="p">,</span> <span class="n">cli_abs</span><span class="p">)</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src/cluster/cli.py&quot;</span><span class="p">,</span> <span class="n">cli_abs</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">force</span><span class="p">:</span>
                 <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">kill_prefix</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">cli_abs</span><span class="si">}</span><span class="s2"> kill&quot;</span>
                 <span class="n">cmds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
@@ -1056,7 +1158,7 @@
 
             <span class="c1"># 3) Install Python</span>
             <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s2"> python install </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src/agi_cluster/cli.py&quot;</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
+            <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src/cluster/cli.py&quot;</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
             <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_kill</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_clean_dirs</span><span class="p">(</span><span class="n">ip</span><span class="p">)</span>
 
@@ -1095,7 +1197,7 @@
         <span class="k">if</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span> <span class="o">&amp;</span> <span class="mi">4</span><span class="p">:</span>
             <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">ip</span> <span class="ow">in</span> <span class="n">node_ips</span><span class="p">:</span>
-                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;********   Starting </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_run_type</span><span class="si">}</span><span class="s2"> for Agi_worker in .venv on </span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;********   Starting </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_run_type</span><span class="si">}</span><span class="s2"> for worker in .venv on </span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">env</span><span class="o">.</span><span class="n">is_local</span><span class="p">(</span><span class="n">ip</span><span class="p">):</span>
                     <span class="n">tasks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span>
                         <span class="n">AGI</span><span class="o">.</span><span class="n">_install_app_remote</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">wenv_rel</span><span class="p">,</span> <span class="n">options</span><span class="p">[</span><span class="s2">&quot;worker&quot;</span><span class="p">])</span>
@@ -1354,7 +1456,7 @@
         <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;********   </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_install_todo</span><span class="si">}</span><span class="s2"> remote .venv to </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_run_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
 <div class="viewcode-block" id="AGI.install">
-<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.install">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.install">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">install</span><span class="p">(</span>
     <span class="n">module_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -1403,7 +1505,7 @@
 
 
 <div class="viewcode-block" id="AGI.update">
-<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.update">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.update">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span>
     <span class="n">module_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -1436,7 +1538,7 @@
 
 
 <div class="viewcode-block" id="AGI.distribute">
-<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.distribute">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.distribute">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">distribute</span><span class="p">(</span>
     <span class="n">app</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -1490,7 +1592,7 @@
 
             <span class="c1"># Clean worker</span>
             <span class="k">for</span> <span class="n">ip</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">workers</span><span class="p">):</span>
-                <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src/agi_cluster/cli.py&quot;</span><span class="p">,</span> <span class="n">cli_rel</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
+                <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src/cluster/cli.py&quot;</span><span class="p">,</span> <span class="n">cli_rel</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">env</span><span class="o">.</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
                     <span class="n">env</span><span class="o">.</span><span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="kc">False</span>
                 <span class="k">try</span><span class="p">:</span>
@@ -1677,7 +1779,7 @@
         <span class="n">env</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">env</span>
         <span class="n">wenv</span> <span class="o">=</span> <span class="n">normalize_path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">))</span>
         <span class="n">is_cy</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span> <span class="o">&amp;</span> <span class="n">AGI</span><span class="o">.</span><span class="n">CYTHON_MODE</span>
-        <span class="n">packages</span> <span class="o">=</span> <span class="s2">&quot;agi_manager, &quot;</span>
+        <span class="n">packages</span> <span class="o">=</span> <span class="s2">&quot;node, &quot;</span>
 
         <span class="n">baseworker</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">base_worker_cls</span>
         <span class="k">if</span> <span class="n">baseworker</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;Agent&quot;</span><span class="p">):</span>
@@ -1776,10 +1878,10 @@
             <span class="n">res</span> <span class="o">=</span> <span class="n">BaseWorker</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">workers</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_verbose</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_args</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">cmd</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s2"> run --project </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="si">}</span><span class="s2"> python -c </span><span class="se">\&quot;</span><span class="s2">from agi_manager import BaseWorker&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s2"> run --project </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="si">}</span><span class="s2"> python -c </span><span class="se">\&quot;</span><span class="s2">from node import  BaseWorker;&quot;</span>
                 <span class="sa">f</span><span class="s2">&quot;from dask.distributed import print;&quot;</span>
                 <span class="sa">f</span><span class="s2">&quot;BaseWorker.new(&#39;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">app</span><span class="si">}</span><span class="s2">&#39;, mode=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="si">}</span><span class="s2">, verbose=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_verbose</span><span class="si">}</span><span class="s2">, args=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_args</span><span class="si">}</span><span class="s2">);&quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;res = WorkDispatcher.run(</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">workers</span><span class="si">}</span><span class="s2">, mode=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="si">}</span><span class="s2">, verbose=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_verbose</span><span class="si">}</span><span class="s2">, args=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_args</span><span class="si">}</span><span class="s2">);&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;res = BaseWorker.run(</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">workers</span><span class="si">}</span><span class="s2">, mode=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="si">}</span><span class="s2">, verbose=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_verbose</span><span class="si">}</span><span class="s2">, args=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_args</span><span class="si">}</span><span class="s2">);&quot;</span>
                 <span class="sa">f</span><span class="s2">&quot;print(res)</span><span class="se">\&quot;</span><span class="s2">&quot;</span>
             <span class="p">)</span>
 
@@ -1856,7 +1958,7 @@
         <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">mode2str</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">runtime</span><span class="si">}</span><span class="s2">&quot;</span>
 
 <div class="viewcode-block" id="AGI.main">
-<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.main">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.main">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">scheduler</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
         <span class="n">cond_clean</span> <span class="o">=</span> <span class="kc">True</span>
@@ -1966,7 +2068,7 @@
         <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">close_all_connections</span><span class="p">()</span>
 
 <div class="viewcode-block" id="AGI.make_chunks">
-<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.make_chunks">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.make_chunks">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">make_chunks</span><span class="p">(</span>
     <span class="n">nchunk2</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
@@ -2309,7 +2411,7 @@
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;running </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2"> at </span><span class="si">{</span><span class="n">cwd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
 <div class="viewcode-block" id="AGI.get_ssh_connection">
-<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.get_ssh_connection">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.get_ssh_connection">[docs]</a>
     <span class="nd">@asynccontextmanager</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_ssh_connection</span><span class="p">(</span><span class="n">ip</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout_sec</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">):</span>
 
@@ -2393,7 +2495,7 @@
 
 
 <div class="viewcode-block" id="AGI.exec_ssh">
-<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.exec_ssh">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.exec_ssh">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cmd</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
@@ -2428,7 +2530,7 @@
 
 
 <div class="viewcode-block" id="AGI.exec_ssh_async">
-<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.exec_ssh_async">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.exec_ssh_async">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">exec_ssh_async</span><span class="p">(</span><span class="n">ip</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cmd</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -2453,7 +2555,7 @@
 
 
 <div class="viewcode-block" id="AGI.close_all_connections">
-<a class="viewcode-back" href="../../agi-runner.html#agi_cluster.agi_cluster.AGI.close_all_connections">[docs]</a>
+<a class="viewcode-back" href="../../agi-runner.html#agi_runner.agi_runner.AGI.close_all_connections">[docs]</a>
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">close_all_connections</span><span class="p">():</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>

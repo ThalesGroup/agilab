@@ -140,7 +140,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="agi-runner.html">agi_cluster API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-runner.html">agi_runner API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="agi-runner.html#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-runner.html#installation">Installation</a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-runner.html#update">Update</a></li>
@@ -148,15 +148,18 @@
 <li class="toctree-l4"><a class="reference internal" href="agi-runner.html#run">Run</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="agi-runner.html#reference">Reference</a></li>
+<li class="toctree-l3"><a class="reference internal" href="agi-runner.html#reference">Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-runner.html#agi_runner.agi_runner.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="agi-workers.html">workers API</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="agi-workers.html#workers-reference">Workers Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agent-worker">agent_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#dag-worker">dag_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#pandas-worker">pandas_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#polars-worker">polars_worker</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="workers.html">workers API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="workers.html#workers-reference">Workers Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="workers.html#agent-worker">agent_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="workers.html#dag-worker">dag_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="workers.html#pandas-worker">pandas_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="workers.html#polars-worker">polars_worker</a></li>
 </ul>
 </li>
 </ul>
@@ -180,7 +183,6 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="gui-licenses.html">Gui Licenses</a></li>
-<li class="toctree-l2"><a class="reference internal" href="core-licenses.html">Core Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="env-licenses.html">Env Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="my-code-project-licenses.html">My-code-project Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
@@ -191,12 +193,156 @@
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Example1: Mycode-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#manager">manager:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#worker-mycode-worker">worker: mycode_worker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#worker-mycode-worker">worker: mycode_worker</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker"><code class="docutils literal notranslate"><span class="pre">MycodeWorker</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.algo_A"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_A()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.algo_B"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_B()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.algo_C"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_C()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.algo_X"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_X()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.algo_Y"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_Y()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.algo_Z"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_Z()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.build"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.build()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.dask_home</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.do_works"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.env"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.env</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.exec"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.exec_mono_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.exec_multi_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.expand"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.get_logs_and_result()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.get_work"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.get_work()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.is_managed_pc</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.join"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.logs"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.mode"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.new"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.new()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.onerror"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.run"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.share_path"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.start"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.stop"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.t0"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.t0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.topological_sort"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.topological_sort()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.verbose"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.worker"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.worker_id"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.worker_id</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mycode_worker.mycode_worker.MycodeWorker.works"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.works()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="flight-project.html">Example2: Flight-Project</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="flight-project.html#manager-flight">manager: flight</a></li>
-<li class="toctree-l2"><a class="reference internal" href="flight-project.html#worker-flight-worker">worker: flight_worker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#manager-flight">manager: flight</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight.Flight"><code class="docutils literal notranslate"><span class="pre">Flight</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.__init__"><code class="docutils literal notranslate"><span class="pre">Flight.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.args"><code class="docutils literal notranslate"><span class="pre">Flight.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.build_distribution"><code class="docutils literal notranslate"><span class="pre">Flight.build_distribution()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.convert_functions_to_names"><code class="docutils literal notranslate"><span class="pre">Flight.convert_functions_to_names()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.data_out"><code class="docutils literal notranslate"><span class="pre">Flight.data_out</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.do_distrib"><code class="docutils literal notranslate"><span class="pre">Flight.do_distrib()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.extract_plane_from_file_name"><code class="docutils literal notranslate"><span class="pre">Flight.extract_plane_from_file_name()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_data_from_files"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_files()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_data_from_hawk"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_hawk()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_partition_by_planes"><code class="docutils literal notranslate"><span class="pre">Flight.get_partition_by_planes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.ivq_logs"><code class="docutils literal notranslate"><span class="pre">Flight.ivq_logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.onerror"><code class="docutils literal notranslate"><span class="pre">Flight.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.verbose"><code class="docutils literal notranslate"><span class="pre">Flight.verbose</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs"><code class="docutils literal notranslate"><span class="pre">FlightArgs</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.__init__"><code class="docutils literal notranslate"><span class="pre">FlightArgs.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.check_date"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_date()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.check_date_order"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_date_order()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.check_valid_regex"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_valid_regex()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.construct"><code class="docutils literal notranslate"><span class="pre">FlightArgs.construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.copy"><code class="docutils literal notranslate"><span class="pre">FlightArgs.copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.data_source"><code class="docutils literal notranslate"><span class="pre">FlightArgs.data_source</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.datemax"><code class="docutils literal notranslate"><span class="pre">FlightArgs.datemax</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.datemin"><code class="docutils literal notranslate"><span class="pre">FlightArgs.datemin</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.dict"><code class="docutils literal notranslate"><span class="pre">FlightArgs.dict()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.files"><code class="docutils literal notranslate"><span class="pre">FlightArgs.files</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.from_orm"><code class="docutils literal notranslate"><span class="pre">FlightArgs.from_orm()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_computed_fields"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_computed_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_config"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_config</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_construct"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_copy"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_dump"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_dump()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_dump_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_dump_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_extra"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_extra</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_fields"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_fields_set"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_fields_set</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_json_schema"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_json_schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_parametrized_name"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_parametrized_name()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_post_init"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_post_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_rebuild"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_rebuild()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_validate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_validate_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.model_validate_strings"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate_strings()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.nfile"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nfile</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.nread"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nread</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.nskip"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nskip</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.output_format"><code class="docutils literal notranslate"><span class="pre">FlightArgs.output_format</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.parse_file"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.parse_obj"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_obj()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.parse_raw"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_raw()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.path"><code class="docutils literal notranslate"><span class="pre">FlightArgs.path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.sampling_rate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.sampling_rate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.schema"><code class="docutils literal notranslate"><span class="pre">FlightArgs.schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.schema_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.schema_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.update_forward_refs"><code class="docutils literal notranslate"><span class="pre">FlightArgs.update_forward_refs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs.validate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.validate()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#worker-flight-worker">worker: flight_worker</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker"><code class="docutils literal notranslate"><span class="pre">FlightWorker</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.build"><code class="docutils literal notranslate"><span class="pre">FlightWorker.build()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.calculate_speed"><code class="docutils literal notranslate"><span class="pre">FlightWorker.calculate_speed()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">FlightWorker.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">FlightWorker.dask_home</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.do_works"><code class="docutils literal notranslate"><span class="pre">FlightWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.env"><code class="docutils literal notranslate"><span class="pre">FlightWorker.env</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_mono_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_multi_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_logs_and_result()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">FlightWorker.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">FlightWorker.is_managed_pc</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.join"><code class="docutils literal notranslate"><span class="pre">FlightWorker.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.logs"><code class="docutils literal notranslate"><span class="pre">FlightWorker.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.mode"><code class="docutils literal notranslate"><span class="pre">FlightWorker.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.new"><code class="docutils literal notranslate"><span class="pre">FlightWorker.new()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.onerror"><code class="docutils literal notranslate"><span class="pre">FlightWorker.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.pool_init"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.pool_vars"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_vars</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.preprocess_df"><code class="docutils literal notranslate"><span class="pre">FlightWorker.preprocess_df()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.run"><code class="docutils literal notranslate"><span class="pre">FlightWorker.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.share_path"><code class="docutils literal notranslate"><span class="pre">FlightWorker.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.start"><code class="docutils literal notranslate"><span class="pre">FlightWorker.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.stop"><code class="docutils literal notranslate"><span class="pre">FlightWorker.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.t0"><code class="docutils literal notranslate"><span class="pre">FlightWorker.t0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.verbose"><code class="docutils literal notranslate"><span class="pre">FlightWorker.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.work_done"><code class="docutils literal notranslate"><span class="pre">FlightWorker.work_done()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.work_init"><code class="docutils literal notranslate"><span class="pre">FlightWorker.work_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.work_pool"><code class="docutils literal notranslate"><span class="pre">FlightWorker.work_pool()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.worker"><code class="docutils literal notranslate"><span class="pre">FlightWorker.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.worker_id"><code class="docutils literal notranslate"><span class="pre">FlightWorker.worker_id</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight_worker.flight_worker.FlightWorker.works"><code class="docutils literal notranslate"><span class="pre">FlightWorker.works()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -243,6 +389,407 @@
 <h2>worker: mycode_worker<a class="headerlink" href="#worker-mycode-worker" title="Link to this heading"></a></h2>
 <a class="reference internal image-reference" href="_images/packages_mycode_worker.png"><img alt="Alternative text" class="align-center" src="_images/packages_mycode_worker.png" style="width: 400px;" />
 </a>
+<p id="module-mycode_worker.mycode_worker">Module mycode_worker extension of your_code</p>
+<blockquote>
+<div><p>Auteur: yourself</p>
+</div></blockquote>
+<dl class="py class">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mycode_worker.mycode_worker.</span></span><span class="sig-name descname"><span class="pre">MycodeWorker</span></span><a class="reference internal" href="_modules/mycode_worker/mycode_worker.html#MycodeWorker"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">DagWorker</span></code></p>
+<p>class derived from DagWorker</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.algo_A">
+<span class="sig-name descname"><span class="pre">algo_A</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mycode_worker/mycode_worker.html#MycodeWorker.algo_A"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.algo_A" title="Link to this definition"></a></dt>
+<dd><p>Perform algorithm A.</p>
+<p>This method belongs to MyCodeWorker class.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>self</strong> – Instance of MyCodeWorker.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Prints:</dt><dd><p>str: Print statement indicating the execution of algorithm A.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.algo_B">
+<span class="sig-name descname"><span class="pre">algo_B</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mycode_worker/mycode_worker.html#MycodeWorker.algo_B"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.algo_B" title="Link to this definition"></a></dt>
+<dd><p>Prints a message indicating the execution of <cite>algo_B</cite> method in MyCodeWorker class.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>self</strong> – Reference to the instance of MyCodeWorker class.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.algo_C">
+<span class="sig-name descname"><span class="pre">algo_C</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mycode_worker/mycode_worker.html#MycodeWorker.algo_C"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.algo_C" title="Link to this definition"></a></dt>
+<dd><p>Prints a message indicating that the algo_C method of MyCodeWorker has been called.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>(</strong><strong>)</strong> (<em>self</em>) – The MyCodeWorker instance on which the method is called.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.algo_X">
+<span class="sig-name descname"><span class="pre">algo_X</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mycode_worker/mycode_worker.html#MycodeWorker.algo_X"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.algo_X" title="Link to this definition"></a></dt>
+<dd><p>Perform a specific algorithm X.</p>
+<p>This method prints a message indicating the execution of algorithm X.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>self</strong> – The object instance.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.algo_Y">
+<span class="sig-name descname"><span class="pre">algo_Y</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mycode_worker/mycode_worker.html#MycodeWorker.algo_Y"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.algo_Y" title="Link to this definition"></a></dt>
+<dd><p>Perform algorithm Y.</p>
+<p>This method is a part of the MyCodeWorker class.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>self</strong> – The instance of the MyCodeWorker class.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.algo_Z">
+<span class="sig-name descname"><span class="pre">algo_Z</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mycode_worker/mycode_worker.html#MycodeWorker.algo_Z"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.algo_Z" title="Link to this definition"></a></dt>
+<dd><p>Perform a specific algorithm Z.</p>
+<p>This function is part of the MyCodeWorker class.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.build">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">build</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dask_home</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.build" title="Link to this definition"></a></dt>
+<dd><p>Function to build target code on a target Worker.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>target_worker</strong> (<em>str</em>) – module to build</p></li>
+<li><p><strong>dask_home</strong> (<em>str</em>) – path to dask home</p></li>
+<li><p><strong>worker</strong> – current worker</p></li>
+<li><p><strong>mode</strong> – (Default value = 0)</p></li>
+<li><p><strong>verbose</strong> – (Default value = 0)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.cython_decorators">
+<span class="sig-name descname"><span class="pre">cython_decorators</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['njit']</span></em><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.cython_decorators" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.dask_home">
+<span class="sig-name descname"><span class="pre">dask_home</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.dask_home" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.do_works">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">do_works</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.do_works" title="Link to this definition"></a></dt>
+<dd><p>run of workers</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>chunk</strong> – distribution tree</p></li>
+<li><p><strong>chunks</strong></p></li>
+</ul>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.env">
+<span class="sig-name descname"><span class="pre">env</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.env" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.exec">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.exec" title="Link to this definition"></a></dt>
+<dd><p>execute a command within a subprocess</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cmd</strong> – the str of the command</p></li>
+<li><p><strong>path</strong> – the path where to lunch the command</p></li>
+<li><p><strong>worker</strong></p></li>
+</ul>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.exec_mono_process">
+<span class="sig-name descname"><span class="pre">exec_mono_process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.exec_mono_process" title="Link to this definition"></a></dt>
+<dd><p>Execute tasks in a single process, respecting dependencies,
+but only for branches assigned to this worker via round-robin.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.exec_multi_process">
+<span class="sig-name descname"><span class="pre">exec_multi_process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.exec_multi_process" title="Link to this definition"></a></dt>
+<dd><p>Execute tasks in multiple threads, distributing branches to workers in
+round‑robin, then honoring dependencies per worker.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.expand">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">expand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.expand" title="Link to this definition"></a></dt>
+<dd><p>Expand a given path to an absolute path.
+:param path: The path to expand.
+:type path: str
+:param base_directory: The base directory to use for expanding the path. Defaults to None.
+:type base_directory: str, optional</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The expanded absolute path.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>str</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This method handles both Unix and Windows paths and expands ‘~’ notation to the user’s home directory.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.expand_and_join">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">expand_and_join</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.expand_and_join" title="Link to this definition"></a></dt>
+<dd><p>Join two paths after expanding the first path.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path1</strong> (<em>str</em>) – The first path to expand and join.</p></li>
+<li><p><strong>path2</strong> (<em>str</em>) – The second path to join with the expanded first path.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The joined path.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.get_logs_and_result">
+<span class="sig-name descname"><span class="pre">get_logs_and_result</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbosity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.get_logs_and_result" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.get_work">
+<span class="sig-name descname"><span class="pre">get_work</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">work</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mycode_worker/mycode_worker.html#MycodeWorker.get_work"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.get_work" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>work</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></span>) – contain the worker function name called by BaseWorker.do_work</p>
+</dd>
+</dl>
+<p>this is type string and not type function to avoid manager (e.g. Mycode) to be dependant of MyCodeWorker
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.get_worker_info">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_worker_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">worker_id</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.get_worker_info" title="Link to this definition"></a></dt>
+<dd><p>def get_worker_info():</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>worker_id</strong></p>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.home_dir">
+<span class="sig-name descname"><span class="pre">home_dir</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.home_dir" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.is_managed_pc">
+<span class="sig-name descname"><span class="pre">is_managed_pc</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.is_managed_pc" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.join">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">join</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.join" title="Link to this definition"></a></dt>
+<dd><p>Join two file paths.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path1</strong> (<em>str</em>) – The first file path.</p></li>
+<li><p><strong>path2</strong> (<em>str</em>) – The second file path.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The combined file path.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>None</strong> – </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.logs">
+<span class="sig-name descname"><span class="pre">logs</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.logs" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.mode">
+<span class="sig-name descname"><span class="pre">mode</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.mode" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.new">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">new</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'localhost'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.new" title="Link to this definition"></a></dt>
+<dd><p>new worker instance
+:param module: instanciate and load target mycode_worker module
+:param target_worker:
+:param target_worker_class:
+:param target_package:
+:param mode: (Default value = mode)
+:param verbose: (Default value = 0)
+:param worker_id: (Default value = 0)
+:param worker: (Default value = ‘localhost’)
+:param args: (Default value = None)</p>
+<p>Returns:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.onerror">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">onerror</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.onerror" title="Link to this definition"></a></dt>
+<dd><p>Error handler for <cite>shutil.rmtree</cite>.
+If it’s a permission error, make it writable and retry.
+Otherwise re-raise.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.run">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'127.0.0.1':</span> <span class="pre">1}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.run" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>app</strong></p></li>
+<li><p><strong>workers</strong></p></li>
+<li><p><strong>mode</strong></p></li>
+<li><p><strong>verbose</strong></p></li>
+<li><p><strong>args</strong></p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.share_path">
+<span class="sig-name descname"><span class="pre">share_path</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.share_path" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.start">
+<span class="sig-name descname"><span class="pre">start</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mycode_worker/mycode_worker.html#MycodeWorker.start"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.start" title="Link to this definition"></a></dt>
+<dd><p>Start the function.</p>
+<p>This function prints the file name if the ‘verbose’ attribute is greater than 0.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>self</strong> – The current instance of the class.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.stop">
+<span class="sig-name descname"><span class="pre">stop</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mycode_worker/mycode_worker.html#MycodeWorker.stop"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.stop" title="Link to this definition"></a></dt>
+<dd><p>Stop the current action.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>NotImplementedError</strong> – This method needs to be implemented in a subclass.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.t0">
+<span class="sig-name descname"><span class="pre">t0</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.t0" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.topological_sort">
+<span class="sig-name descname"><span class="pre">topological_sort</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dependency_graph</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.topological_sort" title="Link to this definition"></a></dt>
+<dd><p>Perform a topological sort on the dependency graph.
+Raises ValueError on cycles.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.verbose">
+<span class="sig-name descname"><span class="pre">verbose</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.verbose" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.worker">
+<span class="sig-name descname"><span class="pre">worker</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.worker" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.worker_id">
+<span class="sig-name descname"><span class="pre">worker_id</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.worker_id" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mycode_worker.mycode_worker.MycodeWorker.works">
+<span class="sig-name descname"><span class="pre">works</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mycode_worker.mycode_worker.MycodeWorker.works" title="Link to this definition"></a></dt>
+<dd><p>Run the worker tasks.</p>
+</dd></dl>
+
+</dd></dl>
+
 <a class="reference internal image-reference" href="_images/classes_mycode_worker.png"><img alt="Alternative text" class="align-center" src="_images/classes_mycode_worker.png" style="width: 400px;" />
 </a>
 </section>

@@ -6,4 +6,4 @@ Framework API
 
    agi-env
    agi-runner
-   agi-workers
+   workers

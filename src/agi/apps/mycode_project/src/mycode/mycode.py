@@ -32,7 +32,7 @@ from typing import Unpack, Literal
 import py7zr
 from datetime import date
 
-from agi_cluster import AGI
+from agi_runner import AGI
 from agi_manager import BaseWorker
 import logging
 
@@ -46,7 +46,7 @@ class MycodeArgs(BaseModel):
     mycode_param1: int = conint
 
 
-class Mycode(WorkDispatcher):
+class Mycode(BaseWorker):
     """Class MyCode provides methods to orchestrate the run"""
 
     def __init__(self, env, **args: Unpack[MycodeArgs]):

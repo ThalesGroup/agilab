@@ -9,10 +9,10 @@
 [![docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://thalesgroup.github.io/agilab)
 [![ORCID](https://img.shields.io/badge/ORCID-0009--0003--5375--368X-A6CE39?logo=orcid)](https://orcid.org/0009-0003-5375-368X)
 
-AGI-CLUSTER Framework
-=====================
+AGI-CORE Framework
+==================
 
-agi-cluster is an AI framework for engineering distributed under the BSD License. See [documentation](https://thalesgroup.github.io/agilab).
+agi-core is an AI framework for engineering distributed under the BSD License. See [documentation](https://thalesgroup.github.io/agilab).
 
 ### Install
 

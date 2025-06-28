@@ -34,7 +34,8 @@ dependencies = [
     "twine",
     "wheel",
     "agi-env",
-    "agi-core",
+    "agi-cluster",
+    "agi-node",
     "agi-gui",
     "pylint",
 ]

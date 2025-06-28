@@ -38,7 +38,7 @@ from pathlib import Path
 import time
 
 from agi_env import AgiEnv, normalize_path
-from agi_node.src.agi_manager import BaseWorker
+from agi_manager import BaseWorker
 
 import pandas as pd
 import logging

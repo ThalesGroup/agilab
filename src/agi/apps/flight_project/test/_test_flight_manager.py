@@ -1,6 +1,6 @@
 import asyncio
 import sys
-from agi_cluster import AGI
+from agi_runner import AGI
 from agi_env import AgiEnv
 
 

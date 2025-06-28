@@ -14,9 +14,9 @@ for src in [data_src, worker_root / "dag_worker", worker_root / "agent_worker", 
         sys.path.insert(0, str(path))
 
 # Now import modules
-from agi_node.src.pandas_worker import PandasWorker
+from pandas_worker import PandasWorker
 import  pandas as pd
-from agi_node.src.agi_manager import BaseWorker
+from agi_manager import BaseWorker
 # DummyWorker can be defined if needed for instance methods test.
 class DummyWorker(BaseWorker):
     def works(self, workers_tree, workers_tree_info):
