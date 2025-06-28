@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="{APP} test worker" type="PythonConfigurationType" factoryName="Python">
-    <module name="{APP}_worker" />
+    <module name="{APP}_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
@@ -9,7 +9,7 @@
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="SDK_NAME" value="uv ({APP}_worker)" />
-    <option name="WORKING_DIRECTORY" value="$USER_HOME$/wenv/{APP}_worker" />
+    <option name="WORKING_DIRECTORY" value="$ProjectFileDir$/apps/{APP}_project" />
     <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
