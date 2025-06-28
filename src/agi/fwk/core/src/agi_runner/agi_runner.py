@@ -53,7 +53,7 @@ import runpy
 
 # Project Libraries:
 from agi_env import AgiEnv, normalize_path
-from agi_manager import AgiDispatcher, AgiHandler
+from agi_manager import AgiDispatcher, BaseWorker
 
 # os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"
 logger = logging.getLogger(__name__)
@@ -1475,13 +1475,13 @@ class AGI:
             #     AGI._build_lib_local()
 
         if env.debug:
-            AgiHandler.new(env.app, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
-            res = AgiHandler.run(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
+            BaseWorker.new(env.app, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
+            res = BaseWorker.run(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
         else:
             cmd = (
-                f"{env.uv} run --project {env.wenv_abs} python -c \"from agi_manager import AgiHandler"
+                f"{env.uv} run --project {env.wenv_abs} python -c \"from agi_manager import BaseWorker"
                 f"from dask.distributed import print;"
-                f"AgiHandler.new('{env.app}', mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
+                f"BaseWorker.new('{env.app}', mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
                 f"res = AgiDispatcher.run({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
                 f"print(res)\""
             )
@@ -1529,7 +1529,7 @@ class AGI:
         AGI._dask_client.gather(
             [
                 client.submit(
-                    AgiHandler.new,
+                    BaseWorker.new,
                     env.app,
                     env= 0 if env.debug else None,
                     mode= AGI._mode,
@@ -1548,7 +1548,7 @@ class AGI:
         t = time.time()
 
         AGI._run_time = client.run(
-            AgiHandler.do_works,
+            BaseWorker.do_works,
             workers_tree,
             workers_tree_info,
             workers=dask_workers,
@@ -1829,9 +1829,9 @@ class AGI:
         res_workers_info = AGI._dask_client.gather(
             [
                 AGI._dask_client.run(
-                    # AgiHandler.get_logs_and_result,
-                    AgiHandler.get_worker_info,
-                    AgiHandler.worker_id,
+                    # BaseWorker.get_logs_and_result,
+                    BaseWorker.get_worker_info,
+                    BaseWorker.worker_id,
                     workers=AGI._dask_workers,
                 )
             ]
@@ -1986,7 +1986,7 @@ class AGI:
                         line_terminator="\r",
                     )
             else:
-                raise RuntimeError(f"{w} workers AgiHandler.do_works failed")
+                raise RuntimeError(f"{w} workers BaseWorker.do_works failed")
 
         AGI._train_model(AGI.env.home_abs)
 

@@ -2555,7 +2555,7 @@ static const char __pyx_k_strftime[] = "strftime";
 static const char __pyx_k_strptime[] = "strptime";
 static const char __pyx_k_warnings[] = "warnings";
 static const char __pyx_k_127_0_0_1[] = "\\\\127.0.0.1\\";
-static const char __pyx_k_AgiHandler[] = "AgiHandler";
+static const char __pyx_k_BaseWorker[] = "BaseWorker";
 static const char __pyx_k_getLogger[] = "getLogger";
 static const char __pyx_k_metaclass[] = "__metaclass__";
 static const char __pyx_k_net_use_Z[] = "net use Z: \"";
@@ -2736,7 +2736,7 @@ static __pyx_mstatetype * const __pyx_mstate_global = &__pyx_mstate_global_stati
 /* #### Code section: constant_name_defines ### */
 #define __pyx_kp_u_ __pyx_string_tab[0]
 #define __pyx_kp_u_127_0_0_1 __pyx_string_tab[1]
-#define __pyx_n_u_AgiHandler __pyx_string_tab[2]
+#define __pyx_n_u_BaseWorker __pyx_string_tab[2]
 #define __pyx_kp_u_Class_derived_from_AgiDataWorker __pyx_string_tab[3]
 #define __pyx_n_u_Datetime __pyx_string_tab[4]
 #define __pyx_kp_u_Error_removing_directory __pyx_string_tab[5]
@@ -8790,7 +8790,7 @@ __Pyx_RefNannySetupContext("PyInit_flight_worker_cy", 0);
  * 
  * from numpy.linalg import norm  # Imported norm             # <<<<<<<<<<<<<<
  * from polars_worker import PolarsWorker
- * from agi_core.agi_worker import AgiHandler import AgiHandler
+ * from agi_core.agi_worker import BaseWorker import BaseWorker
 */
   __pyx_t_2 = __Pyx_PyList_Pack(1, __pyx_mstate_global->__pyx_n_u_norm); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 19, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
@@ -8807,7 +8807,7 @@ __Pyx_RefNannySetupContext("PyInit_flight_worker_cy", 0);
  * 
  * from numpy.linalg import norm  # Imported norm
  * from polars_worker import PolarsWorker             # <<<<<<<<<<<<<<
- * from agi_core.agi_worker import AgiHandler import AgiHandler
+ * from agi_core.agi_worker import BaseWorker import BaseWorker
  * from agi_env import normalize_path
 */
   __pyx_t_3 = __Pyx_PyList_Pack(1, __pyx_mstate_global->__pyx_n_u_PolarsWorker); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 20, __pyx_L1_error)
@@ -8824,24 +8824,24 @@ __Pyx_RefNannySetupContext("PyInit_flight_worker_cy", 0);
   /* "src/flight_worker/flight_worker.pyx":21
  * from numpy.linalg import norm  # Imported norm
  * from polars_worker import PolarsWorker
- * from agi_core.agi_worker import AgiHandler import AgiHandler             # <<<<<<<<<<<<<<
+ * from agi_core.agi_worker import BaseWorker import BaseWorker             # <<<<<<<<<<<<<<
  * from agi_env import normalize_path
  * 
 */
-  __pyx_t_2 = __Pyx_PyList_Pack(1, __pyx_mstate_global->__pyx_n_u_AgiHandler); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 21, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyList_Pack(1, __pyx_mstate_global->__pyx_n_u_BaseWorker); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 21, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __pyx_t_3 = __Pyx_Import(__pyx_mstate_global->__pyx_n_u_agi_worker, __pyx_t_2, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 21, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = __Pyx_ImportFrom(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_AgiHandler); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 21, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_ImportFrom(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_BaseWorker); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 21, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_AgiHandler, __pyx_t_2) < 0) __PYX_ERR(0, 21, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_BaseWorker, __pyx_t_2) < 0) __PYX_ERR(0, 21, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
   /* "src/flight_worker/flight_worker.pyx":22
  * from polars_worker import PolarsWorker
- * from agi_core.agi_worker import AgiHandler import AgiHandler
+ * from agi_core.agi_worker import BaseWorker import BaseWorker
  * from agi_env import normalize_path             # <<<<<<<<<<<<<<
  * 
  * logger = logging.getLogger(__name__)

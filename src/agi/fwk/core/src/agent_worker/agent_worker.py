@@ -12,12 +12,12 @@ Module rapids_worker extension of agilab-core
 # Internal Libraries:
 import os
 import warnings
-from agi_manager import AgiHandler
+from agi_manager import BaseWorker
 import logging
 warnings.filterwarnings("ignore")
 logger = logging.getLogger(__name__)
 
-class AgentWorker(AgiHandler):
+class AgentWorker(BaseWorker):
     """
     AgiAgentWorker Class
 

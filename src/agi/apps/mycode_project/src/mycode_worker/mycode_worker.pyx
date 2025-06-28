@@ -59,7 +59,7 @@ class MycodeWorker(DagWorker):
 
     def get_work(self, work: str):
         """
-        :param work: contain the worker function name called by AgiHandler.do_work
+        :param work: contain the worker function name called by BaseWorker.do_work
         this is type string and not type function to avoid manager (e.g. Mycode) to be dependant of MyCodeWorker
         :return:
         """

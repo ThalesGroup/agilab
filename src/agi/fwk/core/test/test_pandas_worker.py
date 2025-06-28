@@ -16,9 +16,9 @@ for src in [data_src, worker_root / "dag_worker", worker_root / "agent_worker", 
 # Now import modules
 from pandas_worker import PandasWorker
 import  pandas as pd
-from agi_manager import AgiHandler
+from agi_manager import BaseWorker
 # DummyWorker can be defined if needed for instance methods test.
-class DummyWorker(AgiHandler):
+class DummyWorker(BaseWorker):
     def works(self, workers_tree, workers_tree_info):
         # Minimal dummy implementation for testing purposes.
         pass

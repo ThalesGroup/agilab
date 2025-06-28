@@ -10,7 +10,7 @@ data_worker Framework Callback Functions Module
 ===============================================
 
 This module provides the `PolarsWorker` class, which extends the foundational
-functionalities of `AgiHandler` for processing data using multiprocessing or
+functionalities of `BaseWorker` for processing data using multiprocessing or
 single-threaded approaches.
 
 Classes:
@@ -24,7 +24,7 @@ External Libraries:
     pathlib.Path
     time
     polars as pl
-    AgiHandler from agi_manager import AgiHandler
+    BaseWorker from agi_manager import BaseWorker
 
 
 """
@@ -41,19 +41,19 @@ from pathlib import Path
 import time
 
 from agi_env import AgiEnv, normalize_path
-from agi_manager import AgiHandler
+from agi_manager import BaseWorker
 
 import polars as pl
 import logging
 warnings.filterwarnings("ignore")
 logger = logging.getLogger(__name__)
 
-class PolarsWorker(AgiHandler):
+class PolarsWorker(BaseWorker):
     """
     PolarsWorker Class
     --------------------
 
-    Inherits from :class:`AgiHandler` to provide extended data processing functionalities.
+    Inherits from :class:`BaseWorker` to provide extended data processing functionalities.
 
     Attributes:
         verbose (int): Verbosity level for logging.
@@ -126,9 +126,9 @@ class PolarsWorker(AgiHandler):
 
         self.stop()
 
-        if AgiHandler.t0 is None:
-            AgiHandler.t0 = time.time()
-        return time.time() - AgiHandler.t0
+        if BaseWorker.t0 is None:
+            BaseWorker.t0 = time.time()
+        return time.time() - BaseWorker.t0
 
 
     def exec_multi_process(self, workers_tree: any, workers_tree_info: any) -> None:

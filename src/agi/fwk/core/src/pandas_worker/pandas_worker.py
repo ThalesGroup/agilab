@@ -10,7 +10,7 @@ pandas_worker Framework Callback Functions Module
 ===============================================
 
 This module provides the `PandasWorker` class, which extends the foundational
-functionalities of `AgiHandler` for processing data using multiprocessing or
+functionalities of `BaseWorker` for processing data using multiprocessing or
 single-threaded approaches with pandas.
 
 Classes:
@@ -24,7 +24,7 @@ External Libraries:
     pathlib.Path
     time
     pandas as pd
-    AgiHandler from agi_manager import AgiHandler.agi_manager
+    BaseWorker from agi_manager import BaseWorker.agi_manager
 
 """
 
@@ -40,19 +40,19 @@ from pathlib import Path
 import time
 
 from agi_env import AgiEnv, normalize_path
-from agi_manager import AgiHandler
+from agi_manager import BaseWorker
 
 import pandas as pd
 import logging
 warnings.filterwarnings("ignore")
 logger = logging.getLogger(__name__)
 
-class PandasWorker(AgiHandler):
+class PandasWorker(BaseWorker):
     """
     PandasWorker Class
     --------------------
 
-    Inherits from :class:`AgiHandler` to provide extended data processing functionalities using pandas.
+    Inherits from :class:`BaseWorker` to provide extended data processing functionalities using pandas.
 
     Attributes:
         verbose (int): Verbosity level for logging.
@@ -122,9 +122,9 @@ class PandasWorker(AgiHandler):
 
         self.stop()
 
-        if AgiHandler.t0 is None:
-            AgiHandler.t0 = time.time()
-        return time.time() - AgiHandler.t0
+        if BaseWorker.t0 is None:
+            BaseWorker.t0 = time.time()
+        return time.time() - BaseWorker.t0
 
     def exec_multi_process(self, workers_tree: any, workers_tree_info: any) -> None:
         """
