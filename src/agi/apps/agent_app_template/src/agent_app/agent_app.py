@@ -11,8 +11,7 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
-from agim.agim import AgiManager
-
+from agi_manager import BaseWorker
 
 class AgentAppArgs(BaseModel):
     """
@@ -25,7 +24,7 @@ class AgentAppArgs(BaseModel):
     data_dir: str = "~/data/AgentApp"  # Added a default attribute
 
 
-class Main(AgiManager):
+class Main(BaseWorker):
     """
     A class representing the main application.
 

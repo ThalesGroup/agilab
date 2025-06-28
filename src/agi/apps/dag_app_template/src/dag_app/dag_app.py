@@ -13,7 +13,7 @@ from agi_env.agi_env import AgiEnv  # Added import for AgiEnv
 
 # Removed: from pydantic import validator, conint, confloat
 
-from agim.agim import AgiManager
+from agi_manager import BaseWorker
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 

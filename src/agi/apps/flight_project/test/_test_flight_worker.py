@@ -1,5 +1,5 @@
 import sys
-from agi_core.agi_worker import BaseWorker
+from agi_manager import BaseWorker
 
 args = {
     'data_source': "file",

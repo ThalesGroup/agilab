@@ -10,8 +10,7 @@ from pydantic import BaseModel
 # Removed unused imports: Unpack, Literal, validator, conint, confloat
 
 from agi_env.agi_env import AgiEnv  # Added import for environment-specific checks
-
-from agent_worker import AgiAgentWorker  # Corrected import
+from agent_worker import AgentWorker  # Corrected import
 
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
