@@ -1,6 +1,6 @@
 import asyncio
 import sys
-from agi_runner import AGI
+from agi_cluster import AGI
 from agi_env import AgiEnv
 
 
@@ -12,6 +12,9 @@ async def main(method_name):
         print(f"AGI has no method named '{method_name}'")
         exit(1)
     env = AgiEnv(active_app="flight", install_type=1, verbose=True)
+    cmd = f"{env.uv} run python build.py build_ext --packages 'base_worker, polars_worker' -b {env.wenv_abs}"
+    await AgiEnv.run(cmd, env.wenv_abs)
+
     if method_name == "install":
         res = await method('flight', verbose=3, modes_enabled=0b0111, list_ip=None)
     elif method_name == "distribute":

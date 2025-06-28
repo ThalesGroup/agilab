@@ -40,11 +40,11 @@ managers = [
 
 # do not remove
 [tool.uv.sources]
-agi-core = {path = "/path/to/agilab/src/agilab/fwk/core", editable = true}
+agi-cluster = {path = "/path/to/agilab/src/agilab/fwk/cluster", editable = true}
 
 # do not remove
-[tool.uv.sources.agi-core]
-path = "/path/to/agilab/fwk/core"
+[tool.uv.sources.agi-cluster]
+path = "/path/to/agilab/fwk/cluster"
 editable = true
 
 # do not remove

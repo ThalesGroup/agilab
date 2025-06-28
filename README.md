@@ -20,7 +20,7 @@ See [documentation](https://thalesgroup.github.io/agilab).
 ```bash
 mkdir agi-workspace && cd agi-workspace
 uv init --bare --no-workspace
-uv add -p 3.12 --upgrade agilab agi-env agi-core agi-gui
+uv add -p 3.12 --upgrade agilab agi-env agi-cluster agi-node agi-gui
 uv run agilab --openai-api-key "your-api-key"
 ```
 

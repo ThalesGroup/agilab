@@ -23,10 +23,18 @@ uv run python -m ensurepip
 uv pip install -e .
 popd > /dev/null
 
-echo -e "${BLUE}Installing core...${NC}"
-pushd core > /dev/null
-echo "uv sync -p $AGI_PYTHON_VERSION --extra managers --config-file uv_config.toml --dev --directory $(realpath '$1/core')"
-uv sync -p "$AGI_PYTHON_VERSION" --extra managers --config-file uv_config.toml --dev --directory "$(realpath "$1/core")"
+echo -e "${BLUE}Installing cluster...${NC}"
+pushd cluster > /dev/null
+echo "uv sync -p $AGI_PYTHON_VERSION --config-file uv_config.toml --dev --directory $(realpath '$1/cluster')"
+uv sync -p "$AGI_PYTHON_VERSION" --config-file uv_config.toml --dev --directory "$(realpath "$1/cluster")"
+uv run python -m ensurepip
+uv pip install -e .
+popd > /dev/null
+
+echo -e "${BLUE}Installing node...${NC}"
+pushd node > /dev/null
+echo "uv sync -p $AGI_PYTHON_VERSION --config-file uv_config.toml --dev --directory $(realpath '$1/node')"
+uv sync -p "$AGI_PYTHON_VERSION" --config-file uv_config.toml --dev --directory "$(realpath "$1/node")"
 uv run python -m ensurepip
 uv pip install -e .
 popd > /dev/null
@@ -37,5 +45,7 @@ uv sync -p "$AGI_PYTHON_VERSION" --dev --directory "$(realpath "$1/gui")"
 uv run python -m ensurepip
 popd > /dev/null
 
+pushd node > /dev/null
 echo -e "${GREEN}Checking installation...${NC}"
 uv run -p "$AGI_PYTHON_VERSION" --project core python run-all-test.py
+popd > /dev/null

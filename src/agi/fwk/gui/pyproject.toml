@@ -38,7 +38,7 @@ keywords = [
     "datascience",
 ]
 dependencies = [
-    "agi-core",
+    "agi-cluster",
     "astor",
     "fastparquet",
     "geojson",
@@ -100,8 +100,8 @@ agi_gui = [
 path = "../env"
 editable = true
 
-[tool.uv.sources.agi-core]
-path = "../core"
+[tool.uv.sources.agi-cluster]
+path = "../cluster"
 editable = true
 
 [tool.mypy]

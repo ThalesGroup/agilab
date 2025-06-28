@@ -714,7 +714,7 @@ async def page():
             workers = str(workers) if enabled and workers else "None"
             cmd = f"""
 import asyncio
-from agi_runner import AGI
+from agi_cluster import AGI
 from agi_env import AgiEnv, normalize_path
 
 async def main():
@@ -740,7 +740,7 @@ if __name__ == '__main__':
                 stdout, stderr = await env.run_agi(
                     cmd,
                     log_callback=lambda message: update_log(live_log_placeholder, message),
-                    venv=env.agi_core_root
+                    venv=env.cluster_root
                 )
 
                 live_log_placeholder.empty()
@@ -790,7 +790,7 @@ if __name__ == '__main__':
             workers = str(workers) if enabled and workers else "None"
             cmd = f"""
 import asyncio
-from agi_runner import AGI
+from agi_cluster import AGI
 from agi_env import AgiEnv, normalize_path
 
 async def main():
@@ -891,7 +891,7 @@ if __name__ == '__main__':
             workers = str(cluster_params.get("workers")) if enabled else "None"
             cmd = f"""
 import asyncio
-from agi_runner import AGI
+from agi_cluster import AGI
 from agi_env import AgiEnv, normalize_path
 
 async def main():

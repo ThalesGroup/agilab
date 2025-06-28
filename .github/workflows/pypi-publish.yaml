@@ -31,10 +31,10 @@ jobs:
 
       - name: Run tests
         run: |
-          echo "Building core package for testing"
-          pushd src/agi/fwk/core > /dev/null
+          echo "Building cluster package for testing"
+          pushd src/agi/fwk/cluster > /dev/null
           rm -rf dist
-          uv sync --dev --extra workers --extra managers --config-file uv_config.toml
+          uv sync --dev --config-file uv_config.toml
           uv pip install -e .
           popd > /dev/null
 
@@ -62,7 +62,7 @@ jobs:
 
       - name: Remove all existing distribution directories
         run: |
-          rm -rf src/agi/fwk/env/dist src/agi/fwk/core/dist src/agi/fwk/gui/dist dist agi-pypi
+          rm -rf src/agi/fwk/env/dist src/agi/fwk/cluster/dist src/agi/fwk/node/dist src/agi/fwk/gui/dist dist agi-pypi
 
       - name: Update version in pyproject.toml files
         env:
@@ -86,7 +86,7 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add pyproject.toml src/agi/fwk/env/pyproject.toml src/agi/fwk/core/pyproject.toml src/agi/fwk/gui/pyproject.toml
+          git add pyproject.toml src/agi/fwk/env/pyproject.toml src/agi/fwk/cluster/pyproject.toml src/agi/fwk/node/pyproject.toml src/agi/fwk/gui/pyproject.toml
           if ! git diff --cached --quiet; then
             git commit -m "Bump version to ${VERSION#v}"
             git push
@@ -102,10 +102,18 @@ jobs:
           uv build --wheel
           popd > /dev/null
 
-      - name: Build core package
+      - name: Build cluster package
         run: |
-          echo "Building core package"
-          pushd src/agi/fwk/core > /dev/null
+          echo "Building cluster package"
+          pushd src/agi/fwk/cluster > /dev/null
+          rm -rf dist
+          uv build --wheel
+          popd > /dev/null
+
+      - name: Build node package
+        run: |
+          echo "Building node package"
+          pushd src/agi/fwk/node > /dev/null
           rm -rf dist
           uv build --wheel
           popd > /dev/null
@@ -124,11 +132,17 @@ jobs:
           name: agi-env-distributions
           path: src/agi/fwk/env/dist/
 
-      - name: Upload agi-core package
+      - name: Upload agi-cluster package
         uses: actions/upload-artifact@v4
         with:
-          name: agi-core-distributions
-          path: src/agi/fwk/core/dist/
+          name: agi-cluster-distributions
+          path: src/agi/fwk/cluster/dist/
+
+      - name: Upload agi-node package
+        uses: actions/upload-artifact@v4
+        with:
+          name: agi-node-distributions
+          path: src/agi/fwk/node/dist/
 
       - name: Upload agi-gui package
         uses: actions/upload-artifact@v4
@@ -146,7 +160,7 @@ jobs:
           path: dist/
 
       - name: Verify package files before upload
-        run: twine check src/agi/fwk/env/dist/* src/agi/fwk/core/dist/* src/agi/fwk/gui/dist/* dist/*
+        run: twine check src/agi/fwk/env/dist/* src/agi/fwk/cluster/dist/* src/agi/fwk/node/dist/* src/agi/fwk/gui/dist/* dist/*
 
       - name: Publish subpackages to PyPI
         env:
@@ -154,7 +168,8 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: |
           twine upload src/agi/fwk/env/dist/*
-          twine upload src/agi/fwk/core/dist/*
+          twine upload src/agi/fwk/cluster/dist/*
+          twine upload src/agi/fwk/node/dist/*
           twine upload src/agi/fwk/gui/dist/*
 
       - name: Publish main package (agilab) to PyPI

@@ -3,7 +3,6 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/env.iml" filepath="$PROJECT_DIR$/.idea/env.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/core.iml" filepath="$PROJECT_DIR$/.idea/core.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/gui.iml" filepath="$PROJECT_DIR$/.idea/gui.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/mycode_project.iml" filepath="$PROJECT_DIR$/.idea/mycode_project.iml" />
       <module fileurl="file://$USER_HOME$/wenv/my_code_worker/.idea/mycode_worker.iml" filepath="$USER_HOME$/wenv/my_code_worker/.idea/mycode_worker.iml" />

@@ -101,7 +101,7 @@ class AgiEnv:
         logging.getLogger('asyncssh').setLevel(sys_level)
 
         # agilab fwk
-        logging.getLogger("agi_runner").setLevel(app_level)
+        logging.getLogger("cluster").setLevel(app_level)
         logging.getLogger("agi_manager").setLevel(app_level)
         logging.getLogger("agi_env").setLevel(app_level)
         logging.getLogger("dag_worker").setLevel(app_level)
@@ -201,11 +201,11 @@ class AgiEnv:
         if install_type == 1:
             if "site-packages" in self.agi_root.parts:
                 self.agi_env_root = self.agi_root.parent / "agi_env"
-                self.agi_agi_core_root = self.agi_root.parent
+                self.agi_cluster_root = self.agi_root.parent
                 resource_path = self.agi_env_root / self.agi_resources
             else:
                 self.agi_env_root = self.agi_root / "fwk/env"
-                self.agi_agi_core_root = self.agi_root / "fwk/core"
+                self.agi_cluster_root = self.agi_root / "fwk/core"
                 resource_path = self.agi_env_root / "src/agi_env" / self.agi_resources
             if not self.agi_env_root.exists():
                 raise RuntimeError("Your Agilab installation is not valid")
@@ -213,16 +213,16 @@ class AgiEnv:
         elif install_type == 2:
                 if AgiEnv.debug:
                     self.agi_env_root = self.agi_root / "fwk/env"
-                    self.agi_agi_core_root = self.agi_root / "fwk/core"
+                    self.agi_cluster_root = self.agi_root / "fwk/core"
                 else:
                     self.agi_env_root = list(Path(sys.prefix).rglob('agi_env'))[0]
-                    # self.agi_agi_core_root = list(Path(sys.prefix).rglob('agi_runner'))[0]
+                    # self.agi_cluster_root = list(Path(sys.prefix).rglob('cluster'))[0]
         elif install_type == 0:
                 head, sep, _ = __file__.partition("site-packages")
                 if not sep:
                     raise ValueError("site-packages not in", __file__)
                 self.agi_env_root = Path(head + sep)
-                self.agi_agi_core_root = Path(head + sep)
+                self.agi_cluster_root = Path(head + sep)
 
         if not apps_dir:
             apps_dir = 'apps'
@@ -361,15 +361,15 @@ class AgiEnv:
         if install_type != 2:
             self.resolve_packages_path_in_toml()
 
-        agi_core_root = self.agi_core_loc
-        self.agi_core_root = agi_core_root
+        cluster_root = self.agi_core_loc
+        self.cluster_root = cluster_root
 
         self.projects = self.get_projects(self.apps_dir)
         if not self.projects:
             logging.info(f"Could not find any target project app in {self.agi_root / 'apps'}.")
 
         self.setup_app = app_abs / "build.py"
-        self.setup_core = agi_core_root / "src/agi_manager/build.py"
+        self.setup_core = cluster_root / "src/agi_manager/build.py"
 
         if isinstance(module, Path):
             module_path = module.expanduser().resolve()

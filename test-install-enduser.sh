@@ -4,7 +4,7 @@ set -e
 home=$(pwd)
 
 # List of components to build
-SUBDIRS=("fwk/env" "fwk/core" "fwk/gui")
+SUBDIRS=("fwk/env" "fwk/cluster" "fwk/node" "fwk/gui")
 
 # Prepare output directory
 mkdir -p "$home/../agi-pypi"
