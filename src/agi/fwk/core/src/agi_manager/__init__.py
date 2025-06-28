@@ -1,1 +1,1 @@
-from .agi_manager import AgiDispatcher, BaseWorker
+from .agi_manager import WorkDispatcher, BaseWorker

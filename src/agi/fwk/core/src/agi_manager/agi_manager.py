@@ -314,7 +314,7 @@ class AgiWorker(abc.ABC):
         target_inst = target_class(env, **args)
 
         try:
-            workers, workers_tree, workers_tree_info = AgiDispatcher.do_distrib(
+            workers, workers_tree, workers_tree_info = WorkDispatcher.do_distrib(
                 target_inst, env, workers
             )
         except Exception as err:
@@ -387,7 +387,7 @@ class AgiWorker(abc.ABC):
             logging.info(f"venv: {sys.prefix}")
             logging.info(f"BaseWorker.new - worker #{worker_id}: {worker} from: {os.path.relpath(__file__)}")
 
-            # import of derived Class of AgiDispatcher, name target_inst which is typically an instance of MyCode
+            # import of derived Class of WorkDispatcher, name target_inst which is typically an instance of MyCode
             worker_class = AgiWorker._load_worker(mode)
 
             # Instantiate the class with arguments
@@ -560,9 +560,9 @@ class AgiWorker(abc.ABC):
             logging.error(traceback.format_exc())
             raise
 
-class AgiDispatcher:
+class WorkDispatcher:
     """
-    Class AgiDispatcher for orchestration of jobs by the target.
+    Class WorkDispatcher for orchestration of jobs by the target.
     """
 
     args = {}
@@ -570,15 +570,15 @@ class AgiDispatcher:
 
     def __init__(self, args=None):
         """
-        Initialize the AgiDispatcher with input arguments.
+        Initialize the WorkDispatcher with input arguments.
 
         Args:
-            args: The input arguments for initializing the AgiDispatcher.
+            args: The input arguments for initializing the WorkDispatcher.
 
         Returns:
             None
         """
-        AgiDispatcher.args = args
+        WorkDispatcher.args = args
 
     @staticmethod
     def convert_functions_to_names(workers_tree):
@@ -620,7 +620,7 @@ class AgiDispatcher:
             workers_tree = data["workers_tree"]
             if (
                 data["workers"] != workers
-                or data["target_args"] != AgiDispatcher.args
+                or data["target_args"] != WorkDispatcher.args
             ):
                 rebuild_tree = True
 
@@ -633,7 +633,7 @@ class AgiDispatcher:
                 "target_args": inst.args,
                 "workers": workers,
                 "workers_chunks": workers_tree_info,
-                "workers_tree": AgiDispatcher.convert_functions_to_names(workers_tree),
+                "workers_tree": WorkDispatcher.convert_functions_to_names(workers_tree),
                 "partition_key": part,
                 "nb_unit": nb_unit,
                 "weights_unit": weight_unit,

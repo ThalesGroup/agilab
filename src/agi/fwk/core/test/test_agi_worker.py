@@ -62,7 +62,7 @@ def test_exec_success():
     assert "Hello" in result.stdout, f"Expected 'Hello' in output but got: {result.stdout}"
 
 
-# test AgiDispatcher
+# test WorkDispatcher
 
 def dummy_task(x):
     return x * 2
