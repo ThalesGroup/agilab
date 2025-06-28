@@ -9,7 +9,7 @@ for src in [data_src, worker_root / "dag_worker", worker_root / "agent_worker", 
     if path not in sys.path:
         sys.path.insert(0, str(path))
 
-from agi_manager import AgiHandler
+from agi_manager import BaseWorker
 from dag_worker import DagWorker
 
 # --- Dummy functions for testing ---
@@ -50,8 +50,8 @@ def reset_state():
     f1.executed = []
     f2.executed = []
     f3.executed = []
-    # Ensure AgiHandler.t0 is set.
-    AgiHandler.t0 = time.time()
+    # Ensure BaseWorker.t0 is set.
+    BaseWorker.t0 = time.time()
     yield
     # No teardown required.
 

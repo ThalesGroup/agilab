@@ -25,17 +25,17 @@ import warnings
 # External Libraries:
 from concurrent.futures import ThreadPoolExecutor
 from agi_env import AgiEnv, normalize_path
-from agi_manager import AgiHandler
+from agi_manager import BaseWorker
 import logging
 warnings.filterwarnings("ignore")
 logger = logging.getLogger(__name__)
 
-class DagWorker(AgiHandler):
+class DagWorker(BaseWorker):
     """
     DagWorker Class
 
     Inherits from:
-        AgiHandler: Provides foundational worker functionalities.
+        BaseWorker: Provides foundational worker functionalities.
     """
 
     def works(self, workers_tree, workers_tree_info):
@@ -46,7 +46,7 @@ class DagWorker(AgiHandler):
             else:
                 self.exec_mono_process(workers_tree, workers_tree_info)
         self.stop()
-        return time.time() - AgiHandler.t0
+        return time.time() - BaseWorker.t0
 
     def exec_mono_process(self, workers_tree, workers_tree_info):
         """
