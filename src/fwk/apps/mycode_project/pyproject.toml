@@ -30,10 +30,7 @@ data-worker = [
 ]
 workers = [
     "aginode[dag-worker]",
-    "agi-node[agi-worker]",
-]
-managers = [
-    "agi-core[managers]",
+    "agi-node[agi-manager]",
 ]
 
 [dependency-groups]
@@ -42,7 +39,7 @@ dev = [
     "pytest",
     "licensecheck",
     "mycode_project",
-    "ipython",
+    "dask[distributed]",
 ]
 
 
@@ -50,7 +47,7 @@ dev = [
 agi-cluster = {path = "/Users/jpm/PycharmProjects/agilab/src/fwk/core/cluster", editable = true}
 agi-env = {path = "/Users/jpm/PycharmProjects/agilab/src/fwk/core/env", editable = true}
 
-[tool.uv.sources.flight_project]
+[tool.uv.sources.mycode_project]
 workspace = true
 
 [tool.setuptools]
