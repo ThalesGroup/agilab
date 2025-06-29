@@ -690,10 +690,10 @@ class AgiEnv:
             try:
                 uv = doc["tool"]["uv"]
             except KeyError:
-                raise RuntimeError("Could not find [tool.uv] section in the TOML")
+                return
 
             if "sources" not in uv or not isinstance(uv["sources"], tomlkit.items.Table):
-                raise RuntimeError("Could not find [tool.uv.sources] in the TOML")
+                return
 
             sources = uv["sources"]
 
