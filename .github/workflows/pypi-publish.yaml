@@ -94,61 +94,19 @@ jobs:
             echo "No changes to commit."
           fi
 
-      - name: Build env package
-        run: |
-          echo "Building env package"
-          pushd src/agi/fwk/env > /dev/null
-          rm -rf dist
-          uv build --wheel
-          popd > /dev/null
-
       - name: Build cluster package
         run: |
-          echo "Building cluster package"
-          pushd src/agi/fwk/cluster > /dev/null
+          echo "Building core package"
+          pushd src/fwk/core > /dev/null
           rm -rf dist
           uv build --wheel
           popd > /dev/null
 
-      - name: Build node package
-        run: |
-          echo "Building node package"
-          pushd src/agi/fwk/node > /dev/null
-          rm -rf dist
-          uv build --wheel
-          popd > /dev/null
-
-      - name: Build gui package
-        run: |
-          echo "Building gui package"
-          pushd src/agi/fwk/gui > /dev/null
-          rm -rf dist
-          uv build --wheel
-          popd > /dev/null
-
-      - name: Upload agi-env package
+      - name: Upload fwk-core package
         uses: actions/upload-artifact@v4
         with:
-          name: agi-env-distributions
-          path: src/agi/fwk/env/dist/
-
-      - name: Upload agi-cluster package
-        uses: actions/upload-artifact@v4
-        with:
-          name: agi-cluster-distributions
-          path: src/agi/fwk/cluster/dist/
-
-      - name: Upload agi-node package
-        uses: actions/upload-artifact@v4
-        with:
-          name: agi-node-distributions
-          path: src/agi/fwk/node/dist/
-
-      - name: Upload agi-gui package
-        uses: actions/upload-artifact@v4
-        with:
-          name: agi-gui-distributions
-          path: src/agi/fwk/gui/dist/
+          name: fwk-core-distributions
+          path: src/fwk/core/dist/
 
       - name: Build combined main package (agilab)
         run: uv build --sdist
@@ -160,30 +118,17 @@ jobs:
           path: dist/
 
       - name: Verify package files before upload
-        run: twine check src/agi/fwk/env/dist/* src/agi/fwk/cluster/dist/* src/agi/fwk/node/dist/* src/agi/fwk/gui/dist/* dist/*
+        run: twine check src/fwk/core/dist/* dist/*
 
       - name: Publish subpackages to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: |
-          twine upload src/agi/fwk/env/dist/*
-          twine upload src/agi/fwk/cluster/dist/*
-          twine upload src/agi/fwk/node/dist/*
-          twine upload src/agi/fwk/gui/dist/*
+          twine upload src/agi/fwk/core/dist/*
 
       - name: Publish main package (agilab) to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: twine upload dist/*
-
-#      - name: Trigger static pages workflow
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#        run: |
-#          curl -X POST \
-#            -H "Accept: application/vnd.github.v3+json" \
-#            -H "Authorization: Bearer $GITHUB_TOKEN" \
-#            https://github.com/jpmorard/agilab/actions/workflows/doc-publish.yml/dispatches \
-#            -d '{"ref": "main"}'

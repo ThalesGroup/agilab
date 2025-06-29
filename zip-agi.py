@@ -121,7 +121,7 @@ if __name__ == "__main__":
     """
     Zip a directory into a zip file.
 
-    Usage: zip-agi --dir2zip <dir> --zipfile <file> [--no-top] [--verbose|-v]
+    Usage: zip-fwk --dir2zip <dir> --zipfile <file> [--no-top] [--verbose|-v]
     """
     parser = argparse.ArgumentParser(description="Zip a project directory.")
     parser.add_argument(

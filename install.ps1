@@ -252,8 +252,8 @@ AGI_PYTHON_VERSION="$env:PYTHON_VERSION"
     Write-Host "Environment updated in $envFile" -ForegroundColor Green
 }
 
-function Install-Framework {
-    $frameworkDir = Join-Path $InstallPath "src\agi\fwk"
+function Install-Core {
+    $frameworkDir = Join-Path $InstallPath "src\fwk\core"
 
     Write-Host "Installing Framework..." -ForegroundColor Blue
     Write-Host $frameworkDir
@@ -318,6 +318,6 @@ Choose-PythonVersion
 Backup-AGIProject
 Copy-ProjectFiles
 Update-Environment
-Install-Framework
+Install-Core
 Write-EnvValues
 Install-Apps

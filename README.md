@@ -18,9 +18,9 @@ See [documentation](https://thalesgroup.github.io/agilab).
 ## Install and Execution for enduser
 
 ```bash
-mkdir agi-workspace && cd agi-workspace
+mkdir fwk-workspace && cd fwk-workspace
 uv init --bare --no-workspace
-uv add -p 3.12 --upgrade agilab agi-env agi-cluster agi-node agi-gui
+uv add -p 3.12 --upgrade agilab fwk-env fwk-cluster fwk-node fwk-gui
 uv run agilab --openai-api-key "your-api-key"
 ```
 
@@ -33,7 +33,7 @@ uv run agilab --openai-api-key "your-api-key"
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab
-cd agilab/src/agi/fwk/gui
+cd agilab/src/fwk/core/gui
 ./install.sh --openai-api-key "your-api-key" --cluster-ssh-credentials "username:[password]"
 ```
 </details>
@@ -55,6 +55,6 @@ powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key "you
 ### Linux and MacOS and Windows:
 
 ```bash
-cd agilab/src/agi/fwk/gui
+cd agilab/src/fwk/core/gui
 uv run agilab
 ```
