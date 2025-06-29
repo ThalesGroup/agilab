@@ -36,6 +36,7 @@ import abc
 import traceback
 import json
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 # External Libraries:
 from distutils.sysconfig import get_python_lib
@@ -684,3 +685,159 @@ class WorkDispatcher:
         # else:
         # Reraise the error if it's not a permission issue
         # raise
+
+    @staticmethod
+    def make_chunks(
+    nchunk2: int,
+    weights: List[Any],
+    capacities: Optional[List[Any]] = None,
+    verbose: int = 0,
+    threshold: int = 12,
+) -> List[List[List[Any]]]:
+        """Partitions the nchunk2 weighted into n chuncks, in a smart way
+        chunks and chunks_sizes must be left to None
+
+        Args:
+          nchunk2: list of number of chunks level 2
+          weights: the list of weight level2
+          capacities: the list of workers capacity (Default value = None)
+          verbose: whether to display run detail or not (Default value = 0)
+          threshold: the number of nchunk2 max to run the optimal algo otherwise downgrade to suboptimal one (Default value = 12)
+          weights: list:
+
+
+        Returns:
+          : list of chunk per your_worker containing list of works per your_worker containing list of chunks level 1
+
+        """
+        if not AGI.workers:
+            AGI.workers = workers_default
+        caps = []
+
+        if not capacities:
+            for w in list(AGI.workers.values()):
+                for j in range(w):
+                    caps.append(1)
+            capacities = caps
+        capacities = np.array(list(capacities))
+
+        if len(weights) > 1:
+            if nchunk2 < threshold:
+                logging.info(f"AGI.chunk_algo_optimal - workers capacities {capacities} - {nchunk2} works to be done")
+                chunks = AGI._make_chunks_optimal(weights, capacities)
+            else:
+                logging.info(f"AGI.load_algo_fastest - workers capacities {capacities} - {nchunk2} works to be done")
+                chunks = AGI._make_chunks_fastest(weights, capacities)
+
+            return chunks
+
+        else:
+            return [
+                [
+                    [
+                        chk,
+                    ]
+                    for chk in weights
+                ]
+            ]
+
+    @staticmethod
+    def _make_chunks_optimal(
+    subsets: List[Any],
+    chkweights: List[Any],
+    chunks: Optional[List[Any]] = None,
+    chunks_sizes: Optional[Any] = None
+) -> Any:
+        """Partitions subsets in nchk non-weighted chunks, in a slower but optimal recursive way
+
+        Args:
+          subsets: list of tuples ('label', size)
+          chkweights: list containing the relative size of each chunk
+          chunks: internal usage must be None (Default value = None)
+          chunks_sizes: internal must be None (Default value = None)
+
+        Returns:
+          : list of chunks weighted
+
+        """
+        racine = False
+        best_chunks = None
+
+        nchk = len(chkweights)
+        if chunks is None:  # 1ere execution
+            chunks = [[] for _ in range(nchk)]
+            chunks_sizes = np.array([0] * nchk)
+            subsets.sort(reverse=True, key=lambda i: i[1])
+            racine = True
+
+        if not subsets:  # finished when all subsets are partitioned
+            return [chunks, max(chunks_sizes)]
+
+        # Optimisation: We check if the weighted difference between the biggest and the smalest chunk
+        # is more than the weighted sum of the remaining subsets
+        if max(chunks_sizes) > min(
+                np.array(chunks_sizes + sum([i[1] for i in subsets])) / chkweights
+        ):
+            # If yes, we won't make the biggest chunk bigger by filling the smallest chunk
+            smallest_chunk_index = np.argmin(
+                chunks_sizes + sum([i[1] for i in subsets]) / chkweights
+            )
+            chunks[smallest_chunk_index] += subsets
+            chunks_sizes[smallest_chunk_index] += (
+                    sum([i[1] for i in subsets]) / chkweights[smallest_chunk_index]
+            )
+            return [chunks, max(chunks_sizes)]
+
+        chunks_choices = []
+        chunks_choices_max_size = np.array([])
+        inserted_chunk_sizes = []
+        for i in range(nchk):
+            # We add the next subset to the ith chunk if we haven't already tried a similar chunk
+            if (chunks_sizes[i], chkweights[i]) not in inserted_chunk_sizes:
+                inserted_chunk_sizes.append((chunks_sizes[i], chkweights[i]))
+                subsets2 = deepcopy(subsets)[1:]
+                chunk_pool = deepcopy(chunks)
+                chunk_pool[i].append(subsets[0])
+                chunks_sizes2 = deepcopy(chunks_sizes)
+                chunks_sizes2[i] += subsets[0][1] / chkweights[i]
+                chunks_choices.append(
+                    AGI._make_chunks_optimal(
+                        subsets2, chkweights, chunk_pool, chunks_sizes2
+                    )
+                )
+                chunks_choices_max_size = np.append(
+                    chunks_choices_max_size, chunks_choices[-1][1]
+                )
+
+        best_chunks = chunks_choices[np.argmin(chunks_choices_max_size)]
+
+        if racine:
+            return best_chunks[0]
+        else:
+            return best_chunks
+
+    @staticmethod
+    def _make_chunks_fastest(subsets: List[Any], chk_weights: List[Any]) -> List[List[Any]]:
+        """Partitions subsets in nchk weighted chunks, in a fast but non optimal way
+
+        Args:
+          subsets: list of tuples ('label', size)
+          chk_weights: list containing the relative size of each chunk
+
+        Returns:
+          : list of chunk weighted
+
+        """
+        nchk = len(chk_weights)
+
+        subsets.sort(reverse=True, key=lambda j: j[1])
+        chunks = [[] for _ in range(nchk)]
+        chunks_sizes = np.array([0] * nchk)
+
+        for subset in subsets:
+            # We add each subset to the chunk that will be the smallest if it is added to it
+            smallest_chunk = np.argmin(chunks_sizes + (subset[1] / chk_weights))
+            chunks[smallest_chunk].append(subset)
+            chunks_sizes[smallest_chunk] += subset[1] / chk_weights[smallest_chunk]
+
+        return chunks

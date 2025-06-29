@@ -62,6 +62,7 @@ dependencies = [
     "pydantic",
     "requests",
     "asyncssh",
+    "agi-node",
 ]
 
 [project.urls]
@@ -87,6 +88,10 @@ dev = [
 
 [tool.uv.sources.agi-env]
 path = "../env"
+editable = true
+
+[tool.uv.sources.agi-node]
+path = "../node"
 editable = true
 
 [tool.uv.sources.agi-cluster]
