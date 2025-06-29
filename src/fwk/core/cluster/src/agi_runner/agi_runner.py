@@ -53,6 +53,9 @@ import runpy
 
 # Project Libraries:
 from agi_env import AgiEnv, normalize_path
+node_src = str(Path(sys.prefix).parents[1] / "node/src")
+if node_src not in sys.path:
+    sys.path.append(node_src)
 from agi_manager import WorkDispatcher, BaseWorker
 
 # os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"
@@ -880,9 +883,9 @@ class AGI:
         # manager install command with and without rapids capable
         app_path = env.app_abs
         if has_rapids_hw:
-            cmd_manager = f"{uv} --config-file uv_config.toml {run_type} {options['manager']} --extra managers --project {app_path}"
+            cmd_manager = f"{uv} --config-file uv_config.toml {run_type} {options['manager']} --project {app_path}"
         else:
-            cmd_manager = f"{uv} {run_type} {options['manager']} --extra managers --project {app_path}"
+            cmd_manager = f"{uv} {run_type} {options['manager']} --project {app_path}"
 
         logging.info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
@@ -899,9 +902,6 @@ class AGI:
         ######################
         # install env & core
         ######################
-
-        # cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_abs}', exist_ok=True)\""
-        # await AgiEnv.run(cmd, wenv_abs)
 
         cmd = f"{uv} --project {wenv_abs} run python -m ensurepip"
         await AgiEnv.run(cmd, wenv_abs)
@@ -922,17 +922,6 @@ class AGI:
 
         cmd = f"{uv} --project {wenv_abs} add {whl}"
         await AgiEnv.run(cmd, wenv_abs)
-
-        # build agi_core*.whl
-        # wenv = env.cluster_root
-        # src = wenv / "dist"
-        # cmd = f"{uv} --project {wenv} build --wheel"
-        # await AgiEnv.run(cmd, venv=wenv)
-        # try:
-        #     whl = next(iter(src.glob("agi_core*.whl")))
-        #     shutil.copy2(whl, dist_abs)
-        # except StopIteration:
-        #     raise RuntimeError(cmd)
 
         # Build target_worker lib local
         await AGI._build_lib_local()
@@ -1193,7 +1182,7 @@ class AGI:
 
             # Clean worker
             for ip in list(AGI.workers):
-                await env.send_file(ip, env.cluster_root / "src/cluster/cli.py", cli_rel.parent)
+                await env.send_file(ip, env.cluster_root / "src/agi_runner/cli.py", cli_rel.parent)
                 if not env.envars.get(ip, None):
                     env.has_rapids_hw = False
                 try:

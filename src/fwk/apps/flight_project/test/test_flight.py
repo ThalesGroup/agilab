@@ -19,11 +19,11 @@ def exec(cmd, path, worker):
     )
     if result.returncode != 0:
         if result.stderr.startswith("WARNING"):
-            print(f"warning: Agi_worker {worker} - {cmd}")
+            print(f"warning: worker {worker} - {cmd}")
             print(result.stderr)
         else:
             raise RuntimeError(
-                f"error on Agi_worker {worker} - {cmd}\n{result.stderr}"
+                f"error on worker {worker} - {cmd}\n{result.stderr}"
             )
     return result
 
