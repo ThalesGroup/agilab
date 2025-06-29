@@ -1668,14 +1668,14 @@ class AGI:
         Args:
           nchunk2: list of number of chunks level 2
           weights: the list of weight level2
-          capacities: the lnewist of workers capacity (Default value = None)
+          capacities: the list of workers capacity (Default value = None)
           verbose: whether to display run detail or not (Default value = 0)
           threshold: the number of nchunk2 max to run the optimal algo otherwise downgrade to suboptimal one (Default value = 12)
           weights: list:
 
 
         Returns:
-          : list of chunk per mycode_worker containing list of works per my_code_worker containing list of chunks level 1
+          : list of chunk per your_worker containing list of works per your_worker containing list of chunks level 1
 
         """
         if not AGI.workers:

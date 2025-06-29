@@ -94,7 +94,7 @@ exclude = [
     ".idea*",
     "tests*",
     "fwk.apps.flight_project.build*",
-    "fwk.apps.my_code_project.build*"
+    "fwk.apps.mycode_project.build*"
 ]
 
 [tool.mypy]
