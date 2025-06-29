@@ -4,10 +4,10 @@
 {
     "distutils": {
         "include_dirs": [
-            "/Users/jpm/PycharmProjects/agilab/src/agi/apps/mycode_project/.venv/include"
+            "/Users/jpm/PycharmProjects/agilab/src/fwk/apps/mycode_project/.venv/include"
         ],
         "library_dirs": [
-            "/Users/jpm/PycharmProjects/agilab/src/agi/apps/mycode_project/.venv/lib"
+            "/Users/jpm/PycharmProjects/agilab/src/fwk/apps/mycode_project/.venv/lib"
         ],
         "name": "mycode_worker_cy",
         "sources": [

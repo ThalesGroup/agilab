@@ -15,13 +15,6 @@ dev = [ "black", "pytest", "licensecheck", "flight_project",]
 [project.license]
 text = "Thales SIX GTS France SAS"
 
-[project.optional-dependencies]
-base-worker = []
-agent-worker = []
-dag-worker = []
-data-worker = [ "polars",]
-workers = [ "agi-manager[base-worker]", "agi-manager[data-worker]",]
-
 [tool.mypy]
 mypy_path = [ "stubs",]
 disallow_untyped_defs = false

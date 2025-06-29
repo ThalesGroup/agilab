@@ -12,6 +12,7 @@ dependencies = [
     "python-dotenv",
     "psutil",
     "agi-env",
+    "polars",
 ]
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
@@ -20,18 +21,6 @@ authors = [
 [project.license]
 text = "Thales SIX GTS France SAS"
 
-[project.optional-dependencies]
-agi-worker = []
-dag-worker = [
-    "polars",
-]
-data-worker = [
-    "polars",
-]
-workers = [
-    "aginode[dag-worker]",
-    "agi-node[agi-manager]",
-]
 
 [dependency-groups]
 dev = [
