@@ -33,7 +33,7 @@ polars-worker = [
     "polars",
 ]
 workers = [
-    "agi-node[agi-worker]",
+    "agi-node[agi-manager]",
     "agi-node[polars-worker]",
 ]
 
