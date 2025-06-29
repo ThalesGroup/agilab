@@ -424,17 +424,26 @@
 │   │   ├── README.md
 │   │   ├── apps
 │   │   ├── build.py
-│   │   ├── dask_worker_0.pid
 │   │   ├── pyproject.toml
 │   │   ├── run_test.sh
 │   │   ├── src
-│   │   │   ├── agi_worker -&gt; /Users/jpm/PycharmProjects/agilab/src/agi/fwk/core/src/agi_worker
+│   │   │   ├── agi_manager -&gt; /Users/jpm/PycharmProjects/agilab/src/fwk/core/node/src/agi_manager
+│   │   │   ├── agi_worker -&gt; /Users/jpm/PycharmProjects/agilab/src/fwk/src/agi_worker
 │   │   │   ├── app_settings.toml
 │   │   │   ├── args_ui_snippet.py
+│   │   │   ├── base_worker -&gt; /Users/jpm/PycharmProjects/agilab/src/fwk/src/base_worker
+│   │   │   ├── dag_worker -&gt; /Users/jpm/PycharmProjects/agilab/src/fwk/core/node/src/dag_worker
 │   │   │   ├── dask_worker_0.pid
 │   │   │   ├── flight
 │   │   │   │   ├── __init__.py
 │   │   │   │   └── flight.py
+│   │   │   ├── flight_project.egg-info
+│   │   │   │   ├── PKG-INFO
+│   │   │   │   ├── SOURCES.txt
+│   │   │   │   ├── dependency_links.txt
+│   │   │   │   ├── not-zip-safe
+│   │   │   │   ├── requires.txt
+│   │   │   │   └── top_level.txt
 │   │   │   ├── flight_worker
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── dataset.7z
@@ -446,6 +455,9 @@
 │   │   │   │   └── pyproject.toml
 │   │   │   ├── lab_steps.ipynb
 │   │   │   ├── lab_steps.toml
+│   │   │   ├── node -&gt; /Users/jpm/PycharmProjects/agilab/src/fwk/core/node/src/node
+│   │   │   ├── pandas_worker -&gt; /Users/jpm/PycharmProjects/agilab/src/fwk/core/node/src/pandas_worker
+│   │   │   ├── polars_worker -&gt; /Users/jpm/PycharmProjects/agilab/src/fwk/core/node/src/polars_worker
 │   │   │   └── pre_prompt.json
 │   │   ├── test
 │   │   │   ├── __init__.py
@@ -455,6 +467,7 @@
 │   │   │   ├── test_flight.py
 │   │   │   ├── test_flight_manager.py
 │   │   │   └── test_flight_worker.py
+│   │   ├── uv.lock
 │   │   └── uv_config.toml
 │   ├── install.ps1
 │   ├── install.py
@@ -462,6 +475,7 @@
 │   ├── mycode_project
 │   │   ├── MANIFEST.in
 │   │   ├── README.md
+│   │   ├── apps
 │   │   ├── build.py
 │   │   ├── install.py
 │   │   ├── pyproject.toml
@@ -471,6 +485,13 @@
 │   │   │   ├── mycode
 │   │   │   │   ├── __init__.py
 │   │   │   │   └── mycode.py
+│   │   │   ├── mycode_project.egg-info
+│   │   │   │   ├── PKG-INFO
+│   │   │   │   ├── SOURCES.txt
+│   │   │   │   ├── dependency_links.txt
+│   │   │   │   ├── not-zip-safe
+│   │   │   │   ├── requires.txt
+│   │   │   │   └── top_level.txt
 │   │   │   ├── mycode_worker
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── mycode_worker.c
@@ -486,6 +507,7 @@
 │   │   │   ├── _test_mycode_worker.py
 │   │   │   ├── test_mycode_manager.py
 │   │   │   └── test_mycode_worker.py
+│   │   ├── uv.lock
 │   │   └── uv_config.toml
 │   ├── pandas_app_template
 │   │   ├── MANIFEST.in
@@ -524,12 +546,12 @@
 │   │   │   └── pre_prompt.json
 │   │   └── uv_config.toml
 │   └── run-all-test.py
-├── fwk
+├── core
+│   ├── LICENSE
+│   ├── README.md
+│   ├── SECURITY.md
 │   ├── cluster
-│   │   ├── LICENSE
 │   │   ├── MANIFEST.in
-│   │   ├── README.md
-│   │   ├── SECURITY.md
 │   │   ├── __init__.py
 │   │   ├── build.py
 │   │   ├── coverage.xml
@@ -550,13 +572,10 @@
 │   │   └── uv_config.toml
 │   ├── coverage.xml
 │   ├── env
-│   │   ├── LICENSE
 │   │   ├── MANIFEST.in
-│   │   ├── README.md
-│   │   ├── SECURITY.md
 │   │   ├── coverage.xml
 │   │   ├── dist
-│   │   │   └── agi_env-0.3.58-py3-none-any.whl
+│   │   │   └── agi_env-0.3.59-py3-none-any.whl
 │   │   ├── pyproject.toml
 │   │   ├── src
 │   │   │   ├── agi_env
@@ -581,33 +600,17 @@
 │   │   └── uv_config.toml
 │   ├── gen-app-script.py
 │   ├── get_supported_python_versions.py
-│   ├── gui
-│   │   ├── LICENSE
-│   │   ├── MANIFEST.in
-│   │   ├── README.md
-│   │   ├── pyproject.toml
-│   │   ├── src
-│   │   │   └── agi_gui
-│   │   │       ├── AGILAB.py
-│   │   │       ├── __init__.py
-│   │   │       ├── agi_copilot.py
-│   │   │       ├── lab_run.py
-│   │   │       ├── pagelib.py
-│   │   │       ├── pages
-│   │   │       ├── resources
-│   │   │       └── steps.toml
-│   │   ├── test
-│   │   │   ├── __init__.py
-│   │   │   └── test-streamlit.sh
-│   │   ├── uv.lock
-│   │   └── uv_config.toml
 │   ├── install.ps1
 │   ├── install.sh
 │   ├── node
 │   │   ├── MANIFEST.in
+│   │   ├── README.md
+│   │   ├── SECURITY.md
 │   │   ├── __init__.py
 │   │   ├── pyproject.toml
 │   │   ├── src
+│   │   │   ├── README.md
+│   │   │   ├── SECURITY.md
 │   │   │   ├── __init__.py
 │   │   │   ├── agent_worker
 │   │   │   │   ├── __init__.py
@@ -645,6 +648,38 @@
 │       ├── test_pandas_worker.py
 │       ├── test_polars_worker.py
 │       └── test_work_dispatcher.py
+├── gui
+│   ├── LICENSE
+│   ├── MANIFEST.in
+│   ├── README.md
+│   ├── pyproject.toml
+│   ├── src
+│   │   ├── agi_gui
+│   │   │   ├── AGILAB.py
+│   │   │   ├── __init__.py
+│   │   │   ├── agi_copilot.py
+│   │   │   ├── lab_run.py
+│   │   │   ├── pagelib.py
+│   │   │   ├── pages
+│   │   │   │   ├── ▶️ EDIT.py
+│   │   │   │   ├── ▶️ EXECUTE.py
+│   │   │   │   ├── ▶️ EXPERIMENT.py
+│   │   │   │   └── ▶️ VIEW.py
+│   │   │   ├── resources
+│   │   │   │   └── __init__.py
+│   │   │   └── steps.toml
+│   │   └── agi_gui.egg-info
+│   │       ├── PKG-INFO
+│   │       ├── SOURCES.txt
+│   │       ├── dependency_links.txt
+│   │       ├── entry_points.txt
+│   │       ├── requires.txt
+│   │       └── top_level.txt
+│   ├── test
+│   │   ├── __init__.py
+│   │   └── test-streamlit.sh
+│   ├── uv.lock
+│   └── uv_config.toml
 ├── pycharm
 │   ├── _template_app_egg_manager.xml
 │   ├── _template_app_lib_worker.xml
@@ -668,7 +703,7 @@
     │           └── maps_3d.py
     └── pyproject.toml
 
-64 directories, 224 files
+72 directories, 251 files
 </pre></div>
 </div>
 </section>

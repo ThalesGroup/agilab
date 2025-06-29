@@ -429,6 +429,9 @@
 
 <span class="c1"># Project Libraries:</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span><span class="p">,</span> <span class="n">normalize_path</span>
+<span class="n">node_src</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="p">)</span><span class="o">.</span><span class="n">parents</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="s2">&quot;node/src&quot;</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">node_src</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node_src</span><span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">agi_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">WorkDispatcher</span><span class="p">,</span> <span class="n">BaseWorker</span>
 
 <span class="c1"># os.environ[&quot;DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL&quot;] = &quot;INFO&quot;</span>
@@ -443,7 +446,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Agi Class.</span>
 
-<span class="sd">    Agi (Speedy-Python-Dask) is a scalable fwk based on Cython, Dask, and a pool of processes that supports High-Performance Computing (HPC) with or without out¬put data.</span>
+<span class="sd">    Agi (Speedy-Python-Dask) is a scalable core based on Cython, Dask, and a pool of processes that supports High-Performance Computing (HPC) with or without out¬put data.</span>
 <span class="sd">    It offers a command-line interface in Python and an optional LAB with Streamlit, featuring advanced capabilities like embedded ChatGPT and visualizations.</span>
 
 <span class="sd">    Agi stands for Speedy-Python-Dask.</span>
@@ -631,7 +634,7 @@
                 <span class="s2">&quot;AgentWorker&quot;</span><span class="p">:</span> <span class="s2">&quot;agent-worker&quot;</span><span class="p">,</span>
             <span class="p">}</span>
             <span class="c1"># AGI.install_worker_group = AGI.agi_workers[env.base_worker_cls]</span>
-            <span class="n">AGI</span><span class="o">.</span><span class="n">install_worker_group</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;agi-manager &quot;</span><span class="p">,</span> <span class="n">AGI</span><span class="o">.</span><span class="n">agi_workers</span><span class="p">[</span><span class="n">env</span><span class="o">.</span><span class="n">base_worker_cls</span><span class="p">]]</span>
+            <span class="n">AGI</span><span class="o">.</span><span class="n">install_worker_group</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;fwk-manager &quot;</span><span class="p">,</span> <span class="n">AGI</span><span class="o">.</span><span class="n">agi_workers</span><span class="p">[</span><span class="n">env</span><span class="o">.</span><span class="n">base_worker_cls</span><span class="p">]]</span>
             <span class="n">base_worker_dir</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">base_worker_dir</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
                 <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">base_worker_dir</span><span class="p">)</span>
@@ -961,7 +964,7 @@
         <span class="n">kill_prefix</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">uv</span><span class="si">}</span><span class="s1"> run -p </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">python_version</span><span class="si">}</span><span class="s1"> python&#39;</span>
 
         <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">is_local</span><span class="p">(</span><span class="n">ip</span><span class="p">):</span>
-            <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src/cluster/cli.py&quot;</span><span class="p">,</span> <span class="n">cli_abs</span><span class="p">)</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src/agi_runner/cli.py&quot;</span><span class="p">,</span> <span class="n">cli_abs</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">force</span><span class="p">:</span>
                 <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">kill_prefix</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">cli_abs</span><span class="si">}</span><span class="s2"> kill&quot;</span>
                 <span class="n">cmds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
@@ -1158,7 +1161,7 @@
 
             <span class="c1"># 3) Install Python</span>
             <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cmd_prefix</span><span class="si">}{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s2"> python install </span><span class="si">{</span><span class="n">pyvers</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src/cluster/cli.py&quot;</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
+            <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src/agi_runner/cli.py&quot;</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
             <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_kill</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_clean_dirs</span><span class="p">(</span><span class="n">ip</span><span class="p">)</span>
 
@@ -1270,9 +1273,9 @@
         <span class="c1"># manager install command with and without rapids capable</span>
         <span class="n">app_path</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">app_abs</span>
         <span class="k">if</span> <span class="n">has_rapids_hw</span><span class="p">:</span>
-            <span class="n">cmd_manager</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --config-file uv_config.toml </span><span class="si">{</span><span class="n">run_type</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;manager&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> --extra managers --project </span><span class="si">{</span><span class="n">app_path</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">cmd_manager</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --config-file uv_config.toml </span><span class="si">{</span><span class="n">run_type</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;manager&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">app_path</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">cmd_manager</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">run_type</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;manager&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> --extra managers --project </span><span class="si">{</span><span class="n">app_path</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">cmd_manager</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">run_type</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;manager&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">app_path</span><span class="si">}</span><span class="s2">&quot;</span>
 
         <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Installing manager: </span><span class="si">{</span><span class="n">cmd_manager</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd_manager</span><span class="p">,</span> <span class="n">app_path</span><span class="p">)</span>
@@ -1290,9 +1293,6 @@
         <span class="c1"># install env &amp; core</span>
         <span class="c1">######################</span>
 
-        <span class="c1"># cmd = f&quot;{uv} run python -c \&quot;import os; os.makedirs(&#39;{dist_abs}&#39;, exist_ok=True)\&quot;&quot;</span>
-        <span class="c1"># await AgiEnv.run(cmd, wenv_abs)</span>
-
         <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">wenv_abs</span><span class="si">}</span><span class="s2"> run python -m ensurepip&quot;</span>
         <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">wenv_abs</span><span class="p">)</span>
 
@@ -1300,7 +1300,7 @@
         <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">wenv_abs</span><span class="p">)</span>
 
         <span class="c1"># build agi_env*.whl</span>
-        <span class="n">menv</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">agi_env_root</span>
+        <span class="n">menv</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">env_root</span>
         <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">menv</span><span class="si">}</span><span class="s2"> build --wheel&quot;</span>
         <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">menv</span><span class="p">)</span>
         <span class="n">src</span> <span class="o">=</span> <span class="n">menv</span> <span class="o">/</span> <span class="s2">&quot;dist&quot;</span>
@@ -1312,17 +1312,6 @@
 
         <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">wenv_abs</span><span class="si">}</span><span class="s2"> add </span><span class="si">{</span><span class="n">whl</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">wenv_abs</span><span class="p">)</span>
-
-        <span class="c1"># build agi_core*.whl</span>
-        <span class="c1"># wenv = env.cluster_root</span>
-        <span class="c1"># src = wenv / &quot;dist&quot;</span>
-        <span class="c1"># cmd = f&quot;{uv} --project {wenv} build --wheel&quot;</span>
-        <span class="c1"># await AgiEnv.run(cmd, venv=wenv)</span>
-        <span class="c1"># try:</span>
-        <span class="c1">#     whl = next(iter(src.glob(&quot;agi_core*.whl&quot;)))</span>
-        <span class="c1">#     shutil.copy2(whl, dist_abs)</span>
-        <span class="c1"># except StopIteration:</span>
-        <span class="c1">#     raise RuntimeError(cmd)</span>
 
         <span class="c1"># Build target_worker lib local</span>
         <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_build_lib_local</span><span class="p">()</span>
@@ -1353,7 +1342,7 @@
             <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;no existing egg file in </span><span class="si">{</span><span class="n">wenv_abs</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">env</span><span class="o">.</span><span class="n">app</span><span class="si">}</span><span class="s2">*&quot;</span><span class="p">)</span>
 
         <span class="c1"># build agi_env*.whl</span>
-        <span class="n">wenv</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">agi_env_root</span> <span class="o">/</span> <span class="s1">&#39;dist&#39;</span>
+        <span class="n">wenv</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">env_root</span> <span class="o">/</span> <span class="s1">&#39;dist&#39;</span>
         <span class="k">try</span><span class="p">:</span>
 
             <span class="n">env_whl</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">wenv</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">&quot;agi_env*.whl&quot;</span><span class="p">)))</span>
@@ -1421,7 +1410,7 @@
         <span class="k">for</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_module_to_clean</span><span class="p">:</span>
             <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s2"> pip uninstall </span><span class="si">{</span><span class="n">module</span><span class="si">}</span><span class="s2"> -y&quot;</span>
             <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Executing: </span><span class="si">{</span><span class="n">cmd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">AGI</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">agi_env_root</span><span class="p">)</span>
+            <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">AGI</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">env_root</span><span class="p">)</span>
         <span class="n">AGI</span><span class="o">.</span><span class="n">_module_to_clean</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
 
     <span class="nd">@staticmethod</span>
@@ -1592,7 +1581,7 @@
 
             <span class="c1"># Clean worker</span>
             <span class="k">for</span> <span class="n">ip</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">workers</span><span class="p">):</span>
-                <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src/cluster/cli.py&quot;</span><span class="p">,</span> <span class="n">cli_rel</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
+                <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">/</span> <span class="s2">&quot;src/agi_runner/cli.py&quot;</span><span class="p">,</span> <span class="n">cli_rel</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">env</span><span class="o">.</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
                     <span class="n">env</span><span class="o">.</span><span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="kc">False</span>
                 <span class="k">try</span><span class="p">:</span>
@@ -1779,7 +1768,7 @@
         <span class="n">env</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">env</span>
         <span class="n">wenv</span> <span class="o">=</span> <span class="n">normalize_path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span><span class="p">))</span>
         <span class="n">is_cy</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span> <span class="o">&amp;</span> <span class="n">AGI</span><span class="o">.</span><span class="n">CYTHON_MODE</span>
-        <span class="n">packages</span> <span class="o">=</span> <span class="s2">&quot;node, &quot;</span>
+        <span class="n">packages</span> <span class="o">=</span> <span class="s2">&quot;agi_manager, &quot;</span>
 
         <span class="n">baseworker</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">base_worker_cls</span>
         <span class="k">if</span> <span class="n">baseworker</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;Agent&quot;</span><span class="p">):</span>
@@ -2052,7 +2041,7 @@
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_stop</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Stop the Dask workers and scheduler&quot;&quot;&quot;</span>
         <span class="n">env</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">env</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;stop Agi fwk&quot;</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;stop Agi core&quot;</span><span class="p">)</span>
 
         <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_dask_client</span><span class="o">.</span><span class="n">scheduler_info</span><span class="p">()[</span><span class="s2">&quot;workers&quot;</span><span class="p">])</span> <span class="ow">and</span> <span class="p">(</span><span class="n">i</span> <span class="o">&lt;</span> <span class="n">AGI</span><span class="o">.</span><span class="n">TIMEOUT</span><span class="p">):</span>
