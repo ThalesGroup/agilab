@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$/apps/flight_project">
+      <sourceFolder url="file://$MODULE_DIR$/apps/flight_project/src" isTestSource="false" />
+    </content>
+    <orderEntry type="jdk" jdkName="uv (flight_project)" jdkType="Python SDK" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>
