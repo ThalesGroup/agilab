@@ -11,6 +11,7 @@ dependencies = [
     "py7zr",
     "python-dotenv",
     "psutil",
+    "agi-env",
 ]
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
@@ -28,8 +29,8 @@ data-worker = [
     "polars",
 ]
 workers = [
-    "agi-core[dag-worker]",
-    "agi-core[agi-worker]",
+    "aginode[dag-worker]",
+    "agi-node[agi-worker]",
 ]
 managers = [
     "agi-core[managers]",
@@ -45,10 +46,11 @@ dev = [
 ]
 
 
-# do not remove
 [tool.uv.sources]
-agi-core = {path = "/Users/jpm/PycharmProjects/agilab/src/agi/fwk/cluster", editable = true}
-[tool.uv.sources.mycode_project]
+agi-cluster = {path = "/Users/jpm/PycharmProjects/agilab/src/fwk/core/cluster", editable = true}
+agi-env = {path = "/Users/jpm/PycharmProjects/agilab/src/fwk/core/env", editable = true}
+
+[tool.uv.sources.flight_project]
 workspace = true
 
 [tool.setuptools]
