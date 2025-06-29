@@ -10,23 +10,12 @@ name = "Jean-Pierre Morard"
 email = "focus@thalesgroup.com"
 
 [dependency-groups]
-dev = ["black", "pytest", "licensecheck", "flight_project", ]
+dev = ["black", "pytest", "licensecheck"]
 
 [project.license]
 text = "Thales SIX GTS France SAS"
-
-[project.optional-dependencies]
-agi-worker = []
-agent-worker = []
-dag-worker = []
-data-worker = ["polars", ]
-workers = ["agi-core[agi-worker]", "agi-core[data-worker]", ]
-managers = ["agi-core[managers]", ]
 
 [tool.mypy]
 mypy_path = ["stubs", ]
 disallow_untyped_defs = false
 ignore_missing_imports = true
-
-[tool.uv.sources.flight_project]
-workspace = true

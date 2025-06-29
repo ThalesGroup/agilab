@@ -23,6 +23,14 @@ dependencies = [
     "psutil",
     "scipy==1.15.2",
 ]
+
+[dependency-groups]
+dev = [
+    "black",
+    "pytest",
+    "licensecheck",
+]
+
 [[project.authors]]
 name = "Jean-Pierre Morard"
 email = "focus@thalesgroup.com"
@@ -30,8 +38,5 @@ email = "focus@thalesgroup.com"
 [project.license]
 text = "Thales SIX GTS France SAS"
 
-[tool.uv.sources.flight-worker]
-path = "."
-editable = true
 
 

@@ -10,7 +10,7 @@ name = "Jean-Pierre Morard"
 email = "focus@thalesgroup.com"
 
 [dependency-groups]
-dev = [ "black", "pytest", "licensecheck", "flight_project",]
+dev = [ "black", "pytest", "licensecheck"]
 
 [project.license]
 text = "Thales SIX GTS France SAS"
@@ -19,8 +19,3 @@ text = "Thales SIX GTS France SAS"
 mypy_path = [ "stubs",]
 disallow_untyped_defs = false
 ignore_missing_imports = true
-
-[tool.uv.sources]
-agi-cluster = {path = "/Users/jpm/PycharmProjects/agilab/src/agi/fwk/cluster", editable = true}
-[tool.uv.sources.flight_project]
-workspace = true
