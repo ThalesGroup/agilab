@@ -194,35 +194,38 @@ class AgiEnv:
         self.install_type = install_type
 
         if install_type != 2:
-            self.agi_root = AgiEnv.locate_agi_installation(verbose)
+            self.agi_fwk = AgiEnv.locate_agi_installation(verbose)
         else:
-            self.agi_root = home_abs / "wenv" / active_app
+            self.agi_fwk = home_abs / "wenv" / active_app
 
         if install_type == 1:
-            if "site-packages" in self.agi_root.parts:
-                self.agi_env_root = self.agi_root.parent / "agi_env"
-                self.agi_cluster_root = self.agi_root.parent
-                resource_path = self.agi_env_root / self.agi_resources
+            if "site-packages" in self.agi_fwk.parts:
+                self.env_root = self.agi_fwk.parent / "agi_env"
+                self.cluster_root = self.agi_fwk.parent
+                self.node_root = self.agi_fwk.parent / "node"
+                resource_path = self.env_root / self.agi_resources
             else:
-                self.agi_env_root = self.agi_root / "core/env"
-                self.agi_cluster_root = self.agi_root / "core/cluster"
-                resource_path = self.agi_env_root / "src/agi_env" / self.agi_resources
-            if not self.agi_env_root.exists():
+                self.env_root = self.agi_fwk / "core/env"
+                self.node_root = self.agi_fwk / "core/node"
+                self.cluster_root = self.agi_fwk / "core/cluster"
+                resource_path = self.env_root / "src/agi_env" / self.agi_resources
+            if not self.env_root.exists():
                 raise RuntimeError("Your Agilab installation is not valid")
             self._init_resources(resource_path)
         elif install_type == 2:
-                if AgiEnv.debug:
-                    self.agi_env_root = self.agi_root / "core/env"
-                    self.agi_cluster_root = self.agi_root / "core/cluster"
-                else:
-                    self.agi_env_root = list(Path(sys.prefix).rglob('agi_env'))[0]
-                    # self.agi_cluster_root = list(Path(sys.prefix).rglob('cluster'))[0]
+            if AgiEnv.debug:
+                self.env_root = self.agi_fwk / "core/env"
+                self.cluster_root = self.agi_fwk / "core/cluster"
+                self.note_root = self.agi_fwk / "core/node"
+            else:
+                self.env_root = list(Path(sys.prefix).rglob('agi_env'))[0]
+                # self.agi_cluster_root = list(Path(sys.prefix).rglob('cluster'))[0]
         elif install_type == 0:
-                head, sep, _ = __file__.partition("site-packages")
-                if not sep:
-                    raise ValueError("site-packages not in", __file__)
-                self.agi_env_root = Path(head + sep)
-                self.agi_cluster_root = Path(head + sep)
+            head, sep, _ = __file__.partition("site-packages")
+            if not sep:
+                raise ValueError("site-packages not in", __file__)
+            _ = Path(head + sep)
+            self.env_root, self.cluster_root, self.cluster_node = _, _, _
 
         if not apps_dir:
             apps_dir = 'apps'
@@ -237,7 +240,7 @@ class AgiEnv:
             if apps_dir.exists():
                 self.apps_dir = apps_dir
             elif install_type < 2:
-                self.apps_dir = self.agi_root / apps_dir
+                self.apps_dir = self.agi_fwk / apps_dir
             else:
                 os.makedirs(str(apps_dir), exist_ok=True)
         except FileNotFoundError:
@@ -256,8 +259,8 @@ class AgiEnv:
                 active_app = active_app + '_project'
             self.app = active_app
             if not install_type:
-                src_apps = self.agi_root / "apps"
-                apps_dir =  Path(self.agi_root).parents[4] / "apps"
+                src_apps = self.agi_fwk / "apps"
+                apps_dir = Path(self.agi_fwk).parents[4] / "apps"
                 if not apps_dir.exists():
                     shutil.copytree(src_apps, apps_dir)
                 else:
@@ -301,7 +304,7 @@ class AgiEnv:
             worker_module_path = self.worker_path.parent
 
         elif install_type == 1:
-            app_abs = self.agi_root / apps_dir / active_app
+            app_abs = self.agi_fwk / apps_dir / active_app
             app_src = app_abs / "src"
             self.app_pyproject = app_abs / "pyproject.toml"
             self.worker_path = app_src / target_worker / f"{target_worker}.py"
@@ -310,8 +313,8 @@ class AgiEnv:
             worker_module_path = self.worker_path.parent
 
         elif install_type == 2:
-            app_abs = self.agi_root
-            app_src = self.agi_root / "src"
+            app_abs = self.agi_fwk
+            app_src = self.agi_fwk / "src"
             self.worker_path = self.wenv_rel / 'src' / target_worker / f"{target_worker}.py"
             self.module_path = self.wenv_rel / 'src' / module / f"{self.module}.py"
             worker_module_path = self.worker_path.parent
@@ -353,24 +356,23 @@ class AgiEnv:
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.13")
 
         os.makedirs(AgiEnv.apps_dir, exist_ok=True)
-        if "site-packages" in self.agi_root.parts:
-            self.agi_core_loc = self.agi_root.parent
+        if "site-packages" in self.agi_fwk.parts:
+            self.agi_fwk_loc = self.agi_fwk.parent
         else:
-            self.agi_core_loc = self.agi_root
+            self.agi_fwk_loc = self.agi_fwk
 
         if install_type != 2:
             self.resolve_packages_path_in_toml()
 
-        cluster_root = self.agi_core_loc
-        self.cluster_root = cluster_root
-        node_root =self.agi_root / "node"
+        agi_fwk = self.agi_fwk_loc
+        self.agi_fwk = agi_fwk
 
         self.projects = self.get_projects(self.apps_dir)
         if not self.projects:
-            logging.info(f"Could not find any target project app in {self.agi_root / 'apps'}.")
+            logging.info(f"Could not find any target project app in {self.agi_fwk / 'apps'}.")
 
         self.setup_app = app_abs / "build.py"
-        self.setup_core = self.agi_core_loc / "core/node/src/agi_manager/build.py"
+        self.setup_core = self.agi_fwk_loc / "core/node/src/agi_manager/build.py"
 
         if isinstance(module, Path):
             module_path = module.expanduser().resolve()
@@ -390,7 +392,7 @@ class AgiEnv:
             raise ValueError(f"Invalid scheduler IP address: {self.scheduler_ip}")
 
         if self.install_type:
-            self.help_path = str(self.agi_root / "../docs/html")
+            self.help_path = str(self.agi_fwk / "../docs/html")
         else:
             self.help_path = "https://thalesgroup.github.io/agilab"
         self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", home_abs / "data"))
@@ -669,15 +671,15 @@ class AgiEnv:
         if not self.export_apps.exists():
             os.makedirs(str(self.export_apps), exist_ok=True)
         self.MLFLOW_TRACKING_DIR = Path(envars.get("MLFLOW_TRACKING_DIR", self.home_abs / ".mlflow"))
-        self.AGILAB_VIEWS_ABS = Path(envars.get("AGI_VIEWS_DIR", self.agi_root / "views"))
+        self.AGILAB_VIEWS_ABS = Path(envars.get("AGI_VIEWS_DIR", self.agi_fwk / "views"))
         self.AGILAB_VIEWS_REL = Path(envars.get("AGI_VIEWS_DIR", "fwk/_"))
         if self.install_type == 0:
-            self.copilot_file = self.agi_core_loc / "agi_gui/agi_copilot.py" # WTF ?
+            self.copilot_file = self.agi_fwk_loc / "agi_gui/agi_copilot.py" # WTF ?
         else:
-            self.copilot_file = self.agi_root / "core/gui/src/agi_gui/agi_copilot.py"
+            self.copilot_file = self.agi_fwk / "core/gui/src/agi_gui/agi_copilot.py"
 
     def resolve_packages_path_in_toml(self):
-        agi_root = self.agi_root
+        agi_root = self.agi_fwk
         for file in [self.worker_pyproject, self.app_pyproject]:
             if not file.exists():
                 raise FileNotFoundError(f"{file} not found in {self.app_abs}")
@@ -733,10 +735,10 @@ class AgiEnv:
 
         self.gitignore_file = self.app_abs / ".gitignore"
         dest = self.resource_path
-        if self.install_type == 1 and not "site-packages" in self.agi_root.parts:
-            shutil.copytree(self.agi_root / "gui/src/agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
+        if self.install_type == 1 and not "site-packages" in self.agi_fwk.parts:
+            shutil.copytree(self.agi_fwk / "gui/src/agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
         else:
-            shutil.copytree(self.agi_root.parent / "agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
+            shutil.copytree(self.agi_fwk.parent / "agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
 
     @staticmethod
     def _build_env(venv=None):

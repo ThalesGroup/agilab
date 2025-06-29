@@ -574,7 +574,7 @@ class AGI:
         kill_prefix = f'{cmd_prefix}{uv} run -p {env.python_version} python'
 
         if env.is_local(ip):
-            shutil.copy(env.cluster_root / "src/cluster/cli.py", cli_abs)
+            shutil.copy(env.cluster_root / "src/agi_runner/cli.py", cli_abs)
             if force:
                 cmd = f"{kill_prefix} {cli_abs} kill"
                 cmds.append(cmd)
@@ -771,7 +771,7 @@ class AGI:
 
             # 3) Install Python
             await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers}")
-            await env.send_file(ip, env.cluster_root / "src/cluster/cli.py", env.wenv_rel.parent)
+            await env.send_file(ip, env.cluster_root / "src/agi_runner/cli.py", env.wenv_rel.parent)
             await AGI._kill(ip, force=True)
             await AGI._clean_dirs(ip)
 
@@ -910,7 +910,7 @@ class AGI:
         await AgiEnv.run(cmd, wenv_abs)
 
         # build agi_env*.whl
-        menv = env.agi_env_root
+        menv = env.env_root
         cmd = f"{uv} --project {menv} build --wheel"
         await AgiEnv.run(cmd, menv)
         src = menv / "dist"
@@ -952,7 +952,7 @@ class AGI:
             raise FileNotFoundError(f"no existing egg file in {wenv_abs / env.app}*")
 
         # build agi_env*.whl
-        wenv = env.agi_env_root / 'dist'
+        wenv = env.env_root / 'dist'
         try:
 
             env_whl = next(iter(wenv.glob("agi_env*.whl")))
@@ -1020,7 +1020,7 @@ class AGI:
         for module in AGI._module_to_clean:
             cmd = f"{env.uv} pip uninstall {module} -y"
             logging.info(f"Executing: {cmd}")
-            await AgiEnv.run(cmd, AGI.env.agi_env_root)
+            await AgiEnv.run(cmd, AGI.env.env_root)
         AGI._module_to_clean.clear()
 
     @staticmethod
