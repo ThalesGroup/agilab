@@ -4,6 +4,7 @@
     <content url="file://$MODULE_DIR$/gui">
       <sourceFolder url="file://$MODULE_DIR$/gui/src" isTestSource="false" />
     </content>
+    <orderEntry type="jdk" jdkName="uv (gui)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>
