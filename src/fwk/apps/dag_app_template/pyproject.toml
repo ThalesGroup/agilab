@@ -16,6 +16,8 @@ dependencies = [
     "python-dotenv",
     "ipython",
     "psutil",
+    "agi-env",
+    "agi-cluster",
 ]
 
 [dependency-groups]
@@ -26,26 +28,9 @@ dev = [
     "your_dag_project",
 ]
 
-[project.optional-dependencies]
-agi-worker = []
-dag-worker = []
-workers = [
-    "agi-core[dag-worker]",
-    "agi-core[agi-worker]"]
-managers = [
-    "agi-core[managers]"
-]
-
-
-# do not remove
 [tool.uv.sources]
-agi-cluster = {path = "/path/to/agilab/src/agilab/fwk/cluster", editable = true}
-
-# do not remove
-[tool.uv.sources.agi-cluster]
-path = "/path/to/agilab/fwk/cluster"
-editable = true
-
+agi-cluster = {path = "/Users/jpm/PycharmProjects/agilab/src/fwk/core/cluster", editable = true}
+agi-env = {path = "/Users/jpm/PycharmProjects/agilab/src/fwk/core/env", editable = true}
 
 [tool.uv.sources.your_dag_project]
 workspace = true

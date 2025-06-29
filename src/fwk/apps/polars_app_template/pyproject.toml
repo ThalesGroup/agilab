@@ -24,28 +24,13 @@ dev = [
     "pytest",
     "licensecheck",
     "your_polars_project",
+    "agi-env",
+    "agi-cluster",
 ]
 
-[project.optional-dependencies]
-agi-worker = []
-polars-worker = []
-workers = [
-    "agi-node[polars-worker]",
-    "agi-node[base-worker]"]
-managers = [
-    "agi-core[managers]"
-]
-
-
-# do not remove
 [tool.uv.sources]
-agi-cluster = {path = "/path/to/agilab/src/agilab/fwk/cluster", editable = true}
-
-# do not remove
-[tool.uv.sources.agi-cluster]
-path = "/path/to/agilab/fwk/cluster"
-editable = true
-
+agi-cluster = {path = "/Users/jpm/PycharmProjects/agilab/src/fwk/core/cluster", editable = true}
+agi-env = {path = "/Users/jpm/PycharmProjects/agilab/src/fwk/core/env", editable = true}
 
 [tool.uv.sources.your_polars_project]
 workspace = true

@@ -1,5 +1,5 @@
 import pytest
-from agi_apps.flight_project.src.flight_worker import FlightWorker
+from apps.flight_project.src.flight_worker import FlightWorker
 
 @pytest.fixture
 def worker():
