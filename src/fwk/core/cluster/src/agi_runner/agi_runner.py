@@ -1369,7 +1369,7 @@ class AGI:
         env = AGI.env
         wenv = normalize_path(str(env.wenv_abs))
         is_cy = AGI._mode & AGI.CYTHON_MODE
-        packages = "node, "
+        packages = "agi_manager, "
 
         baseworker = env.base_worker_cls
         if baseworker.startswith("Agent"):
