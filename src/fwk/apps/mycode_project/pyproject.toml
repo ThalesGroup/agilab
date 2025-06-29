@@ -33,7 +33,6 @@ dev = [
 
 
 [tool.uv.sources]
-agi-cluster = {path = "/Users/jpm/PycharmProjects/agilab/src/fwk/core/cluster", editable = true}
 agi-env = {path = "/Users/jpm/PycharmProjects/agilab/src/fwk/core/env", editable = true}
 
 [tool.uv.sources.mycode_project]

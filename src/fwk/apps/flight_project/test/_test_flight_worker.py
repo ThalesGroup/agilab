@@ -1,7 +1,24 @@
 import sys
+from pathlib import Path
 from agi_manager import BaseWorker
 from agi_env import AgiEnv
 import asyncio
+
+with open(Path().home() / ".local/share/agilab/.core-path",'r') as f:
+    fwk_path = Path(f.read().strip())
+
+path = str(fwk_path / "core/cluster/src")
+if path not in sys.path:
+    sys.path.insert(0, path)
+
+path = str(fwk_path / "core/node/src")
+if path not in sys.path:
+    sys.path.insert(0, path)
+
+path = str(fwk_path / "core/env/src")
+if path not in sys.path:
+    sys.path.insert(0, path)
+
 
 async def main():
     args = {
