@@ -56,6 +56,8 @@ dependencies = [
     "scipy==1.15.2",
     "psutil",
     "typing-inspection>=0.4.1",
+    "polars",
+    "pandas",
 ]
 
 [project.urls]
@@ -63,16 +65,7 @@ Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/fwk/cluster"
 Tracker = "https://github.com/ThalesGroup/agilab/issue"
 
-[project.optional-dependencies]
-agent-worker = []
-agi-worker = []
-dag-worker = []
-polars-worker = [
-    "polars",
-]
-pandas-worker = [
-    "pandas",
-]
+
 
 [dependency-groups]
 dev = [
@@ -83,12 +76,9 @@ dev = [
     "pytest-local-badge",
     "pytest-cov",
     "pytest-asyncio",
-    "polars",
-    "pandas",
     "fastparquet",
     "pytest-cov"
 ]
-
 
 [tool.uv.sources.agi-env]
 path = "../env"
