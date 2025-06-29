@@ -20,3 +20,10 @@ mypy_path = [ "stubs",]
 disallow_untyped_defs = false
 ignore_missing_imports = true
 
+
+[project.optional-dependencies]
+agi-worker = []
+agent-worker = []
+dag-worker = []
+polars-worker = []
+agi-manager = []

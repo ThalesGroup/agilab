@@ -23,7 +23,7 @@ from typing import Unpack, Literal
 import py7zr
 import polars as pl
 from datetime import date
-from agi_runner import AGI
+# from agi_runner import AGI
 from agi_manager import WorkDispatcher
 from agi_env import AgiEnv, normalize_path
 logger = logging.getLogger(__name__)
@@ -170,7 +170,7 @@ class Flight(WorkDispatcher):
 
         return
 
-    def build_distribution(self):
+    def build_distribution(self, workers):
         """build_distrib: to provide the list of files per planes (level1) and per workers (level2)
         the level 1 has been think to prevent that à job that requires all the output-data of a plane have to wait for another
         flight_worker which would have collapse the overall performance
@@ -188,8 +188,8 @@ class Flight(WorkDispatcher):
 
             # get the second level of the distribution tree by by dispatching these works per workers
             # make chunk of planes by worker with a load balancing that takes into consideration workers capacities
-            workers_chunks = AGI.make_chunks(
-                len(planes_partition), planes_partition_size, self.verbose, threshold=12
+            workers_chunks = WorkDispatcher.make_chunks(
+                len(planes_partition), planes_partition_size, self.verbose, workers=workers, threshold=12
             )
             if workers_chunks:
                 # build tree: workers = dask workers -> works = planes -> files <=> list of list of list
