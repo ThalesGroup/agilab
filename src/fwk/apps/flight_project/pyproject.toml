@@ -22,13 +22,13 @@ dependencies = [
     "logging",
     "psutil",
     "scipy==1.15.2",
+    "agi-env",
 ]
 
 [project.license]
 text = "Thales SIX GTS France SAS"
 
 [project.optional-dependencies]
-agi-manager = []
 polars-worker = [
     "polars",
 ]
@@ -47,7 +47,8 @@ dev = [
 ]
 
 [tool.uv.sources]
-agi-cluster = {path = "/Users/jpm/PycharmProjects/agilab/src/agi/fwk/core/cluster", editable = true}
+agi-cluster = {path = "/Users/jpm/PycharmProjects/agilab/src/fwk/core/cluster", editable = true}
+agi-env = {path = "/Users/jpm/PycharmProjects/agilab/src/fwk/core/env", editable = true}
 
 [tool.uv.sources.flight_project]
 workspace = true
