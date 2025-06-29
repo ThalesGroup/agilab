@@ -173,7 +173,7 @@ class Flight(WorkDispatcher):
     def build_distribution(self):
         """build_distrib: to provide the list of files per planes (level1) and per workers (level2)
         the level 1 has been think to prevent that à job that requires all the output-data of a plane have to wait for another
-        my_code_worker which would have collapse the overall performance
+        flight_worker which would have collapse the overall performance
 
         Args:
 
