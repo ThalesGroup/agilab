@@ -1,0 +1,43 @@
+setup
+src/agi_core
+src_agi_env
+# MacOS files
+.DS_Store
+
+# Python virtual environments and build artifacts
+.venv/
+dist/
+build/
+.build*
+__pycache__/
+.mypy_cache/
+__pypackages__/
+._*
+
+# Miscellaneous files
+*.lock
+.uv-*
+
+# Egg files and binary distributions
+EGG*
+*.egg*
+*.so
+*.pyd
+*.whl
+
+# Specific src patterns (adjust if needed)
+src/*-info/
+src/*_worker_*/
+
+# Pytest caches
+.pytest*
+
+# JetBrains IDE settings
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries
+.idea/usage.statistics.xml
+.idea/dataSources.ids
+.idea/dataSources.local.xml
+.idea/sqlDataSources.xml
+.idea/dynamic.xml

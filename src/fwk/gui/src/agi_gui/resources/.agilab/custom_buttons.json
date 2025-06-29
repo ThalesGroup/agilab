@@ -1,0 +1,105 @@
+[
+  {
+    "name": "Copy",
+    "feather": "Copy",
+    "hasText": true,
+    "alwaysOn": true,
+    "commands": [
+      "copyAll",
+      [
+        "infoMessage",
+        {
+          "text": "Copied to clipboard!",
+          "timeout": 2500,
+          "classToggle": "show"
+        }
+      ]
+    ],
+    "style": {
+      "top": "-0.25rem",
+      "right": "0.4rem"
+    }
+  },
+  {
+    "name": "Collapse",
+    "feather": "Minimize2",
+    "hasText": true,
+    "commands": [
+      "selectall",
+      "toggleSplitSelectionIntoLines",
+      "gotolinestart",
+      "gotolinestart",
+      "backspace"
+    ],
+    "style": {
+      "bottom": "0.4rem",
+      "right": "7.4rem"
+    }
+  },
+  {
+    "name": "Save",
+    "primary": true,
+    "hasText": true,
+    "showWithIcon": true,
+    "commands": [
+      "save-state",
+      [
+        "response",
+        "save"
+      ]
+    ],
+    "style": {
+      "bottom": "0.4rem",
+      "right": "21.4rem"
+    }
+  },
+  {
+    "name": "Run",
+    "primary": true,
+    "hasText": true,
+    "showWithIcon": true,
+    "commands": [
+      "run-state",
+      [
+        "response",
+        "run"
+      ]
+    ],
+    "style": {
+      "bottom": "0.4rem",
+      "right": "35.4rem"
+    }
+  },
+  {
+    "name": "Next",
+    "hasText": true,
+    "showWithIcon": true,
+    "commands": [
+      "save-state",
+      [
+        "response",
+        "next"
+      ]
+    ],
+    "style": {
+      "bottom": "0.4rem",
+      "right": "28.4rem"
+    }
+  },
+  {
+    "name": "Remove",
+    "hasText": true,
+    "showWithIcon": true,
+    "commands": [
+      "save-state",
+      [
+        "response",
+        "remove"
+      ]
+    ],
+    "style": {
+      "bottom": "0.4rem",
+      "right": "14.4rem"
+    }
+  }
+]

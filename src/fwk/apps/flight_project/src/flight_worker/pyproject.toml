@@ -1,0 +1,37 @@
+[project]
+name = "flight_worker"
+version = "0.1.8"
+description = ""
+requires-python = ">=3.11"
+readme = "README.md"
+
+dependencies = [
+    "dask[distributed]",
+    "numpy",
+    "geopy",
+    "humanize",
+    "setuptools",
+    "cython",
+    "parso",
+    "polars",
+    "py7zr",
+    "python-dotenv",
+    "fastparquet",
+    "ipython",
+    "polars",
+    "logging",
+    "psutil",
+    "scipy==1.15.2",
+]
+[[project.authors]]
+name = "Jean-Pierre Morard"
+email = "focus@thalesgroup.com"
+
+[project.license]
+text = "Thales SIX GTS France SAS"
+
+[tool.uv.sources.flight-worker]
+path = "."
+editable = true
+
+
