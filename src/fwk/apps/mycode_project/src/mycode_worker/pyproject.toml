@@ -19,3 +19,4 @@ text = "Thales SIX GTS France SAS"
 mypy_path = [ "stubs",]
 disallow_untyped_defs = false
 ignore_missing_imports = true
+
