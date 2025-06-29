@@ -33,9 +33,7 @@ dependencies = [
     "setuptools",
     "twine",
     "wheel",
-    "agi-env",
-    "agi-cluster",
-    "agi-node",
+    "agi-core",
     "agi-gui",
     "pylint",
 ]
@@ -70,17 +68,11 @@ default-groups = ["dev"]
 [tool.uv.sources.agilab]
 workspace = true
 
-[tool.uv.sources.agi-env]
-path = "src/agi/fwk/env"
-
-[tool.uv.sources.agi-cluster]
-path = "src/agi/fwk/cluster"
-
-[tool.uv.sources.agi-node]
-path = "src/agi/fwk/node"
+[tool.uv.sources.agi-core]
+path = "src/fwk/core"
 
 [tool.uv.sources.agi-gui]
-path = "src/agi/fwk/gui"
+path = "src/fwk/gui"
 
 [tool.uv.workspace]
 members = ["apps", "views"]
@@ -97,11 +89,12 @@ include-package-data = true
 where = ["src"]
 include = ["agi*", "apps*", "views*"]
 exclude = [
-    "agi.fwk*",
+    "fwk.core*",
+    "fwk.gui*",
     ".idea*",
     "tests*",
-    "agi.apps.flight_project.build*",
-    "agi.apps.my_code_project.build*"
+    "fwk.apps.flight_project.build*",
+    "fwk.apps.my_code_project.build*"
 ]
 
 [tool.mypy]

@@ -215,7 +215,7 @@ copy_project_files() {
         echo "Using current directory as install directory; no copy needed."
     fi
     mkdir -p "$HOME/.local/share/agilab"
-    echo "$AGI_INSTALL_PATH/src/agi" > "$HOME/.local/share/agilab/.agi-path"
+    echo "$AGI_INSTALL_PATH/src/fwk" > "$HOME/.local/share/agilab/.core-path"
 }
 
 update_environment() {
@@ -230,8 +230,8 @@ update_environment() {
     echo -e "${GREEN}Environment updated in $ENV_FILE${NC}"
 }
 
-install_framework() {
-    framework_dir="$AGI_INSTALL_PATH/src/agi/fwk"
+install_core() {
+    framework_dir="$AGI_INSTALL_PATH/src/fwk/core"
     chmod +x "$framework_dir/install.sh"
 
     echo -e "${BLUE}Installing Framework...${NC}"
@@ -241,7 +241,7 @@ install_framework() {
 }
 
 install_apps() {
-    apps_dir="$AGI_INSTALL_PATH/src/agi/apps"
+    apps_dir="$AGI_INSTALL_PATH/src/fwk/apps"
     chmod +x "$apps_dir/install.sh"
 
     echo -e "${BLUE}Installing Apps...${NC}"
@@ -252,7 +252,7 @@ install_apps() {
 
 write_env_values() {
     shared_env="$HOME/.local/share/agilab/.env"
-    agilab_env="$HOME/.agi/.env"
+    agilab_env="$HOME/.agilab/.env"
 
     [[ -f "$shared_env" ]] || { echo -e "${RED}Error: $shared_env does not exist.${NC}"; return 1; }
 
@@ -286,7 +286,7 @@ choose_python_version
 backup_existing_project
 copy_project_files
 update_environment
-install_framework
+install_core
 write_env_values
 install_apps
 
