@@ -1,0 +1,69 @@
+[project]
+name = "your_agent_project"
+version = "0.1.8"
+description = ""
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    {name = "your name", email = "your email"}
+]
+
+dependencies = [
+ "setuptools",
+    "cython",
+    "parso",
+    "py7zr",
+    "python-dotenv",
+    "ipython",
+    "psutil",
+]
+
+[dependency-groups]
+dev = [
+    "black",
+    "pytest",
+    "licensecheck",
+    "your_agent_project",
+]
+
+[project.optional-dependencies]
+agi-worker = []
+agent-worker = []
+workers = [
+    "agi-core[agent-worker]",
+
+    "agi-core[agi-worker]"]
+managers = [
+    "agi-core[managers]"
+]
+
+
+# do not remove
+[tool.uv.sources]
+agi-cluster = {path = "/path/to/agilab/src/agilab/fwk/cluster", editable = true}
+
+# do not remove
+[tool.uv.sources.agi-cluster]
+path = "/path/to/agilab/fwk/cluster"
+editable = true
+
+# do not remove
+[tool.uv.sources.your_agent_project]
+workspace = true
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.data-files]
+pyprojects = [
+    "src/*.ipynb",
+    "src/*.json",
+    "src/*.toml",
+    "src/*/*.py*",
+
+]
+
+[tool.mypy]
+mypy_path = ["stubs"]
+disallow_untyped_defs = false
+ignore_missing_imports = true
