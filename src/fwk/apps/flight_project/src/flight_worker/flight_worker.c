@@ -4,10 +4,10 @@
 {
     "distutils": {
         "include_dirs": [
-            "/Users/jpm/PycharmProjects/agilab/src/agi/apps/flight_project/.venv/include"
+            "/Users/jpm/PycharmProjects/agilab/src/fwk/apps/flight_project/.venv/include"
         ],
         "library_dirs": [
-            "/Users/jpm/PycharmProjects/agilab/src/agi/apps/flight_project/.venv/lib"
+            "/Users/jpm/PycharmProjects/agilab/src/fwk/apps/flight_project/.venv/lib"
         ],
         "name": "flight_worker_cy",
         "sources": [
