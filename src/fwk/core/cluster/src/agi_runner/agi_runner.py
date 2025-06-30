@@ -463,7 +463,7 @@ class AGI:
         except ModuleNotFoundError as e:
             module_to_install = (str(e).replace("No module named ", "").lower().replace("'", ""))
             app_path = AGI.env.app_abs
-            cmd = f"{env.uv} --upgrade add {module_to_install}"
+            cmd = f"{AGI.env.uv} add --upgrade {module_to_install}"
             logging.info(f"{cmd} from {app_path}")
             await AgiEnv.run(cmd, app_path)
             AGI._module_to_clean.append(module_to_install)
@@ -1468,7 +1468,7 @@ class AGI:
             res = BaseWorker.run(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
         else:
             cmd = (
-                f"{env.uv} run --project {env.wenv_abs} python -c \"from node import  BaseWorker;"
+                f"{env.uv} run --project {env.wenv_abs} python -c \"from agi_manager import  BaseWorker;"
                 f"from dask.distributed import print;"
                 f"BaseWorker.new('{env.app}', mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
                 f"res = BaseWorker.run({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
