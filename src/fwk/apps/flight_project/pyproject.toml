@@ -23,6 +23,7 @@ dependencies = [
     "psutil",
     "scipy==1.15.2",
     "agi-env",
+    "agi-node"
 ]
 
 [project.license]
@@ -38,7 +39,8 @@ dev = [
 ]
 
 [tool.uv.sources]
-agi-env = {path = "/Users/jpm/PycharmProjects/agilab/src/fwk/core/env", editable = true}
+agi-env = {path = "/home/agi/PycharmProjects/agilab/src/fwk/core/env", editable = true}
+agi-node = {path = "/home/agi/PycharmProjects/agilab/src/fwk/core/node", editable = true}
 
 [tool.uv.sources.flight_project]
 workspace = true
