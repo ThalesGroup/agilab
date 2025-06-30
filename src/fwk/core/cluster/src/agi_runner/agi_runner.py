@@ -883,18 +883,18 @@ class AGI:
         # manager install command with and without rapids capable
         app_path = env.app_abs
         if has_rapids_hw:
-            cmd_manager = f"{uv} --config-file uv_config.toml {run_type} {options['manager']} --project {app_path}"
+            cmd_manager = f"{uv} --config-file uv_config.toml  {options['manager']} --project {app_path} {run_type}"
         else:
-            cmd_manager = f"{uv} {run_type} {options['manager']} --project {app_path}"
+            cmd_manager = f"{uv} {options['manager']} --project {app_path} {run_type}"
 
         logging.info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
 
         # worker install command with and without rapids capable
         if has_rapids_hw:
-            cmd_worker = f"{uv} --config-file uv_config.toml {run_type} --project {wenv_abs}"
+            cmd_worker = f"{uv} --config-file uv_config.toml --project {wenv_abs} {run_type} "
         else:
-            cmd_worker = f"{uv} {run_type} {options["worker"]} --project {wenv_abs}"
+            cmd_worker = f"{uv} {options["worker"]} --project {wenv_abs} {run_type}"
 
         logging.info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
