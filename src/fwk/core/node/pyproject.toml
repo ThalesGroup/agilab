@@ -86,7 +86,6 @@ path = "../env"
 editable = true
 
 [tool.uv.sources.agi-node]
-path = "."
 editable = true
 
 [tool.mypy]
