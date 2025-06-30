@@ -7,11 +7,7 @@ import asyncio
 with open(Path().home() / ".local/share/agilab/.core-path",'r') as f:
     fwk_path = Path(f.read().strip())
 
-path = str(fwk_path / "core/node/src")
-if path not in sys.path:
-    sys.path.insert(0, path)
-
-path = str(fwk_path / "core/env/src")
+path = str(Path().home() / "/src")
 if path not in sys.path:
     sys.path.insert(0, path)
 
