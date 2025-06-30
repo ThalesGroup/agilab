@@ -23,7 +23,8 @@ dependencies = [
     "psutil",
     "scipy==1.15.2",
     "agi-env",
-    "agi-node"
+    "agi-node",
+    "agi-cluster",
 ]
 
 [project.license]
@@ -41,6 +42,7 @@ dev = [
 [tool.uv.sources]
 agi-env = {path = "/home/agi/PycharmProjects/agilab/src/fwk/core/env", editable = true}
 agi-node = {path = "/home/agi/PycharmProjects/agilab/src/fwk/core/node", editable = true}
+agi-cluster = {path = "/home/agi/PycharmProjects/agilab/src/fwk/core/cluster", editable = true}
 
 [tool.uv.sources.flight_project]
 workspace = true
@@ -62,3 +64,10 @@ mypy_path = [
 ]
 disallow_untyped_defs = false
 ignore_missing_imports = true
+
+[project.optional-dependencies]
+agi-worker = []
+agent-worker = []
+dag-worker = []
+polars-worker = []
+agi-manager = []
