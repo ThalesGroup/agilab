@@ -39,12 +39,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 # External Libraries:
+import numpy as np
 from distutils.sysconfig import get_python_lib
 import psutil
 import humanize
 from datetime import timedelta
 import logging
 import socket
+from copy import deepcopy
 
 from agi_env import AgiEnv, normalize_path
 
@@ -691,6 +693,7 @@ class WorkDispatcher:
     nchunk2: int,
     weights: List[Any],
     capacities: Optional[List[Any]] = None,
+    workers: Dict = None,
     verbose: int = 0,
     threshold: int = 12,
 ) -> List[List[List[Any]]]:
@@ -710,12 +713,12 @@ class WorkDispatcher:
           : list of chunk per your_worker containing list of works per your_worker containing list of chunks level 1
 
         """
-        if not AGI.workers:
-            AGI.workers = workers_default
+        if not workers:
+            workers = workers_default
         caps = []
 
         if not capacities:
-            for w in list(AGI.workers.values()):
+            for w in list(workers.values()):
                 for j in range(w):
                     caps.append(1)
             capacities = caps
@@ -723,11 +726,11 @@ class WorkDispatcher:
 
         if len(weights) > 1:
             if nchunk2 < threshold:
-                logging.info(f"AGI.chunk_algo_optimal - workers capacities {capacities} - {nchunk2} works to be done")
-                chunks = AGI._make_chunks_optimal(weights, capacities)
+                logging.info(f"chunk_algo_optimal - workers capacities {capacities} - {nchunk2} works to be done")
+                chunks = WorkDispatcher._make_chunks_optimal(weights, capacities)
             else:
-                logging.info(f"AGI.load_algo_fastest - workers capacities {capacities} - {nchunk2} works to be done")
-                chunks = AGI._make_chunks_fastest(weights, capacities)
+                logging.info(f"load_algo_fastest - workers capacities {capacities} - {nchunk2} works to be done")
+                chunks = WorkDispatcher._make_chunks_fastest(weights, capacities)
 
             return chunks
 
@@ -801,7 +804,7 @@ class WorkDispatcher:
                 chunks_sizes2 = deepcopy(chunks_sizes)
                 chunks_sizes2[i] += subsets[0][1] / chkweights[i]
                 chunks_choices.append(
-                    AGI._make_chunks_optimal(
+                    WorkDispatcher._make_chunks_optimal(
                         subsets2, chkweights, chunk_pool, chunks_sizes2
                     )
                 )

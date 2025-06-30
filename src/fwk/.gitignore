@@ -31,16 +31,16 @@ src/*_worker_*/
 .pytest*
 
 # apps
-/src/agi/apps/*project/
-!/src/agi/apps/flight_project/
-!/src/agi/apps/mycode_project/
+/src/fwk/apps/*project/
+!/src/fwk/apps/flight_project/
+!/src/fwk/apps/mycode_project/
 
 
 # views
-/src/agi/views/
-!/src/agi/views/maps/
-!/src/agi/apps/maps-3d/
-!/src/agi/apps/*_template/
+/src/fwk/views/
+!/src/fwk/views/maps/
+!/src/fwk/apps/maps-3d/
+!/src/fwk/apps/*_template/
 
 # managed PC install under windows
 /thales/
