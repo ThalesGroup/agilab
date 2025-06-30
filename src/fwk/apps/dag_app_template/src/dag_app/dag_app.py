@@ -29,11 +29,11 @@ class DagArgs(BaseModel):
     data_dir: str = "~/data/DagApp"  # Added a default attribute
 
 
-class DagApp(AgiManager):
+class DagApp(BaseWorker):
     """
     A class representing a DagApp.
 
-    Inherits from AgiManager.
+    Inherits from BaseWorker.
 
     Attributes:
         args (DagArgs): Arguments passed to the constructor.
@@ -73,7 +73,7 @@ class DagApp(AgiManager):
                 logging.info(f"Creating data directory at {path_abs}")
                 path_abs.mkdir(parents=True, exist_ok=True)
 
-                # Assuming AGI.env.app_abs is defined in AgiManager or its parents
+                # Assuming AGI.env.app_abs is defined in BaseWorker or its parents
                 data_src = Path(AGI.env.app_abs) / "data.7z"
                 if not data_src.is_file():
                     logging.error(f"Data archive not found at {data_src}")
