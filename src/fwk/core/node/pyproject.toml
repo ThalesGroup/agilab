@@ -36,6 +36,7 @@ keywords = [
     "agi",
     "pycharm",
     "datascience",
+    "numba",
 ]
 dependencies = [
     "scp",
