@@ -629,7 +629,7 @@ class WorkDispatcher:
 
         if not file.exists() or rebuild_tree:
             workers_tree, workers_tree_info, part, nb_unit, weight_unit = (
-                inst.build_distribution()
+                inst.build_distribution(workers)
             )
 
             data = {
