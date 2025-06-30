@@ -32,8 +32,7 @@ from typing import Unpack, Literal
 import py7zr
 from datetime import date
 
-from agi_runner import AGI
-from agi_manager import BaseWorker
+from agi_manager import WorkDispatcher, BaseWorker
 import logging
 
 logger = logging.getLogger(__name__)
@@ -58,8 +57,9 @@ class Mycode(BaseWorker):
 
         Returns:
             None
-        """        
-        pass
+        """
+        self.args = args
+        WorkDispatcher.args = args
 
     def build_distribution(self):
         """Build distribution as a calling graph."""
