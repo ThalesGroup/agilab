@@ -53,10 +53,8 @@ dev = [
 ]
 
 [tool.uv.sources.agi-env]
-workspace = true
-
-[tool.uv.workspace]
-members = ["src"]
+path="."
+editable = true
 
 [tool.setuptools.data-files]
 agi_env = [
