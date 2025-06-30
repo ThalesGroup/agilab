@@ -34,13 +34,13 @@ src/*_worker_*/
 /src/fwk/apps/*project/
 !/src/fwk/apps/flight_project/
 !/src/fwk/apps/mycode_project/
+!/src/fwk/apps/*_template/
 
 
 # views
 /src/fwk/views/
 !/src/fwk/views/maps/
-!/src/fwk/apps/maps-3d/
-!/src/fwk/apps/*_template/
+!/src/fwk/view/maps-3d/
 
 # managed PC install under windows
 /thales/

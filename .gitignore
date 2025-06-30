@@ -29,22 +29,7 @@ src/*_worker_*/
 # Pytest caches
 .pytest*
 
-# apps
-/src/fwk/apps/*project/
-!/src/fwk/apps/flight_project/
-!/src/fwk/apps/mycode_project/
-!/src/fwk/apps/*app_template
-
-# views
-/src/fwk/views/
-!/src/fwk/views/maps/
-!/src/fwk/apps/maps-3d/
-
 # managed PC install under windows
 /thales/
-
-/gen_stubs/gen_stubs.py
-/gen_stubs/pyproject.toml
-/gen_stubs/README.md
 
 .coverage*
