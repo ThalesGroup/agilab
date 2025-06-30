@@ -362,7 +362,7 @@ class AgiEnv:
             self.agi_fwk_loc = self.agi_fwk
 
         if install_type != 2:
-            self.update_path_into_pyproject()
+            self.resolve_packages_path_in_toml()
 
         agi_fwk = self.agi_fwk_loc
         self.agi_fwk = agi_fwk
@@ -678,7 +678,7 @@ class AgiEnv:
         else:
             self.copilot_file = self.agi_fwk / "core/gui/src/agi_gui/agi_copilot.py"
 
-    def update_path_into_pyproject(self):
+    def update_pyproject(self):
         agi_root = self.agi_fwk
         for file in [self.worker_pyproject, self.app_pyproject]:
             if not file.exists():
