@@ -216,7 +216,7 @@ class AgiEnv:
             if AgiEnv.debug:
                 self.env_root = self.agi_fwk / "core/env"
                 self.cluster_root = self.agi_fwk / "core/cluster"
-                self.note_root = self.agi_fwk / "core/node"
+                self.node_root = self.agi_fwk / "core/node"
             else:
                 self.env_root = list(Path(sys.prefix).rglob('agi_env'))[0]
                 # self.agi_cluster_root = list(Path(sys.prefix).rglob('cluster'))[0]
@@ -362,7 +362,7 @@ class AgiEnv:
             self.agi_fwk_loc = self.agi_fwk
 
         if install_type != 2:
-            self.resolve_packages_path_in_toml()
+            self.update_pyproject()
 
         agi_fwk = self.agi_fwk_loc
         self.agi_fwk = agi_fwk
