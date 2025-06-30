@@ -28,7 +28,7 @@ class PolarsAppArgs(BaseModel):
     data_dir: str = "~/data/PolarsApp"  # Added a default attribute
 
 
-class Polars(AgiManager):
+class Polars(BaseWorker):
     """
     A class representing a data application.
 

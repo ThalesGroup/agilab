@@ -28,7 +28,7 @@ class Main(BaseWorker):
     """
     A class representing the main application.
 
-    Inherits from AgiManager.
+    Inherits from BaseWorker.
 
     Attributes:
         worker_vars (Dict[str, Any]): Variables required for initializing the work pool.

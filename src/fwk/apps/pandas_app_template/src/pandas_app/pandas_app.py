@@ -28,7 +28,7 @@ class PandasAppArgs(BaseModel):
     data_dir: str = "~/data/PandasApp"  # Added a default attribute
 
 
-class PandasApp(AgiManager):
+class PandasApp(BaseWorker):
     """
     A class representing a data application.
 
