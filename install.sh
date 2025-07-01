@@ -215,7 +215,7 @@ copy_project_files() {
         echo "Using current directory as install directory; no copy needed."
     fi
     mkdir -p "$HOME/.local/share/agilab"
-    echo "$AGI_INSTALL_PATH/src/fwk" > "$HOME/.local/share/agilab/.core-path"
+    echo "$AGI_INSTALL_PATH/src/fwk" > "$HOME/.local/share/agilab/.fwk-path"
 }
 
 update_environment() {
