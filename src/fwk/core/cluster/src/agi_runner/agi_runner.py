@@ -884,6 +884,8 @@ class AGI:
         logging.info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
 
+
+
         # worker install command with and without rapids capable
         if has_rapids_hw:
             cmd_worker = f"{uv} --config-file uv_config.toml --project {wenv_abs} {run_type} "
