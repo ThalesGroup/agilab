@@ -2,8 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/fwk/apps/.idea/mycode_project.iml" filepath="$PROJECT_DIR$/fwk/apps/.idea/mycode_project.iml" />
-      <module fileurl="file://$PROJECT_DIR$/fwk/apps/.idea/flight_project.iml" filepath="$PROJECT_DIR$/.idea/fwk/apps/.idea/flight_project.iml" />
+      <module fileurl="file://$PROJECT_DIR$/fwk/apps/mycode_project/.idea/mycode_project.iml" filepath="$PROJECT_DIR$/fwk/apps/mycode_project/.idea/mycode_project.iml" />
+      <module fileurl="file://$PROJECT_DIR$/fwk/apps/flight_project/.idea/flight_project.iml" filepath="$PROJECT_DIR$/.idea/fwk/apps/flight_project/.idea/flight_project.iml" />
       <module fileurl="file://$USER_HOME$/wenv/mycode_worker/.idea/mycode_worker.iml" filepath="$USER_HOME$/wenv/mycode_worker/.idea/mycode_worker.iml" />
       <module fileurl="file://$USER_HOME$/wenv/flight_worker/.idea/flight_worker.iml" filepath="$USER_HOME$/wenv/flight_worker/.idea/flight_worker.iml" />
       <module fileurl="file://$PROJECT_DIR$/fwk/core/env/.idea/env.iml" filepath="$PROJECT_DIR$/fwk/core/env/.idea/env.iml" />
