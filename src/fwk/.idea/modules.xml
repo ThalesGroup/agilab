@@ -4,8 +4,8 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/fwk/core/cluster/.idea/cluster.iml" filepath="$PROJECT_DIR$/fwk/core/cluster/.idea/cluster.iml" />
       <module fileurl="file://$PROJECT_DIR$/fwk/core/env/.idea/env.iml" filepath="$PROJECT_DIR$/fwk/core/env/.idea/env.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/fwk/apps/flight_project.iml" filepath="$PROJECT_DIR$/.idea/flight_project.iml" />
-      <module fileurl="file://$USER_HOME$/wenv/flight_worker/.idea/flight_worker.iml" filepath="$USER_HOME$/wenv/flight_worker/.idea/fwk/apps/flight_worker.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/fwk/apps/flight_project.iml" filepath="$PROJECT_DIR$/.idea/fwk/apps/flight_project.iml" />
+      <module fileurl="file://$USER_HOME$/wenv/flight_worker/.idea/flight_worker.iml" filepath="$USER_HOME$/wenv/flight_worker/.idea/flight_worker.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/fwk/gui.iml" filepath="$PROJECT_DIR$//fwk/gui/.idea/gui.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/fwk/apps/mycode_project.iml" filepath="$PROJECT_DIR$/.idea/fwk/appsmycode_project.iml" />
       <module fileurl="file://$USER_HOME$/wenv/mycode_worker/.idea/mycode_worker.iml" filepath="$USER_HOME$/wenv/mycode_worker/.idea/mycode_worker.iml" />
