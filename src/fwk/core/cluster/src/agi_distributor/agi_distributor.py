@@ -56,7 +56,7 @@ from agi_env import AgiEnv, normalize_path
 node_src = str(Path(sys.prefix).parents[1] / "node/src")
 if node_src not in sys.path:
     sys.path.append(node_src)
-from agi_manager import WorkDispatcher, BaseWorker
+from agi_dispatcher import WorkDispatcher, BaseWorker
 
 # os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"
 logger = logging.getLogger(__name__)
@@ -574,7 +574,7 @@ class AGI:
         kill_prefix = f'{cmd_prefix}{uv} run -p {env.python_version} python'
 
         if env.is_local(ip):
-            shutil.copy(env.cluster_root / "src/agi_runner/cli.py", cli_abs)
+            shutil.copy(env.cluster_root / "src/agi_distributor/cli.py", cli_abs)
             if force:
                 cmd = f"{kill_prefix} {cli_abs} kill"
                 cmds.append(cmd)
@@ -773,7 +773,7 @@ class AGI:
             # 3) Install Python
             uv = cmd_prefix + env.uv
             await AGI.exec_ssh(ip, f"{uv} python install {pyvers}")
-            await env.send_file(ip, env.cluster_root / "src/agi_runner/cli.py", env.wenv_rel.parent)
+            await env.send_file(ip, env.cluster_root / "src/agi_distributor/cli.py", env.wenv_rel.parent)
 
             cli = env.wenv_rel.parent / "cli.py"
             cmd = f"{uv} run python {cli} platform {wenv_rel}"
@@ -919,6 +919,20 @@ class AGI:
         src = menv / "dist"
         try:
             whl = next(iter(src.glob("agi_env*.whl")))
+            #shutil.copy2(whl, wenv_abs)
+        except StopIteration:
+            raise RuntimeError(cmd)
+
+        cmd = f"{uv} --project {wenv_abs} add {whl}"
+        await AgiEnv.run(cmd, wenv_abs)
+
+        # build agi_distributor*.whl
+        menv = env.env_root
+        cmd = f"{uv} --project {menv} build --wheel"
+        await AgiEnv.run(cmd, menv)
+        src = menv / "dist"
+        try:
+            whl = next(iter(src.glob("agi_ditributor*.whl")))
             #shutil.copy2(whl, wenv_abs)
         except StopIteration:
             raise RuntimeError(cmd)
@@ -1185,7 +1199,7 @@ class AGI:
 
             # Clean worker
             for ip in list(AGI.workers):
-                await env.send_file(ip, env.cluster_root / "src/agi_runner/cli.py", cli_rel.parent)
+                await env.send_file(ip, env.cluster_root / "src/agi_distributor/cli.py", cli_rel.parent)
                 if not env.envars.get(ip, None):
                     env.has_rapids_hw = False
                 try:
@@ -1372,7 +1386,7 @@ class AGI:
         env = AGI.env
         wenv = normalize_path(str(env.wenv_abs))
         is_cy = AGI._mode & AGI.CYTHON_MODE
-        packages = "agi_manager, "
+        packages = "agi_dispatcher, "
 
         baseworker = env.base_worker_cls
         if baseworker.startswith("Agent"):
@@ -1471,7 +1485,7 @@ class AGI:
             res = BaseWorker.run(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
         else:
             cmd = (
-                f"{env.uv} run --project {env.wenv_abs} python -c \"from agi_manager import  BaseWorker;"
+                f"{env.uv} run --project {env.wenv_abs} python -c \"from agi_dispatcher import  BaseWorker;"
                 f"from dask.distributed import print;"
                 f"BaseWorker.new('{env.app}', mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
                 f"res = BaseWorker.run({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
