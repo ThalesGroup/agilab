@@ -771,7 +771,8 @@ class AGI:
                 raise EnvironmentError("Failed to install uv")
 
             # 3) Install Python
-            await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers}")
+            uv = cmd_prefix + env.uv
+            await AGI.exec_ssh(ip, f"{uv} python install {pyvers}")
             await env.send_file(ip, env.cluster_root / "src/agi_runner/cli.py", env.wenv_rel.parent)
 
             cli = env.wenv_rel.parent / "cli.py"
@@ -790,7 +791,7 @@ class AGI:
             await AGI.exec_ssh(ip, cmd)
 
             cmd = (
-                f"{cmd_prefix}{env.uv} --project {wenv_rel} init --bare --no-workspace"
+                f"{uv} --project {wenv_rel} init --bare --no-workspace"
             )
             await AGI.exec_ssh(ip, cmd)
 
