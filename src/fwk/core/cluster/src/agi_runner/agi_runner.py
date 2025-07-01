@@ -221,7 +221,7 @@ class AGI:
                 logging.info("parameter <mode> must be an int, a list of int or a string")
                 sys.exit(1)
 
-            AGI._run_types = ["run", "sync --upgrade", "sync --upgradeƒ", "simulate"]
+            AGI._run_types = ["run", "sync --dev", "sync --upgrade --dev", "simulate"]
             if AGI._mode:
                 if AGI._mode & AGI.RUN_MASK not in range(0, AGI.RAPIDS_MODE):
                     raise ValueError(f"mode {AGI._mode} not implemented")
@@ -794,7 +794,7 @@ class AGI:
         wenv_rel = env.wenv_rel
         wenv_abs = env.wenv_abs
         pyvers = env.python_version
-        extras = "--dev -p " + pyvers
+        extras = "-p " + pyvers
         options = {"manager": extras, "worker": extras + env.python_variante}
         if isinstance(env.base_worker_cls, str):
             options["worker"] += " --extra " + " --extra ".join(AGI.install_worker_group)
@@ -1520,8 +1520,8 @@ class AGI:
                 client.submit(
                     BaseWorker.new,
                     env.app,
-                    env= 0 if env.debug else None,
-                    mode= AGI._mode,
+                    env=0 if env.debug else None,
+                    mode=AGI._mode,
                     verbose=AGI._verbose,
                     worker_id=dask_workers.index(worker),
                     worker=worker,
@@ -1536,12 +1536,17 @@ class AGI:
 
         t = time.time()
 
-        AGI._run_time = client.run(
+        # --- Capture logs from each worker! ---
+        worker_logs = client.run(
             BaseWorker.do_works,
             workers_tree,
             workers_tree_info,
             workers=dask_workers,
         )
+
+        # LOG ONLY, no print:
+        for worker, log in worker_logs.items():
+            logging.info(f"\n=== Worker {worker} logs ===\n{log}")
 
         runtime = time.time() - t
         logging.info(f"{env.mode2str(AGI._mode)} {runtime}")

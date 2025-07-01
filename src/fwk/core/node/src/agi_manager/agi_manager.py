@@ -544,10 +544,20 @@ class BaseWorker(abc.ABC):
         """run of workers
 
         Args:
-          chunk: distribution tree
-          chunks:
+          workers_tree: distribution tree
+          workers_tree_info:
         Returns:
+            logs: str, the log output from this worker
         """
+        log_stream = io.StringIO()
+        handler = logging.StreamHandler(log_stream)
+        logger = logging.getLogger()  # root logger; adjust if you use a named logger
+
+        # Optionally, only add if not already present (avoid duplicate logs)
+        already_has_handler = any(isinstance(h, logging.StreamHandler) and h.stream == log_stream for h in logger.handlers)
+        if not already_has_handler:
+            logger.addHandler(handler)
+
         try:
             worker_id = BaseWorker.worker_id
             if worker_id is not None:
@@ -562,6 +572,11 @@ class BaseWorker(abc.ABC):
             import traceback
             logging.error(traceback.format_exc())
             raise
+        finally:
+            logger.removeHandler(handler)
+
+        # Return the logs
+        return log_stream.getvalue()
 
 class WorkDispatcher:
     """
