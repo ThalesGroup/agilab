@@ -679,7 +679,7 @@ class AgiEnv:
             self.copilot_file = self.agi_fwk / "core/gui/src/agi_gui/agi_copilot.py"
 
     def update_pyproject(self):
-        agi_root = self.agi_fwk
+        agi_fwk = self.agi_fwk
         for file in [self.worker_pyproject, self.app_pyproject]:
             if not file.exists():
                 raise FileNotFoundError(f"{file} not found in {self.app_abs}")
@@ -697,9 +697,9 @@ class AgiEnv:
 
             sources = uv["sources"]
 
-            if "site-packages" in agi_root.parts:
-                if "agi-core" in sources:
-                    del sources["agi-core"]
+            if "site-packages" in agi_fwk.parts:
+                if "agi-node" in sources:
+                    del sources["agi-node"]
                     if not sources:
                         del uv["sources"]
                     if not uv:
@@ -707,8 +707,8 @@ class AgiEnv:
                     if not doc["tool"]:
                         del doc["tool"]
                 deps = doc["project"].get("dependencies", [])
-                if not any(dep.split()[0] == "agi-core" for dep in deps):
-                    deps.append("agi-core")
+                if not any(dep.split()[0] == "agi-node" for dep in deps):
+                    deps.append("agi-node")
                     doc["project"]["dependencies"] = deps
 
             file.write_text(tomlkit.dumps(doc), encoding="utf-8")
