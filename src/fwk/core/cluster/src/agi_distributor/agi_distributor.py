@@ -776,8 +776,9 @@ class AGI:
             await env.send_file(ip, env.cluster_root / "src/agi_distributor/cli.py", env.wenv_rel.parent)
 
             cli = env.wenv_rel.parent / "cli.py"
-            cmd = f"{uv} run python {cli} platform {wenv_rel}"
-            platform =  await AGI.exec_ssh(ip, cmd)
+            cmd = f"{uv} run python {cli} platform"
+            res =  await AGI.exec_ssh(ip, cmd)
+            platform = res.split(':')[-1]
             pyvers_worker = pyvers_prefix + platform
             await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers_worker}")
 
@@ -1951,11 +1952,17 @@ class AGI:
                     logging.info(msg)
                 result = await conn.run(cmd, check=True)
                 stdout = result.stdout
+                stderr = result.stderr
                 if isinstance(stdout, bytes):
                     stdout = stdout.decode('utf-8', errors='replace')
+                if isinstance(stderr, bytes):
+                    stder = stderr.decode('utf-8', errors='replace')
+                if stderr:
+                    logging.info(f"[{ip}] {stderr.strip()}")
                 if AgiEnv.verbose > 1 or AgiEnv.debug:
-                    logging.info(f"[{ip}] {stdout.strip()}")
-                return stdout.strip()
+                    if stdout:
+                        logging.info(f"[{ip}] {stdout.strip()}")
+                return stdout.strip() + "\n" + stderr.strip()
 
         except ConnectionError:
             raise

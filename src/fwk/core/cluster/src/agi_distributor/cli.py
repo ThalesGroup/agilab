@@ -8,6 +8,8 @@ from tempfile import gettempdir
 import shutil
 import subprocess
 import zipfile
+import platform
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -177,10 +179,21 @@ def test_python_threads():
     else:
         logger.info("Likely normal Python (GIL active)")
 
-import platform, sys
-def python_full_name():
-    arch = platform.machine().replace('arm64', 'aarch64')
-    return f"{platform.python_implementation().lower()}-{platform.python_version()}-macos-{arch}-none"
+def platform_triplet():
+    arch = platform.machine().lower().replace('arm64', 'aarch64').replace('amd64', 'x86_64')
+    sys_name = platform.system().lower()
+    # Map system name to tag
+    if sys_name == 'darwin':
+        os_tag = 'macos'
+    elif sys_name == 'windows':
+        os_tag = 'windows'
+    elif sys_name == 'linux':
+        os_tag = 'linux'
+    else:
+        os_tag = sys_name  # fallback to whatever it is
+
+    logger.info(f"{os_tag}-{arch}-none")
+
 
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "kill"
@@ -191,7 +204,7 @@ if __name__ == "__main__":
             try:
                 exclude_pids.add(int(pid_str))
             except Exception:
-                logger.warning(f"Invalid PID to exclude: {pid_str}")
+                logging.warning(f"Invalid PID to exclude: {pid_str}")
 
     # Usage: python cli.py unzip <arg>
     if len(sys.argv) < 2:
@@ -206,8 +219,8 @@ if __name__ == "__main__":
         unzip(wenv=arg)
     elif cmd == "threads":
         test_python_threads()
-    elif cmd == "plateform":
-        python_full_name()
+    elif cmd == "platform":
+        platform_triplet()
     else:
         logger.error(f"Unknown command: {cmd}. Use 'kill', 'clean', 'unzip', 'threads' or 'plateform'.")
 
