@@ -777,7 +777,7 @@ class AGI:
 
             cli = env.wenv_rel.parent / "cli.py"
             cmd = f"{uv} run python {cli} platform {wenv_rel}"
-            platform =  AGI.exec_ssh(ip, cmd)
+            platform =  await AGI.exec_ssh(ip, cmd)
             pyvers_worker = pyvers_prefix + platform
             await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers_worker}")
 
