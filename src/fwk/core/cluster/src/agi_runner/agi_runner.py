@@ -794,7 +794,7 @@ class AGI:
         wenv_rel = env.wenv_rel
         wenv_abs = env.wenv_abs
         pyvers = env.python_version
-        extras = "-p " + pyvers
+        extras = ""
         options = {"manager": extras, "worker": extras + env.python_variante}
         if isinstance(env.base_worker_cls, str):
             options["worker"] += " --extra " + " --extra ".join(AGI.install_worker_group)
