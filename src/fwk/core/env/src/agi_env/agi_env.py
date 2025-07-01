@@ -449,9 +449,9 @@ class AgiEnv:
     @staticmethod
     def locate_agi_installation(verbose=False):
         if os.name == "nt":
-            where_is_agi = Path(os.getenv("LOCALAPPDATA", "")) / "agilab/.core-path"
+            where_is_agi = Path(os.getenv("LOCALAPPDATA", "")) / "agilab/.fwk-path"
         else:
-            where_is_agi = Path.home() / ".local/share/agilab/.core-path"
+            where_is_agi = Path.home() / ".local/share/agilab/.fwk-path"
 
         if where_is_agi.exists():
             try:

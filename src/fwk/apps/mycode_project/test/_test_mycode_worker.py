@@ -19,7 +19,7 @@ async def main():
     # BaseWorker.run flight command
     for i in  [0,1,3]: # 2 is working only if you have generate the cython lib before
         env = AgiEnv(install_type=1,active_app="mycode_project",verbose=True)
-        with open(env.home_abs / ".local/share/agilab/.core-path", 'r') as f:
+        with open(env.home_abs / ".local/share/agilab/.fwk-path", 'r') as f:
             fwk_path = Path(f.read().strip())
 
         path = str(fwk_path / "core/node/src")
