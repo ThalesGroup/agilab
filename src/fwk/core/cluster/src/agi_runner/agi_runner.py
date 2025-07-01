@@ -981,7 +981,10 @@ class AGI:
         # install env & core for enabling dask worker spawn
         ######################################################
 
-        cmd = f"cd {wenv_rel} && {uv} pip install -e ."
+        cmd = f"{uv} --project {wenv_rel} run python -m ensurepip"
+        await AGI.exec_ssh(ip, cmd)
+
+        cmd = f"{uv} --project {wenv_rel} run python -m pip install -e {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
 
         # install env
