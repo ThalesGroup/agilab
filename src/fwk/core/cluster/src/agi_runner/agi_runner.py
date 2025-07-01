@@ -893,6 +893,9 @@ class AGI:
         logging.info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
 
+        cmd = f"{uv} --project {app_path} run python -m pip install -e {app_path}"
+        await AgiEnv.run(cmd, app_path)
+
         ######################
         # install env & core
         ######################
