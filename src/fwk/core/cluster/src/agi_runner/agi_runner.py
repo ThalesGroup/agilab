@@ -893,14 +893,14 @@ class AGI:
         logging.info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
 
-        cmd = f"cd {wenv_abs} && {uv} pip install -e ."
+        cmd = f"{uv} pip install -e ."
         await AgiEnv.run(cmd, app_path)
 
         ######################
         # install env & core
         ######################
 
-        cmd = f"cd {wenv_abs} && {uv} pip install -e ."
+        cmd = f"{uv} pip install -e ."
         await AgiEnv.run(cmd, wenv_abs)
 
         # build agi_env*.whl
@@ -981,10 +981,7 @@ class AGI:
         # install env & core for enabling dask worker spawn
         ######################################################
 
-        cmd = f"{uv} --project {wenv_rel} run python -m ensurepip"
-        await AGI.exec_ssh(ip, cmd)
-
-        cmd = f"{uv} --project {wenv_rel} run python -m pip install -e {wenv_rel}"
+        cmd = f"cd {wenv_rel} && {uv} pip install -e ."
         await AGI.exec_ssh(ip, cmd)
 
         # install env
