@@ -180,6 +180,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../license.html">Licenses</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../gui-licenses.html">Gui Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../node-licenses.html">Node Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../env-licenses.html">Env Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../my-code-project-licenses.html">My-code-project Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../flight-project-licenses.html">Flight-project Licenses</a></li>
@@ -248,6 +249,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_data_from_hawk"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_hawk()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_partition_by_planes"><code class="docutils literal notranslate"><span class="pre">Flight.get_partition_by_planes()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.ivq_logs"><code class="docutils literal notranslate"><span class="pre">Flight.ivq_logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.make_chunks"><code class="docutils literal notranslate"><span class="pre">Flight.make_chunks()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.onerror"><code class="docutils literal notranslate"><span class="pre">Flight.onerror()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.verbose"><code class="docutils literal notranslate"><span class="pre">Flight.verbose</span></code></a></li>
 </ul>
@@ -399,7 +401,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">py7zr</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">date</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">agi_runner</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGI</span>
+<span class="c1"># from agi_runner import AGI</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">agi_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">WorkDispatcher</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span><span class="p">,</span> <span class="n">normalize_path</span>
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
@@ -565,10 +567,10 @@
 
 <div class="viewcode-block" id="Flight.build_distribution">
 <a class="viewcode-back" href="../../flight-project.html#flight.flight.Flight.build_distribution">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">build_distribution</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">build_distribution</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">workers</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;build_distrib: to provide the list of files per planes (level1) and per workers (level2)</span>
 <span class="sd">        the level 1 has been think to prevent that à job that requires all the output-data of a plane have to wait for another</span>
-<span class="sd">        my_code_worker which would have collapse the overall performance</span>
+<span class="sd">        flight_worker which would have collapse the overall performance</span>
 
 <span class="sd">        Args:</span>
 
@@ -583,8 +585,8 @@
 
             <span class="c1"># get the second level of the distribution tree by by dispatching these works per workers</span>
             <span class="c1"># make chunk of planes by worker with a load balancing that takes into consideration workers capacities</span>
-            <span class="n">workers_chunks</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">make_chunks</span><span class="p">(</span>
-                <span class="nb">len</span><span class="p">(</span><span class="n">planes_partition</span><span class="p">),</span> <span class="n">planes_partition_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mi">12</span>
+            <span class="n">workers_chunks</span> <span class="o">=</span> <span class="n">WorkDispatcher</span><span class="o">.</span><span class="n">make_chunks</span><span class="p">(</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">planes_partition</span><span class="p">),</span> <span class="n">planes_partition_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="n">workers</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mi">12</span>
             <span class="p">)</span>
             <span class="k">if</span> <span class="n">workers_chunks</span><span class="p">:</span>
                 <span class="c1"># build tree: workers = dask workers -&gt; works = planes -&gt; files &lt;=&gt; list of list of list</span>

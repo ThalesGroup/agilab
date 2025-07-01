@@ -180,6 +180,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="gui-licenses.html">Gui Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="node-licenses.html">Node Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="env-licenses.html">Env Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="my-code-project-licenses.html">My-code-project Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
@@ -248,6 +249,7 @@
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_data_from_hawk"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_hawk()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_partition_by_planes"><code class="docutils literal notranslate"><span class="pre">Flight.get_partition_by_planes()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.ivq_logs"><code class="docutils literal notranslate"><span class="pre">Flight.ivq_logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.make_chunks"><code class="docutils literal notranslate"><span class="pre">Flight.make_chunks()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.onerror"><code class="docutils literal notranslate"><span class="pre">Flight.onerror()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.verbose"><code class="docutils literal notranslate"><span class="pre">Flight.verbose</span></code></a></li>
 </ul>
@@ -423,6 +425,13 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.active">active() (agi_env.agi_env.AgiEnv method)</a>
 </li>
+      <li>
+    agent_worker
+
+      <ul>
+        <li><a href="workers.html#module-agent_worker">module</a>
+</li>
+      </ul></li>
       <li><a href="agi-runner.html#agi_runner.agi_runner.AGI">AGI (class in agi_runner.agi_runner)</a>
 </li>
       <li>
@@ -441,10 +450,10 @@
       </ul></li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv">AgiEnv (class in agi_env.agi_env)</a>
 </li>
-      <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_A">algo_A() (mycode_worker.mycode_worker.MycodeWorker method)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_A">algo_A() (mycode_worker.mycode_worker.MycodeWorker method)</a>
+</li>
       <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_B">algo_B() (mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
       <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_C">algo_C() (mycode_worker.mycode_worker.MycodeWorker method)</a>
@@ -828,7 +837,7 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.main">main() (agi_runner.agi_runner.AGI static method)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.make_chunks">make_chunks() (agi_runner.agi_runner.AGI static method)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.make_chunks">make_chunks() (flight.flight.Flight static method)</a>
 </li>
       <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.mode">mode (flight_worker.flight_worker.FlightWorker attribute)</a>
 
@@ -878,6 +887,8 @@
     module
 
       <ul>
+        <li><a href="workers.html#module-agent_worker">agent_worker</a>
+</li>
         <li><a href="agi-env.html#module-agi_env.agi_env">agi_env.agi_env</a>
 </li>
         <li><a href="agi-runner.html#module-agi_runner.agi_runner">agi_runner.agi_runner</a>
@@ -993,8 +1004,6 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.replace_content">replace_content() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.resolve_packages_path_in_toml">resolve_packages_path_in_toml() (agi_env.agi_env.AgiEnv method)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.run">run() (agi_env.agi_env.AgiEnv static method)</a>
@@ -1091,11 +1100,13 @@
 </li>
       <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.update">update() (agi_runner.agi_runner.AGI static method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="flight-project.html#flight.flight.FlightArgs.update_forward_refs">update_forward_refs() (flight.flight.FlightArgs class method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.UPDATE_MODE">UPDATE_MODE (agi_runner.agi_runner.AGI attribute)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.update_pyproject">update_pyproject() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.uv">uv (agi_env.agi_env.AgiEnv attribute)</a>
 </li>
