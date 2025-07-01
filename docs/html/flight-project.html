@@ -183,6 +183,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="gui-licenses.html">Gui Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="node-licenses.html">Node Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="env-licenses.html">Env Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="my-code-project-licenses.html">My-code-project Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
@@ -251,6 +252,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#flight.flight.Flight.get_data_from_hawk"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_hawk()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#flight.flight.Flight.get_partition_by_planes"><code class="docutils literal notranslate"><span class="pre">Flight.get_partition_by_planes()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#flight.flight.Flight.ivq_logs"><code class="docutils literal notranslate"><span class="pre">Flight.ivq_logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight.flight.Flight.make_chunks"><code class="docutils literal notranslate"><span class="pre">Flight.make_chunks()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#flight.flight.Flight.onerror"><code class="docutils literal notranslate"><span class="pre">Flight.onerror()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#flight.flight.Flight.verbose"><code class="docutils literal notranslate"><span class="pre">Flight.verbose</span></code></a></li>
 </ul>
@@ -422,10 +424,10 @@ remark: There is also src/flight_worker/dataset.7z for dataset replication per w
 
 <dl class="py method">
 <dt class="sig sig-object py" id="flight.flight.Flight.build_distribution">
-<span class="sig-name descname"><span class="pre">build_distribution</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight/flight.html#Flight.build_distribution"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight.flight.Flight.build_distribution" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">build_distribution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight/flight.html#Flight.build_distribution"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight.flight.Flight.build_distribution" title="Link to this definition"></a></dt>
 <dd><p>build_distrib: to provide the list of files per planes (level1) and per workers (level2)
 the level 1 has been think to prevent that à job that requires all the output-data of a plane have to wait for another
-my_code_worker which would have collapse the overall performance</p>
+flight_worker which would have collapse the overall performance</p>
 <p>Args:</p>
 <p>Returns:</p>
 </dd></dl>
@@ -499,6 +501,31 @@ my_code_worker which would have collapse the overall performance</p>
 <dt class="sig sig-object py" id="flight.flight.Flight.ivq_logs">
 <span class="sig-name descname"><span class="pre">ivq_logs</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#flight.flight.Flight.ivq_logs" title="Link to this definition"></a></dt>
 <dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight.flight.Flight.make_chunks">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">make_chunks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nchunk2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">capacities</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">12</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#flight.flight.Flight.make_chunks" title="Link to this definition"></a></dt>
+<dd><p>Partitions the nchunk2 weighted into n chuncks, in a smart way
+chunks and chunks_sizes must be left to None</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code>]]]</span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>nchunk2</strong> – list of number of chunks level 2</p></li>
+<li><p><strong>weights</strong> – the list of weight level2</p></li>
+<li><p><strong>capacities</strong> – the list of workers capacity (Default value = None)</p></li>
+<li><p><strong>verbose</strong> – whether to display run detail or not (Default value = 0)</p></li>
+<li><p><strong>threshold</strong> – the number of nchunk2 max to run the optimal algo otherwise downgrade to suboptimal one (Default value = 12)</p></li>
+<li><p><strong>weights</strong> – list:</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list of chunk per your_worker containing list of works per your_worker containing list of chunks level 1</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="flight.flight.Flight.onerror">

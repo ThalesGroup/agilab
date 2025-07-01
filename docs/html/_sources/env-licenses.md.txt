@@ -12,8 +12,11 @@
 | ipython | BSD LICENSE |
 | ipython-pygments-lexers | BSD LICENSE |
 | jedi | MIT LICENSE |
+| llvmlite | BSD |
 | matplotlib-inline | BSD LICENSE |
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| numba | BSD LICENSE |
+| numpy | BSD LICENSE |
 | parso | MIT LICENSE |
 | pathspec | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | pexpect | ISC LICENSE _ISCL_ |

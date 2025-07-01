@@ -180,6 +180,7 @@
 | nbformat | BSD LICENSE |
 | nest-asyncio | BSD LICENSE |
 | networkx | BSD LICENSE |
+| node | BSD LICENSE |
 | notebook | BSD LICENSE |
 | notebook-shim | BSD LICENSE |
 | numba | BSD LICENSE |

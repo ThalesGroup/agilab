@@ -180,6 +180,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../license.html">Licenses</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../gui-licenses.html">Gui Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../node-licenses.html">Node Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../env-licenses.html">Env Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../my-code-project-licenses.html">My-code-project Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../flight-project-licenses.html">Flight-project Licenses</a></li>
@@ -248,6 +249,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_data_from_hawk"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_hawk()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_partition_by_planes"><code class="docutils literal notranslate"><span class="pre">Flight.get_partition_by_planes()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.ivq_logs"><code class="docutils literal notranslate"><span class="pre">Flight.ivq_logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.make_chunks"><code class="docutils literal notranslate"><span class="pre">Flight.make_chunks()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.onerror"><code class="docutils literal notranslate"><span class="pre">Flight.onerror()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.verbose"><code class="docutils literal notranslate"><span class="pre">Flight.verbose</span></code></a></li>
 </ul>
@@ -602,7 +604,7 @@
             <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_fwk</span> <span class="o">/</span> <span class="s2">&quot;core/env&quot;</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_fwk</span> <span class="o">/</span> <span class="s2">&quot;core/cluster&quot;</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">note_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_fwk</span> <span class="o">/</span> <span class="s2">&quot;core/node&quot;</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">node_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_fwk</span> <span class="o">/</span> <span class="s2">&quot;core/node&quot;</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="p">)</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s1">&#39;agi_env&#39;</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
                 <span class="c1"># self.agi_cluster_root = list(Path(sys.prefix).rglob(&#39;cluster&#39;))[0]</span>
@@ -748,7 +750,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">agi_fwk_loc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_fwk</span>
 
         <span class="k">if</span> <span class="n">install_type</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">resolve_packages_path_in_toml</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">update_pyproject</span><span class="p">()</span>
 
         <span class="n">agi_fwk</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_fwk_loc</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">agi_fwk</span> <span class="o">=</span> <span class="n">agi_fwk</span>
@@ -1110,9 +1112,9 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">copilot_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_fwk</span> <span class="o">/</span> <span class="s2">&quot;core/gui/src/agi_gui/agi_copilot.py&quot;</span></div>
 
 
-<div class="viewcode-block" id="AgiEnv.resolve_packages_path_in_toml">
-<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.resolve_packages_path_in_toml">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">resolve_packages_path_in_toml</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="AgiEnv.update_pyproject">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.update_pyproject">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_pyproject</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">agi_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_fwk</span>
         <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_pyproject</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_pyproject</span><span class="p">]:</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
@@ -1124,10 +1126,10 @@
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">uv</span> <span class="o">=</span> <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;tool&quot;</span><span class="p">][</span><span class="s2">&quot;uv&quot;</span><span class="p">]</span>
             <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Could not find [tool.uv] section in the TOML&quot;</span><span class="p">)</span>
+                <span class="k">return</span>
 
             <span class="k">if</span> <span class="s2">&quot;sources&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">uv</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">uv</span><span class="p">[</span><span class="s2">&quot;sources&quot;</span><span class="p">],</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">items</span><span class="o">.</span><span class="n">Table</span><span class="p">):</span>
-                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Could not find [tool.uv.sources] in the TOML&quot;</span><span class="p">)</span>
+                <span class="k">return</span>
 
             <span class="n">sources</span> <span class="o">=</span> <span class="n">uv</span><span class="p">[</span><span class="s2">&quot;sources&quot;</span><span class="p">]</span>
 
