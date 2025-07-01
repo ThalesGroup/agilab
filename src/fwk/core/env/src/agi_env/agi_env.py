@@ -102,7 +102,7 @@ class AgiEnv:
 
         # agilab core
         logging.getLogger("cluster").setLevel(app_level)
-        logging.getLogger("agi_manager").setLevel(app_level)
+        logging.getLogger("agi_dispatcher").setLevel(app_level)
         logging.getLogger("agi_env").setLevel(app_level)
         logging.getLogger("dag_worker").setLevel(app_level)
         logging.getLogger("pandas_worker").setLevel(app_level)
@@ -372,7 +372,7 @@ class AgiEnv:
             logging.info(f"Could not find any target project app in {self.agi_fwk / 'apps'}.")
 
         self.setup_app = app_abs / "build.py"
-        self.setup_core = self.agi_fwk_loc / "core/node/src/agi_manager/build.py"
+        self.setup_core = self.agi_fwk_loc / "core/node/src/agi_dispatcher/build.py"
 
         if isinstance(module, Path):
             module_path = module.expanduser().resolve()

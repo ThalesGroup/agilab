@@ -18,7 +18,7 @@ import logging
 
 from numpy.linalg import norm  # Imported norm
 from polars_worker import PolarsWorker
-from agi_manager import BaseWorker
+from agi_dispatcher import BaseWorker
 from agi_env import normalize_path
 
 logger = logging.getLogger(__name__)

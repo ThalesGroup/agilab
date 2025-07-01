@@ -32,7 +32,7 @@ from typing import Unpack, Literal
 import py7zr
 from datetime import date
 
-from agi_manager import WorkDispatcher, BaseWorker
+from agi_dispatcher import WorkDispatcher, BaseWorker
 import logging
 
 logger = logging.getLogger(__name__)
