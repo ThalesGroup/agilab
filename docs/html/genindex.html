@@ -137,7 +137,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="agi-runner.html">agi_runner API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-runner.html">agi_distributor API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="agi-runner.html#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-runner.html#installation">Installation</a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-runner.html#update">Update</a></li>
@@ -146,7 +146,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="agi-runner.html#reference">Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="agi-runner.html#agi_runner.agi_runner.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-runner.html#agi_distributor.agi_distributor.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -239,19 +239,38 @@
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#manager-flight">manager: flight</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight.Flight"><code class="docutils literal notranslate"><span class="pre">Flight</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.__init__"><code class="docutils literal notranslate"><span class="pre">Flight.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.args"><code class="docutils literal notranslate"><span class="pre">Flight.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.build"><code class="docutils literal notranslate"><span class="pre">Flight.build()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.build_distribution"><code class="docutils literal notranslate"><span class="pre">Flight.build_distribution()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.convert_functions_to_names"><code class="docutils literal notranslate"><span class="pre">Flight.convert_functions_to_names()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.cython_decorators"><code class="docutils literal notranslate"><span class="pre">Flight.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.dask_home"><code class="docutils literal notranslate"><span class="pre">Flight.dask_home</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.data_out"><code class="docutils literal notranslate"><span class="pre">Flight.data_out</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.do_distrib"><code class="docutils literal notranslate"><span class="pre">Flight.do_distrib()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.do_works"><code class="docutils literal notranslate"><span class="pre">Flight.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.env"><code class="docutils literal notranslate"><span class="pre">Flight.env</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.exec"><code class="docutils literal notranslate"><span class="pre">Flight.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.expand"><code class="docutils literal notranslate"><span class="pre">Flight.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.expand_and_join"><code class="docutils literal notranslate"><span class="pre">Flight.expand_and_join()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.extract_plane_from_file_name"><code class="docutils literal notranslate"><span class="pre">Flight.extract_plane_from_file_name()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_data_from_files"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_files()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_data_from_hawk"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_hawk()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">Flight.get_logs_and_result()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_partition_by_planes"><code class="docutils literal notranslate"><span class="pre">Flight.get_partition_by_planes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_worker_info"><code class="docutils literal notranslate"><span class="pre">Flight.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.home_dir"><code class="docutils literal notranslate"><span class="pre">Flight.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">Flight.is_managed_pc</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.ivq_logs"><code class="docutils literal notranslate"><span class="pre">Flight.ivq_logs</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.make_chunks"><code class="docutils literal notranslate"><span class="pre">Flight.make_chunks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.join"><code class="docutils literal notranslate"><span class="pre">Flight.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.logs"><code class="docutils literal notranslate"><span class="pre">Flight.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.mode"><code class="docutils literal notranslate"><span class="pre">Flight.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.new"><code class="docutils literal notranslate"><span class="pre">Flight.new()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.onerror"><code class="docutils literal notranslate"><span class="pre">Flight.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.run"><code class="docutils literal notranslate"><span class="pre">Flight.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.share_path"><code class="docutils literal notranslate"><span class="pre">Flight.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.start"><code class="docutils literal notranslate"><span class="pre">Flight.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.stop"><code class="docutils literal notranslate"><span class="pre">Flight.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.t0"><code class="docutils literal notranslate"><span class="pre">Flight.t0</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.verbose"><code class="docutils literal notranslate"><span class="pre">Flight.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.worker"><code class="docutils literal notranslate"><span class="pre">Flight.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.worker_id"><code class="docutils literal notranslate"><span class="pre">Flight.worker_id</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs"><code class="docutils literal notranslate"><span class="pre">FlightArgs</span></code></a><ul>
@@ -405,12 +424,12 @@
 <h2 id="_">_</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.__init__">__init__() (agi_env.agi_env.AgiEnv method)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.__init__">__init__() (agi_distributor.agi_distributor.AGI method)</a>
 
       <ul>
-        <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.__init__">(agi_env.agi_env.ContentRenamer method)</a>
+        <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.__init__">(agi_env.agi_env.AgiEnv method)</a>
 </li>
-        <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.__init__">(agi_runner.agi_runner.AGI method)</a>
+        <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer.__init__">(agi_env.agi_env.ContentRenamer method)</a>
 </li>
         <li><a href="flight-project.html#flight.flight.Flight.__init__">(flight.flight.Flight method)</a>
 </li>
@@ -432,8 +451,15 @@
         <li><a href="workers.html#module-agent_worker">module</a>
 </li>
       </ul></li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI">AGI (class in agi_runner.agi_runner)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI">AGI (class in agi_distributor.agi_distributor)</a>
 </li>
+      <li>
+    agi_distributor.agi_distributor
+
+      <ul>
+        <li><a href="agi-runner.html#module-agi_distributor.agi_distributor">module</a>
+</li>
+      </ul></li>
       <li>
     agi_env.agi_env
 
@@ -441,17 +467,10 @@
         <li><a href="agi-env.html#module-agi_env.agi_env">module</a>
 </li>
       </ul></li>
-      <li>
-    agi_runner.agi_runner
-
-      <ul>
-        <li><a href="agi-runner.html#module-agi_runner.agi_runner">module</a>
-</li>
-      </ul></li>
-      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv">AgiEnv (class in agi_env.agi_env)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv">AgiEnv (class in agi_env.agi_env)</a>
+</li>
       <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_A">algo_A() (mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
       <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_B">algo_B() (mycode_worker.mycode_worker.MycodeWorker method)</a>
@@ -468,8 +487,6 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.apps_dir">apps_dir (agi_env.agi_env.AgiEnv attribute)</a>
 </li>
-      <li><a href="flight-project.html#flight.flight.Flight.args">args (flight.flight.Flight attribute)</a>
-</li>
   </ul></td>
 </tr></table>
 
@@ -478,16 +495,18 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.benchmark">benchmark (agi_env.agi_env.AgiEnv attribute)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.best_mode">best_mode (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.best_mode">best_mode (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.build">build() (flight_worker.flight_worker.FlightWorker static method)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.build">build() (flight.flight.Flight static method)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.build">(flight_worker.flight_worker.FlightWorker static method)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.build">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="flight-project.html#flight.flight.Flight.build_distribution">build_distribution() (flight.flight.Flight method)</a>
 </li>
   </ul></td>
@@ -514,15 +533,13 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.clone_project">clone_project() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.close_all_connections">close_all_connections() (agi_runner.agi_runner.AGI static method)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.close_all_connections">close_all_connections() (agi_distributor.agi_distributor.AGI static method)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.construct">construct() (flight.flight.FlightArgs class method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.ContentRenamer">ContentRenamer (class in agi_env.agi_env)</a>
-</li>
-      <li><a href="flight-project.html#flight.flight.Flight.convert_functions_to_names">convert_functions_to_names() (flight.flight.Flight static method)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.copy">copy() (flight.flight.FlightArgs method)</a>
 </li>
@@ -536,13 +553,15 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.create_symlink_windows">create_symlink_windows() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.cython_decorators">cython_decorators (flight_worker.flight_worker.FlightWorker attribute)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.cython_decorators">cython_decorators (flight.flight.Flight attribute)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.cython_decorators">(flight_worker.flight_worker.FlightWorker attribute)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.cython_decorators">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.CYTHON_MODE">CYTHON_MODE (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.CYTHON_MODE">CYTHON_MODE (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -557,43 +576,45 @@
         <li><a href="workers.html#module-dag_worker">module</a>
 </li>
       </ul></li>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.dask_home">dask_home (flight_worker.flight_worker.FlightWorker attribute)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.dask_home">dask_home (flight.flight.Flight attribute)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.dask_home">(flight_worker.flight_worker.FlightWorker attribute)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.dask_home">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.DASK_MODE">DASK_MODE (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.DASK_MODE">DASK_MODE (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.DASK_RESET">DASK_RESET (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.DASK_RESET">DASK_RESET (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.Flight.data_out">data_out (flight.flight.Flight attribute)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.data_source">data_source (flight.flight.FlightArgs attribute)</a>
 </li>
-      <li><a href="flight-project.html#flight.flight.FlightArgs.datemax">datemax (flight.flight.FlightArgs attribute)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="flight-project.html#flight.flight.FlightArgs.datemax">datemax (flight.flight.FlightArgs attribute)</a>
+</li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.datemin">datemin (flight.flight.FlightArgs attribute)</a>
 </li>
-      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.debug">debug (agi_env.agi_env.AgiEnv attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.debug">debug (agi_distributor.agi_distributor.AGI attribute)</a>
 
       <ul>
-        <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.debug">(agi_runner.agi_runner.AGI attribute)</a>
+        <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.debug">(agi_env.agi_env.AgiEnv attribute)</a>
 </li>
       </ul></li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.DEPLOYEMENT_MASK">DEPLOYEMENT_MASK (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.DEPLOYEMENT_MASK">DEPLOYEMENT_MASK (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.dict">dict() (flight.flight.FlightArgs method)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.distribute">distribute() (agi_runner.agi_runner.AGI static method)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.distribute">distribute() (agi_distributor.agi_distributor.AGI static method)</a>
 </li>
-      <li><a href="flight-project.html#flight.flight.Flight.do_distrib">do_distrib() (flight.flight.Flight static method)</a>
-</li>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.do_works">do_works() (flight_worker.flight_worker.FlightWorker static method)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.do_works">do_works() (flight.flight.Flight static method)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.do_works">(flight_worker.flight_worker.FlightWorker static method)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.do_works">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
@@ -603,17 +624,21 @@
 <h2 id="E">E</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.env">env (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.env">env (agi_distributor.agi_distributor.AGI attribute)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight.flight.Flight.env">(flight.flight.Flight attribute)</a>
+</li>
         <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.env">(flight_worker.flight_worker.FlightWorker attribute)</a>
 </li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.env">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec">exec() (flight_worker.flight_worker.FlightWorker static method)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.exec">exec() (flight.flight.Flight static method)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.exec">(flight_worker.flight_worker.FlightWorker static method)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.exec">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
@@ -631,19 +656,23 @@
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.exec_ssh">exec_ssh() (agi_runner.agi_runner.AGI static method)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.exec_ssh">exec_ssh() (agi_distributor.agi_distributor.AGI static method)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.exec_ssh_async">exec_ssh_async() (agi_runner.agi_runner.AGI static method)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.exec_ssh_async">exec_ssh_async() (agi_distributor.agi_distributor.AGI static method)</a>
 </li>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand">expand() (flight_worker.flight_worker.FlightWorker static method)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.expand">expand() (flight.flight.Flight static method)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand">(flight_worker.flight_worker.FlightWorker static method)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.expand">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand_and_join">expand_and_join() (flight_worker.flight_worker.FlightWorker static method)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.expand_and_join">expand_and_join() (flight.flight.Flight static method)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.expand_and_join">(flight_worker.flight_worker.FlightWorker static method)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.expand_and_join">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
@@ -659,7 +688,7 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="flight-project.html#flight.flight.FlightArgs.files">files (flight.flight.FlightArgs attribute)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.find_free_port">find_free_port() (agi_runner.agi_runner.AGI static method)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.find_free_port">find_free_port() (agi_distributor.agi_distributor.AGI static method)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.Flight">Flight (class in flight.flight)</a>
 </li>
@@ -701,15 +730,17 @@
 </li>
       <li><a href="flight-project.html#flight.flight.Flight.get_data_from_hawk">get_data_from_hawk() (flight.flight.Flight method)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.get_default_local_ip">get_default_local_ip() (agi_runner.agi_runner.AGI static method)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.get_default_local_ip">get_default_local_ip() (agi_distributor.agi_distributor.AGI static method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.get_full_attribute_name">get_full_attribute_name() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.get_import_mapping">get_import_mapping() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_logs_and_result">get_logs_and_result() (flight_worker.flight_worker.FlightWorker method)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.get_logs_and_result">get_logs_and_result() (flight.flight.Flight method)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_logs_and_result">(flight_worker.flight_worker.FlightWorker method)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.get_logs_and_result">(mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
       </ul></li>
@@ -721,13 +752,15 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.get_projects">get_projects() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.get_ssh_connection">get_ssh_connection() (agi_runner.agi_runner.AGI method)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.get_ssh_connection">get_ssh_connection() (agi_distributor.agi_distributor.AGI method)</a>
 </li>
       <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.get_work">get_work() (mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_worker_info">get_worker_info() (flight_worker.flight_worker.FlightWorker static method)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.get_worker_info">get_worker_info() (flight.flight.Flight static method)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.get_worker_info">(flight_worker.flight_worker.FlightWorker static method)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.get_worker_info">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
@@ -749,9 +782,11 @@
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.home_dir">home_dir (flight_worker.flight_worker.FlightWorker attribute)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.home_dir">home_dir (flight.flight.Flight attribute)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.home_dir">(flight_worker.flight_worker.FlightWorker attribute)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.home_dir">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
@@ -769,11 +804,11 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.init_logging">init_logging() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.install">install() (agi_runner.agi_runner.AGI static method)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.install">install() (agi_distributor.agi_distributor.AGI static method)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.INSTALL_MASK">INSTALL_MASK (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.INSTALL_MASK">INSTALL_MASK (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.INSTALL_MODE">INSTALL_MODE (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.INSTALL_MODE">INSTALL_MODE (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
@@ -781,9 +816,11 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.is_local">is_local() (agi_env.agi_env.AgiEnv static method)</a>
 </li>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.is_managed_pc">is_managed_pc (flight_worker.flight_worker.FlightWorker attribute)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.is_managed_pc">is_managed_pc (flight.flight.Flight attribute)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.is_managed_pc">(flight_worker.flight_worker.FlightWorker attribute)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.is_managed_pc">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
@@ -797,9 +834,11 @@
 <h2 id="J">J</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.join">join() (flight_worker.flight_worker.FlightWorker static method)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.join">join() (flight.flight.Flight static method)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.join">(flight_worker.flight_worker.FlightWorker static method)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.join">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
@@ -823,9 +862,11 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.log_remote_line">log_remote_line() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.logs">logs (flight_worker.flight_worker.FlightWorker attribute)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.logs">logs (flight.flight.Flight attribute)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.logs">(flight_worker.flight_worker.FlightWorker attribute)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.logs">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
@@ -835,13 +876,13 @@
 <h2 id="M">M</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.main">main() (agi_runner.agi_runner.AGI static method)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.main">main() (agi_distributor.agi_distributor.AGI static method)</a>
 </li>
-      <li><a href="flight-project.html#flight.flight.Flight.make_chunks">make_chunks() (flight.flight.Flight static method)</a>
-</li>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.mode">mode (flight_worker.flight_worker.FlightWorker attribute)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.mode">mode (flight.flight.Flight attribute)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.mode">(flight_worker.flight_worker.FlightWorker attribute)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.mode">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
@@ -889,9 +930,9 @@
       <ul>
         <li><a href="workers.html#module-agent_worker">agent_worker</a>
 </li>
-        <li><a href="agi-env.html#module-agi_env.agi_env">agi_env.agi_env</a>
+        <li><a href="agi-runner.html#module-agi_distributor.agi_distributor">agi_distributor.agi_distributor</a>
 </li>
-        <li><a href="agi-runner.html#module-agi_runner.agi_runner">agi_runner.agi_runner</a>
+        <li><a href="agi-env.html#module-agi_env.agi_env">agi_env.agi_env</a>
 </li>
         <li><a href="workers.html#module-dag_worker">dag_worker</a>
 </li>
@@ -921,16 +962,18 @@
 <h2 id="N">N</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.new">new() (flight_worker.flight_worker.FlightWorker static method)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.new">new() (flight.flight.Flight static method)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.new">(flight_worker.flight_worker.FlightWorker static method)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.new">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
-      <li><a href="flight-project.html#flight.flight.FlightArgs.nfile">nfile (flight.flight.FlightArgs attribute)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="flight-project.html#flight.flight.FlightArgs.nfile">nfile (flight.flight.FlightArgs attribute)</a>
+</li>
       <li><a href="agi-env.html#agi_env.agi_env.normalize_path">normalize_path() (in module agi_env.agi_env)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.nread">nread (flight.flight.FlightArgs attribute)</a>
@@ -984,7 +1027,7 @@
 </li>
       <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.preprocess_df">preprocess_df() (flight_worker.flight_worker.FlightWorker method)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.PYTHON_MODE">PYTHON_MODE (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.PYTHON_MODE">PYTHON_MODE (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -992,11 +1035,11 @@
 <h2 id="R">R</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.RAPIDS_MODE">RAPIDS_MODE (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.RAPIDS_MODE">RAPIDS_MODE (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.RAPIDS_RESET">RAPIDS_RESET (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.RAPIDS_RESET">RAPIDS_RESET (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.RAPIDS_SET">RAPIDS_SET (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.RAPIDS_SET">RAPIDS_SET (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.read_gitignore">read_gitignore() (agi_env.agi_env.AgiEnv method)</a>
 </li>
@@ -1004,23 +1047,25 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.replace_content">replace_content() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.run">run() (agi_env.agi_env.AgiEnv static method)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.run">run() (agi_distributor.agi_distributor.AGI static method)</a>
 
       <ul>
-        <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.run">(agi_runner.agi_runner.AGI static method)</a>
+        <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.run">(agi_env.agi_env.AgiEnv static method)</a>
+</li>
+        <li><a href="flight-project.html#flight.flight.Flight.run">(flight.flight.Flight static method)</a>
 </li>
         <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.run">(flight_worker.flight_worker.FlightWorker static method)</a>
 </li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.run">(mycode_worker.mycode_worker.MycodeWorker static method)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.run_agi">run_agi() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.run_async">run_async() (agi_env.agi_env.AgiEnv static method)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.RUN_MASK">RUN_MASK (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.RUN_MASK">RUN_MASK (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -1046,29 +1091,35 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.set_env_var">set_env_var() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.set_install_type">set_install_type() (agi_env.agi_env.AgiEnv method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.set_openai_api_key">set_openai_api_key() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.share_path">share_path (flight_worker.flight_worker.FlightWorker attribute)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.share_path">share_path (flight.flight.Flight attribute)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.share_path">(flight_worker.flight_worker.FlightWorker attribute)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.share_path">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.SIMULATE_MODE">SIMULATE_MODE (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.SIMULATE_MODE">SIMULATE_MODE (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.start">start() (flight_worker.flight_worker.FlightWorker method)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.start">start() (flight.flight.Flight method)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.start">(flight_worker.flight_worker.FlightWorker method)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.start">(mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
       </ul></li>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.stop">stop() (flight_worker.flight_worker.FlightWorker method)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.stop">stop() (flight.flight.Flight method)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.stop">(flight_worker.flight_worker.FlightWorker method)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.stop">(mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
       </ul></li>
@@ -1078,15 +1129,17 @@
 <h2 id="T">T</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.t0">t0 (flight_worker.flight_worker.FlightWorker attribute)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.t0">t0 (flight.flight.Flight attribute)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.t0">(flight_worker.flight_worker.FlightWorker attribute)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.t0">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.TIMEOUT">TIMEOUT (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.TIMEOUT">TIMEOUT (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
       <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.topological_sort">topological_sort() (mycode_worker.mycode_worker.MycodeWorker method)</a>
 </li>
@@ -1098,13 +1151,13 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.unzip_data">unzip_data() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.update">update() (agi_runner.agi_runner.AGI static method)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.update">update() (agi_distributor.agi_distributor.AGI static method)</a>
 </li>
       <li><a href="flight-project.html#flight.flight.FlightArgs.update_forward_refs">update_forward_refs() (flight.flight.FlightArgs class method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.UPDATE_MODE">UPDATE_MODE (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.UPDATE_MODE">UPDATE_MODE (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.update_pyproject">update_pyproject() (agi_env.agi_env.AgiEnv method)</a>
 </li>
@@ -1170,25 +1223,29 @@
 </li>
       <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.work_pool">work_pool() (flight_worker.flight_worker.FlightWorker method)</a>
 </li>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.worker">worker (flight_worker.flight_worker.FlightWorker attribute)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.worker">worker (flight.flight.Flight attribute)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.worker">(flight_worker.flight_worker.FlightWorker attribute)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.worker">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
-      <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.worker_id">worker_id (flight_worker.flight_worker.FlightWorker attribute)</a>
+      <li><a href="flight-project.html#flight.flight.Flight.worker_id">worker_id (flight.flight.Flight attribute)</a>
 
       <ul>
+        <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.worker_id">(flight_worker.flight_worker.FlightWorker attribute)</a>
+</li>
         <li><a href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.worker_id">(mycode_worker.mycode_worker.MycodeWorker attribute)</a>
 </li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.workers">workers (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.workers">workers (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.workers_tree">workers_tree (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.workers_tree">workers_tree (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
-      <li><a href="agi-runner.html#agi_runner.agi_runner.AGI.workers_tree_info">workers_tree_info (agi_runner.agi_runner.AGI attribute)</a>
+      <li><a href="agi-runner.html#agi_distributor.agi_distributor.AGI.workers_tree_info">workers_tree_info (agi_distributor.agi_distributor.AGI attribute)</a>
 </li>
       <li><a href="flight-project.html#flight_worker.flight_worker.FlightWorker.works">works() (flight_worker.flight_worker.FlightWorker method)</a>
 

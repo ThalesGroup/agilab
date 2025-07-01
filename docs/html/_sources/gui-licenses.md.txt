@@ -9,6 +9,7 @@
 | aiosignal | APACHE SOFTWARE LICENSE |
 | alembic | MIT |
 | altair | BSD LICENSE |
+| altex | APACHE-2.0 |
 | annotated-types | MIT LICENSE |
 | anthropic | MIT LICENSE |
 | anyio | MIT LICENSE |
@@ -168,7 +169,7 @@
 | mlflow | APACHE SOFTWARE LICENSE |
 | mlflow-skinny | APACHE SOFTWARE LICENSE |
 | msgpack | APACHE 2.0 |
-| multidict | APACHE SOFTWARE LICENSE |
+| multidict | APACHE LICENSE 2.0 |
 | multiprocess | BSD LICENSE |
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | mypy | MIT LICENSE |

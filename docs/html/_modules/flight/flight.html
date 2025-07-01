@@ -137,7 +137,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../../agi-runner.html">agi_runner API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../agi-runner.html">agi_distributor API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../agi-runner.html#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#installation">Installation</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#update">Update</a></li>
@@ -146,7 +146,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../agi-runner.html#reference">Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#agi_runner.agi_runner.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#agi_distributor.agi_distributor.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -239,19 +239,38 @@
 <li class="toctree-l2"><a class="reference internal" href="../../flight-project.html#manager-flight">manager: flight</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight"><code class="docutils literal notranslate"><span class="pre">Flight</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.__init__"><code class="docutils literal notranslate"><span class="pre">Flight.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.args"><code class="docutils literal notranslate"><span class="pre">Flight.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.build"><code class="docutils literal notranslate"><span class="pre">Flight.build()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.build_distribution"><code class="docutils literal notranslate"><span class="pre">Flight.build_distribution()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.convert_functions_to_names"><code class="docutils literal notranslate"><span class="pre">Flight.convert_functions_to_names()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.cython_decorators"><code class="docutils literal notranslate"><span class="pre">Flight.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.dask_home"><code class="docutils literal notranslate"><span class="pre">Flight.dask_home</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.data_out"><code class="docutils literal notranslate"><span class="pre">Flight.data_out</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.do_distrib"><code class="docutils literal notranslate"><span class="pre">Flight.do_distrib()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.do_works"><code class="docutils literal notranslate"><span class="pre">Flight.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.env"><code class="docutils literal notranslate"><span class="pre">Flight.env</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.exec"><code class="docutils literal notranslate"><span class="pre">Flight.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.expand"><code class="docutils literal notranslate"><span class="pre">Flight.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.expand_and_join"><code class="docutils literal notranslate"><span class="pre">Flight.expand_and_join()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.extract_plane_from_file_name"><code class="docutils literal notranslate"><span class="pre">Flight.extract_plane_from_file_name()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_data_from_files"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_files()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_data_from_hawk"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_hawk()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">Flight.get_logs_and_result()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_partition_by_planes"><code class="docutils literal notranslate"><span class="pre">Flight.get_partition_by_planes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_worker_info"><code class="docutils literal notranslate"><span class="pre">Flight.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.home_dir"><code class="docutils literal notranslate"><span class="pre">Flight.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">Flight.is_managed_pc</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.ivq_logs"><code class="docutils literal notranslate"><span class="pre">Flight.ivq_logs</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.make_chunks"><code class="docutils literal notranslate"><span class="pre">Flight.make_chunks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.join"><code class="docutils literal notranslate"><span class="pre">Flight.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.logs"><code class="docutils literal notranslate"><span class="pre">Flight.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.mode"><code class="docutils literal notranslate"><span class="pre">Flight.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.new"><code class="docutils literal notranslate"><span class="pre">Flight.new()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.onerror"><code class="docutils literal notranslate"><span class="pre">Flight.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.run"><code class="docutils literal notranslate"><span class="pre">Flight.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.share_path"><code class="docutils literal notranslate"><span class="pre">Flight.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.start"><code class="docutils literal notranslate"><span class="pre">Flight.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.stop"><code class="docutils literal notranslate"><span class="pre">Flight.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.t0"><code class="docutils literal notranslate"><span class="pre">Flight.t0</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.verbose"><code class="docutils literal notranslate"><span class="pre">Flight.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.worker"><code class="docutils literal notranslate"><span class="pre">Flight.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.worker_id"><code class="docutils literal notranslate"><span class="pre">Flight.worker_id</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs"><code class="docutils literal notranslate"><span class="pre">FlightArgs</span></code></a><ul>
@@ -401,8 +420,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">py7zr</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">date</span>
-<span class="c1"># from agi_runner import AGI</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">agi_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">WorkDispatcher</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_dispatcher</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseWorker</span><span class="p">,</span> <span class="n">WorkDispatcher</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span><span class="p">,</span> <span class="n">normalize_path</span>
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">)</span>
@@ -500,7 +518,7 @@
 
 <div class="viewcode-block" id="Flight">
 <a class="viewcode-back" href="../../flight-project.html#flight.flight.Flight">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">Flight</span><span class="p">(</span><span class="n">WorkDispatcher</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Flight</span><span class="p">(</span><span class="n">BaseWorker</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Flight class provides methods to orchester the run&quot;&quot;&quot;</span>
 
     <span class="n">ivq_logs</span> <span class="o">=</span> <span class="kc">None</span>
@@ -586,7 +604,7 @@
             <span class="c1"># get the second level of the distribution tree by by dispatching these works per workers</span>
             <span class="c1"># make chunk of planes by worker with a load balancing that takes into consideration workers capacities</span>
             <span class="n">workers_chunks</span> <span class="o">=</span> <span class="n">WorkDispatcher</span><span class="o">.</span><span class="n">make_chunks</span><span class="p">(</span>
-                <span class="nb">len</span><span class="p">(</span><span class="n">planes_partition</span><span class="p">),</span> <span class="n">planes_partition_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="n">workers</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mi">12</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">planes_partition</span><span class="p">),</span> <span class="n">planes_partition_size</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="n">workers</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mi">12</span>
             <span class="p">)</span>
             <span class="k">if</span> <span class="n">workers_chunks</span><span class="p">:</span>
                 <span class="c1"># build tree: workers = dask workers -&gt; works = planes -&gt; files &lt;=&gt; list of list of list</span>

@@ -137,7 +137,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../../agi-runner.html">agi_runner API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../agi-runner.html">agi_distributor API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../agi-runner.html#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#installation">Installation</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#update">Update</a></li>
@@ -146,7 +146,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../agi-runner.html#reference">Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#agi_runner.agi_runner.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#agi_distributor.agi_distributor.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -239,19 +239,38 @@
 <li class="toctree-l2"><a class="reference internal" href="../../flight-project.html#manager-flight">manager: flight</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight"><code class="docutils literal notranslate"><span class="pre">Flight</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.__init__"><code class="docutils literal notranslate"><span class="pre">Flight.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.args"><code class="docutils literal notranslate"><span class="pre">Flight.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.build"><code class="docutils literal notranslate"><span class="pre">Flight.build()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.build_distribution"><code class="docutils literal notranslate"><span class="pre">Flight.build_distribution()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.convert_functions_to_names"><code class="docutils literal notranslate"><span class="pre">Flight.convert_functions_to_names()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.cython_decorators"><code class="docutils literal notranslate"><span class="pre">Flight.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.dask_home"><code class="docutils literal notranslate"><span class="pre">Flight.dask_home</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.data_out"><code class="docutils literal notranslate"><span class="pre">Flight.data_out</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.do_distrib"><code class="docutils literal notranslate"><span class="pre">Flight.do_distrib()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.do_works"><code class="docutils literal notranslate"><span class="pre">Flight.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.env"><code class="docutils literal notranslate"><span class="pre">Flight.env</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.exec"><code class="docutils literal notranslate"><span class="pre">Flight.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.expand"><code class="docutils literal notranslate"><span class="pre">Flight.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.expand_and_join"><code class="docutils literal notranslate"><span class="pre">Flight.expand_and_join()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.extract_plane_from_file_name"><code class="docutils literal notranslate"><span class="pre">Flight.extract_plane_from_file_name()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_data_from_files"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_files()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_data_from_hawk"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_hawk()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">Flight.get_logs_and_result()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_partition_by_planes"><code class="docutils literal notranslate"><span class="pre">Flight.get_partition_by_planes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_worker_info"><code class="docutils literal notranslate"><span class="pre">Flight.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.home_dir"><code class="docutils literal notranslate"><span class="pre">Flight.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">Flight.is_managed_pc</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.ivq_logs"><code class="docutils literal notranslate"><span class="pre">Flight.ivq_logs</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.make_chunks"><code class="docutils literal notranslate"><span class="pre">Flight.make_chunks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.join"><code class="docutils literal notranslate"><span class="pre">Flight.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.logs"><code class="docutils literal notranslate"><span class="pre">Flight.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.mode"><code class="docutils literal notranslate"><span class="pre">Flight.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.new"><code class="docutils literal notranslate"><span class="pre">Flight.new()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.onerror"><code class="docutils literal notranslate"><span class="pre">Flight.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.run"><code class="docutils literal notranslate"><span class="pre">Flight.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.share_path"><code class="docutils literal notranslate"><span class="pre">Flight.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.start"><code class="docutils literal notranslate"><span class="pre">Flight.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.stop"><code class="docutils literal notranslate"><span class="pre">Flight.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.t0"><code class="docutils literal notranslate"><span class="pre">Flight.t0</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.verbose"><code class="docutils literal notranslate"><span class="pre">Flight.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.worker"><code class="docutils literal notranslate"><span class="pre">Flight.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.worker_id"><code class="docutils literal notranslate"><span class="pre">Flight.worker_id</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs"><code class="docutils literal notranslate"><span class="pre">FlightArgs</span></code></a><ul>
@@ -487,7 +506,7 @@
 
         <span class="c1"># agilab core</span>
         <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;cluster&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">app_level</span><span class="p">)</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;agi_manager&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">app_level</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;agi_dispatcher&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">app_level</span><span class="p">)</span>
         <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;agi_env&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">app_level</span><span class="p">)</span>
         <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;dag_worker&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">app_level</span><span class="p">)</span>
         <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;pandas_worker&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">app_level</span><span class="p">)</span>
@@ -760,7 +779,7 @@
             <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not find any target project app in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">agi_fwk</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="s1">&#39;apps&#39;</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">setup_app</span> <span class="o">=</span> <span class="n">app_abs</span> <span class="o">/</span> <span class="s2">&quot;build.py&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">setup_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_fwk_loc</span> <span class="o">/</span> <span class="s2">&quot;core/node/src/agi_manager/build.py&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setup_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_fwk_loc</span> <span class="o">/</span> <span class="s2">&quot;core/node/src/agi_dispatcher/build.py&quot;</span>
 
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">Path</span><span class="p">):</span>
             <span class="n">module_path</span> <span class="o">=</span> <span class="n">module</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
@@ -1115,7 +1134,7 @@
 <div class="viewcode-block" id="AgiEnv.update_pyproject">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.update_pyproject">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">update_pyproject</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">agi_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_fwk</span>
+        <span class="n">agi_fwk</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_fwk</span>
         <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_pyproject</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_pyproject</span><span class="p">]:</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
                 <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">file</span><span class="si">}</span><span class="s2"> not found in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">app_abs</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
@@ -1133,9 +1152,9 @@
 
             <span class="n">sources</span> <span class="o">=</span> <span class="n">uv</span><span class="p">[</span><span class="s2">&quot;sources&quot;</span><span class="p">]</span>
 
-            <span class="k">if</span> <span class="s2">&quot;site-packages&quot;</span> <span class="ow">in</span> <span class="n">agi_root</span><span class="o">.</span><span class="n">parts</span><span class="p">:</span>
-                <span class="k">if</span> <span class="s2">&quot;agi-core&quot;</span> <span class="ow">in</span> <span class="n">sources</span><span class="p">:</span>
-                    <span class="k">del</span> <span class="n">sources</span><span class="p">[</span><span class="s2">&quot;agi-core&quot;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="s2">&quot;site-packages&quot;</span> <span class="ow">in</span> <span class="n">agi_fwk</span><span class="o">.</span><span class="n">parts</span><span class="p">:</span>
+                <span class="k">if</span> <span class="s2">&quot;agi-node&quot;</span> <span class="ow">in</span> <span class="n">sources</span><span class="p">:</span>
+                    <span class="k">del</span> <span class="n">sources</span><span class="p">[</span><span class="s2">&quot;agi-node&quot;</span><span class="p">]</span>
                     <span class="k">if</span> <span class="ow">not</span> <span class="n">sources</span><span class="p">:</span>
                         <span class="k">del</span> <span class="n">uv</span><span class="p">[</span><span class="s2">&quot;sources&quot;</span><span class="p">]</span>
                     <span class="k">if</span> <span class="ow">not</span> <span class="n">uv</span><span class="p">:</span>
@@ -1143,8 +1162,8 @@
                     <span class="k">if</span> <span class="ow">not</span> <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;tool&quot;</span><span class="p">]:</span>
                         <span class="k">del</span> <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;tool&quot;</span><span class="p">]</span>
                 <span class="n">deps</span> <span class="o">=</span> <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;project&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dependencies&quot;</span><span class="p">,</span> <span class="p">[])</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">dep</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;agi-core&quot;</span> <span class="k">for</span> <span class="n">dep</span> <span class="ow">in</span> <span class="n">deps</span><span class="p">):</span>
-                    <span class="n">deps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;agi-core&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">dep</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;agi-node&quot;</span> <span class="k">for</span> <span class="n">dep</span> <span class="ow">in</span> <span class="n">deps</span><span class="p">):</span>
+                    <span class="n">deps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;agi-node&quot;</span><span class="p">)</span>
                     <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;project&quot;</span><span class="p">][</span><span class="s2">&quot;dependencies&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">deps</span>
 
             <span class="n">file</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">tomlkit</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">doc</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span></div>
