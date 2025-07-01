@@ -108,7 +108,7 @@ class FlightArgs(BaseModel):
         return value
 
 
-class Flight(WorkDispatcher):
+class Flight(BaseWorker):
     """Flight class provides methods to orchester the run"""
 
     ivq_logs = None
