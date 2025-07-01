@@ -792,12 +792,8 @@ class AGI:
         env = AGI.env
         app_path = env.app_abs
         wenv_rel = env.wenv_rel
-        wenv_abs = env.wenv_abs
-        pyvers = env.python_version
-        extras = ""
-        options = {"manager": extras, "worker": extras + env.python_variante}
         if isinstance(env.base_worker_cls, str):
-            options["worker"] += " --extra " + " --extra ".join(AGI.install_worker_group)
+            options_worker = " --extra " + " --extra ".join(AGI.install_worker_group)
 
         #node_ips = await AGI._clean_nodes(scheduler)
         node_ips = set(list(AGI.workers) + [AGI._get_scheduler(scheduler_addr)[0]])
@@ -805,7 +801,7 @@ class AGI:
         start_time = time.time()
         logging.info(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1")
 
-        await AGI._install_app_local(app_path, Path(wenv_rel), options)
+        await AGI._install_app_local(app_path, Path(wenv_rel), options_worker)
         # logging.info(AGI.run(cmd, wenv_abs))
         if AGI._mode & 4:
             tasks = []
@@ -813,7 +809,7 @@ class AGI:
                 logging.info(f"********   Starting {AGI._run_type} for worker in .venv on {ip}")
                 if not env.is_local(ip):
                     tasks.append(asyncio.create_task(
-                        AGI._install_app_remote(ip, env, wenv_rel, options["worker"])
+                        AGI._install_app_remote(ip, env, wenv_rel, options_worker)
                     ))
             await asyncio.gather(*tasks)
 
@@ -843,23 +839,21 @@ class AGI:
             return False
 
     @staticmethod
-    async def _install_app_local(src: Path, wenv_rel: Path, options: Dict[str, str]) -> None:
+    async def _install_app_local(src: Path, wenv_rel: Path, options_worker: str) -> None:
         """
         Installe l’environnement localement.
 
         Args:
             src: chemin vers la racine du projet local
             wenv_rel: chemin relatif vers l’environnement virtuel local
-            x: dict contenant les options 'manager' et 'worker' pour la commande uv
+            options_worker: le setup
         """
         env = AGI.env
-        dist_abs = env.dist_abs
         run_type = AGI._run_type
         ip = "127.0.0.1"
         has_rapids_hw = AGI._hardware_supports_rapids() and AGI._rapids_enabled
         env.has_rapids_hw = has_rapids_hw
         wenv_abs = env.wenv_abs
-        dist_abs = env.dist_abs
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         uv = cmd_prefix + env.uv
 
@@ -883,9 +877,9 @@ class AGI:
         # manager install command with and without rapids capable
         app_path = env.app_abs
         if has_rapids_hw:
-            cmd_manager = f"{uv} --config-file uv_config.toml  {options['manager']} --project {app_path} {run_type}"
+            cmd_manager = f"{uv} --config-file uv_config.toml --project {app_path} {run_type}"
         else:
-            cmd_manager = f"{uv} {options['manager']} --project {app_path} {run_type}"
+            cmd_manager = f"{uv} --project {app_path} {run_type}"
 
         logging.info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
@@ -894,7 +888,7 @@ class AGI:
         if has_rapids_hw:
             cmd_worker = f"{uv} --config-file uv_config.toml --project {wenv_abs} {run_type} "
         else:
-            cmd_worker = f"{uv} {options["worker"]} --project {wenv_abs} {run_type}"
+            cmd_worker = f"{uv} {options_worker} --project {wenv_abs} {run_type}"
 
         logging.info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
