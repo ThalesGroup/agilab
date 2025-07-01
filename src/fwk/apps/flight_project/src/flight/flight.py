@@ -189,7 +189,7 @@ class Flight(BaseWorker):
             # get the second level of the distribution tree by by dispatching these works per workers
             # make chunk of planes by worker with a load balancing that takes into consideration workers capacities
             workers_chunks = WorkDispatcher.make_chunks(
-                len(planes_partition), planes_partition_size, self.verbose, workers=workers, threshold=12
+                len(planes_partition), planes_partition_size, verbose=self.verbose, workers=workers, threshold=12
             )
             if workers_chunks:
                 # build tree: workers = dask workers -> works = planes -> files <=> list of list of list
