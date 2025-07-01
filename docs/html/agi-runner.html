@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>agi_runner API &mdash; AGILab 1.0.0 documentation</title>
+  <title>agi_distributor API &mdash; AGILab 1.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
@@ -140,7 +140,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">agi_runner API</a><ul>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">agi_distributor API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#installation">Installation</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#update">Update</a></li>
@@ -149,7 +149,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#reference">Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#agi_runner.agi_runner.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#agi_distributor.agi_distributor.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -242,19 +242,38 @@
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#manager-flight">manager: flight</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight.Flight"><code class="docutils literal notranslate"><span class="pre">Flight</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.__init__"><code class="docutils literal notranslate"><span class="pre">Flight.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.args"><code class="docutils literal notranslate"><span class="pre">Flight.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.build"><code class="docutils literal notranslate"><span class="pre">Flight.build()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.build_distribution"><code class="docutils literal notranslate"><span class="pre">Flight.build_distribution()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.convert_functions_to_names"><code class="docutils literal notranslate"><span class="pre">Flight.convert_functions_to_names()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.cython_decorators"><code class="docutils literal notranslate"><span class="pre">Flight.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.dask_home"><code class="docutils literal notranslate"><span class="pre">Flight.dask_home</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.data_out"><code class="docutils literal notranslate"><span class="pre">Flight.data_out</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.do_distrib"><code class="docutils literal notranslate"><span class="pre">Flight.do_distrib()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.do_works"><code class="docutils literal notranslate"><span class="pre">Flight.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.env"><code class="docutils literal notranslate"><span class="pre">Flight.env</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.exec"><code class="docutils literal notranslate"><span class="pre">Flight.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.expand"><code class="docutils literal notranslate"><span class="pre">Flight.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.expand_and_join"><code class="docutils literal notranslate"><span class="pre">Flight.expand_and_join()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.extract_plane_from_file_name"><code class="docutils literal notranslate"><span class="pre">Flight.extract_plane_from_file_name()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_data_from_files"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_files()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_data_from_hawk"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_hawk()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">Flight.get_logs_and_result()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_partition_by_planes"><code class="docutils literal notranslate"><span class="pre">Flight.get_partition_by_planes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_worker_info"><code class="docutils literal notranslate"><span class="pre">Flight.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.home_dir"><code class="docutils literal notranslate"><span class="pre">Flight.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">Flight.is_managed_pc</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.ivq_logs"><code class="docutils literal notranslate"><span class="pre">Flight.ivq_logs</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.make_chunks"><code class="docutils literal notranslate"><span class="pre">Flight.make_chunks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.join"><code class="docutils literal notranslate"><span class="pre">Flight.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.logs"><code class="docutils literal notranslate"><span class="pre">Flight.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.mode"><code class="docutils literal notranslate"><span class="pre">Flight.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.new"><code class="docutils literal notranslate"><span class="pre">Flight.new()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.onerror"><code class="docutils literal notranslate"><span class="pre">Flight.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.run"><code class="docutils literal notranslate"><span class="pre">Flight.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.share_path"><code class="docutils literal notranslate"><span class="pre">Flight.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.start"><code class="docutils literal notranslate"><span class="pre">Flight.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.stop"><code class="docutils literal notranslate"><span class="pre">Flight.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.t0"><code class="docutils literal notranslate"><span class="pre">Flight.t0</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.verbose"><code class="docutils literal notranslate"><span class="pre">Flight.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.worker"><code class="docutils literal notranslate"><span class="pre">Flight.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.worker_id"><code class="docutils literal notranslate"><span class="pre">Flight.worker_id</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs"><code class="docutils literal notranslate"><span class="pre">FlightArgs</span></code></a><ul>
@@ -369,7 +388,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="framework-api.html">Framework API</a></li>
-      <li class="breadcrumb-item active">agi_runner API</li>
+      <li class="breadcrumb-item active">agi_distributor API</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/agi-runner.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -379,8 +398,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="agi-runner-api">
-<h1>agi_runner API<a class="headerlink" href="#agi-runner-api" title="Link to this heading"></a></h1>
+  <section id="agi-distributor-api">
+<h1>agi_distributor API<a class="headerlink" href="#agi-distributor-api" title="Link to this heading"></a></h1>
 <section id="usage-example">
 <h2>Usage Example<a class="headerlink" href="#usage-example" title="Link to this heading"></a></h2>
 <section id="installation">
@@ -395,7 +414,7 @@
 <h3>Distribute<a class="headerlink" href="#distribute" title="Link to this heading"></a></h3>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">agi_runner</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGI</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_distributor</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGI</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span>
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
@@ -418,7 +437,7 @@
 <hr class="docutils" />
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">agi_runner</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGI</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_distributor</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGI</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span>
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
@@ -439,15 +458,15 @@
 <hr class="docutils" />
 <section id="reference">
 <h2>Reference<a class="headerlink" href="#reference" title="Link to this heading"></a></h2>
-<a class="reference internal image-reference" href="_images/packages_agi_runner.png"><img alt="Packages diagram for agi_runner" class="align-center" src="_images/packages_agi_runner.png" style="width: 400px;" />
+<a class="reference internal image-reference" href="_images/packages_agi_distributor.png"><img alt="Packages diagram for agi_distributor" class="align-center" src="_images/packages_agi_distributor.png" style="width: 400px;" />
 </a>
 <hr class="docutils" />
-<a class="reference internal image-reference" href="_images/classes_agi_runner.png"><img alt="Classes diagram for agi_runner" class="align-center" src="_images/classes_agi_runner.png" style="width: 400px;" />
+<a class="reference internal image-reference" href="_images/classes_agi_distributor.png"><img alt="Classes diagram for agi_distributor" class="align-center" src="_images/classes_agi_distributor.png" style="width: 400px;" />
 </a>
 <hr class="docutils" />
-<dl class="py class" id="module-agi_runner.agi_runner">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agi_runner.agi_runner.</span></span><span class="sig-name descname"><span class="pre">AGI</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_runner/agi_runner.html#AGI"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_runner.agi_runner.AGI" title="Link to this definition"></a></dt>
+<dl class="py class" id="module-agi_distributor.agi_distributor">
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agi_distributor.agi_distributor.</span></span><span class="sig-name descname"><span class="pre">AGI</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_distributor/agi_distributor.html#AGI"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_distributor.agi_distributor.AGI" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Agi Class.</p>
 <p>Agi (Speedy-Python-Dask) is a scalable core based on Cython, Dask, and a pool of processes that supports High-Performance Computing (HPC) with or without out¬put data.
@@ -468,78 +487,78 @@ It offers a command-line interface in Python and an optional LAB with Streamlit,
 </dd>
 </dl>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.CYTHON_MODE">
-<span class="sig-name descname"><span class="pre">CYTHON_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.CYTHON_MODE" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.CYTHON_MODE">
+<span class="sig-name descname"><span class="pre">CYTHON_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.CYTHON_MODE" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.DASK_MODE">
-<span class="sig-name descname"><span class="pre">DASK_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">4</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.DASK_MODE" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.DASK_MODE">
+<span class="sig-name descname"><span class="pre">DASK_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">4</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.DASK_MODE" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.DASK_RESET">
-<span class="sig-name descname"><span class="pre">DASK_RESET</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">59</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.DASK_RESET" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.DASK_RESET">
+<span class="sig-name descname"><span class="pre">DASK_RESET</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">59</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.DASK_RESET" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.DEPLOYEMENT_MASK">
-<span class="sig-name descname"><span class="pre">DEPLOYEMENT_MASK</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">48</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.DEPLOYEMENT_MASK" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.DEPLOYEMENT_MASK">
+<span class="sig-name descname"><span class="pre">DEPLOYEMENT_MASK</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">48</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.DEPLOYEMENT_MASK" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.INSTALL_MASK">
-<span class="sig-name descname"><span class="pre">INSTALL_MASK</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">48</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.INSTALL_MASK" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.INSTALL_MASK">
+<span class="sig-name descname"><span class="pre">INSTALL_MASK</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">48</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.INSTALL_MASK" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.INSTALL_MODE">
-<span class="sig-name descname"><span class="pre">INSTALL_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">16</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.INSTALL_MODE" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.INSTALL_MODE">
+<span class="sig-name descname"><span class="pre">INSTALL_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">16</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.INSTALL_MODE" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.PYTHON_MODE">
-<span class="sig-name descname"><span class="pre">PYTHON_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.PYTHON_MODE" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.PYTHON_MODE">
+<span class="sig-name descname"><span class="pre">PYTHON_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.PYTHON_MODE" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.RAPIDS_MODE">
-<span class="sig-name descname"><span class="pre">RAPIDS_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">16</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.RAPIDS_MODE" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.RAPIDS_MODE">
+<span class="sig-name descname"><span class="pre">RAPIDS_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">16</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.RAPIDS_MODE" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.RAPIDS_RESET">
-<span class="sig-name descname"><span class="pre">RAPIDS_RESET</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">55</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.RAPIDS_RESET" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.RAPIDS_RESET">
+<span class="sig-name descname"><span class="pre">RAPIDS_RESET</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">55</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.RAPIDS_RESET" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.RAPIDS_SET">
-<span class="sig-name descname"><span class="pre">RAPIDS_SET</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">63</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.RAPIDS_SET" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.RAPIDS_SET">
+<span class="sig-name descname"><span class="pre">RAPIDS_SET</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">63</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.RAPIDS_SET" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.RUN_MASK">
-<span class="sig-name descname"><span class="pre">RUN_MASK</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">15</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.RUN_MASK" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.RUN_MASK">
+<span class="sig-name descname"><span class="pre">RUN_MASK</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">15</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.RUN_MASK" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.SIMULATE_MODE">
-<span class="sig-name descname"><span class="pre">SIMULATE_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">48</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.SIMULATE_MODE" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.SIMULATE_MODE">
+<span class="sig-name descname"><span class="pre">SIMULATE_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">48</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.SIMULATE_MODE" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.TIMEOUT">
-<span class="sig-name descname"><span class="pre">TIMEOUT</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.TIMEOUT" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.TIMEOUT">
+<span class="sig-name descname"><span class="pre">TIMEOUT</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.TIMEOUT" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.UPDATE_MODE">
-<span class="sig-name descname"><span class="pre">UPDATE_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">32</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.UPDATE_MODE" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.UPDATE_MODE">
+<span class="sig-name descname"><span class="pre">UPDATE_MODE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">32</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.UPDATE_MODE" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_runner/agi_runner.html#AGI.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_runner.agi_runner.AGI.__init__" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_distributor/agi_distributor.html#AGI.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.__init__" title="Link to this definition"></a></dt>
 <dd><p>Initialize a Agi object with a target and verbosity level.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -558,25 +577,25 @@ It offers a command-line interface in Python and an optional LAB with Streamlit,
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.best_mode">
-<span class="sig-name descname"><span class="pre">best_mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Dict</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><span class="pre">,</span> <code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.best_mode" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.best_mode">
+<span class="sig-name descname"><span class="pre">best_mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Dict</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><span class="pre">,</span> <code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.best_mode" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.close_all_connections">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">close_all_connections</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_runner/agi_runner.html#AGI.close_all_connections"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_runner.agi_runner.AGI.close_all_connections" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.close_all_connections">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">close_all_connections</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_distributor/agi_distributor.html#AGI.close_all_connections"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.close_all_connections" title="Link to this definition"></a></dt>
 <dd><p>Ferme proprement toutes les connexions SSH ouvertes.
 À appeler à la fin de ton programme ou avant arrêt.</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.debug">
-<span class="sig-name descname"><span class="pre">debug</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.debug" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.debug">
+<span class="sig-name descname"><span class="pre">debug</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.debug" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.distribute">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">distribute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_runner/agi_runner.html#AGI.distribute"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_runner.agi_runner.AGI.distribute" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.distribute">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">distribute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_distributor/agi_distributor.html#AGI.distribute"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.distribute" title="Link to this definition"></a></dt>
 <dd><p>check the distribution with a dry run
 :param package:
 :type package: any Agi target apps or project created by AGILAB
@@ -595,13 +614,13 @@ It offers a command-line interface in Python and an optional LAB with Streamlit,
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.env">
-<span class="sig-name descname"><span class="pre">env</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv" title="agi_env.agi_env.AgiEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">AgiEnv</span></code></a><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.env" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.env">
+<span class="sig-name descname"><span class="pre">env</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv" title="agi_env.agi_env.AgiEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">AgiEnv</span></code></a><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.env" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.exec_ssh">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec_ssh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_runner/agi_runner.html#AGI.exec_ssh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_runner.agi_runner.AGI.exec_ssh" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.exec_ssh">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec_ssh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_distributor/agi_distributor.html#AGI.exec_ssh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.exec_ssh" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></span></p>
@@ -610,8 +629,8 @@ It offers a command-line interface in Python and an optional LAB with Streamlit,
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.exec_ssh_async">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec_ssh_async</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_runner/agi_runner.html#AGI.exec_ssh_async"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_runner.agi_runner.AGI.exec_ssh_async" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.exec_ssh_async">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec_ssh_async</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_distributor/agi_distributor.html#AGI.exec_ssh_async"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.exec_ssh_async" title="Link to this definition"></a></dt>
 <dd><p>Execute a remote command via SSH and return the last line of its stdout output.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
@@ -621,8 +640,8 @@ It offers a command-line interface in Python and an optional LAB with Streamlit,
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.find_free_port">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">find_free_port</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attempts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_runner/agi_runner.html#AGI.find_free_port"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_runner.agi_runner.AGI.find_free_port" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.find_free_port">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">find_free_port</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attempts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_distributor/agi_distributor.html#AGI.find_free_port"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.find_free_port" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></span></p>
@@ -631,8 +650,8 @@ It offers a command-line interface in Python and an optional LAB with Streamlit,
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.get_default_local_ip">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_default_local_ip</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_runner/agi_runner.html#AGI.get_default_local_ip"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_runner.agi_runner.AGI.get_default_local_ip" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.get_default_local_ip">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_default_local_ip</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_distributor/agi_distributor.html#AGI.get_default_local_ip"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.get_default_local_ip" title="Link to this definition"></a></dt>
 <dd><p>Get the default local IP address of the machine.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
@@ -651,13 +670,13 @@ It offers a command-line interface in Python and an optional LAB with Streamlit,
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.get_ssh_connection">
-<span class="sig-name descname"><span class="pre">get_ssh_connection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout_sec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_runner/agi_runner.html#AGI.get_ssh_connection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_runner.agi_runner.AGI.get_ssh_connection" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.get_ssh_connection">
+<span class="sig-name descname"><span class="pre">get_ssh_connection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout_sec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_distributor/agi_distributor.html#AGI.get_ssh_connection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.get_ssh_connection" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.install">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">install</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">module_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modes_enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_runner/agi_runner.html#AGI.install"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_runner.agi_runner.AGI.install" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.install">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">install</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">module_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modes_enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_distributor/agi_distributor.html#AGI.install"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.install" title="Link to this definition"></a></dt>
 <dd><p>Update the cluster’s virtual environment.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
@@ -690,8 +709,8 @@ Defaults to 1.</p></li>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.main">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">scheduler</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_runner/agi_runner.html#AGI.main"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_runner.agi_runner.AGI.main" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.main">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">scheduler</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_distributor/agi_distributor.html#AGI.main"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.main" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code></span></p>
@@ -700,8 +719,8 @@ Defaults to 1.</p></li>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.run">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rapids_enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_runner/agi_runner.html#AGI.run"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_runner.agi_runner.AGI.run" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.run">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rapids_enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_distributor/agi_distributor.html#AGI.run"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.run" title="Link to this definition"></a></dt>
 <dd><p>Compiles the target module in Cython and runs it on the cluster.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
@@ -747,8 +766,8 @@ Defaults to 1.</p></li>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.update">
-<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">update</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">module_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modes_enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_runner/agi_runner.html#AGI.update"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_runner.agi_runner.AGI.update" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.update">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">update</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">module_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modes_enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_distributor/agi_distributor.html#AGI.update"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.update" title="Link to this definition"></a></dt>
 <dd><p>install cluster virtual environment
 :param package:
 :type package: any Agi target apps or project created with AGILAB
@@ -765,18 +784,18 @@ Defaults to 1.</p></li>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.workers">
-<span class="sig-name descname"><span class="pre">workers</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">Dict</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><span class="pre">,</span> <code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code><span class="pre">]]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.workers" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.workers">
+<span class="sig-name descname"><span class="pre">workers</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">Dict</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><span class="pre">,</span> <code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code><span class="pre">]]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.workers" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.workers_tree">
-<span class="sig-name descname"><span class="pre">workers_tree</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.workers_tree" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.workers_tree">
+<span class="sig-name descname"><span class="pre">workers_tree</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.workers_tree" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="agi_runner.agi_runner.AGI.workers_tree_info">
-<span class="sig-name descname"><span class="pre">workers_tree_info</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_runner.agi_runner.AGI.workers_tree_info" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="agi_distributor.agi_distributor.AGI.workers_tree_info">
+<span class="sig-name descname"><span class="pre">workers_tree_info</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_distributor.agi_distributor.AGI.workers_tree_info" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 </dd></dl>

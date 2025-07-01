@@ -140,7 +140,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="agi-runner.html">agi_runner API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-runner.html">agi_distributor API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="agi-runner.html#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-runner.html#installation">Installation</a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-runner.html#update">Update</a></li>
@@ -149,7 +149,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="agi-runner.html#reference">Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="agi-runner.html#agi_runner.agi_runner.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-runner.html#agi_distributor.agi_distributor.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -242,19 +242,38 @@
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#manager-flight">manager: flight</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight.Flight"><code class="docutils literal notranslate"><span class="pre">Flight</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.__init__"><code class="docutils literal notranslate"><span class="pre">Flight.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.args"><code class="docutils literal notranslate"><span class="pre">Flight.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.build"><code class="docutils literal notranslate"><span class="pre">Flight.build()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.build_distribution"><code class="docutils literal notranslate"><span class="pre">Flight.build_distribution()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.convert_functions_to_names"><code class="docutils literal notranslate"><span class="pre">Flight.convert_functions_to_names()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.cython_decorators"><code class="docutils literal notranslate"><span class="pre">Flight.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.dask_home"><code class="docutils literal notranslate"><span class="pre">Flight.dask_home</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.data_out"><code class="docutils literal notranslate"><span class="pre">Flight.data_out</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.do_distrib"><code class="docutils literal notranslate"><span class="pre">Flight.do_distrib()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.do_works"><code class="docutils literal notranslate"><span class="pre">Flight.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.env"><code class="docutils literal notranslate"><span class="pre">Flight.env</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.exec"><code class="docutils literal notranslate"><span class="pre">Flight.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.expand"><code class="docutils literal notranslate"><span class="pre">Flight.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.expand_and_join"><code class="docutils literal notranslate"><span class="pre">Flight.expand_and_join()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.extract_plane_from_file_name"><code class="docutils literal notranslate"><span class="pre">Flight.extract_plane_from_file_name()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_data_from_files"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_files()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_data_from_hawk"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_hawk()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">Flight.get_logs_and_result()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_partition_by_planes"><code class="docutils literal notranslate"><span class="pre">Flight.get_partition_by_planes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.get_worker_info"><code class="docutils literal notranslate"><span class="pre">Flight.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.home_dir"><code class="docutils literal notranslate"><span class="pre">Flight.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">Flight.is_managed_pc</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.ivq_logs"><code class="docutils literal notranslate"><span class="pre">Flight.ivq_logs</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.make_chunks"><code class="docutils literal notranslate"><span class="pre">Flight.make_chunks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.join"><code class="docutils literal notranslate"><span class="pre">Flight.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.logs"><code class="docutils literal notranslate"><span class="pre">Flight.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.mode"><code class="docutils literal notranslate"><span class="pre">Flight.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.new"><code class="docutils literal notranslate"><span class="pre">Flight.new()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.onerror"><code class="docutils literal notranslate"><span class="pre">Flight.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.run"><code class="docutils literal notranslate"><span class="pre">Flight.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.share_path"><code class="docutils literal notranslate"><span class="pre">Flight.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.start"><code class="docutils literal notranslate"><span class="pre">Flight.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.stop"><code class="docutils literal notranslate"><span class="pre">Flight.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.t0"><code class="docutils literal notranslate"><span class="pre">Flight.t0</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.verbose"><code class="docutils literal notranslate"><span class="pre">Flight.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.worker"><code class="docutils literal notranslate"><span class="pre">Flight.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.worker_id"><code class="docutils literal notranslate"><span class="pre">Flight.worker_id</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight.FlightArgs"><code class="docutils literal notranslate"><span class="pre">FlightArgs</span></code></a><ul>
@@ -424,8 +443,8 @@
 │   ├── flight_project
 │   │   ├── MANIFEST.in
 │   │   ├── README.md
-│   │   ├── apps
 │   │   ├── build.py
+│   │   ├── dask_worker_0.pid
 │   │   ├── pyproject.toml
 │   │   ├── run_test.sh
 │   │   ├── src
@@ -436,13 +455,6 @@
 │   │   │   ├── flight
 │   │   │   │   ├── __init__.py
 │   │   │   │   └── flight.py
-│   │   │   ├── flight_project.egg-info
-│   │   │   │   ├── PKG-INFO
-│   │   │   │   ├── SOURCES.txt
-│   │   │   │   ├── dependency_links.txt
-│   │   │   │   ├── not-zip-safe
-│   │   │   │   ├── requires.txt
-│   │   │   │   └── top_level.txt
 │   │   │   ├── flight_worker
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── dataset.7z
@@ -463,7 +475,6 @@
 │   │   │   ├── test_flight.py
 │   │   │   ├── test_flight_manager.py
 │   │   │   └── test_flight_worker.py
-│   │   ├── uv.lock
 │   │   └── uv_config.toml
 │   ├── install.ps1
 │   ├── install.py
@@ -480,13 +491,6 @@
 │   │   │   ├── mycode
 │   │   │   │   ├── __init__.py
 │   │   │   │   └── mycode.py
-│   │   │   ├── mycode_project.egg-info
-│   │   │   │   ├── PKG-INFO
-│   │   │   │   ├── SOURCES.txt
-│   │   │   │   ├── dependency_links.txt
-│   │   │   │   ├── not-zip-safe
-│   │   │   │   ├── requires.txt
-│   │   │   │   └── top_level.txt
 │   │   │   ├── mycode_worker
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── mycode_worker.c
@@ -502,7 +506,6 @@
 │   │   │   ├── _test_mycode_worker.py
 │   │   │   ├── test_mycode_manager.py
 │   │   │   └── test_mycode_worker.py
-│   │   ├── uv.lock
 │   │   └── uv_config.toml
 │   ├── pandas_app_template
 │   │   ├── MANIFEST.in
@@ -559,9 +562,9 @@
 │   │   │   │   ├── dependency_links.txt
 │   │   │   │   ├── requires.txt
 │   │   │   │   └── top_level.txt
-│   │   │   └── agi_runner
+│   │   │   └── agi_distributor
 │   │   │       ├── __init__.py
-│   │   │       ├── agi_runner.py
+│   │   │       ├── agi_distributor.py
 │   │   │       └── cli.py
 │   │   ├── uv.lock
 │   │   └── uv_config.toml
@@ -569,8 +572,6 @@
 │   ├── env
 │   │   ├── MANIFEST.in
 │   │   ├── coverage.xml
-│   │   ├── dist
-│   │   │   └── agi_env-0.3.59-py3-none-any.whl
 │   │   ├── pyproject.toml
 │   │   ├── src
 │   │   │   ├── agi_env
@@ -610,9 +611,9 @@
 │   │   │   ├── agent_worker
 │   │   │   │   ├── __init__.py
 │   │   │   │   └── agent_worker.py
-│   │   │   ├── agi_manager
+│   │   │   ├── agi_dispatcher
 │   │   │   │   ├── __init__.py
-│   │   │   │   ├── agi_manager.py
+│   │   │   │   ├── agi_dispatcher.py
 │   │   │   │   └── build.py
 │   │   │   ├── agi_node.egg-info
 │   │   │   │   ├── PKG-INFO
@@ -643,31 +644,33 @@
 │       ├── test_pandas_worker.py
 │       ├── test_polars_worker.py
 │       └── test_work_dispatcher.py
-├── fwk
-│   └── core
-│       ├── cluster
-│       └── node
-│           └── license-out.json
 ├── gui
 │   ├── LICENSE
 │   ├── MANIFEST.in
 │   ├── README.md
 │   ├── pyproject.toml
 │   ├── src
-│   │   └── agi_gui
-│   │       ├── AGILAB.py
-│   │       ├── __init__.py
-│   │       ├── agi_copilot.py
-│   │       ├── lab_run.py
-│   │       ├── pagelib.py
-│   │       ├── pages
-│   │       │   ├── ▶️ EDIT.py
-│   │       │   ├── ▶️ EXECUTE.py
-│   │       │   ├── ▶️ EXPERIMENT.py
-│   │       │   └── ▶️ VIEW.py
-│   │       ├── resources
-│   │       │   └── __init__.py
-│   │       └── steps.toml
+│   │   ├── agi_gui
+│   │   │   ├── AGILAB.py
+│   │   │   ├── __init__.py
+│   │   │   ├── agi_copilot.py
+│   │   │   ├── lab_run.py
+│   │   │   ├── pagelib.py
+│   │   │   ├── pages
+│   │   │   │   ├── ▶️ EDIT.py
+│   │   │   │   ├── ▶️ EXECUTE.py
+│   │   │   │   ├── ▶️ EXPERIMENT.py
+│   │   │   │   └── ▶️ VIEW.py
+│   │   │   ├── resources
+│   │   │   │   └── __init__.py
+│   │   │   └── steps.toml
+│   │   └── agi_gui.egg-info
+│   │       ├── PKG-INFO
+│   │       ├── SOURCES.txt
+│   │       ├── dependency_links.txt
+│   │       ├── entry_points.txt
+│   │       ├── requires.txt
+│   │       └── top_level.txt
 │   ├── test
 │   │   ├── __init__.py
 │   │   └── test-streamlit.sh
@@ -696,7 +699,7 @@
     │           └── maps_3d.py
     └── pyproject.toml
 
-71 directories, 243 files
+63 directories, 235 files
 </pre></div>
 </div>
 </section>

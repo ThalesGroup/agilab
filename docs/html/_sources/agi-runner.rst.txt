@@ -1,4 +1,4 @@
-agi_runner API
+agi_distributor API
 ======================
 
 Usage Example
@@ -49,24 +49,24 @@ Run
 Reference
 ----------
 
-agi_runner
+agi_distributor
 ~~~~~~~~~~
 
-.. image:: diagrams/packages_agi_runner.png
+.. image:: diagrams/packages_agi_distributor.png
    :width: 400
-   :alt: Packages diagram for agi_runner
+   :alt: Packages diagram for agi_distributor
    :align: center
 
 ----
 
-.. image:: diagrams/classes_agi_runner.png
+.. image:: diagrams/classes_agi_distributor.png
    :width: 400
-   :alt: Classes diagram for agi_runner
+   :alt: Classes diagram for agi_distributor
    :align: center
 
 ----
 
-.. automodule:: agi_runner.agi_runner
+.. automodule:: agi_distributor.agi_distributor
    :members:
    :undoc-members:
    :show-inheritance:
