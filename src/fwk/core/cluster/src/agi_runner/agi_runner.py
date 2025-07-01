@@ -725,6 +725,7 @@ class AGI:
         dist_rel = env.dist_rel
         wenv_rel = env.wenv_rel
         pyvers = env.python_version
+        pyvers_prefix = env.python_version + "+freethreaded-"
 
         # You can remove this check or keep it if you expect no scheduler/workers (rare)
         if not list_ip:
@@ -772,6 +773,13 @@ class AGI:
             # 3) Install Python
             await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers}")
             await env.send_file(ip, env.cluster_root / "src/agi_runner/cli.py", env.wenv_rel.parent)
+
+            cli = env.wenv_rel.parent / "cli.py"
+            cmd = f"{uv} run python {cli} platform {wenv_rel}"
+            platform =  AGI.exec_ssh(ip, cmd)
+            pyvers_worker = pyvers_prefix + platform
+            await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers_worker}")
+
             await AGI._kill(ip, force=True)
             await AGI._clean_dirs(ip)
 

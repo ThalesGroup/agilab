@@ -177,6 +177,11 @@ def test_python_threads():
     else:
         logger.info("Likely normal Python (GIL active)")
 
+import platform, sys
+def python_full_name():
+    arch = platform.machine().replace('arm64', 'aarch64')
+    return f"{platform.python_implementation().lower()}-{platform.python_version()}-macos-{arch}-none"
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "kill"
     arg = sys.argv[2] if len(sys.argv) > 2 else None
@@ -199,8 +204,10 @@ if __name__ == "__main__":
         clean(wenv=arg)
     elif cmd == "unzip":
         unzip(wenv=arg)
-    elif cmd == "test_python":
+    elif cmd == "threads":
         test_python_threads()
+    elif cmd == "plateform":
+        python_full_name()
     else:
-        logger.error(f"Unknown command: {cmd}. Use 'kill', 'clean', or 'unzip'.")
+        logger.error(f"Unknown command: {cmd}. Use 'kill', 'clean', 'unzip', 'threads' or 'plateform'.")
 
