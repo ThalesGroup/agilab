@@ -17,7 +17,6 @@ dependencies = [
     "py7zr",
     "python-dotenv",
     "fastparquet",
-    "ipython",
     "logging",
     "psutil",
     "scipy==1.15.2",

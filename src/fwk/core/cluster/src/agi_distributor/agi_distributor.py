@@ -756,8 +756,8 @@ class AGI:
         cli = wenv_abs.parent / file.name
         cmd = f"{uv} run python {cli} platform"
         res = await AgiEnv.run(cmd, wenv_abs.parent)
-        pyvers_worker = res.split(':')[-1].strip()
-        await AgiEnv.run(f"{cmd_prefix}{env.uv} python install {pyvers_worker}", wenv_abs)
+        env.pyvers_worker = res.split(':')[-1].strip()
+        await AgiEnv.run(f"{cmd_prefix}{env.uv} python install {env.pyvers_worker}", wenv_abs)
 
         cmd = (
             f"{uv} --project {wenv_abs} init --bare --no-workspace"
@@ -922,11 +922,11 @@ class AGI:
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         uv = cmd_prefix + env.uv
 
-        os.makedirs(wenv_abs, exist_ok=True)
-        file = env.worker_pyproject
-        logging.info(f"Copying {file} -> {wenv_abs}")
+        #os.makedirs(wenv_abs, exist_ok=True)
+        #file = env.worker_pyproject
+        #logging.info(f"Copying {file} -> {wenv_abs}")
 
-        shutil.copy(file, wenv_abs / file.name)
+        #shutil.copy(file, wenv_abs / file.name)
         file = env.setup_core
         logging.info(f"Copying {file} -> {wenv_abs}")
 
@@ -944,7 +944,7 @@ class AGI:
         if has_rapids_hw:
             cmd_manager = f"{uv} {run_type} --config-file uv_config.toml --project {app_path}"
         else:
-            cmd_manager = f"{uv} {run_type} --project {app_path}"
+            cmd_manager = f"{uv} {run_type} -p 'cpython-3.13.5+freethreaded-macos-aarch64-none' --project {app_path}"
 
         logging.info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
