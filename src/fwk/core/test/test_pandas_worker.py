@@ -8,7 +8,7 @@ multiprocessing.set_start_method("spawn", force=True)
 
 data_src = Path(__file__).parent.parent
 worker_root = data_src.parent
-for src in [data_src, worker_root / "pandas_worker", worker_root / "agi_manager"]:
+for src in [data_src, worker_root / "pandas_worker", worker_root / "agi_dispatcher"]:
     path = str(src.absolute() / "src")
     if path not in sys.path:
         sys.path.insert(0, str(path))
@@ -16,7 +16,7 @@ for src in [data_src, worker_root / "pandas_worker", worker_root / "agi_manager"
 # Now import modules
 from pandas_worker import PandasWorker
 import  pandas as pd
-from agi_manager import BaseWorker
+from agi_dispatcher import BaseWorker
 # DummyWorker can be defined if needed for instance methods test.
 class DummyWorker(BaseWorker):
     def works(self, workers_tree, workers_tree_info):
