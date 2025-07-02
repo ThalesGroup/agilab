@@ -1,9 +1,8 @@
 import pytest
-from flight import FlightManager
-
+from flight import Flight
 @pytest.fixture
 def manager():
-    return FlightManager()
+    return Flight()
 
 def test_flight_manager_registers_workers(manager):
     manager.add_worker("w1")
