@@ -114,6 +114,7 @@ class Flight(BaseWorker):
 
     def __init__(self, env, **args: Unpack[FlightArgs]):
 
+        self.args = args
         # Handling defaults and specific behaviors
         """
         Initialize a Flight object with provided arguments.
