@@ -1,28 +1,25 @@
 import asyncio
-import sys
-from agi_core.agi_cluster import AGI
+from agi_env import AgiEnv
+from mycode import Mycode  # assuming your Mycode class is here
+from datetime import date
 
+async def main():
+    env = AgiEnv(active_app='mycode', verbose=True)
 
-async def main(method_name):
-    # Retrieve the method using getattr
-    try:
-        method = getattr(AGI, method_name)
-    except AttributeError:
-        raise ValueError(f"AGI has no method named '{method_name}'")
+    # Instantiate Mycode with your parameters
+    mycode = Mycode(
+        env=env,
+        verbose=True,
+    )
 
-    if method_name == "install":
-        res = await method('mycode', verbose=3, modes_enabled=0b0111, list_ip=None)
-    elif method_name == "distribute":
-        res = await method('mycode', verbose=True)
-    elif method_name == "run":
-        res = await method('mycode', mode=3, verbose=True)
-    else:
-        raise ValueError("Unknown method name")
-    print(res)
+    # Example list of workers to pass to build_distribution
+    workers = {'worker1': 2, 'worker2': 3}
+
+    # Call build_distribution (await if async)
+    result = mycode.build_distribution(workers)
+
+    print(result)
+
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("Usage: script.py <method_name>")
-        sys.exit(1)
-    method_name = sys.argv[1]
-    asyncio.run(main(method_name))
+    asyncio.run(main())

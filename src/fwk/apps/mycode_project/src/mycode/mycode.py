@@ -61,7 +61,7 @@ class Mycode(BaseWorker):
         self.args = args
         WorkDispatcher.args = args
 
-    def build_distribution(self):
+    def build_distribution(self, workers):
         """Build distribution as a calling graph."""
 
         workers_tree = [
