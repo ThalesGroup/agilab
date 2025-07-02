@@ -1,5 +1,8 @@
 import sys
 from pathlib import Path
+path = str(Path(__file__).resolve().parents[3]  / "core/node/src")
+if path not in sys.path:
+    sys.path.append(path)
 from agi_dispatcher import BaseWorker
 from agi_env import AgiEnv
 import asyncio
