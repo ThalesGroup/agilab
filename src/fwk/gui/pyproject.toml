@@ -38,6 +38,7 @@ keywords = [
     "datascience",
 ]
 dependencies = [
+    "agi-env",
     "agi-cluster",
     "astor",
     "fastparquet",

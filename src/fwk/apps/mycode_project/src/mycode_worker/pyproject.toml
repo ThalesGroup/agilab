@@ -4,13 +4,29 @@ version = "0.1.8"
 description = ""
 requires-python = ">=3.11"
 readme = "README.md"
-dependencies = [ "numpy", "geopy", "setuptools", "cython", "psutil", "parso", "py7zr", "python-dotenv", "humanize", "requests", "dask[distributed]"]
+dependencies = [
+    "numpy",
+    "geopy",
+    "setuptools",
+    "cython",
+    "psutil",
+    "parso",
+    "py7zr",
+    "python-dotenv",
+    "humanize",
+    "requests",
+    "dask[distributed]",
+    "agi-dispatcher"
+]
+
 [[project.authors]]
 name = "Jean-Pierre Morard"
 email = "focus@thalesgroup.com"
 
 [dependency-groups]
 dev = [ "black", "pytest", "licensecheck"]
+
+agi-dispatcher = {path = "src", editable = true}
 
 [project.license]
 text = "Thales SIX GTS France SAS"
@@ -19,7 +35,6 @@ text = "Thales SIX GTS France SAS"
 mypy_path = [ "stubs",]
 disallow_untyped_defs = false
 ignore_missing_imports = true
-
 
 [project.optional-dependencies]
 agi-worker = []

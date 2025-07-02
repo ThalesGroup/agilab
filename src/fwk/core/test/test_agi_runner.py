@@ -3,7 +3,7 @@ import socket
 from pathlib import Path, PurePosixPath
 import asyncio
 import pytest
-from agi_runner import AGI
+from agi_distributor import AGI
 from agi_env import AgiEnv, normalize_path
 
 # Set AGI verbosity low to avoid extra prints during test.

@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from agi_manager import BaseWorker, WorkDispatcher
+from agi_dispatcher import BaseWorker, WorkDispatcher
 
 
 class DummyWorker(BaseWorker):
@@ -23,7 +23,7 @@ def worker():
 def test_baseworker_run_calls_exec():
     with patch.object(BaseWorker, 'env', new=MagicMock(module='mod')), \
          patch.object(BaseWorker, '_load_manager', return_value=DummyWorker), \
-         patch('agi_manager.agi_manager.WorkDispatcher.do_distrib', return_value=({}, {}, {})):
+         patch('agi_dispatcher.agi_dispatcher.WorkDispatcher.do_distrib', return_value=({}, {}, {})):
         BaseWorker.run(args={})
 
 

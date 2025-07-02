@@ -4,12 +4,12 @@ import sys
 from pathlib import Path
 data_src = Path(__file__).parent.parent
 worker_root = data_src.parent
-for src in [data_src, worker_root / "dag_worker", worker_root / "agi_manager"]:
+for src in [data_src, worker_root / "dag_worker", worker_root / "agi_dispatcher"]:
     path = str(src.absolute() / "src")
     if path not in sys.path:
         sys.path.insert(0, str(path))
 
-from agi_manager import BaseWorker
+from agi_dispatcher import BaseWorker
 from dag_worker import DagWorker
 
 # --- Dummy functions for testing ---

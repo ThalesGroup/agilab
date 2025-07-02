@@ -251,7 +251,7 @@ class AGI:
                 "AgentWorker": "agent-worker",
             }
             # AGI.install_worker_group = AGI.agi_workers[env.base_worker_cls]
-            AGI.install_worker_group = ["agi-manager ", AGI.agi_workers[env.base_worker_cls]]
+            AGI.install_worker_group = ["agi-dispatcher ", AGI.agi_workers[env.base_worker_cls]]
             base_worker_dir = str(env.cluster_root / "src")
             if base_worker_dir not in sys.path:
                 sys.path.insert(0, base_worker_dir)
@@ -906,9 +906,9 @@ class AGI:
         cmd = f"{uv} pip install -e ."
         await AgiEnv.run(cmd, app_path)
 
-        ######################
-        # install env & core
-        ######################
+        #############
+        # install env
+        ##############
 
         cmd = f"{uv} pip install -e ."
         await AgiEnv.run(cmd, wenv_abs)
@@ -927,13 +927,13 @@ class AGI:
         cmd = f"{uv} --project {wenv_abs} add {whl}"
         await AgiEnv.run(cmd, wenv_abs)
 
-        # build agi_distributor*.whl
+        # build agi_cluster*.whl
         menv = env.env_root
         cmd = f"{uv} --project {menv} build --wheel"
         await AgiEnv.run(cmd, menv)
         src = menv / "dist"
         try:
-            whl = next(iter(src.glob("agi_ditributor*.whl")))
+            whl = next(iter(src.glob("agi_cluster*.whl")))
             #shutil.copy2(whl, wenv_abs)
         except StopIteration:
             raise RuntimeError(cmd)
@@ -1001,9 +1001,9 @@ class AGI:
         cmd = f"{uv} run python {cli} unzip {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
 
-        #####################################################
-        # install env & core for enabling dask worker spawn
-        ######################################################
+        #############
+        # install env
+        #############
 
         cmd = f"{uv} --project {wenv_rel} run python -m ensurepip"
         await AGI.exec_ssh(ip, cmd)

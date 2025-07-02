@@ -13,6 +13,8 @@ dependencies = [
     "psutil",
     "agi-env",
     "polars",
+    "agi-node",
+    "agi-env",
 ]
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
@@ -35,7 +37,6 @@ dev = [
 [tool.uv.sources]
 agi-env = {path = "../../core/env", editable = true}
 agi-node = {path = "../../core/node", editable = true}
-agi-cluster = {path = "../../core/cluster", editable = true}
 
 [tool.uv.sources.mycode_project]
 workspace = true
