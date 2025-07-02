@@ -225,7 +225,7 @@ if __name__ == "__main__":
         clean(wenv=arg)
     elif cmd == "unzip":
         unzip(wenv=arg)
-    elif cmd == "threads":
+    elif cmd == "threaded":
         test_python_threads()
     elif cmd == "platform":
         python_version()

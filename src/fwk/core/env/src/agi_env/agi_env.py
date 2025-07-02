@@ -60,6 +60,7 @@ class AgiEnv:
     uv = None
     benchmark = None
     verbose = None
+    pyvers_worker = None
     _ip_local_cache: set = set({"127.0.0.1", "::1"})
 
 
