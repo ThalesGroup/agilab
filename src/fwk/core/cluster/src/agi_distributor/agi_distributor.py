@@ -251,7 +251,7 @@ class AGI:
                 "AgentWorker": "agent-worker",
             }
             # AGI.install_worker_group = AGI.agi_workers[env.base_worker_cls]
-            AGI.install_worker_group = ["agi-dispatcher ", AGI.agi_workers[env.base_worker_cls]]
+            AGI.install_worker_group = ["agi-manager ", AGI.agi_workers[env.base_worker_cls]]
             base_worker_dir = str(env.cluster_root / "src")
             if base_worker_dir not in sys.path:
                 sys.path.insert(0, base_worker_dir)
@@ -927,8 +927,8 @@ class AGI:
         cmd = f"{uv} --project {wenv_abs} add {whl}"
         await AgiEnv.run(cmd, wenv_abs)
 
-        # build agi_cluster*.whl
-        menv = env.env_root
+        # build agi_distributor*.whl
+        menv = env.cluster_root
         cmd = f"{uv} --project {menv} build --wheel"
         await AgiEnv.run(cmd, menv)
         src = menv / "dist"
