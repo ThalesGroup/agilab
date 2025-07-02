@@ -16,7 +16,6 @@ dependencies = [
     "humanize",
     "requests",
     "dask[distributed]",
-    "agi-dispatcher"
 ]
 
 [[project.authors]]
@@ -25,8 +24,6 @@ email = "focus@thalesgroup.com"
 
 [dependency-groups]
 dev = [ "black", "pytest", "licensecheck"]
-
-agi-dispatcher = {path = "src", editable = true}
 
 [project.license]
 text = "Thales SIX GTS France SAS"
