@@ -19,7 +19,6 @@ from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 import py7zr
 import urllib.request
-from IPython.core.ultratb import FormattedTB
 import inspect
 
 # Get constructor parameters of FormattedTB
