@@ -21,7 +21,6 @@ dependencies = [
     "logging",
     "psutil",
     "scipy==1.15.2",
-    "agi-dispatcher"
 ]
 
 [dependency-groups]
@@ -30,9 +29,6 @@ dev = [
     "pytest",
     "licensecheck",
 ]
-
-[tool.uv.sources]
-agi-dispatcher = {path = "src", editable = true}
 
 [[project.authors]]
 name = "Jean-Pierre Morard"
