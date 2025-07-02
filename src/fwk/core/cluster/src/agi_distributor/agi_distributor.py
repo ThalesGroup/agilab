@@ -710,6 +710,61 @@ class AGI:
             await asyncio.gather(*tasks)
 
     @staticmethod
+    async def _install_venv_local() -> None:
+        """
+        Validate and prepare each remote node in the cluster:
+        - Verify each IP is valid and reachable.
+        - Detect and install Python interpreters if missing.
+        - Detect and install 'uv' CLI via pip if missing.
+        - Use 'uv' to install the specified Pytho
+        n version, create necessary directories, and install packages.
+        """
+        env = AGI.env
+        wenv_abs = env.wenv_abs
+        pyvers = env.python_version
+        env = AGI.env
+        ip = "127.0.0.1"
+        has_rapids_hw = AGI._hardware_supports_rapids() and AGI._rapids_enabled
+        env.has_rapids_hw = has_rapids_hw
+
+        os.makedirs(wenv_abs, exist_ok=True)
+        file = env.worker_pyproject
+        logging.info(f"Copying {file} -> {wenv_abs}")
+        shutil.copy(file, wenv_abs / file.name)
+
+        file = env.setup_core
+        logging.info(f"Copying {file} -> {wenv_abs}")
+        shutil.copy2(file, wenv_abs)
+
+        file = env.cluster_root / "src/agi_distributor/cli.py"
+        logging.info(f"Copying {file} -> {wenv_abs.parent}")
+        shutil.copy(file, wenv_abs.parent)
+
+        if has_rapids_hw:
+            env.set_env_var(ip, "has_rapids_hw")
+        else:
+            env.set_env_var(ip, "no_rapids_hw")
+
+        logging.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
+
+        # Install Python
+        cmd_prefix = env.envars.get(str("{127.0.0.1}_CMD_PREFIX"), "")
+        uv = cmd_prefix + env.uv
+
+        AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
+
+        cli = wenv_abs.parent / file.name
+        cmd = f"{uv} run python {cli} platform"
+        res = await AgiEnv.run(cmd, wenv_abs.parent)
+        pyvers_worker = res.split(':')[-1].strip()
+        await AgiEnv.run(f"{cmd_prefix}{env.uv} python install {pyvers_worker}", wenv_abs)
+
+        cmd = (
+            f"{uv} --project {wenv_abs} init --bare --no-workspace"
+        )
+        await AgiEnv.run(cmd, wenv_abs)
+
+    @staticmethod
     async def _install_venv_cluster(scheduler_addr: Optional[str]) -> None:
         """
         Validate and prepare each remote node in the cluster:
@@ -1483,13 +1538,13 @@ class AGI:
 
         if env.debug:
             BaseWorker.new(env.app, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
-            res = BaseWorker.run(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
+            res = BaseWorker.test(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
         else:
             cmd = (
                 f"{env.uv} run --project {env.wenv_abs} python -c \"from agi_dispatcher import  BaseWorker;"
                 f"from dask.distributed import print;"
                 f"BaseWorker.new('{env.app}', mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
-                f"res = BaseWorker.run({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
+                f"res = BaseWorker.test({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
                 f"print(res)\""
             )
 
@@ -1586,8 +1641,8 @@ class AGI:
 
             if AGI._mode & AGI.DASK_MODE:
                 await AGI._install_venv_cluster(scheduler)
-            else:
-                AGI._clean_dirs_local()
+            AGI._clean_dirs_local()
+            await AGI._install_venv_local()
 
             await AGI._install(scheduler)
 

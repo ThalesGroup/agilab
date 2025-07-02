@@ -823,6 +823,7 @@ class AgiEnv:
                         err_line = process.stderr.readline()
 
                     result += out_line
+                    result +=  "\n" + err_line if result else err_line
 
                     if out_line:
                         line = out_line.rstrip("\n")

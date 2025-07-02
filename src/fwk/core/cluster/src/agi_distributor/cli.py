@@ -179,10 +179,10 @@ def test_python_threads():
     else:
         logger.info("Likely normal Python (GIL active)")
 
-def platform_triplet():
+def python_version():
     arch = platform.machine().lower().replace('arm64', 'aarch64').replace('amd64', 'x86_64')
     sys_name = platform.system().lower()
-    # Map system name to tag
+    # Map system name to pip tag
     if sys_name == 'darwin':
         os_tag = 'macos'
     elif sys_name == 'windows':
@@ -190,9 +190,17 @@ def platform_triplet():
     elif sys_name == 'linux':
         os_tag = 'linux'
     else:
-        os_tag = sys_name  # fallback to whatever it is
+        os_tag = sys_name  # fallback
 
-    logger.info(f"{os_tag}-{arch}-none")
+    version = platform.python_version()
+    cache_tag = getattr(sys.implementation, "cache_tag", "")
+    # Detect free-threaded (works for 3.13+)
+    freethreaded = "+freethreaded"  #if "freethreaded" in cache_tag else ""
+
+    # Build the tag
+    tag = f"{sys.implementation.name}-{version}{freethreaded}-{os_tag}-{arch}-none"
+    logger.info(tag)
+
 
 
 if __name__ == "__main__":
@@ -220,7 +228,7 @@ if __name__ == "__main__":
     elif cmd == "threads":
         test_python_threads()
     elif cmd == "platform":
-        platform_triplet()
+        python_version()
     else:
         logger.error(f"Unknown command: {cmd}. Use 'kill', 'clean', 'unzip', 'threads' or 'plateform'.")
 

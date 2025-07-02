@@ -25,5 +25,5 @@ uv init && uv add fwk-core
 ### Run
 
 ```bash
-uv run agilab
+uv test agilab
 ```
