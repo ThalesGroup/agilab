@@ -2580,7 +2580,6 @@ static const char __pyx_k_startswith[] = "startswith";
 static const char __pyx_k_subprocess[] = "subprocess";
 static const char __pyx_k_with_shape[] = " with shape ";
 static const char __pyx_k_Y_m_d_H_M_S[] = "%Y-%m-%d %H:%M:%S";
-static const char __pyx_k_agi_dispatcher[] = "agi_dispatcher";
 static const char __pyx_k_csv_parquet[] = "\\.(csv|parquet)$";
 static const char __pyx_k_data_source[] = "data_source";
 static const char __pyx_k_global_vars[] = "global_vars";
@@ -2604,6 +2603,7 @@ static const char __pyx_k_output_format[] = "output_format";
 static const char __pyx_k_polars_worker[] = "polars_worker";
 static const char __pyx_k_preprocess_df[] = "preprocess_df";
 static const char __pyx_k_write_parquet[] = "write_parquet";
+static const char __pyx_k_agi_dispatcher[] = "agi_dispatcher";
 static const char __pyx_k_filterwarnings[] = "filterwarnings";
 static const char __pyx_k_geopy_distance[] = "geopy.distance";
 static const char __pyx_k_normalize_path[] = "normalize_path";
@@ -2781,8 +2781,8 @@ static __pyx_mstatetype * const __pyx_mstate_global = &__pyx_mstate_global_stati
 #define __pyx_kp_u__8 __pyx_string_tab[44]
 #define __pyx_kp_u__9 __pyx_string_tab[45]
 #define __pyx_kp_u_add_note __pyx_string_tab[46]
-#define __pyx_n_u_agi_env __pyx_string_tab[47]
-#define __pyx_n_u_agi_dispatcher __pyx_string_tab[48]
+#define __pyx_n_u_agi_dispatcher __pyx_string_tab[47]
+#define __pyx_n_u_agi_env __pyx_string_tab[48]
 #define __pyx_n_u_aircraft __pyx_string_tab[49]
 #define __pyx_n_u_alias __pyx_string_tab[50]
 #define __pyx_n_u_args __pyx_string_tab[51]
@@ -9223,8 +9223,8 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k__8, sizeof(__pyx_k__8), 0, 1, 0}, /* PyObject cname: __pyx_kp_u__8 */
   {__pyx_k__9, sizeof(__pyx_k__9), 0, 1, 0}, /* PyObject cname: __pyx_kp_u__9 */
   {__pyx_k_add_note, sizeof(__pyx_k_add_note), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_add_note */
-  {__pyx_k_agi_env, sizeof(__pyx_k_agi_env), 0, 1, 1}, /* PyObject cname: __pyx_n_u_agi_env */
   {__pyx_k_agi_dispatcher, sizeof(__pyx_k_agi_dispatcher), 0, 1, 1}, /* PyObject cname: __pyx_n_u_agi_dispatcher */
+  {__pyx_k_agi_env, sizeof(__pyx_k_agi_env), 0, 1, 1}, /* PyObject cname: __pyx_n_u_agi_env */
   {__pyx_k_aircraft, sizeof(__pyx_k_aircraft), 0, 1, 1}, /* PyObject cname: __pyx_n_u_aircraft */
   {__pyx_k_alias, sizeof(__pyx_k_alias), 0, 1, 1}, /* PyObject cname: __pyx_n_u_alias */
   {__pyx_k_args, sizeof(__pyx_k_args), 0, 1, 1}, /* PyObject cname: __pyx_n_u_args */
