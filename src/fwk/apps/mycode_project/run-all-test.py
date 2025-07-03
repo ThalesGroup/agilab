@@ -12,9 +12,12 @@ if pp:
 
 cluster_src = str((Path(__file__).parent / "cluster" / "src").resolve())
 node_src = str((Path(__file__).parent / "node" / "src").resolve())
+app_src = str((Path(__file__).parents[2] / "apps/mycode_project" / "src").resolve())
 
+if app_src not in paths:
+    paths.insert(0, app_src)
 if cluster_src not in paths:
-    paths.insert(0, cluster_src)
+    paths.insert(0, node_src)
 if node_src not in paths:
     paths.insert(0, node_src)
 
@@ -33,25 +36,11 @@ def main():
         print("No test files found.")
         sys.exit(1)
 
-    coverage_packages = [
-        "agi_runner",
-        "agi_manager",
-        "agent_worker",
-        "dag_worker",
-        "pandas_worker",
-        "polars_worker",
-    ]
-
-    cov_args = [f"--cov={pkg}" for pkg in coverage_packages]
 
     cmd = [
         sys.executable, "-m", "pytest",
         "--rootdir", str(repo_root),
-        *cov_args,
-        "--cov-report=term",
-        "--cov-report=xml",
         "--import-mode=importlib",
-        "--local-badge-output-dir",
         str(badges_root),
     ] + [str(f) for f in test_files]
 
