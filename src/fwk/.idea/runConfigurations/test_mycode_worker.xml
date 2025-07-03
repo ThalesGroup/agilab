@@ -13,7 +13,7 @@
     <option name="_new_keywords" value="&quot;&quot;" />
     <option name="_new_parameters" value="&quot;&quot;" />
     <option name="_new_additionalArguments" value="&quot;&quot;" />
-    <option name="_new_target" value="&quot;$ProjectFileDir$/apps/mycode_project/test/test_mycode_worker.py&quot;" />
+    <option name="_new_target" value="&quot;$PROJECT_DIR$/apps/mycode_project/test/test_mycode_worker.py&quot;" />
     <option name="_new_targetType" value="&quot;PATH&quot;" />
     <method v="2" />
   </configuration>
