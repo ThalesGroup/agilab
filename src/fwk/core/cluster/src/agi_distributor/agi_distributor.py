@@ -749,7 +749,7 @@ class AGI:
 
         # Install Python
         cmd_prefix = env.envars.get(str("{127.0.0.1}_CMD_PREFIX"), "")
-        uv = cmd_prefix + env.uv
+        uv = cmd_prefix + "PYTHON_GIL=0;" + env.uv
 
         AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
 
@@ -760,10 +760,10 @@ class AGI:
         env.set_env_var(f"{ip}_PYTHON_VERSION", pyvers)
         await AgiEnv.run(f"{cmd_prefix}{env.uv} python install {pyvers}", wenv_abs)
 
-        cmd = (
-            f"{uv} --project {wenv_abs} init --bare --no-workspace"
-        )
-        await AgiEnv.run(cmd, wenv_abs)
+        # cmd = (
+        #     f"{uv} --project {wenv_abs} init --bare --no-workspace"
+        # )
+        # await AgiEnv.run(cmd, wenv_abs)
 
         cmd = f"{uv} run -p {pyvers} --project {wenv_abs} python {cli} threaded"
         await AgiEnv.run(cmd, wenv_abs)
@@ -785,7 +785,6 @@ class AGI:
         dist_rel = env.dist_rel
         wenv_rel = env.wenv_rel
         pyvers = env.python_version
-        pyvers_prefix = env.python_version + "+freethreaded-"
 
         # You can remove this check or keep it if you expect no scheduler/workers (rare)
         if not list_ip:
@@ -831,7 +830,7 @@ class AGI:
                 raise EnvironmentError("Failed to install uv")
 
             # 3) Install Python
-            uv = cmd_prefix + env.uv
+            uv = cmd_prefix+ "PYTHON_GIL=0;" + env.uv
             await AGI.exec_ssh(ip, f"{uv} python install {pyvers}")
             await env.send_file(ip, env.cluster_root / "src/agi_distributor/cli.py", env.wenv_rel.parent)
 
@@ -927,7 +926,7 @@ class AGI:
         env.has_rapids_hw = has_rapids_hw
         wenv_abs = env.wenv_abs
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-        uv = cmd_prefix + env.uv
+        uv = cmd_prefix + "PYTHON_GIL=0" + env.uv
         pyvers = env.envars.get(str("{127.0.0.1}_PYTHON_VERSION"), "")
 
         #os.makedirs(wenv_abs, exist_ok=True)
@@ -1021,9 +1020,9 @@ class AGI:
         dist_abs = env.dist_abs
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         pyvers  = env.envars.get(f"{ip}_PYTHON_VERSION", "")
-        uv  = cmd_prefix + env.uv
+        uv  = cmd_prefix + "PYTHON_GIL=0;" + env.uv
 
-        cmd = f"{uv} run python -p {pyvers} -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
+        cmd = f"{uv} run -p {pyvers} python  -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
         await AGI.exec_ssh(ip, cmd)
 
         # Then send the files to the remote directory
