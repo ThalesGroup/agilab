@@ -11,9 +11,9 @@ async def main():
         'param3': 3.14,
         'param4': True
     }
-
-    sys.path.insert(0,'/Users/jpm/PycharmProjects/agilab/src/fwk/apps/mycode_project/src')
-    sys.path.insert(0,'/Users/jpm/wenv/mycode_worker/dist')
+    base_path = Path(__file__).resolve().parents[3]
+    sys.path.insert(0, base_path/ 'apps/mycode_project/src')
+    sys.path.insert(0,'~/wenv/mycode_worker/dist')
 
 
     # BaseWorker.test flight command

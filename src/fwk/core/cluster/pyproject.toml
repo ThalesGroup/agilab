@@ -63,6 +63,7 @@ dependencies = [
     "requests",
     "asyncssh",
     "agi-node",
+    "pytest-asyncio>=1.0.0",
 ]
 
 [project.urls]
@@ -82,7 +83,8 @@ dev = [
     "polars",
     "pandas",
     "fastparquet",
-    "pytest-cov"
+    "pytest-cov",
+    "pytest-asyncio",
 ]
 
 

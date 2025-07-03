@@ -2,13 +2,20 @@ import sys
 import pytest
 import asyncio
 from pathlib import Path
+path = str(Path(__file__).resolve().parents[3]  / "core/node/src")
+if path not in sys.path:
+    sys.path.append(path)
+from agi_dispatcher import BaseWorker
+from agi_env import AgiEnv
+
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_sys_path():
     # Setup sys.path before tests
-    node_path = (Path(__file__).resolve().parents[3] / "core/node/src")
-    flight_src = Path("/Users/jpm/PycharmProjects/agilab/src/fwk/apps/flight_project/src")
-    flight_dist = Path("/Users/jpm/wenv/flight_worker/dist")
+    base_path = Path(__file__).resolve().parents[3]
+    node_path = base_path / "core/node/src"
+    flight_src = base_path / "apps/flight_project/src"
+    flight_dist = Path("~/wenv/flight_worker/dist")
     for p in [node_path, flight_src, flight_dist]:
         sp = str(p)
         if sp not in sys.path:
@@ -33,7 +40,19 @@ def args():
 def env():
     # Local import after sys.path is set
     from agi_env import AgiEnv
-    return AgiEnv(install_type=1, active_app="flight_project", verbose=True)
+    env = AgiEnv(install_type=1, active_app="flight_project", verbose=True)
+    env = AgiEnv(install_type=1, active_app="flight_project", verbose=True)
+    # build the egg
+    wenv = env.wenv_abs
+    build = wenv / "build.py"
+    menv = env.wenv_abs
+    cmd = f"uv run --project {menv} python {build} bdist_egg --packages base_worker, polars_worker -d {menv}"
+    env.run(cmd, menv)
+
+    # build cython lib
+    cmd = f"uv run --project {wenv} python {build} build_ext --packages base_worker, polars_worker -b {wenv}"
+    env.run(cmd, wenv)
+    return env
 
 @pytest.fixture(scope="session", autouse=True)
 def build_worker_libs(env):
