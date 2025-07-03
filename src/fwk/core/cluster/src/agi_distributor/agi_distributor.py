@@ -765,6 +765,10 @@ class AGI:
         )
         await AgiEnv.run(cmd, wenv_abs)
 
+        cmd = f"{uv} run -p {pyvers} --project {wenv_abs} python {cli} platform"
+        await AGI.run(cmd, wenv_abs)
+
+
     @staticmethod
     async def _install_venv_cluster(scheduler_addr: Optional[str]) -> None:
         """
