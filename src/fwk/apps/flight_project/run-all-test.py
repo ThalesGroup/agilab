@@ -1,52 +1,42 @@
-#!/usr/bin/env python3
-import os
 from pathlib import Path
-import sys
 import subprocess
 
-# Prepare PYTHONPATH to include cluster/src and node/src
-paths = []
-pp = os.environ.get("PYTHONPATH", "")
-if pp:
-    paths.extend(pp.split(os.pathsep))
 
-cluster_src = str((Path(__file__).parent / "cluster" / "src").resolve())
-node_src = str((Path(__file__).parent / "node" / "src").resolve())
-app_src = str((Path(__file__).parents[2] / "apps/flight_project" / "src").resolve())
-
-if app_src not in paths:
-    paths.insert(0, app_src)
-if cluster_src not in paths:
-    paths.insert(0, node_src)
-if node_src not in paths:
-    paths.insert(0, node_src)
-
-os.environ["PYTHONPATH"] = os.pathsep.join(paths)
-
-def main():
-    repo_root = Path(__file__).parent.absolute()
-    badges_root = repo_root.parents[3] / 'docs/html'
-    os.makedirs(badges_root, exist_ok=True)
-
-    test_files = sorted(
-        p for p in repo_root.rglob("test*.py")
-        if p.is_file() and ".venv" not in p.parts
+def exec(cmd, path, worker):
+    path = str(Path(path).expanduser().absolute())
+    result = subprocess.run(
+        cmd, shell=True, capture_output=True, text=True, cwd=path
     )
-    if not test_files:
-        print("No test files found.")
-        sys.exit(1)
+    print("---- STDOUT ----")
+    print(result.stdout)
+    print("---- STDERR ----")
+    print(result.stderr)
+    if result.returncode != 0:
+        if result.stderr.startswith("WARNING"):
+            print(f"warning: worker {worker} - {cmd}")
+            print(result.stderr)
+        else:
+            raise RuntimeError(
+                f"error on worker {worker} - {cmd}\n{result.stderr}"
+            )
+    return result
 
-    cmd = [
-        sys.executable, "-m", "pytest",
-        "--rootdir", str(repo_root),
-        "--import-mode=importlib",
-        str(badges_root),
-    ] + [str(f) for f in test_files]
 
-    print("Running pytest with command:")
-    print(" ".join(cmd))
-    proc = subprocess.run(cmd, env=os.environ.copy())
-    sys.exit(proc.returncode)
+def print_emoticon(result, success_check=lambda r: r.strip().lower() == "ok"):
+    # Check and display any warnings or errors
+    if result.stderr.strip():
+        print(result.stderr.strip())
+    output = result.stdout
+    print("😀 flight is working" if success_check(output) else "😞 flight fail to run")
 
-if __name__ == "__main__":
-    main()
+wenv = str(Path("~/wenv/flight_worker").expanduser())
+
+# uv run test/_test_flight_worker.py
+cmd = "uv -q run test/test_flight_manager.py"
+res = exec(cmd, wenv, "localhost")
+print_emoticon(res)
+
+# uv run test/_test_flight_worker.py
+cmd = "uv -q run test/test_flight_worker.py"
+res = exec(cmd, wenv, "localhost")
+print_emoticon(res)

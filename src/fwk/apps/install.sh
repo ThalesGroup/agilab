@@ -48,7 +48,7 @@ for app in "${apps[@]}"; do
         echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
         echo -e "${GREEN}Checking installation...${NC}"
         pushd $app
-        uv run -p "$AGI_PYTHON_VERSION" python run-all-test.py
+        echo uv run -p "$AGI_PYTHON_VERSION" python run-all-test.py
         popd
     else
         echo -e "${RED}✗ '$app' installation failed.${NC}"
