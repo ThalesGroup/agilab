@@ -757,8 +757,8 @@ class AGI:
         cmd = f"{uv} run python {cli} platform"
         res = await AgiEnv.run(cmd, wenv_abs.parent)
         pyvers = res.split(':')[-1].strip()
-        env.set_env_var(f"{ip}_pythOn_VERSION", pyvers_worker)
-        await AgiEnv.run(f"{cmd_prefix}{env.uv} python install {pyvers_worker}", wenv_abs)
+        env.set_env_var(f"{ip}_pythOn_VERSION", pyvers)
+        await AgiEnv.run(f"{cmd_prefix}{env.uv} python install {pyvers}", wenv_abs)
 
         cmd = (
             f"{uv} --project {wenv_abs} init --bare --no-workspace"
