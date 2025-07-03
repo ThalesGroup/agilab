@@ -1040,7 +1040,15 @@ class AGI:
         except StopIteration:
             raise FileNotFoundError(f"no existing whl file in {wenv / "agi_env*"}")
 
-        await env.send_files(ip, [egg_file, env_whl, env.setup_core, env.worker_pyproject, env.uvproject], wenv_rel)
+        # build agi_env*.whl
+        wenv = env.node_root / 'dist'
+        try:
+
+            node_whl = next(iter(wenv.glob("agi_node*.whl")))
+        except StopIteration:
+            raise FileNotFoundError(f"no existing whl file in {wenv / "agi_node*"}")
+
+        await env.send_files(ip, [egg_file, node_whl, env_whl, env.setup_core, env.worker_pyproject, env.uvproject], wenv_rel)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
         has_rapids_hw = False
@@ -1076,6 +1084,10 @@ class AGI:
 
         # install env
         cmd = f"{uv} --project {wenv_rel} add --upgrade {wenv_rel / env_whl.name}"
+        await AGI.exec_ssh(ip, cmd)
+
+        # install node
+        cmd = f"{uv} --project {wenv_rel} add --upgrade {wenv_rel / node_whl.name}"
         await AGI.exec_ssh(ip, cmd)
 
         # unzip egg to get src/
