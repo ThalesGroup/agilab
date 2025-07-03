@@ -833,9 +833,8 @@ class AGI:
             cli = env.wenv_rel.parent / "cli.py"
             cmd = f"{uv} run python {cli} platform"
             res =  await AGI.exec_ssh(ip, cmd)
-            platform = res.split(':')[-1]
-            pyvers_worker = pyvers_prefix + platform
-            await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers_worker}")
+            env.pyvers_worker = res.split(':')[-1]
+            await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {env.pyvers_worker}")
 
             await AGI._kill(ip, force=True)
             await AGI._clean_dirs(ip)
