@@ -926,7 +926,7 @@ class AGI:
         env.has_rapids_hw = has_rapids_hw
         wenv_abs = env.wenv_abs
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-        uv = cmd_prefix + "PYTHON_GIL=0" + env.uv
+        uv = cmd_prefix + "PYTHON_GIL=0;" + env.uv
         pyvers = env.envars.get(str("{127.0.0.1}_PYTHON_VERSION"), "")
 
         #os.makedirs(wenv_abs, exist_ok=True)
