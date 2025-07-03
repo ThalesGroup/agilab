@@ -765,7 +765,7 @@ class AGI:
         )
         await AgiEnv.run(cmd, wenv_abs)
 
-        cmd = f"{uv} run -p {pyvers} --project {wenv_abs} python {cli} platform"
+        cmd = f"{uv} run -p {pyvers} --project {wenv_abs} python {cli} threaded"
         await AgiEnv.run(cmd, wenv_abs)
 
 
