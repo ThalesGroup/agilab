@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
-path = str(Path(__file__).resolve().parents[3]  / "core/node/src")
+base_path = Path(__file__).resolve().parents[3]
+path = str(base_path  / "core/node/src")
 if path not in sys.path:
     sys.path.append(path)
 from agi_dispatcher import BaseWorker
@@ -22,8 +23,8 @@ async def main():
         'output_format': "csv"
     }
 
-    sys.path.insert(0,'/Users/jpm/PycharmProjects/agilab/src/fwk/apps/flight_project/src')
-    sys.path.insert(0,'/Users/jpm/wenv/flight_worker/dist')
+    sys.path.insert(0, basepath / 'apps/flight_project/src')
+    sys.path.insert(0,'~/wenv/flight_worker/dist')
 
     # BaseWorker.test flight command
     for i in  range(4): # 2 is working only if you have generate the cython lib before

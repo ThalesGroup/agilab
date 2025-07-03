@@ -51,5 +51,8 @@ for app in "${apps[@]}"; do
     fi
 done
 
+echo -e "${GREEN}Checking installation...${NC}"
+uv run -p "$AGI_PYTHON_VERSION" --project cluster python run-all-test.py
+
 # Final Message
 echo -e "${GREEN}Installation of apps complete!${NC}"

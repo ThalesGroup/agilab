@@ -15,6 +15,7 @@ dependencies = [
     "polars",
     "agi-node",
     "agi-env",
+    "pytest-asyncio>=1.0.0",
 ]
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
@@ -31,6 +32,7 @@ dev = [
     "licensecheck",
     "mycode_project",
     "dask[distributed]",
+    "pytest-asyncio",
 ]
 
 
