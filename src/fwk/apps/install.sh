@@ -41,18 +41,21 @@ done
 
 echo -e "${BLUE}Apps to install:${NC} ${apps[*]}"
 
+pushd ../apps
 for app in "${apps[@]}"; do
     echo -e "${BLUE}Installing $app...${NC}"
     if eval "$APP_INSTALL $app --apps-dir $(pwd) --install-type $2"; then
         echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
+        echo -e "${GREEN}Checking installation...${NC}"
+        pushd $app
+        echo uv run -p "$AGI_PYTHON_VERSION" python run-all-test.py
+        popd
     else
         echo -e "${RED}✗ '$app' installation failed.${NC}"
         exit 1
     fi
 done
-
-echo -e "${GREEN}Checking installation...${NC}"
-uv run -p "$AGI_PYTHON_VERSION" --project cluster python run-all-test.py
+popd
 
 # Final Message
 echo -e "${GREEN}Installation of apps complete!${NC}"

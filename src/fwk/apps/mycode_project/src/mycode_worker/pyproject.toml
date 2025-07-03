@@ -23,7 +23,7 @@ name = "Jean-Pierre Morard"
 email = "focus@thalesgroup.com"
 
 [dependency-groups]
-dev = [ "black", "pytest", "licensecheck"]
+dev = [ "black", "pytest", "pytest-asyncio", "licensecheck"]
 
 [project.license]
 text = "Thales SIX GTS France SAS"

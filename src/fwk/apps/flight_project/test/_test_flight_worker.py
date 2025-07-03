@@ -23,7 +23,7 @@ async def main():
         'output_format': "csv"
     }
 
-    sys.path.insert(0, basepath / 'apps/flight_project/src')
+    sys.path.insert(0, base_path / 'apps/flight_project/src')
     sys.path.insert(0,'~/wenv/flight_worker/dist')
 
     # BaseWorker.test flight command
