@@ -989,19 +989,19 @@ class AGI:
         cmd = f"{uv} --project {wenv_abs} add {whl}"
         await AgiEnv.run(cmd, wenv_abs)
 
-        # build agi_cluster*.whl
-        # menv = env.cluster_root
-        # cmd = f"{uv} --project {menv} build --wheel"
-        # await AgiEnv.run(cmd, menv)
-        # src = menv / "dist"
-        # try:
-        #     whl = next(iter(src.glob("agi_cluster*.whl")))
-        #     #shutil.copy2(whl, wenv_abs)
-        # except StopIteration:
-        #     raise RuntimeError(cmd)
-        #
-        # cmd = f"{uv} --project {wenv_abs} add {whl}"
-        # await AgiEnv.run(cmd, wenv_abs)
+        # build agi_node*.whl
+        menv = env.node_root
+        cmd = f"{uv} --project {menv} build --wheel"
+        await AgiEnv.run(cmd, menv)
+        src = menv / "dist"
+        try:
+            whl = next(iter(src.glob("agi_node*.whl")))
+            shutil.copy2(whl, wenv_abs)
+        except StopIteration:
+            raise RuntimeError(cmd)
+
+        cmd = f"{uv} --project {wenv_abs} add {whl}"
+        await AgiEnv.run(cmd, wenv_abs)
 
         # Build target_worker lib local
         await AGI._build_lib_local()
