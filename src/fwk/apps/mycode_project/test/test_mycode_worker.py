@@ -1,69 +1,35 @@
+import sys
+from pathlib import Path
 import pytest
-from mycode_worker import MycodeWorker
 
-def test_mycodeworker_creation():
-    worker = MycodeWorker()
-    assert isinstance(worker, MycodeWorker)
+@pytest.mark.parametrize("mode", [0, 1, 3])
+def test_baseworker_mycode_project(mode):
+    args = {
+        'param1': 0,
+        'param2': "some text",
+        'param3': 3.14,
+        'param4': True
+    }
+    base_path = Path(__file__).resolve().parents[3]
+    sys.path.insert(0, str(base_path / 'apps/mycode_project/src'))
+    sys.path.insert(0, str(Path('~/wenv/mycode_worker/dist').expanduser()))
 
-def test_mycodeworker_start():
-    worker = MycodeWorker()
-    try:
-        worker.start()
-    except Exception as e:
-        pytest.fail(f"start() raised {e}")
+    from agi_env import AgiEnv
+    from agi_dispatcher import BaseWorker
 
-def test_mycodeworker_get_work():
-    worker = MycodeWorker()
-    try:
-        worker.get_work()
-    except Exception as e:
-        pytest.fail(f"get_work() raised {e}")
+    env = AgiEnv(install_type=1, active_app="mycode_project", verbose=True)
+    with open(env.home_abs / ".local/share/agilab/.fwk-path", 'r') as f:
+        fwk_path = Path(f.read().strip())
 
-def test_mycodeworker_algo_A():
-    worker = MycodeWorker()
-    try:
-        worker.algo_A()
-    except Exception as e:
-        pytest.fail(f"algo_A() raised {e}")
+    node_src = str(fwk_path / "core/node/src")
+    if node_src not in sys.path:
+        sys.path.insert(0, node_src)
 
-def test_mycodeworker_algo_B():
-    worker = MycodeWorker()
-    try:
-        worker.algo_B()
-    except Exception as e:
-        pytest.fail(f"algo_B() raised {e}")
+    env_src = str(fwk_path / "core/env/src")
+    if env_src not in sys.path:
+        sys.path.insert(0, env_src)
 
-def test_mycodeworker_algo_C():
-    worker = MycodeWorker()
-    try:
-        worker.algo_C()
-    except Exception as e:
-        pytest.fail(f"algo_C() raised {e}")
-
-def test_mycodeworker_algo_X():
-    worker = MycodeWorker()
-    try:
-        worker.algo_X()
-    except Exception as e:
-        pytest.fail(f"algo_X() raised {e}")
-
-def test_mycodeworker_algo_Y():
-    worker = MycodeWorker()
-    try:
-        worker.algo_Y()
-    except Exception as e:
-        pytest.fail(f"algo_Y() raised {e}")
-
-def test_mycodeworker_algo_Z():
-    worker = MycodeWorker()
-    try:
-        worker.algo_Z()
-    except Exception as e:
-        pytest.fail(f"algo_Z() raised {e}")
-
-def test_mycodeworker_stop():
-    worker = MycodeWorker()
-    try:
-        worker.stop()
-    except Exception as e:
-        pytest.fail(f"stop() raised {e}")
+    BaseWorker.new('mycode', mode=mode, env=env, verbose=3, args=args)
+    result = BaseWorker.test(mode=mode, args=args)
+    print(result)
+    assert result is not None

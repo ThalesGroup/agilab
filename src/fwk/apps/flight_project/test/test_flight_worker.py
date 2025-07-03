@@ -41,7 +41,6 @@ def env():
     # Local import after sys.path is set
     from agi_env import AgiEnv
     env = AgiEnv(install_type=1, active_app="flight_project", verbose=True)
-    env = AgiEnv(install_type=1, active_app="flight_project", verbose=True)
     # build the egg
     wenv = env.wenv_abs
     build = wenv / "build.py"

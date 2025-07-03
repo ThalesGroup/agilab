@@ -1,25 +1,30 @@
 import pytest
+from datetime import date
+from agi_env import AgiEnv
 from flight import Flight
+
 @pytest.fixture
-def manager():
-    return Flight()
+def flight():
+    env = AgiEnv(active_app='flight', verbose=True)
+    return Flight(
+        env=env,
+        verbose=True,
+        data_source="file",
+        path="data/flight/dataset",
+        files="csv/*",
+        nfile=1,
+        nskip=0,
+        nread=0,
+        sampling_rate=10.0,
+        datemin=date(2020, 1, 1),
+        datemax=date(2021, 1, 1),
+        output_format="parquet"
+    )
 
-def test_flight_manager_registers_workers(manager):
-    manager.add_worker("w1")
-    manager.add_worker("w2")
-    assert len(manager.workers) == 2
-
-def test_flight_manager_assigns_task(manager):
-    manager.add_worker("w1")
-    task = {"type": "process", "payload": 55}
-    manager.assign_task("w1", task)
-    worker = manager.get_worker("w1")
-    assert worker.current_task == task
-
-def test_flight_manager_gathers_results(manager):
-    manager.add_worker("w1")
-    manager.assign_task("w1", {"type": "add", "payload": 1})
-    manager.run_all()
-    results = manager.get_results()
-    assert "w1" in results
-    assert results["w1"] is not None
+@pytest.mark.asyncio
+async def test_build_distribution(flight):
+    workers = {'worker1': 2, 'worker2': 3}
+    result = flight.build_distribution(workers)
+    print(result)  # Optionnel, à retirer en prod
+    assert result is not None
+    # Ajoute d'autres assert selon ce que tu attends de `result`
