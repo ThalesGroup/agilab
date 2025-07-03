@@ -8,8 +8,6 @@ import subprocess
 
 def main():
     repo_root = Path(__file__).parent.absolute()
-    badges_root = repo_root.parent.parent.parent / 'docs/html'
-    os.makedirs(badges_root, exist_ok=True)
 
     # Find all test files (excluding those in .venv)
     test_files = sorted(
@@ -28,7 +26,6 @@ def main():
         "--cov-report=xml",
         "--import-mode=importlib",
         "--local-badge-output-dir",
-        str(badges_root),
     ] + [str(f) for f in test_files]
 
     print("Running pytest with command:")
