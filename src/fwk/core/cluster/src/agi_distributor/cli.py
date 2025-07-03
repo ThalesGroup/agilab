@@ -230,5 +230,5 @@ if __name__ == "__main__":
     elif cmd == "platform":
         python_version()
     else:
-        logger.error(f"Unknown command: {cmd}. Use 'kill', 'clean', 'unzip', 'threads' or 'plateform'.")
+        logger.error(f"Unknown command: {cmd}. Use 'kill', 'clean', 'unzip', 'threaded' or 'plateform'.")
 

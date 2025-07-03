@@ -756,8 +756,9 @@ class AGI:
         cli = wenv_abs.parent / file.name
         cmd = f"{uv} run python {cli} platform"
         res = await AgiEnv.run(cmd, wenv_abs.parent)
-        env.pyvers_worker = res.split(':')[-1].strip()
-        await AgiEnv.run(f"{cmd_prefix}{env.uv} python install {env.pyvers_worker}", wenv_abs)
+        pyvers_worker = res.split(':')[-1].strip()
+        env.set_env_var(f"{ip}_pythOn_VERSION", pyvers_worker)
+        await AgiEnv.run(f"{cmd_prefix}{env.uv} python install {pyvers_worker}", wenv_abs)
 
         cmd = (
             f"{uv} --project {wenv_abs} init --bare --no-workspace"
@@ -833,8 +834,9 @@ class AGI:
             cli = env.wenv_rel.parent / "cli.py"
             cmd = f"{uv} run python {cli} platform"
             res =  await AGI.exec_ssh(ip, cmd)
-            env.pyvers_worker = res.split(':')[-1]
-            await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {env.pyvers_worker}")
+            pyvers_worker = res.split(':')[-1]
+            env.set_env_var(f"{ip}_PYTHON_VERSION", pyvers_worker)
+            await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers_worker}")
 
             await AGI._kill(ip, force=True)
             await AGI._clean_dirs(ip)
@@ -845,10 +847,12 @@ class AGI:
             cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
             await AGI.exec_ssh(ip, cmd)
 
-            cmd = (
-                f"{uv} --project {wenv_rel} init --bare --no-workspace"
-            )
+            cmd = f"{uv} --project {wenv_rel} init --bare --no-workspace"
             await AGI.exec_ssh(ip, cmd)
+
+            cmd = f"{uv} run -p {pyvers} python {cli} platform"
+            await AGI.exec_ssh(ip, cmd)
+
 
     @staticmethod
     async def _install(scheduler_addr: Optional[str]) -> None:
@@ -920,6 +924,7 @@ class AGI:
         wenv_abs = env.wenv_abs
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         uv = cmd_prefix + env.uv
+        pyvers = env.envars.get(str("{127.0.0.1}_PYTHON_VERSION"), "")
 
         #os.makedirs(wenv_abs, exist_ok=True)
         #file = env.worker_pyproject
@@ -943,7 +948,7 @@ class AGI:
         if has_rapids_hw:
             cmd_manager = f"{uv} {run_type} --config-file uv_config.toml --project {app_path}"
         else:
-            cmd_manager = f"{uv} {run_type} -p 'cpython-3.13.5+freethreaded-macos-aarch64-none' --project {app_path}"
+            cmd_manager = f"{uv} {run_type} --project {app_path}"
 
         logging.info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
@@ -1011,9 +1016,10 @@ class AGI:
         dist_rel = env.dist_rel
         dist_abs = env.dist_abs
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
+        pyvers  = env.envars.get(f"{ip}_PYTHON_VERSION", "")
         uv  = cmd_prefix + env.uv
 
-        cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
+        cmd = f"{uv} run python -p {pyvers} -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
         await AGI.exec_ssh(ip, cmd)
 
         # Then send the files to the remote directory
@@ -1052,17 +1058,17 @@ class AGI:
 
         # unzip egg to get src/
         cli = env.wenv_rel.parent / "cli.py"
-        cmd = f"{uv} run python {cli} unzip {wenv_rel}"
+        cmd = f"{uv} run -p {pyvers} python  {cli} unzip {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
 
         #############
         # install env
         #############
 
-        cmd = f"{uv} --project {wenv_rel} run python -m ensurepip"
+        cmd = f"{uv} --project {wenv_rel} run -p {pyvers} python -m ensurepip"
         await AGI.exec_ssh(ip, cmd)
 
-        cmd = f"{uv} --project {wenv_rel} run python -m pip install -e {wenv_rel}"
+        cmd = f"{uv} --project {wenv_rel} run -p {pyvers} python -m pip install -e {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
 
         # install env
@@ -1071,15 +1077,15 @@ class AGI:
 
         # unzip egg to get src/
         cli = env.wenv_rel.parent / "cli.py"
-        cmd = f"{uv} run python {cli} unzip {wenv_rel}"
+        cmd = f"{uv} run -p {pyvers} python {cli} unzip {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
 
         # Post-install script
-        cmd = f"{uv} --project {wenv_rel} run python {env.post_install_rel} --install-type 2 {env.data_rel}"
+        cmd = f"{uv} --project {wenv_rel} run -p {pyvers} python {env.post_install_rel} --install-type 2 {env.data_rel}"
         await AGI.exec_ssh(ip, cmd)
 
         # build target_worker lib from src/
-        cmd = f"{uv} --project {wenv_rel} run python {wenv_rel / env.setup_app.name} build_ext -i 2 -b {wenv_rel}"
+        cmd = f"{uv} --project {wenv_rel} run -p {pyvers} python {wenv_rel / env.setup_app.name} build_ext -i 2 -b {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
 
     @staticmethod
