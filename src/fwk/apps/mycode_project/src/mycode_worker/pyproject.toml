@@ -5,17 +5,17 @@ description = ""
 requires-python = ">=3.11"
 readme = "README.md"
 dependencies = [
-    "numpy",
-    "geopy",
-    "setuptools",
     "cython",
-    "psutil",
+    "dask[distributed]",
+    "geopy",
+    "humanize",
+    "numpy<2.3",
     "parso",
+    "psutil",
     "py7zr",
     "python-dotenv",
-    "humanize",
     "requests",
-    "dask[distributed]",
+    "setuptools",
 ]
 
 [[project.authors]]
