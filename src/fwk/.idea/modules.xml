@@ -10,7 +10,6 @@
       <module fileurl="file://$PROJECT_DIR$/apps/mycode_project/.idea/mycode_project.iml" filepath="$PROJECT_DIR$/apps/mycode_project/.idea/mycode_project.iml" />
       <module fileurl="file://$USER_HOME$/wenv/mycode_worker/.idea/mycode_worker.iml" filepath="$USER_HOME$/wenv/mycode_worker/.idea/mycode_worker.iml" />
       <module fileurl="file://$PROJECT_DIR$/core/node/.idea/node.iml" filepath="$PROJECT_DIR$/core/node/.idea/node.iml" />
-      <module fileurl="file://$USER_HOME$/test/.idea/test.iml" filepath="$USER_HOME$/test/.idea/test.iml" />
     </modules>
   </component>
 </project>
