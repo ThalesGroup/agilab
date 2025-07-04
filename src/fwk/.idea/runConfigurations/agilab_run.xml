@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="agilab run" type="PythonConfigurationType" factoryName="Python">
+  <configuration default="false" name="agilab run" type="PythonConfigurationType" factoryName="Python" folderName="flight">
     <module name="gui" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />

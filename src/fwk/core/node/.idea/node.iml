@@ -7,7 +7,7 @@
       <excludeFolder url="file://$MODULE_DIR$/dist" />
       <excludePattern pattern=".venv" />
     </content>
-    <orderEntry type="jdk" jdkName="uv (fwk)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="uv (node)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>
