@@ -7,8 +7,8 @@ param4 = true
 [cluster]
 cluster_enabled = true
 verbose = true
-cython = false
-pool = false
+cython = true
+pool = true
 rapids = false
 
 [cluster.workers]
