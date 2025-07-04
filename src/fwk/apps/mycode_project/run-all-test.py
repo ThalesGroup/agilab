@@ -26,12 +26,14 @@ def main():
         sys.exit(1)
 
     coverage_packages = [
-        "agi_runner",
-        "agi_manager",
+        "agi_distributor",
+        "agi_dispatcher",
         "agent_worker",
         "dag_worker",
         "pandas_worker",
         "polars_worker",
+        "mycode",
+        "mycode_worker"
     ]
     cov_args = [f"--cov={pkg}" for pkg in coverage_packages]
 
