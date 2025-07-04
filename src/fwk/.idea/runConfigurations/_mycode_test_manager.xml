@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="mycode test manager" type="PythonConfigurationType" factoryName="Python">
-    <module name="mycode (project)" />
+    <module name="mycode_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
@@ -8,7 +8,7 @@
       <env name="PYTHONUNBUFFERED" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
-    <option name="SDK_NAME" value="uv (mycode_project)" />
+    <option name="SDK_NAME" value="uv mycode manager" />
     <option name="WORKING_DIRECTORY" value="$ProjectFileDir$/apps/mycode_project/src" />
     <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
