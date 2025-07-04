@@ -26,12 +26,6 @@ def main():
         sys.exit(1)
 
     coverage_packages = [
-        "agi_distributor",
-        "agi_dispatcher",
-        "agent_worker",
-        "dag_worker",
-        "pandas_worker",
-        "polars_worker",
         "flight",
         "filght_worker"
     ]
