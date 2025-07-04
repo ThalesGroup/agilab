@@ -494,8 +494,8 @@ class AgiEnv:
 
     def _update_env_file(self, updates: dict):
         env_file = self.resource_path / ".env"
-        os.makedirs(env_file.parent, exist_ok=True)
-        env_file.touch(exist_ok=True)
+        #os.makedirs(env_file.parent, exist_ok=True)
+        #env_file.touch(exist_ok=True)
         for k, v in updates.items():
             set_key(str(env_file), k, str(v), quote_mode="never")
 
