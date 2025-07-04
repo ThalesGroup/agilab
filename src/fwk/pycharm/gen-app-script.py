@@ -1,9 +1,39 @@
 import os
 import sys
 import xml.etree.ElementTree as ET
-from tkinter import simpledialog, Tk
 import filecmp
 import tempfile
+
+def update_workspace_xml(config_name, config_type, folder_name):
+    workspace_path = os.path.join(os.getcwd(), '.idea', 'workspace.xml')
+    # If file does not exist, create minimal skeleton
+    if not os.path.exists(workspace_path):
+        root = ET.Element('project', version="4")
+        ET.SubElement(root, 'component', {'name': 'RunManager'})
+        tree = ET.ElementTree(root)
+        tree.write(workspace_path)
+    tree = ET.parse(workspace_path)
+    root = tree.getroot()
+    runmanager = root.find("./component[@name='RunManager']")
+    if runmanager is None:
+        runmanager = ET.SubElement(root, 'component', {'name': 'RunManager'})
+    # Check for existing configuration
+    config_el = None
+    for conf in runmanager.findall('configuration'):
+        if conf.attrib.get('name') == config_name and conf.attrib.get('type') == config_type:
+            config_el = conf
+            break
+    if config_el is None:
+        config_el = ET.SubElement(runmanager, 'configuration', {
+            'name': config_name,
+            'type': config_type,
+            'folderName': folder_name,
+            'factoryName': config_type.replace('ConfigurationType', ''),  # not always correct but safe
+        })
+    else:
+        config_el.attrib['folderName'] = folder_name
+    tree.write(workspace_path, encoding="utf-8", xml_declaration=True)
+    print(f"Updated workspace.xml for config '{config_name}' in folder '{folder_name}'.")
 
 if len(sys.argv) < 2:
     print("Usage: script.py <replacement_name>")
@@ -30,6 +60,8 @@ template_paths = [
 output_dir = os.path.join(os.getcwd(), '.idea', 'runConfigurations')
 os.makedirs(output_dir, exist_ok=True)
 
+FOLDER_NAME = f"{app}_configs"
+
 for tpl in template_paths:
     tree = ET.parse(tpl)
     root = tree.getroot()
@@ -46,25 +78,28 @@ for tpl in template_paths:
     base = os.path.basename(tpl).replace('_template_app', f'_{app}')
     out_path = os.path.join(output_dir, base)
 
+    # Get config name/type for workspace.xml
+    config_elem = next(root.iter('configuration'))
+    config_name = config_elem.attrib.get('name', base.rsplit('.', 1)[0])
+    config_type = config_elem.attrib.get('type', 'PythonConfigurationType')
+
     # --- idempotency check ----------------
     if os.path.exists(out_path):
-        # optional: compare contents to avoid silent mismatches
-        # write to a temp file and compare
         fd, tmp_path = tempfile.mkstemp(suffix='.xml')
         os.close(fd)
         tree.write(tmp_path)
         if filecmp.cmp(tmp_path, out_path, shallow=False):
             print(f"Skipped (unchanged): {out_path}")
             os.remove(tmp_path)
-            continue
         else:
             os.replace(tmp_path, out_path)
             print(f"Updated config (changed): {out_path}")
-            continue
-    # ---------------------------------------
+            update_workspace_xml(config_name, config_type, FOLDER_NAME)
+        continue
 
     # first time write
     tree.write(out_path)
     print(f"Generated config: {out_path}")
+    update_workspace_xml(config_name, config_type, FOLDER_NAME)
 
 print(f"All {app} configurations processed.")
