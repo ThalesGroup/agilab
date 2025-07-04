@@ -18,11 +18,11 @@ view_module = [
 
 [cluster]
 verbose = true
-cython = false
+cython = true
 cluster_enabled = true
 rapids = false
-pool = false
-scheduler = "192.168.137.104"
+pool = true
+scheduler = "127.0.0.1"
 
 [cluster.workers]
-"192.168.137.1" = 1
+"127.0.0.1" = 2
