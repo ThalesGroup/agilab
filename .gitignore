@@ -13,6 +13,7 @@ __pypackages__/
 
 # Miscellaneous files
 *.lock
+*.pid
 .uv-*
 
 # Egg files and binary distributions
