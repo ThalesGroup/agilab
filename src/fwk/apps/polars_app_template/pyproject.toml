@@ -22,10 +22,11 @@ dependencies = [
 dev = [
     "black",
     "pytest",
+    "pytest-cov",
+    "pytest-local-badge",
+    "pytest-asyncio",
     "licensecheck",
     "your_polars_project",
-    "agi-env",
-    "agi-cluster",
 ]
 
 [tool.uv.sources]

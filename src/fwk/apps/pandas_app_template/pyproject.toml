@@ -14,11 +14,11 @@ dependencies = [ "numpy", "geopy", "setuptools", "cython", "psutil", "parso", "p
 dev = [
     "black",
     "pytest",
+    "pytest-cov",
+    "pytest-local-badge",
+    "pytest-asyncio",
     "licensecheck",
     "your_pandas_project",
-    "psutil",
-    "agi-env",
-    "agi-cluster",
 ]
 
 [tool.uv.sources]
