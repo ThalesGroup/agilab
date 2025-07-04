@@ -17,6 +17,7 @@ dependencies = [
     "ipython",
     "psutil",
     "agi-env",
+    "agi-node",
     "agi-cluster",
 ]
 
@@ -24,6 +25,9 @@ dependencies = [
 dev = [
     "black",
     "pytest",
+    "pytest-cov",
+    "pytest-local-badge",
+    "pytest-asyncio",
     "licensecheck",
     "your_agent_project",
 ]

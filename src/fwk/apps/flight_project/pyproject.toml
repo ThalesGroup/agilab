@@ -34,12 +34,12 @@ text = "Thales SIX GTS France SAS"
 dev = [
     "black",
     "pytest",
-    "pytest-asyncio",
     "pytest-cov",
     "pytest-local-badge",
+    "pytest-asyncio",
     "licensecheck",
-    "flight_project",
     "dask[distributed]",
+    "flight_project",
 ]
 
 [tool.uv.sources]

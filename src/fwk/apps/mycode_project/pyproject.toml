@@ -11,11 +11,10 @@ dependencies = [
     "py7zr",
     "python-dotenv",
     "psutil",
-    "agi-env",
     "polars",
-    "agi-node",
     "agi-env",
-    "pytest-asyncio>=1.0.0",
+    "agi-node",
+    "agi-cluster",
 ]
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" },
@@ -31,10 +30,9 @@ dev = [
     "pytest",
     "pytest-cov",
     "pytest-local-badge",
+    "pytest-asyncio",
     "licensecheck",
     "mycode_project",
-    "dask[distributed]",
-    "pytest-asyncio",
 ]
 
 

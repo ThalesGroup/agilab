@@ -241,8 +241,8 @@ class AgiEnv:
                 self.apps_dir = apps_dir
             elif install_type < 2:
                 self.apps_dir = self.agi_fwk / apps_dir
-            else:
-                os.makedirs(str(apps_dir), exist_ok=True)
+            #else:
+            #    os.makedirs(str(apps_dir), exist_ok=True)
         except FileNotFoundError:
             logging.error("apps_dir not found: %s", apps_dir)
             sys.exit(1)
