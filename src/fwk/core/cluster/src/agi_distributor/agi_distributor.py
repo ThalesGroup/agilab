@@ -986,8 +986,10 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"{uv} --project {wenv_abs} add {whl}"
+        # cmd = f"{uv} --project {wenv_abs} add {whl}"
+        cmd = f"{uv} pip install -e {env.env_root}"
         await AgiEnv.run(cmd, wenv_abs)
+
 
         # build agi_node*.whl
         menv = env.node_root
@@ -1000,7 +1002,8 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        cmd = f"{uv} --project {wenv_abs} add {whl}"
+        # cmd = f"{uv} --project {wenv_abs} add {whl}"
+        cmd = f"{uv} pip install -e {env.node_root}"
         await AgiEnv.run(cmd, wenv_abs)
 
         # Build target_worker lib local
