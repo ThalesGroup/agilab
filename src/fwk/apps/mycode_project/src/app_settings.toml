@@ -1,27 +1,15 @@
 [args]
-data_source = "file"
-path = "data/flight"
-files = "*"
-nfile = 1
-nskip = 0
-nread = 0
-sampling_rate = 1.0
-datemin = "2020-01-01"
-datemax = "2021-01-01"
-output_format = "csv"
-
-[views]
-view_module = [
-    "maps",
-    "maps_3d",
-]
+param1 = 0
+param2 = "some text"
+param3 = 3.14
+param4 = true
 
 [cluster]
+cluster_enabled = true
 verbose = true
 cython = false
-cluster_enabled = true
-rapids = false
 pool = false
+rapids = false
 
 [cluster.workers]
-"127.0.0.1" = 2
+"127.0.0.1" = 1
