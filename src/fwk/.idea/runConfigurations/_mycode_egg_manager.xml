@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="mycode_egg gen" type="PythonConfigurationType" factoryName="Python">
-    <module name="mycode_project" />
+    <module name="mycode (project)" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
