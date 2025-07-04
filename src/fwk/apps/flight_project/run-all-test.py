@@ -1,52 +1,57 @@
 #!/usr/bin/env python3
 import os
 from pathlib import Path
+import sys
 import subprocess
 
-def exec(cmd, path, worker):
-    path = str(Path(path).expanduser().absolute())
-    result = subprocess.run(
-        cmd, shell=True, capture_output=True, text=True, cwd=path
-    )
-    print(f"\n--- Command: {cmd} (worker: {worker}) ---")
-    print("---- STDOUT ----")
-    print(result.stdout)
-    print("---- STDERR ----")
-    print(result.stderr)
-    if result.returncode != 0:
-        if result.stderr.strip().startswith("WARNING"):
-            print(f"warning: worker {worker} - {cmd}")
-            print(result.stderr)
-        else:
-            print(f"error: worker {worker} - {cmd}\n{result.stderr}")
-    return result
-
-def print_emoticon(result, label="flight", success_check=None):
-    GREEN = "\033[1;32m"
-    RED = "\033[1;31m"
-    RESET = "\033[0m"
-    if success_check is None:
-        success_check = lambda result: (result.returncode == 0)
-    if result.stderr.strip():
-        print(result.stderr.strip())
-    if success_check(result):
-        print(f"{GREEN}✅ {label} is working{RESET}")
-    else:
-        print(f"{RED}❌ {label} fail to run{RESET}")
 
 def main():
-    os.chdir(Path(__file__).parent)
-    wenv = str(Path("~/wenv/flight_worker").expanduser())
+    # Project root = where this script is located
+    repo_root = Path(__file__).parent.absolute()
 
-    # Change the labels here as you wish
-    tests = [
-        ("uv -q run test/test_flight_manager.py", "flight (manager)"),
-        ("uv -q run test/test_flight_worker.py", "flight_worker"),
+    # Path to output badges, adjust as needed
+    try:
+        badges_root = repo_root.parents[3] / 'docs/html'
+    except IndexError:
+        badges_root = repo_root / 'badges'
+    os.makedirs(badges_root, exist_ok=True)
+
+    # Gather all test*.py recursively under repo_root
+    test_files = sorted([
+        str(p) for p in repo_root.rglob("test*.py")
+        if p.is_file() and ".venv" not in p.parts
+    ])
+    if not test_files:
+        print("No test files found.")
+        sys.exit(1)
+
+    coverage_packages = [
+        "agi_runner",
+        "agi_manager",
+        "agent_worker",
+        "dag_worker",
+        "pandas_worker",
+        "polars_worker",
     ]
+    cov_args = [f"--cov={pkg}" for pkg in coverage_packages]
 
-    for cmd, label in tests:
-        res = exec(cmd, ".", label)
-        print_emoticon(res, label=label)
+    # Build pytest command
+    cmd = [
+              sys.executable, "-m", "pytest",
+              "--rootdir", str(repo_root),
+              *cov_args,
+              "--cov-report=term",
+              "--cov-report=xml",
+              "--import-mode=importlib",
+              "--local-badge-output-dir", str(badges_root),
+          ] + test_files
+
+    print("Running pytest with command:")
+    print(" ".join(cmd))
+    # Direct handoff to pytest: unified output, one summary
+    proc = subprocess.run(cmd, env=os.environ.copy())
+    sys.exit(proc.returncode)
+
 
 if __name__ == "__main__":
     main()
