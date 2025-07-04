@@ -60,7 +60,7 @@ template_paths = [
 output_dir = os.path.join(os.getcwd(), '.idea', 'runConfigurations')
 os.makedirs(output_dir, exist_ok=True)
 
-FOLDER_NAME = f"{app}_configs"
+FOLDER_NAME = f"{app}"
 
 for tpl in template_paths:
     tree = ET.parse(tpl)
