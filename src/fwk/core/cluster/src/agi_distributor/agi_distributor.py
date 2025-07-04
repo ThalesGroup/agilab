@@ -982,7 +982,7 @@ class AGI:
         src = menv / "dist"
         try:
             whl = next(iter(src.glob("agi_env*.whl")))
-            #shutil.copy2(whl, wenv_abs)
+            shutil.copy2(whl, wenv_abs)
         except StopIteration:
             raise RuntimeError(cmd)
 
