@@ -4,9 +4,17 @@ param2 = "some text"
 param3 = 3.14
 param4 = true
 
+[views]
+view_module = [
+]
+
 [cluster]
-cluster_enabled = false
-verbose = false
+verbose = true
 cython = true
-pool = true
+cluster_enabled = true
 rapids = false
+pool = true
+scheduler = "127.0.0.1"
+
+[cluster.workers]
+"127.0.0.1" = 2
