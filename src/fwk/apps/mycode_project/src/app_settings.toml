@@ -5,15 +5,14 @@ param3 = 3.14
 param4 = true
 
 [views]
-view_module = [
-]
+view_module = []
 
 [cluster]
 verbose = true
-cython = true
+cython = false
 cluster_enabled = true
 rapids = false
-pool = true
+pool = false
 scheduler = "127.0.0.1"
 
 [cluster.workers]
