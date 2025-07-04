@@ -5,11 +5,8 @@ param3 = 3.14
 param4 = true
 
 [cluster]
-cluster_enabled = true
-verbose = true
+cluster_enabled = false
+verbose = false
 cython = true
 pool = true
 rapids = false
-
-[cluster.workers]
-"127.0.0.1" = 1
