@@ -35,6 +35,8 @@ dev = [
     "black",
     "pytest",
     "pytest-asyncio",
+    "pytest-cov",
+    "pytest-local-badge",
     "licensecheck",
     "flight_project",
     "dask[distributed]",

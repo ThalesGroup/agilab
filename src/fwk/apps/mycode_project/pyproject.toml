@@ -29,6 +29,8 @@ text = "Thales SIX GTS France SAS"
 dev = [
     "black",
     "pytest",
+    "pytest-cov",
+    "pytest-local-badge",
     "licensecheck",
     "mycode_project",
     "dask[distributed]",
