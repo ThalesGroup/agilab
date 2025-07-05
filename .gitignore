@@ -1,5 +1,6 @@
 # MacOS files
 **/.DS_Store
+.DS_Store
 
 # Python virtual environments and build artifacts
 **/.venv/
@@ -10,27 +11,47 @@
 **/.mypy_cache/
 **/__pypackages__/
 **/._*
+.venv/
+dist/
+build/
+.build*
+__pycache__/
+.mypy_cache/
+__pypackages__/
+._*
 
 # Miscellaneous files
 **/*.lock
 **/*.pid
-**/.uv-*
+.uv-*
+*.lock
+*.pid
+.uv-*
 
 # Egg files and binary distributions
-EGG*
+**/EGG*
 **/*.egg*
 **/*.so
 **/*.pyd
 **/*.whl
+EGG*
+*.egg*
+*.so
+*.pyd
+*.whl
 
 # Specific src patterns (adjust if needed)
+src/*-info/
+src/*_worker_*/
 **/src/*-info/
 **/src/*_worker_*/
 
 # Pytest caches
 **/.pytest*
+.pytest*
 
 # managed PC install under windows
 /thales/
 
+.coverage*
 **/.coverage*
