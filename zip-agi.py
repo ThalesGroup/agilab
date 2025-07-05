@@ -35,93 +35,81 @@ import argparse
 from pathlib import Path
 from functools import lru_cache
 
+EXCLUDE_DIRS = {'.git', '.venv', '__pycache__', 'node_modules'}
+
 @lru_cache(maxsize=None)
 def read_gitignore_cached(gitignore_path):
-    """
-    Read a .gitignore file and create a PathSpec object from its patterns,
-    caching the result for efficiency.
-    """
     try:
         with open(gitignore_path, "r") as f:
             patterns = f.read().splitlines()
         return PathSpec.from_lines(GitWildMatchPattern, patterns)
     except FileNotFoundError:
-        # If the file doesn't exist, return an empty spec.
         return PathSpec.from_lines(GitWildMatchPattern, [])
 
-def should_include_file(filepath, spec):
-    """
-    Check if a file should be included based on the file matching criterion.
-    """
-    return not spec.match_file(filepath)
+def should_include_file(relpath, spec, verbose=False):
+    included = not spec.match_file(relpath)
+    if verbose:
+        print(f"CHECK: {relpath} --> {'INCLUDE' if included else 'EXCLUDE'}")
+    return included
 
 def zip_directory(target_dir, zip_filepath, top_spec, no_top=False, verbose=False):
-    """
-    Zip a directory while filtering files using .gitignore files.
-    Uses a cached lookup for local .gitignore files and a recursive
-    directory traversal with os.scandir for improved performance.
-    """
     target_dir = os.path.abspath(target_dir)
     base_name = os.path.basename(target_dir)
     output_zip_abs = os.path.abspath(zip_filepath)
 
-    with zipfile.ZipFile(zip_filepath, "w", zipfile.ZIP_DEFLATED) as zipf:
-        EXCLUDE_DIRS = {'.git', '.venv', '__pycache__', '.mypy_cache', '.pytest_cache', '.vscode'}
-
-        def process_directory(current_dir, relative_to):
-            try:
-                with os.scandir(current_dir) as it:
-                    gitignore_path = os.path.join(current_dir, ".gitignore")
-                    if os.path.exists(gitignore_path):
-                        local_spec = read_gitignore_cached(gitignore_path)
-                        match_base = current_dir
+    def process_directory(current_dir, relative_to, depth=0):
+        if depth > 30:
+            print(f"MAX DEPTH reached at {current_dir} - Possible recursion problem.")
+            return
+        try:
+            with os.scandir(current_dir) as it:
+                for entry in it:
+                    if entry.is_dir(follow_symlinks=False) and entry.name in EXCLUDE_DIRS:
                         if verbose:
-                            print(f"Using local .gitignore from {current_dir}")
-                    else:
-                        local_spec = top_spec
-                        match_base = target_dir
-
-                    for entry in it:
-                        full_path = os.path.join(current_dir, entry.name)
-                        # Skip zip file self-inclusion.
-                        if os.path.abspath(full_path) == output_zip_abs:
-                            continue
-
-                        # Skip unwanted directories.
-                        if entry.is_dir(follow_symlinks=False) and entry.name in EXCLUDE_DIRS:
+                            print(f"Hard skip dir: {entry.name}")
+                        continue
+                    full_path = os.path.join(current_dir, entry.name)
+                    # Always compute relpath to the *target_dir* for .gitignore matching
+                    rel_for_match = os.path.relpath(full_path, start=target_dir)
+                    if os.path.abspath(full_path) == output_zip_abs:
+                        continue
+                    if entry.is_symlink() and not os.path.exists(full_path):
+                        continue
+                    if entry.is_dir(follow_symlinks=False) and entry.is_symlink():
+                        continue
+                    # Don't recurse into ignored directories
+                    if entry.is_dir(follow_symlinks=False):
+                        if not should_include_file(rel_for_match + '/', top_spec, verbose):
                             if verbose:
-                                print(f"Skipping directory: {entry.name}")
+                                print(f"Skipping directory (ignored by .gitignore): {full_path}")
                             continue
-
-                        if entry.is_dir(follow_symlinks=False):
-                            process_directory(full_path, os.path.join(relative_to, entry.name))
-                        else:
-                            rel_for_match = os.path.relpath(full_path, start=match_base)
-                            archive_path = os.path.join(relative_to, entry.name) if no_top \
-                                else os.path.join(base_name, relative_to, entry.name)
-                            if should_include_file(rel_for_match, local_spec):
-                                if not os.path.exists(full_path):
+                        process_directory(
+                            full_path,
+                            os.path.join(relative_to, entry.name),
+                            depth+1
+                        )
+                    else:
+                        archive_path = os.path.join(relative_to, entry.name) if no_top \
+                            else os.path.join(base_name, relative_to, entry.name)
+                        if should_include_file(rel_for_match, top_spec, verbose):
+                            if not os.path.exists(full_path):
+                                if verbose:
                                     print(f"Warning: {full_path} does not exist, skipping.")
-                                    continue
-                                zipf.write(full_path, archive_path)
-                                if verbose:
-                                    print(f"Adding {archive_path} (matched: {rel_for_match})")
-                            else:
-                                if verbose:
-                                    print(f"Excluded by .gitignore: {archive_path} (matched: {rel_for_match})")
-            except PermissionError:
-                if verbose:
-                    print(f"Permission denied: {current_dir}")
+                                continue
+                            zipf.write(full_path, archive_path)
+                            if verbose:
+                                print(f"Adding {archive_path} (matched: {rel_for_match})")
+                        else:
+                            if verbose:
+                                print(f"Excluded by .gitignore: {archive_path} (matched: {rel_for_match})")
+        except PermissionError:
+            if verbose:
+                print(f"Permission denied: {current_dir}")
 
-        # Start processing from the target directory.
-        process_directory(target_dir, "")
+    with zipfile.ZipFile(zip_filepath, "w", zipfile.ZIP_DEFLATED) as zipf:
+        process_directory(target_dir, "", 0)
 
 if __name__ == "__main__":
-    """
-    Zip a directory into a zip file.
-
-    Usage: zip-fwk --dir2zip <dir> --zipfile <file> [--no-top] [--verbose|-v]
-    """
     parser = argparse.ArgumentParser(description="Zip a project directory.")
     parser.add_argument(
         "--dir2zip",
@@ -159,12 +147,12 @@ if __name__ == "__main__":
 
     os.makedirs(zip_file.parent, exist_ok=True)
 
-    # Read the top-level .gitignore if it exists; otherwise, use an empty spec.
     top_gitignore = project_dir / ".gitignore"
     if top_gitignore.exists():
         top_spec = read_gitignore_cached(str(top_gitignore))
         if verbose:
             print(f"Using top-level .gitignore from {top_gitignore}")
+            print("PATTERNS:", [p.pattern for p in top_spec.patterns])
     else:
         if verbose:
             print(f"No top-level .gitignore found at {top_gitignore}. No files will be filtered at this level.")
