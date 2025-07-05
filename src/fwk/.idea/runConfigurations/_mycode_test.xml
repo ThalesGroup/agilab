@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="mycode test" type="PythonConfigurationType" factoryName="Python">
+  <configuration default="false" name="mycode test" type="PythonConfigurationType" factoryName="Python" folderName="mycode">
     <module name="mycode_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
@@ -9,6 +9,7 @@
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="SDK_NAME" value="uv (mycode_project)" />
+    <option name="WORKING_DIRECTORY" value="" />
     <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
