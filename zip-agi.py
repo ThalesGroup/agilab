@@ -66,14 +66,14 @@ def zip_directory(target_dir, zip_filepath, top_spec, no_top=False, verbose=Fals
     output_zip_abs = os.path.abspath(zip_filepath)
 
     with zipfile.ZipFile(zip_filepath, "w", zipfile.ZIP_DEFLATED) as zipf:
+        EXCLUDE_DIRS = {'.git', '.venv', '__pycache__', '.mypy_cache', '.pytest_cache', '.vscode'}
+
         def process_directory(current_dir, relative_to):
             try:
                 with os.scandir(current_dir) as it:
-                    # Check for a local .gitignore once per directory.
                     gitignore_path = os.path.join(current_dir, ".gitignore")
                     if os.path.exists(gitignore_path):
                         local_spec = read_gitignore_cached(gitignore_path)
-                        # For matching, use paths relative to the current directory.
                         match_base = current_dir
                         if verbose:
                             print(f"Using local .gitignore from {current_dir}")
@@ -87,26 +87,25 @@ def zip_directory(target_dir, zip_filepath, top_spec, no_top=False, verbose=Fals
                         if os.path.abspath(full_path) == output_zip_abs:
                             continue
 
-                        # Skip .git directories.
-                        if entry.is_dir(follow_symlinks=False) and entry.name == ".git":
+                        # Skip unwanted directories.
+                        if entry.is_dir(follow_symlinks=False) and entry.name in EXCLUDE_DIRS:
+                            if verbose:
+                                print(f"Skipping directory: {entry.name}")
                             continue
 
                         if entry.is_dir(follow_symlinks=False):
-                            # Recurse into the directory.
                             process_directory(full_path, os.path.join(relative_to, entry.name))
                         else:
-                            # Compute the path for matching relative to match_base.
                             rel_for_match = os.path.relpath(full_path, start=match_base)
-                            # Compute the archive path.
-                            if no_top:
-                                archive_path = os.path.join(relative_to, entry.name)
-                            else:
-                                archive_path = os.path.join(base_name, relative_to, entry.name)
-
+                            archive_path = os.path.join(relative_to, entry.name) if no_top \
+                                else os.path.join(base_name, relative_to, entry.name)
                             if should_include_file(rel_for_match, local_spec):
+                                if not os.path.exists(full_path):
+                                    print(f"Warning: {full_path} does not exist, skipping.")
+                                    continue
+                                zipf.write(full_path, archive_path)
                                 if verbose:
                                     print(f"Adding {archive_path} (matched: {rel_for_match})")
-                                zipf.write(full_path, archive_path)
                             else:
                                 if verbose:
                                     print(f"Excluded by .gitignore: {archive_path} (matched: {rel_for_match})")
