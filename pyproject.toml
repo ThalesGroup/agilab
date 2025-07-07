@@ -80,7 +80,7 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["gui*", "apps*", "views*"]
+include = ["fwk.gui*", "fwk.apps*", "fwk.views*"]
 exclude = [
     "fwk.core*",
     ".idea*",
