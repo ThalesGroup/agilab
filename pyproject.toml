@@ -23,7 +23,7 @@ classifiers = [
 keywords = [
     "jupyter", "mlflow", "asyncio", "dask", "rapids",
     "streamlit", "distributed", "cython", "cluster", "dataframe",
-    "dataset", "loadbalancing", "genai", "copilot", "agi",
+    "dataset", "load balancing", "gen ai", "copilot", "agi",
     "pycharm", "datascience"
 ]
 
