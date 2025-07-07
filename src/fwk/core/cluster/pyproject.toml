@@ -84,7 +84,6 @@ dev = [
     "fastparquet",
 ]
 
-
 [tool.uv.sources.agi-env]
 path = "../env"
 editable = true
@@ -101,6 +100,7 @@ editable = true
 mypy_path = [
     "stubs",
 ]
+
 disallow_untyped_defs = false
 ignore_missing_imports = true
 

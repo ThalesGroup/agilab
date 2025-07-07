@@ -66,8 +66,6 @@ Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/fwk/cluster"
 Tracker = "https://github.com/ThalesGroup/agilab/issue"
 
-
-
 [dependency-groups]
 dev = [
     "agi-node",

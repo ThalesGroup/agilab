@@ -1,0 +1,22 @@
+[project]
+name = "agi-core"
+version = "0.3.65"
+description = "agi-core is a framework to explore AI for engineering"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = [
+  "env.src.agi_env",
+  "env.src.agi_env.*",
+  "node.src.agi_node",
+  "node.src.agi_node.*",
+  "cluster.src.agi_cluster",
+  "cluster.src.agi_cluster.*"
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
