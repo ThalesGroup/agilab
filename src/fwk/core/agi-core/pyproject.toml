@@ -9,12 +9,12 @@ dependencies = []
 [tool.setuptools.packages.find]
 where = ["src"]
 include = [
-  "env.src.agi_env",
-  "env.src.agi_env.*",
-  "node.src.agi_node",
-  "node.src.agi_node.*",
-  "cluster.src.agi_cluster",
-  "cluster.src.agi_cluster.*"
+  "agi_env",
+  "agi_env.*",
+  "agi_node",
+  "agi_node.*",
+  "agi_cluster",
+  "agi_cluster.*"
 ]
 
 [build-system]
