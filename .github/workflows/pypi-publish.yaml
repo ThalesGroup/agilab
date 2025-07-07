@@ -14,35 +14,26 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.13'
 
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install uv twine pytest
-
-      - name: Run tests
-        env:
-          PYTHONPATH: "${{ github.workspace }}/src"
-        run: pytest
+          python3 -m pip install uv twine pytest numpy
 
       - name: Create symbolic links for agi-env, cluster, and node
         run: |
           src_dir="agi-core/src"
-          
           for dir in "$src_dir"/*/; do
             [ -d "$dir" ] || continue
             base=${dir%/}
             base=${base##*/}
-          
             if [[ "$base" == *_worker || "$base" == "agi_dispatcher" ]]; then
               target="src/fwk/core/node/src/$base"
             else
@@ -52,116 +43,12 @@ jobs:
                 *) echo "Warning: no target for $base, skipping"; continue ;;
               esac
             fi
-          
             ln -sf "$dir" "$target"
             echo "Linked $dir → $target"
           done
 
-      - name: Build and install cluster package for testing
-        run: |
-          pushd src/fwk/core/agi-core > /dev/null
-          rm -rf dist
-          uv build --wheel
-          uv add dist/*.whl
-          popd > /dev/null
-
       - name: Run tests
+        env:
+          PYTHONPATH: "${{ github.workspace }}/src"
         run: pytest
 
-  pypi-publish:
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      id-token: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.13'
-
-      - name: Install dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install uv twine
-
-      - name: Create symbolic links for agi-env, cluster, and node
-        run: |
-          ln -sf agi-core/src/agi-env src/fwk/core/env/src/agi-env
-          ln -sf agi-core/src/cluster src/fwk/core/cluster/src/cluster
-          ln -sf agi-core/src/node src/fwk/core/node/src/node
-
-      - name: Clean previous builds
-        run: |
-          rm -rf src/fwk/core/agi-core/dist dist
-
-      - name: Update version in pyproject.toml files
-        env:
-          VERSION: ${{ github.event.inputs.version || github.ref_name }}
-        run: |
-          VERSION=${VERSION#v}
-          echo "Bumping version to $VERSION"
-          find . -type f -name pyproject.toml -not -path "./.git/*" | while read -r file; do
-            echo "→ Updating $file"
-            sed -i '/^dynamic\s*=/d' "$file"
-            if grep -q '^version *= *".*"' "$file"; then
-              sed -i "s/^version *= *.*/version = \"$VERSION\"/" "$file"
-            else
-              sed -i "/^\[project\]/a version = \"$VERSION\"" "$file"
-            fi
-          done
-
-      - name: Commit version changes if any
-        env:
-          VERSION: ${{ github.event.inputs.version || github.ref_name }}
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add pyproject.toml src/fwk/core/agi-core/pyproject.toml
-          if ! git diff --cached --quiet; then
-            git commit -m "Bump version to ${VERSION#v}"
-            git push
-          else
-            echo "No changes to commit."
-          fi
-
-      - name: Build agi-core package
-        run: |
-          pushd src/fwk/core/agi-core > /dev/null
-          uv build --wheel
-          popd > /dev/null
-
-      - name: Upload agi-core package artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: agi-core-distributions
-          path: src/fwk/core/agi-core/dist/
-
-      - name: Build combined main package (agilab)
-        run: uv build --sdist
-
-      - name: Upload agilab package artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: agilab-distributions
-          path: dist/
-
-      - name: Verify package files before upload
-        run: twine check src/fwk/core/agi-core/dist/* dist/*
-
-      - name: Publish agi-core package to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-        run: twine upload src/fwk/core/agi-core/dist/*
-
-      - name: Publish agilab main package to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-        run: twine upload dist/*
