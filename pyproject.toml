@@ -70,9 +70,6 @@ workspace = true
 [tool.uv.sources.agi-core]
 path = "src/fwk/core"
 
-[tool.uv.workspace]
-members = ["apps", "views"]
-
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
