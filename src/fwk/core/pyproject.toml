@@ -1,6 +1,6 @@
 [project]
 name = "agi-core"
-version = "0.3.60"
+version = "0.3.61"
 description = "agi-core is a framework to explore AI for engineering"
 readme = "README.md"
 requires-python = ">=3.11"
