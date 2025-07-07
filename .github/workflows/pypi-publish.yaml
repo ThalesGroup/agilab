@@ -14,11 +14,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Run tests
-        env:
-          PYTHONPATH: "${{ github.workspace }}/src"
-        run: pytest
-
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -33,6 +28,11 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install uv twine pytest
+
+      - name: Run tests
+        env:
+          PYTHONPATH: "${{ github.workspace }}/src"
+        run: pytest
 
       - name: Create symbolic links for agi-env, cluster, and node
         run: |
