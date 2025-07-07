@@ -83,7 +83,7 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["agi*", "apps*", "views*"]
+include = ["gui*", "apps*", "views*"]
 exclude = [
     "fwk.core*",
     ".idea*",
