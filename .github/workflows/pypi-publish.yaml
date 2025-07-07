@@ -71,8 +71,8 @@ jobs:
       - name: Create symbolic links for agi-env, cluster, and node
         run: |
           ln -sf agi-core/src/agi-env src/fwk/core/env/src/agi-env
-          ln -sf agi-core/src/cluster src/fwk/core/env/src/cluster
-          ln -sf agi-core/src/node src/fwk/core/env/src/node
+          ln -sf agi-core/src/cluster src/fwk/core/cluster/src/cluster
+          ln -sf agi-core/src/node src/fwk/core/node/src/node
 
       - name: Clean previous builds
         run: |
