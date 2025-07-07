@@ -29,14 +29,22 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install uv twine pytest
 
-      - name: Run tests
+      - name: Create symbolic links for agi-env, cluster, and node
         run: |
-          echo "Building cluster package for testing"
+          ln -sf agi-core/src/agi-env src/fwk/core/env/src/agi-env
+          ln -sf agi-core/src/cluster src/fwk/core/env/src/cluster
+          ln -sf agi-core/src/node src/fwk/core/env/src/node
+
+      - name: Build and install cluster package for testing
+        run: |
           pushd src/fwk/core/cluster > /dev/null
           rm -rf dist
           uv sync --dev --config-file uv_config.toml
           uv pip install -e .
           popd > /dev/null
+
+      - name: Run tests
+        run: pytest
 
   pypi-publish:
     needs: test
@@ -60,9 +68,15 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install uv twine
 
-      - name: Remove all existing distribution directories
+      - name: Create symbolic links for agi-env, cluster, and node
         run: |
-          rm -rf src/fwk/core/dist dist
+          ln -sf agi-core/src/agi-env src/fwk/core/env/src/agi-env
+          ln -sf agi-core/src/cluster src/fwk/core/env/src/cluster
+          ln -sf agi-core/src/node src/fwk/core/env/src/node
+
+      - name: Clean previous builds
+        run: |
+          rm -rf src/fwk/core/agi-core/dist dist
 
       - name: Update version in pyproject.toml files
         env:
@@ -70,7 +84,7 @@ jobs:
         run: |
           VERSION=${VERSION#v}
           echo "Bumping version to $VERSION"
-          find . -type f -name pyproject.toml -not -path "./.git/*" | while read file; do
+          find . -type f -name pyproject.toml -not -path "./.git/*" | while read -r file; do
             echo "→ Updating $file"
             sed -i '/^dynamic\s*=/d' "$file"
             if grep -q '^version *= *".*"' "$file"; then
@@ -80,7 +94,7 @@ jobs:
             fi
           done
 
-      - name: Commit version changes
+      - name: Commit version changes if any
         env:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
@@ -96,37 +110,35 @@ jobs:
 
       - name: Build agi-core package
         run: |
-          echo "Building core package"
-          pushd src/fwk/core > /dev/null
+          pushd src/fwk/core/agi-core > /dev/null
           uv build --wheel
           popd > /dev/null
 
-      - name: Upload agi-core package
+      - name: Upload agi-core package artifacts
         uses: actions/upload-artifact@v4
         with:
           name: agi-core-distributions
-          path: src/fwk/core/dist/
+          path: src/fwk/core/agi-core/dist/
 
       - name: Build combined main package (agilab)
         run: uv build --sdist
 
-      - name: Upload agilab package
+      - name: Upload agilab package artifacts
         uses: actions/upload-artifact@v4
         with:
           name: agilab-distributions
           path: dist/
 
       - name: Verify package files before upload
-        run: twine check src/fwk/core/dist/* dist/*
+        run: twine check src/fwk/core/agi-core/dist/* dist/*
 
-      - name: Publish subpackages to PyPI
+      - name: Publish agi-core package to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-        run: |
-          twine upload src/fwk/core/dist/*
+        run: twine upload src/fwk/core/agi-core/dist/*
 
-      - name: Publish main package (agilab) to PyPI
+      - name: Publish agilab main package to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
