@@ -12,7 +12,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["cluster", "node", "env"]
+include = ["agi_cluster", "agi_cluster.*", "agi_node", "agi_node.*", "agi_env", "agi_env.*"]
 exclude = [
     ".idea*",
     "test*",
