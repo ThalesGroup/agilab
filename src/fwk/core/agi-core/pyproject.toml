@@ -6,17 +6,6 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
 
-[tool.setuptools.packages.find]
-where = ["src"]
-include = [
-  "agi_env",
-  "agi_env.*",
-  "agi_node",
-  "agi_node.*",
-  "agi_cluster",
-  "agi_cluster.*"
-]
-
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
