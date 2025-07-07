@@ -92,7 +92,7 @@ exclude = [
     "fwk.core*",
     "fwk.gui*",
     ".idea*",
-    "tests*",
+    "test*",
     "fwk.apps.flight_project.build*",
     "fwk.apps.mycode_project.build*"
 ]
