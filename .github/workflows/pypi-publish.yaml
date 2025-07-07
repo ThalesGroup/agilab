@@ -100,7 +100,7 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add pyproject.toml src/fwk/core/pyproject.toml
+          git add pyproject.toml src/fwk/core/agi-core/pyproject.toml
           if ! git diff --cached --quiet; then
             git commit -m "Bump version to ${VERSION#v}"
             git push
