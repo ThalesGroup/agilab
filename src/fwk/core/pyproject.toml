@@ -4,11 +4,7 @@ version = "0.3.60"
 description = "agi-core is a framework to explore AI for engineering"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = [
-    "cluster",
-    "node",
-    "env"
-]
+dependencies = []
 
 [build-system]
 requires = ["setuptools"]
