@@ -69,8 +69,8 @@ jobs:
         run: |
           pushd src/fwk/core/agi-core > /dev/null
           rm -rf dist
-          uv sync --dev --config-file uv_config.toml
-          uv pip install -e .
+          uv build --wheel
+          uv pip install dist/*.whl
           popd > /dev/null
 
       - name: Run tests
