@@ -32,7 +32,7 @@ jobs:
       - name: Run tests
         run: |
           echo "Building cluster package for testing"
-          pushd src/agi/fwk/core/cluster > /dev/null
+          pushd src/fwk/core/cluster > /dev/null
           rm -rf dist
           uv sync --dev --config-file uv_config.toml
           uv pip install -e .
@@ -62,7 +62,7 @@ jobs:
 
       - name: Remove all existing distribution directories
         run: |
-          rm -rf src/agi/fwk/env/dist src/agi/fwk/core/cluster/dist src/agi/fwk/node/dist src/agi/fwk/gui/dist dist agi-pypi
+          rm -rf src/fwk/env/dist src/fwk/core/cluster/dist src/fwk/node/dist src/fwk/gui/dist dist agi-pypi
 
       - name: Update version in pyproject.toml files
         env:
@@ -86,7 +86,7 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add pyproject.toml src/agi/fwk/core/env/pyproject.toml src/agi/fwk/core/cluster/pyproject.toml src/agi/fwk/core/node/pyproject.toml src/agi/fwk/gui/pyproject.toml
+          git add pyproject.toml src/fwk/core/env/pyproject.toml src/fwk/core/cluster/pyproject.toml src/fwk/core/node/pyproject.toml src/fwk/gui/pyproject.toml
           if ! git diff --cached --quiet; then
             git commit -m "Bump version to ${VERSION#v}"
             git push
