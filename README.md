@@ -18,9 +18,9 @@ See [documentation](https://thalesgroup.github.io/agilab).
 ## Install and Execution for enduser
 
 ```bash
-mkdir fwk-workspace && cd fwk-workspace
+mkdir workspace && cd workspace
 uv init --bare --no-workspace
-uv add -p 3.12 --upgrade agilab fwk-env fwk-cluster fwk-node fwk-gui
+uv add -p 3.13 --upgrade agilab agi-env agi-cluster agi-node agi-gui
 uv run agilab --openai-api-key "your-api-key"
 ```
 
