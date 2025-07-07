@@ -32,7 +32,7 @@ jobs:
       - name: Run tests
         run: |
           echo "Building cluster package for testing"
-          pushd src/agi/fwk/cluster > /dev/null
+          pushd src/agi/fwk/core/cluster > /dev/null
           rm -rf dist
           uv sync --dev --config-file uv_config.toml
           uv pip install -e .
@@ -62,7 +62,7 @@ jobs:
 
       - name: Remove all existing distribution directories
         run: |
-          rm -rf src/agi/fwk/env/dist src/agi/fwk/cluster/dist src/agi/fwk/node/dist src/agi/fwk/gui/dist dist agi-pypi
+          rm -rf src/agi/fwk/env/dist src/agi/fwk/core/cluster/dist src/agi/fwk/node/dist src/agi/fwk/gui/dist dist agi-pypi
 
       - name: Update version in pyproject.toml files
         env:
