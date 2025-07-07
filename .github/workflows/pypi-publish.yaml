@@ -14,6 +14,11 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      - name: Run tests
+        env:
+          PYTHONPATH: "${{ github.workspace }}/src"
+        run: pytest
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
