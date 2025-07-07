@@ -34,7 +34,6 @@ dependencies = [
     "twine",
     "wheel",
     "agi-core",
-    "agi-gui",
     "pylint",
 ]
 
@@ -90,7 +89,6 @@ where = ["src"]
 include = ["agi*", "apps*", "views*"]
 exclude = [
     "fwk.core*",
-    "fwk.gui*",
     ".idea*",
     "test*",
     "fwk.apps.flight_project.build*",
