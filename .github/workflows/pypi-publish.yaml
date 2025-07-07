@@ -62,7 +62,7 @@ jobs:
 
       - name: Remove all existing distribution directories
         run: |
-          rm -rf src/fwk/env/dist src/fwk/core/cluster/dist src/fwk/node/dist src/fwk/gui/dist dist agi-pypi
+          rm -rf src/fwk/core/dist dist
 
       - name: Update version in pyproject.toml files
         env:
@@ -94,18 +94,17 @@ jobs:
             echo "No changes to commit."
           fi
 
-      - name: Build cluster package
+      - name: Build core package
         run: |
           echo "Building core package"
           pushd src/fwk/core > /dev/null
-          rm -rf dist
           uv build --wheel
           popd > /dev/null
 
       - name: Upload fwk-core package
         uses: actions/upload-artifact@v4
         with:
-          name: fwk-core-distributions
+          name: agi-core-distributions
           path: src/fwk/core/dist/
 
       - name: Build combined main package (agilab)
