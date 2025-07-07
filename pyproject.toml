@@ -70,9 +70,6 @@ workspace = true
 [tool.uv.sources.agi-core]
 path = "src/fwk/core"
 
-[tool.uv.sources.agi-gui]
-path = "src/fwk/gui"
-
 [tool.uv.workspace]
 members = ["apps", "views"]
 
