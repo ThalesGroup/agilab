@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$USER_HOME$/agi-space/.idea/agi-space.iml" filepath="$USER_HOME$/agi-space/.idea/agi-space.iml" />
       <module fileurl="file://$PROJECT_DIR$/core/cluster/.idea/cluster.iml" filepath="$PROJECT_DIR$/core/cluster/.idea/cluster.iml" />
       <module fileurl="file://$PROJECT_DIR$/core/env/.idea/env.iml" filepath="$PROJECT_DIR$/core/env/.idea/env.iml" />
       <module fileurl="file://$PROJECT_DIR$/apps/flight_project/.idea/flight_project.iml" filepath="$PROJECT_DIR$/apps/flight_project/.idea/flight_project.iml" />
