@@ -166,8 +166,6 @@ class AgiEnv:
 
         logging.debug(f"Logging initialized at level {logging.getLevelName(root.level)}")
 
-
-
     def __init__(self, install_type: int = None, apps_dir: Path = None,
                  active_app: Path | str = None, verbose: int = None, debug=False, python_variante: str = ''):
         AgiEnv.verbose = verbose
