@@ -11,67 +11,10 @@ on:
       - 'v*.*.*'
 
 jobs:
-  test:
+  setup-env:
     runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Python 3.13
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.13'
-
-      - name: Install system dependencies (for distutils)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-distutils python3-setuptools python3-pip
-
-      - name: Upgrade pip and setuptools
-        run: |
-          python -m pip install --upgrade pip setuptools wheel setuptools_scm
-
-      - name: Create symlinks for agi-core subpackages
-        run: |
-          set -eux
-          src_dir="src/fwk/core/agi-core/src"
-
-          # Symlink agi_env
-          mkdir -p src/fwk/core/env/src
-          ln -sf "${src_dir}/agi_env" src/fwk/core/env/src/agi_env
-
-          # Symlink agi_distributor for cluster
-          mkdir -p src/fwk/core/cluster/src
-          ln -sf "${src_dir}/agi_distributor" src/fwk/core/cluster/src/agi_distributor
-
-          # Symlink node submodules individually
-          mkdir -p src/fwk/core/node/src
-          for mod in agent_worker agi_dispatcher dag_worker pandas_worker polars_worker; do
-            ln -sf "${src_dir}/$mod" "src/fwk/core/node/src/$mod"
-          done
-
-      - name: Install packages in editable mode
-        run: |
-          pip install -e src/fwk/core/env
-          pip install -e src/fwk/core/cluster
-          pip install -e src/fwk/core/node
-
-      - name: Install test dependencies
-        run: pip install pytest pytest-asyncio pytest-cov
-
-      - name: Run tests
-        run: pytest --maxfail=5 --disable-warnings -v
-
-  pypi-publish:
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      id-token: write
-
+    outputs:
+      src_dir: src/fwk/core/agi-core/src
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -89,24 +32,49 @@ jobs:
           sudo apt-get install -y python3-distutils python3-setuptools python3-pip
 
       - name: Upgrade pip and setuptools
-        run: |
-          python -m pip install --upgrade pip setuptools wheel setuptools_scm
+        run: python -m pip install --upgrade pip setuptools wheel setuptools_scm
 
       - name: Create symlinks for agi-core subpackages
         run: |
           set -eux
           src_dir="src/fwk/core/agi-core/src"
-
+          
           mkdir -p src/fwk/core/env/src
           ln -sf "${src_dir}/agi_env" src/fwk/core/env/src/agi_env
-
+          
           mkdir -p src/fwk/core/cluster/src
           ln -sf "${src_dir}/agi_distributor" src/fwk/core/cluster/src/agi_distributor
-
+          
           mkdir -p src/fwk/core/node/src
           for mod in agent_worker agi_dispatcher dag_worker pandas_worker polars_worker; do
             ln -sf "${src_dir}/$mod" "src/fwk/core/node/src/$mod"
           done
+
+  test:
+    needs: setup-env
+    runs-on: ubuntu-latest
+    steps:
+      - name: Use setup-env checkout and setup
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests
+        run: |
+          pip install pytest pytest-asyncio pytest-cov
+          pytest --maxfail=5 --disable-warnings -v
+
+  pypi-publish:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Use setup-env checkout and setup
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Clean previous builds
         run: |
@@ -162,3 +130,9 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: twine upload src/fwk/core/agi-core/dist/*
+
+      - name: Publish agilab main package to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
+        run: twine upload dist/*
