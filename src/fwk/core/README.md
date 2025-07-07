@@ -18,7 +18,7 @@ agi-cluster is an AI framework for engineering distributed under the BSD License
 
 ```bash
 
-mkdir fwk-workspace && cd fwk-workspace
+mkdir agi-space && cd agi-space
 uv init && uv add fwk-core
 ```
 
