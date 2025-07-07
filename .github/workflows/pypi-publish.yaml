@@ -67,7 +67,7 @@ jobs:
 
       - name: Build and install cluster package for testing
         run: |
-          pushd src/fwk/core/cluster > /dev/null
+          pushd src/fwk/core/agi-core > /dev/null
           rm -rf dist
           uv sync --dev --config-file uv_config.toml
           uv pip install -e .
