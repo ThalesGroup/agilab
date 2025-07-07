@@ -27,7 +27,7 @@ EGG*
 src/*-info/
 
 # Pytest caches
-.pytest*
+.py*
 
 # managed PC install under windows
 /thales/
