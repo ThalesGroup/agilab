@@ -94,14 +94,14 @@ jobs:
             echo "No changes to commit."
           fi
 
-      - name: Build core package
+      - name: Build agi-core package
         run: |
           echo "Building core package"
           pushd src/fwk/core > /dev/null
           uv build --wheel
           popd > /dev/null
 
-      - name: Upload fwk-core package
+      - name: Upload agi-core package
         uses: actions/upload-artifact@v4
         with:
           name: agi-core-distributions
