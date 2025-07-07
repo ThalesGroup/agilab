@@ -46,7 +46,7 @@ jobs:
           
             # Determine target base path by directory name
             case "$base" in
-              agi-env)
+              agi_env)
                 target="src/fwk/core/env/src/$base"
                 ;;
               agi_distributor)
@@ -70,7 +70,7 @@ jobs:
           pushd src/fwk/core/agi-core > /dev/null
           rm -rf dist
           uv build --wheel
-          uv pip install dist/*.whl
+          uv add dist/*.whl
           popd > /dev/null
 
       - name: Run tests
