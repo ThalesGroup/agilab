@@ -36,34 +36,26 @@ jobs:
 
       - name: Create symbolic links for agi-env, cluster, and node
         run: |
-          # Base source dir
           src_dir="agi-core/src"
           
-          # Loop over each subdirectory in agi-core/src
-          for dir in "$src_dir"/*; do
-            [ -d "$dir" ] || continue  # skip if not a directory
-            base=$(basename "$dir")
+          for dir in "$src_dir"/*/; do
+            [ -d "$dir" ] || continue
+            base=${dir%/}
+            base=${base##*/}
           
-            # Determine target base path by directory name
-            case "$base" in
-              agi_env)
-                target="src/fwk/core/env/src/$base"
-                ;;
-              agi_distributor)
-                target="src/fwk/core/cluster/src/$base"
-                ;;
-              dag_worker|pandas_worker|polars_worker|agent_worker)
-                target="src/fwk/core/node/src/$base"
-                ;;
-              *)
-                echo "Warning: no target mapping for $base, skipping"
-                continue
-                ;;
-            esac
+            if [[ "$base" == *_worker || "$base" == "agi_dispatcher" ]]; then
+              target="src/fwk/core/node/src/$base"
+            else
+              case "$base" in
+                agi_env) target="src/fwk/core/env/src/$base" ;;
+                agi_distributor) target="src/fwk/core/cluster/src/$base" ;;
+                *) echo "Warning: no target for $base, skipping"; continue ;;
+              esac
+            fi
           
             ln -sf "$dir" "$target"
             echo "Linked $dir → $target"
-          done 
+          done
 
       - name: Build and install cluster package for testing
         run: |
