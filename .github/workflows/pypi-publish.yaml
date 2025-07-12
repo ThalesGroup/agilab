@@ -13,8 +13,6 @@ on:
 jobs:
   setup-env:
     runs-on: ubuntu-latest
-    outputs:
-      src_dir: src/fwk/core/agi-core/src
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -32,13 +30,9 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          # Removed python3-distutils, install setuptools only
           sudo apt-get install -y python3-setuptools python3-pip
 
-          # Optional fallback if you want distutils specifically (uncomment if needed)
-          # sudo apt-get install -y python3.11-distutils || true
-
-      - name: Upgrade pip, setuptools, wheel, setuptools_scm
+      - name: Upgrade pip, setuptools, wheel, setuptools_scm, uv
         run: python3 -m pip install --upgrade --no-cache-dir pip setuptools wheel setuptools_scm uv
 
       - name: Create symlinks for agi-core subpackages
@@ -54,7 +48,6 @@ jobs:
           
           mkdir -p src/fwk/core/node/src
           ln -sf "${src_dir}/agi_node" src/fwk/core/node/src/agi_node
-          
 
   test:
     needs: setup-env
@@ -70,8 +63,11 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Install test dependencies
-        run: python3 -m pip install --no-cache-dir pytest pytest-asyncio pytest-cov
+      - name: Install test and runtime dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install --no-cache-dir pytest pytest-asyncio pytest-cov numpy
+          python3 -m pip install --no-cache-dir -e src/fwk/core/agi-core
 
       - name: Run tests
         run: pytest --maxfail=5 --disable-warnings -v
