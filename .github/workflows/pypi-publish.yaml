@@ -60,9 +60,22 @@ jobs:
 
       - name: Sync uv project agi_cluster
         run: |
-          pushd "src/fwk/core/cluster"
+          uv sync
+          pushd "src/fwk/core/env"
+          uv sync --dev --no-workspace
           uv build --wheel
-          uv add dist/*
+          popd
+          pushd "src/fwk/core/node"
+          uv sync --dev --no-workspace
+          uv build --wheel
+          popd
+          pushd "src/fwk/core/cluster"
+          uv sync --dev --no-workspace
+          uv build --wheel
+          popd
+          pushd "src/fwk/core/agi_core"
+          uv sync --dev
+          uv build --wheel
           popd
 
       - name: Run tests
