@@ -65,6 +65,7 @@ jobs:
         run: |
           pushd "src/fwk/core"
           uv run --project cluster pytest --maxfail=5 --disable-warnings -v
+          uv pip install -e cluster
           popd
 
   pypi-publish:
