@@ -117,24 +117,25 @@ jobs:
             echo "No changes to commit."
           fi
 
-      - name: Build agi-core package
-        working-directory: src/fwk/core/agi-core
-        run: uv build --wheel
+      - name: Build agilab package
+        working-directory: .
+        run:
+          uv build --wheel
 
-      - name: Upload agi-core package artifacts
+      - name: Upload agilab package artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: agi-core-distributions
-          path: src/fwk/core/agi-core/dist/
+          name: agilab-distributions
+          path: dist/
 
       - name: Verify agi-core package files before upload
-        run: twine check src/fwk/core/agi-core/dist/*
+        run: twine check dist/*
 
-      - name: Publish agi-core package to PyPI
+      - name: Publish agilab package to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-        run: twine upload src/fwk/core/agi-core/dist/*
+        run: twine upload dist/*
 
       # Optional: If you want to publish the main agilab package,
       # make sure to add a build step before this
