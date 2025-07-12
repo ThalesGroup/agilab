@@ -4,7 +4,7 @@ base_path = Path(__file__).resolve().parents[3]
 path = str(base_path  / "core/node/src")
 if path not in sys.path:
     sys.path.append(path)
-from agi_dispatcher import BaseWorker
+from agi_node.agi_dispatcher import BaseWorker
 from agi_env import AgiEnv
 import asyncio
 
@@ -27,7 +27,7 @@ async def main():
     sys.path.insert(0,'~/wenv/flight_worker/dist')
 
     # BaseWorker.test flight command
-    for i in  range(4): # 2 is working only if you have generate the cython lib before
+    for i in [0, 1, 2, 3]: # 2 is working only if you have generate the cython lib before
         env = AgiEnv(install_type=1,active_app="flight_project",verbose=True)
         # build the egg
         wenv = env.wenv_abs

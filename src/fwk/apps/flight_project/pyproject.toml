@@ -25,6 +25,7 @@ dependencies = [
     "agi-env",
     "agi-node",
     "agi-cluster",
+    "agi-node",
 ]
 
 [project.license]
@@ -70,7 +71,4 @@ ignore_missing_imports = true
 
 [project.optional-dependencies]
 agi-worker = []
-agent-worker = []
-dag-worker = []
 polars-worker = []
-agi-manager = []

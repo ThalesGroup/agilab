@@ -4600,7 +4600,7 @@ __Pyx_RefNannySetupContext("PyInit_mycode_worker_cy", 0);
  * import warnings
  * import logging             # <<<<<<<<<<<<<<
  * from agi_env import AgiEnv, normalize_path
- * from dag_worker import DagWorker
+ * from agi_node.dag_worker import DagWorker
 */
   __pyx_t_2 = __Pyx_ImportDottedModule(__pyx_mstate_global->__pyx_n_u_logging, NULL); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 29, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
@@ -4611,7 +4611,7 @@ __Pyx_RefNannySetupContext("PyInit_mycode_worker_cy", 0);
  * import warnings
  * import logging
  * from agi_env import AgiEnv, normalize_path             # <<<<<<<<<<<<<<
- * from dag_worker import DagWorker
+ * from agi_node.dag_worker import DagWorker
  * 
 */
   __pyx_t_2 = __Pyx_PyList_Pack(2, __pyx_mstate_global->__pyx_n_u_AgiEnv, __pyx_mstate_global->__pyx_n_u_normalize_path); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 30, __pyx_L1_error)
@@ -4632,7 +4632,7 @@ __Pyx_RefNannySetupContext("PyInit_mycode_worker_cy", 0);
   /* "src/mycode_worker/mycode_worker.pyx":31
  * import logging
  * from agi_env import AgiEnv, normalize_path
- * from dag_worker import DagWorker             # <<<<<<<<<<<<<<
+ * from agi_node.dag_worker import DagWorker             # <<<<<<<<<<<<<<
  * 
  * logger = logging.getLogger(__name__)
 */
@@ -4648,7 +4648,7 @@ __Pyx_RefNannySetupContext("PyInit_mycode_worker_cy", 0);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
   /* "src/mycode_worker/mycode_worker.pyx":33
- * from dag_worker import DagWorker
+ * from agi_node.dag_worker import DagWorker
  * 
  * logger = logging.getLogger(__name__)             # <<<<<<<<<<<<<<
  * warnings.filterwarnings("ignore")

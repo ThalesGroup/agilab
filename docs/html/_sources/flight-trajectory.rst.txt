@@ -1,0 +1,36 @@
+Example3: Flight-Trajectory-Project
+==============
+
+manager: flight_trajectory
+------
+.. image:: diagrams/packages_flight_trajectory.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+.. automodule:: flight_trajectory.flight_trajectory
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_flight_trajectory.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+worker: flight_trajectory_worker
+-------------
+.. image:: diagrams/packages_flight_trajectory_worker.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+.. automodule:: flight_trajectory_worker.flight_trajectory_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_flight_trajectory_worker.png
+   :width: 400
+   :alt: Alternative text
+   :align: center

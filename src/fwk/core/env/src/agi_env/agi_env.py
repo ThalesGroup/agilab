@@ -101,13 +101,10 @@ class AgiEnv:
         logging.getLogger('asyncssh').setLevel(sys_level)
 
         # agilab core
-        logging.getLogger("cluster").setLevel(app_level)
-        logging.getLogger("agi_dispatcher").setLevel(app_level)
+        logging.getLogger("agi_cluster").setLevel(app_level)
+        logging.getLogger("agi_node").setLevel(app_level)
         logging.getLogger("agi_env").setLevel(app_level)
-        logging.getLogger("dag_worker").setLevel(app_level)
-        logging.getLogger("pandas_worker").setLevel(app_level)
-        logging.getLogger("polars_worker").setLevel(app_level)
-        logging.getLogger("agent_worker").setLevel(app_level)
+
 
         # Remove existing handlers to avoid duplicate logs
         for handler in root.handlers[:]:
@@ -370,7 +367,7 @@ class AgiEnv:
             logging.info(f"Could not find any target project app in {self.agi_fwk / 'apps'}.")
 
         self.setup_app = app_abs / "build.py"
-        self.setup_core = self.agi_fwk_loc / "core/node/src/agi_dispatcher/build.py"
+        self.setup_core = self.agi_fwk_loc / "core/node/src/agi_node/agi_dispatcher/build.py"
 
         if isinstance(module, Path):
             module_path = module.expanduser().resolve()

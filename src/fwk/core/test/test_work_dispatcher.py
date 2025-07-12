@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import MagicMock, patch
-from agi_dispatcher import WorkDispatcher
+from agi_node.agi_dispatcher import WorkDispatcher
 
 
 @pytest.fixture

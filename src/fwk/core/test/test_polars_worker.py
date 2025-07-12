@@ -10,7 +10,7 @@ for src in [data_src, worker_root / "polars_worker", worker_root / "agi_dispatch
         sys.path.insert(0, str(src))
 
 # Import PolarsWorker from your module.
-from polars_worker import PolarsWorker
+from agi_node.polars_worker import PolarsWorker
 
 # Dummy subclass for testing PolarsWorker.
 class DummyPolarsWorker(PolarsWorker):

@@ -1,5 +1,6 @@
 import pytest
 import multiprocessing
+import time
 
 import sys
 from pathlib import Path
@@ -14,9 +15,9 @@ for src in [data_src, worker_root / "pandas_worker", worker_root / "agi_dispatch
         sys.path.insert(0, str(path))
 
 # Now import modules
-from pandas_worker import PandasWorker
-import  pandas as pd
-from agi_dispatcher import BaseWorker
+from agi_node.pandas_worker import PandasWorker
+import pandas as pd
+from agi_node.agi_dispatcher import BaseWorker
 # DummyWorker can be defined if needed for instance methods test.
 class DummyWorker(BaseWorker):
     def works(self, workers_tree, workers_tree_info):
@@ -41,6 +42,18 @@ class DummyPandasWorker(PandasWorker):
 
     def pool_init(self, pool_vars):
         pass
+
+    def works(self, workers_tree, workers_tree_info):
+        start = time.time()
+        # Appelle la méthode réelle pour faire un travail minimal
+        if self.mode == 0:
+            self.exec_mono_process(workers_tree, workers_tree_info)
+        elif self.mode == 1:
+            self.exec_multi_process(workers_tree, workers_tree_info)
+        else:
+            pass
+        end = time.time()
+        return end - start
 
     def stop(self):
         pass
