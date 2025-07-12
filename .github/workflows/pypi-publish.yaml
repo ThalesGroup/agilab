@@ -59,10 +59,13 @@ jobs:
         run: python3 -m pip install --upgrade --no-cache-dir uv
 
       - name: Sync uv project agi_cluster
-        run: uv sync --project src/fwk/core/agi-core/src/agi_cluster
+        run: uv sync --dev --project src/fwk/core/cluster
 
       - name: Run tests
-        run: uv run --project "src/fwk/core/agi-core/src/agi_cluster" pytest --maxfail=5 --disable-warnings -v
+        run: |
+          pushd "src/fwk/core"
+          uv run --project cluster pytest --maxfail=5 --disable-warnings -v
+          popd
 
   pypi-publish:
     needs: test
