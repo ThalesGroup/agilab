@@ -67,7 +67,6 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install --no-cache-dir pytest pytest-asyncio pytest-cov numpy
-          python3 -m pip install --no-cache-dir -e src/fwk/core/agi-core
 
       - name: Run tests
         run: pytest --maxfail=5 --disable-warnings -v
