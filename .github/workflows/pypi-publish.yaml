@@ -24,29 +24,21 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Show Python version
-        run: python3 --version
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-setuptools python3-pip
-
-      - name: Upgrade pip, setuptools, wheel, setuptools_scm, uv
-        run: python3 -m pip install --upgrade --no-cache-dir pip setuptools wheel setuptools_scm uv
+      - name: Install uv
+        run: python3 -m pip install --upgrade --no-cache-dir uv
 
       - name: Create symlinks for agi-core subpackages
         run: |
           set -eux
           src_dir="src/fwk/core/agi-core/src"
-          
+
+          # Ensure target directories exist
           mkdir -p src/fwk/core/env/src
-          ln -sf "${src_dir}/agi_env" src/fwk/core/env/src/agi_env
-          
           mkdir -p src/fwk/core/cluster/src
-          ln -sf "${src_dir}/agi_cluster" src/fwk/core/cluster/src/agi_cluster
-          
           mkdir -p src/fwk/core/node/src
+
+          ln -sf "${src_dir}/agi_env" src/fwk/core/env/src/agi_env
+          ln -sf "${src_dir}/agi_cluster" src/fwk/core/cluster/src/agi_cluster
           ln -sf "${src_dir}/agi_node" src/fwk/core/node/src/agi_node
 
   test:
@@ -63,13 +55,14 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Install test and runtime dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install --no-cache-dir pytest pytest-asyncio pytest-cov numpy
+      - name: Install uv
+        run: python3 -m pip install --upgrade --no-cache-dir uv
+
+      - name: Sync uv project agi_cluster
+        run: uv sync --project src/fwk/core/agi-core/src/agi_cluster
 
       - name: Run tests
-        run: pytest --maxfail=5 --disable-warnings -v
+        run: uv run --project "src/fwk/core/agi-core/src/agi_cluster" pytest --maxfail=5 --disable-warnings -v
 
   pypi-publish:
     needs: test
@@ -88,12 +81,11 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Install build dependencies
-        run: python3 -m pip install --no-cache-dir setuptools wheel setuptools_scm twine uv
+      - name: Install uv
+        run: python3 -m pip install --upgrade --no-cache-dir uv
 
       - name: Clean previous builds
-        run: |
-          rm -rf src/fwk/core/agi-core/dist dist
+        run: rm -rf dist
 
       - name: Update version in pyproject.toml files
         env:
@@ -117,7 +109,7 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add pyproject.toml src/fwk/core/agi-core/pyproject.toml
+          git add $(find . -type f -name pyproject.toml -not -path "./.git/*")
           if ! git diff --cached --quiet; then
             git commit -m "Bump version to ${VERSION#v}"
             git push
@@ -126,10 +118,8 @@ jobs:
           fi
 
       - name: Build agi-core package
-        run: |
-          pushd src/fwk/core/agi-core
-          uv build --wheel
-          popd
+        working-directory: src/fwk/core/agi-core
+        run: uv build --wheel
 
       - name: Upload agi-core package artifacts
         uses: actions/upload-artifact@v4
@@ -137,7 +127,7 @@ jobs:
           name: agi-core-distributions
           path: src/fwk/core/agi-core/dist/
 
-      - name: Verify package files before upload
+      - name: Verify agi-core package files before upload
         run: twine check src/fwk/core/agi-core/dist/*
 
       - name: Publish agi-core package to PyPI
@@ -146,8 +136,14 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: twine upload src/fwk/core/agi-core/dist/*
 
+      # Optional: If you want to publish the main agilab package,
+      # make sure to add a build step before this
+      # - name: Build main agilab package
+      #   run: <your build commands here>
+
       - name: Publish agilab main package to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: twine upload dist/*
+
