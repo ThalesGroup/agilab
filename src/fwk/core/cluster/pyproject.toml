@@ -63,6 +63,7 @@ dependencies = [
     "requests",
     "asyncssh",
     "agi-node",
+    "agi-env",
 ]
 
 [project.urls]
