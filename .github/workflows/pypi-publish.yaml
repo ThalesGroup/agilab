@@ -60,7 +60,7 @@ jobs:
 
       - name: Sync uv project agi_cluster
         run: |
-          pushd "src/fwk/core"
+          pushd "src/fwk/core/cluster"
           uv build --wheel
           uv add dist/*
           popd
