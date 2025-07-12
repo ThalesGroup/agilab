@@ -59,7 +59,11 @@ jobs:
         run: python3 -m pip install --upgrade --no-cache-dir uv
 
       - name: Sync uv project agi_cluster
-        run: uv add dist/*
+        run: |
+          pushd "src/fwk/core"
+          uv build --wheel
+          uv add dist/*
+          popd
 
       - name: Run tests
         run: |
