@@ -43,12 +43,11 @@ jobs:
           ln -sf "${src_dir}/agi_env" src/fwk/core/env/src/agi_env
           
           mkdir -p src/fwk/core/cluster/src
-          ln -sf "${src_dir}/agi_distributor" src/fwk/core/cluster/src/agi_distributor
+          ln -sf "${src_dir}/agi_cluster" src/fwk/core/cluster/src/agi_cluster
           
           mkdir -p src/fwk/core/node/src
-          for mod in agent_worker agi_dispatcher dag_worker pandas_worker polars_worker; do
-            ln -sf "${src_dir}/$mod" "src/fwk/core/node/src/$mod"
-          done
+          ln -sf "${src_dir}/agi_node" src/fwk/core/node/src/agi_node
+          
 
   test:
     needs: setup-env

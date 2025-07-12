@@ -1,0 +1,2 @@
+the compressed file and the antenna_conf.json are other satellite trajectory that can be added to the current data.
+to do so, please move the wished trajectory from the Trajectory compressed file to the sat folder under dataset. then exchange the current antenna_conf.json with the antenna_conf.json here.

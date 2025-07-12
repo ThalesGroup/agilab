@@ -1,0 +1,24 @@
+[args]
+path = "~/data/sat"
+data_out = "~/data/link_sim/dataframes"
+data_dir = "~/data/link_sim/dataset"
+data_flight = "flights"
+data_sat = "sat"
+plane_conf_path = "antenna_conf.json"
+output_format = "parquet"
+cloud_heatmap_IVDL = "CloudMapIvdl.npz"
+cloud_heatmap_sat = "CloudMapSat.npz"
+services_conf_path = "service.json"
+
+[views]
+view_module = [
+    "maps",
+    "maps_3d",
+]
+
+[cluster]
+verbose = true
+cython = false
+cluster_enabled = false
+rapids = false
+pool = false

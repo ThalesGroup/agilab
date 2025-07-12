@@ -33,26 +33,23 @@ def main():
         print("No test files found.")
         sys.exit(1)
 
-    coverage_packages = [
-        "agi_distributor",
-        "agi_dispatcher",
-        "agent_worker",
-        "dag_worker",
-        "pandas_worker",
-        "polars_worker",
+    cov_modules = [
+        "agi_node.agi_distributor",
+        "agi_node.agi_dispatcher",
+        "agi_node.agent_worker",
+        "agi_node.dag_worker",
+        "agi_node.pandas_worker",
+        "agi_node.polars_worker",
     ]
-
-    cov_args = [f"--cov={pkg}" for pkg in coverage_packages]
 
     cmd = [
         sys.executable, "-m", "pytest",
         "--rootdir", str(repo_root),
-        *cov_args,
+        *(f"--cov={mod}" for mod in cov_modules),
         "--cov-report=term",
         "--cov-report=xml",
         "--import-mode=importlib",
-        "--local-badge-output-dir",
-        str(badges_root),
+        f"--local-badge-output-dir={badges_root}",
     ] + [str(f) for f in test_files]
 
     print("Running pytest with command:")

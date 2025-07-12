@@ -15,7 +15,7 @@ def test_baseworker_mycode_project(mode):
     sys.path.insert(0, str(Path('~/wenv/mycode_worker/dist').expanduser()))
 
     from agi_env import AgiEnv
-    from agi_dispatcher import BaseWorker
+    from agi_node.agi_dispatcher import BaseWorker
 
     env = AgiEnv(install_type=1, active_app="mycode_project", verbose=True)
     with open(env.home_abs / ".local/share/agilab/.fwk-path", 'r') as f:

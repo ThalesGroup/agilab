@@ -1,6 +1,6 @@
 import sys
 from pathlib import Path
-from agi_dispatcher import BaseWorker
+from agi_node.agi_dispatcher import BaseWorker
 from agi_env import AgiEnv
 import asyncio
 

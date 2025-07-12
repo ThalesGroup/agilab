@@ -14,7 +14,7 @@ uv build --sdist
 Move-Item dist\*.gz $targetDist
 
 # Build wheels from subdirectories
-$subdirs = @("fwk/env", "fwk/cluster", "fwk/node", "fwk/gui")
+$subdirs = @("fwk/core/env", "fwk/core/cluster", "fwk/core/node", "fwk/gui")
 
 foreach ($dir in $subdirs) {
     $srcDir = Join-Path $cwd "src\fwk\$dir"

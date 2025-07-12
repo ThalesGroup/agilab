@@ -24,7 +24,7 @@ import argparse
 
 node_src = str(Path(__file__).parent.parent / 'core/node/src')
 sys.path.insert(0, node_src)
-from agi_distributor import AGI
+from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
 # Take the first argument from the command line as the module name

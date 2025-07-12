@@ -5,7 +5,7 @@ from pathlib import Path
 path = str(Path(__file__).resolve().parents[3]  / "core/node/src")
 if path not in sys.path:
     sys.path.append(path)
-from agi_dispatcher import BaseWorker
+from agi_node.agi_dispatcher import BaseWorker
 from agi_env import AgiEnv
 
 
@@ -72,7 +72,7 @@ def build_worker_libs(env):
 @pytest.mark.parametrize("mode", [0, 1, 2, 3])
 @pytest.mark.asyncio
 async def test_baseworker_modes(mode, args, env, build_worker_libs):
-    from agi_dispatcher import BaseWorker
+    from agi_node.agi_dispatcher import BaseWorker
     # Call new and test for each mode
     BaseWorker.new("flight_project", mode=mode, env=env, verbose=3, args=args)
     result = BaseWorker.test(mode=mode, args=args)

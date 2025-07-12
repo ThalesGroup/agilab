@@ -11,7 +11,7 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
-from agi_dispatcher import BaseWorker
+from agi_node.agi_dispatcher import BaseWorker
 
 class AgentAppArgs(BaseModel):
     """

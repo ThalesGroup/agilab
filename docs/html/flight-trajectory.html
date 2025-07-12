@@ -1,0 +1,1326 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Example3: Flight-Trajectory-Project &mdash; AGILab 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+      <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css?v=28052664" />
+
+  
+    <link rel="canonical" href="https://thalesgroup.github.io/agilab/flight-trajectory.html" />
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=8d563738"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Example4: Link-Sim-Project" href="link-sim.html" />
+    <link rel="prev" title="Example2: Flight-Project" href="flight-project.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            AGILab
+              <img src="_static/agi_logo.svg" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quick-start.html">Quick-Start</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="quick-start.html#license">LICENSE</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick-start.html#install-agilab">Install Agilab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick-start.html#support">Support</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#purpose"><strong>Purpose</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#target-audience"><strong>Target Audience</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#main-dependencies"><strong>Main Dependencies</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#technologies-selection-criteria"><strong>Technologies Selection Criteria</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#example-aircraft-telecommunication">Example: Aircraft Telecommunication</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="features.html">Features</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="features.html#agi-core">agi-core</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.html#agilab">agilab</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Core Topics</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="cluster.html">Cluster</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="cluster-help.html">Cluster Help</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="cluster-help.html#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="cluster-help.html#principle">Principle</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#generate-the-keys">1. Generate the keys</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#loading-the-private-key-in-ssh-agent">2. Loading the private key in SSH Agent</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#load-the-private-key">2.1 Load the private key</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verify-the-key-addition">2.2 Verify the key Addition</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#copy-the-public-key-to-the-server">3. Copy the public key to the server</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#allow-your-key">3.1 Allow your key</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verification">3.2 Verification</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#sshd-service">SSHD Service</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#useful-links">Useful links</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="agilab.html">AGILab</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="edit_help.html">▶️ EDIT</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="edit_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="edit_help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l3"><a class="reference internal" href="edit_help.html#support">Support</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="execute_help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="execute_help.html#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="execute_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="execute_help.html#main-content-area">Main Content Area</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="experiment_help.html">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="experiment_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="experiment_help.html#main-content-area">Main Content Area</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="views_help.html">▶️ VIEW</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="views_help.html#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="views_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="views_help.html#main-content-area">Main Content Area</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="framework-api.html">Framework API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-env.html">agi_env API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agi-env.html#usage-example">Usage Example</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#instanciation">Instanciation</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="agi-env.html#reference">Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.normalize_path"><code class="docutils literal notranslate"><span class="pre">normalize_path()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="agi-runner.html">agi_distributor API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agi-runner.html#usage-example">Usage Example</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-runner.html#installation">Installation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-runner.html#update">Update</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-runner.html#distribute">Distribute</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-runner.html#run">Run</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="agi-runner.html#reference">Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="workers.html">workers API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="workers.html#workers-reference">Workers Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="workers.html#agent-worker">agent_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="workers.html#dag-worker">dag_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="workers.html#pandas-worker">pandas_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="workers.html#polars-worker">polars_worker</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="directory-structure.html">Project Files Structure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-usecase.html">Installation Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#d-agilab-run-vs-gui-run">D - agilab_run vs gui_run:</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html#known-bugs">Known Bugs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#uv-sync-failed">&lt;UV&gt; Sync Failed</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#dask-debug-issue">&lt;DASK&gt; Debug Issue</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#pycharm-run-debug-configuration-is-broken">&lt;PYCHARM&gt; Run/Debug Configuration is Broken</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="gui-licenses.html">Gui Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="node-licenses.html">Node Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="env-licenses.html">Env Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="my-code-project-licenses.html">My-code-project Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Example Projects</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="my-code-project.html">Example1: Mycode-Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="my-code-project.html#manager">manager:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="my-code-project.html#worker-mycode-worker">worker: mycode_worker</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker"><code class="docutils literal notranslate"><span class="pre">MycodeWorker</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_A"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_A()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_B"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_B()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_C"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_C()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_X"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_X()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_Y"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_Y()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_Z"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_Z()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.build"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.build()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.dask_home</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.do_works"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.env"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.env</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.exec"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.exec_mono_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.exec_multi_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.expand"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.get_logs_and_result()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.get_work"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.get_work()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.is_managed_pc</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.join"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.logs"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.mode"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.new"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.new()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.onerror"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.share_path"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.start"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.stop"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.t0"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.t0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.test"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.test()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.topological_sort"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.topological_sort()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.verbose"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.worker"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.worker_id"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.worker_id</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.works"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.works()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="flight-project.html">Example2: Flight-Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#manager-flight">manager: flight</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#worker-flight-worker">worker: flight_worker</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Example3: Flight-Trajectory-Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#manager-flight-trajectory">manager: flight_trajectory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#worker-flight-trajectory-worker">worker: flight_trajectory_worker</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.build"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.build()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.dask_home</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.do_works"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.env"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.env</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.exec"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.exec_mono_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.exec_multi_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.expand"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.get_logs_and_result()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.is_managed_pc</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.join"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.logs"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.mode"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.new"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.new()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.onerror"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.pool_init"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.pool_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.pool_vars"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.pool_vars</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.share_path"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.start"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.stop"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.t0"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.t0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.test"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.test()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.verbose"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.work_done"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.work_done()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.work_init"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.work_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.work_pool"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.work_pool()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.worker"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.worker_id"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.worker_id</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.works"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryWorker.works()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.haversine"><code class="docutils literal notranslate"><span class="pre">haversine()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory"><code class="docutils literal notranslate"><span class="pre">plane_trajectory</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.__init__"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.calculate_bearing"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.calculate_bearing()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.calculate_trajectory"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.calculate_trajectory()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.calculate_turn_direction_and_angle"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.calculate_turn_direction_and_angle()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.cruise_to_destination"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.cruise_to_destination()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.df_col_names"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.df_col_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.estimate_altitude_change_for_pitch_correction"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.estimate_altitude_change_for_pitch_correction()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.estimate_descent_distance"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.estimate_descent_distance()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.estimate_level_off_alt_gain"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.estimate_level_off_alt_gain()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.estimate_roll_pitch_correction_rotation"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.estimate_roll_pitch_correction_rotation()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.get_min_waypoints_distance"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.get_min_waypoints_distance()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.haversine_distance"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.haversine_distance()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.perform_descent"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.perform_descent()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.perform_pitch_correction_to_level"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.perform_pitch_correction_to_level()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.perform_roll_pitch_correction"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.perform_roll_pitch_correction()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.perform_turn_to_next_waypoint"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.perform_turn_to_next_waypoint()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.plot"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.plot()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.plot_3d_flight_path"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.plot_3d_flight_path()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.simulate_cruise_to_waypoint"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.simulate_cruise_to_waypoint()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.simulate_takeoff_and_climb"><code class="docutils literal notranslate"><span class="pre">plane_trajectory.simulate_takeoff_and_climb()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="link-sim.html">Example4: Link-Sim-Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="link-sim.html#manager-link-sim">manager: link_sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="link-sim.html#worker-link-sim-worker">worker: link_sim_worker</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Hosting Sites</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="agilab-github.html"><strong>Agilab project</strong></a></li>
+<li class="toctree-l1"><a class="reference internal" href="agilab-github.html#agilab-components"><strong>Agilab components</strong></a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">AGILab</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Example3: Flight-Trajectory-Project</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/flight-trajectory.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="example3-flight-trajectory-project">
+<h1>Example3: Flight-Trajectory-Project<a class="headerlink" href="#example3-flight-trajectory-project" title="Link to this heading"></a></h1>
+<section id="manager-flight-trajectory">
+<h2>manager: flight_trajectory<a class="headerlink" href="#manager-flight-trajectory" title="Link to this heading"></a></h2>
+<a class="reference internal image-reference" href="diagrams/packages_flight_trajectory.png"><img alt="Alternative text" class="align-center" src="diagrams/packages_flight_trajectory.png" style="width: 400px;" />
+</a>
+<a class="reference internal image-reference" href="diagrams/classes_flight_trajectory.png"><img alt="Alternative text" class="align-center" src="diagrams/classes_flight_trajectory.png" style="width: 400px;" />
+</a>
+</section>
+<section id="worker-flight-trajectory-worker">
+<h2>worker: flight_trajectory_worker<a class="headerlink" href="#worker-flight-trajectory-worker" title="Link to this heading"></a></h2>
+<a class="reference internal image-reference" href="diagrams/packages_flight_trajectory_worker.png"><img alt="Alternative text" class="align-center" src="diagrams/packages_flight_trajectory_worker.png" style="width: 400px;" />
+</a>
+<dl class="py class" id="module-flight_trajectory_worker.flight_trajectory_worker">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">flight_trajectory_worker.flight_trajectory_worker.</span></span><span class="sig-name descname"><span class="pre">FlightTrajectoryWorker</span></span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#FlightTrajectoryWorker"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">PolarsWorker</span></code></p>
+<p>Class derived from AgiDataWorker</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.build">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">build</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dask_home</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.build" title="Link to this definition"></a></dt>
+<dd><p>Function to build target code on a target Worker.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>target_worker</strong> (<em>str</em>) – module to build</p></li>
+<li><p><strong>dask_home</strong> (<em>str</em>) – path to dask home</p></li>
+<li><p><strong>worker</strong> – current worker</p></li>
+<li><p><strong>mode</strong> – (Default value = 0)</p></li>
+<li><p><strong>verbose</strong> – (Default value = 0)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.cython_decorators">
+<span class="sig-name descname"><span class="pre">cython_decorators</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['njit']</span></em><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.cython_decorators" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.dask_home">
+<span class="sig-name descname"><span class="pre">dask_home</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.dask_home" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.do_works">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">do_works</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.do_works" title="Link to this definition"></a></dt>
+<dd><p>test of workers</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>workers_tree</strong> – distribution tree</p></li>
+<li><p><strong>workers_tree_info</strong></p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>str, the log output from this worker</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>logs</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.env">
+<span class="sig-name descname"><span class="pre">env</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.env" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.exec">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">exec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.exec" title="Link to this definition"></a></dt>
+<dd><p>execute a command within a subprocess</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cmd</strong> – the str of the command</p></li>
+<li><p><strong>path</strong> – the path where to lunch the command</p></li>
+<li><p><strong>worker</strong></p></li>
+</ul>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.exec_mono_process">
+<span class="sig-name descname"><span class="pre">exec_mono_process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.exec_mono_process" title="Link to this definition"></a></dt>
+<dd><p>Executes tasks in single-threaded mode.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>workers_tree</strong> (<em>any</em>) – Distribution tree structure.</p></li>
+<li><p><strong>workers_tree_info</strong> (<em>any</em>) – Additional information about the workers.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.exec_multi_process">
+<span class="sig-name descname"><span class="pre">exec_multi_process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.exec_multi_process" title="Link to this definition"></a></dt>
+<dd><p>Executes tasks in multiprocessing mode.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>workers_tree</strong> (<em>any</em>) – Distribution tree structure.</p></li>
+<li><p><strong>workers_tree_info</strong> (<em>any</em>) – Additional information about the workers.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.expand">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">expand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.expand" title="Link to this definition"></a></dt>
+<dd><p>Expand a given path to an absolute path.
+:param path: The path to expand.
+:type path: str
+:param base_directory: The base directory to use for expanding the path. Defaults to None.
+:type base_directory: str, optional</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The expanded absolute path.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>str</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This method handles both Unix and Windows paths and expands ‘~’ notation to the user’s home directory.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.expand_and_join">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">expand_and_join</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.expand_and_join" title="Link to this definition"></a></dt>
+<dd><p>Join two paths after expanding the first path.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path1</strong> (<em>str</em>) – The first path to expand and join.</p></li>
+<li><p><strong>path2</strong> (<em>str</em>) – The second path to join with the expanded first path.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The joined path.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.get_logs_and_result">
+<span class="sig-name descname"><span class="pre">get_logs_and_result</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbosity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.get_logs_and_result" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.get_worker_info">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_worker_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">worker_id</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.get_worker_info" title="Link to this definition"></a></dt>
+<dd><p>def get_worker_info():</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>worker_id</strong></p>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.home_dir">
+<span class="sig-name descname"><span class="pre">home_dir</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.home_dir" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.is_managed_pc">
+<span class="sig-name descname"><span class="pre">is_managed_pc</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.is_managed_pc" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.join">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">join</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.join" title="Link to this definition"></a></dt>
+<dd><p>Join two file paths.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path1</strong> (<em>str</em>) – The first file path.</p></li>
+<li><p><strong>path2</strong> (<em>str</em>) – The second file path.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The combined file path.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>None</strong> – </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.logs">
+<span class="sig-name descname"><span class="pre">logs</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.logs" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.mode">
+<span class="sig-name descname"><span class="pre">mode</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.mode" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.new">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">new</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'localhost'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.new" title="Link to this definition"></a></dt>
+<dd><p>new worker instance
+:param module: instanciate and load target mycode_worker module
+:param target_worker:
+:param target_worker_class:
+:param target_package:
+:param mode: (Default value = mode)
+:param verbose: (Default value = 0)
+:param worker_id: (Default value = 0)
+:param worker: (Default value = ‘localhost’)
+:param args: (Default value = None)</p>
+<p>Returns:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.onerror">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">onerror</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.onerror" title="Link to this definition"></a></dt>
+<dd><p>Error handler for <cite>shutil.rmtree</cite>.
+If it’s a permission error, make it writable and retry.
+Otherwise re-raise.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.pool_init">
+<span class="sig-name descname"><span class="pre">pool_init</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">worker_vars</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#FlightTrajectoryWorker.pool_init"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.pool_init" title="Link to this definition"></a></dt>
+<dd><p>Initialize the pool with worker variables.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>worker_vars</strong> (<em>dict</em>) – Variables specific to the worker.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.pool_vars">
+<span class="sig-name descname"><span class="pre">pool_vars</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.pool_vars" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.share_path">
+<span class="sig-name descname"><span class="pre">share_path</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.share_path" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.start">
+<span class="sig-name descname"><span class="pre">start</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#FlightTrajectoryWorker.start"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.start" title="Link to this definition"></a></dt>
+<dd><p>Start the worker and print out a message if verbose mode is enabled.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.stop">
+<span class="sig-name descname"><span class="pre">stop</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#FlightTrajectoryWorker.stop"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.stop" title="Link to this definition"></a></dt>
+<dd><p>Returns:</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.t0">
+<span class="sig-name descname"><span class="pre">t0</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.t0" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.test">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">test</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'127.0.0.1':</span> <span class="pre">1}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.test" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>app</strong></p></li>
+<li><p><strong>workers</strong></p></li>
+<li><p><strong>mode</strong></p></li>
+<li><p><strong>verbose</strong></p></li>
+<li><p><strong>args</strong></p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.verbose">
+<span class="sig-name descname"><span class="pre">verbose</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.verbose" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.work_done">
+<span class="sig-name descname"><span class="pre">work_done</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">worker_df</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#FlightTrajectoryWorker.work_done"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.work_done" title="Link to this definition"></a></dt>
+<dd><p>Concatenate dataframe if any and save the results.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>worker_df</strong> (<em>pl.DataFrame</em>) – Output dataframe for one plane.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.work_init">
+<span class="sig-name descname"><span class="pre">work_init</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#FlightTrajectoryWorker.work_init"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.work_init" title="Link to this definition"></a></dt>
+<dd><p>Initialize work by reading from shared space.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.work_pool">
+<span class="sig-name descname"><span class="pre">work_pool</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#FlightTrajectoryWorker.work_pool"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.work_pool" title="Link to this definition"></a></dt>
+<dd><p>Parse IVQ log files.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>file</strong> (<em>str</em>) – The log file to parse.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Parsed data.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pl.DataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.worker">
+<span class="sig-name descname"><span class="pre">worker</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.worker" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.worker_id">
+<span class="sig-name descname"><span class="pre">worker_id</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.worker_id" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.works">
+<span class="sig-name descname"><span class="pre">works</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workers_tree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workers_tree_info</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.FlightTrajectoryWorker.works" title="Link to this definition"></a></dt>
+<dd><p>Executes worker tasks based on the distribution tree.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>workers_tree</strong> (<em>any</em>) – Distribution tree structure.</p></li>
+<li><p><strong>workers_tree_info</strong> (<em>any</em>) – Additional information about the workers.</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Execution time in seconds.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.haversine">
+<span class="sig-prename descclassname"><span class="pre">flight_trajectory_worker.flight_trajectory_worker.</span></span><span class="sig-name descname"><span class="pre">haversine</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lon1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lat1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lon2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lat2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#haversine"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.haversine" title="Link to this definition"></a></dt>
+<dd><p>Calculate the great-circle distance between two points
+on the Earth specified by longitude and latitude.
+Returns distance in kilometers.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">flight_trajectory_worker.flight_trajectory_worker.</span></span><span class="sig-name descname"><span class="pre">plane_trajectory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">flight_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">waypoints</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[(0,</span> <span class="pre">0,</span> <span class="pre">0),</span> <span class="pre">(1,</span> <span class="pre">0,</span> <span class="pre">10000),</span> <span class="pre">(2,</span> <span class="pre">1,</span> <span class="pre">9000),</span> <span class="pre">(3,</span> <span class="pre">3,</span> <span class="pre">5000),</span> <span class="pre">(-3,</span> <span class="pre">-3,</span> <span class="pre">5000)]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">yaw_angular_speed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roll_angular_speed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pitch_angular_speed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vehicle_acceleration</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_speed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">900.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_roll</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_pitch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">12.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_climbup_pitch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">8.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pitch_enable_speed_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">altitude_loss_speed_treshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">400.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">landing_speed_target</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">descent_pitch_target</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">landing_pitch_target</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cruising_pitch_max</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">descent_alt_treshold_landing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">500</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_speed_ratio_while_turining</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enable_climb</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enable_descent</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_alt_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plane_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'classique_plane'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">flight_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">waypoints</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[(0,</span> <span class="pre">0,</span> <span class="pre">0),</span> <span class="pre">(1,</span> <span class="pre">0,</span> <span class="pre">10000),</span> <span class="pre">(2,</span> <span class="pre">1,</span> <span class="pre">9000),</span> <span class="pre">(3,</span> <span class="pre">3,</span> <span class="pre">5000),</span> <span class="pre">(-3,</span> <span class="pre">-3,</span> <span class="pre">5000)]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">yaw_angular_speed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roll_angular_speed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pitch_angular_speed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vehicle_acceleration</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_speed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">900.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_roll</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_pitch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">12.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_climbup_pitch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">8.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pitch_enable_speed_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">altitude_loss_speed_treshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">400.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">landing_speed_target</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">descent_pitch_target</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">landing_pitch_target</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cruising_pitch_max</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">descent_alt_treshold_landing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">500</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_speed_ratio_while_turining</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enable_climb</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enable_descent</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_alt_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plane_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'classique_plane'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.__init__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.calculate_bearing">
+<span class="sig-name descname"><span class="pre">calculate_bearing</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coord1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coord2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.calculate_bearing"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.calculate_bearing" title="Link to this definition"></a></dt>
+<dd><p>Calculate the compass bearing from coord1 to coord2.</p>
+<p>This function computes the initial bearing (also called forward azimuth) that
+you would follow from the start coordinate to reach the end coordinate on
+the Earth’s surface, assuming a spherical Earth model.</p>
+<p>The bearing is calculated clockwise from the north direction (0° to 360°).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>coord1</strong> (<em>tuple</em>) – Latitude and longitude of the start point (degrees).</p></li>
+<li><p><strong>coord2</strong> (<em>tuple</em>) – Latitude and longitude of the end point (degrees).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Bearing angle in degrees from North (0° to 360°).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Math:</dt><dd><ul class="simple">
+<li><p>Converts lat/lon to radians.</p></li>
+<li><dl class="simple">
+<dt>Uses spherical trigonometry formulas to compute bearing:</dt><dd><p>x = sin(delta_longitude) * cos(lat2)
+y = cos(lat1)*sin(lat2) - sin(lat1)*cos(lat2)*cos(delta_longitude)</p>
+</dd>
+</dl>
+</li>
+<li><p>Bearing = atan2(x, y) converted to degrees and normalized to [0,360).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.calculate_trajectory">
+<span class="sig-name descname"><span class="pre">calculate_trajectory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot_3D</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.calculate_trajectory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.calculate_trajectory" title="Link to this definition"></a></dt>
+<dd><p>Computes the full flight trajectory by simulating takeoff, climb, cruise, turns,
+and descent phases, aggregating the results into a comprehensive flight log.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dt</strong> (<em>float</em>) – Time step in seconds for simulation steps.</p></li>
+<li><p><strong>plot</strong> (<em>bool</em>) – If True, generates 2D plots of altitude, speed, and pitch.</p></li>
+<li><p><strong>plot_3D</strong> (<em>bool</em>) – If True, generates a 3D interactive plot of the flight path.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Combined DataFrame logging aircraft state through all flight phases,
+including positions, speeds, attitudes, and flight phases.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pd.DataFrame</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Explanation:</dt><dd><ul class="simple">
+<li><p>Simulates takeoff and climb if climb enabled.</p></li>
+<li><p>Simulates turns and cruise legs between waypoints.</p></li>
+<li><p>Optionally simulates descent and landing.</p></li>
+<li><p>Supports visual output for deeper insight into trajectory and flight dynamics.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.calculate_turn_direction_and_angle">
+<span class="sig-name descname"><span class="pre">calculate_turn_direction_and_angle</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_bearing</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.calculate_turn_direction_and_angle"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.calculate_turn_direction_and_angle" title="Link to this definition"></a></dt>
+<dd><p>Determines the optimal turn direction (left or right) and the minimal angular
+difference needed to reach the target bearing from the current bearing.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>target_bearing</strong> (<em>float</em>) – Target heading bearing in degrees (0-360).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>bool: True if the aircraft should turn right; False if left.</p></li>
+<li><p>float: Angle in degrees representing the smallest rotation needed.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple(bool, float)</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Explanation:</dt><dd><ul class="simple">
+<li><p>Uses modular arithmetic on bearings (0-360 degrees).</p></li>
+<li><p>Chooses turn direction to minimize angular travel.</p></li>
+<li><p>Accounts for wrap-around at 0/360 degrees.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.cruise_to_destination">
+<span class="sig-name descname"><span class="pre">cruise_to_destination</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.cruise_to_destination"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.cruise_to_destination" title="Link to this definition"></a></dt>
+<dd><p>Controls the aircraft cruise phase toward the final destination waypoint,
+calculating when to initiate descent based on estimated required descent distance.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>dt</strong> (<em>float</em>) – Simulation time step in seconds.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Complete flight log from cruise to final descent, combining
+cruise and descent logs, including positions, speeds, altitudes, and phases.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pd.DataFrame</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Explanation:</dt><dd><ul class="simple">
+<li><p>Calculates the distance required to descend safely using estimate_descent_distance().</p></li>
+<li><p>Adjusts descent parameters if needed to ensure landing within waypoint.</p></li>
+<li><p>Simulates cruise flight until aircraft is within descent initiation distance.</p></li>
+<li><p>Then calls perform_descent() to complete the approach and landing.</p></li>
+<li><p>Logs all states continuously and concatenates cruise and descent data.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.df_col_names">
+<span class="sig-name descname"><span class="pre">df_col_names</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['plane_id',</span> <span class="pre">'time_s',</span> <span class="pre">'speed_ms',</span> <span class="pre">'alt_m',</span> <span class="pre">'roll_deg',</span> <span class="pre">'pitch_deg',</span> <span class="pre">'yaw_deg',</span> <span class="pre">'bearing_deg',</span> <span class="pre">'latitude',</span> <span class="pre">'longitude',</span> <span class="pre">'distance',</span> <span class="pre">'phase',</span> <span class="pre">'plane_type']</span></em><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.df_col_names" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.estimate_altitude_change_for_pitch_correction">
+<span class="sig-name descname"><span class="pre">estimate_altitude_change_for_pitch_correction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.estimate_altitude_change_for_pitch_correction"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.estimate_altitude_change_for_pitch_correction" title="Link to this definition"></a></dt>
+<dd><p>Estimates total altitude change expected while correcting pitch angle to zero.</p>
+<p>This method simulates the pitch angle reduction towards zero, calculating
+cumulative altitude gain or loss during the pitch correction maneuver.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>dt</strong> (<em>float</em>) – Time step in seconds for the pitch correction simulation.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>Estimated net altitude change (meters) during pitch correction.</dt><dd><p>Positive values indicate altitude gain; negative values indicate loss.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Explanation:</dt><dd><ul class="simple">
+<li><p>Simulates gradual pitch angle approach to zero at reduced angular speed.</p></li>
+<li><p>Altitude changes are integrated from vertical speed component at each step.</p></li>
+<li><p>Positive pitch reduces altitude gain; negative pitch reduces altitude.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.estimate_descent_distance">
+<span class="sig-name descname"><span class="pre">estimate_descent_distance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_angle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">descent_altitude_threshold_landing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">500</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pitch_angular_speed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.estimate_descent_distance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.estimate_descent_distance" title="Link to this definition"></a></dt>
+<dd><p>Estimates the horizontal distance required for the aircraft to safely descend
+from its current altitude to the landing threshold altitude, following a specified
+descent pitch angle and speed profile.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dt</strong> (<em>float</em>) – Simulation time step in seconds.</p></li>
+<li><p><strong>target_angle</strong> (<em>float</em>) – Desired descent pitch angle in degrees (negative for descent).</p></li>
+<li><p><strong>descent_altitude_threshold_landing</strong> (<em>float</em>) – Altitude threshold in meters
+at which landing procedures are initiated.</p></li>
+<li><p><strong>pitch_angular_speed</strong> (<em>float</em>) – Angular speed for pitch adjustment during descent.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Estimated horizontal distance in meters needed to complete the descent.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Explanation:</dt><dd><ul class="simple">
+<li><p>Simulates descent trajectory by iteratively adjusting pitch angle toward target.</p></li>
+<li><p>Models speed reduction when below landing altitude and near stall speeds.</p></li>
+<li><p>Calculates geographic position updates via geodesic calculations.</p></li>
+<li><p>Applies a simplified altitude loss acceleration factor for stall conditions.</p></li>
+<li><p>Stops simulation when altitude reaches zero or below.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.estimate_level_off_alt_gain">
+<span class="sig-name descname"><span class="pre">estimate_level_off_alt_gain</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.estimate_level_off_alt_gain"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.estimate_level_off_alt_gain" title="Link to this definition"></a></dt>
+<dd><p>Estimate the altitude gained during the aircraft’s pitch reduction phase.</p>
+<p>This method estimates how much altitude the aircraft will gain while
+reducing its pitch angle from the current pitch to zero (level flight),
+assuming constant pitch angular speed and target speed.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Estimated altitude gain in meters during leveling off.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>float</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Math:</dt><dd><ul class="simple">
+<li><p>Time to level off is current pitch divided by pitch angular speed.</p></li>
+<li><p>Average pitch during leveling is assumed to be half the initial pitch.</p></li>
+<li><p>Vertical speed component is target speed * sin(average pitch).</p></li>
+<li><p>Estimated altitude gain = vertical speed * time to level.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.estimate_roll_pitch_correction_rotation">
+<span class="sig-name descname"><span class="pre">estimate_roll_pitch_correction_rotation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">current_roll</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.estimate_roll_pitch_correction_rotation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.estimate_roll_pitch_correction_rotation" title="Link to this definition"></a></dt>
+<dd><p>Estimates the total angular rotation in degrees the aircraft will undergo while
+correcting its roll angle back to zero by simulating incremental roll adjustments.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dt</strong> (<em>float</em>) – Time step in seconds.</p></li>
+<li><p><strong>current_roll</strong> (<em>float</em><em> or </em><em>None</em>) – Optional starting roll angle in degrees;
+if None, uses the aircraft’s current roll attribute.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Absolute total rotation in degrees accumulated during roll correction.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Explanation:</dt><dd><ul class="simple">
+<li><p>Simulates roll angle decay towards zero at a constant angular speed.</p></li>
+<li><p>Calculates cumulative rotation induced by pitch angular speed and roll.</p></li>
+<li><p>Rotation is calculated as the integral of angular increments per dt.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.get_min_waypoints_distance">
+<span class="sig-name descname"><span class="pre">get_min_waypoints_distance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.get_min_waypoints_distance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.get_min_waypoints_distance" title="Link to this definition"></a></dt>
+<dd><p>Executes the aircraft’s turn maneuver towards the next waypoint,
+controlling roll angle, adjusting speed for sharper turns, and
+updating position and orientation over time. then compute the min distance needed between waypoints.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>dt</strong> (<em>float</em>) – Time step in seconds for each iteration of the turn simulation.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A DataFrame log of the aircraft’s state at each timestep during
+the turn, including position, attitude, speed, and phase details.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pd.DataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.haversine_distance">
+<span class="sig-name descname"><span class="pre">haversine_distance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lat1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lon1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lat2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lon2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.haversine_distance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.haversine_distance" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.perform_descent">
+<span class="sig-name descname"><span class="pre">perform_descent</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_angle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">descent_altitude_threshold_landing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">500</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pitch_angular_speed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.perform_descent"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.perform_descent" title="Link to this definition"></a></dt>
+<dd><p>Simulates the aircraft’s descent phase towards the final waypoint, including
+pitch control, speed adjustments, altitude loss, and position updates.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dt</strong> (<em>float</em>) – Time step in seconds for each simulation iteration.</p></li>
+<li><p><strong>target_angle</strong> (<em>float</em>) – Target pitch angle for descent (negative value in degrees).</p></li>
+<li><p><strong>descent_altitude_threshold_landing</strong> (<em>float</em>) – Altitude threshold (meters) to
+modify descent behavior for landing.</p></li>
+<li><p><strong>pitch_angular_speed</strong> (<em>float</em>) – Angular speed for pitch control during descent.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Log of aircraft states throughout descent, including position,
+speed, pitch, altitude, and phase.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pd.DataFrame</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Explanation:</dt><dd><ul class="simple">
+<li><p>Adjusts pitch angle gradually toward target descent angle.</p></li>
+<li><p>Reduces speed progressively as the aircraft nears landing speed.</p></li>
+<li><p>Models altitude loss due to stall when speed drops below stall threshold.</p></li>
+<li><p>Updates geographic position using geodesic calculations.</p></li>
+<li><p>Continues until altitude reaches zero, indicating landing.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.perform_pitch_correction_to_level">
+<span class="sig-name descname"><span class="pre">perform_pitch_correction_to_level</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.perform_pitch_correction_to_level"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.perform_pitch_correction_to_level" title="Link to this definition"></a></dt>
+<dd><p>Gradually adjusts the aircraft’s pitch angle back to level (zero).</p>
+<p>This function simulates the pitch correction process where the pitch angle
+approaches zero at a controlled angular speed reduced by a factor of 10.
+During correction, the aircraft’s position and altitude are updated accordingly.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>dt</strong> (<em>float</em>) – Time step for each simulation iteration in seconds.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Log entries recording the aircraft state at each time step,
+including position, pitch, altitude, and other relevant parameters.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list of dict</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Explanation:</dt><dd><ul class="simple">
+<li><p>Pitch angle is decreased or increased stepwise towards zero.</p></li>
+<li><p>Horizontal distance traveled is updated based on speed and pitch.</p></li>
+<li><p>Geographic position is updated using geodesic destination calculation.</p></li>
+<li><p>Altitude changes are calculated from vertical component of speed.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.perform_roll_pitch_correction">
+<span class="sig-name descname"><span class="pre">perform_roll_pitch_correction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.perform_roll_pitch_correction"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.perform_roll_pitch_correction" title="Link to this definition"></a></dt>
+<dd><p>Performs roll and pitch correction to stabilize the aircraft’s orientation by
+gradually reducing the roll angle to zero, updating pitch accordingly, and
+adjusting the aircraft’s bearing, altitude, and position during the maneuver.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>dt</strong> (<em>float</em>) – Time step in seconds for each simulation iteration.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A list of log entries capturing the aircraft’s state at each
+timestep during the correction process, including position, attitude, speed,
+and phase information.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list of dict</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Explanation:</dt><dd><ul class="simple">
+<li><p>Roll is incrementally adjusted towards zero at a fixed angular speed.</p></li>
+<li><p>Pitch is computed based on the roll angle and pitch angular speed.</p></li>
+<li><p>Bearing is updated considering the roll-induced angular changes.</p></li>
+<li><p>Altitude changes are limited to avoid unrealistic jumps.</p></li>
+<li><p>Geographic position is updated using geodesic calculations.</p></li>
+<li><p>The process repeats until roll angle reaches zero, indicating level flight.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.perform_turn_to_next_waypoint">
+<span class="sig-name descname"><span class="pre">perform_turn_to_next_waypoint</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.perform_turn_to_next_waypoint"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.perform_turn_to_next_waypoint" title="Link to this definition"></a></dt>
+<dd><p>Executes the aircraft’s turn maneuver towards the next waypoint by calculating
+turn direction, controlling roll angle, adjusting speed for sharper turns, and
+updating position and orientation over time.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>dt</strong> (<em>float</em>) – Time step in seconds for each iteration of the turn simulation.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A DataFrame log of the aircraft’s state at each timestep during
+the turn, including position, attitude, speed, and phase details.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pd.DataFrame</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Explanation:</dt><dd><ul class="simple">
+<li><p>Determines shortest turn direction and rotation angle to target bearing.</p></li>
+<li><p>Modulates speed lower when sharper turns are needed.</p></li>
+<li><p>Adjusts roll angle progressively up to maximum limits based on turn direction.</p></li>
+<li><p>Updates bearing and pitch angles accordingly.</p></li>
+<li><p>Moves aircraft position along updated bearing and speed.</p></li>
+<li><p>Continues until turn angle is less than roll-pitch correction threshold.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.plot">
+<span class="sig-name descname"><span class="pre">plot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.plot"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.plot" title="Link to this definition"></a></dt>
+<dd><p>Generates 2D plots of altitude, speed, and pitch angle over time during a flight
+phase using Plotly, displaying key flight parameters to visualize performance.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>df</strong> (<em>pd.DataFrame</em>) – DataFrame containing logged flight data with columns:
+- ‘time_s’: time in seconds
+- ‘alt_m’: altitude in meters
+- ‘speed_ms’: speed in meters/second
+- ‘pitch_deg’: pitch angle in degrees
+- plus other columns for context (not all plotted)</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Displays interactive plots in the output environment.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Explanation:</dt><dd><ul class="simple">
+<li><p>Altitude vs Time plot shows altitude changes during the flight phase.</p></li>
+<li><p>Speed vs Time plot includes a horizontal line indicating target speed.</p></li>
+<li><p>Pitch vs Time plot includes a horizontal line indicating max pitch limit.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.plot_3d_flight_path">
+<span class="sig-name descname"><span class="pre">plot_3d_flight_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.plot_3d_flight_path"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.plot_3d_flight_path" title="Link to this definition"></a></dt>
+<dd><p>Visualizes the 3D flight path of the aircraft using Plotly, plotting latitude,
+longitude, and altitude with markers colored by altitude and hover information.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>df</strong> (<em>pd.DataFrame</em>) – DataFrame containing flight data with required columns:
+‘alt_m’, ‘latitude’, ‘longitude’, ‘phase’, ‘roll_deg’, ‘pitch_deg’,
+‘bearing_deg’, ‘speed_ms’.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Displays an interactive 3D plot of the flight path.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Explanation:</dt><dd><ul class="simple">
+<li><p>Uses scatter3d with lines and markers colored by altitude.</p></li>
+<li><p>Normalizes axis scales to maintain aspect ratio between lat/lon.</p></li>
+<li><p>Provides detailed hover info for each point including flight phase and attitudes.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.simulate_cruise_to_waypoint">
+<span class="sig-name descname"><span class="pre">simulate_cruise_to_waypoint</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.simulate_cruise_to_waypoint"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.simulate_cruise_to_waypoint" title="Link to this definition"></a></dt>
+<dd><p>Simulates cruising flight to the current target waypoint with altitude adjustments.</p>
+<p>This function guides the aircraft towards the waypoint, controlling pitch to
+approach the target altitude smoothly, accelerating up to target speed, and
+adjusting position iteratively until close to the waypoint.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>dt</strong> (<em>float</em>) – Time step in seconds for each simulation update.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A DataFrame logging the aircraft state at each step, including
+speed, altitude, pitch, roll, yaw, bearing, coordinates, distance traveled,
+and the current phase.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pd.DataFrame</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Explanation:</dt><dd><ul class="simple">
+<li><p>Calculates bearing to waypoint and adjusts heading.</p></li>
+<li><p>Determines target pitch based on altitude difference and distance.</p></li>
+<li><p>Adjusts pitch up or down to reach target altitude smoothly.</p></li>
+<li><p>Updates speed, position, altitude according to physics.</p></li>
+<li><p>Uses geodesic calculations to update geographic coordinates.</p></li>
+<li><p>Continues until aircraft is within half the target speed distance to waypoint.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.simulate_takeoff_and_climb">
+<span class="sig-name descname"><span class="pre">simulate_takeoff_and_climb</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pitch_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/flight_trajectory_worker/flight_trajectory_worker.html#plane_trajectory.simulate_takeoff_and_climb"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#flight_trajectory_worker.flight_trajectory_worker.plane_trajectory.simulate_takeoff_and_climb" title="Link to this definition"></a></dt>
+<dd><p>Simulate the aircraft’s takeoff roll, climb phase, and predictive level-off.</p>
+<p>The simulation uses geographic coordinates (latitude/longitude) and updates
+aircraft state every dt seconds. It transitions through three phases:
+- Takeoff Roll: aircraft accelerates on runway with zero pitch.
+- Climb: aircraft climbs at maximum pitch until near target altitude.
+- Level Off: aircraft reduces pitch to level flight near target altitude.</p>
+<dl class="simple">
+<dt>Inputs:</dt><dd><p>dt (float): Time step for simulation update (seconds).
+pitch_threshold (float): Pitch angle threshold to consider leveling complete (degrees).</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><dl class="simple">
+<dt>A DataFrame logging the aircraft state at each time step with</dt><dd><p>columns for time, speed, altitude, roll, pitch, yaw, bearing, position, etc.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>pd.DataFrame</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Math and Logic:</dt><dd><ul class="simple">
+<li><p>Uses pitch angular speed and vehicle acceleration to update pitch and speed.</p></li>
+<li><p>Calculates vertical and horizontal speed components from pitch.</p></li>
+<li><p>Updates geographic position using geopy’s geodesic destination.</p></li>
+<li><p>Tracks phase transitions based on speed and altitude.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<a class="reference internal image-reference" href="diagrams/classes_flight_trajectory_worker.png"><img alt="Alternative text" class="align-center" src="diagrams/classes_flight_trajectory_worker.png" style="width: 400px;" />
+</a>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="flight-project.html" class="btn btn-neutral float-left" title="Example2: Flight-Project" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="link-sim.html" class="btn btn-neutral float-right" title="Example4: Link-Sim-Project" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, THALES SIX GTS France SAS.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
