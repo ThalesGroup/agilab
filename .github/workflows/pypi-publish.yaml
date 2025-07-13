@@ -30,16 +30,12 @@ jobs:
       - name: Create symlinks for agi-core subpackages
         run: |
           set -eux
-          src_dir="src/fwk/core/agi-core/src"
-
-          # Ensure target directories exist
-          mkdir -p src/fwk/core/env/src
-          mkdir -p src/fwk/core/cluster/src
-          mkdir -p src/fwk/core/node/src
-
-          ln -sf "${src_dir}/agi_env" src/fwk/core/env/src/agi_env
-          ln -sf "${src_dir}/agi_cluster" src/fwk/core/cluster/src/agi_cluster
-          ln -sf "${src_dir}/agi_node" src/fwk/core/node/src/agi_node
+          pushd src/fwk/core/agi_core/src || exit 1
+          
+          for module in env node cluster; do
+            ln -sf "../../${module}/src/agi_${module}" "agi_${module}"
+          done  
+          popd
 
   test:
     needs: setup-env
@@ -58,31 +54,20 @@ jobs:
       - name: Install uv
         run: python3 -m pip install --upgrade --no-cache-dir uv
 
-      - name: Sync uv project agi_cluster
+      - name: Sync and build uv projects
         run: |
-          uv sync
-          pushd "src/fwk/core/env"
-          uv sync --dev --no-workspace
-          uv build --wheel
-          popd
-          pushd "src/fwk/core/node"
-          uv sync --dev --no-workspace
-          uv build --wheel
-          popd
-          pushd "src/fwk/core/cluster"
-          uv sync --dev --no-workspace
-          uv build --wheel
-          popd
-          pushd "src/fwk/core/agi_core"
-          uv sync --dev
-          uv build --wheel
-          popd
+          set -eux
+          for dir in env node cluster agi_core; do
+            pushd "src/fwk/core/$dir"
+            uv sync --dev
+            uv pip install -e .
+            popd
+          done
 
       - name: Run tests
         run: |
-          pushd "src/fwk/core"
-          uv run --dev --project cluster pytest --maxfail=5 --disable-warnings -v
-          popd
+          set -eux
+          uv run --dev --project cluster python -m pytest --maxfail=5 --disable-warnings -v
 
   pypi-publish:
     needs: test
