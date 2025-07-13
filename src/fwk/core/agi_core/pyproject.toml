@@ -1,9 +1,5 @@
 [project]
-name = "agi-core"
+name = "agi_core"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = [
-    "agi_env",
-    "agi_node",
-    "agi_cluster"
-]
+dependencies = []
