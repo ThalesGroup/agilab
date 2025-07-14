@@ -11,8 +11,10 @@ on:
       - 'v*.*.*'
 
 jobs:
-  setup-env:
+  prepare:
     runs-on: ubuntu-latest
+    outputs:
+      python-path: ${{ steps.set-python.outputs.python-path }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -20,6 +22,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Python 3.13
+        id: set-python
         uses: actions/setup-python@v4
         with:
           python-version: '3.13'
@@ -27,34 +30,25 @@ jobs:
       - name: Install uv
         run: python3 -m pip install --upgrade --no-cache-dir uv
 
+  setup-env:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
       - name: Create symlinks for agi-core subpackages
         run: |
           set -eux
-          src_dir=src/fwk/core/agi-core/src
-          mkdir -p $src_dir
-          pushd $src_dir || exit 1        
+          src_dir="src/fwk/core/agi-core/src"
+          mkdir -p "$src_dir"
+          pushd "$src_dir" || exit 1
           for module in env node cluster; do
             ln -sf ../../$module/src/agi_$module agi_$module
-          done  
+          done
           popd
 
   test:
     needs: setup-env
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Python 3.13
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.13'
-
-      - name: Install uv
-        run: python3 -m pip install --upgrade --no-cache-dir uv
-
       - name: Sync and build uv projects
         run: |
           set -eux
@@ -65,12 +59,13 @@ jobs:
             popd
           done
           uv build --project src/fwk/core/agi-core --wheel
-          uv add src/fwk/core/agi-core/dist/*.whl
 
       - name: Run tests
         run: |
           set -eu
-          uv run --dev python -m pytest --maxfail=5 --disable-warnings -v
+          pushd "src/fwk/core"
+          uv run --dev --project cluster python -m pytest --maxfail=5 --disable-warnings -v
+          popd
 
   pypi-publish:
     needs: test
@@ -79,19 +74,6 @@ jobs:
       contents: write
       id-token: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Python 3.13
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.13'
-
-      - name: Install uv
-        run: python3 -m pip install --upgrade --no-cache-dir uv
-
       - name: Clean previous builds
         run: rm -rf dist
 
@@ -126,9 +108,7 @@ jobs:
           fi
 
       - name: Build agilab package
-        working-directory: .
-        run:
-          uv build --wheel
+        run: uv build --wheel
 
       - name: Upload agilab package artifacts
         uses: actions/upload-artifact@v4
@@ -144,15 +124,3 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: twine upload dist/*
-
-      # Optional: If you want to publish the main agilab package,
-      # make sure to add a build step before this
-      # - name: Build main agilab package
-      #   run: <your build commands here>
-
-      - name: Publish agilab main package to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-        run: twine upload dist/*
-
