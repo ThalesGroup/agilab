@@ -27,25 +27,34 @@ jobs:
       - name: Install uv
         run: python3 -m pip install --upgrade --no-cache-dir uv
 
-  setup-env:
-    needs: prepare
-    runs-on: ubuntu-latest
-    steps:
-      - name: Create symlinks for agi-core subpackages
-        run: |
-          set -eux
-          ls -lR . || exit 1
-          src_dir="src/fwk/core/agi-core/src"
-          pushd "$src_dir" || exit 1
-          for module in env node cluster; do
-            ln -sf ../../$module/src/agi_$module agi_$module
-          done
-          popd
+#  setup-env:
+#    needs: prepare
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Checkout repository
+#        uses: actions/checkout@v4
+#        with:
+#          token: ${{ secrets.GITHUB_TOKEN }}
+#
+#      - name: Create symlinks for agi-core subpackages
+#        run: |
+#          set -eux
+#          src_dir="src/fwk/core/agi-core/src"
+#          pushd "$src_dir" || exit 1
+#          for module in env node cluster; do
+#            ln -sf ../../$module/src/agi_$module agi_$module
+#          done
+#          popd
 
   test:
     needs: setup-env
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Sync and build uv projects
         run: |
           set -eux
