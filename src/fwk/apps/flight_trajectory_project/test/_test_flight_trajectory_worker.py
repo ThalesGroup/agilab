@@ -1,5 +1,5 @@
 # import sys
-# from agi_core.workers.agi_worker import AgiWorker
+# from agi-core.workers.agi_worker import AgiWorker
 # from agi_env import AgiEnv, normalize_path
 # args = {'path': '~/data/flight_trajectory', 'flight_id': 1, 'data_out':
 #     '~/data/flight_trajectory/dataframes', 'data_dir':

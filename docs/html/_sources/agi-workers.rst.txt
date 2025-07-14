@@ -72,7 +72,7 @@ pandas_worker
 
 ----
 
-.. automodule:: agi_core.pandas_worker
+.. automodule:: agi-core.pandas_worker
    :members:
    :undoc-members:
    :show-inheritance:

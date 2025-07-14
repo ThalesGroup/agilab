@@ -30,7 +30,7 @@ C - Exemple of Tests Sequence:
 
 - ** core test**
 
-  This will lunch all the unitary tests for agi_core components and display their pytest results
+  This will lunch all the unitary tests for agi-core components and display their pytest results
 
 - ** app_script gen**
 
