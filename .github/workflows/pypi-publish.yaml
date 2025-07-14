@@ -32,8 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Create symlinks for agi-core subpackages
-        run: ls -lR src/fwk/core/agi-core/src || exit 1
         run: |
+          ls -lR src/fwk/core/agi-core/src || exit 1
           set -eux
           src_dir="src/fwk/core/agi-core/src"
           pushd "$src_dir" || exit 1
