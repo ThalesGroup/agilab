@@ -70,7 +70,7 @@ jobs:
       - name: Run tests
         run: |
           set -eu
-          uv run --dev --project cluster python -m pytest --maxfail=5 --disable-warnings -v
+          uv run --dev python -m pytest --maxfail=5 --disable-warnings -v
 
   pypi-publish:
     needs: test
