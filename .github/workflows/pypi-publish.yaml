@@ -33,7 +33,7 @@ jobs:
     steps:
       - name: Create symlinks for agi-core subpackages
         run: |
-          ls -lR src/fwk/core/agi-core/src || exit 1
+          ls -lR src/fwk/core/agi-core || exit 1
           set -eux
           src_dir="src/fwk/core/agi-core/src"
           pushd "$src_dir" || exit 1
