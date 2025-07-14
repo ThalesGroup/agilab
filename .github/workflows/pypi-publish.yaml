@@ -34,8 +34,7 @@ jobs:
       - name: Create symlinks for agi-core subpackages
         run: |
           set -eux
-          src_dir="agilab/src/fwk/core/agi-core/src"
-          mkdir -p "$src_dir"
+          src_dir="src/fwk/core/agi-core/src"
           pushd "$src_dir" || exit 1
           for module in env node cluster; do
             ln -sf ../../$module/src/agi_$module agi_$module
@@ -50,17 +49,17 @@ jobs:
         run: |
           set -eux
           for dir in env node cluster agi-core; do
-            pushd "agilab/src/fwk/core/$dir"
+            pushd "src/fwk/core/$dir"
             uv sync --dev
             uv pip install -e .
             popd
           done
-          uv build --project agilab/src/fwk/core/agi-core --wheel
+          uv build --project src/fwk/core/agi-core --wheel
 
       - name: Run tests
         run: |
           set -eu
-          pushd "agilab/src/fwk/core"
+          pushd "src/fwk/core"
           uv run --dev --project cluster python -m pytest --maxfail=5 --disable-warnings -v
           popd
 
