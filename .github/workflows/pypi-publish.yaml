@@ -30,7 +30,7 @@ jobs:
       - name: Create symlinks for agi-core subpackages
         run: |
           set -eux
-          pushd src/fwk/core/agi_core/src || exit 1
+          pushd src/fwk/core/agi-core/src || exit 1
           
           for module in env node cluster; do
             ln -sf "../../${module}/src/agi_${module}" "agi_${module}"
@@ -63,8 +63,8 @@ jobs:
             uv pip install -e .
             popd
           done
-          uv build --project src/fwk/core/agi_core --wheel
-          uv add src/fwk/core/agi_core/dist/*.whl
+          uv build --project src/fwk/core/agi-core --wheel
+          uv add src/fwk/core/agi-core/dist/*.whl
 
       - name: Run tests
         run: |
