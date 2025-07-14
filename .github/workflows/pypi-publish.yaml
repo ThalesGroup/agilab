@@ -30,8 +30,7 @@ jobs:
       - name: Create symlinks for agi-core subpackages
         run: |
           set -eux
-          pushd "src/fwk/core/agi-core/src" || exit 1
-          
+          pushd "src/fwk/core/agi-core/src" || exit 1        
           for module in env node cluster; do
             ln -sf "../../${module}/src/agi_${module}" "agi_${module}"
           done  
