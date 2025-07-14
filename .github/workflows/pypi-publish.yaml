@@ -11,7 +11,7 @@ on:
       - 'v*.*.*'
 
 jobs:
-  prepare:
+  test:
     runs-on: ubuntu-latest
     outputs:
       python-version: '3.13'
@@ -29,10 +29,6 @@ jobs:
       - name: Install uv
         run: python3 -m pip install --upgrade --no-cache-dir uv
 
-  test:
-    needs: prepare
-    runs-on: ubuntu-latest
-    steps:
       - name: Sync and build uv projects
         run: |
           set -eux
