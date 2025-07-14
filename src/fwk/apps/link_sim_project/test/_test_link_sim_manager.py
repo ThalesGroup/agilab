@@ -1,6 +1,6 @@
 # import asyncio
 # import sys
-# from agi_core.managers import AGI
+# from agi-core.managers import AGI
 #
 #
 # async def main(method_name):

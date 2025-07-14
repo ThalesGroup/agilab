@@ -57,7 +57,7 @@ jobs:
       - name: Sync and build uv projects
         run: |
           set -eux
-          for dir in env node cluster agi_core; do
+          for dir in env node cluster agi-core; do
             pushd "src/fwk/core/$dir"
             uv sync --dev
             uv pip install -e .

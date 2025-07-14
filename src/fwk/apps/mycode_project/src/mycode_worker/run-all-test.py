@@ -21,7 +21,7 @@ def main():
     cmd = [
         sys.executable, "-m", "pytest",
         "--rootdir", str(repo_root),
-        "--cov=agi_core",
+        "--cov=agi-core",
         "--cov-report=term",
         "--cov-report=xml",
         "--import-mode=importlib",

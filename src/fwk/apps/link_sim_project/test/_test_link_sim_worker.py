@@ -1,5 +1,5 @@
 # import sys
-# from agi_core.workers.agi_worker import AgiWorker
+# from agi-core.workers.agi_worker import AgiWorker
 # from agi_env import AgiEnv, normalize_path
 # args = {'path': '~/data/link_sim', 'data_out': '~/data/link_sim/dataframes',
 #     'data_dir': '~/data/link_sim/dataset', 'data_flight': 'flights',
