@@ -87,6 +87,9 @@ sphinx = [
 [tool.uv]
 default-groups = ["dev"]
 
+[tool.uv.sources]
+agi-core = { path = "src/fwk/core/agi_core/dist/agi_core-0.1.0-py3-none-any.whl" }
+
 [tool.uv.sources.agilab]
 workspace = true
 

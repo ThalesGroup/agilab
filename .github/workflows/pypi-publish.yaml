@@ -63,10 +63,12 @@ jobs:
             uv pip install -e .
             popd
           done
+          uv build --project src/fwk/core/agi_core --wheel
+          uv add src/fwk/core/agi_core/dist/*.whl
 
       - name: Run tests
         run: |
-          set -eux
+          set -eu
           uv run --dev --project cluster python -m pytest --maxfail=5 --disable-warnings -v
 
   pypi-publish:
