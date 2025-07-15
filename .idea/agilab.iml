@@ -11,6 +11,7 @@
     </content>
     <orderEntry type="jdk" jdkName="uv (agilab)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module" module-name="agi-space" />
   </component>
   <component name="PyDocumentationSettings">
     <option name="format" value="PLAIN" />

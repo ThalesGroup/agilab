@@ -1,36 +1,28 @@
 #!/bin/bash
-set -e
+set -eux
 
 home=$(pwd)
 
-# List of components to build
-SUBDIRS=("fwk/core/env" "fwk/core/cluster" "fwk/core/node" "fwk/gui")
+
 
 # Prepare output directory
-mkdir -p "$home/../agi-pypi"
-rm  -f "$home/../agi-pypi/*.whl"
-rm  -f "$home/../agi-pypi/*.gz"
-rm  -fr "$home/../agi-pypi/.venv"
-rm  -f "$home/../agi-pypi/uv.lock"
-rm  -f "$home/../agi-pypi/pyproject.toml"
+rm  -rf "$home/../agi-space"
+mkdir -p "$home/../agi-space"
 
 # Build the main project as a sdist and move it
 rm -rf dist
 rm -rf build
 uv build --sdist
-mv dist/*.gz "$home/../agi-pypi"
+mv dist/*.gz "$home/../agi-space"
 
-# Loop through each subdirectory and build accordingly
-for subdir in "${SUBDIRS[@]}"; do
-  pushd "src/agi/$subdir" > /dev/null
-  rm -rf dist  # clean previous builds
-  rm -rf build
-  uv build --wheel
-  mv dist/*.whl "$home/../agi-pypi"
-  popd > /dev/null
-done
+pushd "src/fwk/core/agi-core" > /dev/null
+rm -rf dist  # clean previous builds
+rm -rf build
+uv build --wheel
+mv dist/*.whl "$home/../agi-space"
+popd > /dev/null
 
-pushd "$home/../agi-pypi"
+pushd "$home/../agi-space"
 rm -fr .venv uv.lock
 if [ ! -f pyproject.toml ]; then
     uv init --bare
