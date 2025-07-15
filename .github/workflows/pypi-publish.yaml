@@ -59,6 +59,13 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        run: python3 -m pip install --upgrade --no-cache-dir uv
       - name: Clean previous builds
         run: rm -rf dist
 
