@@ -65,7 +65,7 @@ jobs:
           python-version: '3.13'
 
       - name: Install uv
-        run: python3 -m pip install --upgrade --no-cache-dir uv
+        run: python3 -m pip install --upgrade --no-cache-dir uv twine
 
       - name: Clean previous builds
         run: rm -rf dist
