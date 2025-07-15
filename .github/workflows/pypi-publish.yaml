@@ -94,14 +94,14 @@ jobs:
           git add $(find . -type f -name pyproject.toml -not -path "./.git/*")
           if ! git diff --cached --quiet; then
             git commit -m "Bump version to ${VERSION#v}"
-            git push
+            git pull --rebase origin main
+            git push origin main
           else
             echo "No changes to commit."
           fi
 
       - name: Build agilab package
-        run: | 
-          uv build --wheel
+        run: uv build --wheel
 
       - name: Upload agilab package artifacts
         uses: actions/upload-artifact@v4
@@ -109,7 +109,7 @@ jobs:
           name: agilab-distributions
           path: dist/
 
-      - name: Verify agi-core package files before upload
+      - name: Verify agilab package files before upload
         run: twine check dist/*
 
       - name: Publish agilab package to PyPI
@@ -135,7 +135,7 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Install uv
+      - name: Install uv and twine
         run: python3 -m pip install --upgrade --no-cache-dir uv twine
 
       - name: Clean previous builds
@@ -166,14 +166,14 @@ jobs:
           git add $(find src/fwk/core/agi-core -type f -name pyproject.toml -not -path "./.git/*")
           if ! git diff --cached --quiet; then
             git commit -m "Bump version to ${VERSION#v}"
-            git push
+            git pull --rebase origin main
+            git push origin main
           else
             echo "No changes to commit."
           fi
 
       - name: Build agi-core package
-        run: | 
-          uv build --project src/fwk/core/agi-core --wheel
+        run: uv build --project src/fwk/core/agi-core --wheel
 
       - name: Upload agi-core package artifacts
         uses: actions/upload-artifact@v4
@@ -184,7 +184,7 @@ jobs:
       - name: Verify agi-core package files before upload
         run: twine check src/fwk/core/agi-core/dist/*
 
-      - name: Publish agilab package to PyPI
+      - name: Publish agi-core package to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
