@@ -66,6 +66,7 @@ jobs:
 
       - name: Install uv
         run: python3 -m pip install --upgrade --no-cache-dir uv
+
       - name: Clean previous builds
         run: rm -rf dist
 
