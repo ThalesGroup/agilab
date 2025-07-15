@@ -46,7 +46,7 @@ jobs:
           uv run --dev --project cluster python -m pytest --maxfail=5 --disable-warnings -v
           popd
 
-  pypi-publish-agi-core:
+  publish-agi-core:
     needs: test
     runs-on: ubuntu-latest
     permissions:
@@ -118,8 +118,8 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: twine upload src/fwk/core/agi-core/dist/*
 
-  pypi-publish-agilab:
-    needs: agi-core
+  publish-agilab:
+    needs: publish-agi-core
     runs-on: ubuntu-latest
     permissions:
       contents: write
