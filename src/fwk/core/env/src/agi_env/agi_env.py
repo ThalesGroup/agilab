@@ -352,22 +352,17 @@ class AgiEnv:
 
         os.makedirs(AgiEnv.apps_dir, exist_ok=True)
         if "site-packages" in self.agi_fwk.parts:
-            self.agi_fwk_loc = self.agi_fwk.parent
-        else:
-            self.agi_fwk_loc = self.agi_fwk
+            self.agi_fwk = self.agi_fwk.parent
 
         if install_type != 2:
             self.update_pyproject()
-
-        agi_fwk = self.agi_fwk_loc
-        self.agi_fwk = agi_fwk
 
         self.projects = self.get_projects(self.apps_dir)
         if not self.projects:
             logging.info(f"Could not find any target project app in {self.agi_fwk / 'apps'}.")
 
         self.setup_app = app_abs / "build.py"
-        self.setup_core = self.agi_fwk_loc / "core/node/src/agi_node/agi_dispatcher/build.py"
+        self.setup_core = self.agi_fwk / "core/node/src/agi_node/agi_dispatcher/build.py"
 
         if isinstance(module, Path):
             module_path = module.expanduser().resolve()
@@ -466,6 +461,7 @@ class AgiEnv:
 
         for p in sys.path_importer_cache:
             if p.endswith("agi_env"):
+                raise Exception("debug {p.rpartition('agilab')}")
                 base_dir = os.path.dirname(p).replace('_env', 'lab')
                 if verbose:
                     logging.info(f"Fallback agilab path found: {base_dir}")
@@ -670,7 +666,7 @@ class AgiEnv:
         self.AGILAB_VIEWS_ABS = Path(envars.get("AGI_VIEWS_DIR", self.agi_fwk / "views"))
         self.AGILAB_VIEWS_REL = Path(envars.get("AGI_VIEWS_DIR", "fwk/_"))
         if self.install_type == 0:
-            self.copilot_file = self.agi_fwk_loc / "agi_gui/agi_copilot.py" # WTF ?
+            self.copilot_file = self.agi_fwk / "agi_gui/agi_copilot.py" # WTF ?
         else:
             self.copilot_file = self.agi_fwk / "core/gui/src/agi_gui/agi_copilot.py"
 
