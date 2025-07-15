@@ -38,7 +38,6 @@ jobs:
             uv pip install -e .
             popd
           done
-          #uv build --project src/fwk/core/agi-core --wheel
 
       - name: Run tests
         run: |
@@ -47,7 +46,7 @@ jobs:
           uv run --dev --project cluster python -m pytest --maxfail=5 --disable-warnings -v
           popd
 
-  pypi-publish:
+  pypi-publish-agilab:
     needs: test
     runs-on: ubuntu-latest
     permissions:
@@ -101,7 +100,8 @@ jobs:
           fi
 
       - name: Build agilab package
-        run: uv build --wheel
+        run: | 
+          uv build --wheel
 
       - name: Upload agilab package artifacts
         uses: actions/upload-artifact@v4
@@ -117,3 +117,75 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: twine upload dist/*
+
+  pypi-publish-agi-core:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        run: python3 -m pip install --upgrade --no-cache-dir uv twine
+
+      - name: Clean previous builds
+        run: rm -rf src/fwk/core/agi-core/dist
+
+      - name: Update version in pyproject.toml files
+        env:
+          VERSION: ${{ github.event.inputs.version || github.ref_name }}
+        run: |
+          VERSION=${VERSION#v}
+          echo "Bumping version to $VERSION"
+          find src/fwk/core/agi-core -type f -name pyproject.toml -not -path "./.git/*" | while read -r file; do
+            echo "→ Updating $file"
+            sed -i '/^dynamic\s*=/d' "$file"
+            if grep -q '^version *= *".*"' "$file"; then
+              sed -i "s/^version *= *.*/version = \"$VERSION\"/" "$file"
+            else
+              sed -i "/^\[project\]/a version = \"$VERSION\"" "$file"
+            fi
+          done
+
+      - name: Commit version changes if any
+        env:
+          VERSION: ${{ github.event.inputs.version || github.ref_name }}
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add $(find src/fwk/core/agi-core -type f -name pyproject.toml -not -path "./.git/*")
+          if ! git diff --cached --quiet; then
+            git commit -m "Bump version to ${VERSION#v}"
+            git push
+          else
+            echo "No changes to commit."
+          fi
+
+      - name: Build agi-core package
+        run: | 
+          uv build --project src/fwk/core/agi-core --wheel
+
+      - name: Upload agi-core package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: agi-core-distributions
+          path: src/fwk/core/agi-core/dist/
+
+      - name: Verify agi-core package files before upload
+        run: twine check src/fwk/core/agi-core/dist/*
+
+      - name: Publish agilab package to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
+        run: twine upload src/fwk/core/agi-core/dist/*
