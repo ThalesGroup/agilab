@@ -38,7 +38,7 @@ jobs:
             uv pip install -e .
             popd
           done
-          #uv build --project src/fwk/core/agi-core --wheel
+          uv build --project src/fwk/core/agi-core --wheel
 
       - name: Run tests
         run: |
