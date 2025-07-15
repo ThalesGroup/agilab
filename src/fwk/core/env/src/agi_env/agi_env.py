@@ -461,7 +461,7 @@ class AgiEnv:
 
         for p in sys.path_importer_cache:
             if p.endswith("agi_env"):
-                raise Exception("debug {p.rpartition('agilab')}")
+                raise Exception(f"debug {p.rpartition('agilab')}")
                 base_dir = os.path.dirname(p).replace('_env', 'lab')
                 if verbose:
                     logging.info(f"Fallback agilab path found: {base_dir}")
