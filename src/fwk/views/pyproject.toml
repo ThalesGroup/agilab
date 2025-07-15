@@ -1,6 +1,6 @@
 [project]
 name = "views"
-version = "0.3.67"
+version = "0.3.61"
 description = "Default template for PDM package"
 authors = [
     { name = "", email = "" },

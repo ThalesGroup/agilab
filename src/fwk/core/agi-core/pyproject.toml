@@ -1,5 +1,5 @@
 [project]
 name = "agi-core"
-version = "0.3.67"
+version = "0.3.61"
 requires-python = ">=3.11"
 dependencies = []
