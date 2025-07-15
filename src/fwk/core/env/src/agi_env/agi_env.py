@@ -205,8 +205,7 @@ class AgiEnv:
                 self.cluster_root = self.agi_fwk / "core/cluster"
                 resource_path = self.env_root / "src/agi_env" / self.agi_resources
             if not self.env_root.exists():
-                logging.debug(f"Ensure {self.env_root} exists")
-                raise RuntimeError("Your Agilab installation is not valid")
+                raise RuntimeError(f"{self.env_root} do not exist\nYour Agilab installation is not valid")
             self._init_resources(resource_path)
         elif install_type == 2:
             if AgiEnv.debug:
