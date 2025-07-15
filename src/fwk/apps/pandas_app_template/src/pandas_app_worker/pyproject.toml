@@ -1,6 +1,6 @@
 [project]
 name = "data-app-_project"
-version = "0.3.61"
+version = "0.4.0"
 description = ""
 requires-python = ">=3.11"
 readme = "README.md"
