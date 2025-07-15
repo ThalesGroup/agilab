@@ -467,7 +467,7 @@ class AgiEnv:
                 if AgiEnv.install_type == 0:
                     return Path(base_dir)
                 else:
-                    before, sep, after = p.rpartition("agilab")
+                    before, sep, after = p.rpartition("fwk")
                     return Path(before) / sep
         logging.info("Falling back to current working directory")
         return Path(os.getcwd())
