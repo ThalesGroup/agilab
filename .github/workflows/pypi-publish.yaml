@@ -43,9 +43,7 @@ jobs:
       - name: Run tests
         run: |
           set -eux
-          pushd "src/fwk/core"
           uv run --dev --project cluster python -m pytest --maxfail=5 --disable-warnings -v
-          popd
 
   pypi-publish:
     needs: test
