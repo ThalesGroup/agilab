@@ -1,6 +1,6 @@
 [project]
 name = "link_sim_project"
-version = "0.1.0"
+version = "0.3.67"
 description = "link_sim_project is an example of data project"
 requires-python = ">=3.11"
 readme = "README.md"
