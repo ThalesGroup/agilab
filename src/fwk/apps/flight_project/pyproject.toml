@@ -25,7 +25,6 @@ dependencies = [
     "agi-env",
     "agi-node",
     "agi-cluster",
-    "agi-node",
 ]
 
 [project.license]

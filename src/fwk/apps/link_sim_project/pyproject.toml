@@ -26,6 +26,8 @@ dependencies = [
     "agi-env",
     "agi-node",
     "agi-cluster",
+    "logging",
+    "psutil",
 ]
 
 [project.license]
