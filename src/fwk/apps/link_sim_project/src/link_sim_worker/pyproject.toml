@@ -18,6 +18,7 @@ dependencies = [
     "fastparquet",
     "logging",
     "noise",
+    "psutil",
 ]
 
 [dependency-groups]
