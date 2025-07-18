@@ -19,10 +19,12 @@ def update_workspace_xml(config_name, config_type, folder_name):
         runmanager = ET.SubElement(root, 'component', {'name': 'RunManager'})
     # Check for existing configuration
     config_el = None
+
     for conf in runmanager.findall('configuration'):
         if conf.attrib.get('name') == config_name and conf.attrib.get('type') == config_type:
             config_el = conf
             break
+
     if config_el is None:
         config_el = ET.SubElement(runmanager, 'configuration', {
             'name': config_name,
@@ -32,8 +34,37 @@ def update_workspace_xml(config_name, config_type, folder_name):
         })
     else:
         config_el.attrib['folderName'] = folder_name
+
     tree.write(workspace_path, encoding="utf-8", xml_declaration=True)
     print(f"Updated workspace.xml for config '{config_name}' in folder '{folder_name}'.")
+
+
+def update_folders_xml(folder_name):
+    output_dir = os.path.join(os.getcwd(), '.idea', 'runConfigurations')
+    folders_xml_path = os.path.join(output_dir, 'folders.xml')
+
+    if os.path.exists(folders_xml_path):
+        tree = ET.parse(folders_xml_path)
+        root = tree.getroot()
+    else:
+        root = ET.Element('component', attrib={'name': 'RunManager'})
+        tree = ET.ElementTree(root)
+
+    # Check if folder already exists
+    existing = root.find(f"./folder[@name='{folder_name}']")
+    if existing is None:
+        ET.SubElement(root, 'folder', attrib={'name': folder_name})
+        tree.write(folders_xml_path, encoding='utf-8', xml_declaration=True)
+        print(f"Added folder '{folder_name}' to folders.xml")
+    else:
+        print(f"Folder '{folder_name}' already exists in folders.xml")
+
+
+def add_folder_name_to_config(tree, folder_name):
+    config_elem = next(tree.getroot().iter('configuration'), None)
+    if config_elem is not None:
+        config_elem.attrib['folderName'] = folder_name
+
 
 if len(sys.argv) < 2:
     print("Usage: script.py <replacement_name>")
@@ -74,6 +105,9 @@ for tpl in template_paths:
         if el.text and '{APP}' in el.text:
             el.text = el.text.replace('{APP}', app)
 
+    # Add folderName attribute to configuration element
+    add_folder_name_to_config(tree, FOLDER_NAME)
+
     # derive output filename
     base = os.path.basename(tpl).replace('_template_app', f'_{app}')
     out_path = os.path.join(output_dir, base)
@@ -101,5 +135,8 @@ for tpl in template_paths:
     tree.write(out_path)
     print(f"Generated config: {out_path}")
     update_workspace_xml(config_name, config_type, FOLDER_NAME)
+
+# Update folders.xml once after processing all templates
+update_folders_xml(FOLDER_NAME)
 
 print(f"All {app} configurations processed.")
