@@ -12,7 +12,7 @@ import py7zr
 from pydantic import BaseModel, validator, conint, confloat
 # from agi_runner import AGI
 from agi_node.agi_dispatcher import BaseWorker,WorkDispatcher
-from agi_env import AgiEnv
+from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 import traceback
 warnings.filterwarnings('ignore')
