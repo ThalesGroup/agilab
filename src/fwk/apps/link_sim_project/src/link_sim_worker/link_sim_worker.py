@@ -23,67 +23,29 @@ from typing import Union
 from concurrent.futures import ThreadPoolExecutor,as_completed
 logger = logging.getLogger(__name__)
 
+
 class SpatialHeatmap:
-    """
-    Represents a 2D spatial field of cloud density values (e.g., for simulating atmospheric attenuation).
-    The field is defined on a regular (X, Z) grid with values generated from Perlin noise to mimic natural cloud formations.
-    """
     def __init__(
-        self,
-        x_min: float, x_max: float,
-        z_min: float, z_max: float,
-        step: float,
-        center: tuple = (0, 0),
-        cloud_presence_threshold: float = 0.0,
-        cloud_noise_scale: float = None,
-        density_noise_scale: float = None,
-        cloud_amplitude: float = 1.5,
-        tile_size_x: int = 50,
-        tile_size_z: int = 50,
-        num_cores: int = None,
-        heatmap: np.ndarray = None
+            self,
+            x_min, x_max, z_min, z_max,
+            step,
+            center=(0, 0),
+            cloud_presence_threshold=0.0,
+            cloud_noise_scale=None,
+            density_noise_scale=None,
+            cloud_amplitude=1.5,
+            tile_size_x=50,
+            tile_size_z=50,
+            num_cores=None,
+            heatmap=None,
+            presence_octaves=4,
+            presence_persistence=0.5,
+            presence_lacunarity=2.0,
+            density_octaves=2,
+            density_persistence=0.5,
+            density_lacunarity=2.0,
     ):
-        """
-        Initialize the spatial heatmap with Perlin noise-based cloud simulation.
 
-        Parameters
-        ----------
-        x_min, x_max : float
-            Min/max X coordinates (meters) for grid.
-        z_min, z_max : float
-            Min/max Z coordinates (meters) for grid.
-        step : float
-            Resolution of grid (meters per cell).
-        center : tuple of float, optional
-            Offset for Perlin noise pattern, for translation of cloud patterns.
-        cloud_presence_threshold : float, optional
-            Threshold (in Perlin noise units) for cloud existence.
-        cloud_noise_scale : float, optional
-            Scaling factor for Perlin noise used to define cloud existence (lower = larger features).
-        density_noise_scale : float, optional
-            Scaling factor for Perlin noise for cloud density variation.
-        cloud_amplitude : float, optional
-            Multiplier for max cloud density value.
-        tile_size_x, tile_size_z : int, optional
-            Tile size in grid cells for parallel computation.
-        num_cores : int, optional
-            Number of processes for parallel generation.
-        heatmap : np.ndarray, optional
-            Optionally supply a precomputed cloud field.
-
-        Attributes
-        ----------
-        heatmap : np.ndarray
-            2D array of cloud density (float32), shape (nz, nx).
-        x_coords, z_coords : np.ndarray
-            Grid coordinate arrays.
-        nx, nz : int
-            Grid size in x/z directions.
-
-        Physics/Math
-        ------------
-        Uses Perlin noise to produce continuous random fields, similar to cloud textures in nature.
-        """
         self.x_min = x_min
         self.x_max = x_max
         self.z_min = z_min
@@ -100,39 +62,25 @@ class SpatialHeatmap:
 
         self.x_coords = np.arange(x_min, x_max, step)
         self.z_coords = np.arange(z_min, z_max, step)
+
         self.nx = len(self.x_coords)
         self.nz = len(self.z_coords)
+        self.presence_octaves = presence_octaves
+        self.presence_persistence = presence_persistence
+        self.presence_lacunarity = presence_lacunarity
+        self.density_octaves = density_octaves
+        self.density_persistence = density_persistence
+        self.density_lacunarity = density_lacunarity
+        if heatmap is not None:
+            self.heatmap = heatmap
 
-        self.heatmap = heatmap if heatmap is not None else self._generate_heatmap()
     @classmethod
     def load(cls, filename):
-        """
-        Load a heatmap and parameters from file.
-
-        Parameters
-        ----------
-        filename : str or Path
-            Path to `.npz` file saved by `save()`.
-
-        Returns
-        -------
-        SpatialHeatmap
-            A heatmap instance with properties restored.
-
-        Raises
-        ------
-        FileNotFoundError
-            If file is missing.
-
-        Notes
-        -----
-        The file must contain all fields saved by `save()`.
-        """
         path = Path(filename)
         if not path.is_file():
             raise FileNotFoundError(f"File not found: {filename}")
         data = np.load(filename)
-        return cls(
+        obj = cls(
             x_min=data['x_min'].item(),
             x_max=data['x_max'].item(),
             z_min=data['z_min'].item(),
@@ -145,119 +93,78 @@ class SpatialHeatmap:
             cloud_amplitude=data['cloud_amplitude'].item(),
             tile_size_x=data['tile_size_x'].item(),
             tile_size_z=data['tile_size_z'].item(),
-            heatmap=data['heatmap']
+            presence_octaves=data['presence_octaves'],
+            presence_persistence=data['presence_persistence'],
+            presence_lacunarity=data['presence_lacunarity'],
+            density_octaves=data['density_octaves'],
+            density_persistence=data['density_persistence'],
+            density_lacunarity=data['density_lacunarity'],
         )
+        return obj
     @classmethod
-    def from_file_or_generate(cls, save_location,verbose=False, **kwargs):
+    def from_file_or_generate(cls, save_location, force_init, **kwargs):
         """
-        Create heatmap from file if exists, else generate a new one.
-
-        Parameters
-        ----------
-        save_location : str or Path
-            File location to load from (or to cache to after generation).
-        kwargs :
-            Arguments for constructor if generation is needed.
-
-        Returns
-        -------
-        SpatialHeatmap
+        Factory method: load from file if exists, else generate new heatmap
+        kwargs are passed to __init__ if generating.
         """
         path = Path(save_location)
-        if save_location and path.is_file():
-            if verbose:
-                print("loading saved heatmap")
+        if force_init:
+            print("force skip loading...")
+            return cls(**kwargs)
+        elif save_location and path.is_file():
+            print(f"Loading heatmap from {save_location}")
             return cls.load(save_location)
         else:
-            if verbose:
-                print("provided heatmap path do not exist, regenerating one...")
+            if save_location:
+                print(f"Save file does not exist: {save_location}, generating new heatmap.")
             return cls(**kwargs)
-    def _perlin2d_scalar(self, x, z, octaves, persistence=0.5, lacunarity=2.0):
-        """
-        Compute 2D Perlin noise value at (x, z).
-
-        Parameters
-        ----------
-        x, z : float
-            Noise input coordinates (should be scaled to achieve large or small features).
-        octaves : int
-            Number of noise layers at increasing frequency and reduced amplitude.
-        persistence : float, optional
-            Relative amplitude scaling for each octave.
-        lacunarity : float, optional
-            Frequency scaling between octaves.
-
-        Returns
-        -------
-        float
-            Perlin noise value in [-1, 1].
-
-        Math/Physics
-        ------------
-        Perlin noise produces smooth, continuous pseudo-random fields with fractal character.
-        """
+    def _perlin2d_scalar(self, x, z, octaves=None, persistence=None, lacunarity=None):
+        # Use self values if none provided (or pass all from self)
+        octaves = self.presence_octaves if octaves is None else octaves
+        persistence = self.presence_persistence if persistence is None else persistence
+        lacunarity = self.presence_lacunarity if lacunarity is None else lacunarity
         return pnoise2(x, z, octaves=octaves, persistence=persistence, lacunarity=lacunarity)
     def _process_tile(self, tile_bounds):
-        """
-        Compute cloud density values for a rectangular tile of the heatmap grid.
-
-        Parameters
-        ----------
-        tile_bounds : tuple
-            (z_start, z_end, x_start, x_end) defining sub-grid bounds.
-
-        Returns
-        -------
-        tuple
-            (z_start, z_end, x_start, x_end, tile_heatmap)
-            where tile_heatmap is a 2D float32 array.
-
-        Notes
-        -----
-        This is designed for parallel execution over multiple CPU cores.
-        """
         z_start, z_end, x_start, x_end = tile_bounds
         rows = z_end - z_start
         cols = x_end - x_start
+
         tile_heatmap = np.zeros((rows, cols), dtype=np.float32)
 
-        for i_local, i_z in enumerate(range(z_start, z_end)):
-            z_pos = self.z_coords[i_z]
-            for j_local, j_x in enumerate(range(x_start, x_end)):
-                x_pos = self.x_coords[j_x]
-                nx_presence = (x_pos + self.center[0]) * self.cloud_noise_scale
-                nz_presence = (z_pos + self.center[1]) * self.cloud_noise_scale
+        for i_local, i in enumerate(range(z_start, z_end)):
+            z = self.z_coords[i]
+            for j_local, j in enumerate(range(x_start, x_end)):
+                x = self.x_coords[j]
+
+                nx_presence = (x + self.center[0]) * self.cloud_noise_scale
+                nz_presence = (z + self.center[1]) * self.cloud_noise_scale
                 presence_val = self._perlin2d_scalar(
-                    nx_presence, nz_presence, octaves=4, persistence=0.5, lacunarity=2.0
+                    nx_presence,
+                    nz_presence,
+                    self.presence_octaves,
+                    self.presence_persistence,
+                    self.presence_lacunarity,
                 )
+
                 if presence_val > self.cloud_presence_threshold:
-                    nx_density = (x_pos + self.center[0]) * self.density_noise_scale
-                    nz_density = (z_pos + self.center[1]) * self.density_noise_scale
-                    density_val = self._perlin2d_scalar(nx_density, nz_density, octaves=2)
-                    # Map [-1,1] Perlin noise to [0,1], then scale amplitude:
+                    nx_density = (x + self.center[0]) * self.density_noise_scale
+                    nz_density = (z + self.center[1]) * self.density_noise_scale
+                    density_val = self._perlin2d_scalar(
+                        nx_density,
+                        nz_density,
+                        self.density_octaves,
+                        self.density_persistence,
+                        self.density_lacunarity,
+                    )
                     density_norm = (density_val + 0.5) / 2
                     density = density_norm * self.cloud_amplitude
                     tile_heatmap[i_local, j_local] = np.clip(density, 0, 9999)
                 else:
                     tile_heatmap[i_local, j_local] = 0
+
         return (z_start, z_end, x_start, x_end, tile_heatmap)
     def _generate_heatmap(self):
-        """
-        Generate the cloud density field over the full grid.
-
-        Returns
-        -------
-        np.ndarray
-            2D array of cloud densities.
-
-        Notes
-        -----
-        Uses multiprocessing for parallel generation if num_cores > 1.
-
-        Physics
-        -------
-        Each tile is processed independently, then tiles are assembled.
-        """
+        # Create tile bounds
         tile_bounds_list = []
         for z_start in range(0, self.nz, self.tile_size_z):
             z_end = min(z_start + self.tile_size_z, self.nz)
@@ -275,100 +182,72 @@ class SpatialHeatmap:
             heatmap[z_start:z_end, x_start:x_end] = tile
 
         return heatmap
-    def query_points(self, world_points: np.ndarray) -> np.ndarray:
+    def query_points(self, points: np.ndarray) -> np.ndarray:
         """
-        Query the heatmap value at N given world (X, Y, Z) coordinates.
+        Query heatmap values at multiple (X, Y, Z) points.
+        Returns an array of heatmap values sampled at the (X, Z) coordinates of the points.
 
-        Parameters
-        ----------
-        world_points : np.ndarray
-            Shape (N, 3): [X, Y, Z] points in world coordinates.
+        Args:
+            points (np.ndarray): Array of shape (N, 3), with columns [X, Y, Z].
 
-        Returns
-        -------
-        np.ndarray
-            (N,) array of cloud densities at each queried (X, Z) location.
-            Points outside the grid return 0.
-
-        Notes
-        -----
-        Only X and Z are used. Y is ignored.
+        Returns:
+            np.ndarray: Array of length N with heatmap values at corresponding (X, Z) points.
         """
-        if world_points.shape[1] != 3:
+        if points.shape[1] != 3:
             raise ValueError("Input points array must have shape (N, 3)")
-        xs = world_points[:, 0]
-        zs = world_points[:, 2]
+
+        # Extract X and Z from points
+        xs = points[:, 0]
+        zs = points[:, 2]
+
+        # Convert coords to indices
         rows, cols = self.coord_to_index(xs, zs)
-        values = np.zeros(len(world_points), dtype=np.float32)
+
+        # Prepare output array
+        values = np.zeros(len(points), dtype=np.float32)
+
+        # For each point, fetch heatmap value if in bounds
         for i, (row, col) in enumerate(zip(rows, cols)):
             if 0 <= row < self.nz and 0 <= col < self.nx:
                 values[i] = self.heatmap[row, col]
             else:
                 values[i] = 0.0
+
         return values
     def coord_to_index(self, x, z):
         """
-        Convert (x, z) world coordinates to heatmap grid indices.
-
-        Parameters
-        ----------
-        x, z : float or np.ndarray
-            Coordinates in meters.
-
-        Returns
-        -------
-        (rows, cols) : tuple of int or np.ndarray
-            Indices into the grid. Out-of-bounds indices may be negative or exceed grid.
+        Vectorized coordinate to index conversion.
+        Accepts scalar or numpy arrays for x and z.
+        Returns rows and cols as numpy arrays.
         """
         x = np.asarray(x)
         z = np.asarray(z)
+
         cols = np.round(((x - self.center[0]) + (self.x_max - self.x_min) / 2) / self.step).astype(int)
         rows = np.round(((z - self.center[1]) + (self.z_max - self.z_min) / 2) / self.step).astype(int)
         return rows, cols
     def __getitem__(self, coords):
-        """
-        Query a single heatmap value using the syntax heatmap[x, z].
-
-        Parameters
-        ----------
-        coords : tuple
-            Tuple (x, z).
-
-        Returns
-        -------
-        float
-            Heatmap value at (x, z) or 0 if out of bounds.
-
-        Raises
-        ------
-        KeyError
-            If coords is not a tuple of length 2.
-        """
         if isinstance(coords, tuple) and len(coords) == 2:
             x, z = coords
+            # Shift query coords by center offset because the grid coords exclude center:
+            # The grid coordinates self.x_coords are absolute world coords,
+            # so no shift is necessary here.
             row, col = self.coord_to_index(x, z)
+            print(row, col)
             if 0 <= row < self.nz and 0 <= col < self.nx:
                 return self.heatmap[row, col]
             else:
-                return 0.0
+                return 0.0  # Out of bounds return 0
         else:
             raise KeyError("Coordinates must be a tuple (x, z)")
     def save(self, filename):
-        """
-        Save the heatmap and its parameters to a compressed .npz file.
-
-        Parameters
-        ----------
-        filename : str or Path
-            Output file.
-
-        Notes
-        -----
-        Stores all grid/parameter info so that `load()` can exactly restore the state.
-        """
+        if os.path.exists(filename):
+            os.remove(filename)
+            print("File removed.")
+        else:
+            print("File does not exist.")
         np.savez_compressed(
             filename,
-            heatmap=self.heatmap,
             x_min=self.x_min,
             x_max=self.x_max,
             z_min=self.z_min,
@@ -381,8 +260,56 @@ class SpatialHeatmap:
             cloud_amplitude=self.cloud_amplitude,
             tile_size_x=self.tile_size_x,
             tile_size_z=self.tile_size_z,
+            presence_octaves=self.presence_octaves,
+            presence_persistence=self.presence_persistence,
+            presence_lacunarity=self.presence_lacunarity,
+            density_octaves=self.density_octaves,
+            density_persistence=self.density_persistence,
+            density_lacunarity=self.density_lacunarity,
         )
         print(f"Heatmap data and properties saved to {filename}")
+    def compute_density_for_points(self, xs, zs):
+        # Use the same noise parameters as in _process_tile
+        # 1. Cloud presence
+        nx_presence = (xs) * self.cloud_noise_scale
+        nz_presence = (zs) * self.cloud_noise_scale
+
+        # Vectorize Perlin for presence
+        perlin = np.vectorize(self._perlin2d_scalar)
+        presence_val = perlin(nx_presence, nz_presence,
+                              self.presence_octaves if hasattr(self, 'presence_octaves') else 4,
+                              self.presence_persistence if hasattr(self, 'presence_persistence') else 0.5,
+                              self.presence_lacunarity if hasattr(self, 'presence_lacunarity') else 2.0)
+
+        mask = presence_val > self.cloud_presence_threshold
+
+        densities = np.zeros_like(xs, dtype=np.float32)
+        if np.any(mask):
+            # 2. Density
+            nx_density = (xs[mask]) * self.density_noise_scale
+            nz_density = (zs[mask]) * self.density_noise_scale
+            density_val = perlin(nx_density, nz_density,
+                                 self.density_octaves if hasattr(self, 'density_octaves') else 2,
+                                 self.density_persistence if hasattr(self, 'density_persistence') else 0.5,
+                                 self.density_lacunarity if hasattr(self, 'density_lacunarity') else 2.0)
+            density_norm = (density_val + 0.5) / 2
+            density = density_norm * self.cloud_amplitude
+            densities[mask] = np.clip(density, 0, 255)
+        return densities
+    def compute_density_for_point(self, x, z):
+        nx_presence = (x + self.center[0]) * self.cloud_noise_scale
+        nz_presence = (z + self.center[1]) * self.cloud_noise_scale
+        presence_val = self._perlin2d_scalar(nx_presence, nz_presence, octaves=4, persistence=0.5, lacunarity=2.0)
+
+        if presence_val > self.cloud_presence_threshold:
+            nx_density = (x + self.center[0]) * self.density_noise_scale
+            nz_density = (z + self.center[1]) * self.density_noise_scale
+            density_val = self._perlin2d_scalar(nx_density, nz_density, octaves=2)
+            density_norm = (density_val + 0.5) / 2
+            density = density_norm * self.cloud_amplitude
+            return np.clip(density, 0, 9999)
+        else:
+            return 0.0
 """
 Signal Propagation and Geometry Utilities
 ========================================
@@ -420,11 +347,11 @@ def compute_bearing_and_pitch(origin_geodetic, target_geodetic):
     # Convert to radians
     origin_lat_rad = np.deg2rad(origin_geodetic[:, 0])
     origin_lon_rad = np.deg2rad(origin_geodetic[:, 1])
-    origin_alt_m   = origin_geodetic[:, 2]
+    origin_alt_m = origin_geodetic[:, 2]
 
     target_lat_rad = np.deg2rad(target_geodetic[:, 0])
     target_lon_rad = np.deg2rad(target_geodetic[:, 1])
-    target_alt_m   = target_geodetic[:, 2]
+    target_alt_m = target_geodetic[:, 2]
 
     delta_lon_rad = target_lon_rad - origin_lon_rad
 
@@ -450,12 +377,12 @@ def compute_bearing_and_pitch(origin_geodetic, target_geodetic):
 
     return np.column_stack((bearing_deg, pitch_deg))
 def calculate_cloud_loss(
-        transmitter_xyz: np.ndarray,
-        receiver_xyz: np.ndarray,
-        transmitter_orientation: np.ndarray,
-        propagation_distance: np.ndarray,
-        cloud_heatmaps: tuple
-        ) -> np.ndarray:
+        origins: np.ndarray,
+        target_origins: np.ndarray,
+        angles: np.ndarray,
+        max_d: np.ndarray,
+        heatmaps: tuple
+) -> np.ndarray:
     """
     Estimate cloud attenuation loss along the line-of-sight path.
 
@@ -483,11 +410,11 @@ def calculate_cloud_loss(
       position (Y axis) and queries the density at the transmitter position.
     - Loss is scaled by the path distance for one heatmap, or directly sampled for another.
     """
-    if transmitter_xyz[0, 1] > 300_000 or receiver_xyz[0, 1] > 300_000:
-        attenuation_values = cloud_heatmaps[1].query_points(transmitter_xyz)
+    if origins[0, 1] > 300_000 or target_origins[0, 1] > 300_000:
+        values = heatmaps[1].compute_density_for_points(origins[:, 0], origins[:, 2])
     else:
-        attenuation_values = cloud_heatmaps[0].query_points(transmitter_xyz) * propagation_distance
-    return attenuation_values
+        values = heatmaps[0].compute_density_for_points(origins[:, 0], origins[:, 2]) * max_d
+    return values
 def convert_angles_to_directions(bearing_pitch_angles: np.ndarray) -> np.ndarray:
     """
     Convert [bearing_deg, pitch_deg] angles to normalized 3D unit vectors.
@@ -674,10 +601,9 @@ def combine_csvs_from_folder(
     )
     combined_df.index.name = 'time_s'
     return combined_df, json_label, max_trajectory_length, plane_names, plane_ids
-
 def calculate_capacity_from_snr_db(
-    bandwidth_hz,
-    snr_db
+        bandwidth_hz,
+        snr_db
 ):
     """
     Compute Shannon channel capacity (Mbps) given bandwidth and SNR (in dB).
@@ -772,10 +698,10 @@ def calculate_antenna_gain(beamwidth_degrees, efficiency=0.7) -> float:
     gain_dBi = 10 * np.log10(gain_linear)
     return gain_dBi
 def calculate_off_axis_loss_elliptical(
-    hpbw_degrees : Union[tuple, np.ndarray],
-    off_axis_angles,
-    ref_loss_db: Union[float, np.ndarray],
-    ref_frac: Union[float, np.ndarray]
+        hpbw_degrees: Union[tuple, np.ndarray],
+        off_axis_angles,
+        ref_loss_db: Union[float, np.ndarray],
+        ref_frac: Union[float, np.ndarray]
 ) -> np.ndarray:
     """
     Calculate off-axis antenna loss (dB) using elliptical Gaussian model.
@@ -891,7 +817,7 @@ def calculate_haversine_distance_3d(pointA_geodetic, pointB_geodetic):
 
     return total_distance_m / 1000.0
 def approximate_lat_lon_diff_meters(
-    lat1_deg, lon1_deg, lat2_deg, lon2_deg
+        lat1_deg, lon1_deg, lat2_deg, lon2_deg
 ):
     """
     Approximate east (dx) and north (dy) displacements in meters between lat/lon pairs.
@@ -925,10 +851,10 @@ def approximate_lat_lon_diff_meters(
     dx = R_EARTH * delta_lon * np.cos(mean_lat)
     return dx, dy
 def compute_az_el_error(
-    observer_geodetic,
-    observer_pitch_deg,
-    observer_yaw_deg,
-    target_geodetic
+        observer_geodetic,
+        observer_pitch_deg,
+        observer_yaw_deg,
+        target_geodetic
 ):
     """
     Compute pointing (azimuth/elevation) errors between observer orientation and target direction.
@@ -971,7 +897,7 @@ def compute_az_el_error(
 
     return np.column_stack((azimuth_error, elevation_error))
 def compute_relative_orientation_matrix(
-    plane_states, sensor_config
+        plane_states, sensor_config
 ):
     """
     Combine plane orientation and sensor mounting to get absolute sensor pointing.
@@ -1000,9 +926,9 @@ def compute_relative_orientation_matrix(
     absolute_bearing[pitch_out_of_bounds] = (absolute_bearing[pitch_out_of_bounds] + 180) % 360
     return np.column_stack((absolute_bearing, absolute_pitch))
 def compute_best_sensor_off_axis(
-    transmitter_plane_states,
-    receiver_plane_states,
-    sensor_config_list
+        transmitter_plane_states,
+        receiver_plane_states,
+        sensor_config_list
 ):
     """
     For all sensors, compute off-axis loss; select best for each time step.
@@ -1063,11 +989,11 @@ def compute_best_sensor_off_axis(
     )
     return off_axis_loss_best, hpbw_best, efficiency_best
 def compute_line_of_sight(
-    transmitter_state,
-    receiver_state,
-    transmitter_sensor_config,
-    receiver_sensor_configs,
-    cloud_heatmaps
+        transmitter_state,
+        receiver_state,
+        transmitter_sensor_config,
+        receiver_sensor_configs,
+        heatmaps: SpatialHeatmap
 ) -> pd.DataFrame:
     """
     Compute full line-of-sight signal model between two objects (planes/satellites).
@@ -1120,16 +1046,17 @@ def compute_line_of_sight(
         transmitter_gain_dBi = 0
 
     cloud_loss = calculate_cloud_loss(
-        transmitter_xyz, receiver_xyz, abs_sensor_orientation, great_circle_distance_km, cloud_heatmaps)
+        transmitter_xyz, receiver_xyz, abs_sensor_orientation, great_circle_distance_km, heatmaps)
     transmitter_power_dBm = watts_to_dBm(transmitter_sensor_config["power"])
     received_power_dBm = (transmitter_power_dBm + transmitter_gain_dBi +
                           receiver_gain_dBi - off_axis_loss - fspl_db -
                           target_off_axis_loss - cloud_loss)
     noise_floor_dBm = -174 + 10 * math.log10(transmitter_sensor_config["shannon_bande_Hz"])
     snr_dB = received_power_dBm - noise_floor_dBm
+    lag = great_circle_distance_km / 299_792
     channel_capacity_Mbps = calculate_capacity_from_snr_db(
         transmitter_sensor_config["shannon_bande_Hz"], snr_dB)
-    lag = great_circle_distance_km / 299_792
+
     return pd.DataFrame({
         "Free-Space Path Loss(Db)": fspl_db,
         "off_axis_loss(Db)": off_axis_loss,
@@ -1142,7 +1069,7 @@ def compute_line_of_sight(
         "SNR": snr_dB,
         "Shannon_capacity_Mbps": channel_capacity_Mbps,
         "distance": great_circle_distance_km,
-        "lag_ms": lag*1000
+        "lag_ms": lag * 1000
     })
 class Plane:
     def __init__(self,
@@ -1155,7 +1082,7 @@ class Plane:
                  mean_service_duration=20,
                  overlap_service_percent=20,
                  cloud_attenuation=1,
-                 verbose=False,):
+                 verbose=False, ):
         """
         Initialize a Plane simulation object, loading configuration, flights, satellites, services, and cloud heatmaps.
 
@@ -1184,7 +1111,7 @@ class Plane:
         # Load IVDL and Satellite heatmaps
         self.ivdl_heatmap = SpatialHeatmap.from_file_or_generate(
             save_location=ivdl_heatmap_path,
-            verbose=verbose,
+            force_init=False,
             x_min=-1_000_000, x_max=1_000_000,
             z_min=-1_000_000, z_max=1_000_000,
             step=200,
@@ -1194,10 +1121,16 @@ class Plane:
             density_noise_scale=0.000005,
             cloud_noise_scale=0.000007,
             center=(264_768.0, 5_278_273.0),
+            presence_octaves=4,
+            presence_persistence=0.5,
+            presence_lacunarity=2.0,
+            density_octaves=2,
+            density_persistence=0.5,
+            density_lacunarity=2.0,
         )
         self.sat_heatmap = SpatialHeatmap.from_file_or_generate(
             save_location=sat_heatmap_path,
-            verbose=verbose,
+            force_init=False,
             x_min=-1_000_000, x_max=1_000_000,
             z_min=-1_000_000, z_max=1_000_000,
             step=200,
@@ -1207,6 +1140,12 @@ class Plane:
             density_noise_scale=0.000005,
             cloud_noise_scale=0.000007,
             center=(264_768.0, 5_278_273.0),
+            presence_octaves=4,
+            presence_persistence=0.5,
+            presence_lacunarity=2.0,
+            density_octaves=2,
+            density_persistence=0.5,
+            density_lacunarity=2.0,
         )
         self.overlap_service_percent = overlap_service_percent
         self.mean_service_duration = mean_service_duration
@@ -1214,15 +1153,16 @@ class Plane:
         # Load services and sensor config
         with open(services_file, 'r', encoding='utf-8') as f:
             self.services_list = json.load(f)
-        with open(config_path, 'r') as file:
+        with open(Path(config_path).expanduser(), 'r') as file:
             self.sensors_config = json.load(file)
+
         # Load flights and satellites data
         self.flight_data, self.label_by_plane_id, self.sat_min_length, \
             self.plane_names, self.plane_ids = combine_csvs_from_folder(
-                Path(flights_folder).expanduser(),
-                Path(satellites_folder).expanduser(),
-                "time_s"
-            )
+            Path(flights_folder).expanduser(),
+            Path(satellites_folder).expanduser(),
+            "time_s"
+        )
         self.flight_data_i_plane_id = self.flight_data.set_index("plane_id", drop=False, inplace=False)
     def calculate_line_of_sight_matrix(self, plane_id):
         """
@@ -1260,7 +1200,6 @@ class Plane:
             plane_types.append(plane_rows["plane_type"].iloc[0])
 
         def compute_target_signal(plane_id, target_plane_id, sensor_params):
-            # Your existing compute_line_of_sight function call
             if target_plane_id != plane_id:
                 return compute_line_of_sight(
                     trajectories[plane_id],
@@ -1288,8 +1227,7 @@ class Plane:
                     try:
                         df = future.result()
                     except Exception as e:
-                        # print(f"Error processing target {target_id}: {e}")
-                        traceback.print_exc()
+                        print(f"Error processing target {target_id}: {e}")
                         df = pd.DataFrame(None)
 
                     signal_data_per_target.append(df)
@@ -1319,49 +1257,17 @@ class Plane:
                     sensor_column_names.append(col_name)
                 except Exception as e:
                     print(f"Error processing sensor {futures[future]}: {e}")
-        ### Old Monothread Methode
-        # # For each sensor configuration for the given plane
-        # #first multithreading
-        # for sensor_idx, sensor_params in enumerate(self.sensors_config[plane_types[plane_id].lower()]):
-        #     signal_data_per_target = []
-        #     signal_colnames_per_target = []
-        #     #2nd multithreading
-        #     for target_plane_id in pd.unique(self.flight_data.loc[0, 'plane_id']):
-        #         if target_plane_id != plane_id:
-        #             signal_df = compute_line_of_sight(
-        #                 trajectories[plane_id],
-        #                 trajectories[target_plane_id],
-        #                 sensor_params,
-        #                 self.sensors_config[plane_types[target_plane_id].lower()],
-        #                 (self.ivdl_heatmap, self.sat_heatmap)
-        #             )
-        #             signal_data_per_target.append(signal_df)
-        #         else:
-        #             signal_data_per_target.append(pd.DataFrame(None))
-        #         signal_colnames_per_target.append(
-        #             f"{self.label_by_plane_id[target_plane_id]}_signal"
-        #         )
-
-        #     # Convert to columnar dictionary format for easy merging
-        #     processed_dfs = [
-        #         df.apply(lambda row: row.to_dict(), axis=1) for df in signal_data_per_target
-        #     ]
-        #     merged_df = pd.concat(processed_dfs, axis=1)
-        #     merged_df.columns = signal_colnames_per_target
-        #     merged_df = merged_df.apply(lambda row: row.to_dict(), axis=1)
-        #     sensor_results_by_plane.append(merged_df)
-        #     sensor_column_names.append(f"sensor_{sensor_idx}")
 
         # Service schedule generation
         origin_plane_name = None
         available_plane_ids = self.plane_ids.copy()
         available_plane_names = self.plane_names.copy()
-        for i, pid in enumerate(self.plane_ids):    
+        for i, pid in enumerate(self.plane_ids):
             if pid == plane_id:
                 available_plane_ids.pop(i)
                 origin_plane_name = available_plane_names.pop(i)
         # Compute time slotting for services
-        full_traj_length = trajectory_length
+        full_traj_length = self.flight_data.set_index("plane_id", inplace=False, drop=False).loc[plane_id].shape[0]
         estimated_segments = int(full_traj_length / 60 / self.mean_service_duration)
         random_jitter = random.randint(
             -int((full_traj_length / 60 / 20) * 20 / 100),
@@ -1369,6 +1275,7 @@ class Plane:
         )
         num_segments = estimated_segments + random_jitter
         segment_boundaries = []
+        # FIX NEED TO SECURE FIRST AND LAST BEING [0,full_traj_length]
         for seg_idx in range(num_segments - 1):
             segment_boundaries.append(int(full_traj_length / num_segments) * (seg_idx + 1))
         for seg_idx in range(num_segments - 1):
@@ -1406,6 +1313,7 @@ class Plane:
         df_all_sensors = df_all_sensors.apply(lambda row: row.to_dict(), axis=1)
 
         return df_all_sensors
+
 
 class LinkSimWorker(PolarsWorker):
     """class derived from AgiDagWorker"""
@@ -1450,6 +1358,7 @@ class LinkSimWorker(PolarsWorker):
                 Path(args['data_dir']).expanduser() / Path(args['services_conf_path']),
                 Path(args['data_dir']).expanduser() / Path(args['cloud_heatmap_IVDL']),
                 Path(args['data_dir']).expanduser() / Path(args['cloud_heatmap_sat']),
+                verbose=self.verbose,
             )
             df = flight_sight.calculate_line_of_sight_matrix(file)
             self.json_label = flight_sight.label_by_plane_id
