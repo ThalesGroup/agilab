@@ -251,20 +251,7 @@ class AGI:
                 "AgentWorker": "agent-worker",
             }
             # AGI.install_worker_group = AGI.agi_workers[env.base_worker_cls]
-            AGI.install_worker_group = ["agi-manager ", AGI.agi_workers[env.base_worker_cls]]
-            base_worker_dir = str(env.cluster_root / "src")
-            if base_worker_dir not in sys.path:
-                sys.path.insert(0, base_worker_dir)
-            AGI._target_module = await AGI._load_module(
-                AGI._target,
-                env.module,
-                path=env.app_src,
-            )
-            if not AGI._target_module:
-                raise RuntimeError(f"failed to load {AGI._target}")
-
-            target_class = getattr(AGI._target_module, env.target_class)
-            AGI._target_inst = target_class(env, **args)
+            AGI.install_worker_group = ["agi-dispatcher ", AGI.agi_workers[env.base_worker_cls]]
 
             try:
                 return await AGI.main(scheduler)
