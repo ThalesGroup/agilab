@@ -26,7 +26,6 @@ async def main():
     sys.path.insert(0, base_path / 'apps/flight_project/src')
     sys.path.insert(0,'~/wenv/flight_worker/dist')
 
-    # BaseWorker.test flight command
     for i in [0, 1, 2, 3]: # 2 is working only if you have generate the cython lib before
         env = AgiEnv(install_type=1,active_app="flight_project",verbose=True)
         # build the egg
@@ -37,7 +36,6 @@ async def main():
         env.run(cmd, menv)
 
         # build cython lib
-
         cmd = f"uv run --project {wenv} python {build} build_ext --packages base_worker, polars_worker -b {wenv}"
         env.run(cmd, wenv)
 
