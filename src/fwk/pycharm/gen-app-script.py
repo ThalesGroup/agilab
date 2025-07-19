@@ -128,7 +128,7 @@ for tpl in template_paths:
         else:
             os.replace(tmp_path, out_path)
             print(f"Updated config (changed): {out_path}")
-            update_workspace_xml(config_name, config_type, FOLDER_NAME)
+        update_workspace_xml(config_name, config_type, FOLDER_NAME)
         continue
 
     # first time write
