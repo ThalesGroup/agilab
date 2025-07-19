@@ -242,7 +242,6 @@ def main() -> None:
     # Discover packages and combine with custom modules
     package_dir = {'': 'src'}
     found_pkgs = find_packages(where='src')
-    all_pkgs = found_pkgs + packages
 
     # TO SUPPRESS WARNING
     readme = "README.md"
@@ -255,7 +254,7 @@ def main() -> None:
         name=worker_module,
         version="0.1.0",
         package_dir=package_dir,
-        packages=all_pkgs,
+        packages=found_pkgs,
         include_package_data=True,
         package_data={'': ['*.7z']},
         ext_modules=ext_modules,
