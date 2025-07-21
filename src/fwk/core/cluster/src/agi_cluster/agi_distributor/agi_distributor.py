@@ -993,6 +993,13 @@ class AGI:
         cmd = f"{uv} pip install -e {env.node_root}"
         await AgiEnv.run(cmd, wenv_abs)
 
+        # Post-install script
+        dest = wenv_abs / "src" / env.target_worker
+        os.makedirs(dest, exist_ok=True)
+        shutil.copy2(env.post_install, dest)
+        cmd = f"{uv} --project {wenv_abs} run python {env.post_install_rel} --install-type 2 {env.data_rel}"
+        await AgiEnv.run(cmd, wenv_abs)
+
         # Build target_worker lib local
         await AGI._build_lib_local()
 
