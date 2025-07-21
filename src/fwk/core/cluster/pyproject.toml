@@ -68,7 +68,7 @@ dependencies = [
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
-Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/fwk/cluster"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/fwk/core/cluster"
 Tracker = "https://github.com/ThalesGroup/agilab/issue"
 
 [dependency-groups]
@@ -94,7 +94,7 @@ path = "../node"
 editable = true
 
 [tool.uv.sources.agi-cluster]
-path = "."
+path = "../cluster"
 editable = true
 
 [tool.mypy]
