@@ -973,8 +973,8 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        # cmd = f"{uv} --project {wenv_abs} add {whl}"
-        cmd = f"{uv} pip install -e {env.env_root}"
+        cmd = f"{uv} --project {wenv_abs} add {whl}"
+        # cmd = f"{uv} pip install -e {env.env_root}"
         await AgiEnv.run(cmd, wenv_abs)
 
 
@@ -989,15 +989,19 @@ class AGI:
         except StopIteration:
             raise RuntimeError(cmd)
 
-        # cmd = f"{uv} --project {wenv_abs} add {whl}"
-        cmd = f"{uv} pip install -e {env.node_root}"
+        cmd = f"{uv} --project {wenv_abs} add {whl}"
+        #cmd = f"{uv} pip install -e {env.node_root}"
         await AgiEnv.run(cmd, wenv_abs)
 
         # Post-install script
         dest = wenv_abs / "src" / env.target_worker
         os.makedirs(dest, exist_ok=True)
         shutil.copy2(env.post_install, dest)
-        cmd = f"{uv} --project {wenv_abs} run python {env.post_install_rel} --install-type 2 {env.data_rel}"
+        src = env.post_install.parent / "dataset.7z"
+        if src.exists():
+            os.makedirs(env.home_abs / env.data_rel / "dataset", exist_ok=True)
+            shutil.copy2(src, dest)
+        cmd = f"{uv} --project {wenv_abs} run python {env.home_abs / env.post_install_rel} --install-type 2 {env.data_rel}"
         await AgiEnv.run(cmd, wenv_abs)
 
         # Build target_worker lib local
@@ -1476,7 +1480,9 @@ class AGI:
         shutil.copy2(env.setup_core, app_path)
 
         # build egg and unzip it into wenv
-        cmd = f"{env.uv} --project {app_path} run python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d {wenv_abs}"
+        #cmd = f"{env.uv} --project {app_path} run python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d {wenv_abs}"
+        cmd = f"{env.uv} --project {wenv_abs} run python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d {wenv_abs}"
+
         await AgiEnv.run(cmd, app_path)
 
         dask_client = AGI._dask_client
@@ -1547,9 +1553,9 @@ class AGI:
             cython_lib_path = Path(wenv_abs)
 
             # Look for any files or directories in the Cython lib path that match the "*cy*" pattern.
-            cython_libs = list(cython_lib_path.glob("*cy*"))
-            if cython_libs:
-                lib_path = normalize_path(cython_libs[0])
+            # cython_libs = list(cython_lib_path.glob("*cy*"))
+            # if cython_libs:
+            #     lib_path = normalize_path(cython_libs[0])
             # else:
             #     AGI._build_lib_local()
 
