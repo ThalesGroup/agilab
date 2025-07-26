@@ -188,9 +188,9 @@
 | numpy | BSD LICENSE |
 | ollama |  |
 | openai | APACHE SOFTWARE LICENSE |
-| opentelemetry-api | APACHE SOFTWARE LICENSE |
-| opentelemetry-sdk | APACHE SOFTWARE LICENSE |
-| opentelemetry-semantic-conventions | APACHE SOFTWARE LICENSE |
+| opentelemetry-api | APACHE-2.0 |
+| opentelemetry-sdk | APACHE-2.0 |
+| opentelemetry-semantic-conventions | APACHE-2.0 |
 | optree | APACHE-2.0 |
 | orjson | APACHE SOFTWARE LICENSE;; MIT LICENSE |
 | overrides | APACHE LICENSE_ VERSION 2.0 |
@@ -231,7 +231,7 @@
 | pymdown-extensions | MIT LICENSE |
 | pynacl | APACHE LICENSE 2.0 |
 | pyparsing | MIT LICENSE |
-| pypdf | BSD LICENSE |
+| pypdf | BSD-3-CLAUSE |
 | pyppmd | LGPL-2.1-OR-LATER |
 | python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | BSD LICENSE |
