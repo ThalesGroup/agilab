@@ -561,7 +561,7 @@ class AGI:
         kill_prefix = f'{cmd_prefix}{uv} run -p {env.python_version} python'
 
         if env.is_local(ip):
-            shutil.copy(env.cluster_root / "src/agi_distributor/cli.py", cli_abs)
+            shutil.copy(env.cluster_root / "src/agi_cluster/agi_distributor/cli.py", cli_abs)
             if force:
                 cmd = f"{kill_prefix} {cli_abs} kill"
                 cmds.append(cmd)
@@ -819,7 +819,7 @@ class AGI:
             # 3) Install Python
             uv = cmd_prefix+ "PYTHON_GIL=0;" + env.uv
             await AGI.exec_ssh(ip, f"{uv} python install {pyvers}")
-            await env.send_file(ip, env.cluster_root / "src/agi_distributor/cli.py", env.wenv_rel.parent)
+            await env.send_file(ip, env.cluster_root / "src/agi_cluster/agi_distributor/cli.py", env.wenv_rel.parent)
 
             cli = env.wenv_rel.parent / "cli.py"
             cmd = f"{uv} run python {cli} platform"
@@ -1276,7 +1276,7 @@ class AGI:
 
             # Clean worker
             for ip in list(AGI.workers):
-                await env.send_file(ip, env.cluster_root / "src/agi_distributor/cli.py", cli_rel.parent)
+                await env.send_file(ip, env.cluster_root / "src/agi_cluster/agi_distributor/cli.py", cli_rel.parent)
                 if not env.envars.get(ip, None):
                     env.has_rapids_hw = False
                 try:
