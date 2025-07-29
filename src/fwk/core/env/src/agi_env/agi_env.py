@@ -1808,4 +1808,3 @@ class ContentRenamer(ast.NodeTransformer):
 
         me = getpass.getuser()
         my_pid = os.getpid()
-
