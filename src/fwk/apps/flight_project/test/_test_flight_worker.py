@@ -26,18 +26,19 @@ async def main():
     sys.path.insert(0, base_path / 'apps/flight_project/src')
     sys.path.insert(0,'~/wenv/flight_worker/dist')
 
-    for i in [0, 1, 2, 3]: # 2 is working only if you have generate the cython lib before
-        env = AgiEnv(install_type=1,active_app="flight_project",verbose=True)
-        # build the egg
-        wenv = env.wenv_abs
-        build = wenv /"build.py"
-        menv = env.wenv_abs
-        cmd = f"uv run --project {menv} python {build} bdist_egg --packages base_worker, polars_worker -d {menv}"
-        env.run(cmd, menv)
+    env = AgiEnv(install_type=1, active_app="flight_project", verbose=True)
+    # build the egg
+    wenv = env.wenv_abs
+    build = wenv / "build.py"
+    menv = env.wenv_abs
+    cmd = f"uv run --project {menv} python {build} bdist_egg --packages 'base_worker, polars_worker' -d '{menv}'"
+    await env.run(cmd, menv)
 
-        # build cython lib
-        cmd = f"uv run --project {wenv} python {build} build_ext --packages base_worker, polars_worker -b {wenv}"
-        env.run(cmd, wenv)
+    # build cython lib
+    cmd = f"uv run --project {wenv} python {build} build_ext --packages base_worker, polars_worker -b '{wenv}'"
+    await env.run(cmd, wenv)
+
+    for i in [0, 1, 2, 3]: # 2 is working only if you have generate the cython lib before
 
         path = str(env.home_abs / "/src")
         if path not in sys.path:
