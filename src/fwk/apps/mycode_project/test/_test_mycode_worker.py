@@ -15,10 +15,20 @@ async def main():
     sys.path.insert(0, base_path/ 'apps/mycode_project/src')
     sys.path.insert(0,'~/wenv/mycode_worker/dist')
 
+    env = AgiEnv(install_type=1, active_app="mycode_project", verbose=True)
+    # build the egg
+    wenv = env.wenv_abs
+    build = wenv / "build.py"
+    menv = env.wenv_abs
+    cmd = f"uv run --project {menv} python {build} bdist_egg --packages 'base_worker, dag_worker' -d '{menv}'"
+    await env.run(cmd, menv)
+
+    # build cython lib
+    cmd = f"uv run --project {wenv} python {build} build_ext --packages base_worker, dag_worker -b '{wenv}'"
+    await env.run(cmd, wenv)
 
     # BaseWorker.test flight command
     for i in  [0,1,3]: # 2 is working only if you have generate the cython lib before
-        env = AgiEnv(install_type=1,active_app="mycode_project",verbose=True)
         with open(env.home_abs / ".local/share/agilab/.fwk-path", 'r') as f:
             fwk_path = Path(f.read().strip())
 
