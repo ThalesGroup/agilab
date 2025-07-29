@@ -963,34 +963,34 @@ class AGI:
         await AgiEnv.run(cmd, wenv_abs)
 
         # build agi_env*.whl
-        menv = env.env_root
-        cmd = f"{uv} --project {menv} build --wheel"
-        await AgiEnv.run(cmd, menv)
-        src = menv / "dist"
-        try:
-            whl = next(iter(src.glob("agi_env*.whl")))
-            shutil.copy2(whl, wenv_abs)
-        except StopIteration:
-            raise RuntimeError(cmd)
+        #menv = env.env_root
+        #cmd = f"{uv} --project {menv} build --wheel"
+        #await AgiEnv.run(cmd, menv)
+        #src = menv / "dist"
+        #try:
+        #    whl = next(iter(src.glob("agi_env*.whl")))
+        #    shutil.copy2(whl, wenv_abs)
+        #except StopIteration:
+        #    raise RuntimeError(cmd)
 
-        cmd = f"{uv} --project {wenv_abs} add {whl}"
-        # cmd = f"{uv} pip install -e {env.env_root}"
+        #cmd = f"{uv} --project {wenv_abs} add {whl}"
+        cmd = f"{uv} pip install -e {env.env_root}"
         await AgiEnv.run(cmd, wenv_abs)
 
 
         # build agi_node*.whl
-        menv = env.node_root
-        cmd = f"{uv} --project {menv} build --wheel"
-        await AgiEnv.run(cmd, menv)
-        src = menv / "dist"
-        try:
-            whl = next(iter(src.glob("agi_node*.whl")))
-            shutil.copy2(whl, wenv_abs)
-        except StopIteration:
-            raise RuntimeError(cmd)
+        #menv = env.node_root
+        #cmd = f"{uv} --project {menv} build --wheel"
+        #await AgiEnv.run(cmd, menv)
+        #src = menv / "dist"
+        #try:
+        #    whl = next(iter(src.glob("agi_node*.whl")))
+        #    shutil.copy2(whl, wenv_abs)
+        #except StopIteration:
+        #    raise RuntimeError(cmd)
 
-        cmd = f"{uv} --project {wenv_abs} add {whl}"
-        #cmd = f"{uv} pip install -e {env.node_root}"
+        #cmd = f"{uv} --project {wenv_abs} add {whl}"
+        cmd = f"{uv} pip install -e {env.node_root}"
         await AgiEnv.run(cmd, wenv_abs)
 
         # Post-install script
@@ -1001,7 +1001,7 @@ class AGI:
         if src.exists():
             os.makedirs(env.home_abs / env.data_rel / "dataset", exist_ok=True)
             shutil.copy2(src, dest)
-        cmd = f"{uv} --project {wenv_abs} run python {env.home_abs / env.post_install_rel} --install-type 2 {env.data_rel}"
+        cmd = f"{uv} --project {wenv_abs} run python {env.home_abs / env.post_install_rel} {env.target} 1 {env.data_rel}"
         await AgiEnv.run(cmd, wenv_abs)
 
         # Build target_worker lib local
