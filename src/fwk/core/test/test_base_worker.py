@@ -24,7 +24,7 @@ def test_baseworker_run_calls_exec():
     with patch.object(BaseWorker, 'env', new=MagicMock(module='mod')), \
          patch.object(BaseWorker, '_load_manager', return_value=DummyWorker), \
          patch('agi_node.agi_dispatcher.WorkDispatcher.do_distrib', return_value=({}, {}, {})):
-        BaseWorker.test(args={})
+        BaseWorker.run(args={})
 
 
 def test_baseworker_build_calls_load_and_sets_attrs(worker):
