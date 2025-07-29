@@ -46,7 +46,7 @@
 | humanize | MIT License |
 | idna | BSD LICENSE |
 | inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| ipykernel | BSD LICENSE |
+| ipykernel | BSD 3-CLAUSE LICENSE |
 | ipython | BSD LICENSE |
 | ipython-pygments-lexers | BSD LICENSE |
 | ipywidgets | BSD LICENSE |
@@ -70,6 +70,7 @@
 | jupyterlab-pygments | BSD LICENSE |
 | jupyterlab-server | BSD LICENSE |
 | jupyterlab-widgets | BSD LICENSE |
+| lark | MIT LICENSE |
 | llvmlite | BSD |
 | locket | BSD LICENSE |
 | logging | COPYRIGHT _C_ 2001-2005 BY VINAY SAJIP. ALL RIGHTS RESERVED. SEE LICENSE FOR LICENSE. |
@@ -125,8 +126,9 @@
 | requests | APACHE SOFTWARE LICENSE |
 | rfc3339-validator | MIT LICENSE |
 | rfc3986-validator | MIT LICENSE |
+| rfc3987-syntax | APACHE SOFTWARE LICENSE |
 | rpds-py | MIT |
-| scikit-learn | BSD LICENSE |
+| scikit-learn | BSD-3-CLAUSE |
 | scipy | BSD LICENSE |
 | scp | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
 | send2trash | BSD LICENSE |
