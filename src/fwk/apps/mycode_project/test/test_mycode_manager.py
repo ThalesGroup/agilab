@@ -1,5 +1,11 @@
+import sys
+from pathlib import Path
 import pytest
+from datetime import date
 from agi_env import AgiEnv
+path = str(Path(__file__).resolve().parents[1]  / "src")
+if path not in sys.path:
+    sys.path.append(path)
 from mycode import Mycode
 
 @pytest.mark.asyncio
