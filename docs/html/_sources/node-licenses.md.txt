@@ -59,7 +59,7 @@
 | pytz | MIT LICENSE |
 | pyyaml | MIT LICENSE |
 | pyzstd | BSD LICENSE |
-| scikit-learn | BSD LICENSE |
+| scikit-learn | BSD-3-CLAUSE |
 | scipy | BSD LICENSE |
 | scp | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
 | setuptools | MIT |

@@ -4,7 +4,7 @@
 | absl-py | APACHE SOFTWARE LICENSE |
 | ai21 | Apache License 2.0 |
 | aiohappyeyeballs | PYTHON SOFTWARE FOUNDATION LICENSE |
-| aiohttp | APACHE-2.0 |
+| aiohttp | APACHE-2.0;; MIT |
 | aiolimiter | MIT LICENSE |
 | aiosignal | APACHE SOFTWARE LICENSE |
 | alembic | MIT |
@@ -31,6 +31,7 @@
 | blinker | MIT LICENSE |
 | boto3 | APACHE SOFTWARE LICENSE |
 | botocore | APACHE SOFTWARE LICENSE |
+| bottleneck | SIMPLIFIED BSD |
 | brotli | MIT LICENSE |
 | cachetools | MIT LICENSE |
 | certifi | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
@@ -59,6 +60,7 @@
 | distributed | BSD LICENSE |
 | distro | APACHE SOFTWARE LICENSE |
 | docker | APACHE SOFTWARE LICENSE |
+| docstring-parser | MIT LICENSE |
 | entrypoints | MIT LICENSE |
 | env | BSD LICENSE |
 | eval-type-backport | MIT LICENSE |
@@ -81,15 +83,24 @@
 | future | MIT LICENSE |
 | geojson | BSD LICENSE |
 | gitdb | BSD LICENSE |
-| gitpython | BSD LICENSE |
+| gitpython | BSD-3-CLAUSE |
 | google-ai-generativelanguage | APACHE SOFTWARE LICENSE |
 | google-api-core | APACHE SOFTWARE LICENSE |
 | google-auth | APACHE SOFTWARE LICENSE |
+| google-cloud-aiplatform | APACHE 2.0 |
+| google-cloud-bigquery | APACHE SOFTWARE LICENSE |
+| google-cloud-core | APACHE SOFTWARE LICENSE |
+| google-cloud-resource-manager | APACHE SOFTWARE LICENSE |
+| google-cloud-storage | APACHE SOFTWARE LICENSE |
+| google-crc32c | APACHE 2.0 |
+| google-genai | APACHE SOFTWARE LICENSE |
+| google-resumable-media | APACHE SOFTWARE LICENSE |
 | googleapis-common-protos | APACHE SOFTWARE LICENSE |
 | gpt4all | MIT LICENSE |
 | graphene | MIT |
 | graphql-core | MIT LICENSE |
 | graphql-relay | MIT LICENSE |
+| grpc-google-iam-v1 | APACHE SOFTWARE LICENSE |
 | grpcio | APACHE SOFTWARE LICENSE |
 | grpcio-status | APACHE SOFTWARE LICENSE |
 | gunicorn | MIT LICENSE |
@@ -105,7 +116,7 @@
 | idna | BSD LICENSE |
 | importlib-metadata | APACHE SOFTWARE LICENSE |
 | inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| ipykernel | BSD LICENSE |
+| ipykernel | BSD 3-CLAUSE LICENSE |
 | ipython | BSD LICENSE |
 | ipython-pygments-lexers | BSD LICENSE |
 | ipywidgets | BSD LICENSE |
@@ -145,12 +156,14 @@
 | langchain-community | MIT |
 | langchain-core | MIT |
 | langchain-google-genai | MIT LICENSE |
+| langchain-google-vertexai | MIT LICENSE |
 | langchain-mistralai | MIT |
 | langchain-nvidia-ai-endpoints | MIT LICENSE |
 | langchain-ollama | MIT |
 | langchain-openai | MIT |
 | langchain-text-splitters | MIT |
 | langsmith | MIT LICENSE |
+| lark | MIT LICENSE |
 | llvmlite | BSD |
 | locket | BSD LICENSE |
 | logging | COPYRIGHT _C_ 2001-2005 BY VINAY SAJIP. ALL RIGHTS RESERVED. SEE LICENSE FOR LICENSE. |
@@ -185,6 +198,7 @@
 | notebook | BSD LICENSE |
 | notebook-shim | BSD LICENSE |
 | numba | BSD LICENSE |
+| numexpr |  |
 | numpy | BSD LICENSE |
 | ollama |  |
 | openai | APACHE SOFTWARE LICENSE |
@@ -247,17 +261,19 @@
 | requests-toolbelt | APACHE SOFTWARE LICENSE |
 | rfc3339-validator | MIT LICENSE |
 | rfc3986-validator | MIT LICENSE |
+| rfc3987-syntax | APACHE SOFTWARE LICENSE |
 | rich | MIT LICENSE |
 | rpds-py | MIT |
 | rsa | APACHE SOFTWARE LICENSE |
 | s3transfer | APACHE SOFTWARE LICENSE |
-| scikit-learn | BSD LICENSE |
+| scikit-learn | BSD-3-CLAUSE |
 | scipy | BSD LICENSE |
 | scp | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
 | seaborn | BSD LICENSE |
 | send2trash | BSD LICENSE |
 | setuptools | MIT |
 | sgmllib3k | BSD LICENSE |
+| shapely | BSD LICENSE |
 | shellingham | ISC LICENSE _ISCL_ |
 | six | MIT LICENSE |
 | smmap | BSD LICENSE |
@@ -318,6 +334,7 @@
 | webcolors | BSD LICENSE |
 | webencodings | BSD LICENSE |
 | websocket-client | APACHE SOFTWARE LICENSE |
+| websockets | BSD LICENSE |
 | werkzeug | BSD LICENSE |
 | wheel | MIT LICENSE |
 | widgetsnbextension | BSD LICENSE |
