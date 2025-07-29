@@ -207,6 +207,8 @@ class AGI:
                 target, env, scheduler, workers, verbose, mode_range, rapids_enabled, **args
             )
         else:
+            if env.benchmark.exists():
+                os.remove(env.benchmark)
             if isinstance(mode, str):
                 pattern = r"^[dcrp]+$"
                 if not re.fullmatch(pattern, mode.lower()):
@@ -219,7 +221,7 @@ class AGI:
                 logging.info("parameter <mode> must be an int, a list of int or a string")
                 sys.exit(1)
 
-            AGI._run_types = ["run", "sync --dev", "sync --upgrade --dev", "simulate"]
+            AGI._run_types = ["run", "sync --force --dev", "sync --force --upgrade --dev", "simulate"]
             if AGI._mode:
                 if AGI._mode & AGI.RUN_MASK not in range(0, AGI.RAPIDS_MODE):
                     raise ValueError(f"mode {AGI._mode} not implemented")
