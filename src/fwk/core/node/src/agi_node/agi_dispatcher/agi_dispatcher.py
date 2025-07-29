@@ -280,7 +280,7 @@ class BaseWorker(abc.ABC):
         return BaseWorker._load_module(module_name, module_class)
 
     @staticmethod
-    async def test(workers={"127.0.0.1": 1}, mode=0, env=None, verbose=None, args=None):
+    async def run(workers={"127.0.0.1": 1}, mode=0, env=None, verbose=None, args=None):
         """
         :param app:
         :param workers:
@@ -312,13 +312,9 @@ class BaseWorker(abc.ABC):
                 logging.info(f"warning: no cython library found at {lib_path}")
                 exit(0)
 
-        target_class = BaseWorker._load_manager()
-
-        # Instantiate the class with arguments
-        target_inst = target_class(env, **args)
 
         try:
-            workers, workers_tree, workers_tree_info = await WorkDispatcher.do_distrib(env, workers)
+            workers, workers_tree, workers_tree_info = await WorkDispatcher.do_distrib(env, workers, args)
         except Exception as err:
             logging.error(traceback.format_exc())
             sys.exit(1)
@@ -540,7 +536,7 @@ class BaseWorker(abc.ABC):
 
     @staticmethod
     def do_works(workers_tree, workers_tree_info):
-        """test of workers
+        """run of workers
 
         Args:
           workers_tree: distribution tree
@@ -617,7 +613,7 @@ class WorkDispatcher:
         return _convert(workers_tree)
 
     @staticmethod
-    async def do_distrib(env, workers):
+    async def do_distrib(env, workers, args):
         """
         Build the distribution tree.
 
@@ -733,8 +729,8 @@ class WorkDispatcher:
           nchunk2: list of number of chunks level 2
           weights: the list of weight level2
           capacities: the list of workers capacity (Default value = None)
-          verbose: whether to display test detail or not (Default value = 0)
-          threshold: the number of nchunk2 max to test the optimal algo otherwise downgrade to suboptimal one (Default value = 12)
+          verbose: whether to display run detail or not (Default value = 0)
+          threshold: the number of nchunk2 max to run the optimal algo otherwise downgrade to suboptimal one (Default value = 12)
           weights: list:
 
 

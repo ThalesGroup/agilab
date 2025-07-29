@@ -1522,13 +1522,13 @@ class AGI:
 
         if env.debug:
             BaseWorker.new(env.app, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
-            res = BaseWorker.test(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
+            res = await BaseWorker.run(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
         else:
             cmd = (
                 f"{env.uv} run --project {env.wenv_abs} python -c \"from agi_node.agi_dispatcher import  BaseWorker;"
                 f"from dask.distributed import print;"
                 f"BaseWorker.new('{env.app}', mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
-                f"res = BaseWorker.test({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
+                f"res = await BaseWorker.run({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
                 f"print(res)\""
             )
 

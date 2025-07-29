@@ -1,6 +1,5 @@
 import sys
 import pytest
-import asyncio
 from pathlib import Path
 path = str(Path(__file__).resolve().parents[3]  / "core/node/src")
 if path not in sys.path:
@@ -75,7 +74,7 @@ async def test_baseworker_modes(mode, args, env, build_worker_libs):
     from agi_node.agi_dispatcher import BaseWorker
     # Call new and test for each mode
     BaseWorker.new("flight_project", mode=mode, env=env, verbose=3, args=args)
-    result = BaseWorker.test(mode=mode, args=args)
+    result = await BaseWorker.run(mode=mode, args=args)
     # You can assert whatever makes sense here, or just print
     print(f"[mode={mode}] {result}")
     # Example assertion (adjust according to your requirements)
