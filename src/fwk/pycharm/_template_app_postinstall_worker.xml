@@ -15,7 +15,7 @@
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="$PROJECT_DIR$/apps/{APP}_project/src/{APP}_worker/post_install.py" />
-    <option name="PARAMETERS" value="{APP} 2 $USER_HOME$/data/{APP}" />
+    <option name="PARAMETERS" value="{APP} 1 $USER_HOME$/data/{APP}" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />
