@@ -3,6 +3,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from agi_node.agi_dispatcher import WorkDispatcher
+import asyncio
 
 
 @pytest.fixture
@@ -41,3 +42,9 @@ def test_workdispatcher_init_sets_attributes():
     wd = WorkDispatcher()
     wd._func_map = {}  # initialisation manuelle
     assert hasattr(wd, '_func_map')
+
+
+def test_workdispatcher_load_module():
+    module = asyncio.run(WorkDispatcher._load_module("math", package=None, path=""))
+    import math
+    assert module == math, "Loaded module does not match the built-in math module."

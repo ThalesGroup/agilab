@@ -14,7 +14,6 @@ from typing import Tuple, Set  # Ajoute Tuple et Set
 from IPython.lib import backgroundjobs as bg
 import asyncio
 import getpass
-import importlib
 import io
 import os
 import pickle
@@ -125,7 +124,6 @@ class AGI:
     _run_time: Dict[str, Any] = {}
     _run_type: Optional[str] = None
     _run_types: List[str] = []
-    _sys_path_to_clean: List[str] = []
     _target_built: Optional[Any] = None
     _module_to_clean: List[str] = []
     _ssh_connections = {}
@@ -252,19 +250,7 @@ class AGI:
             }
             # AGI.install_worker_group = AGI.agi_workers[env.base_worker_cls]
             AGI.install_worker_group = ["agi-cluster ", AGI.agi_workers[env.base_worker_cls]]
-            base_worker_dir = str(env.cluster_root / "src")
-            if base_worker_dir not in sys.path:
-                sys.path.insert(0, base_worker_dir)
-            AGI._target_module = await AGI._load_module(
-                AGI._target,
-                env.module,
-                path=env.app_src,
-            )
-            if not AGI._target_module:
-                raise RuntimeError(f"failed to load {AGI._target}")
 
-            target_class = getattr(AGI._target_module, env.target_class)
-            AGI._target_inst = target_class(env, **args)
             AGI.install_worker_group = ["agi-dispatcher ", AGI.agi_workers[env.base_worker_cls]]
 
             try:
@@ -430,45 +416,6 @@ class AGI:
             ip = ip_sched
         AGI._scheduler = f"{ip}:{port}"
         return ip, port
-
-    @staticmethod
-    async def _load_module(
-        module: str,
-        package: Optional[str] = None,
-        path: Optional[Union[str, Path]] = None,
-    ) -> Any:
-        """load a module
-
-        Args:
-          module: the name of the Agi apps module
-          package: the package name where is the module (Default value = None)
-          path: the path where is the package (Default value = None)
-
-        Returns:
-          : the instance of the module
-
-        """
-        path = normalize_path(path)
-        if path not in sys.path:
-            sys.path.insert(0, path)
-            AGI._sys_path_to_clean.append(path)
-        logging.info(f"import {module} from {package} located in {path}")
-        try:
-            if package:
-                # Import module from a package
-                return importlib.import_module(f"{package}.{module}")
-            else:
-                # Import module directly
-                return importlib.import_module(module)
-
-        except ModuleNotFoundError as e:
-            module_to_install = (str(e).replace("No module named ", "").lower().replace("'", ""))
-            app_path = AGI.env.app_abs
-            cmd = f"{AGI.env.uv} add --upgrade {module_to_install}"
-            logging.info(f"{cmd} from {app_path}")
-            await AgiEnv.run(cmd, app_path)
-            AGI._module_to_clean.append(module_to_install)
-            return await AGI._load_module(module, package, path)
 
     @staticmethod
     def _get_stdout(func: Any, *args: Any, **kwargs: Any) -> Tuple[str, Any]:
@@ -1612,7 +1559,7 @@ class AGI:
         logging.info(f"AGI run mode={AGI._mode} on {list(AGI._dask_workers)} ... ")
 
         AGI.workers, workers_tree, workers_tree_info = WorkDispatcher.do_distrib(
-            AGI._target_inst, env, AGI.workers
+            env, AGI.workers
         )
         AGI.workers_tree = workers_tree
         AGI.workers_tree_info = workers_tree_info
@@ -1704,9 +1651,6 @@ class AGI:
 
         AGI._clean_job(cond_clean)
 
-        for p in AGI._sys_path_to_clean:
-            if p in sys.path:
-                sys.path.remove(p)
         return res
 
     @staticmethod
