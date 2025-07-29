@@ -39,12 +39,11 @@ async def main():
     await env.run(cmd, wenv)
 
     for i in [0, 1, 2, 3]: # 2 is working only if you have generate the cython lib before
-
-        path = str(env.home_abs / "/src")
+        path = str(env.home_abs / "src")
         if path not in sys.path:
             sys.path.insert(0, path)
         BaseWorker.new("flight_project", mode=i, env=env, verbose=3, args=args)
-        result = BaseWorker.test(mode=i, args=args)
+        result = await BaseWorker.run(mode=i, args=args)
         print(result)
 
 if __name__ == "__main__":
