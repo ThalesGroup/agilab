@@ -27,7 +27,7 @@ def main():
 
     coverage_packages = [
         "flight",
-        "filght_worker"
+        "flight_worker"
     ]
     cov_args = [f"--cov={pkg}" for pkg in coverage_packages]
 
