@@ -207,8 +207,6 @@ class AGI:
                 target, env, scheduler, workers, verbose, mode_range, rapids_enabled, **args
             )
         else:
-            if env.benchmark.exists():
-                os.remove(env.benchmark)
             if isinstance(mode, str):
                 pattern = r"^[dcrp]+$"
                 if not re.fullmatch(pattern, mode.lower()):

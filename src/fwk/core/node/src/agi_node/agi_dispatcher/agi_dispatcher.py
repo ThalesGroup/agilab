@@ -902,5 +902,4 @@ class WorkDispatcher:
             cmd = f"{AGI.env.uv} add --upgrade {module_to_install}"
             logging.info(f"{cmd} from {app_path}")
             await AgiEnv.run(cmd, app_path)
-            AGI._module_to_clean.append(module_to_install)
             return await WorkDispatcher._load_module(module, package, path)
