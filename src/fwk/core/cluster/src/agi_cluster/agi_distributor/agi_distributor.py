@@ -221,7 +221,7 @@ class AGI:
                 logging.info("parameter <mode> must be an int, a list of int or a string")
                 sys.exit(1)
 
-            AGI._run_types = ["run", "sync --force --dev", "sync --force --upgrade --dev", "simulate"]
+            AGI._run_types = ["run", "sync --force-reinstall --dev", "sync --force-reinstall --upgrade --dev", "simulate"]
             if AGI._mode:
                 if AGI._mode & AGI.RUN_MASK not in range(0, AGI.RAPIDS_MODE):
                     raise ValueError(f"mode {AGI._mode} not implemented")
@@ -250,10 +250,7 @@ class AGI:
                 "DagWorker": "dag-worker",
                 "AgentWorker": "agent-worker",
             }
-            # AGI.install_worker_group = AGI.agi_workers[env.base_worker_cls]
-            AGI.install_worker_group = ["agi-cluster ", AGI.agi_workers[env.base_worker_cls]]
-
-            AGI.install_worker_group = ["agi-dispatcher ", AGI.agi_workers[env.base_worker_cls]]
+            AGI.install_worker_group = ["base-worker ", AGI.agi_workers[env.base_worker_cls]]
 
             try:
                 return await AGI.main(scheduler)
@@ -483,6 +480,102 @@ class AGI:
                 break
             else:
                 time.sleep(0.1)
+
+    @staticmethod
+    async def send_file(
+            env: AgiEnv,
+            ip: str,
+            local_path: Path,
+            remote_path: Path,
+            user: str = None,
+            password: str = None
+    ):
+        if AgiEnv.is_local(ip):
+            shutil.copyfile(local_path, remote_path)
+            return
+
+        if not user:
+            user = env.user
+        if not password:
+            password = env.password
+
+        user_at_ip = f"{user}@{ip}" if user else ip
+        remote = f"{user_at_ip}:{remote_path}"
+
+        cmd, cmd_base = [], []
+
+        if password and os.name != "nt":
+            cmd_base = ["sshpass"]
+            cmd += cmd_base + ["-p", password]
+
+        cmd_end = ["scp", str(local_path), remote]
+        cmd = cmd + cmd_end
+
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await process.communicate()
+
+            if process.returncode != 0:
+                logging.error(f"SCP failed sending {local_path} to {remote}: {stderr.decode().strip()}")
+                raise ConnectionError(f"SCP error: {stderr.decode().strip()}")
+
+            logging.info(f"Sent file {local_path} to {remote}")
+
+        except Exception as e:
+            try:
+                cmd = cmd_base + cmd_end
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await process.communicate()
+
+                if process.returncode:
+                    logging.error(f"SCP failed sending {local_path} to {remote}: {stderr.decode().strip()}")
+                    raise ConnectionError(f"SCP error: {stderr.decode().strip()}")
+
+                logging.info(f"Sent file {local_path} to {remote}")
+
+            except Exception as e:
+                raise
+
+    @staticmethod
+    async def send_files(env: AgiEnv, ip: str, files: list[Path], remote_dir: Path, user: str = None):
+        tasks = []
+        for f in files:
+            remote_path = f"{remote_dir / f.name}"
+            tasks.append(AGI.send_file(ip, f, remote_path, user=user))
+        await asyncio.gather(*tasks)
+        # logging.info(f"Sent {len(files)} files to {user if user else self.user}@{ip}:{remote_dir}")
+
+    def remove_dir_forcefully(self, path):
+        import shutil
+        import os
+        import time
+
+        def onerror(func, path, exc_info):
+            import stat
+            if not os.access(path, os.W_OK):
+                os.chmod(path, stat.S_IWUSR)
+                func(path)
+            else:
+                logging.info(f"{path} not removed due to {exc_info[1]}")
+
+        try:
+            shutil.rmtree(path, onerror=onerror)
+        except Exception as e:
+            logging.error(f"Exception while deleting {path}: {e}")
+            time.sleep(1)
+            try:
+                shutil.rmtree(path, onerror=onerror)
+            except Exception as e2:
+                logging.error(f"Second failure deleting {path}: {e2}")
+                raise
 
     @staticmethod
     async def _kill(ip: Optional[str] = None, current_pid: Optional[int] = None, force: bool = True) -> Optional[Any]:
@@ -782,7 +875,7 @@ class AGI:
             # 3) Install Python
             uv = cmd_prefix+ "PYTHON_GIL=0;" + env.uv
             await AGI.exec_ssh(ip, f"{uv} python install {pyvers}")
-            await env.send_file(ip, env.cluster_root / "src/agi_cluster/agi_distributor/cli.py", env.wenv_rel.parent)
+            await AGI.send_file(ip, env.cluster_root / "src/agi_cluster/agi_distributor/cli.py", env.wenv_rel.parent)
 
             cli = env.wenv_rel.parent / "cli.py"
             cmd = f"{uv} run python {cli} platform"
@@ -808,7 +901,7 @@ class AGI:
 
 
     @staticmethod
-    async def _install(scheduler_addr: Optional[str]) -> None:
+    async def _install_app(scheduler_addr: Optional[str]) -> None:
         AGI._initialize_installation()
         env = AGI.env
         app_path = env.app_abs
@@ -1012,7 +1105,7 @@ class AGI:
         except StopIteration:
             raise FileNotFoundError(f"no existing whl file in {wenv / "agi_node*"}")
 
-        await env.send_files(ip, [egg_file, node_whl, env_whl, env.setup_core, env.worker_pyproject, env.uvproject], wenv_rel)
+        await AGI.send_files(ip, [egg_file, node_whl, env_whl, env.setup_core, env.worker_pyproject, env.uvproject], wenv_rel)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
         has_rapids_hw = False
@@ -1239,7 +1332,7 @@ class AGI:
 
             # Clean worker
             for ip in list(AGI.workers):
-                await env.send_file(ip, env.cluster_root / "src/agi_cluster/agi_distributor/cli.py", cli_rel.parent)
+                await AGI.send_file(ip, env.cluster_root / "src/agi_cluster/agi_distributor/cli.py", cli_rel.parent)
                 if not env.envars.get(ip, None):
                     env.has_rapids_hw = False
                 try:
@@ -1272,7 +1365,7 @@ class AGI:
                 await AGI.exec_ssh(AGI._scheduler_ip, cmd)
 
                 toml_wenv = wenv_rel / "pyproject.toml"
-                await env.send_file(AGI._scheduler_ip, toml_local, toml_wenv)
+                await AGI.send_file(AGI._scheduler_ip, toml_local, toml_wenv)
 
                 cmd = (
                     f"{env.uv} --project {wenv_rel} run dask scheduler --port {AGI._scheduler_port} "
@@ -1527,11 +1620,18 @@ class AGI:
             res = await BaseWorker.run(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
         else:
             cmd = (
-                f"{env.uv} run --project {env.wenv_abs} python -c \"from agi_node.agi_dispatcher import  BaseWorker;"
-                f"from dask.distributed import print;"
-                f"BaseWorker.new('{env.app}', mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
-                f"res = await BaseWorker.run({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args});"
-                f"print(res)\""
+                f"{env.uv} run --project {env.wenv_abs} python -c \""
+                f"from agi_node.agi_dispatcher import  BaseWorker\n"
+                f"import asyncio\n"
+                f"async def main():\n"
+                f"  BaseWorker.new('{env.app}', mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args})\n"
+                f"  res = await BaseWorker.run({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args})\n"
+                f"  print(res)\n"
+                f"if __name__ == '__main__':\n"
+                f"  try:\n"
+                f"      asyncio.get_running_loop().run_until_complete(main())\n"
+                f"  except RuntimeError:\n"
+                f"      asyncio.run(main())\""
             )
 
             res = await AgiEnv.run_async(cmd, env.wenv_abs)
@@ -1630,7 +1730,7 @@ class AGI:
             AGI._clean_dirs_local()
             await AGI._install_venv_local()
 
-            await AGI._install(scheduler)
+            await AGI._install_app(scheduler)
 
             res = time.time() - t
 

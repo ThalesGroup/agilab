@@ -39,7 +39,6 @@ keywords = [
     "numba",
 ]
 dependencies = [
-    "scp",
     "scikit-learn",
     "parso",
     "cython",

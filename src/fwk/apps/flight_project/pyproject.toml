@@ -69,5 +69,5 @@ disallow_untyped_defs = false
 ignore_missing_imports = true
 
 [project.optional-dependencies]
-agi-worker = []
+base-worker = []
 polars-worker = []
