@@ -44,7 +44,7 @@ import numpy as np
 from distutils.sysconfig import get_python_lib
 import psutil
 import humanize
-from datetime import timedelta
+import datetime
 import logging
 import socket
 from copy import deepcopy
@@ -327,7 +327,7 @@ class BaseWorker(abc.ABC):
         runtime = time.time() - t
         env._run_time = runtime
 
-        return f"{env.mode2str(mode)} {humanize.precisedelta(timedelta(seconds=runtime))}"
+        return f"{env.mode2str(mode)} {humanize.precisedelta(datetime.timedelta(seconds=runtime))}"
 
     @staticmethod
     def onerror(func, path, exc_info):
@@ -623,7 +623,6 @@ class WorkDispatcher:
         Returns:
             None
         """
-
         base_worker_dir = str(env.cluster_root / "src")
         if base_worker_dir not in sys.path:
             sys.path.insert(0, base_worker_dir)
@@ -648,7 +647,7 @@ class WorkDispatcher:
             workers_tree = data["workers_tree"]
             if (
                 data["workers"] != workers
-                or data["target_args"] != WorkDispatcher.args
+                or data["target_args"] != args
             ):
                 rebuild_tree = True
 
@@ -658,7 +657,7 @@ class WorkDispatcher:
             )
 
             data = {
-                "target_args": target_inst.args,
+                "target_args": args,
                 "workers": workers,
                 "workers_chunks": workers_tree_info,
                 "workers_tree": WorkDispatcher.convert_functions_to_names(workers_tree),
@@ -667,8 +666,13 @@ class WorkDispatcher:
                 "weights_unit": weight_unit,
             }
 
-            with open(file, "w") as f:
-                json.dump(data, f)
+            def convert_dates(obj):
+                if isinstance(obj, (datetime.date, datetime.datetime)):
+                    return obj.isoformat()
+                raise TypeError(f"Type {type(obj)} not serializable")
+
+            with open("output.json", "w") as f:
+                json.dump(data, f, default=convert_dates, indent=2)
 
         loaded_workers = {}
         workers_work_item_tree_iter = iter(workers_tree)
