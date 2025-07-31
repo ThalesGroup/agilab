@@ -33,7 +33,7 @@ uv run agilab --openai-api-key "your-api-key"
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab
-cd agilab/src/agilab/core/gui
+cd agilab
 ./install.sh --openai-api-key "your-api-key" --cluster-ssh-credentials "username:[password]"
 ```
 </details>
@@ -44,8 +44,8 @@ cd agilab/src/agilab/core/gui
 </summary>
 
 ```powershell
-unzip agilab.zip
-cd agilab/src/agi/agilab/gui
+git clone https://github.com/ThalesGroup/agilab
+cd agilab
 powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key "your-api-key"
 ```
 </details>
