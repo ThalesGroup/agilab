@@ -100,7 +100,7 @@ class FlightWorker(PolarsWorker):
         # Path to database on symlink Path.home()/data(symlink)
         self.home_rel = (Path("~/") / self.args["path"]).expanduser()
         path = normalize_path(self.home_rel)
-        self.data_out = normalize_path(self.home_rel.parent / "dataframes")
+        self.data_out = normalize_path(self.home_rel.parent / "dataframe")
         if os.name != "nt":
             self.data_out = self.data_out.replace("\\", "/")
 
