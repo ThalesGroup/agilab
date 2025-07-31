@@ -1330,7 +1330,7 @@ class AGI:
 
             # Clean worker
             for ip in list(AGI.workers):
-                await AGI.send_file(ip, env.cluster_root / "src/agi_cluster/agi_distributor/cli.py", cli_rel.parent)
+                await AGI.send_file(env, ip, env.cluster_root / "src/agi_cluster/agi_distributor/cli.py", cli_rel.parent)
                 if not env.envars.get(ip, None):
                     env.has_rapids_hw = False
                 try:
@@ -1658,8 +1658,8 @@ class AGI:
         ]
         logging.info(f"AGI run mode={AGI._mode} on {list(AGI._dask_workers)} ... ")
 
-        AGI.workers, workers_tree, workers_tree_info = WorkDispatcher.do_distrib(
-            env, AGI.workers
+        AGI.workers, workers_tree, workers_tree_info = await WorkDispatcher.do_distrib(
+            env, AGI.workers, AGI._args
         )
         AGI.workers_tree = workers_tree
         AGI.workers_tree_info = workers_tree_info
