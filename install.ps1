@@ -49,13 +49,13 @@ $CurrentPath = (Get-Location).Path
 
 $LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
 New-Item -ItemType Directory -Force -Path $LocalDir | Out-Null
-$AgiPathFile = Join-Path $LocalDir ".agi-path"
+$AgiPathFile = Join-Path $LocalDir ".agilab-path"
 
 $PYTHON_VERSION = "3.13"
 
 # Define project directories (AGI_PROJECT_SRC is "$AgiDir\src")
-$AgiProject = Join-Path $CurrentPath "src\agi"
-$FrameworkDir = Join-Path $AgiProject "fwk"
+$AgiProject = Join-Path $CurrentPath "src/agilab"
+
 $AppsDir = Join-Path $AgiProject "apps"
 
 $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
@@ -230,8 +230,8 @@ function Copy-ProjectFiles {
     } else {
         Write-Host "Using current directory as install directory; no copy needed." -ForegroundColor Yellow
     }
-    "$InstallPath/src/agi" | Set-Content -Encoding UTF8 -Path $AgiPathFile
-    [System.Environment]::SetEnvironmentVariable('AGI_ROOT', "$InstallPath/src/agi", [System.EnvironmentVariableTarget]::User)
+    "$InstallPath/src/agilab" | Set-Content -Encoding UTF8 -Path $AgiPathFile
+    [System.Environment]::SetEnvironmentVariable('AGI_ROOT', "$InstallPath/src/agilab", [System.EnvironmentVariableTarget]::User)
     Write-Host "Installation root path has been exported as AGI_ROOT and written in $LocalDir" -ForegroundColor Green
 
 }
@@ -253,22 +253,22 @@ AGI_PYTHON_VERSION="$env:PYTHON_VERSION"
 }
 
 function Install-Core {
-    $frameworkDir = Join-Path $InstallPath "src\fwk\core"
+    $frameworkDir = Join-Path $InstallPath "src\agilab\core"
 
     Write-Host "Installing Framework..." -ForegroundColor Blue
     Write-Host $frameworkDir
     Push-Location $frameworkDir
     if ($Offline) {
-        & "./install.ps1" -FrameworkDir $frameworkDir -Offline
+        & "./install.ps1" -$AgiProject $frameworkDir -Offline
     } else {
-        & "./install.ps1" -FrameworkDir $frameworkDir
+        & "./install.ps1" -$AgiProject $frameworkDir
     }
 
     Pop-Location
 }
 
 function Install-Apps {
-    $appsDir = Join-Path $InstallPath "src\agi\apps"
+    $appsDir = Join-Path $InstallPath "src\agilab\apps"
 
     Write-Host "Installing Apps..." -ForegroundColor Blue
     Write-Host "$appsDir" -ForegroundColor Yellow
@@ -281,8 +281,8 @@ function Install-Apps {
 function Write-EnvValues {
     $sharedDir = $env:LOCALAPPDATA
     $sharedEnv = Join-Path $sharedDir "agilab\.env"
-    $sharedPath = Join-Path $sharedDir "agilab\.agi-path"
-    $agilabEnv = Join-Path $env:USERPROFILE ".agi\.env"
+    $sharedPath = Join-Path $sharedDir "agilab\.agilab-path"
+    $agilabEnv = Join-Path $env:USERPROFILE ".agilab\.env"
 
     if (-not (Test-Path $sharedEnv)) {
         Write-Host "Error: $sharedEnv does not exist." -ForegroundColor Red
@@ -293,7 +293,7 @@ function Write-EnvValues {
     if (($path -like "*MyApp*") -and ($username -like "T0*"))
     {
         $userDir = [Environment]::GetFolderPath('UserProfile')
-        $agilabEnv = Join-Path $userDir "MyApp/.agi/.env"
+        $agilabEnv = Join-Path $userDir "MyApp/.agilab/.env"
     }
     Write-Host $path
     Write-Host $agilabEnv

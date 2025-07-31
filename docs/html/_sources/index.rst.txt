@@ -34,7 +34,8 @@ You’ll find everything from quickstarts to API references, as well as example 
    my-code-project
    flight-project
    flight-trajectory
-   link-sim
+   link-sim-project
+   sat-trajectory-project
 
 .. toctree::
    :maxdepth: 1

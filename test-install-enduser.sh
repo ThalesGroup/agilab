@@ -15,7 +15,7 @@ rm -rf build
 uv build --sdist
 mv dist/*.gz "$home/../agi-space"
 
-pushd "src/fwk/core/agi-core" > /dev/null
+pushd "src/agilab/core/agi-core" > /dev/null
 rm -rf dist  # clean previous builds
 rm -rf build
 uv build --wheel

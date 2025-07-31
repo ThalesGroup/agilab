@@ -15,7 +15,7 @@
 | anyio | MIT LICENSE |
 | appnope | BSD LICENSE |
 | argon2-cffi | MIT |
-| argon2-cffi-bindings | MIT LICENSE |
+| argon2-cffi-bindings | MIT |
 | arrow | APACHE SOFTWARE LICENSE |
 | arxiv | MIT LICENSE |
 | astor | BSD LICENSE |
@@ -178,7 +178,7 @@
 | matplotlib-inline | BSD LICENSE |
 | mdurl | MIT LICENSE |
 | mistune | BSD LICENSE |
-| ml-dtypes | APACHE SOFTWARE LICENSE |
+| ml-dtypes | APACHE-2.0 |
 | mlflow | APACHE SOFTWARE LICENSE |
 | mlflow-skinny | APACHE SOFTWARE LICENSE |
 | msgpack | APACHE 2.0 |
@@ -256,7 +256,7 @@
 | pyzstd | BSD LICENSE |
 | qianfan | APACHE SOFTWARE LICENSE |
 | referencing | MIT License |
-| regex | APACHE SOFTWARE LICENSE |
+| regex | APACHE-2.0;; CNRI-PYTHON |
 | requests | APACHE SOFTWARE LICENSE |
 | requests-toolbelt | APACHE SOFTWARE LICENSE |
 | rfc3339-validator | MIT LICENSE |

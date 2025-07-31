@@ -185,7 +185,7 @@ backup_existing_project() {
         echo -e "${YELLOW}Existing project found at $AGI_INSTALL_PATH with zip-agi.py present.${NC}"
         backup_file="${AGI_INSTALL_PATH}_backup_$(date +%Y%m%d-%H%M%S).zip"
         echo -e "${YELLOW}Creating backup: $backup_file${NC}"
-        if uv run --project "$AGI_INSTALL_PATH/fwk/node" python "$AGI_INSTALL_PATH/zip-agi.py" --dir2zip "$AGI_INSTALL_PATH" --zipfile "$backup_file"; then
+        if uv run --project "$AGI_INSTALL_PATH/agilab/node" python "$AGI_INSTALL_PATH/zip-agi.py" --dir2zip "$AGI_INSTALL_PATH" --zipfile "$backup_file"; then
             echo -e "${GREEN}Backup created successfully at $backup_file.${NC}"
             echo -e "${YELLOW}Removing existing project directory...${NC}"
             rm -ri "$AGI_INSTALL_PATH"
@@ -215,7 +215,7 @@ copy_project_files() {
         echo "Using current directory as install directory; no copy needed."
     fi
     mkdir -p "$HOME/.local/share/agilab"
-    echo "$AGI_INSTALL_PATH/src/fwk" > "$HOME/.local/share/agilab/.fwk-path"
+    echo "$AGI_INSTALL_PATH/src/agilab" > "$HOME/.local/share/agilab/.agilab-path"
 }
 
 update_environment() {
@@ -231,7 +231,7 @@ update_environment() {
 }
 
 install_core() {
-    framework_dir="$AGI_INSTALL_PATH/src/fwk/core"
+    framework_dir="$AGI_INSTALL_PATH/src/agilab/core"
     chmod +x "$framework_dir/install.sh"
 
     echo -e "${BLUE}Installing Framework...${NC}"
@@ -241,7 +241,7 @@ install_core() {
 }
 
 install_apps() {
-    apps_dir="$AGI_INSTALL_PATH/src/fwk/apps"
+    apps_dir="$AGI_INSTALL_PATH/src/agilab/apps"
     chmod +x "$apps_dir/install.sh"
 
     echo -e "${BLUE}Installing Apps...${NC}"

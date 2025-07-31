@@ -1,0 +1,36 @@
+Example5: Sat-Trajectory-Project
+==============
+
+manager: sat_trajectory
+------
+.. image:: diagrams/packages_sat_trajectory.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+.. automodule:: sat_trajectory.sat_trajectory
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_sat_trajectory.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+worker: sat_trajectory_worker
+-------------
+.. image:: diagrams/packages_sat_trajectory_worker.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+.. automodule:: sat_trajectory_worker.sat_trajectory_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_sat_trajectory_worker.png
+   :width: 400
+   :alt: Alternative text
+   :align: center

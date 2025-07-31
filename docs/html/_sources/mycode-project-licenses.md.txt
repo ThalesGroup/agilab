@@ -5,7 +5,7 @@
 | anyio | MIT LICENSE |
 | appnope | BSD LICENSE |
 | argon2-cffi | MIT |
-| argon2-cffi-bindings | MIT LICENSE |
+| argon2-cffi-bindings | MIT |
 | arrow | APACHE SOFTWARE LICENSE |
 | astor | BSD LICENSE |
 | asttokens | APACHE 2.0 |

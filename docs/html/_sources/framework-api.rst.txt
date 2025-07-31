@@ -5,5 +5,5 @@ Framework API
    :maxdepth: 2
 
    agi-env
-   agi-runner
+   agi-distributor
    workers

@@ -68,7 +68,7 @@ agilab
 
   - **Framework Instantiation:**
 
-    - Inherit from agi-core ``Agi[Agent | Dag | Data]Worker`` classes.
+    - Inherit from agi-core ``AgentWorker | DagWorker | DataWorker`` classes.
 
   - **Project Templates:**
 
