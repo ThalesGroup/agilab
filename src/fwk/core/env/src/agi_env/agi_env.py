@@ -373,7 +373,7 @@ class AgiEnv:
         self.module_path = module_path
         self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", "data"))
         data_rel = self.AGILAB_SHARE / self.target
-        self.dataframes_path = data_rel / "dataframes"
+        self.dataframe_path = data_rel / "dataframe"
         self.data_rel = data_rel
         self._init_projects()
 
