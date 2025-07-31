@@ -1,0 +1,39 @@
+{
+  "target_args": {
+    "path": "~/data/sat_trajectory",
+    "data_out": "~/data/sat_trajectory/dataframe",
+    "data_dir": "~/data/sat_trajectory/dataset",
+    "duration_s": 86400,
+    "step_s": 1,
+    "number_of_sat": 25,
+    "input_TLE": "TLE",
+    "input_antenna": "antenna_conf.json",
+    "input_sat": "sat.json"
+  },
+  "workers": {
+    "127.0.0.1": 1
+  },
+  "workers_chunks": [
+    [
+      [
+        [
+          0,
+          1
+        ]
+      ]
+    ]
+  ],
+  "workers_tree": [
+    [
+      [
+        [
+          0,
+          1
+        ]
+      ]
+    ]
+  ],
+  "partition_key": "plane",
+  "nb_unit": "files",
+  "weights_unit": "ko"
+}

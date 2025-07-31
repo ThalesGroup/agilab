@@ -4,12 +4,9 @@
 | annotated-types | MIT LICENSE |
 | astor | BSD LICENSE |
 | asttokens | APACHE 2.0 |
-| bcrypt | APACHE SOFTWARE LICENSE |
 | brotli | MIT LICENSE |
-| cffi | MIT LICENSE |
 | click | BSD-3-CLAUSE |
 | cloudpickle | BSD LICENSE |
-| cryptography | APACHE-2.0;; BSD-3-CLAUSE |
 | cython | APACHE SOFTWARE LICENSE |
 | dask | BSD LICENSE |
 | decorator | BSD LICENSE |
@@ -35,7 +32,6 @@
 | numpy | BSD LICENSE |
 | packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | pandas | BSD LICENSE |
-| paramiko | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
 | parso | MIT LICENSE |
 | partd | BSD |
 | pathspec | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
@@ -47,12 +43,10 @@
 | pure-eval | MIT LICENSE |
 | py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| pycparser | BSD LICENSE |
 | pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
 | pydantic | MIT LICENSE |
 | pydantic-core | MIT LICENSE |
 | pygments | BSD LICENSE |
-| pynacl | APACHE LICENSE 2.0 |
 | pyppmd | LGPL-2.1-OR-LATER |
 | python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | BSD LICENSE |
@@ -61,7 +55,6 @@
 | pyzstd | BSD LICENSE |
 | scikit-learn | BSD-3-CLAUSE |
 | scipy | BSD LICENSE |
-| scp | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
 | setuptools | MIT |
 | six | MIT LICENSE |
 | sortedcontainers | APACHE SOFTWARE LICENSE |

@@ -3,7 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/../agi-space/.idea/agi-space.iml" filepath="$PROJECT_DIR$/../agi-space/.idea/agi-space.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/agilab.iml" filepath="$PROJECT_DIR$/.idea/agilab.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/agilab-project.iml" filepath="$PROJECT_DIR$/.idea/agilab-project.iml" />
     </modules>
   </component>
 </project>

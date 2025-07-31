@@ -33,7 +33,7 @@ jobs:
         run: |
           set -eux
           for dir in env node cluster agi-core; do
-            pushd "src/fwk/core/$dir"
+            pushd "src/agilab/core/$dir"
             uv sync --dev
             uv pip install -e .
             popd
@@ -42,7 +42,7 @@ jobs:
       - name: Run tests
         run: |
           set -eux
-          pushd "src/fwk/core"
+          pushd "src/agilab/core"
           uv run --dev --project cluster python -m pytest --maxfail=5 --disable-warnings -v
           popd
 
@@ -67,7 +67,7 @@ jobs:
         run: python3 -m pip install --upgrade --no-cache-dir uv twine
 
       - name: Clean previous builds
-        run: rm -rf src/fwk/core/agi-core/dist
+        run: rm -rf src/agilab/core/agi-core/dist
 
       - name: Update version in pyproject.toml files
         env:
@@ -75,7 +75,7 @@ jobs:
         run: |
           VERSION=${VERSION#v}
           echo "Bumping version to $VERSION"
-          find src/fwk/core/agi-core -type f -name pyproject.toml -not -path "./.git/*" | while read -r file; do
+          find src/agilab/core/agi-core -type f -name pyproject.toml -not -path "./.git/*" | while read -r file; do
             echo "→ Updating $file"
             sed -i '/^dynamic\s*=/d' "$file"
             if grep -q '^version *= *".*"' "$file"; then
@@ -91,7 +91,7 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add $(find src/fwk/core/agi-core -type f -name pyproject.toml -not -path "./.git/*")
+          git add $(find src/agilab/core/agi-core -type f -name pyproject.toml -not -path "./.git/*")
           if ! git diff --cached --quiet; then
             git commit -m "Bump version to ${VERSION#v}"
             git pull --rebase origin main
@@ -101,22 +101,22 @@ jobs:
           fi
 
       - name: Build agi-core package
-        run: uv build --project src/fwk/core/agi-core --wheel
+        run: uv build --project src/agilab/core/agi-core --wheel
 
       - name: Upload agi-core package artifacts
         uses: actions/upload-artifact@v4
         with:
           name: agi-core-distributions
-          path: src/fwk/core/agi-core/dist/
+          path: src/agilab/core/agi-core/dist/
 
       - name: Verify agi-core package files before upload
-        run: twine check src/fwk/core/agi-core/dist/*
+        run: twine check src/agilab/core/agi-core/dist/*
 
       - name: Publish agi-core package to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-        run: twine upload src/fwk/core/agi-core/dist/*
+        run: twine upload src/agilab/core/agi-core/dist/*
 
   publish-agilab:
     needs: publish-agi-core

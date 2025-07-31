@@ -20,7 +20,7 @@ See [documentation](https://thalesgroup.github.io/agilab).
 ```bash
 mkdir agi-space && cd agi-space
 uv init --bare --no-workspace
-uv add -p 3.13 --upgrade agilab agi-core
+uv add -p 3.13 --upgrade --force-reinstall agilab agi-core
 uv run agilab --openai-api-key "your-api-key"
 ```
 
@@ -33,7 +33,7 @@ uv run agilab --openai-api-key "your-api-key"
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab
-cd agilab/src/fwk/core/gui
+cd agilab/src/agilab/core/gui
 ./install.sh --openai-api-key "your-api-key" --cluster-ssh-credentials "username:[password]"
 ```
 </details>
@@ -45,7 +45,7 @@ cd agilab/src/fwk/core/gui
 
 ```powershell
 unzip agilab.zip
-cd agilab/src/agi/fwk/gui
+cd agilab/src/agi/agilab/gui
 powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key "your-api-key"
 ```
 </details>
@@ -55,6 +55,6 @@ powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key "you
 ### Linux and MacOS and Windows:
 
 ```bash
-cd agilab/src/fwk/core/gui
+cd agilab/src/agilab/core/gui
 uv run agilab
 ```

@@ -14,10 +14,10 @@ uv build --sdist
 Move-Item dist\*.gz $targetDist
 
 # Build wheels from subdirectories
-$subdirs = @("fwk/core/env", "fwk/core/cluster", "fwk/core/node", "fwk/gui")
+$subdirs = @("agilab/core/env", "agilab/core/cluster", "agilab/core/node", "agilab/gui")
 
 foreach ($dir in $subdirs) {
-    $srcDir = Join-Path $cwd "src\fwk\$dir"
+    $srcDir = Join-Path $cwd "src\agilab\$dir"
     Push-Location $srcDir
 
     Remove-Item -Recurse -Force dist,build -ErrorAction SilentlyContinue

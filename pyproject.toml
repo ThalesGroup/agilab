@@ -84,11 +84,12 @@ sphinx = [
     "licensecheck",
 ]
 
+
 [tool.uv]
 default-groups = ["dev"]
 
 [tool.uv.sources]
-agi-core = { path = "src/fwk/core/agi-core/dist/agi-core-0.1.0-py3-none-any.whl" }
+agi-core = { path = "src/agilab/core/agi-core/dist/agi-core-0.1.0-py3-none-any.whl" }
 
 [tool.uv.sources.agilab]
 workspace = true
@@ -103,13 +104,13 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["fwk.gui*", "fwk.apps*", "fwk.views*"]
+include = ["agilab*"]  # This grabs agilab, agilab.gui, agilab.apps, etc.
 exclude = [
-    "fwk.core*",
+    "agilab.core*",
     ".idea*",
     "test*",
-    "fwk.apps.flight_project.build*",
-    "fwk.apps.mycode_project.build*"
+    "agilab.apps.flight_project.build*",
+    "agilab.apps.mycode_project.build*"
 ]
 
 [tool.mypy]

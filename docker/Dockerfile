@@ -29,4 +29,4 @@ RUN ./install.sh
 
 EXPOSE 8501
 
-CMD ["bash", "-c", "uv run --project /app/src/agi/fwk/gui streamlit run /app/src/agilab/fwk/gui/src/agi_gui/AGILAB.py -- --install-type 1 --openai-api-key $OPENAI_API_KEY --apps-dir /app/src/agilab/apps"]
+CMD ["bash", "-c", "uv run --project /app/src/agilab/gui streamlit run /app/src/agilab/gui/src/agi_gui/AGILAB.py -- --install-type 1 --openai-api-key $OPENAI_API_KEY --apps-dir /app/src/agilab/apps"]

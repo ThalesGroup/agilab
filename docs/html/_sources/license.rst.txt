@@ -11,3 +11,6 @@ Licenses
    env-licenses.md
    my-code-project-licenses.md
    flight-project-licenses.md
+   link-project-licenses.md
+   flight-trajectory.md
+   sat-trajectory.md
