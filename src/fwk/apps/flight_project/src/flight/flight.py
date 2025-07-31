@@ -156,7 +156,7 @@ class Flight(BaseWorker):
         self.files = args["files"]
         self.nfile = args["nfile"]
         WorkDispatcher.args = args
-        self.data_out = normalize_path(base_path / "dataframes")
+        self.data_out = normalize_path(base_path / "dataframe")
 
         """
           remove dataframe files from previous run
