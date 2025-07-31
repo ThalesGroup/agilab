@@ -22,7 +22,7 @@ Pop-Location
 
 # Install cluster
 Write-Host "Installing cluster..." -ForegroundColor Blue
-Push-Location "cluster"
+Push-Location "core"
 
 Push-Location "cluster"
 if ($Offline) {
@@ -45,10 +45,10 @@ Pop-Location
 
 Pop-Location
 
-# Install gui
-Write-Host "Installing gui..." -ForegroundColor Blue
-Push-Location "gui"
-uv sync -p $env:PYTHON_VERSION --dev --directory (Resolve-Path "$($FrameworkDir)\gui")
-Pop-Location
+# Install agilab
+Write-Host "Installing agilab..." -ForegroundColor Blue
+
+uv sync -p $env:PYTHON_VERSION --dev --directory (Resolve-Path "$FrameworkDir")
+
 
 

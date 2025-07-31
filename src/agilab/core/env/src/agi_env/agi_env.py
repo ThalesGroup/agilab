@@ -182,7 +182,7 @@ class AgiEnv:
         envars = self.envars
 
         if install_type is None:
-            install_type = 1 if ("site-packages" not in __file__ or sys.prefix.endswith("gui/.venv")) else 0
+            install_type = 1 if ("site-packages" not in __file__ or sys.prefix.endswith("agilab/.venv")) else 0
         elif isinstance(install_type, str):
             install_type = int(install_type)
 
@@ -665,9 +665,9 @@ class AgiEnv:
         self.AGILAB_VIEWS_ABS = Path(envars.get("AGI_VIEWS_DIR", self.agi_fwk / "views"))
         self.AGILAB_VIEWS_REL = Path(envars.get("AGI_VIEWS_DIR", "agilab/_"))
         if self.install_type == 0:
-            self.copilot_file = self.agi_fwk / "agi_gui/agi_copilot.py" # WTF ?
+            self.copilot_file = self.agi_fwk / "agi_copilot.py" # WTF ?
         else:
-            self.copilot_file = self.agi_fwk / "core/gui/src/agi_gui/agi_copilot.py"
+            self.copilot_file = self.agi_fwk / "agi_copilot.py"
 
     def update_pyproject(self):
         agi_fwk = self.agi_fwk
@@ -726,10 +726,8 @@ class AgiEnv:
 
         self.gitignore_file = self.app_abs / ".gitignore"
         dest = self.resource_path
-        if self.install_type == 1 and not "site-packages" in self.agi_fwk.parts:
-            shutil.copytree(self.agi_fwk / "gui/src/agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
-        else:
-            shutil.copytree(self.agi_fwk.parent / "agi_gui" / self.agi_resources, dest, dirs_exist_ok=True)
+        shutil.copytree(self.agi_fwk / self.agi_resources, dest, dirs_exist_ok=True)
+
 
     @staticmethod
     def _build_env(venv=None):

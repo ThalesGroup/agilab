@@ -89,7 +89,7 @@ sphinx = [
 default-groups = ["dev"]
 
 [tool.uv.sources]
-agi-core = { path = "src/agilab/core/agi-core/dist/agi-core-0.1.0-py3-none-any.whl" }
+agi-core = { path = "src/agilab/core/agi-core" }
 
 [tool.uv.sources.agilab]
 workspace = true
@@ -109,12 +109,29 @@ exclude = [
     "agilab.core*",
     ".idea*",
     "test*",
-    "agilab.apps.flight_project.build*",
-    "agilab.apps.mycode_project.build*"
+    "build*",
 ]
 
+[tool.setuptools.data-files]
+agilab = [
+    "src/*.toml",
+    "src/*.ipynb",
+    "src/resources/*",
+    "src/resources/.agilab/*"
+]
+
+[tool.uv.sources.agi-env]
+path = "core/env"
+editable = true
+
+[tool.uv.sources.agi-cluster]
+path = "core/cluster"
+editable = true
+
 [tool.mypy]
-mypy_path = ["stubs"]
+mypy_path = [
+    "stubs",
+]
 disallow_untyped_defs = false
 ignore_missing_imports = true
 
