@@ -55,6 +55,6 @@ powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key "you
 ### Linux and MacOS and Windows:
 
 ```bash
-cd agilab/src/agilab/core/gui
+cd agilab/src/agilab
 uv run agilab
 ```

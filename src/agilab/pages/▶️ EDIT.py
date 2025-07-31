@@ -25,8 +25,8 @@ from ctypes import wintypes
 import importlib
 
 import streamlit as st
-from agi_gui.pagelib import get_about_content, render_logo
-from agi_gui.pagelib import (
+from agilab.pagelib import get_about_content, render_logo
+from agilab.pagelib import (
     get_classes_name,
     get_fcts_and_attrs_name,
     get_templates,

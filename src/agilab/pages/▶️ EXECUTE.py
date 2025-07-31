@@ -29,7 +29,7 @@ import tomli_w       # For writing TOML files
 import pandas as pd
 import pydantic
 # Project Libraries:
-from agi_gui.pagelib import (
+from agilab.pagelib import (
     get_about_content, render_logo, activate_mlflow, save_csv, init_custom_ui, select_project, open_new_tab,
     cached_load_df
 )

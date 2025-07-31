@@ -17,35 +17,33 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}Installing framework from $(pwd)...${NC}"
 echo -e "${BLUE}Python Version: $AGI_PYTHON_VERSION${NC}"
 
-echo -e "${BLUE}Installing env...${NC}"
-pushd env > /dev/null
-uv sync -p "$AGI_PYTHON_VERSION" --dev --directory "$(realpath "$1/env")"
-uv run python -m ensurepip
-uv pip install -e .
-popd > /dev/null
-
-echo -e "${BLUE}Installing cluster...${NC}"
+echo -e "${BLUE}Installing agi-cluster...${NC}"
 pushd cluster > /dev/null
-echo "uv sync -p $AGI_PYTHON_VERSION --config-file uv_config.toml --dev --directory $(realpath $1/cluster)"
-uv sync -p "$AGI_PYTHON_VERSION" --config-file uv_config.toml --dev --directory "$(realpath $1/cluster)"
+echo "uv sync -p $AGI_PYTHON_VERSION --dev"
+uv sync -p "$AGI_PYTHON_VERSION" --dev
 uv run python -m ensurepip
 uv pip install -e .
 popd > /dev/null
 
-echo -e "${BLUE}Installing node...${NC}"
+echo -e "${BLUE}Installing agi-node...${NC}"
 pushd node > /dev/null
-echo "uv sync -p $AGI_PYTHON_VERSION --config-file uv_config.toml --dev --directory $(realpath $1/node)"
-uv sync -p "$AGI_PYTHON_VERSION" --config-file uv_config.toml --dev --directory "$(realpath $1/node)"
+echo "uv sync -p $AGI_PYTHON_VERSION --dev"
+uv sync -p "$AGI_PYTHON_VERSION" --dev
 uv run python -m ensurepip
 uv pip install -e .
 popd > /dev/null
 
-
-echo -e "${BLUE}Installing gui...${NC}"
-pushd ../gui > /dev/null
-uv sync -p "$AGI_PYTHON_VERSION" --dev --directory "$(realpath "$1/../gui")"
+echo -e "${BLUE}Installing agi-env...${NC}"
+pushd env > /dev/null
+echo "uv sync -p $AGI_PYTHON_VERSION --dev"
+uv sync -p "$AGI_PYTHON_VERSION" --dev
 uv run python -m ensurepip
+uv pip install -e .
 popd > /dev/null
+
+echo -e "${BLUE}Installing agilab...${NC}"
+uv sync -p "$AGI_PYTHON_VERSION" --dev --directory "$(realpath "$1")"
+uv run python -m ensurepip
 
 echo -e "${GREEN}Checking installation...${NC}"
 uv run -p "$AGI_PYTHON_VERSION" --project cluster python run-all-test.py

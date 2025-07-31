@@ -28,7 +28,7 @@ import importlib
 # Use modern TOML libraries instead of toml
 import tomli         # For reading TOML files
 import tomli_w       # For writing TOML files
-from agi_gui.pagelib import activate_mlflow, list_views, get_about_content, render_logo, select_project
+from agilab.pagelib import activate_mlflow, list_views, get_about_content, render_logo, select_project
 
 from agi_env import AgiEnv, normalize_path
 

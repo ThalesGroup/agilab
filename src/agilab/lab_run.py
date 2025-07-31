@@ -29,7 +29,7 @@ def check_environment():
 
     # Check if the package is installed (optional):
     try:
-        import agi_gui  # or any module from your package
+        import agilab  # or any module from your package
     except ImportError:
         print("Error: The agilab package is not installed in this environment.")
         sys.exit(1)
