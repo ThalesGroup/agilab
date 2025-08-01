@@ -1,7 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="Black">
-    <option name="sdkName" value="uv (env)" />
-  </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="uv (sat_trajectory_worker)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="uv (mycode)" project-jdk-type="Python SDK" />
 </project>
