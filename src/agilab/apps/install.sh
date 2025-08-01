@@ -8,6 +8,8 @@ set -e
 
 #source "$HOME/.local/bin/env"
 source "$HOME/.local/share/agilab/.env"
+AGI_PYTHON_VERSION=$(echo "$AGI_PYTHON_VERSION" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*/\1/')
+export AGI_PYTHON_VERSION
 
 APP_INSTALL="uv -q run -p $AGI_PYTHON_VERSION --project ../core/cluster python install.py"
 

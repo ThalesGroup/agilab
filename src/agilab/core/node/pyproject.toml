@@ -46,7 +46,6 @@ dependencies = [
     "msgpack",
     "numba",
     "py7zr",
-    "agi-env",
     "python-dotenv",
     "tomli",
     "logging",
