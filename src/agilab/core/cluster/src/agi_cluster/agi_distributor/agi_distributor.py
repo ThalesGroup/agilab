@@ -248,7 +248,7 @@ class AGI:
                 "DagWorker": "dag-worker",
                 "AgentWorker": "agent-worker",
             }
-            AGI.install_worker_group = ["agi-dispatcher ", AGI.agi_workers[env.base_worker_cls]]
+            #AGI.install_worker_group = ["agi-dispatcher ", AGI.agi_workers[env.base_worker_cls]]
 
             try:
                 return await AGI.main(scheduler)
@@ -905,7 +905,7 @@ class AGI:
         app_path = env.app_abs
         wenv_rel = env.wenv_rel
         if isinstance(env.base_worker_cls, str):
-            options_worker = " --extra " + " --extra ".join(AGI.install_worker_group)
+            options_worker = " --extra " # + " --extra ".join(AGI.install_worker_group)
 
         #node_ips = await AGI._clean_nodes(scheduler)
         node_ips = set(list(AGI.workers) + [AGI._get_scheduler(scheduler_addr)[0]])
