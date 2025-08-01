@@ -10,6 +10,9 @@ import zipfile
 import platform
 import threading
 import time
+import faulthandler
+
+faulthandler.enable()
 
 USAGE = """
 Usage: python cli.py <cmd> [arg]
@@ -36,22 +39,24 @@ logger = logging.getLogger(__name__)
 def clean(wenv=None):
     try:
         scratch = Path(gettempdir()) / 'dask-scratch-space'
+        logger.info(f"Cleaning {scratch}")
         shutil.rmtree(scratch, ignore_errors=True)
         logger.info(f"Removed {scratch}")
         if wenv:
+            logger.info(f"Cleaning {wenv}")
             shutil.rmtree(wenv, ignore_errors=True)
             logger.info(f"Removed {wenv}")
     except Exception as e:
         logger.error(f"Error during cleanup: {e}")
 
 def get_processes_containing(substring):
-    """Cross-platform: finds PIDs where command or name contains substring."""
     substring = substring.lower()
     pids = set()
     if os.name != "nt":
-        # Unix-like: ps
         try:
-            output = subprocess.check_output(["ps", "-eo", "pid,command"], text=True)
+            logger.info("Running ps to find matching processes...")
+            output = subprocess.check_output(
+                ["ps", "-eo", "pid,command"], text=True, timeout=5)
             for line in output.strip().splitlines()[1:]:
                 try:
                     pid_str, cmd = line.strip().split(None, 1)
@@ -62,9 +67,10 @@ def get_processes_containing(substring):
         except Exception as e:
             logger.warning(f"Unix ps failed: {e}")
     else:
-        # Windows: tasklist
         try:
-            output = subprocess.check_output(["tasklist", "/fo", "csv", "/nh"], text=True)
+            logger.info("Running tasklist to find matching processes...")
+            output = subprocess.check_output(
+                ["tasklist", "/fo", "csv", "/nh"], text=True, timeout=5)
             for line in output.strip().splitlines():
                 parts = [p.strip('"') for p in line.split('","')]
                 if len(parts) < 2:
@@ -80,11 +86,12 @@ def get_processes_containing(substring):
     return pids
 
 def get_child_pids(parent_pids):
-    """Unix-only: find direct child PIDs."""
     children = set()
     if os.name != "nt":
         try:
-            output = subprocess.check_output(["ps", "-eo", "pid,ppid"], text=True)
+            logger.info("Finding child PIDs...")
+            output = subprocess.check_output(
+                ["ps", "-eo", "pid,ppid"], text=True, timeout=5)
             for line in output.strip().splitlines()[1:]:
                 try:
                     pid_str, ppid_str = line.strip().split(None, 1)
@@ -120,11 +127,9 @@ def kill(exclude_pids=None):
 
     kill_pids(dask_pids, signal.SIGTERM)
     time.sleep(2)
-    # SIGKILL may not exist on Windows!
     if hasattr(signal, "SIGKILL"):
         kill_pids(dask_pids, signal.SIGKILL)
 
-    # Collect PID files (dedup)
     pid_files = set(Path("").glob("*.pid")) | set(Path(__file__).parent.glob("*.pid"))
     file_pids = set()
     for pid_file in pid_files:
@@ -142,7 +147,6 @@ def kill(exclude_pids=None):
         except Exception as e:
             logger.warning(f"Could not remove pid file {pid_file}: {e}")
 
-    # Only works on Unix
     child_pids = get_child_pids(file_pids)
     file_pids.update(child_pids)
     file_pids -= exclude_pids
@@ -157,29 +161,34 @@ def kill(exclude_pids=None):
         logger.info("No Dask process running.")
 
 def unzip(wenv=None):
-    root = Path(wenv)
-    root_src = root / 'src'
-    if not root_src.exists():
-        os.makedirs(root_src, exist_ok=True)
-    eggs = root.glob('*.egg')
+    try:
+        root = Path(wenv)
+        root_src = root / 'src'
+        logger.info(f"Ensuring src directory exists at {root_src}")
+        if not root_src.exists():
+            os.makedirs(root_src, exist_ok=True)
+        eggs = list(root.glob('*.egg'))
 
-    for e in eggs:
-          zipfile.ZipFile(str(e)).extractall(str(root_src))
+        for e in eggs:
+            logger.info(f"Extracting {e}")
+            zipfile.ZipFile(str(e)).extractall(str(root_src))
 
-    logger.info(f"Unzipped: {eggs}")
+        logger.info(f"Unzipped: {eggs}")
+    except Exception as e:
+        logger.error(f"Error during unzip: {e}")
 
 def cpu_task():
     x = 0
     for _ in range(10**8):
         x += 1
 
-def threaded():
-    logger.info("Starting threaded function")
-    def worker():
-        for i in range(5):
-            logger.info(f"Thread: {i}")
+def threaded(nthreads=2):
+    logger.info(f"Starting threaded function with {nthreads} threads")
+    def worker(i):
+        for j in range(5):
+            logger.info(f"Thread-{i}: {j}")
             time.sleep(1)
-    threads = [threading.Thread(target=worker, name=f"Worker-{n}") for n in range(2)]
+    threads = [threading.Thread(target=worker, args=(n,), name=f"Worker-{n}") for n in range(nthreads)]
     for t in threads:
         t.start()
     for t in threads:
@@ -187,8 +196,14 @@ def threaded():
     logger.info("All threads done")
 
 def test_python_threads():
-    t1 = threaded(1)
-    t2 = threaded(2)
+    logger.info("Testing Python threads for true parallelism")
+    start1 = time.time()
+    threaded(nthreads=1)
+    t1 = time.time() - start1
+
+    start2 = time.time()
+    threaded(nthreads=2)
+    t2 = time.time() - start2
 
     logger.info(f"Time with 1 thread: {t1:.2f} s")
     logger.info(f"Time with 2 threads: {t2:.2f} s")
@@ -201,7 +216,6 @@ def test_python_threads():
 def python_version():
     arch = platform.machine().lower().replace('arm64', 'aarch64').replace('amd64', 'x86_64')
     sys_name = platform.system().lower()
-    # Map system name to pip tag
     if sys_name == 'darwin':
         os_tag = 'macos'
     elif sys_name == 'windows':
@@ -209,20 +223,15 @@ def python_version():
     elif sys_name == 'linux':
         os_tag = 'linux'
     else:
-        os_tag = sys_name  # fallback
+        os_tag = sys_name
 
     version = platform.python_version()
     cache_tag = getattr(sys.implementation, "cache_tag", "")
-    # Detect free-threaded (works for 3.13+)
-    freethreaded = "+freethreaded"  #if "freethreaded" in cache_tag else ""
-
-    # Build the tag
+    freethreaded = "+freethreaded" if "freethreaded" in cache_tag else ""
     tag = f"{sys.implementation.name}-{version}{freethreaded}-{os_tag}-{arch}-none"
     logger.info(tag)
 
-
 if __name__ == "__main__":
-    # If no arguments provided, print usage and exit
     if len(sys.argv) == 1:
         print(USAGE)
         sys.exit(1)
