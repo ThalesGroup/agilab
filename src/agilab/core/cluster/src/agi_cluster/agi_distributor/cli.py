@@ -216,7 +216,7 @@ def python_version():
     logger.info(tag)
 
 
-if __main__ == "__main__":
+if __name__ == "__main__":
     # If no arguments provided, print usage and exit
     if len(sys.argv) == 1:
         print(USAGE)
