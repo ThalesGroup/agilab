@@ -10,7 +10,9 @@ import zipfile
 import platform
 import threading
 import time
-
+os.environ["PYTHONUNBUFFERED"] = "1"
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 
 USAGE = """
 Usage: python cli.py <cmd> [arg]
@@ -174,16 +176,28 @@ def cpu_task():
     for _ in range(10**8):
         x += 1
 
-def run_threads(n):
-    threads = [threading.Thread(target=cpu_task) for _ in range(n)]
-    start = time.time()
-    for t in threads: t.start()
-    for t in threads: t.join()
-    return time.time() - start
+def threaded():
+    print("DEBUG: Entered threaded()")
+    print("DEBUG: Entered threaded()", flush=True)
+    def worker():
+        for i in range(5):
+            print(f"DEBUG: Thread {threading.current_thread().name}: {i}")
+            logger.info(f"Thread: {i}")
+            time.sleep(1)
+    threads = [threading.Thread(target=worker, name=f"Worker-{n}") for n in range(2)]
+    print("DEBUG: Threads created")
+    for t in threads:
+        print(f"DEBUG: Starting {t.name}")
+        t.start()
+    for t in threads:
+        print(f"DEBUG: Joining {t.name}")
+        t.join()
+    logger.info("All threads done")
+    print("DEBUG: All threads done")
 
 def test_python_threads():
-    t1 = run_threads(1)
-    t2 = run_threads(2)
+    t1 = threaded(1)
+    t2 = threaded(2)
 
     logger.info(f"Time with 1 thread: {t1:.2f} s")
     logger.info(f"Time with 2 threads: {t2:.2f} s")
