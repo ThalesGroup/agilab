@@ -248,7 +248,7 @@ class AGI:
                 "DagWorker": "dag-worker",
                 "AgentWorker": "agent-worker",
             }
-            AGI.install_worker_group = ["agi-dispatcher ", AGI.agi_workers[env.base_worker_cls]]
+            AGI.install_worker_group = [AGI.agi_workers[env.base_worker_cls]]
 
             try:
                 return await AGI.main(scheduler)
