@@ -10,9 +10,6 @@ import zipfile
 import platform
 import threading
 import time
-os.environ["PYTHONUNBUFFERED"] = "1"
-sys.stdout.reconfigure(line_buffering=True)
-sys.stderr.reconfigure(line_buffering=True)
 
 USAGE = """
 Usage: python cli.py <cmd> [arg]
@@ -177,23 +174,17 @@ def cpu_task():
         x += 1
 
 def threaded():
-    print("DEBUG: Entered threaded()")
-    print("DEBUG: Entered threaded()", flush=True)
+    logger.info("Starting threaded function")
     def worker():
         for i in range(5):
-            print(f"DEBUG: Thread {threading.current_thread().name}: {i}")
             logger.info(f"Thread: {i}")
             time.sleep(1)
     threads = [threading.Thread(target=worker, name=f"Worker-{n}") for n in range(2)]
-    print("DEBUG: Threads created")
     for t in threads:
-        print(f"DEBUG: Starting {t.name}")
         t.start()
     for t in threads:
-        print(f"DEBUG: Joining {t.name}")
         t.join()
     logger.info("All threads done")
-    print("DEBUG: All threads done")
 
 def test_python_threads():
     t1 = threaded(1)
