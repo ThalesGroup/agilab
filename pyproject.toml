@@ -28,7 +28,6 @@ keywords = [
 ]
 
 dependencies = [
-    "agi-core",
     "astor",
     "asyncssh",
     "build",
@@ -84,12 +83,8 @@ sphinx = [
     "licensecheck",
 ]
 
-
 [tool.uv]
 default-groups = ["dev"]
-
-[tool.uv.sources]
-agi-core = { path = "src/agilab/core/agi-core" }
 
 [tool.uv.sources.agilab]
 workspace = true
@@ -119,14 +114,6 @@ agilab = [
     "src/resources/*",
     "src/resources/.agilab/*"
 ]
-
-[tool.uv.sources.agi-env]
-path = "core/env"
-editable = true
-
-[tool.uv.sources.agi-cluster]
-path = "core/cluster"
-editable = true
 
 [tool.mypy]
 mypy_path = [

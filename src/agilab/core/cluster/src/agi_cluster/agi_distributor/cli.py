@@ -1,8 +1,6 @@
 import sys
 import logging
 
-# Setup logging to print to stdout for CLI use
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 USAGE = """
@@ -24,31 +22,8 @@ Examples:
   python cli.py platform
 """
 
-# --- Placeholder implementations for each command ---
-def kill(exclude_pids=None):
-    logger.info(f"Killing processes (excluding: {exclude_pids if exclude_pids else 'none'})")
-    # Insert your logic here
-
-def clean(wenv):
-    logger.info(f"Cleaning wenv at: {wenv}")
-    # Insert your logic here
-
-def unzip(wenv):
-    logger.info(f"Unzipping to wenv at: {wenv}")
-    # Insert your logic here
-
-def test_python_threads():
-    logger.info("Testing Python threads...")
-    # Insert your logic here
-
-def python_version():
-    import platform
-    logger.info(f"Python version: {platform.python_version()} ({platform.platform()})")
-    # Insert your logic here
-
-# --- Main CLI logic ---
 if __name__ == "__main__":
-    # No arguments: print usage and exit
+    # If no arguments provided, print usage and exit
     if len(sys.argv) == 1:
         print(USAGE)
         sys.exit(1)

@@ -31,9 +31,9 @@ You’ll find everything from quickstarts to API references, as well as example 
    :maxdepth: 1
    :caption: Example Projects
 
-   my-code-project
+   mycode-project
    flight-project
-   flight-trajectory
+   flight-trajectory-project
    link-sim-project
    sat-trajectory-project
 

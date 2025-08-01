@@ -142,42 +142,34 @@ install_dependencies() {
 }
 
 choose_python_version() {
-    echo -e "${BLUE}Choosing Python version...${NC}"
-    available_python_versions=$(uv python list | grep -F -- "$PYTHON_VERSION")
+    echo -e "${BLUE}Available Python versions:${NC}"
     python_array=()
-    while IFS= read -r line; do
+    idx=1
+
+    # On génère la liste
+    while read -r line; do
         python_array+=("$line")
-    done <<< "$available_python_versions"
+        echo "  $idx - $line"
+        idx=$((idx + 1))
+    done < <(uv python list | grep -F "cpython-3.13.")
 
-    for idx in "${!python_array[@]}"; do
-        if [[ "${python_array[$idx]}" == *"$PYTHON_VERSION"* ]]; then
-            echo -e "${GREEN}$((idx + 1)) - ${python_array[$idx]}${NC}"
-        else
-            echo -e "$((idx + 1)) - ${python_array[$idx]}"
-        fi
-    done
-
+    # Choix utilisateur
     while true; do
-        read -rp "Enter the number of the Python version you want to use (default: 1) " selection
+        read -rp "Enter the number of the Python version you want to use (default: 1): " selection
         selection=${selection:-1}
         if [[ $selection =~ ^[0-9]+$ ]] && (( selection >= 1 && selection <= ${#python_array[@]} )); then
-            chosen_python=$(echo "${python_array[$((selection - 1))]}" | cut -d' ' -f1)
+            chosen_python_line="${python_array[$((selection - 1))]}"
+            # Extraction POSIX compatible :
+            AGI_PYTHON_VERSION=$(echo "$chosen_python_line" | sed -E 's/.*cpython-([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?)-.*/\1/')
+            echo "Selected version: $AGI_PYTHON_VERSION"
+            # Écriture dans .env (1 seule ligne)
+            echo "AGI_PYTHON_VERSION=$AGI_PYTHON_VERSION" > "$HOME/.local/share/agilab/.env"
+            export AGI_PYTHON_VERSION
             break
         else
             echo "Invalid selection. Please try again."
         fi
     done
-
-    installed_pythons=$(uv python list --only-installed | cut -d' ' -f1)
-    if ! echo "$installed_pythons" | grep -q "$chosen_python"; then
-        echo -e "${YELLOW}Installing $chosen_python...${NC}"
-        uv python install "$chosen_python"
-        echo -e "${GREEN}Python version ($chosen_python) is now installed.${NC}"
-    else
-        echo -e "${GREEN}Python version ($chosen_python) is already installed.${NC}"
-    fi
-
-    export PYTHON_VERSION=$(echo "$chosen_python" | cut -d '-' -f2)
 }
 
 backup_existing_project() {
