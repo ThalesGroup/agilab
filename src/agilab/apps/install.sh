@@ -17,6 +17,10 @@ APP_INSTALL="uv -q run -p $AGI_PYTHON_VERSION --project ../core/cluster python i
 INCLUDED_APPS=(
     "mycode_project"
     "flight_project"
+    "sat_trajectory_project"
+    "flight_trajectory_project"
+    "link_sim_project"
+    "flight_legacy_project"
 )
 
 # Colors
@@ -50,7 +54,11 @@ for app in "${apps[@]}"; do
         echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
         echo -e "${GREEN}Checking installation...${NC}"
         pushd $app
-        uv run -p "$AGI_PYTHON_VERSION" python run-all-test.py
+        if [[ -f run-all-test.py ]]; then
+            uv run -p "$AGI_PYTHON_VERSION" python run-all-test.py
+        else
+            echo -e "${BLUE}No run-all-test.py in $app, skipping tests.${NC}"
+        fi
         popd
     else
         echo -e "${RED}✗ '$app' installation failed.${NC}"
@@ -58,6 +66,7 @@ for app in "${apps[@]}"; do
     fi
 done
 popd
+
 
 # Final Message
 echo -e "${GREEN}Installation of apps complete!${NC}"
