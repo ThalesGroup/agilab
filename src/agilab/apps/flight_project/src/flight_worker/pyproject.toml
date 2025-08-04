@@ -30,6 +30,11 @@ dev = [
     "licensecheck",
 ]
 
+[project.optional-dependencies]
+agent-worker = []
+dag-worker = []
+polars-worker = []
+
 [[project.authors]]
 name = "Jean-Pierre Morard"
 email = "focus@thalesgroup.com"
