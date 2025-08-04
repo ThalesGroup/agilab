@@ -15,9 +15,7 @@
     <orderEntry type="module" module-name="node" />
     <orderEntry type="module" module-name="env" />
     <orderEntry type="module" module-name="flight_project" />
-    <orderEntry type="module" module-name="flight_worker" />
     <orderEntry type="module" module-name="mycode_project" />
-    <orderEntry type="module" module-name="mycode_worker" />
     <orderEntry type="module" module-name="flight_legacy_project" />
     <orderEntry type="module" module-name="flight_trajectory_project" />
     <orderEntry type="module" module-name="link_sim_project" />
