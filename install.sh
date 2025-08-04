@@ -229,9 +229,11 @@ install_core() {
     echo -e "${BLUE}Installing Framework...${NC}"
     pushd "$framework_dir" > /dev/null
       ./install.sh "$framework_dir"
-    popd  > /dev/null
+    pushd agi-core > /dev/null
     uv sync --dev
-    uv build --project src/agilab/core/agi-core --wheel
+    uv build --wheel
+    popd  > /dev/null
+    popd  > /dev/null
 }
 
 install_apps() {
