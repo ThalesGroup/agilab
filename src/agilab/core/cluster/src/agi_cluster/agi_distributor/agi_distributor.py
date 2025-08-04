@@ -920,6 +920,13 @@ class AGI:
             for ip in node_ips:
                 logging.info(f"********   Starting {AGI._run_type} for worker in .venv on {ip}")
                 if not env.is_local(ip):
+                    [dependency - groups]
+                    dev = [
+                        "black",
+                        "pytest",
+                        "pytest-asyncio",
+                        "licensecheck",
+                    ]
                     tasks.append(asyncio.create_task(
                         AGI._install_app_remote(ip, env, wenv_rel, options_worker)
                     ))
