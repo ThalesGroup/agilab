@@ -230,6 +230,8 @@ install_core() {
     pushd "$framework_dir" > /dev/null
       ./install.sh "$framework_dir"
     popd  > /dev/null
+    uv sync --dev
+    uv build --project src/agilab/core/agi-core --wheel
 }
 
 install_apps() {
