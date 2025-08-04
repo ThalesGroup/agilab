@@ -22,11 +22,16 @@ dependencies = [
 name = "Jean-Pierre Morard"
 email = "focus@thalesgroup.com"
 
-[dependency-groups]
-dev = [ "black", "pytest", "pytest-asyncio", "licensecheck"]
-
 [project.license]
 text = "Thales SIX GTS France SAS"
+
+[dependency-groups]
+dev = [
+    "black",
+    "pytest",
+    "pytest-asyncio",
+    "licensecheck",
+]
 
 [tool.mypy]
 mypy_path = [ "stubs",]
