@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="flight_trajectory test worker" type="PythonConfigurationType" factoryName="Python" folderName="flight_trajectory">
-    <module name="flight_trajectory_worker" />
+    <module name="flight_trajectory_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
@@ -8,7 +8,7 @@
       <env name="PYTHONUNBUFFERED" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
-    <option name="SDK_NAME" value="uv (flight_trajectory_worker)" />
+    <option name="SDK_NAME" value="uv (fligth_trajectory_worker)" />
     <option name="WORKING_DIRECTORY" value="$ProjectFileDir$/src/agilab/apps/flight_trajectory_project" />
     <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
