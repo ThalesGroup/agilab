@@ -10,10 +10,8 @@
       <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/flight_legacy_project/.idea/flight_legacy_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/flight_legacy_project/.idea/flight_legacy_project.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/flight_project/.idea/flight_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/flight_project/.idea/flight_project.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/flight_trajectory_project/.idea/flight_trajectory_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/flight_trajectory_project/.idea/flight_trajectory_project.iml" />
-      <module fileurl="file://$USER_HOME$/wenv/flight_worker/.idea/flight_worker.iml" filepath="$USER_HOME$/wenv/flight_worker/.idea/flight_worker.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/link_sim_project/.idea/link_sim_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/link_sim_project/.idea/link_sim_project.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/mycode_project/.idea/mycode_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/mycode_project/.idea/mycode_project.iml" />
-      <module fileurl="file://$USER_HOME$/wenv/mycode_worker/.idea/mycode_worker.iml" filepath="$USER_HOME$/wenv/mycode_worker/.idea/mycode_worker.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/core/node/.idea/node.iml" filepath="$PROJECT_DIR$/src/agilab/core/node/.idea/node.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/sat_trajectory_project/.idea/sat_trajectory_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/sat_trajectory_project/.idea/sat_trajectory_project.iml" />
     </modules>
