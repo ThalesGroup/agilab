@@ -2,24 +2,20 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/src/agilab/core/agi-core/.idea/agi-core.iml" filepath="$PROJECT_DIR$/src/agilab/core/agi-core/.idea/agi-core.iml" />
       <module fileurl="file://$PROJECT_DIR$/../agi-space/.idea/agi-space.iml" filepath="$PROJECT_DIR$/../agi-space/.idea/agi-space.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/agilab.iml" filepath="$PROJECT_DIR$/.idea/agilab.iml" />
-      <module fileurl="file://$PROJECT_DIR$/src/agilab/core/agi-core/.idea/agi-core.iml" filepath="$PROJECT_DIR$/src/agilab/core/agi-core/.idea/agi-core.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/core/cluster/.idea/cluster.iml" filepath="$PROJECT_DIR$/src/agilab/core/cluster/.idea/cluster.iml" />
-      <module fileurl="file://$PROJECT_DIR$/src/agilab/core/node/.idea/node.iml" filepath="$PROJECT_DIR$/src/agilab/core/node/.idea/node.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/core/env/.idea/env.iml" filepath="$PROJECT_DIR$/src/agilab/core/env/.idea/env.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/flight_legacy_project/.idea/flight_legacy_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/flight_legacy_project/.idea/flight_legacy_project.iml" />
-      <module fileurl="file://$USER_HOME$/wenv/flight_legacy_worker/.idea/flight_legacy_worker.iml" filepath="$USER_HOME$/wenv/flight_legacy_worker/.idea/flight_legacy_worker.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/flight_project/.idea/flight_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/flight_project/.idea/flight_project.iml" />
-      <module fileurl="file://$USER_HOME$/wenv/flight_worker/.idea/flight_worker.iml" filepath="$USER_HOME$/wenv/flight_worker/.idea/flight_worker.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/flight_trajectory_project/.idea/flight_trajectory_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/flight_trajectory_project/.idea/flight_trajectory_project.iml" />
-      <module fileurl="file://$USER_HOME$/wenv/flight_trajectory_worker/.idea/flight_trajectory_worker.iml" filepath="$USER_HOME$/wenv/flight_trajectory_worker/.idea/flight_trajectory_worker.iml" />
+      <module fileurl="file://$USER_HOME$/wenv/flight_worker/.idea/flight_worker.iml" filepath="$USER_HOME$/wenv/flight_worker/.idea/flight_worker.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/link_sim_project/.idea/link_sim_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/link_sim_project/.idea/link_sim_project.iml" />
-      <module fileurl="file://$USER_HOME$/wenv/link_sim_worker/.idea/link_sim_worker.iml" filepath="$USER_HOME$/wenv/link_sim_worker/.idea/link_sim_worker.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/mycode_project/.idea/mycode_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/mycode_project/.idea/mycode_project.iml" />
       <module fileurl="file://$USER_HOME$/wenv/mycode_worker/.idea/mycode_worker.iml" filepath="$USER_HOME$/wenv/mycode_worker/.idea/mycode_worker.iml" />
+      <module fileurl="file://$PROJECT_DIR$/src/agilab/core/node/.idea/node.iml" filepath="$PROJECT_DIR$/src/agilab/core/node/.idea/node.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/sat_trajectory_project/.idea/sat_trajectory_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/sat_trajectory_project/.idea/sat_trajectory_project.iml" />
-      <module fileurl="file://$USER_HOME$/wenv/sat_trajectory_worker/.idea/sat_trajectory_worker.iml" filepath="$USER_HOME$/wenv/sat_trajectory_worker/.idea/sat_trajectory_worker.iml" />
     </modules>
   </component>
 </project>
