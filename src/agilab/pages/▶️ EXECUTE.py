@@ -755,24 +755,31 @@ if __name__ == '__main__':
     if show_distribute:
         with st.expander(f"{module} settings:", expanded=True):
             args_ui_snippet = env.args_ui_snippet
+
+            # ---- PATCH: Set default unchecked if snippet is empty ----
+            snippet_exists = args_ui_snippet.exists()
+            snippet_not_empty = snippet_exists and args_ui_snippet.stat().st_size > 1
+
+            # Only set default value if toggle_custom is not in session_state
             if "toggle_custom" not in st.session_state:
-                st.checkbox("Custom UI", key="toggle_custom",
-                                         value=args_ui_snippet.stat().st_size > 0,
-                                         on_change=init_custom_ui, args=[args_ui_snippet])
-            else:
-                st.checkbox("Custom UI", key="toggle_custom",
-                            value=st.session_state["toggle_custom"],
-                            on_change=init_custom_ui, args=[args_ui_snippet])
-            if st.session_state["toggle_custom"] and args_ui_snippet.exists() and args_ui_snippet.stat().st_size > 0:
+                st.session_state["toggle_custom"] = snippet_not_empty
+
+            # Always use the current value in session_state
+            st.checkbox("Custom UI", key="toggle_custom",
+                        value=st.session_state["toggle_custom"],
+                        on_change=init_custom_ui, args=[args_ui_snippet])
+
+            if st.session_state["toggle_custom"] and snippet_exists and snippet_not_empty:
                 try:
                     runpy.run_path(args_ui_snippet, init_globals=globals())
                 except ValueError as e:
                     st.warning(e)
             else:
                 render_generic_ui()
-                if not args_ui_snippet.exists():
+                if not snippet_exists:
                     with open(args_ui_snippet, "w") as st_src:
                         st_src.write("")
+
             args_serialized = ", ".join(
                 [f'{key}="{value}"' if isinstance(value, str) else f"{key}={value}"
                  for key, value in st.session_state.app_settings["args"].items()]
