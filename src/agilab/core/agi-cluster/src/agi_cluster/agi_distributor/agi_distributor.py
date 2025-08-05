@@ -52,7 +52,7 @@ import runpy
 
 # Project Libraries:
 from agi_env import AgiEnv, normalize_path
-node_src = str(Path(sys.prefix).parents[1] / "node/src")
+node_src = str(Path(sys.prefix).parents[1] / "agi-node/src")
 if node_src not in sys.path:
     sys.path.append(node_src)
 from agi_node.agi_dispatcher import WorkDispatcher, BaseWorker

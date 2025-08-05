@@ -20,27 +20,27 @@ echo -e "${BLUE}Installing framework from $(pwd)...${NC}"
 echo -e "${BLUE}Python Version: $AGI_PYTHON_VERSION${NC}"
 
 echo -e "${BLUE}Installing agi-cluster...${NC}"
-pushd cluster > /dev/null
+pushd agi-cluster > /dev/null
 echo "uv sync -p $AGI_PYTHON_VERSION --dev"
 uv sync -p "$AGI_PYTHON_VERSION" --dev
 uv run python -m ensurepip
 uv pip install -e .
-uv pip install -e ../node
-uv pip install -e ../env
+uv pip install -e ../agi-node
+uv pip install -e ../agi-env
 
 popd > /dev/null
 
 echo -e "${BLUE}Installing agi-node...${NC}"
-pushd node > /dev/null
+pushd agi-node > /dev/null
 echo "uv sync -p $AGI_PYTHON_VERSION --dev"
 uv sync -p "$AGI_PYTHON_VERSION" --dev
 uv run python -m ensurepip
 uv pip install -e .
-uv pip install -e ../env
+uv pip install -e ../agi-env
 popd > /dev/null
 
 echo -e "${BLUE}Installing agi-env...${NC}"
-pushd env > /dev/null
+pushd agi-env > /dev/null
 echo "uv sync -p $AGI_PYTHON_VERSION --dev"
 uv sync -p "$AGI_PYTHON_VERSION" --dev
 uv run python -m ensurepip
@@ -53,11 +53,11 @@ uv sync -p "$AGI_PYTHON_VERSION" --dev
 uv run python -m ensurepip
 echo $(pwd)
 uv pip install -e .
-uv pip install -e src/agilab/core/env
-uv pip install -e src/agilab/core/node
-uv pip install -e src/agilab/core/cluster
+uv pip install -e src/agilab/core/agi-env
+uv pip install -e src/agilab/core/agi-node
+uv pip install -e src/agilab/core/agi-cluster
 popd > /dev/null
 
 echo -e "${GREEN}Checking installation...${NC}"
-uv run -p "$AGI_PYTHON_VERSION" --project cluster python run-all-test.py
+uv run -p "$AGI_PYTHON_VERSION" --project agi-cluster python run-all-test.py
 

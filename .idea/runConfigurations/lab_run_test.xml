@@ -14,7 +14,7 @@
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="$USER_HOME$/agi-workspace/.venv/lib/python3.12/site-packages/agi_gui/lab_run.py" />
+    <option name="SCRIPT_NAME" value="$USER_HOME$/agi-workspace/.venv/lib/python3.12/site-packages/agilab/lab_run.py" />
     <option name="PARAMETERS" value="--openai-api-key &quot;your-key&quot;" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
