@@ -70,7 +70,6 @@ Tracker = "https://github.com/ThalesGroup/agilab/issue"
 
 [dependency-groups]
 dev = [
-    "agi-cluster",
     "black",
     "pytest",
     "licensecheck",
