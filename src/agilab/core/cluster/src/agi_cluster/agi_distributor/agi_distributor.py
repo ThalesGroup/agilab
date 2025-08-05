@@ -1338,7 +1338,8 @@ class AGI:
             # Clean worker
             for ip in list(AGI.workers):
                 await AGI.send_file(env, ip, env.cluster_root / "src/agi_cluster/agi_distributor/cli.py", cli_rel.parent)
-                if not env.envars.get(ip, None):
+                has_rapids_hw = env.envars.get(ip, None)
+                if not has_rapids_hw or has_rapids_hw == "no_rapids_hw":
                     env.has_rapids_hw = False
                 try:
                     await AGI._kill(ip, os.getpid(), force=True)
