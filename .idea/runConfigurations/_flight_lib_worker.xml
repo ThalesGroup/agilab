@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="flight_lib gen" type="PythonConfigurationType" factoryName="Python" folderName="flight">
-    <module name="flight_worker" />
+    <module name="flight_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
