@@ -15,7 +15,7 @@
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="$USER_HOME$/wenv/flight_worker/build.py" />
-    <option name="PARAMETERS" value="build_ext --packages &quot;base_worker, dag_worker&quot; pandas_worker&quot; polars_worker&quot; agent_worker&quot;-b $USER_HOME$/wenv/flight_worker" />
+    <option name="PARAMETERS" value="build_ext --packages &quot;agi_dispatcher, dag_worker, pandas_worker, polars_worker, agent_worker&quot; -b $USER_HOME$/wenv/flight_worker" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />
