@@ -366,6 +366,21 @@ def on_project_change(project, switch_to_select=True):
     except Exception as e:
         st.error(f"An error occurred while changing the project: {e}")
 
+    section_labels = (
+        "PYTHON‑ENV",
+        "PYTHON-ENV-EXTRA",
+        "MANAGER",
+        "WORKER",
+        "EXPORT‑APP‑FILTER",
+        "APP‑SETTINGS",
+        "ARGS‑UI",
+        "PRE‑PROMPT",
+    )
+    for label in section_labels:
+        session_state[label] = False
+
+
+
 
 def is_port_in_use(target_port):
     """
