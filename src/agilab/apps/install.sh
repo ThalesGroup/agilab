@@ -20,7 +20,7 @@ INCLUDED_APPS=(
     "sat_trajectory_project"
     "flight_trajectory_project"
     "link_sim_project"
-    "flight_legacy_project"
+    #"flight_legacy_project"
 )
 
 # Colors
