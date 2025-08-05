@@ -11,9 +11,9 @@
     <orderEntry type="module" module-name="agilab" />
     <orderEntry type="module" module-name="agi-space" />
     <orderEntry type="module" module-name="agi-core" />
-    <orderEntry type="module" module-name="cluster" />
-    <orderEntry type="module" module-name="node" />
-    <orderEntry type="module" module-name="env" />
+    <orderEntry type="module" module-name="agi-cluster" />
+    <orderEntry type="module" module-name="agi-node" />
+    <orderEntry type="module" module-name="agi-env" />
     <orderEntry type="module" module-name="flight_project" />
     <orderEntry type="module" module-name="mycode_project" />
     <orderEntry type="module" module-name="flight_legacy_project" />

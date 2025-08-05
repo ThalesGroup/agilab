@@ -44,7 +44,7 @@ dependencies = [
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
-Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/env"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/agi-env"
 Tracker = "https://github.com/ThalesGroup/agilab/issue"
 
 [dependency-groups]

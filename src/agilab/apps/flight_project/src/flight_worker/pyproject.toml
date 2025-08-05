@@ -4,7 +4,6 @@ version = "0.4.01"
 description = ""
 requires-python = ">=3.11"
 readme = "README.md"
-
 dependencies = [
 "cython",
 "dask[distributed]",
@@ -30,15 +29,16 @@ dev = [
     "licensecheck",
 ]
 
-[project.optional-dependencies]
-agent-worker = []
-dag-worker = []
-polars-worker = []
-
 [[project.authors]]
 name = "Jean-Pierre Morard"
 email = "focus@thalesgroup.com"
 
 [project.license]
 text = "Thales SIX GTS France SAS"
+
+[project.optional-dependencies]
+agent-worker = []
+dag-worker = []
+polars-worker = []
+
 

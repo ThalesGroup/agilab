@@ -197,21 +197,21 @@ class AgiEnv:
             if "site-packages" in self.agi_fwk.parts:
                 self.env_root = self.agi_fwk.parent / "agi_env"
                 self.cluster_root = self.agi_fwk.parent
-                self.node_root = self.agi_fwk.parent / "node"
+                self.node_root = self.agi_fwk.parent / "agi-node"
                 resource_path = self.env_root / self.agi_resources
             else:
-                self.env_root = self.agi_fwk / "core/env"
-                self.node_root = self.agi_fwk / "core/node"
-                self.cluster_root = self.agi_fwk / "core/cluster"
+                self.env_root = self.agi_fwk / "core/agi-env"
+                self.node_root = self.agi_fwk / "core/agi-node"
+                self.cluster_root = self.agi_fwk / "core/agi-cluster"
                 resource_path = self.env_root / "src/agi_env" / self.agi_resources
             if not self.env_root.exists():
                 raise RuntimeError(f"{self.env_root} do not exist\nYour Agilab installation is not valid")
             self._init_resources(resource_path)
         elif install_type == 2:
             if AgiEnv.debug:
-                self.env_root = self.agi_fwk / "core/env"
-                self.cluster_root = self.agi_fwk / "core/cluster"
-                self.node_root = self.agi_fwk / "core/node"
+                self.env_root = self.agi_fwk / "core/agi-env"
+                self.cluster_root = self.agi_fwk / "core/agi-cluster"
+                self.node_root = self.agi_fwk / "core/agi-node"
             else:
                 self.env_root = list(Path(sys.prefix).rglob('agi_env'))[0]
                 # self.agi_cluster_root = list(Path(sys.prefix).rglob('cluster'))[0]
@@ -362,7 +362,7 @@ class AgiEnv:
             logging.info(f"Could not find any target project app in {self.agi_fwk / 'apps'}.")
 
         self.setup_app = app_abs / "build.py"
-        self.setup_core = self.agi_fwk / "core/node/src/agi_node/agi_dispatcher/build.py"
+        self.setup_core = self.agi_fwk / "core/agi-node/src/agi_node/agi_dispatcher/build.py"
 
         if isinstance(module, Path):
             module_path = module.expanduser().resolve()
