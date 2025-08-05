@@ -41,6 +41,7 @@ from typing import Any, Dict, List, Optional, Union
 
 # External Libraries:
 import numpy as np
+from distributed.worker_state_machine import BaseWorker
 from distutils.sysconfig import get_python_lib
 import psutil
 import humanize
@@ -252,7 +253,10 @@ class BaseWorker(abc.ABC):
 
     @staticmethod
     def _load_module(module_name, module_class):
-        module = __import__(module_name, fromlist=[module_class])
+        try:
+            module = __import__(module_name, fromlist=[module_class])
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(f"module {module_name} is not installed")
         return getattr(module, module_class)
 
     @staticmethod
@@ -278,6 +282,19 @@ class BaseWorker(abc.ABC):
             module_name += '.' + module_name
 
         return BaseWorker._load_module(module_name, module_class)
+
+    @staticmethod
+    def is_cython_installed(env):
+        module_class = env.target_worker_class
+        module_name = env.target_worker + "_cy"
+
+        try:
+           __import__(module_name, fromlist=[module_class])
+
+        except ModuleNotFoundError:
+            return False
+
+        return True
 
     @staticmethod
     async def run(workers={"127.0.0.1": 1}, mode=0, env=None, verbose=None, args=None):

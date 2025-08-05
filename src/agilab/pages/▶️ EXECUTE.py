@@ -925,7 +925,7 @@ if __name__ == '__main__':
                     log_callback=lambda message: update_log(live_log_placeholder, message),
                     venv=project_path
                 )
-                live_log_placeholder.empty()
+                #live_log_placeholder.empty()
                 display_log(stdout, stderr)
                 run_log = stdout
 

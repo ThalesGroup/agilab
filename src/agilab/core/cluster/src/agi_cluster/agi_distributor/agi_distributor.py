@@ -288,8 +288,18 @@ class AGI:
                     - "time": the runtime in seconds (as a float),
                     - "order": the rank order (an integer, 1 for fastest, etc.).
         """
-        AGI._mode_auto = True
         rapids_mode_mask = AGI.RAPIDS_SET if rapids_enabled else AGI.RAPIDS_RESET
+        if not BaseWorker.is_cython_installed(env):
+            await AGI.install(
+                target,
+                env,
+                scheduler=scheduler,
+                workers=workers,
+                verbose=verbose,
+                modes_enabled=AGI.CYTHON_MODE,
+                **args,
+            )
+        AGI._mode_auto = True
         runs = {}
         if env.benchmark.exists():
             os.remove(env.benchmark)
