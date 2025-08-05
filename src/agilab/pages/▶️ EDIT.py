@@ -1112,7 +1112,7 @@ def handle_project_selection():
         "Export",
         type="secondary",
         use_container_width=True,
-        help=f"this will export your project under  {(env.export_apps / env.app).with_suffix(".zip")}",
+        help=f"this will export your project under  {(env.export_apps / env.app).with_suffix('.zip')}",
     ):
         handle_export_project()
 
@@ -1129,8 +1129,9 @@ def handle_project_selection():
     ]
 
     for label, render_fn in sections:
-        if st.checkbox(label, value=False):
+        if st.checkbox(label, value=False, key=label):
             render_fn()
+
 
 
 # helper functions
