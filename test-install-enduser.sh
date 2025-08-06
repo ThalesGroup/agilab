@@ -27,5 +27,5 @@ rm -fr .venv uv.lock
 if [ ! -f pyproject.toml ]; then
     uv init --bare
 fi
-uv add  --upgrade --force-reinstall *.whl *.gz
+uv add --upgrade --force-reinstall *.whl *.gz
 popd

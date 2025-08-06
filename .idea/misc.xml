@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="uv (agi-space)" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="uv (flight_legacy_project)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="uv (flight_trajectory_project)" project-jdk-type="Python SDK" />
 </project>
