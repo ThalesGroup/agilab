@@ -1,8 +1,11 @@
 # Mycode-project Licenses
 | Package Name | License |
 |--------------|---------|
+| agi-cluster |  |
+| agi-env |  |
+| agi-node |  |
 | annotated-types | MIT LICENSE |
-| anyio | MIT LICENSE |
+| anyio | MIT |
 | appnope | BSD LICENSE |
 | argon2-cffi | MIT |
 | argon2-cffi-bindings | MIT |
@@ -22,7 +25,6 @@
 | charset-normalizer | MIT LICENSE |
 | click | BSD-3-CLAUSE |
 | cloudpickle | BSD LICENSE |
-| cluster | GNU LESSER GENERAL PUBLIC LICENSE V2 _LGPLV2_ |
 | comm | BSD LICENSE |
 | cryptography | APACHE-2.0;; BSD-3-CLAUSE |
 | cython | APACHE SOFTWARE LICENSE |
@@ -31,7 +33,6 @@
 | decorator | BSD LICENSE |
 | defusedxml | PYTHON SOFTWARE FOUNDATION LICENSE |
 | distributed | BSD LICENSE |
-| env | BSD LICENSE |
 | executing | MIT LICENSE |
 | fastjsonschema | BSD LICENSE |
 | fqdn | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
@@ -42,6 +43,7 @@
 | humanize | MIT License |
 | idna | BSD LICENSE |
 | inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| invoke | BSD LICENSE |
 | ipykernel | BSD 3-CLAUSE LICENSE |
 | ipython | BSD LICENSE |
 | ipython-pygments-lexers | BSD LICENSE |
@@ -81,7 +83,6 @@
 | nbconvert | BSD LICENSE |
 | nbformat | BSD LICENSE |
 | nest-asyncio | BSD LICENSE |
-| node | BSD LICENSE |
 | notebook | BSD LICENSE |
 | notebook-shim | BSD LICENSE |
 | numba | BSD LICENSE |
@@ -90,7 +91,7 @@
 | packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | pandas | BSD LICENSE |
 | pandocfilters | BSD LICENSE |
-| paramiko | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
+| paramiko | LGPL-2.1 |
 | parso | MIT LICENSE |
 | partd | BSD |
 | pathspec | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
