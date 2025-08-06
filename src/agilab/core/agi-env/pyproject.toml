@@ -29,7 +29,6 @@ keywords = [
 
 dependencies = [
     "humanize",
-    "pathspec",
     "pydantic",
     "python-dotenv",
     "setuptools",
@@ -49,7 +48,7 @@ Tracker = "https://github.com/ThalesGroup/agilab/issue"
 
 [dependency-groups]
 dev = [
-    "agi-env", "black", "pytest", "pytest-asyncio", "licensecheck", "pytest-cov"
+    "black", "pytest", "pytest-asyncio", "licensecheck", "pytest-cov"
 ]
 
 [tool.uv.sources.agi-env]
