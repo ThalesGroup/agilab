@@ -49,7 +49,7 @@ dependencies = [
     "numba",
     "py7zr",
     "python-dotenv",
-    "tomli",
+    "tomlkit",
     "logging",
     "dask[distributed]",
     "wheel",

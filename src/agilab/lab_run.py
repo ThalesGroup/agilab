@@ -14,7 +14,6 @@
 import argparse
 import os
 import sys
-from os import mkdir
 from pathlib import Path
 import streamlit.web.cli as stcli
 
