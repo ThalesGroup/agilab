@@ -78,3 +78,8 @@ popd
 
 # Final Message
 echo -e "${GREEN}Installation of apps complete!${NC}"
+
+# Patch PyCharm interpreter settings in workspace.xml
+echo -e "${BLUE}Patching PyCharm workspace.xml interpreter settings...${NC}"
+uv run python patch_workspace.py
+
