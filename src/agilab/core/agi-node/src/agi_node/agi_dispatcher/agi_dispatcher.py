@@ -449,7 +449,6 @@ class BaseWorker(abc.ABC):
         # Fréquence de l'horloge du CPU
         cpu_frequency = [psutil.cpu_freq().current / 10 ** 3]
 
-        # Vitesse du réseau
         # path = BaseWorker.share_path
         if not BaseWorker.share_path:
             path = tempfile.gettempdir()
