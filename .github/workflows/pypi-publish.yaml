@@ -40,8 +40,8 @@ jobs:
       - name: Run tests
         run: |
           set -eux
-          pushd "src/agilab/core"
-          uv run --dev --project cluster python -m pytest --maxfail=5 --disable-warnings -v
+          pushd "src/agilab/core/agi-core"
+          uv run --dev --project ../agi-cluster python -m pytest --maxfail=5 --disable-warnings -v
           popd
 
   publish-agi-core:
