@@ -168,10 +168,10 @@ def main():
         cluster_credentials = ""
 
     # -------------------- Setup AgiEnv -------------------- #
-    env.set_env_var("OPENAI_API_KEY", openai_api_key)
-    env.set_env_var("CLUSTER_CREDENTIALS", cluster_credentials)
-    env.set_env_var("INSTALL_TYPE", args.install_type)
-    env.set_env_var("APPS_DIR", args.apps_dir)
+    AgiEnv.set_env_var("OPENAI_API_KEY", openai_api_key)
+    AgiEnv.set_env_var("CLUSTER_CREDENTIALS", cluster_credentials)
+    AgiEnv.set_env_var("INSTALL_TYPE", args.install_type)
+    AgiEnv.set_env_var("APPS_DIR", args.apps_dir)
 
     # -------------------- Navigation and Page Rendering -------------------- #
     st.set_page_config(
