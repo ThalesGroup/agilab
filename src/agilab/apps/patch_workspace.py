@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-WORKSPACE_FILE = "workspace.xml"
+WORKSPACE_FILE = "../../../.idea/workspace.xml"
 PWD = Path.cwd()
 DEFAULT_PROJECT = "agi-space"
 INCLUDED_APPS = [
@@ -80,7 +80,7 @@ for component in root.findall('.//component[@name="RunManager"]'):
 
 if changed:
     tree.write(WORKSPACE_FILE, encoding="utf-8", xml_declaration=True)
-    print("../../../.idea/workspace.xml patched.")
+    print("workspace.xml patched.")
 else:
     print("Nothing to patch: all configs already have SDK_HOME and SDK_NAME set.")
 
