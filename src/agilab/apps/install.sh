@@ -33,11 +33,20 @@ echo -e "${BLUE}Retrieving all apps...${NC}"
 
 apps=()
 
+# Ensure all INCLUDED_APPS exist, create symlinks if missing
+for app in "${INCLUDED_APPS[@]}"; do
+    app_path="src/agilab/src/apps/$app"
+    target_path="../thales-agilab/src/apps/$app"
+    if [ ! -d "$app_path" ]; then
+        echo -e "${BLUE}App '$app_path' does not exist. Creating symlink to '$target_path'...${NC}"
+        ln -sf "$target_path" "$app_path"
+    fi
+done
+
 # Loop through each directory ending with '/'
 for dir in $1/*/; do
     if [ -d "$dir" ]; then
         dir_name=$(basename "$dir")
-
         # Only add the directory if its name is in the INCLUDED_APPS list and it matches the pattern '_project'
         if [[ " ${INCLUDED_APPS[*]} " == *" $dir_name "* ]] && [[ "$dir_name" =~ _project$ ]]; then
             apps+=("$dir_name")
@@ -66,7 +75,6 @@ for app in "${apps[@]}"; do
     fi
 done
 popd
-
 
 # Final Message
 echo -e "${GREEN}Installation of apps complete!${NC}"
