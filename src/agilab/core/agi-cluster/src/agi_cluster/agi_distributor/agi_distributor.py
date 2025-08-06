@@ -792,9 +792,9 @@ class AGI:
         shutil.copy(file, wenv_abs.parent)
 
         if has_rapids_hw:
-            env.set_env_var(ip, "has_rapids_hw")
+            AgiEnv.set_env_var(ip, "has_rapids_hw")
         else:
-            env.set_env_var(ip, "no_rapids_hw")
+            AgiEnv.set_env_var(ip, "no_rapids_hw")
 
         logging.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
@@ -808,7 +808,7 @@ class AGI:
         cmd = f"{uv} run python {cli} platform"
         res = await AgiEnv.run(cmd, wenv_abs.parent)
         pyvers = res.split(':')[-1].strip()
-        env.set_env_var(f"{ip}_PYTHON_VERSION", pyvers)
+        AgiEnv.set_env_var(f"{ip}_PYTHON_VERSION", pyvers)
         await AgiEnv.run(f"{cmd_prefix}{env.uv} python install {pyvers}", wenv_abs)
 
         # cmd = (
@@ -854,7 +854,7 @@ class AGI:
 
             # 1) Check if need to export path (linux and macos)
             cmd_prefix = await AGI._detect_export_cmd(ip)
-            env.set_env_var(f"{ip}_CMD_PREFIX", cmd_prefix)
+            AgiEnv.set_env_var(f"{ip}_CMD_PREFIX", cmd_prefix)
             uv_is_installed = True
 
             # 2) Check uv
@@ -889,7 +889,7 @@ class AGI:
             cmd = f"{uv} run python {cli} platform"
             res =  await AGI.exec_ssh(ip, cmd)
             pyvers_worker = res.split(':')[-1]
-            env.set_env_var(f"{ip}_PYTHON_VERSION", pyvers_worker)
+            AgiEnv.set_env_var(f"{ip}_PYTHON_VERSION", pyvers_worker)
             await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers_worker}")
 
             await AGI._kill(ip, force=True)
@@ -998,9 +998,9 @@ class AGI:
         shutil.copy2(file, wenv_abs)
 
         if has_rapids_hw:
-            env.set_env_var(ip, "has_rapids_hw")
+            AgiEnv.set_env_var(ip, "has_rapids_hw")
         else:
-            env.set_env_var(ip, "no_rapids_hw")
+            AgiEnv.set_env_var(ip, "no_rapids_hw")
 
         logging.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
@@ -1136,7 +1136,7 @@ class AGI:
             has_rapids_hw = (result != "") and AGI._rapids_enabled
             env.has_rapids_hw = has_rapids_hw
             if has_rapids_hw:
-                env.set_env_var(ip, "has_rapids_hw")
+                AgiEnv.set_env_var(ip, "has_rapids_hw")
             logging.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
         # unzip egg to get src/

@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="agilab run (dev)" type="PythonConfigurationType" factoryName="Python">
+  <configuration default="false" name="agilab run" type="PythonConfigurationType" factoryName="Python">
     <module name="agilab" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
@@ -9,13 +9,13 @@
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="SDK_NAME" value="uv (agi-space)" />
-    <option name="WORKING_DIRECTORY" value="$ProjectFileDir$" />
+    <option name="WORKING_DIRECTORY" value="$ProjectFileDir$/../agi-space" />
     <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="streamlit" />
-    <option name="PARAMETERS" value="run $ProjectFileDir$/../agi-space/.venv/lib/python3.13/site-packages/agilab/AGILAB.py -- --openai-api-key &quot;your-key&quot; --apps-dir $ProjectFileDir$/../agi-space/.venv/lib/python3.13/site-packages/agilab/apps" />
+    <option name="PARAMETERS" value="run $ProjectFileDir$/../agi-space/.venv/lib/python3.13/site-packages/agilab/AGILAB.py -- --openai-api-key &quot;your-key&quot;" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="true" />
