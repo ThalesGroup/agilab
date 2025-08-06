@@ -8,12 +8,8 @@
       <module fileurl="file://$PROJECT_DIR$/src/agilab/core/agi-node/.idea/agi-node.iml" filepath="$PROJECT_DIR$/src/agilab/core/agi-node/.idea/agi-node.iml" />
       <module fileurl="file://$PROJECT_DIR$/../agi-space/.idea/agi-space.iml" filepath="$PROJECT_DIR$/../agi-space/.idea/agi-space.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/agilab.iml" filepath="$PROJECT_DIR$/.idea/agilab.iml" />
-      <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/flight_legacy_project/.idea/flight_legacy_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/flight_legacy_project/.idea/flight_legacy_project.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/flight_project/.idea/flight_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/flight_project/.idea/flight_project.iml" />
-      <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/flight_trajectory_project/.idea/flight_trajectory_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/flight_trajectory_project/.idea/flight_trajectory_project.iml" />
-      <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/link_sim_project/.idea/link_sim_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/link_sim_project/.idea/link_sim_project.iml" />
       <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/mycode_project/.idea/mycode_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/mycode_project/.idea/mycode_project.iml" />
-      <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/sat_trajectory_project/.idea/sat_trajectory_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/sat_trajectory_project/.idea/sat_trajectory_project.iml" />
     </modules>
   </component>
 </project>
