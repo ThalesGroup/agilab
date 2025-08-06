@@ -279,8 +279,7 @@ class AgiEnv:
         self.dist_rel = wenv_rel / 'dist'
         wenv_abs = home_abs / wenv_rel
         self.wenv_abs = wenv_abs
-        if not self.wenv_abs.exists():
-            os.makedirs(self.wenv_abs, exist_ok=True)
+        os.makedirs(self.wenv_abs, exist_ok=True)
 
         dist_abs = wenv_abs / 'dist'
         dist = normalize_path(dist_abs)
