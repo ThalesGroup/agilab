@@ -32,14 +32,14 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}Retrieving all apps...${NC}"
 
 apps=()
-
+echo $(pwd)
 # Ensure all INCLUDED_APPS exist, create symlinks if missing
 for app in "${INCLUDED_APPS[@]}"; do
-    app_path="src/agilab/src/apps/$app"
-    target_path="../thales-agilab/src/apps/$app"
+    app_path="$app"
+    target_path="../../../../thales-agilab/src/agilab/apps/$app"
     if [ ! -d "$app_path" ]; then
         echo -e "${BLUE}App '$app_path' does not exist. Creating symlink to '$target_path'...${NC}"
-        ln -sf "$target_path" "$app_path"
+        echo ln -sf "$target_path" "$app_path"
     fi
 done
 
