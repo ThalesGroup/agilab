@@ -80,7 +80,7 @@ for component in root.findall('.//component[@name="RunManager"]'):
 
 if changed:
     tree.write(WORKSPACE_FILE, encoding="utf-8", xml_declaration=True)
-    print("workspace.xml patched.")
+    print("../../../.idea/workspace.xml patched.")
 else:
     print("Nothing to patch: all configs already have SDK_HOME and SDK_NAME set.")
 
