@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="mycode_lib gen" type="PythonConfigurationType" factoryName="Python" folderName="mycode">
-    <module name="mycode_worker" />
+  <configuration default="false" name="mycode_lib gen" type="PythonConfigurationType" factoryName="Python" folder="mycode" folderName="mycode">
+    <module name="mycode_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
@@ -15,7 +15,7 @@
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="$USER_HOME$/wenv/mycode_worker/build.py" />
-    <option name="PARAMETERS" value="build_ext --packages &quot;base_worker, dag_worker&quot; pandas_worker&quot; polars_worker&quot; agent_worker&quot;-b $USER_HOME$/wenv/mycode_worker" />
+    <option name="PARAMETERS" value="build_ext --packages &quot;dag_worker, pandas_worker, polars_worker, agent_worker&quot; -b $USER_HOME$/wenv/mycode_worker" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />

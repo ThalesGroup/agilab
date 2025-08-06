@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="mycode test" type="PythonConfigurationType" factoryName="Python" folderName="mycode">
+  <configuration default="false" name="mycode test" type="PythonConfigurationType" factoryName="Python" folder="mycode" folderName="mycode">
     <module name="mycode_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
