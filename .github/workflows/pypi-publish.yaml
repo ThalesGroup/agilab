@@ -32,7 +32,7 @@ jobs:
       - name: Sync and build uv projects
         run: |
           set -eux
-          for dir in env node cluster agi-core; do
+          for dir in agi-env agi-node agi-cluster agi-core; do
             pushd "src/agilab/core/$dir"
             uv sync --dev
             uv pip install -e .
