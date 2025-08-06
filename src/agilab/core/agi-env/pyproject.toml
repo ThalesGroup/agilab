@@ -53,7 +53,7 @@ dev = [
 ]
 
 [tool.uv.sources.agi-env]
-path="."
+path=".../agi-env"
 editable = true
 
 [tool.setuptools.data-files]
