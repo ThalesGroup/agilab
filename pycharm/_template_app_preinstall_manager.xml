@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="{APP}_preinstall test" type="PythonConfigurationType" factoryName="Python">
+  <configuration default="false" name="{APP}_preinstall test" type="PythonConfigurationType" factoryName="Python" folder="{APP}">
     <module name="{APP}_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
