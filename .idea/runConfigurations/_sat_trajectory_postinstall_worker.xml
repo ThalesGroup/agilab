@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="sat_trajectory_postinstall test" type="PythonConfigurationType" factoryName="Python" folderName="sat_trajectory">
-    <module name="sat_trajectory_worker" />
+  <configuration default="false" name="sat_trajectory_postinstall test" type="PythonConfigurationType" factoryName="Python" folder="sat_trajectory" folderName="sat_trajectory">
+    <module name="sat_trajectory_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />

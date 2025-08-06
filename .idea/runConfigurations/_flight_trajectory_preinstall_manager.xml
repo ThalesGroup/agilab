@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="flight_trajectory_preinstall test" type="PythonConfigurationType" factoryName="Python" folderName="flight_trajectory">
-    <module name="flight_trajectory_worker" />
+  <configuration default="false" name="flight_trajectory_preinstall test" type="PythonConfigurationType" factoryName="Python" folder="flight_trajectory" folderName="flight_trajectory">
+    <module name="flight_trajectory_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />

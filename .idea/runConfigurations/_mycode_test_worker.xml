@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="mycode test worker" type="PythonConfigurationType" factoryName="Python" folderName="mycode">
-    <module name="mycode_worker" />
+  <configuration default="false" name="mycode test worker" type="PythonConfigurationType" factoryName="Python" folder="mycode" folderName="mycode">
+    <module name="mycode_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />

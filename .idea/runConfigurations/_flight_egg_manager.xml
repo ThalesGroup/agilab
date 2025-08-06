@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="flight_egg gen" type="PythonConfigurationType" factoryName="Python" folderName="flight">
+  <configuration default="false" name="flight_egg gen" type="PythonConfigurationType" factoryName="Python" folder="flight" folderName="flight">
     <module name="flight_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />

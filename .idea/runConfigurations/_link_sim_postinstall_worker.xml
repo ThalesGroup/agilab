@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="link_sim_postinstall test" type="PythonConfigurationType" factoryName="Python" folderName="link_sim">
-    <module name="link_sim_worker" />
+  <configuration default="false" name="link_sim_postinstall test" type="PythonConfigurationType" factoryName="Python" folder="link_sim" folderName="link_sim">
+    <module name="link_sim_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />

@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="link_sim run" type="PythonConfigurationType" factoryName="Python" folderName="link_sim">
+  <configuration default="false" name="link_sim run" type="PythonConfigurationType" factoryName="Python" folder="link_sim" folderName="link_sim">
     <module name="link_sim_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
