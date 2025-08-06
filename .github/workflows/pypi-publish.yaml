@@ -32,12 +32,10 @@ jobs:
       - name: Sync and build uv projects
         run: |
           set -eux
-          for dir in agi-env agi-node agi-cluster agi-core; do
-            pushd "src/agilab/core/$dir"
-            uv sync --dev
-            uv pip install -e .
-            popd
-          done
+          pushd "src/agilab/core/agi-core"
+          uv sync --dev
+          uv pip install -e .
+          popd
 
       - name: Run tests
         run: |
