@@ -123,14 +123,14 @@ def test_exec_mono_process(worker_csv):
 
 def test_exec_multi_process(worker_csv):
     worker_csv.mode = 1
-    workers_tree = {0: [[100, 200]]}
+    workers_tree = {0: [[100, 102]]}
     workers_tree_info = None
     worker_csv.last_df = None
     worker_csv.exec_multi_process(workers_tree, workers_tree_info)
     result_df = worker_csv.last_df
     assert result_df is not None, "Expected a DataFrame from exec_multi_process."
     assert len(result_df) == 2, f"Expected DataFrame length 2, got {len(result_df)}."
-    assert result_df["col"].tolist() == [100, 200], "Column 'col' does not match expected values."
+    assert result_df["col"].tolist() == [100, 102], "Column 'col' does not match expected values."
     assert "worker_id" in result_df.columns, "Expected 'worker_id' in the DataFrame columns."
 
 def test_works_method(worker_csv):
