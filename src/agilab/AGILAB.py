@@ -14,10 +14,15 @@ def quick_logo(resources_path: Path):
         img_data = get_base64_of_image(resources_path / "agilab_logo.png")
         img_src = f"data:image/png;base64,{img_data}"
         st.markdown(
-            f"""<div style='text-align:center; margin-top:40px;'>
-                   <img src="{img_src}" width="120" alt="AGILAB logo"/>
-                   <h1 style="color:#333;margin-top:16px">Welcome to AGILAB</h1>
-               </div>""", unsafe_allow_html=True
+            f"""<div style="background-color: #333333; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 800px; margin: 20px auto;">
+                    <div style="display: flex; align-items: center; justify-content: center;">
+                        <h1 style="margin: 0; padding: 0 10px 0 0;">Welcome to</h1>
+                        <img src="{img_src}" alt="AGI Logo" style="width:160px; margin-bottom: 20px;">
+                    </div>
+                    <div style="text-align: center;">
+                        <strong style="color: black;">a step further toward AGI</strong>
+                    </div>
+                </div>""", unsafe_allow_html=True
         )
     except Exception as e:
         st.info(str(e))
@@ -38,15 +43,6 @@ def display_landing_page(resources_path: Path):
     img_data = get_base64_of_image(resources_path / "agilab_logo.png")
     img_src = f"data:image/png;base64,{img_data}"
     md_content = f"""
-    <div style="background-color: #333333; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 800px; margin: 20px auto;">
-      <div style="display: flex; align-items: center; justify-content: center;">
-        <h1 style="margin: 0; padding: 0 10px 0 0;">Welcome to</h1>
-        <img src="{img_src}" alt="AGI Logo" style="width:160px; margin-bottom: 20px;">
-      </div>
-      <div style="text-align: center;">
-        <strong style="color: black;">a step further toward AGI</strong>
-      </div>
-    </div>
     <div class="uvp-highlight">
       <strong>AGILAB</strong>:
     <ul>
