@@ -1,6 +1,6 @@
 [project]
 name = "mycode_project"
-version = "0.4.01"
+version = "0.5.0"
 description = ""
 requires-python = ">=3.11"
 readme = "README.md"
