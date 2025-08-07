@@ -6,7 +6,6 @@
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
       <excludeFolder url="file://$MODULE_DIR$/src/agilab/apps/mycode_project/.idea" />
     </content>
-    <orderEntry type="jdk" jdkName="uv (agilab)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="agilab" />
     <orderEntry type="module" module-name="agi-space" />
