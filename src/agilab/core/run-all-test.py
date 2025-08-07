@@ -18,6 +18,10 @@ if cluster_src not in paths:
 if node_src not in paths:
     paths.insert(0, node_src)
 
+agilab_src = str((Path(__file__).parent.parent.parent.parent / "src").resolve())
+if agilab_src not in paths:
+    paths.insert(0, agilab_src)
+
 os.environ["PYTHONPATH"] = os.pathsep.join(paths)
 
 def main():
@@ -34,7 +38,7 @@ def main():
         sys.exit(1)
 
     cov_modules = [
-        "agi_node.agi_distributor",
+        "agi_cluster.agi_distributor",
         "agi_node.agi_dispatcher",
         "agi_node.agent_worker",
         "agi_node.dag_worker",
