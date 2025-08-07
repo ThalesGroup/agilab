@@ -1,0 +1,59 @@
+[project]
+name = "your_dag_project"
+version = "0.4.01"
+description = ""
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    {name = "your name", email = "your email"}
+]
+
+dependencies = [
+ "setuptools",
+    "cython",
+    "parso",
+    "py7zr",
+    "python-dotenv",
+    "ipython",
+    "psutil",
+    "agi-env",
+    "agi-node",
+    "agi-cluster",
+]
+
+[dependency-groups]
+dev = [
+    "black",
+    "pytest",
+    "pytest-cov",
+    "pytest-local-badge",
+    "pytest-asyncio",
+    "licensecheck",
+    "your_dag_project",
+]
+
+[tool.uv.sources]
+agi-env = {path = "../../core/agi-env", editable = true}
+agi-node = {path = "../../core/agi-node", editable = true}
+agi-cluster = {path = "../../core/agi-cluster", editable = true}
+
+[tool.uv.sources.your_dag_project]
+workspace = true
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.data-files]
+pyprojects = [
+    "src/*.ipynb",
+    "src/*.json",
+    "src/*.toml",
+    "src/*/*.py*",
+]
+
+[tool.mypy]
+mypy_path = [
+    "stubs",
+]
+disallow_untyped_defs = false
+ignore_missing_imports = true
