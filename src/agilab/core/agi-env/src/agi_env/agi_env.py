@@ -502,16 +502,45 @@ class AgiEnv:
                 except Exception as e:
                     print(f"Warning: Could not copy {item} → {dst_item}: {e}")
 
-    def copy_missing(self, src: Path, dst: Path):
+    def copy_missing(self, src: Path, dst: Path, max_workers=8):
+        """
+        Copy missing files/directories from src to dst, skipping files/dirs that already exist at dst.
+        Robust: skips any missing src_item, logs a warning, never crashes.
+        """
         dst.mkdir(parents=True, exist_ok=True)
+        to_copy = []
+        dirs = []
+
         for item in src.iterdir():
             src_item = item
             dst_item = dst / item.name
+            if not src_item.exists():
+                print(f"[WARN] Source item missing: {src_item}, skipping")
+                continue
             if src_item.is_dir():
-                self.copy_missing(src_item, dst_item)
+                dirs.append((src_item, dst_item))
             else:
-                if not dst_item.exists():
+                to_copy.append((src_item, dst_item))
+
+        def safe_copy(args):
+            src_item, dst_item = args
+            if src_item.exists():
+                try:
                     shutil.copy2(src_item, dst_item)
+                except Exception as e:
+                    print(f"[WARN] Could not copy {src_item} → {dst_item}: {e}")
+            else:
+                print(f"[WARN] Source file missing (skipped): {src_item}")
+
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            list(executor.map(safe_copy, to_copy))
+
+        for src_dir, dst_dir in dirs:
+            if src_dir.exists():
+                self.copy_missing(src_dir, dst_dir, max_workers=max_workers)
+            else:
+                print(f"[WARN] Source dir missing (skipped): {src_dir}")
 
     def _update_env_file(updates: dict):
         env_file = AgiEnv.resource_path / ".env"
@@ -772,7 +801,7 @@ class AgiEnv:
 
         self.gitignore_file = self.app_abs / ".gitignore"
         dest = AgiEnv.resource_path
-        shutil.copytree(self.agilab_src / "resources", dest, dirs_exist_ok=True)
+        shutil.copytree(self.agilab_src / "src/agilab/resources", dest, dirs_exist_ok=True)
 
 
     @staticmethod

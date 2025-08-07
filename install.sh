@@ -242,7 +242,7 @@ install_apps() {
 
     echo -e "${BLUE}Installing Apps...${NC}"
     pushd "$apps_dir" > /dev/null
-      ./install.sh "$apps_dir" "1"
+    ./install.sh "$apps_dir" "1"
     popd  > /dev/null
 }
 
@@ -272,6 +272,12 @@ write_env_values() {
     echo -e "${GREEN}.env file updated.${NC}"
 }
 
+install_enduser() {
+    chmod +x "test-install-enduser.sh"
+    echo -e "${BLUE}Installing Apps...${NC}"
+    ./test-install-enduser.sh "$apps_dir" "1"
+}
+
 # ================================
 # Script Execution
 # ================================
@@ -285,5 +291,6 @@ update_environment
 install_core
 write_env_values
 install_apps
+install_enduser
 
 echo -e "${GREEN}Installation complete!${NC}"
