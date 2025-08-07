@@ -1,3 +1,16 @@
+# BSD 3-Clause License
+#
+# Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+# 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or THALES SIX GTS France SAS, may be used to endorse or promote products derived from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 from IPython.core.ultratb import FormattedTB
 import ast
 import asyncio
@@ -260,7 +273,10 @@ class AgiEnv:
                 src_apps = self.agilab_src / "apps"
                 #apps_dir = Path(self.agilab_src).parents[4] / "apps"
                 if not apps_dir.exists():
-                    shutil.copytree(src_apps, apps_dir, dirs_exist_ok=True)
+                    if src_apps.exists():
+                        self.copy_existing_projects(src_apps, apps_dir)
+                    else:
+                        print(f"Warning: {src_apps} does not exist, nothing to copy!")
                 else:
                     self.copy_missing(src_apps, apps_dir)
                 src_apps = apps_dir
@@ -473,6 +489,18 @@ class AgiEnv:
                     return Path(before) / sep
         logging.info("Falling back to current working directory")
         return Path(os.getcwd())
+
+    def copy_existing_projects(self, src_apps: Path, dst_apps: Path):
+        dst_apps.mkdir(parents=True, exist_ok=True)
+        for item in src_apps.iterdir():
+            if item.is_dir():
+                dst_item = dst_apps / item.name
+                try:
+                    shutil.copytree(item, dst_item, dirs_exist_ok=True)
+                except FileExistsError:
+                    pass  # Already exists, that's fine
+                except Exception as e:
+                    print(f"Warning: Could not copy {item} → {dst_item}: {e}")
 
     def copy_missing(self, src: Path, dst: Path):
         dst.mkdir(parents=True, exist_ok=True)
