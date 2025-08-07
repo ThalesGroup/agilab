@@ -216,7 +216,7 @@ class AgiEnv:
                 self.env_root = list(Path(sys.prefix).rglob('agi_env'))[0]
                 # self.agi_cluster_root = list(Path(sys.prefix).rglob('cluster'))[0]
         elif install_type == 0:
-            head, sep, _ =  __file__.partition("agi-env")
+            head, sep, _ =  __file__.partition("agi_env")
             if not sep:
                 raise ValueError("site-packages not in", __file__)
             core = Path(head)
