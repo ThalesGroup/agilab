@@ -17,7 +17,6 @@ def quick_logo(resources_path: Path):
             f"""<div style='text-align:center; margin-top:40px;'>
                    <img src="{img_src}" width="120" alt="AGILAB logo"/>
                    <h1 style="color:#333;margin-top:16px">Welcome to AGILAB</h1>
-                   <p>Loading environment, please wait...</p>
                </div>""", unsafe_allow_html=True
         )
     except Exception as e:
