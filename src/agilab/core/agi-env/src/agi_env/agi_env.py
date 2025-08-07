@@ -20,6 +20,7 @@ from pathspec.patterns import GitWildMatchPattern
 import py7zr
 import urllib.request
 import inspect
+from concurrent.futures import ThreadPoolExecutor
 
 # Get constructor parameters of FormattedTB
 _sig = inspect.signature(FormattedTB.__init__).parameters
@@ -259,7 +260,7 @@ class AgiEnv:
                 src_apps = self.agilab_src / "apps"
                 #apps_dir = Path(self.agilab_src).parents[4] / "apps"
                 if not apps_dir.exists():
-                    shutil.copytree(src_apps, apps_dir)
+                    shutil.copytree(src_apps, apps_dir, dirs_exist_ok=True)
                 else:
                     self.copy_missing(src_apps, apps_dir)
                 src_apps = apps_dir
@@ -705,16 +706,32 @@ class AgiEnv:
 
             file.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
-    def copy_missing(self, src: Path, dst: Path):
+    @staticmethod
+    def _copy_file(src_item, dst_item):
+        if not dst_item.exists():
+            shutil.copy2(src_item, dst_item)
+
+    def copy_missing(self, src: Path, dst: Path, max_workers=8):
         dst.mkdir(parents=True, exist_ok=True)
+        to_copy = []
+        dirs = []
+
         for item in src.iterdir():
             src_item = item
             dst_item = dst / item.name
             if src_item.is_dir():
-                self.copy_missing(src_item, dst_item)
+                dirs.append((src_item, dst_item))
             else:
-                if not dst_item.exists():
-                    shutil.copy2(src_item, dst_item)
+                to_copy.append((src_item, dst_item))
+
+        # Parallel file copy
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            list(executor.map(lambda args: AgiEnv._copy_file(*args), to_copy))
+
+        # Recurse into directories
+        for src_dir, dst_dir in dirs:
+            self.copy_missing(src_dir, dst_dir, max_workers=max_workers)
+
 
     def _init_apps(self):
         app_settings_file = self.app_src / "app_settings.toml"

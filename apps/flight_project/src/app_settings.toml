@@ -1,0 +1,24 @@
+[args]
+data_source = "file"
+path = "data/flight/dataset"
+files = "csv/*"
+nfile = 2
+nskip = 0
+nread = 0
+sampling_rate = 1.0
+datemin = "2020-01-01"
+datemax = "2021-01-01"
+output_format = "csv"
+
+[views]
+view_module = [
+    "maps",
+    "maps_3d",
+]
+
+[cluster]
+verbose = true
+cython = true
+cluster_enabled = false
+rapids = false
+pool = false
