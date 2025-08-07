@@ -33,15 +33,22 @@ echo -e "${BLUE}Retrieving all apps...${NC}"
 
 apps=()
 echo $(pwd)
-# Ensure all INCLUDED_APPS exist, create symlinks if missing
+# Ensure all INCLUDED_APPS exist, create symlinks if missing or if symlink
 for app in "${INCLUDED_APPS[@]}"; do
     app_path="$app"
     target_path="../../../../thales-agilab/src/agilab/apps/$app"
-    if [ ! -d "$app_path" ]; then
+    if [ -L "$app_path" ]; then
+        echo -e "${BLUE}App '$app_path' is a symlink. Removing and recreating symlink to '$target_path'...${NC}"
+        rm "$app_path"
+        ln -s "$target_path" "$app_path"
+    elif [ ! -e "$app_path" ]; then
         echo -e "${BLUE}App '$app_path' does not exist. Creating symlink to '$target_path'...${NC}"
-        echo ln -sf "$target_path" "$app_path"
+        ln -s "$target_path" "$app_path"
+    else
+        echo -e "${GREEN}App '$app_path' exists and is not a symlink. Leaving untouched.${NC}"
     fi
 done
+
 
 # Loop through each directory ending with '/'
 for dir in $1/*/; do
