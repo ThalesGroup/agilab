@@ -1,4 +1,4 @@
 include src/agilab/apps/*/*
 include src/resources/*/*.*
-recursive-exclude src build
+recursive-exclude src/agilab/apps/ build/**
 
