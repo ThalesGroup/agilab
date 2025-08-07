@@ -46,7 +46,7 @@ def display_landing_page(resources_path: Path):
     <div class="uvp-highlight">
       <strong>AGILAB</strong>:
     <ul>
-      Revolutionizing Data Science Experimentation with Zero Integration Hassles. As a comprehensive framework built on 50KLOC of pure Python and powered by Gen AI and ML, AGILAB scales effortlessly—from embedded systems to the cloud—empowering seamless collaboration on data insights and predictive modeling.
+      Revolutionizing Data Science Experimentation with Zero Integration Hassles. As a comprehensive framework built on pure Python and powered by Gen AI and ML, AGILAB scales effortlessly—from embedded systems to the cloud—empowering seamless collaboration on data insights and predictive modeling.
     </ul>
     </div>
     <div class="uvp-highlight">
