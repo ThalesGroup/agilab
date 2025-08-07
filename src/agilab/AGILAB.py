@@ -105,18 +105,27 @@ def page(env):
 # ------------------------- Main Entrypoint -------------------------
 
 def main():
-    # ----- Show fast first display -----
+    from agilab.pagelib import get_about_content
+    st.set_page_config(menu_items=get_about_content(), layout="wide")
     resources_path = Path(__file__).parent / "resources"
-    fast_landing(resources_path)
     st.session_state.setdefault("first_run", True)
 
-    # --------- Heavy init under spinner ---------
-    with st.spinner("Initializing environment..."):
-        if st.session_state["first_run"]:
-            from agilab.pagelib import activate_mlflow, get_about_content
+    if st.session_state["first_run"]:
+        # Custom style (background)
+        st.markdown(
+            """<style>
+            body { background: #f6f8fa !important; }
+            </style>""",
+            unsafe_allow_html=True)
+        # Large logo/banner
+        quick_logo(resources_path)
+        # Full intro/landing content
+        display_landing_page(resources_path)
+        with st.spinner("Initializing environment..."):
+            from agilab.pagelib import activate_mlflow
             from agi_env import AgiEnv
+            import argparse
 
-            # --- Argument parsing (fast, but let's keep outside render loop) ---
             parser = argparse.ArgumentParser(description="Run the AGI Streamlit App with optional parameters.")
             parser.add_argument("--cluster-ssh-credentials", type=str, help="Cluster credentials (username:password)", default=None)
             parser.add_argument("--openai-api-key", type=str, help="OpenAI API key (mandatory)", default=None)
@@ -145,30 +154,23 @@ def main():
             AgiEnv.set_env_var("INSTALL_TYPE", args.install_type)
             AgiEnv.set_env_var("APPS_DIR", args.apps_dir)
 
-            # --------- Page config (just once) ---------
-            st.set_page_config(
-                menu_items=get_about_content(),
-                layout="wide"
-            )
-
-            # Indicate init is done; next rerun will show the real landing page
             st.session_state["first_run"] = False
             st.rerun()
+        return  # Don't continue
 
-    # ------------ Full landing, once ready ------------
-    if not st.session_state["first_run"]:
-        env = st.session_state['env']
-        # Page navigation: you can keep your page logic here
-        if "current_page" not in st.session_state:
-            st.session_state.current_page = "AGILAB"
-        if st.session_state.current_page == "AGILAB":
-            page(env)
-        elif st.session_state.current_page == "▶️ EDIT":
-            import importlib
-            page_module = importlib.import_module("pages.▶️ EDIT")
-            page_module.main()
-        else:
-            page(env)
+    # --- Fully initialized, show main UI only ---
+    env = st.session_state['env']
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = "AGILAB"
+    if st.session_state.current_page == "AGILAB":
+        page(env)
+    elif st.session_state.current_page == "▶️ EDIT":
+        import importlib
+        page_module = importlib.import_module("pages.▶️ EDIT")
+        page_module.main()
+    else:
+        page(env)
+
 
 # ----------------- Run App -----------------
 if __name__ == "__main__":
