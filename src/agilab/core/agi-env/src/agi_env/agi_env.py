@@ -766,7 +766,13 @@ class AgiEnv:
     @staticmethod
     def _copy_file(src_item, dst_item):
         if not dst_item.exists():
-            shutil.copy2(src_item, dst_item)
+            if not src_item.exists():
+                print(f"[WARN] Source file missing (skipped): {src_item}")
+                return
+            try:
+                shutil.copy2(src_item, dst_item)
+            except Exception as e:
+                print(f"[WARN] Could not copy {src_item} → {dst_item}: {e}")
 
     def copy_missing(self, src: Path, dst: Path, max_workers=8):
         dst.mkdir(parents=True, exist_ok=True)
