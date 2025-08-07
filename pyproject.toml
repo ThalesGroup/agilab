@@ -114,8 +114,7 @@ exclude = [
 agilab = [
     "src/*.toml",
     "src/*.ipynb",
-    "src/resources/*",
-    "src/resources/.agilab/*"
+    "resources/*",
 ]
 
 [tool.mypy]
