@@ -110,11 +110,12 @@ exclude = [
     "build*",
 ]
 
-[tool.setuptools.data-files]
+[tool.setuptools.package-data]
 agilab = [
-    "src/*.toml",
-    "src/*.ipynb",
-    "resources/*",
+    "resources/*.*",
+    "resources/help/*",
+    "*.toml",
+    "*.ipynb",
 ]
 
 [tool.mypy]
