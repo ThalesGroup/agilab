@@ -7,7 +7,7 @@ import streamlit as st
 import sys
 import argparse
 
-# ----------------- Fast-Loading Minimal UI -----------------
+# ----------------- Fast-Loading Banner UI -----------------
 def quick_logo(resources_path: Path):
     try:
         from agilab.pagelib import get_base64_of_image
@@ -28,20 +28,9 @@ def quick_logo(resources_path: Path):
         st.info(str(e))
         st.info("Welcome to AGILAB", icon="📦")
 
-def fast_landing(resources_path: Path):
-    st.markdown(
-        """<style>
-        body { background: #f6f8fa !important; }
-        </style>""",
-        unsafe_allow_html=True)
-    quick_logo(resources_path)
-
-# ----------- Heavy Initialization & Full Landing Page -----------
-
 def display_landing_page(resources_path: Path):
     from agilab.pagelib import get_base64_of_image
-    img_data = get_base64_of_image(resources_path / "agilab_logo.png")
-    img_src = f"data:image/png;base64,{img_data}"
+    # You can optionally show a small logo here if wanted.
     md_content = f"""
     <div class="uvp-highlight">
       <strong>AGILAB</strong>:
@@ -76,8 +65,11 @@ def display_landing_page(resources_path: Path):
     """
     st.markdown(md_content, unsafe_allow_html=True)
 
+def show_banner_and_intro(resources_path: Path):
+    quick_logo(resources_path)
+    display_landing_page(resources_path)
+
 def page(env):
-    display_landing_page(env.resource_path)
     cols = st.columns(2)
     help_file = Path(env.help_path) / "index.html"
     from agilab.pagelib import open_docs
@@ -106,25 +98,27 @@ def page(env):
 
 def main():
     from agilab.pagelib import get_about_content
-    st.set_page_config(menu_items=get_about_content(), layout="wide")
+    st.set_page_config(
+        menu_items=get_about_content(),
+        layout="wide"
+    )
     resources_path = Path(__file__).parent / "resources"
     st.session_state.setdefault("first_run", True)
 
-    if st.session_state["first_run"]:
-        # Custom style (background)
-        st.markdown(
-            """<style>
-            body { background: #f6f8fa !important; }
-            </style>""",
-            unsafe_allow_html=True)
-        # Large logo/banner
-        quick_logo(resources_path)
-        # Full intro/landing content
-        display_landing_page(resources_path)
+    # Always set background style
+    st.markdown(
+        """<style>
+        body { background: #f6f8fa !important; }
+        </style>""",
+        unsafe_allow_html=True
+    )
+
+    # ---- Initialize if needed (on cold start, or if 'env' key lost) ----
+    if st.session_state.get("first_run", True) or "env" not in st.session_state:
+        show_banner_and_intro(resources_path)
         with st.spinner("Initializing environment..."):
             from agilab.pagelib import activate_mlflow
             from agi_env import AgiEnv
-            import argparse
 
             parser = argparse.ArgumentParser(description="Run the AGI Streamlit App with optional parameters.")
             parser.add_argument("--cluster-ssh-credentials", type=str, help="Cluster credentials (username:password)", default=None)
@@ -158,7 +152,8 @@ def main():
             st.rerun()
         return  # Don't continue
 
-    # --- Fully initialized, show main UI only ---
+    # ---- After init, always show banner+intro and then main UI ----
+    show_banner_and_intro(resources_path)
     env = st.session_state['env']
     if "current_page" not in st.session_state:
         st.session_state.current_page = "AGILAB"
@@ -170,7 +165,6 @@ def main():
         page_module.main()
     else:
         page(env)
-
 
 # ----------------- Run App -----------------
 if __name__ == "__main__":
