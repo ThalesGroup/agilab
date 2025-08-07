@@ -33,9 +33,9 @@ def display_landing_page(resources_path: Path):
     # You can optionally show a small logo here if wanted.
     md_content = f"""
     <div class="uvp-highlight">
-      <strong>AGILAB</strong>:
+      <strong>Introduciton</strong>:
     <ul>
-      Revolutionizing Data Science Experimentation with Zero Integration Hassles. As a comprehensive framework built on pure Python and powered by Gen AI and ML, AGILAB scales effortlessly—from embedded systems to the cloud—empowering seamless collaboration on data insights and predictive modeling.
+      AGILAB revolutionizing data Science experimentation with zero integration hassles. As a comprehensive framework built on pure Python and powered by Gen AI and ML, AGILAB scales effortlessly—from embedded systems to the cloud—empowering seamless collaboration on data insights and predictive modeling.
     </ul>
     </div>
     <div class="uvp-highlight">
@@ -164,7 +164,8 @@ def main():
         page_module = importlib.import_module("pages.▶️ EDIT")
         page_module.main()
     else:
-        page(env)
+        page(env, show_banner=False)
+
 
 # ----------------- Run App -----------------
 if __name__ == "__main__":
