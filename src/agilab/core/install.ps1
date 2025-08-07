@@ -1,54 +1,29 @@
-# Script: install_Agi_framework.ps1
-# Purpose: Install the framework
-param(
-    [Parameter(Mandatory = $true)]
-    [string]$FrameworkDir,
-    [Parameter(Mandatory = $false)]
-    [switch]$Offline
-)
+# install_core.ps1
+# Purpose: Install the core framework (PowerShell version)
 
-# Exit immediately if a command fails
 $ErrorActionPreference = "Stop"
 
+# Logging setup (simulates tee -a to log file)
+$LOG_DIR = "$HOME\log\install_logs"
+$LOG_FILE = "$LOG_DIR\install_core_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+if (-not (Test-Path $LOG_DIR)) { New-Item -Path $LOG_DIR -ItemType Directory | Out-Null }
+Start-Transcript -Path $LOG_FILE
 
-Write-Host "Installing framework from $(Get-Location)..." -ForegroundColor Blue
+function Write-Blue($msg)  { Write-Host $msg -ForegroundColor Blue }
+function Write-Green($msg) { Write-Host $msg -ForegroundColor Green }
+function Write-Red($msg)   { Write-Host $msg -ForegroundColor Red }
 
-# Install agi-env
-Write-Host "Installing agi-env..." -ForegroundColor Blue
-Push-Location "agi-env"
-uv sync -p $env:PYTHON_VERSION --dev --directory (Resolve-Path "$($FrameworkDir)\agi-env")
-uv pip install -e .
+Write-Blue "Installing core framework from $(Get-Location)..."
+
+# Clean up unwanted files/directories
+Get-ChildItem -Path . -Recurse -Include ".venv", "uv.lock", "build", "dist", "*egg-info" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+# Run install steps
+Push-Location agi-core
+Invoke-Expression "uv sync --dev"
+Invoke-Expression "uv build --wheel"
 Pop-Location
 
-# Install agi-cluster
-Write-Host "Installing agi-cluster..." -ForegroundColor Blue
-Push-Location "core"
+Write-Green "Core installation complete!"
 
-Push-Location "agi-cluster"
-if ($Offline) {
-    uv sync -p $env:PYTHON_VERSION --extra managers --dev --directory (Resolve-Path "$($FrameworkDir)\agi-cluster")
-} else {
-    uv sync -p $env:PYTHON_VERSION --config-file uv_config.toml --extra managers --dev --directory (Resolve-Path "$($FrameworkDir)\agi-cluster")
-}
-uv pip install -e .
-Pop-Location
-
-Write-Host "Installing agi-node..." -ForegroundColor Blue
-Push-Location "agi-node"
-if ($Offline) {
-    uv sync -p $env:PYTHON_VERSION --extra managers --dev --directory (Resolve-Path "$($FrameworkDir)\agi-node")
-} else {
-    uv sync -p $env:PYTHON_VERSION --config-file uv_config.toml --extra managers --dev --directory (Resolve-Path "$($FrameworkDir)\agi-node")
-}
-uv pip install -e .
-Pop-Location
-
-Pop-Location
-
-# Install agilab
-Write-Host "Installing agilab..." -ForegroundColor Blue
-
-uv sync -p $env:PYTHON_VERSION --dev --directory (Resolve-Path "$FrameworkDir")
-
-
-
+Stop-Transcript
