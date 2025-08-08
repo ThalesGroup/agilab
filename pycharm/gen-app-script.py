@@ -141,3 +141,169 @@ for tpl in template_paths:
 update_folders_xml(FOLDER_NAME)
 
 print(f"All {app} configurations processed.")
+
+
+# ======================
+# Interpreter patching (auto-run, no CLI args; keeps your original functions)
+# ======================
+import time
+import shutil
+from pathlib import Path as _PathAlias  # avoid shadowing
+import xml.etree.ElementTree as _ETAlias
+
+def _pretty_write_xml(tree: _ETAlias.ElementTree, target: _PathAlias) -> None:
+    tree.write(target, encoding="utf-8", xml_declaration=True)
+
+def set_project_interpreter_in_workspace(project_root: str | os.PathLike) -> bool:
+    """
+    Patch .idea/workspace.xml AND .idea/misc.xml to set:
+        project-jdk-type="Python SDK"
+        project-jdk-name="uv (<folder-name>)"
+    Only if .venv exists in project_root.
+    Returns True if changed, False otherwise.
+    """
+    project_root = Path(project_root)
+    idea_dir = project_root / ".idea"
+    workspace_xml = idea_dir / "workspace.xml"
+    misc_xml = idea_dir / "misc.xml"
+    venv_dir = project_root / ".venv"
+
+    if not idea_dir.is_dir() or not workspace_xml.is_file() or not venv_dir.exists():
+        return False
+
+    folder_name = project_root.name
+    desired_name = f"uv ({folder_name})"
+
+    # --- workspace.xml ---
+    try:
+        tree_ws = ET.parse(workspace_xml)
+    except ET.ParseError as e:
+        print(f"[workspace.xml] {folder_name}: XML parse error: {e}")
+        return False
+
+    root_ws = tree_ws.getroot()
+    prm_ws = None
+    for comp in root_ws.findall("component"):
+        if comp.get("name") == "ProjectRootManager":
+            prm_ws = comp
+            break
+    if prm_ws is None:
+        prm_ws = ET.SubElement(root_ws, "component", {"name": "ProjectRootManager"})
+
+    changed = False
+    if prm_ws.get("project-jdk-type") != "Python SDK":
+        prm_ws.set("project-jdk-type", "Python SDK")
+        changed = True
+    if prm_ws.get("project-jdk-name") != desired_name:
+        prm_ws.set("project-jdk-name", desired_name)
+        changed = True
+
+    if changed:
+        backup_path = workspace_xml.with_suffix(f".xml.bak-{time.strftime('%Y%m%d-%H%M%S')}")
+        shutil.copy2(workspace_xml, backup_path)
+        tree_ws.write(workspace_xml, encoding="utf-8", xml_declaration=True)
+        print(f"[workspace.xml] {folder_name}: set interpreter -> '{desired_name}' (backup: {backup_path.name})")
+
+    # --- misc.xml ---
+    if misc_xml.exists():
+        try:
+            tree_misc = ET.parse(misc_xml)
+            root_misc = tree_misc.getroot()
+        except ET.ParseError as e:
+            print(f"[misc.xml] {folder_name}: XML parse error: {e}")
+            return changed
+    else:
+        root_misc = ET.Element("project", version="4")
+        tree_misc = ET.ElementTree(root_misc)
+
+    prm_misc = None
+    for comp in root_misc.findall("component"):
+        if comp.get("name") == "ProjectRootManager":
+            prm_misc = comp
+            break
+    if prm_misc is None:
+        prm_misc = ET.SubElement(root_misc, "component", {"name": "ProjectRootManager"})
+
+    if prm_misc.get("project-jdk-type") != "Python SDK":
+        prm_misc.set("project-jdk-type", "Python SDK")
+        changed = True
+    if prm_misc.get("project-jdk-name") != desired_name:
+        prm_misc.set("project-jdk-name", desired_name)
+        changed = True
+    if prm_misc.get("version") != "2":
+        prm_misc.set("version", "2")
+        changed = True
+
+    if changed:
+        tree_misc.write(misc_xml, encoding="utf-8", xml_declaration=True)
+        print(f"[misc.xml] {folder_name}: set interpreter declaration -> '{desired_name}'")
+
+    return changed
+
+def patch_apps_interpreters(apps_base: str | os.PathLike, suffix: str = "_project") -> int:
+    """
+    Scan only immediate subdirectories of apps_base whose names end with `suffix`.
+    For each, if .venv and .idea/workspace.xml exist, set interpreter to 'uv (<folder-name>)'.
+    """
+    base = _PathAlias(apps_base).resolve()
+    if not base.is_dir():
+        return 0
+
+    updated = 0
+    for sub in sorted(p for p in base.iterdir() if p.is_dir() and p.name.endswith(suffix)):
+        try:
+            if set_project_interpreter_in_workspace(sub):
+                updated += 1
+            else:
+                print(f"[patch-apps] {sub.name}: skipped (no .venv/.idea or no change)")
+        except Exception as e:
+            print(f"[patch-apps] {sub.name}: ERROR {e}")
+    if updated:
+        print(f"[patch-apps] Done. Updated {updated} project(s).")
+    return updated
+
+def patch_interpreters_recursively(base_dir: str | os.PathLike) -> int:
+    """
+    Recursively scan base_dir for directories that contain both .venv and .idea/workspace.xml
+    and patch each one.
+    """
+    base_dir = _PathAlias(base_dir).resolve()
+    if not base_dir.is_dir():
+        return 0
+
+    updated = 0
+    for venv in base_dir.rglob(".venv"):
+        project_root = venv.parent
+        try:
+            if set_project_interpreter_in_workspace(project_root):
+                updated += 1
+        except Exception as e:
+            print(f"[workspace.xml] {project_root.name}: ERROR {e}")
+    if updated:
+        print(f"[patch-venvs] Done. Updated {updated} project(s).")
+    return updated
+
+# ----------------------
+# AUTO-RUN (single recursive pass, no CLI args)
+# ----------------------
+try:
+    from pathlib import Path as _PathAlias
+    _script_dir = _PathAlias(__file__).resolve().parent
+
+    # Deduplicate projects by folder containing a .venv
+    projects = {venv.parent for venv in _script_dir.rglob(".venv")}
+
+    updated = 0
+    for proj in sorted(projects):
+        try:
+            if set_project_interpreter_in_workspace(proj):
+                updated += 1
+        except Exception as e:
+            print(f"[workspace.xml] {proj.name}: ERROR {e}")
+
+    if updated:
+        print(f"[patch-venvs] Done. Updated {updated} project(s).")
+    else:
+        print("[patch-venvs] No interpreters updated (no .venv/.idea combos found).")
+except Exception as _e:
+    print(f"[patch-venvs] ERROR during interpreter patching: {_e}")
