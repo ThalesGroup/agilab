@@ -1,143 +1,110 @@
-# ======================
-# Apps-only auto run: install.sh "$apps_dir" "1" + generate configs + set interpreter
-# ======================
-import time, shutil, subprocess, os
-from pathlib import Path as _P
-import xml.etree.ElementTree as _ET
+#!/usr/bin/env bash
+# install_agilab_apps.sh — auto-detect thales-agilab and (re)create app symlinks
+set -euo pipefail
 
-def _xml_write(_tree: _ET.ElementTree, _target: _P):
-    _tree.write(_target, encoding="utf-8", xml_declaration=True)
+# Colors
+BLUE='\033[1;34m'; GREEN='\033[1;32m'; YELLOW='\033[1;33m'; RED='\033[1;31m'; NC='\033[0m'
 
-def _ensure_sdk_in_misc(_misc_path: _P, desired_name: str) -> bool:
-    if _misc_path.exists():
-        try:
-            t = _ET.parse(_misc_path)
-            r = t.getroot()
-        except _ET.ParseError as e:
-            print(f"[misc.xml] {_misc_path.parent.name}: XML parse error: {e}")
-            return False
-    else:
-        r = _ET.Element("project", version="4")
-        t = _ET.ElementTree(r)
+# Default app list matching your repo (only *_project)
+declare -a INCLUDED_APPS=(
+  flight_trajectory_project
+  sat_trajectory_project
+  link_sim_project
+  # flight_legacy_project
+)
 
-    comp = None
-    for c in r.findall("component"):
-        if c.get("name") == "ProjectRootManager":
-            comp = c; break
-    if comp is None:
-        comp = _ET.SubElement(r, "component", {"name": "ProjectRootManager"})
+# DEST_BASE default (overridable by env)
+: "${DEST_BASE:=$(pwd)}"
+mkdir -p -- "$DEST_BASE"
 
-    changed = False
-    if comp.get("project-jdk-type") != "Python SDK":
-        comp.set("project-jdk-type", "Python SDK"); changed = True
-    if comp.get("project-jdk-name") != desired_name:
-        comp.set("project-jdk-name", desired_name); changed = True
-    if comp.get("version") != "2":
-        comp.set("version", "2"); changed = True
+echo "create symlink for apps: ${INCLUDED_APPS[@]}"
 
-    if changed:
-        _xml_write(t, _misc_path)
-        print(f"[misc.xml] {_misc_path.parent.name}: set interpreter declaration -> '{desired_name}'")
-    return changed
+if (( ${#INCLUDED_APPS[@]} == 0 )); then
+  echo -e "${RED}Error:${NC} No apps specified."; exit 2
+fi
 
-def _set_interpreter_for_project(proj_root: _P) -> bool:
-    idea = proj_root / ".idea"
-    ws = idea / "workspace.xml"
-    misc = idea / "misc.xml"
-    if not idea.is_dir() or not ws.is_file() or not (proj_root / ".venv").exists():
-        return False
+echo -e "${YELLOW}Installing Apps...${NC}"
+echo -e "${YELLOW}Working directory:${NC} $(pwd)"
+echo -e "${YELLOW}Destination base:${NC} $(cd -- "$DEST_BASE" && pwd -P)"
 
-    desired = f"uv ({proj_root.name})"
-    try:
-        tws = _ET.parse(ws)
-        rws = tws.getroot()
-    except _ET.ParseError as e:
-        print(f"[workspace.xml] {proj_root.name}: XML parse error: {e}")
-        return False
+# Normalize & filter: only keep *_project; skip 'apps' & numbers
+declare -a clean=()
+dest_base_basename="$(basename -- "$DEST_BASE")"
 
-    prm = None
-    for c in rws.findall("component"):
-        if c.get("name") == "ProjectRootManager":
-            prm = c; break
-    if prm is None:
-        prm = _ET.SubElement(rws, "component", {"name": "ProjectRootManager"})
+for a in "${INCLUDED_APPS[@]}"; do
+  [[ -z "${a// }" ]] && continue
+  a="${a//\\//}"; a="${a##*/}"
+  [[ -z "${a// }" ]] && continue
 
-    changed = False
-    if prm.get("project-jdk-type") != "Python SDK":
-        prm.set("project-jdk-type", "Python SDK"); changed = True
-    if prm.get("project-jdk-name") != desired:
-        prm.set("project-jdk-name", desired); changed = True
+  # Skip pure numbers
+  if [[ "$a" =~ ^[0-9]+$ ]]; then
+    echo -e "${YELLOW}Skipping token '$a' (no '_project' suffix).${NC}"
+    continue
+  fi
+  # Skip token equal to DEST_BASE basename (e.g., 'apps')
+  if [[ "$a" == "$dest_base_basename" ]]; then
+    echo -e "${YELLOW}Skipping token '$a' (no '_project' suffix).${NC}"
+    continue
+  fi
+  # Enforce *_project
+  if [[ ! "$a" =~ _project$ ]]; then
+    echo -e "${YELLOW}Skipping token '$a' (no '_project' suffix).${NC}"
+    continue
+  fi
 
-    if changed:
-        bak = ws.with_suffix(f".xml.bak-{time.strftime('%Y%m%d-%H%M%S')}")
-        try:
-            shutil.copy2(ws, bak)
-        except Exception as e:
-            print(f"[workspace.xml] {proj_root.name}: WARN backup failed: {e}")
-        _xml_write(tws, ws)
-        print(f"[workspace.xml] {proj_root.name}: set interpreter -> '{desired}' (backup: {bak.name})")
+  clean+=("$a")
+done
 
-    changed_misc = _ensure_sdk_in_misc(misc, desired)
-    return changed or changed_misc
+# Nounset-safe array assignment
+INCLUDED_APPS=("${clean[@]:-}")
+if (( ${#INCLUDED_APPS[@]} == 0 )); then
+  echo -e "${RED}Error:${NC} No valid app names after filtering."; exit 2
+fi
 
-def _apps_base_candidates(script_dir: _P) -> list[_P]:
-    return [
-        script_dir / "src" / "agilab" / "apps",
-        script_dir.parent / "src" / "agilab" / "apps",
-        script_dir.parent.parent / "src" / "agilab" / "apps",
-    ]
+echo -e "${YELLOW}Apps to link:${NC} ${INCLUDED_APPS[*]}"
 
-# ----------------------
-# AUTO-RUN (no args): for each apps/*_project
-#   1) run ./install.sh "$apps_dir" "1"
-#   2) call your existing update_workspace_xml(CONFIG_NAME, CONFIG_TYPE, FOLDER_NAME)
-#   3) patch interpreter (workspace.xml + misc.xml)
-# ----------------------
-try:
-    _here = _P(__file__).resolve().parent
-    install_sh = (_here / "install.sh").resolve()
-    total = 0
+# Finder under $HOME; strip /src/agilab/apps
+find_thales_agilab() {
+  local depth="${1:-5}" hit
+  hit="$(find "$HOME" -maxdepth "$depth" -type d -path '*/src/agilab/apps' 2>/dev/null | head -n 1)"
+  [[ -n "$hit" ]] && { printf '%s\n' "${hit%/src/agilab/apps}"; return 0; }
+  return 1
+}
 
-    for _apps in _apps_base_candidates(_here):
-        if not _apps.is_dir():
-            continue
+THALES_AGILAB_ROOT="${THALES_AGILAB_ROOT:-}"
+if [[ -z "$THALES_AGILAB_ROOT" ]]; then
+  if ! THALES_AGILAB_ROOT="$(find_thales_agilab 5)"; then
+    echo -e "${RED}Error:${NC} Could not locate '*/src/agilab/apps' from $HOME."; exit 1
+  fi
+fi
 
-        for app_dir in sorted(p for p in _apps.iterdir() if p.is_dir() and p.name.endswith("_project")):
-            FOLDER_NAME = app_dir.name
-            CONFIG_NAME = FOLDER_NAME.replace("_project", "")
-            CONFIG_TYPE = "PythonConfigurationType"
+TARGET_BASE="$THALES_AGILAB_ROOT/src/agilab/apps"
+[[ -d "$TARGET_BASE" ]] || { echo -e "${RED}Error:${NC} Missing directory: $TARGET_BASE"; exit 1; }
 
-            try:
-                # 1) Ensure env/files via your installer with the 2 args
-                if install_sh.exists():
-                    subprocess.run([str(install_sh), str(app_dir), "1"], cwd=_here, check=True)
-                else:
-                    print(f"[install.sh] Not found at {_here}. Skipping installer for {FOLDER_NAME}.")
+echo -e "${YELLOW}Using THALES_AGILAB_ROOT:${NC} $THALES_AGILAB_ROOT"
+echo -e "${YELLOW}Link target base:${NC} $TARGET_BASE"
+echo
 
-                # 2) Generate/update run configs using your existing function
-                cwd_before = os.getcwd()
-                os.chdir(app_dir)
-                try:
-                    update_workspace_xml(CONFIG_NAME, CONFIG_TYPE, FOLDER_NAME)
-                finally:
-                    os.chdir(cwd_before)
+# Create / refresh symlinks
+status=0
+for app in "${INCLUDED_APPS[@]}"; do
+  app_target="$TARGET_BASE/$app"
+  app_dest="$DEST_BASE/$app"
 
-                # 3) Patch interpreter
-                if _set_interpreter_for_project(app_dir):
-                    total += 1
-                else:
-                    print(f"[apps] {FOLDER_NAME}: no interpreter change (no .venv/.idea or already correct).")
+  if [[ ! -e "$app_target" ]]; then
+    echo -e "${RED}Target for '${app}' not found:${NC} $app_target — skipping."
+    status=1; continue
+  fi
 
-            except subprocess.CalledProcessError as e:
-                print(f"[install.sh] {FOLDER_NAME}: ERROR (exit {e.returncode})")
-            except Exception as e:
-                print(f"[apps] {FOLDER_NAME}: ERROR {e}")
+  if [[ -L "$app_dest" ]]; then
+    echo -e "${BLUE}App '$app_dest' is a symlink. Recreating -> '$app_target'...${NC}"
+    rm -f -- "$app_dest"; ln -s -- "$app_target" "$app_dest"
+  elif [[ ! -e "$app_dest" ]]; then
+    echo -e "${BLUE}App '$app_dest' does not exist. Creating symlink -> '$app_target'...${NC}"
+    ln -s -- "$app_target" "$app_dest"
+  else
+    echo -e "${GREEN}App '$app_dest' exists and is not a symlink. Leaving untouched.${NC}"
+  fi
+done
 
-        break  # stop after first found apps dir (avoid duplicates)
-
-    if total:
-        print(f"[apps] Done. Interpreters updated for {total} project(s).")
-    else:
-        print("[apps] No interpreter updates were needed.")
-except Exception as _e:
-    print(f"[apps] ERROR during apps-only pass: {_e}")
+exit "$status"
