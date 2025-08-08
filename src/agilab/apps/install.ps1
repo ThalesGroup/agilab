@@ -1,14 +1,5 @@
 <#
-install.ps1 — create/refresh app symlinks pointing to thales-agilab/src/agilab/apps/<app>
-
-Usage:
-  pwsh ./install.ps1 app1 app2
-  $env:INCLUDED_APPS="app1 app2"; pwsh ./install.ps1
-  $apps = @("app1","app2"); pwsh ./install.ps1
-
-Optional env:
-  THALES_AGILAB_ROOT = absolute path to thales-agilab
-  DEST_BASE          = where links are created (default: ".")
+install.ps1 — auto-detect thales-agilab under $HOME or one subfolder, then (re)create app symlinks
 #>
 
 param(
@@ -19,73 +10,75 @@ param(
 $ErrorActionPreference = "Stop"
 
 # ------------------
-# Colors (Write-Host colors to mimic .sh UX)
+# Colors
 # ------------------
 function Info([string]$msg)  { Write-Host $msg -ForegroundColor Yellow }
 function Ok([string]$msg)    { Write-Host $msg -ForegroundColor Green }
-function Act([string]$msg)   { Write-Host $msg -ForegroundColor Cyan }   # like BLUE
+function Act([string]$msg)   { Write-Host $msg -ForegroundColor Cyan }
 function Err([string]$msg)   { Write-Host $msg -ForegroundColor Red }
 
-Info ("CWD: " + (Get-Location).Path)
-
 # ------------------
-# Resolve app list (priority: CLI args > INCLUDED_APPS env > $apps variable)
+# Resolve INCLUDED_APPS
 # ------------------
 $INCLUDED_APPS = @()
 
 if ($AppArgs -and $AppArgs.Count -gt 0) {
   $INCLUDED_APPS = $AppArgs
-} elseif ($env:INCLUDED_APPS) {
+}
+elseif ($env:INCLUDED_APPS) {
   $INCLUDED_APPS = @($env:INCLUDED_APPS -split '\s+')
-} elseif (Get-Variable -Name apps -Scope Script,Local,Global -ErrorAction SilentlyContinue) {
+}
+elseif (Get-Variable -Name apps -Scope Script,Local,Global -ErrorAction SilentlyContinue) {
   $INCLUDED_APPS = $apps
 }
 
 if (-not $INCLUDED_APPS -or $INCLUDED_APPS.Count -eq 0) {
-  Err "No apps provided. Pass apps as args, set INCLUDED_APPS env, or define an `$apps array."
-  Write-Host "Example:" ( 'INCLUDED_APPS="flight_project sat_trajectory_project" pwsh ./install.ps1' )
+  Err "No apps provided."
+  Write-Host "Usage: pwsh ./install.ps1 app1 app2 ..."
+  Write-Host "   or: `$env:INCLUDED_APPS=`"app1 app2`" pwsh ./install.ps1"
+  Write-Host "   or: `$apps = @('app1','app2'); pwsh ./install.ps1"
   exit 2
 }
 
 # ------------------
-# Destination base (default ".")
+# Destination base
 # ------------------
 $DEST_BASE = if ($env:DEST_BASE) { $env:DEST_BASE } else { "." }
 $null = New-Item -ItemType Directory -Force -Path $DEST_BASE 2>$null
+
+Info ("Working directory: " + (Get-Location).Path)
 Info ("Destination base: " + (Resolve-Path -LiteralPath $DEST_BASE).Path)
 
 # ------------------
-# Auto-detect thales-agilab root (walk up from script dir)
+# Find thales-agilab starting from $HOME
 # ------------------
-$ScriptDir = Split-Path -LiteralPath $PSCommandPath -Parent
-
 function Find-ThalesAgilab {
-  param([string]$StartDir)
+  param([string]$StartDir, [int]$Depth = 5)
 
-  $d = $StartDir
-  while ($true) {
-    $candidate = Join-Path $d "thales-agilab\src\agilab\apps"
-    if (Test-Path -LiteralPath $candidate -PathType Container) {
-      return (Join-Path $d "thales-agilab")
-    }
-    $parent = Split-Path -LiteralPath $d -Parent
-    if ([string]::IsNullOrEmpty($parent) -or $parent -eq $d) { break }
-    $d = $parent
+  # Find any directory whose path ends with src/agilab/apps under $HOME (depth-limited)
+  $hit = Get-ChildItem -LiteralPath $StartDir -Directory -Recurse -Depth $Depth -ErrorAction SilentlyContinue |
+         Where-Object { $_.FullName -like "*\src\agilab\apps" -or $_.FullName -like "*/src/agilab/apps" } |
+         Select-Object -First 1
+
+  if ($hit) {
+    # repo root = parent of /src/agilab/apps
+    return (Split-Path (Split-Path $hit.FullName -Parent) -Parent)
   }
   return $null
 }
 
 $THALES_AGILAB_ROOT = if ($env:THALES_AGILAB_ROOT) { $env:THALES_AGILAB_ROOT } else { $null }
+
 if (-not $THALES_AGILAB_ROOT) {
-  $THALES_AGILAB_ROOT = Find-ThalesAgilab -StartDir $ScriptDir
+  $THALES_AGILAB_ROOT = Find-ThalesAgilab -StartDir $HOME -Depth 5
   if (-not $THALES_AGILAB_ROOT) {
-    Err "Could not locate 'thales-agilab/src/agilab/apps' by walking up from: $ScriptDir"
-    Err "Tip: set THALES_AGILAB_ROOT to an absolute path and re-run."
+    Err "Could not locate '*\src\agilab\apps' starting from: $HOME"
+    Err "Hint: `$env:THALES_AGILAB_ROOT = 'C:\path\to\thales-agilab' (or /Users/jpm/PycharmProjects/thales-agilab) and re-run."
     exit 1
   }
 }
 
-$TARGET_BASE = Join-Path $THALES_AGILAB_ROOT "src\agilab\apps"
+$TARGET_BASE = Join-Path $THALES_AGILAB_ROOT "src/agilab/apps"
 if (-not (Test-Path -LiteralPath $TARGET_BASE -PathType Container)) {
   Err "Missing directory: $TARGET_BASE"
   exit 1
@@ -96,32 +89,25 @@ Info ("Link target base: $TARGET_BASE")
 Write-Host ""
 
 # ------------------
-# Helpers
+# Symlink helpers
 # ------------------
 function Test-IsSymlink {
   param([string]$Path)
   if (-not (Test-Path -LiteralPath $Path)) { return $false }
   try {
     $item = Get-Item -LiteralPath $Path -Force
-    return ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
+    return ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0
   } catch { return $false }
 }
 
 function New-Link {
   param([string]$LinkPath, [string]$TargetPath)
-
-  # Prefer SymbolicLink; on Windows without Developer Mode/admin, fall back to Junction for dirs
-  $itemType = "SymbolicLink"
+  $type = "SymbolicLink"
   try {
-    New-Item -ItemType $itemType -Path $LinkPath -Target $TargetPath -Force | Out-Null
+    New-Item -ItemType $type -Path $LinkPath -Target $TargetPath -Force | Out-Null
   } catch {
-    if ($IsWindows) {
-      # Try junctions for directories
-      if (Test-Path -LiteralPath $TargetPath -PathType Container) {
-        New-Item -ItemType Junction -Path $LinkPath -Target $TargetPath -Force | Out-Null
-      } else {
-        throw
-      }
+    if ($IsWindows -and (Test-Path -LiteralPath $TargetPath -PathType Container)) {
+      New-Item -ItemType Junction -Path $LinkPath -Target $TargetPath -Force | Out-Null
     } else {
       throw
     }
@@ -129,7 +115,7 @@ function New-Link {
 }
 
 # ------------------
-# Create / refresh links (same UX as .sh)
+# Create / refresh links
 # ------------------
 $status = 0
 foreach ($app in $INCLUDED_APPS) {
@@ -137,7 +123,7 @@ foreach ($app in $INCLUDED_APPS) {
   $appDest   = Join-Path $DEST_BASE $app
 
   if (-not (Test-Path -LiteralPath $appTarget)) {
-    Err "Target for '$app' does not exist: $appTarget — skipping."
+    Err "Target for '$app' not found: $appTarget — skipping."
     $status = 1
     continue
   }
@@ -148,7 +134,7 @@ foreach ($app in $INCLUDED_APPS) {
     New-Link -LinkPath $appDest -TargetPath $appTarget
   }
   elseif (-not (Test-Path -LiteralPath $appDest)) {
-    Act "App '$appDest' missing. Creating symlink -> '$appTarget'..."
+    Act "App '$appDest' does not exist. Creating symlink -> '$appTarget'..."
     New-Link -LinkPath $appDest -TargetPath $appTarget
   }
   else {

@@ -48,27 +48,26 @@ echo -e "${YELLOW}Working directory:${NC} $(pwd)"
 echo -e "${YELLOW}Destination base:${NC} $(cd -- "$DEST_BASE" && pwd -P)"
 
 # ------------------
-# Auto-detect thales-agilab root
+# Auto-detect thales-agilab root (search under $HOME)
 # ------------------
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-
+# Finds any directory matching */src/agilab/apps under $HOME (depth-limited),
+# then climbs three levels up to return the repo root (…/thales-agilab).
 find_thales_agilab() {
-  local d="$SCRIPT_DIR"
-  while [[ "$d" != "/" ]]; do
-    if [[ -d "$d/thales-agilab/src/agilab/apps" ]]; then
-      printf "%s\n" "$d/thales-agilab"
-      return 0
-    fi
-    d="$(dirname -- "$d")"
-  done
+  local depth="${1:-5}"
+  local hit
+  hit="$(find "$HOME" -maxdepth "$depth" -type d -path '*/src/agilab/apps' 2>/dev/null | head -n 1)"
+  if [[ -n "$hit" ]]; then
+    printf "%s\n" "$(dirname "$(dirname "$(dirname "$hit")")")"
+    return 0
+  fi
   return 1
 }
 
 THALES_AGILAB_ROOT="${THALES_AGILAB_ROOT:-}"
 if [[ -z "$THALES_AGILAB_ROOT" ]]; then
-  if ! THALES_AGILAB_ROOT="$(find_thales_agilab)"; then
-    echo -e "${RED}Could not locate 'thales-agilab/src/agilab/apps' starting from:${NC} $SCRIPT_DIR"
-    echo -e "${RED}Hint:${NC} set THALES_AGILAB_ROOT=/absolute/path/to/thales-agilab and re-run."
+  if ! THALES_AGILAB_ROOT="$(find_thales_agilab 5)"; then
+    echo -e "${RED}Could not locate '*/src/agilab/apps' starting from:${NC} $HOME"
+    echo -e "${RED}Hint:${NC} export THALES_AGILAB_ROOT=/absolute/path/to/thales-agilab and re-run."
     exit 1
   fi
 fi
