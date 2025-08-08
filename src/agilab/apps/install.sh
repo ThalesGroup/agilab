@@ -90,10 +90,6 @@ status=0
 for app in "${INCLUDED_APPS[@]}"; do
   app_target="$TARGET_BASE/$app"
   app_dest="$DEST_BASE/$app"
-  echo ________
-  echo $app_target
-  echo $app_dest
-  echo -------
 
   if [[ ! -e "$app_target" ]]; then
     echo -e "${RED}Target for '${app}' not found:${NC} $app_target — skipping."
