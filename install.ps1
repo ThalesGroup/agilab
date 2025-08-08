@@ -1,89 +1,114 @@
-# install.ps1
-# Purpose: Root/Main AGI Framework Installer (PowerShell version)
+#!/usr/bin/env bash
+# install_agilab_apps.sh — auto-detect thales-agilab and (re)create app symlinks
 
-$ErrorActionPreference = "Stop"
+set -euo pipefail
 
-# Logging setup
-$LOG_DIR = "$HOME\log\install_logs"
-$LOG_FILE = "$LOG_DIR\install_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
-if (-not (Test-Path $LOG_DIR)) { New-Item -Path $LOG_DIR -ItemType Directory | Out-Null }
-Start-Transcript -Path $LOG_FILE
+# Optional env (uncomment if you use it elsewhere)
+# source "$HOME/.local/share/agilab/.env" || true
 
-function Write-Blue($msg)  { Write-Host $msg -ForegroundColor Blue }
-function Write-Green($msg) { Write-Host $msg -ForegroundColor Green }
-function Write-Yellow($msg) { Write-Host $msg -ForegroundColor Yellow }
-function Write-Red($msg)   { Write-Host $msg -ForegroundColor Red }
+# ------------------
+# Colors
+# ------------------
+BLUE='\033[1;34m'
+GREEN='\033[1;32m'
+YELLOW='\033[1;33m'
+RED='\033[1;31m'
+NC='\033[0m'
 
-# Prevent running as administrator/root
-If (([Security.Principal.WindowsIdentity]::GetCurrent()).Groups -match "S-1-5-32-544") {
-    Write-Red "Error: This script should not be run as Administrator. Please run as a regular user."
-    Stop-Transcript
+# ------------------
+# Config
+# ------------------
+# Provide apps one of three ways (priority order):
+#   1) CLI args: ./install_agilab_apps.sh app1 app2
+#   2) Env var:  INCLUDED_APPS="app1 app2" ./install_agilab_apps.sh
+#   3) Bash arr: apps=(app1 app2); ./install_agilab_apps.sh
+declare -a INCLUDED_APPS=()
+if (( $# > 0 )); then
+  INCLUDED_APPS=("$@")
+elif [[ -n "${INCLUDED_APPS:-}" ]]; then
+  # shellcheck disable=SC2206
+  INCLUDED_APPS=(${INCLUDED_APPS})
+elif declare -p apps &>/dev/null; then
+  INCLUDED_APPS=("${apps[@]}")
+fi
+
+if (( ${#INCLUDED_APPS[@]} == 0 )); then
+  echo -e "${RED}No apps specified.${NC}"
+  echo "Usage: $0 app1 app2 ..."
+  echo "   or: INCLUDED_APPS='app1 app2' $0"
+  echo "   or: apps=(app1 app2); $0"
+  exit 2
+fi
+
+# Where to create the links (default current dir). Override with: DEST_BASE=/path $0 ...
+DEST_BASE="${DEST_BASE:-.}"
+mkdir -p -- "$DEST_BASE"
+
+echo -e "${YELLOW}Working directory:${NC} $(pwd)"
+echo -e "${YELLOW}Destination base:${NC} $(cd -- "$DEST_BASE" && pwd -P)"
+
+# ------------------
+# Auto-detect thales-agilab root
+# ------------------
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+
+find_thales_agilab() {
+  local d="$SCRIPT_DIR"
+  while [[ "$d" != "/" ]]; do
+    if [[ -d "$d/thales-agilab/src/agilab/apps" ]]; then
+      printf "%s\n" "$d/thales-agilab"
+      return 0
+    fi
+    d="$(dirname -- "$d")"
+  done
+  return 1
+}
+
+THALES_AGILAB_ROOT="${THALES_AGILAB_ROOT:-}"
+if [[ -z "$THALES_AGILAB_ROOT" ]]; then
+  if ! THALES_AGILAB_ROOT="$(find_thales_agilab)"; then
+    echo -e "${RED}Could not locate 'thales-agilab/src/agilab/apps' starting from:${NC} $SCRIPT_DIR"
+    echo -e "${RED}Hint:${NC} set THALES_AGILAB_ROOT=/absolute/path/to/thales-agilab and re-run."
     exit 1
-}
+  fi
+fi
 
-# Remove unwanted files/directories
-Get-ChildItem -Path . -Recurse -Include ".venv", "uv.lock", "build", "dist", "*egg-info" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+TARGET_BASE="$THALES_AGILAB_ROOT/src/agilab/apps"
+if [[ ! -d "$TARGET_BASE" ]]; then
+  echo -e "${RED}Missing directory:${NC} $TARGET_BASE"
+  exit 1
+fi
 
-# Argument parsing (simulate bash style)
-param (
-    [string]$cluster_credentials,
-    [string]$openai_api_key,
-    [string]$install_path = (Get-Location)
-)
-if (-not $cluster_credentials -or -not $openai_api_key) {
-    Write-Red "Usage: .\install.ps1 -cluster_credentials <user[:password]> -openai_api_key <api-key> [-install_path <path>]"
-    Stop-Transcript
-    exit 1
-}
+echo -e "${YELLOW}Using THALES_AGILAB_ROOT:${NC} $THALES_AGILAB_ROOT"
+echo -e "${YELLOW}Link target base:${NC} $TARGET_BASE"
+echo
 
-# Ask for python version
-$PYTHON_VERSION = Read-Host "Enter Python version [3.13]"
-if (-not $PYTHON_VERSION) { $PYTHON_VERSION = "3.13" }
-Write-Host "You selected Python version $PYTHON_VERSION"
+# ------------------
+# Link creation
+# ------------------
+status=0
+for app in "${INCLUDED_APPS[@]}"; do
+  app_target="$TARGET_BASE/$app"
+  app_dest="$DEST_BASE/$app"
 
-# Check internet
-Write-Blue "Checking internet connectivity..."
-try {
-    Invoke-WebRequest "https://www.google.com" -UseBasicParsing -ErrorAction Stop | Out-Null
-    Write-Green "Internet connection is OK."
-} catch {
-    Write-Red "No internet connection detected. Aborting."
-    Stop-Transcript
-    exit 1
-}
+  if [[ ! -e "$app_target" ]]; then
+    echo -e "${RED}Target for '${app}' not found:${NC} $app_target — skipping."
+    status=1
+    continue
+  fi
 
-# Set locale (Windows: skip, but can inform user)
-Write-Blue "Setting locale..."
-Write-Yellow "Locale setting for en_US.UTF-8 skipped (Windows manages locale differently)."
+  if [[ -L "$app_dest" ]]; then
+    # Existing symlink (even if broken): refresh it to ensure correct target
+    echo -e "${BLUE}App '$app_dest' is a symlink. Recreating -> '$app_target'...${NC}"
+    rm -f -- "$app_dest"
+    ln -s -- "$app_target" "$app_dest"
+  elif [[ ! -e "$app_dest" ]]; then
+    echo -e "${BLUE}App '$app_dest' does not exist. Creating symlink -> '$app_target'...${NC}"
+    ln -s -- "$app_target" "$app_dest"
+  else
+    # Exists and is not a symlink (real dir/file) — leave untouched
+    echo -e "${GREEN}App '$app_dest' exists and is not a symlink. Leaving untouched.${NC}"
+  fi
+done
 
-# Install dependencies: ask user
-$confirm = Read-Host "Do you want to install system dependencies? (y/N)"
-if ($confirm -match "^[Yy]$") {
-    if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-        Write-Green "Installing uv..."
-        Invoke-WebRequest -Uri "https://astral.sh/uv/install.ps1" -OutFile "$env:TEMP\uv_install.ps1"
-        & "$env:TEMP\uv_install.ps1"
-    }
-    # (Add Windows dependency install steps here if any)
-    Write-Yellow "On Windows, dependencies may need to be installed manually."
-} else {
-    Write-Yellow "Skipping dependency installation."
-}
-
-# Install core
-Write-Blue "Installing core framework..."
-Push-Location "src\agilab\core"
-& .\install.ps1
-Pop-Location
-
-# Install apps
-Write-Blue "Installing apps..."
-Push-Location "src\agilab\apps"
-& .\install.ps1
-Pop-Location
-
-Write-Green "Installation complete!"
-Stop-Transcript
-
-    Write-Host ".env file updated." -ForegroundColor Green
-}
+exit "$status"
