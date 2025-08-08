@@ -1,5 +1,19 @@
 <#
 install.ps1 — auto-detect thales-agilab and (re)create app symlinks
+Aligned with Bash: default apps present, args/env/$apps override defaults.
+
+Inputs (override defaults):
+  - Args: pwsh ./install.ps1 app1 app2
+  - Env : $env:INCLUDED_APPS="app1 app2"; pwsh ./install.ps1
+  - Var : $apps = @("app1","app2"); pwsh ./install.ps1
+
+Required env:
+  - DEST_BASE : where symlinks should be created
+
+Optional env:
+  - THALES_AGILAB_ROOT : repo root override
+
+Note: Uses PowerShell 7+ (for Get-ChildItem -Depth). Ask if you need PS 5.1 fallback.
 #>
 
 param(
@@ -14,14 +28,24 @@ $ErrorActionPreference = "Stop"
 # ------------------
 function Info([string]$msg)  { Write-Host $msg -ForegroundColor Yellow }
 function Ok([string]$msg)    { Write-Host $msg -ForegroundColor Green }
-function Act([string]$msg)   { Write-Host $msg -ForegroundColor Cyan }
+function Act([string]$msg)   { Write-Host $msg -ForegroundColor Cyan }   # Bash BLUE
 function Err([string]$msg)   { Write-Host $msg -ForegroundColor Red }
 
 # ------------------
-# Resolve INCLUDED_APPS (args > env > $apps var)
+# Default apps (same as Bash)
 # ------------------
-$INCLUDED_APPS = @()
+$INCLUDED_APPS = @(
+  "mycode_project",
+  "flight_project",
+  "flight_trajectory",
+  "sat_trajectory",
+  "link_sim"
+  # flight_legacy (commented out in Bash)
+)
 
+# ------------------
+# Override order: args > env INCLUDED_APPS > $apps variable
+# ------------------
 if ($AppArgs -and $AppArgs.Count -gt 0) {
   $INCLUDED_APPS = $AppArgs
 }
@@ -32,53 +56,69 @@ elseif (Get-Variable -Name apps -Scope Script,Local,Global -ErrorAction Silently
   $INCLUDED_APPS = $apps
 }
 
+# Fail if now empty (shouldn’t be, but mirrors Bash behavior)
 if (-not $INCLUDED_APPS -or $INCLUDED_APPS.Count -eq 0) {
-  Err "No apps provided."
+  Err "Error: No apps specified."
   Write-Host "Usage: pwsh ./install.ps1 app1 app2 ..."
   Write-Host "   or: `$env:INCLUDED_APPS=`"app1 app2`" pwsh ./install.ps1"
   Write-Host "   or: `$apps = @('app1','app2'); pwsh ./install.ps1"
   exit 2
 }
 
-# --- Validate app names ---
+# --- Normalize & validate (basename, skip empties, skip pure numbers) ---
 $cleanApps = @()
 foreach ($a in $INCLUDED_APPS) {
-  if (-not $a -or $a.Trim() -eq "") { continue }
-  if ($a -match "[/\\]") {
-    Err "Invalid app name '$a' (looks like a path)."
-    Write-Host "Please pass folder names only (e.g., 'flight_project'), not full paths."
-    exit 2
+  if (-not $a) { continue }
+  $tok = $a.Trim()
+  if ($tok -eq "") { continue }
+
+  if ($tok -match "[/\\]") {
+    try { $tok = Split-Path -Leaf $tok } catch { }
   }
-  $cleanApps += $a
+  if ($tok -eq "") { continue }
+
+  if ($tok -match '^[0-9]+$') {
+    Info "Skipping token '$tok' (pure number)."
+    continue
+  }
+
+  $cleanApps += $tok
 }
 $INCLUDED_APPS = $cleanApps
-if ($INCLUDED_APPS.Count -eq 0) {
-  Err "No valid app names after validation."
+
+if (-not $INCLUDED_APPS -or $INCLUDED_APPS.Count -eq 0) {
+  Err "Error: No valid app names after normalization."
   exit 2
 }
 
+Info ("Apps to link: " + ($INCLUDED_APPS -join ' '))
+
 # ------------------
-# Destination base
+# DEST_BASE must be set (no default, like Bash)
 # ------------------
-$DEST_BASE = if ($env:DEST_BASE) { $env:DEST_BASE } else { "." }
+if (-not $env:DEST_BASE -or $env:DEST_BASE.Trim() -eq "") {
+  Err "Error: DEST_BASE is not set."
+  Write-Host "Set DEST_BASE to the folder where symlinks should be created."
+  exit 2
+}
+$DEST_BASE = $env:DEST_BASE
 $null = New-Item -ItemType Directory -Force -Path $DEST_BASE 2>$null
 
+Info "Installing Apps..."
 Info ("Working directory: " + (Get-Location).Path)
 Info ("Destination base: " + (Resolve-Path -LiteralPath $DEST_BASE).Path)
 
 # ------------------
-# Finder: search under $HOME for */src/agilab/apps (depth-limited)
-# Strip suffix to get repo root
+# Finder: search under $HOME (depth-limited) for */src/agilab/apps, strip suffix
 # ------------------
 function Find-ThalesAgilab {
   param([string]$StartDir, [int]$Depth = 5)
 
   $hit = Get-ChildItem -LiteralPath $StartDir -Directory -Recurse -Depth $Depth -ErrorAction SilentlyContinue |
-         Where-Object { $_.FullName -like "*\src\agilab\apps" -or $_.FullName -like "*/src/agilab/apps" } |
+         Where-Object { $_.FullName -match '([/\\])src\1agilab\1apps$' } |
          Select-Object -First 1
 
   if ($hit) {
-    # Strip the trailing /src/agilab/apps
     $pattern = [IO.Path]::Combine('src','agilab','apps')
     $root = $hit.FullName -replace [regex]::Escape($pattern) + '$', ''
     return $root
@@ -86,19 +126,19 @@ function Find-ThalesAgilab {
   return $null
 }
 
-$THALES_AGILAB_ROOT = if ($env:THALES_AGILAB_ROOT) { $env:THALES_AGILAB_ROOT } else { $null }
+$THALES_AGILAB_ROOT = $env:THALES_AGILAB_ROOT
 if (-not $THALES_AGILAB_ROOT) {
   $THALES_AGILAB_ROOT = Find-ThalesAgilab -StartDir $HOME -Depth 5
   if (-not $THALES_AGILAB_ROOT) {
-    Err "Could not locate '*\src\agilab\apps' starting from: $HOME"
-    Err "Hint: `$env:THALES_AGILAB_ROOT = 'C:\path\to\thales-agilab' (or /Users/jpm/PycharmProjects/thales-agilab) and re-run."
+    Err "Error: Could not locate '*/src/agilab/apps' starting from $HOME."
+    Info "Hint: `$env:THALES_AGILAB_ROOT = '/absolute/path/to/thales-agilab' and re-run."
     exit 1
   }
 }
 
 $TARGET_BASE = Join-Path $THALES_AGILAB_ROOT "src/agilab/apps"
 if (-not (Test-Path -LiteralPath $TARGET_BASE -PathType Container)) {
-  Err "Missing directory: $TARGET_BASE"
+  Err "Error: Missing directory: $TARGET_BASE"
   exit 1
 }
 
@@ -107,7 +147,7 @@ Info ("Link target base: $TARGET_BASE")
 Write-Host ""
 
 # ------------------
-# Symlink helpers
+# Symlink helpers (mirror Bash)
 # ------------------
 function Test-IsSymlink {
   param([string]$Path)
