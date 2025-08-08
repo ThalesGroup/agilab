@@ -14,7 +14,6 @@ NC='\033[0m'
 
 # ------------------
 # Resolve INCLUDED_APPS (CLI args > env INCLUDED_APPS > bash array apps)
-# No defaults — must be provided explicitly.
 # ------------------
 declare -a INCLUDED_APPS=(
 mycode_project
@@ -24,6 +23,9 @@ sat_trajectory
 link_sim
 #flight_legacy
 )
+DEST_BASE="$(pwd)/apps"
+
+mkdir -p -- "$DEST_BASE"
 
 if (( $# > 0 )); then
   INCLUDED_APPS=("$@")
@@ -38,12 +40,6 @@ if (( ${#INCLUDED_APPS[@]} == 0 )); then
   exit 2
 fi
 
-# Destination base
-if [[ -z "${DEST_BASE:-}" ]]; then
-  echo -e "${RED}Error:${NC} DEST_BASE is not set."
-  exit 2
-fi
-mkdir -p -- "$DEST_BASE"
 
 echo -e "${YELLOW}Installing Apps...${NC}"
 echo -e "${YELLOW}Working directory:${NC} $(pwd)"
