@@ -3,9 +3,6 @@
 
 set -euo pipefail
 
-# Optional env (uncomment if you use it elsewhere)
-# source "$HOME/.local/share/agilab/.env" || true
-
 # ------------------
 # Colors
 # ------------------
@@ -16,50 +13,87 @@ RED='\033[1;31m'
 NC='\033[0m'
 
 # ------------------
-# Config
+# Resolve INCLUDED_APPS (CLI args > env INCLUDED_APPS > bash array apps)
+# No defaults — must be provided explicitly.
 # ------------------
-# Provide apps one of three ways (priority order):
-#   1) CLI args: ./install_agilab_apps.sh app1 app2
-#   2) Env var:  INCLUDED_APPS="app1 app2" ./install_agilab_apps.sh
-#   3) Bash arr: apps=(app1 app2); ./install_agilab_apps.sh
-declare -a INCLUDED_APPS=()
+declare -a INCLUDED_APPS=(
+mycode_project
+flight_project
+flight_trajectory
+sat_trajectory
+link_sim
+#flight_legacy
+)
+
+DEST_BASE=$(pwd)/apps
+
 if (( $# > 0 )); then
   INCLUDED_APPS=("$@")
 elif [[ -n "${INCLUDED_APPS:-}" ]]; then
   # shellcheck disable=SC2206
   INCLUDED_APPS=(${INCLUDED_APPS})
 elif declare -p apps &>/dev/null; then
+  # shellcheck disable=SC2154
   INCLUDED_APPS=("${apps[@]}")
 fi
 
+# Fail if no apps provided
 if (( ${#INCLUDED_APPS[@]} == 0 )); then
-  echo -e "${RED}No apps specified.${NC}"
+  echo -e "${RED}Error:${NC} No apps specified."
   echo "Usage: $0 app1 app2 ..."
   echo "   or: INCLUDED_APPS='app1 app2' $0"
   echo "   or: apps=(app1 app2); $0"
   exit 2
 fi
 
-# Where to create the links (default current dir). Override with: DEST_BASE=/path $0 ...
-DEST_BASE="${DEST_BASE:-.}"
+# --- Normalize & validate app names ---
+clean=()
+for a in "${INCLUDED_APPS[@]}"; do
+  [[ -z "${a// }" ]] && continue
+  a="${a//\\//}"      # backslashes to slashes
+  a="${a##*/}"        # basename
+  [[ -z "${a// }" ]] && continue
+
+  if [[ "$a" =~ ^[0-9]+$ ]]; then
+    echo -e "${YELLOW}Skipping token '$a' (pure number).${NC}"
+    continue
+  fi
+
+  clean+=("$a")
+done
+INCLUDED_APPS=("${clean[@]}")
+
+if (( ${#INCLUDED_APPS[@]} == 0 )); then
+  echo -e "${RED}Error:${NC} No valid app names after normalization."
+  exit 2
+fi
+
+# Show the final app list
+echo -e "${YELLOW}Apps to link:${NC} ${INCLUDED_APPS[*]}"
+
+# ------------------
+# Destination base (must be explicitly set)
+# ------------------
+if [[ -z "${DEST_BASE:-}" ]]; then
+  echo -e "${RED}Error:${NC} DEST_BASE is not set."
+  echo "Set DEST_BASE to the folder where symlinks should be created."
+  exit 2
+fi
 mkdir -p -- "$DEST_BASE"
 
+echo -e "${YELLOW}Installing Apps...${NC}"
 echo -e "${YELLOW}Working directory:${NC} $(pwd)"
 echo -e "${YELLOW}Destination base:${NC} $(cd -- "$DEST_BASE" && pwd -P)"
 
 # ------------------
-# Auto-detect thales-agilab root (search under $HOME)
+# Finder: search under $HOME (depth-limited) for */src/agilab/apps
 # ------------------
-# Finds any directory matching */src/agilab/apps under $HOME (depth-limited),
-# then climbs three levels up to return the repo root (…/thales-agilab).
 find_thales_agilab() {
   local depth="${1:-5}"
   local hit
   hit="$(find "$HOME" -maxdepth "$depth" -type d -path '*/src/agilab/apps' 2>/dev/null | head -n 1)"
   if [[ -n "$hit" ]]; then
-    # Repo root = path without the trailing /src/agilab/apps
-    local root="${hit%/src/agilab/apps}"
-    printf '%s\n' "$root"
+    printf '%s\n' "${hit%/src/agilab/apps}"
     return 0
   fi
   return 1
@@ -68,15 +102,15 @@ find_thales_agilab() {
 THALES_AGILAB_ROOT="${THALES_AGILAB_ROOT:-}"
 if [[ -z "$THALES_AGILAB_ROOT" ]]; then
   if ! THALES_AGILAB_ROOT="$(find_thales_agilab 5)"; then
-    echo -e "${RED}Could not locate '*/src/agilab/apps' starting from:${NC} $HOME"
-    echo -e "${RED}Hint:${NC} export THALES_AGILAB_ROOT=/absolute/path/to/thales-agilab and re-run."
+    echo -e "${RED}Error:${NC} Could not locate '*/src/agilab/apps' starting from $HOME."
+    echo -e "${YELLOW}Hint:${NC} export THALES_AGILAB_ROOT=/absolute/path/to/thales-agilab and re-run."
     exit 1
   fi
 fi
 
 TARGET_BASE="$THALES_AGILAB_ROOT/src/agilab/apps"
 if [[ ! -d "$TARGET_BASE" ]]; then
-  echo -e "${RED}Missing directory:${NC} $TARGET_BASE"
+  echo -e "${RED}Error:${NC} Missing directory: $TARGET_BASE"
   exit 1
 fi
 
@@ -85,7 +119,7 @@ echo -e "${YELLOW}Link target base:${NC} $TARGET_BASE"
 echo
 
 # ------------------
-# Link creation
+# Create / refresh symlinks
 # ------------------
 status=0
 for app in "${INCLUDED_APPS[@]}"; do
@@ -99,7 +133,6 @@ for app in "${INCLUDED_APPS[@]}"; do
   fi
 
   if [[ -L "$app_dest" ]]; then
-    # Existing symlink (even if broken): refresh it to ensure correct target
     echo -e "${BLUE}App '$app_dest' is a symlink. Recreating -> '$app_target'...${NC}"
     rm -f -- "$app_dest"
     ln -s -- "$app_target" "$app_dest"
@@ -107,7 +140,6 @@ for app in "${INCLUDED_APPS[@]}"; do
     echo -e "${BLUE}App '$app_dest' does not exist. Creating symlink -> '$app_target'...${NC}"
     ln -s -- "$app_target" "$app_dest"
   else
-    # Exists and is not a symlink (real dir/file) — leave untouched
     echo -e "${GREEN}App '$app_dest' exists and is not a symlink. Leaving untouched.${NC}"
   fi
 done
