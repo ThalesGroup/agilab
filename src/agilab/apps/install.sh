@@ -57,7 +57,9 @@ find_thales_agilab() {
   local hit
   hit="$(find "$HOME" -maxdepth "$depth" -type d -path '*/src/agilab/apps' 2>/dev/null | head -n 1)"
   if [[ -n "$hit" ]]; then
-    printf "%s\n" "$(dirname "$(dirname "$(dirname "$hit")")")"
+    # Repo root = path without the trailing /src/agilab/apps
+    local root="${hit%/src/agilab/apps}"
+    printf '%s\n' "$root"
     return 0
   fi
   return 1

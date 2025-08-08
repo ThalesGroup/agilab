@@ -1,5 +1,5 @@
 <#
-install.ps1 — auto-detect thales-agilab under $HOME or one subfolder, then (re)create app symlinks
+install.ps1 — auto-detect thales-agilab and (re)create app symlinks
 #>
 
 param(
@@ -18,7 +18,7 @@ function Act([string]$msg)   { Write-Host $msg -ForegroundColor Cyan }
 function Err([string]$msg)   { Write-Host $msg -ForegroundColor Red }
 
 # ------------------
-# Resolve INCLUDED_APPS
+# Resolve INCLUDED_APPS (args > env > $apps var)
 # ------------------
 $INCLUDED_APPS = @()
 
@@ -40,6 +40,23 @@ if (-not $INCLUDED_APPS -or $INCLUDED_APPS.Count -eq 0) {
   exit 2
 }
 
+# --- Validate app names ---
+$cleanApps = @()
+foreach ($a in $INCLUDED_APPS) {
+  if (-not $a -or $a.Trim() -eq "") { continue }
+  if ($a -match "[/\\]") {
+    Err "Invalid app name '$a' (looks like a path)."
+    Write-Host "Please pass folder names only (e.g., 'flight_project'), not full paths."
+    exit 2
+  }
+  $cleanApps += $a
+}
+$INCLUDED_APPS = $cleanApps
+if ($INCLUDED_APPS.Count -eq 0) {
+  Err "No valid app names after validation."
+  exit 2
+}
+
 # ------------------
 # Destination base
 # ------------------
@@ -50,25 +67,26 @@ Info ("Working directory: " + (Get-Location).Path)
 Info ("Destination base: " + (Resolve-Path -LiteralPath $DEST_BASE).Path)
 
 # ------------------
-# Find thales-agilab starting from $HOME
+# Finder: search under $HOME for */src/agilab/apps (depth-limited)
+# Strip suffix to get repo root
 # ------------------
 function Find-ThalesAgilab {
   param([string]$StartDir, [int]$Depth = 5)
 
-  # Find any directory whose path ends with src/agilab/apps under $HOME (depth-limited)
   $hit = Get-ChildItem -LiteralPath $StartDir -Directory -Recurse -Depth $Depth -ErrorAction SilentlyContinue |
          Where-Object { $_.FullName -like "*\src\agilab\apps" -or $_.FullName -like "*/src/agilab/apps" } |
          Select-Object -First 1
 
   if ($hit) {
-    # repo root = parent of /src/agilab/apps
-    return (Split-Path (Split-Path $hit.FullName -Parent) -Parent)
+    # Strip the trailing /src/agilab/apps
+    $pattern = [IO.Path]::Combine('src','agilab','apps')
+    $root = $hit.FullName -replace [regex]::Escape($pattern) + '$', ''
+    return $root
   }
   return $null
 }
 
 $THALES_AGILAB_ROOT = if ($env:THALES_AGILAB_ROOT) { $env:THALES_AGILAB_ROOT } else { $null }
-
 if (-not $THALES_AGILAB_ROOT) {
   $THALES_AGILAB_ROOT = Find-ThalesAgilab -StartDir $HOME -Depth 5
   if (-not $THALES_AGILAB_ROOT) {
