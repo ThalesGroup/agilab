@@ -493,7 +493,7 @@ class AgiEnv:
     def copy_existing_projects(self, src_apps: Path, dst_apps: Path):
         dst_apps.mkdir(parents=True, exist_ok=True)
         for item in src_apps.iterdir():
-            if item.is_dir():
+            if item.is_dir() and item.name.endswith("project"):
                 dst_item = dst_apps / item.name
                 try:
                     shutil.copytree(item, dst_item, dirs_exist_ok=True)
