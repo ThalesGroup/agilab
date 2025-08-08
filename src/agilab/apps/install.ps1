@@ -1,100 +1,159 @@
-# install_apps.ps1
-# Purpose: Install the apps (PowerShell version)
+<#
+install.ps1 — create/refresh app symlinks pointing to thales-agilab/src/agilab/apps/<app>
+
+Usage:
+  pwsh ./install.ps1 app1 app2
+  $env:INCLUDED_APPS="app1 app2"; pwsh ./install.ps1
+  $apps = @("app1","app2"); pwsh ./install.ps1
+
+Optional env:
+  THALES_AGILAB_ROOT = absolute path to thales-agilab
+  DEST_BASE          = where links are created (default: ".")
+#>
+
+param(
+  [Parameter(ValueFromRemainingArguments = $true)]
+  [string[]]$AppArgs
+)
 
 $ErrorActionPreference = "Stop"
 
-# Load environment variables from .env (simulate 'source')
-$envFile = "$HOME\.local\share\agilab\.env"
-if (Test-Path $envFile) {
-    Get-Content $envFile | ForEach-Object {
-        if ($_ -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+?)\s*$') {
-            $name, $val = $matches[1], $matches[2].Trim("'""")
-            [System.Environment]::SetEnvironmentVariable($name, $val)
-        }
+# ------------------
+# Colors (Write-Host colors to mimic .sh UX)
+# ------------------
+function Info([string]$msg)  { Write-Host $msg -ForegroundColor Yellow }
+function Ok([string]$msg)    { Write-Host $msg -ForegroundColor Green }
+function Act([string]$msg)   { Write-Host $msg -ForegroundColor Cyan }   # like BLUE
+function Err([string]$msg)   { Write-Host $msg -ForegroundColor Red }
+
+Info ("CWD: " + (Get-Location).Path)
+
+# ------------------
+# Resolve app list (priority: CLI args > INCLUDED_APPS env > $apps variable)
+# ------------------
+$INCLUDED_APPS = @()
+
+if ($AppArgs -and $AppArgs.Count -gt 0) {
+  $INCLUDED_APPS = $AppArgs
+} elseif ($env:INCLUDED_APPS) {
+  $INCLUDED_APPS = @($env:INCLUDED_APPS -split '\s+')
+} elseif (Get-Variable -Name apps -Scope Script,Local,Global -ErrorAction SilentlyContinue) {
+  $INCLUDED_APPS = $apps
+}
+
+if (-not $INCLUDED_APPS -or $INCLUDED_APPS.Count -eq 0) {
+  Err "No apps provided. Pass apps as args, set INCLUDED_APPS env, or define an `$apps array."
+  Write-Host "Example:" ( 'INCLUDED_APPS="flight_project sat_trajectory_project" pwsh ./install.ps1' )
+  exit 2
+}
+
+# ------------------
+# Destination base (default ".")
+# ------------------
+$DEST_BASE = if ($env:DEST_BASE) { $env:DEST_BASE } else { "." }
+$null = New-Item -ItemType Directory -Force -Path $DEST_BASE 2>$null
+Info ("Destination base: " + (Resolve-Path -LiteralPath $DEST_BASE).Path)
+
+# ------------------
+# Auto-detect thales-agilab root (walk up from script dir)
+# ------------------
+$ScriptDir = Split-Path -LiteralPath $PSCommandPath -Parent
+
+function Find-ThalesAgilab {
+  param([string]$StartDir)
+
+  $d = $StartDir
+  while ($true) {
+    $candidate = Join-Path $d "thales-agilab\src\agilab\apps"
+    if (Test-Path -LiteralPath $candidate -PathType Container) {
+      return (Join-Path $d "thales-agilab")
     }
+    $parent = Split-Path -LiteralPath $d -Parent
+    if ([string]::IsNullOrEmpty($parent) -or $parent -eq $d) { break }
+    $d = $parent
+  }
+  return $null
 }
-$AGI_PYTHON_VERSION = $env:AGI_PYTHON_VERSION
-if ($AGI_PYTHON_VERSION -match '^(\d+\.\d+\.\d+(\+freethreaded)?)') {
-    $AGI_PYTHON_VERSION = $matches[1]
-    $env:AGI_PYTHON_VERSION = $AGI_PYTHON_VERSION
+
+$THALES_AGILAB_ROOT = if ($env:THALES_AGILAB_ROOT) { $env:THALES_AGILAB_ROOT } else { $null }
+if (-not $THALES_AGILAB_ROOT) {
+  $THALES_AGILAB_ROOT = Find-ThalesAgilab -StartDir $ScriptDir
+  if (-not $THALES_AGILAB_ROOT) {
+    Err "Could not locate 'thales-agilab/src/agilab/apps' by walking up from: $ScriptDir"
+    Err "Tip: set THALES_AGILAB_ROOT to an absolute path and re-run."
+    exit 1
+  }
 }
 
-# App install command
-$APP_INSTALL = "uv -q run -p $AGI_PYTHON_VERSION --project ../core/cluster python install.py"
+$TARGET_BASE = Join-Path $THALES_AGILAB_ROOT "src\agilab\apps"
+if (-not (Test-Path -LiteralPath $TARGET_BASE -PathType Container)) {
+  Err "Missing directory: $TARGET_BASE"
+  exit 1
+}
 
-# List of included apps
-$INCLUDED_APPS = @(
-    "mycode_project",
-    "flight_project",
-    "sat_trajectory_project",
-    "flight_trajectory_project",
-    "link_sim_project"
-    # "flight_legacy_project" # Commented out in original
-)
+Info ("Using THALES_AGILAB_ROOT: $THALES_AGILAB_ROOT")
+Info ("Link target base: $TARGET_BASE")
+Write-Host ""
 
-function Write-Blue($msg)  { Write-Host $msg -ForegroundColor Blue }
-function Write-Green($msg) { Write-Host $msg -ForegroundColor Green }
-function Write-Red($msg)   { Write-Host $msg -ForegroundColor Red }
+# ------------------
+# Helpers
+# ------------------
+function Test-IsSymlink {
+  param([string]$Path)
+  if (-not (Test-Path -LiteralPath $Path)) { return $false }
+  try {
+    $item = Get-Item -LiteralPath $Path -Force
+    return ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
+  } catch { return $false }
+}
 
-Write-Blue "Retrieving all apps..."
-Write-Host (Get-Location)
+function New-Link {
+  param([string]$LinkPath, [string]$TargetPath)
 
-# Ensure all INCLUDED_APPS exist, create symlinks if missing (simulated for Windows)
+  # Prefer SymbolicLink; on Windows without Developer Mode/admin, fall back to Junction for dirs
+  $itemType = "SymbolicLink"
+  try {
+    New-Item -ItemType $itemType -Path $LinkPath -Target $TargetPath -Force | Out-Null
+  } catch {
+    if ($IsWindows) {
+      # Try junctions for directories
+      if (Test-Path -LiteralPath $TargetPath -PathType Container) {
+        New-Item -ItemType Junction -Path $LinkPath -Target $TargetPath -Force | Out-Null
+      } else {
+        throw
+      }
+    } else {
+      throw
+    }
+  }
+}
+
+# ------------------
+# Create / refresh links (same UX as .sh)
+# ------------------
+$status = 0
 foreach ($app in $INCLUDED_APPS) {
-    $app_path = Join-Path -Path "." -ChildPath $app
-    $target_path = "..\..\..\..\thales-agilab\src\agilab\apps\$app"
-    if (-not (Test-Path $app_path -PathType Container)) {
-        Write-Blue "App '$app_path' does not exist. Creating symlink to '$target_path'..."
-        # Symlink or junction on Windows (use mklink /J or New-Item)
-        try {
-            New-Item -ItemType Junction -Path $app_path -Target $target_path | Out-Null
-        } catch {
-            Write-Red "Failed to create symlink for $app_path"
-        }
-    }
+  $appTarget = Join-Path $TARGET_BASE $app
+  $appDest   = Join-Path $DEST_BASE $app
+
+  if (-not (Test-Path -LiteralPath $appTarget)) {
+    Err "Target for '$app' does not exist: $appTarget — skipping."
+    $status = 1
+    continue
+  }
+
+  if (Test-IsSymlink -Path $appDest) {
+    Act "App '$appDest' is a symlink. Recreating -> '$appTarget'..."
+    Remove-Item -LiteralPath $appDest -Force
+    New-Link -LinkPath $appDest -TargetPath $appTarget
+  }
+  elseif (-not (Test-Path -LiteralPath $appDest)) {
+    Act "App '$appDest' missing. Creating symlink -> '$appTarget'..."
+    New-Link -LinkPath $appDest -TargetPath $appTarget
+  }
+  else {
+    Ok "App '$appDest' exists and is not a symlink. Leaving untouched."
+  }
 }
 
-# Find apps (subdirs) to install
-$apps = @()
-$parentDir = $args[0]
-if (-not $parentDir) { $parentDir = "." }
-foreach ($dir in Get-ChildItem -Path $parentDir -Directory) {
-    $dir_name = $dir.Name
-    if ($INCLUDED_APPS -contains $dir_name -and $dir_name -like "*_project") {
-        $apps += $dir_name
-    }
-}
-
-Write-Blue "Apps to install: $($apps -join ", ")"
-
-Push-Location ../apps
-foreach ($app in $apps) {
-    Write-Blue "Installing $app..."
-    $cmd = "$APP_INSTALL $app --apps-dir $(Get-Location) --install-type $($args[1])"
-    $ok = $false
-    try {
-        Invoke-Expression $cmd
-        $ok = $true
-    } catch {
-        Write-Red "✗ '$app' installation failed."
-        Exit 1
-    }
-    if ($ok) {
-        Write-Green "✓ '$app' successfully installed."
-        Write-Green "Checking installation..."
-        Push-Location $app
-        if (Test-Path "run-all-test.py") {
-            Invoke-Expression "uv run -p $AGI_PYTHON_VERSION python run-all-test.py"
-        } else {
-            Write-Blue "No run-all-test.py in $app, skipping tests."
-        }
-        Pop-Location
-    }
-}
-Pop-Location
-
-Write-Green "Installation of apps complete!"
-
-# Patch PyCharm interpreter settings in workspace.xml
-Write-Blue "Patching PyCharm workspace.xml interpreter settings..."
-Invoke-Expression "uv run python patch_workspace.py"
+exit $status
