@@ -23,7 +23,7 @@ sat_trajectory
 link_sim
 #flight_legacy
 )
-DEST_BASE="$(pwd)/apps"
+DEST_BASE="$(pwd)"
 
 mkdir -p -- "$DEST_BASE"
 

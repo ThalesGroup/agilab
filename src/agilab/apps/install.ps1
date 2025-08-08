@@ -22,7 +22,7 @@ param(
 )
 
 if (-not $env:DEST_BASE -or [string]::IsNullOrWhiteSpace($env:DEST_BASE)) {
-    $DEST_BASE = Join-Path (Get-Location) "apps"
+    $DEST_BASE = (Get-Location)
 } else {
     $DEST_BASE = $env:DEST_BASE
 }
