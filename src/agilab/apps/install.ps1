@@ -21,6 +21,15 @@ param(
   [string[]]$AppArgs
 )
 
+if (-not $env:DEST_BASE -or [string]::IsNullOrWhiteSpace($env:DEST_BASE)) {
+    $DEST_BASE = Join-Path (Get-Location) "apps"
+} else {
+    $DEST_BASE = $env:DEST_BASE
+}
+if (-not (Test-Path -LiteralPath $DEST_BASE -PathType Container)) {
+    New-Item -ItemType Directory -Path $DEST_BASE | Out-Null
+}
+
 $ErrorActionPreference = "Stop"
 
 # ------------------
