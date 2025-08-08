@@ -25,58 +25,22 @@ link_sim
 #flight_legacy
 )
 
-DEST_BASE=$(pwd)/apps
-
 if (( $# > 0 )); then
   INCLUDED_APPS=("$@")
 elif [[ -n "${INCLUDED_APPS:-}" ]]; then
-  # shellcheck disable=SC2206
   INCLUDED_APPS=(${INCLUDED_APPS})
 elif declare -p apps &>/dev/null; then
-  # shellcheck disable=SC2154
   INCLUDED_APPS=("${apps[@]}")
 fi
 
-# Fail if no apps provided
 if (( ${#INCLUDED_APPS[@]} == 0 )); then
   echo -e "${RED}Error:${NC} No apps specified."
-  echo "Usage: $0 app1 app2 ..."
-  echo "   or: INCLUDED_APPS='app1 app2' $0"
-  echo "   or: apps=(app1 app2); $0"
   exit 2
 fi
 
-# --- Normalize & validate app names ---
-clean=()
-for a in "${INCLUDED_APPS[@]}"; do
-  [[ -z "${a// }" ]] && continue
-  a="${a//\\//}"      # backslashes to slashes
-  a="${a##*/}"        # basename
-  [[ -z "${a// }" ]] && continue
-
-  if [[ "$a" =~ ^[0-9]+$ ]]; then
-    echo -e "${YELLOW}Skipping token '$a' (pure number).${NC}"
-    continue
-  fi
-
-  clean+=("$a")
-done
-INCLUDED_APPS=("${clean[@]}")
-
-if (( ${#INCLUDED_APPS[@]} == 0 )); then
-  echo -e "${RED}Error:${NC} No valid app names after normalization."
-  exit 2
-fi
-
-# Show the final app list
-echo -e "${YELLOW}Apps to link:${NC} ${INCLUDED_APPS[*]}"
-
-# ------------------
-# Destination base (must be explicitly set)
-# ------------------
+# Destination base
 if [[ -z "${DEST_BASE:-}" ]]; then
   echo -e "${RED}Error:${NC} DEST_BASE is not set."
-  echo "Set DEST_BASE to the folder where symlinks should be created."
   exit 2
 fi
 mkdir -p -- "$DEST_BASE"
@@ -85,9 +49,31 @@ echo -e "${YELLOW}Installing Apps...${NC}"
 echo -e "${YELLOW}Working directory:${NC} $(pwd)"
 echo -e "${YELLOW}Destination base:${NC} $(cd -- "$DEST_BASE" && pwd -P)"
 
-# ------------------
-# Finder: search under $HOME (depth-limited) for */src/agilab/apps
-# ------------------
+# Normalize & validate: only keep *_project
+clean=()
+for a in "${INCLUDED_APPS[@]}"; do
+  [[ -z "${a// }" ]] && continue
+  a="${a//\\//}"
+  a="${a##*/}"
+  [[ -z "${a// }" ]] && continue
+
+  if [[ ! "$a" =~ _project$ ]]; then
+    echo -e "${YELLOW}Skipping token '$a' (no '_project' suffix).${NC}"
+    continue
+  fi
+
+  clean+=("$a")
+done
+INCLUDED_APPS=("${clean[@]}")
+
+if (( ${#INCLUDED_APPS[@]} == 0 )); then
+  echo -e "${RED}Error:${NC} No valid app names after filtering."
+  exit 2
+fi
+
+echo -e "${YELLOW}Apps to link:${NC} ${INCLUDED_APPS[*]}"
+
+# Finder
 find_thales_agilab() {
   local depth="${1:-5}"
   local hit
@@ -102,8 +88,7 @@ find_thales_agilab() {
 THALES_AGILAB_ROOT="${THALES_AGILAB_ROOT:-}"
 if [[ -z "$THALES_AGILAB_ROOT" ]]; then
   if ! THALES_AGILAB_ROOT="$(find_thales_agilab 5)"; then
-    echo -e "${RED}Error:${NC} Could not locate '*/src/agilab/apps' starting from $HOME."
-    echo -e "${YELLOW}Hint:${NC} export THALES_AGILAB_ROOT=/absolute/path/to/thales-agilab and re-run."
+    echo -e "${RED}Error:${NC} Could not locate '*/src/agilab/apps' from $HOME."
     exit 1
   fi
 fi
@@ -118,9 +103,7 @@ echo -e "${YELLOW}Using THALES_AGILAB_ROOT:${NC} $THALES_AGILAB_ROOT"
 echo -e "${YELLOW}Link target base:${NC} $TARGET_BASE"
 echo
 
-# ------------------
 # Create / refresh symlinks
-# ------------------
 status=0
 for app in "${INCLUDED_APPS[@]}"; do
   app_target="$TARGET_BASE/$app"
