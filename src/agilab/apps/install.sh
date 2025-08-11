@@ -66,7 +66,14 @@ echo -e "${YELLOW}Apps to link:${NC} ${INCLUDED_APPS[*]}"
 # Finder under $HOME; strip /src/agilab/apps
 find_thales_agilab() {
   local depth="${1:-5}" hit
-  hit="$(find "$HOME" -maxdepth "$depth" -type d -path '*/src/agilab/apps' 2>/dev/null | head -n 1)"
+  hit="$(
+    find "$HOME" \
+      -maxdepth "$depth" \
+      \( -path "$HOME/Music" -o -path "$HOME/Documents" -o -path "$HOME/Desktop" \
+         -o -path "$HOME/Library/Mobile Documents" -o -path "$HOME/Library/Application Support" \
+      \) -prune -o \
+      -type d -path '*/src/agilab/apps' -print 2>/dev/null | head -n 1
+  )"
   [[ -n "$hit" ]] && { printf '%s\n' "${hit%/src/agilab/apps}"; return 0; }
   return 1
 }
