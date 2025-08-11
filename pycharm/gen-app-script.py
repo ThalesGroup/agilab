@@ -91,7 +91,7 @@ def _apps_base_candidates(script_dir: _P) -> list[_P]:
 
 # ---------- AUTO-RUN ----------
 try:
-    _here = _P(__file__).resolve().parent
+    _here = _P(__file__).parent[1].resolve()
     install_sh = (_here / "install.sh").resolve()
     total = 0
 
