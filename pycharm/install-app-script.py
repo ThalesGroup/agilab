@@ -5,13 +5,13 @@
 # - handles legacy vs new install.sh interface
 # ======================
 import os, time, shutil, subprocess
-from pathlib import Path as _P
+from pathlib import Path
 import xml.etree.ElementTree as ET
 
-def _xml_write(_tree: ET.ElementTree, _target: _P):
+def xml_write(_tree: ET.ElementTree, _target: Path):
     _tree.write(_target, encoding="utf-8", xml_declaration=True)
 
-def _ensure_sdk_in_misc(_misc_path: _P, desired_name: str) -> bool:
+def ensure_sdk_in_misc(_misc_path: Path, desired_name: str) -> bool:
     if _misc_path.exists():
         try:
             t = ET.parse(_misc_path); r = t.getroot()
@@ -37,11 +37,11 @@ def _ensure_sdk_in_misc(_misc_path: _P, desired_name: str) -> bool:
         comp.set("version", "2"); changed = True
 
     if changed:
-        _xml_write(t, _misc_path)
+        xml_write(t, _misc_path)
         print(f"[misc.xml] {_misc_path.parent.name}: set interpreter declaration -> '{desired_name}'")
     return changed
 
-def _set_interpreter_for_project(_apps_link_dir: _P) -> bool:
+def set_interpreter_for_project(_apps_link_dir: Path) -> bool:
     """Follow symlink to target; keep interpreter name from link folder."""
     link_name = _apps_link_dir.name
     proj_root = _apps_link_dir.resolve(strict=False)
@@ -78,21 +78,21 @@ def _set_interpreter_for_project(_apps_link_dir: _P) -> bool:
         bak = ws.with_suffix(f".xml.bak-{time.strftime('%Y%m%d-%H%M%S')}")
         try: shutil.copy2(ws, bak)
         except Exception as e: print(f"[workspace.xml] {link_name}: WARN backup failed: {e}")
-        _xml_write(tws, ws)
+        xml_write(tws, ws)
         print(f"[workspace.xml] {link_name}: set interpreter -> '{desired}' (backup: {bak.name})")
 
-    _ensure_sdk_in_misc(misc, desired)
+    ensure_sdk_in_misc(misc, desired)
     return changed
 
-def _apps_base_candidates(script_dir: _P) -> list[_P]:
+def project_base_candidates(dir: Path) -> list[Path]:
     return [
-        script_dir / "src" / "agilab" / "apps",
-        script_dir.parent / "src" / "agilab" / "apps",
-        script_dir.parent.parent / "src" / "agilab" / "apps",
+        dir / "src/agilab/core",
+        dir / "src/agilab/apps",
     ]
 
 def update_workspace_xml(config_name, config_type, folder_name):
-    workspace_path = os.path.join(os.getcwd(), '.idea', 'workspace.xml')
+    global agilab_home
+    workspace_path = agilab_home / '.idea/workspace.xml'
     # If file does not exist, create minimal skeleton
     if not os.path.exists(workspace_path):
         root = ET.Element('project', version="4")
@@ -127,33 +127,33 @@ def update_workspace_xml(config_name, config_type, folder_name):
 
 # ---------- AUTO-RUN ----------
 try:
-    _here = _P(__file__).resolve().parent.parent
-    install_sh = (_here / "install.sh").resolve()
+    agilab_home = Path(__file__).resolve().parent.parent
+    install_sh = (agilab_home / "install.sh").resolve()
     total = 0
 
-    for apps_root in _apps_base_candidates(_here):
-        if not apps_root.is_dir():
+    for project_root in project_base_candidates(agilab_home):
+        if not project_root.is_dir():
             continue
 
-        for app_dir in sorted(
-            [d for d in apps_root.iterdir() if d.is_dir() and d.name.endswith("_project")],
+        for project_dir in sorted(
+            [agilab_home] + [d for d in project_root.iterdir() if d.is_dir() and (d / '.venv').exists()],
             key=lambda p: p.name
         ):
-            FOLDER_NAME = app_dir.name
+            FOLDER_NAME = project_dir.name
             CONFIG_NAME = FOLDER_NAME.replace("_project", "")
             CONFIG_TYPE = "PythonConfigurationType"
 
             try:
                 # 1) your existing run-config generation (via link path)
                 cwd_before = os.getcwd()
-                os.chdir(app_dir)
+                os.chdir(project_dir)
                 try:
                     update_workspace_xml(CONFIG_NAME, CONFIG_TYPE, FOLDER_NAME)
                 finally:
                     os.chdir(cwd_before)
 
                 # 2) interpreter patch (follow symlink, keep link name)
-                if _set_interpreter_for_project(app_dir):
+                if set_interpreter_for_project(project_dir):
                     total += 1
                 else:
                     print(f"[apps] {FOLDER_NAME}: no interpreter change (no .venv/.idea or already correct).")
@@ -161,11 +161,11 @@ try:
             except Exception as e:
                 print(f"[apps] {FOLDER_NAME}: ERROR {e}")
 
-        break  # stop after first detected apps_root
+        break  # stop after first detected project_root
 
     if total:
         print(f"[apps] Done. Interpreters updated for {total} project(s).")
     else:
         print("[apps] No interpreter updates were needed.")
-except Exception as _e:
-    print(f"[apps] ERROR during apps-only pass: {_e}")
+except Exception as e:
+    print(f"[apps] ERROR during apps-only pass: {e}")
