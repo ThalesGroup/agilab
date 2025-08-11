@@ -278,6 +278,11 @@ install_enduser() {
     ./test-install-enduser.sh "$apps_dir" "1"
 }
 
+install_pycharm_script() {
+# Run the script
+    uv run -p "$PYTHON_VERSION" python pycharm/gen-app-script.py "$@"
+}
+
 # ================================
 # Script Execution
 # ================================
@@ -292,5 +297,6 @@ install_core
 write_env_values
 install_apps
 install_enduser
+install_pycharm_script
 
 echo -e "${GREEN}Installation complete!${NC}"
