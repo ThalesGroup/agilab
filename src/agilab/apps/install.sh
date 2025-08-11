@@ -1,22 +1,23 @@
-#!/usr/bin/env bash
-# install_agilab_apps.sh — auto-detect thales-agilab and (re)create app symlinks
+#!/bin/bash
+# Script: install_Agi_apps.sh
+# Purpose: Install the apps (apps-only; no positional args required)
+
 set -euo pipefail
+
+# Load env + normalize Python version
+# shellcheck source=/dev/null
+source "$HOME/.local/share/agilab/.env"
+AGI_PYTHON_VERSION=$(echo "${AGI_PYTHON_VERSION:-}" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*/\1/')
+export AGI_PYTHON_VERSION
+export PYTHONPATH="$PWD:${PYTHONPATH-}"
 
 # Colors
 BLUE='\033[1;34m'; GREEN='\033[1;32m'; YELLOW='\033[1;33m'; RED='\033[1;31m'; NC='\033[0m'
 
-# Env + Python version normalization
-source "$HOME/.local/share/agilab/.env"
-AGI_PYTHON_VERSION=$(echo "$AGI_PYTHON_VERSION" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*/\1/')
-export AGI_PYTHON_VERSION
-
-# Installer entrypoint (relative to src/agilab/apps)
+# Installer entrypoint (must run from src/agilab/apps so ../core/cluster is valid)
 APP_INSTALL="uv -q run -p $AGI_PYTHON_VERSION --project ../core/cluster python install.py"
 
-PUBLIC_AGILAB="$(cat $HOME/.local/share/agilab/.agilab-path)"
-PRIVATE_AGILAB=""
-
-# Default app list matching your repo (only *_project)
+# --- App lists (merge private + public) --------------------------------------
 declare -a PRIVATE_APPS=(
   flight_trajectory_project
   sat_trajectory_project
@@ -24,68 +25,12 @@ declare -a PRIVATE_APPS=(
   # flight_legacy_project
 )
 
-declare -a PUBLIC_APPS=(
-  mycode_project
-  flight_project
-)
-
-# Merge both into INCLUDED_APPS
-declare -a INCLUDED_APPS=("${PRIVATE_APPS[@]}" "${PUBLIC_APPS[@]}")
-echo "Merged apps: ${INCLUDED_APPS[@]}"
-
-# DEST_BASE default (overridable by env); where links are created
+# Destination base for creating local app symlinks (defaults to current dir)
 : "${DEST_BASE:=$(pwd)}"
 mkdir -p -- "$DEST_BASE"
-
-echo "create symlink for apps: ${PRIVATE_APPS[@]}"
-
-if (( ${#PRIVATE_APPS[@]} == 0 )); then
-  echo -e "${RED}Error:${NC} No apps specified."
-  exit 2
-fi
-
-echo -e "${YELLOW}Installing Apps...${NC}"
-echo -e "${YELLOW}Working directory:${NC} $(pwd)"
 echo -e "${YELLOW}Destination base:${NC} $(cd -- "$DEST_BASE" && pwd -P)"
 
-# Normalize & filter: only keep *_project; skip 'apps' & pure numbers
-declare -a clean=()
-dest_base_basename="$(basename -- "$DEST_BASE")"
-
-for a in "${PRIVATE_APPS[@]}"; do
-  [[ -z "${a// }" ]] && continue
-  a="${a//\\//}"; a="${a##*/}"
-  [[ -z "${a// }" ]] && continue
-
-  # Skip pure numbers
-  if [[ "$a" =~ ^[0-9]+$ ]]; then
-    echo -e "${YELLOW}Skipping token '$a' (no '_project' suffix).${NC}"
-    continue
-  fi
-  # Skip token equal to DEST_BASE basename (e.g., 'apps')
-  if [[ "$a" == "$dest_base_basename" ]]; then
-    echo -e "${YELLOW}Skipping token '$a' (no '_project' suffix).${NC}"
-    continue
-  fi
-  # Enforce *_project
-  if [[ ! "$a" =~ _project$ ]]; then
-    echo -e "${YELLOW}Skipping token '$a' (no '_project' suffix).${NC}"
-    continue
-  fi
-
-  clean+=("$a")
-done
-
-# Nounset-safe array assignment
-PRIVATE_APPS=("${clean[@]:-}")
-if (( ${#PRIVATE_APPS[@]} == 0 )); then
-  echo -e "${RED}Error:${NC} No valid app names after filtering."
-  exit 2
-fi
-
-echo -e "${YELLOW}Apps to link:${NC} ${PRIVATE_APPS[*]}"
-
-# Finder under $HOME; strip /src/agilab/apps
+# --- Locate thales-agilab root (the tree that has src/agilab/apps) ----------
 find_thales_agilab() {
   local depth="${1:-5}" hit
   hit="$(
@@ -100,29 +45,55 @@ find_thales_agilab() {
   return 1
 }
 
-if [[ -z "$PRIVATE_AGILAB" ]]; then
-  if ! PRIVATE_AGILAB="$(find_thales_agilab 5)"; then
-    echo -e "${RED}Error:${NC} Could not locate '*/src/agilab/apps' from $HOME."
+AGILAB_PUBLIC="$(cat "$HOME/.local/share/agilab/.agilab-path")"
+AGILAB_PRIVATE="${AGILAB_PRIVATE:-}"
+
+if [[ -z "$AGILAB_PRIVATE" ]]; then
+  if ! AGILAB_PRIVATE="$(find_thales_agilab 5)"; then
+    echo -e "${RED}Error:${NC} Could not locate '*/src/agilab/apps' from \$HOME."
     exit 1
   fi
 fi
 
-rm -f "$PRIVATE_AGILAB/src/agilab/core/agi-cluster"
-rm -f "$PRIVATE_AGILAB/src/agilab/core/agi-node"
-rm -f "$PRIVATE_AGILAB/src/agilab/core/agi-env"
-mkdir -p $PRIVATE_AGILAB/src/agilab/core
-ln -s "$PUBLIC_AGILAB/src/agilab/core/agi-cluster" "$PRIVATE_AGILAB/src/agilab/core/agi-cluster"
-ln -s "$PUBLIC_AGILAB/src/agilab/core/agi-node" "$PRIVATE_AGILAB/src/agilab/core/agi-node"
-ln -s "$PUBLIC_AGILAB/src/agilab/core/agi-env" "$PRIVATE_AGILAB/src/agilab/core/agi-env"
-
-TARGET_BASE="$PRIVATE_AGILAB/src/agilab/apps"
+TARGET_BASE="$AGILAB_PRIVATE/src/agilab/apps"
 [[ -d "$TARGET_BASE" ]] || { echo -e "${RED}Error:${NC} Missing directory: $TARGET_BASE"; exit 1; }
 
-echo -e "${YELLOW}Using PRIVATE_AGILAB:${NC} $PRIVATE_AGILAB"
+echo -e "${YELLOW}Using AGILAB_PRIVATE:${NC} $AGILAB_PRIVATE"
 echo -e "${YELLOW}Link target base:${NC} $TARGET_BASE"
 echo
 
-# Create / refresh symlinks
+# --- Build the list of apps present locally (only *_project) -----------------
+declare -a PUBLIC_APPS=()
+while IFS= read -r -d '' dir; do
+  dir_name="$(basename -- "$dir")"
+  PUBLIC_APPS+=("$dir_name")
+done < <(find "$DEST_BASE" -mindepth 1 -maxdepth 1 -type d -name '*_project' -print0)
+
+declare -a INCLUDED_APPS=("${PRIVATE_APPS[@]}" "${PUBLIC_APPS[@]}")
+
+echo -e "${BLUE}Apps to install:${NC} ${INCLUDED_APPS[*]:-<none>}"
+echo
+
+# --- Ensure local symlinks exist/refresh in DEST_BASE ------------------------
+pushd "$AGILAB_PRIVATE/src/agilab" >/dev/null
+  rm -f core
+  if [[ -d "$AGILAB_PUBLIC/core" ]]; then
+    target="$AGILAB_PUBLIC/core"
+  elif [[ -d "$AGILAB_PUBLIC/src/agilab/core" ]]; then
+    target="$AGILAB_PUBLIC/src/agilab/core"
+  else
+    echo "ERROR: can't find 'core' under \$AGILAB_PUBLIC ($AGILAB_PUBLIC)."
+    echo "Tried: \$AGILAB_PUBLIC/core and \$AGILAB_PUBLIC/src/agilab/core"
+    exit 1
+  fi
+  ln -s "$target" core
+  uv run python - <<'PY'
+import pathlib
+p = pathlib.Path("core").resolve()
+print(f"Private core -> {p}")
+PY
+popd >/dev/null
+
 status=0
 for app in "${PRIVATE_APPS[@]}"; do
   app_target="$TARGET_BASE/$app"
@@ -144,28 +115,15 @@ for app in "${PRIVATE_APPS[@]}"; do
   fi
 done
 
-# Build the list of apps present in DEST_BASE (only *_project + included)
-declare -a apps=()
-while IFS= read -r -d '' dir; do
-  dir_name="$(basename -- "$dir")"
-  # keep only names present in PRIVATE_APPS (already filtered to *_project)
-  if [[ " ${INCLUDED_APPS[*]} " == *" $dir_name "* ]]; then
-    apps+=("$dir_name")
-  fi
-done < <(find "$DEST_BASE" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -name '*_project' -print0)
+# --- Run installer for each app (stable CWD so ../core/cluster resolves) -----
+pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
 
-echo -e "${BLUE}Apps to install:${NC} ${apps[*]:-<none>}"
-
-# Where APP_INSTALL's relative path (../core/cluster) is valid:
-#   apps cwd -> ../core/cluster == "$PRIVATE_AGILAB/src/agilab/core/cluster"
-pushd -- "$PUBLIC_AGILAB/apps" >/dev/null
-
-# Allow overriding install type via env; default 1
 INSTALL_TYPE="${INSTALL_TYPE:-1}"
 
-for app in "${apps[@]}"; do
+for app in "${INCLUDED_APPS[@]}"; do
   echo -e "${BLUE}Installing $app...${NC}"
-  if eval "$APP_INSTALL \"$app\" --apps-dir \"$(pwd)\" --install-type \"$INSTALL_TYPE\""; then
+  if uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
+      "$app" --apps-dir "$AGILAB_PUBLIC/apps" --install-type "$INSTALL_TYPE"; then
     echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
     echo -e "${GREEN}Checking installation...${NC}"
     if pushd -- "$app" >/dev/null; then
@@ -186,19 +144,16 @@ done
 
 popd >/dev/null
 
-# Final Message
+# --- Final Message -----------------------------------------------------------
 if (( status == 0 )); then
   echo -e "${GREEN}Installation of apps complete!${NC}"
 else
   echo -e "${YELLOW}Installation finished with some errors (status=$status).${NC}"
 fi
 
-# Patch PyCharm interpreter settings in workspace.xml if the patcher exists
-if [[ -f "$PUBLIC_AGILAB/src/agilab/apps/patch_workspace.py" ]]; then
-  echo -e "${BLUE}Patching PyCharm workspace.xml interpreter settings...${NC}"
-  ( cd "$PUBLIC_AGILAB/src/agilab/apps" && uv run python patch_workspace.py )
-else
-  echo -e "${YELLOW}patch_workspace.py not found; skipping interpreter patch.${NC}"
-fi
+# --- Patch PyCharm interpreter settings in workspace.xml ---------------------
+echo -e "${BLUE}Patching PyCharm workspace.xml interpreter settings...${NC}"
+chmod +x pycharm/install-apps-script.py
+uv run python pycharm/install-apps-script.py || echo -e "${YELLOW}pycharm/install-apps-script.py failed or not found; continuing.${NC}"
 
 exit "$status"

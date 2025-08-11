@@ -45,8 +45,8 @@ def set_interpreter_for_project(_apps_link_dir: Path) -> bool:
     """Follow symlink to target; keep interpreter name from link folder."""
     link_name = _apps_link_dir.name
     proj_root = _apps_link_dir.resolve(strict=False)
-
-    idea = proj_root / ".idea"
+    global agilab_home
+    idea = agilab_home / ".idea"
     ws   = idea / "workspace.xml"
     misc = idea / "misc.xml"
     venv = proj_root / ".venv"
@@ -161,7 +161,6 @@ try:
             except Exception as e:
                 print(f"[apps] {FOLDER_NAME}: ERROR {e}")
 
-        break  # stop after first detected project_root
 
     if total:
         print(f"[apps] Done. Interpreters updated for {total} project(s).")
