@@ -1,129 +1,213 @@
-# install_agilab_apps.ps1 — auto-detect thales-agilab and (re)create app symlinks
+#!/usr/bin/env pwsh
+# install_agilab_apps.ps1 — auto-detect thales-agilab and (re)create app links on Windows
+# Requires PowerShell 7+ for best results (but works on 5.1 too)
 
-# Default apps list (only *_project)
-$INCLUDED_APPS = @(
-    "flight_trajectory_project",
-    "sat_trajectory_project",
-    "link_sim_project"
-    # "flight_legacy_project"
+$ErrorActionPreference = 'Stop'
+
+# --- Colors helpers
+function Info($msg){ Write-Host $msg -ForegroundColor Yellow }
+function Ok($msg){ Write-Host $msg -ForegroundColor Green }
+function Warn($msg){ Write-Host $msg -ForegroundColor DarkYellow }
+function Err($msg){ Write-Host $msg -ForegroundColor Red }
+
+# --- Default app list (only *_project)
+$IncludedApps = @(
+  'flight_trajectory_project',
+  'sat_trajectory_project',
+  'link_sim_project'
+  # 'flight_legacy_project'
 )
 
-# Colors (ANSI)
-$BLUE   = "`e[1;34m"
-$GREEN  = "`e[1;32m"
-$YELLOW = "`e[1;33m"
-$RED    = "`e[1;31m"
-$NC     = "`e[0m"
+# --- DEST_BASE default (overridable by env)
+$DestBase = if ($env:DEST_BASE) { $env:DEST_BASE } else { (Get-Location).Path }
+New-Item -ItemType Directory -Force -Path $DestBase | Out-Null
 
-# DEST_BASE default (overridable by env)
-if (-not $env:DEST_BASE -or [string]::IsNullOrWhiteSpace($env:DEST_BASE)) {
-    $DEST_BASE = (Get-Location).Path
-} else {
-    $DEST_BASE = $env:DEST_BASE
-}
-if (-not (Test-Path -LiteralPath $DEST_BASE -PathType Container)) {
-    New-Item -ItemType Directory -Path $DEST_BASE | Out-Null
+Write-Host "create symlink for apps: $($IncludedApps -join ' ')"
+
+if (-not $IncludedApps -or $IncludedApps.Count -eq 0) {
+  Err "Error: No apps specified."; exit 2
 }
 
-Write-Host "create symlink for apps: $($INCLUDED_APPS -join ' ')"
+Info "Installing Apps..."
+Info ("Working directory: {0}" -f (Get-Location))
+Info ("Destination base: {0}" -f (Resolve-Path $DestBase))
 
-if ($INCLUDED_APPS.Count -eq 0) {
-    Write-Host "${RED}Error:${NC} No apps specified."
-    exit 2
+# --- Normalize & filter: only keep *_project; skip numbers & token equal to dest basename
+$destBaseName = Split-Path -Leaf $DestBase
+$clean = @()
+foreach ($a in $IncludedApps) {
+  if ([string]::IsNullOrWhiteSpace($a)) { continue }
+  $a = $a -replace '\\','/'      # normalize slashes
+  $a = ($a -split '/')[ -1 ]     # keep last segment
+  if ([string]::IsNullOrWhiteSpace($a)) { continue }
+
+  if ($a -match '^[0-9]+$') {
+    Warn "Skipping token '$a' (no '_project' suffix)."
+    continue
+  }
+  if ($a -eq $destBaseName) {
+    Warn "Skipping token '$a' (no '_project' suffix)."
+    continue
+  }
+  if ($a -notmatch '_project$') {
+    Warn "Skipping token '$a' (no '_project' suffix)."
+    continue
+  }
+  $clean += $a
 }
 
-Write-Host "${YELLOW}Installing Apps...${NC}"
-Write-Host "${YELLOW}Working directory:${NC} $(Get-Location)"
-Write-Host "${YELLOW}Destination base:${NC} $((Resolve-Path $DEST_BASE).Path)"
-
-# Normalize & filter
-$destBaseName = Split-Path $DEST_BASE -Leaf
-$Clean = @()
-
-foreach ($a in $INCLUDED_APPS) {
-    if ([string]::IsNullOrWhiteSpace($a)) { continue }
-    $a = Split-Path $a -Leaf
-
-    if ($a -match '^[0-9]+$') {
-        Write-Host "${YELLOW}Skipping token '$a' (no '_project' suffix).${NC}"
-        continue
-    }
-    if ($a -eq $destBaseName) {
-        Write-Host "${YELLOW}Skipping token '$a' (no '_project' suffix).${NC}"
-        continue
-    }
-    if ($a -notmatch '_project$') {
-        Write-Host "${YELLOW}Skipping token '$a' (no '_project' suffix).${NC}"
-        continue
-    }
-
-    $Clean += $a
+$IncludedApps = @($clean)
+if ($IncludedApps.Count -eq 0) {
+  Err "Error: No valid app names after filtering."; exit 2
 }
 
-$INCLUDED_APPS = $Clean
-if ($INCLUDED_APPS.Count -eq 0) {
-    Write-Host "${RED}Error:${NC} No valid app names after filtering."
-    exit 2
-}
+Info ("Apps to link: {0}" -f ($IncludedApps -join ' '))
 
-Write-Host "${YELLOW}Apps to link:${NC} $($INCLUDED_APPS -join ' ')"
-
-# Find THALES_AGILAB_ROOT
+# --- Finder under $HOME; strip \src\agilab\apps (skip Windows-problematic folders)
 function Find-ThalesAgilab {
-    param([string]$StartDir, [int]$Depth = 5)
-    $hit = Get-ChildItem -LiteralPath $StartDir -Directory -Recurse -Depth $Depth -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -like "*/src/agilab/apps" -or $_.FullName -like "*\src\agilab\apps" } |
-        Select-Object -First 1
-    if ($hit) {
-        return (Split-Path (Split-Path $hit.FullName -Parent) -Parent)
+  param([int]$MaxDepth = 5)
+
+  $home = [Environment]::GetFolderPath('UserProfile')
+  # Paths to skip to avoid access prompts/slowness (Windows-specific)
+  $skip = @(
+    (Join-Path $home 'AppData'),
+    (Join-Path $home 'OneDrive'),
+    #(Join-Path $home 'Documents'),
+    (Join-Path $home 'Desktop'),
+    (Join-Path $home 'Pictures'),
+    (Join-Path $home 'Music'),
+    (Join-Path $home 'Videos'),
+    (Join-Path $home 'Saved Games'),
+    (Join-Path $home 'Contacts'),
+    (Join-Path $home 'Searches'),
+    (Join-Path $home 'Links'),
+    (Join-Path $home 'Favorites'),
+    (Join-Path $home 'NTUSER.DIR') # rare, defensive
+  ) | ForEach-Object { $_.ToLowerInvariant() }
+
+  # BFS with depth control; do not descend into reparse points or skipped paths
+  $q = New-Object System.Collections.Generic.Queue[psobject]
+  $q.Enqueue([pscustomobject]@{Dir = Get-Item -LiteralPath $home; Depth = 0})
+
+  while ($q.Count -gt 0) {
+    $node = $q.Dequeue()
+    $dir  = $node.Dir
+    $d    = $node.Depth
+
+    # Check for ...\src\agilab\apps
+    $appsCandidate = Join-Path $dir.FullName 'src\agilab\apps'
+    if (Test-Path -LiteralPath $appsCandidate -PathType Container) {
+      # return root (strip trailing segment)
+      return Split-Path -Parent (Split-Path -Parent $appsCandidate)
     }
-    return $null
+
+    if ($d -ge $MaxDepth) { continue }
+
+    $children = @()
+    try {
+      $children = Get-ChildItem -LiteralPath $dir.FullName -Directory -Force -ErrorAction SilentlyContinue |
+        Where-Object {
+          # avoid reparse points (junctions/symlinks) during scan
+          -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint)
+        }
+    } catch { continue }
+
+    foreach ($c in $children) {
+      $fp = $c.FullName.ToLowerInvariant()
+      $shouldSkip = $false
+      foreach ($s in $skip) {
+        if ($fp -eq $s -or $fp.StartsWith($s + [IO.Path]::DirectorySeparatorChar)) { $shouldSkip = $true; break }
+      }
+      if ($shouldSkip) { continue }
+      $q.Enqueue([pscustomobject]@{Dir = $c; Depth = $d + 1})
+    }
+  }
+
+  return $null
 }
 
-if (-not $env:THALES_AGILAB_ROOT -or [string]::IsNullOrWhiteSpace($env:THALES_AGILAB_ROOT)) {
-    $THALES_AGILAB_ROOT = Find-ThalesAgilab -StartDir $HOME -Depth 5
-    if (-not $THALES_AGILAB_ROOT) {
-        Write-Host "${RED}Error:${NC} Could not locate '*/src/agilab/apps' from $HOME."
-        exit 1
-    }
-} else {
-    $THALES_AGILAB_ROOT = $env:THALES_AGILAB_ROOT
+# Honor THALES_AGILAB_ROOT env if provided, else discover
+$THALES_AGILAB_ROOT = $env:THALES_AGILAB_ROOT
+if ([string]::IsNullOrWhiteSpace($THALES_AGILAB_ROOT)) {
+  $THALES_AGILAB_ROOT = Find-ThalesAgilab -MaxDepth 5
+  if (-not $THALES_AGILAB_ROOT) {
+    Err "Error: Could not locate '*\src\agilab\apps' under HOME."; exit 1
+  }
 }
 
-$TARGET_BASE = Join-Path $THALES_AGILAB_ROOT "src/agilab/apps"
+$TARGET_BASE = Join-Path $THALES_AGILAB_ROOT 'src\agilab\apps'
 if (-not (Test-Path -LiteralPath $TARGET_BASE -PathType Container)) {
-    Write-Host "${RED}Error:${NC} Missing directory: $TARGET_BASE"
-    exit 1
+  Err "Error: Missing directory: $TARGET_BASE"; exit 1
 }
 
-Write-Host "${YELLOW}Using THALES_AGILAB_ROOT:${NC} $THALES_AGILAB_ROOT"
-Write-Host "${YELLOW}Link target base:${NC} $TARGET_BASE"
+Info ("Using THALES_AGILAB_ROOT: {0}" -f $THALES_AGILAB_ROOT)
+Info ("Link target base: {0}" -f $TARGET_BASE)
 Write-Host ""
 
-# Create/refresh symlinks
+# --- Create / refresh links
 $status = 0
-foreach ($app in $INCLUDED_APPS) {
-    $appTarget = Join-Path $TARGET_BASE $app
-    $appDest   = Join-Path $DEST_BASE $app
 
-    if (-not (Test-Path -LiteralPath $appTarget)) {
-        Write-Host "${RED}Target for '$app' not found:${NC} $appTarget — skipping."
-        $status = 1
-        continue
-    }
+function New-Link {
+  param([string]$Path, [string]$Target)
 
-    if (Test-Path -LiteralPath $appDest -PathType Leaf -or Test-Path -LiteralPath $appDest -PathType Container) {
-        if ((Get-Item $appDest).LinkType) {
-            Write-Host "${BLUE}App '$appDest' is a symlink. Recreating -> '$appTarget'...${NC}"
-            Remove-Item -LiteralPath $appDest -Force
-            New-Item -ItemType SymbolicLink -Path $appDest -Target $appTarget | Out-Null
-        } else {
-            Write-Host "${GREEN}App '$appDest' exists and is not a symlink. Leaving untouched.${NC}"
-        }
-    } else {
-        Write-Host "${BLUE}App '$appDest' does not exist. Creating symlink -> '$appTarget'...${NC}"
-        New-Item -ItemType SymbolicLink -Path $appDest -Target $appTarget | Out-Null
+  # Try symbolic link first (works if Dev Mode enabled or elevated)
+  try {
+    New-Item -ItemType SymbolicLink -Path $Path -Target $Target -Force -ErrorAction Stop | Out-Null
+    return "symlink"
+  } catch {
+    # Fallback to junction for directories
+    try {
+      New-Item -ItemType Junction -Path $Path -Target $Target -Force -ErrorAction Stop | Out-Null
+      return "junction"
+    } catch {
+      throw
     }
+  }
+}
+
+foreach ($app in $IncludedApps) {
+  $appTarget = Join-Path $TARGET_BASE $app
+  $appDest   = Join-Path $DestBase $app
+
+  if (-not (Test-Path -LiteralPath $appTarget)) {
+    Err ("Target for '{0}' not found: {1} — skipping." -f $app, $appTarget)
+    $status = 1
+    continue
+  }
+
+  $destExists = Test-Path -LiteralPath $appDest
+  $isReparse  = $false
+  if ($destExists) {
+    try {
+      $itm = Get-Item -LiteralPath $appDest -Force -ErrorAction Stop
+      $isReparse = [bool]($itm.Attributes -band [IO.FileAttributes]::ReparsePoint)
+    } catch {
+      $isReparse = $false
+    }
+  }
+
+  if ($isReparse) {
+    Info ("App '{0}' is a link. Recreating -> '{1}'..." -f $appDest, $appTarget)
+    Remove-Item -LiteralPath $appDest -Force
+    try {
+      $kind = New-Link -Path $appDest -Target $appTarget
+      Ok ("Recreated $kind: {0} -> {1}" -f $appDest, $appTarget)
+    } catch {
+      Err ("Failed to recreate link for {0}: {1}" -f $app, $_.Exception.Message)
+      $status = 1
+    }
+  } elseif (-not $destExists) {
+    Info ("App '{0}' does not exist. Creating link -> '{1}'..." -f $appDest, $appTarget)
+    try {
+      $kind = New-Link -Path $appDest -Target $appTarget
+      Ok ("Created $kind: {0} -> {1}" -f $appDest, $appTarget)
+    } catch {
+      Err ("Failed to create link for {0}: {1}" -f $app, $_.Exception.Message)
+      $status = 1
+    }
+  } else {
+    Ok ("App '{0}' exists and is not a link. Leaving untouched." -f $appDest)
+  }
 }
 
 exit $status
