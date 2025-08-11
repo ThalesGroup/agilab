@@ -107,6 +107,14 @@ if [[ -z "$PRIVATE_AGILAB" ]]; then
   fi
 fi
 
+rm -f "$PRIVATE_AGILAB/src/agilab/core/agi-cluster"
+rm -f "$PRIVATE_AGILAB/src/agilab/core/agi-node"
+rm -f "$PRIVATE_AGILAB/src/agilab/core/agi-env"
+mkdir -p $PRIVATE_AGILAB/src/agilab/core
+ln -s "$PUBLIC_AGILAB/src/agilab/core/agi-cluster" "$PRIVATE_AGILAB/src/agilab/core/agi-cluster"
+ln -s "$PUBLIC_AGILAB/src/agilab/core/agi-node" "$PRIVATE_AGILAB/src/agilab/core/agi-node"
+ln -s "$PUBLIC_AGILAB/src/agilab/core/agi-env" "$PRIVATE_AGILAB/src/agilab/core/agi-env"
+
 TARGET_BASE="$PRIVATE_AGILAB/src/agilab/apps"
 [[ -d "$TARGET_BASE" ]] || { echo -e "${RED}Error:${NC} Missing directory: $TARGET_BASE"; exit 1; }
 
