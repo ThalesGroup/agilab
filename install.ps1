@@ -1,89 +1,310 @@
 # install.ps1
 # Purpose: Root/Main AGI Framework Installer (PowerShell version)
+# Argument parsing (simulate bash style)
+param(
+    [Parameter(Mandatory = $false)]
+    [switch]$offline,
 
-$ErrorActionPreference = "Stop"
+    [Parameter(Mandatory = $false)]
+    [string]$openai_api_key,
 
-# Logging setup
-$LOG_DIR = "$HOME\log\install_logs"
-$LOG_FILE = "$LOG_DIR\install_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
-if (-not (Test-Path $LOG_DIR)) { New-Item -Path $LOG_DIR -ItemType Directory | Out-Null }
-Start-Transcript -Path $LOG_FILE
+    [Parameter(Mandatory = $false)]
+    [string]$cluster_credentials = "",
+
+    [Parameter(Mandatory = $false)]
+    [string]$install_path = (Get-Location).Path
+)
 
 function Write-Blue($msg)  { Write-Host $msg -ForegroundColor Blue }
 function Write-Green($msg) { Write-Host $msg -ForegroundColor Green }
 function Write-Yellow($msg) { Write-Host $msg -ForegroundColor Yellow }
 function Write-Red($msg)   { Write-Host $msg -ForegroundColor Red }
 
-# Prevent running as administrator/root
-If (([Security.Principal.WindowsIdentity]::GetCurrent()).Groups -match "S-1-5-32-544") {
+$ErrorActionPreference = "Stop"
+
+function Test-VisualStudio {
+    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (Test-Path $vswhere) {
+        $vs2022 = & $vswhere -version 17.0 -latest -products * -property installationPath
+
+        if ($vs2022) {
+            Write-Green "Visual Studio 2022 is installed at: $vs2022"
+        } else {
+            Write-Red "Visual Studio 2022 is not found."
+            exit 1
+        }
+    } else {
+        Write-Red "vswhere.exe not found. Cannot determine VS installation."
+        Write-Red "Please ensure Visual Studio 2022 is installed before continuing."
+        exit 1
+    }
+}
+
+function Test-Internet {
+    Write-Blue "Testing internet connectivity..."
+    try {
+        $response = Invoke-WebRequest -Uri "https://www.google.com" -Method Head -TimeoutSec 10
+        if ($response.StatusCode -eq 200) {
+            Write-Green "Internet connection is OK."
+        }
+    }
+    catch {
+        Write-Red "No internet connection detected. Abording."
+        Stop-Transcript
+        exit 1
+    }
+    Write-Host ""
+}
+
+function Install-Dependencies {
+    Write-Blue "Installing system dependencies"
+    Write-Host ""
+    $choice = Read-Host "Do you want to install system dependencies? (y/N)"
+    if ($choice -match "^[Yy]$") {
+        if (-not (Get-Command "uv" -ErrorAction SilentlyContinue))
+        {
+            Write-Blue "Installing uv..."
+            powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+        }
+        Write-Yellow "NOTE: Please install required dependencies manually or via your preferred package manager on Windows."
+        # Optionally, add code here to install dependencies using Chocolatey if desired.
+    }
+    Write-Host ""
+}
+
+function Select-PythonVersion {
+    Write-Blue "Selecting Python version..."
+
+    $availablePythonVersions = uv python list | Where-Object { $_ -match $PYTHON_VERSION }
+    if (-not $availablePythonVersions) {
+        Write-Red "No matching Python versions found for '$PYTHON_VERSION'"
+        exit 1
+    }
+
+    $pythonArray = @()
+    foreach ($line in $availablePythonVersions) {
+        $pythonArray += $line
+    }
+
+    for ($i = 0; $i -lt $pythonArray.Count; $i++) {
+        if ($pythonArray[$i] -match $PYTHON_VERSION) {
+            Write-Host "$($i + 1) - $($pythonArray[$i])" -ForegroundColor Green
+        } else {
+            Write-Host "$($i + 1) - $($pythonArray[$i])"
+        }
+    }
+
+    do {
+        $selection = Read-Host "Enter the number of the Python version you want to use (default: 1)"
+        if ([string]::IsNullOrWhiteSpace($selection)) {
+            $selection = 1
+        }
+
+        $valid = $selection -as [int] -and $selection -ge 1 -and $selection -le $pythonArray.Count
+        if (-not $valid) {
+            Write-Red "Invalid selection. Please try again."
+        }
+    } while (-not $valid)
+
+    $chosenPython = ($pythonArray[$selection - 1] -split '\s+')[0]
+
+    $installedPythons = (uv python list --only-installed | ForEach-Object { ($_ -split '\s+')[0] })
+
+    if ($installedPythons -notcontains $chosenPython) {
+        Write-Blue "Installing $chosenPython..."
+        uv python install $chosenPython
+        Write-Green "Python version ($chosenPython) is now installed."
+    } else {
+        Write-Green "Python version ($chosenPython) is already installed."
+    }
+
+    $env:PYTHON_VERSION = ($chosenPython -split '-')[1]
+}
+
+
+function Backup-AGIProject {
+    Write-Blue "Backing Up Existing AGI Project (if any)"
+    Write-Host ""
+    if ($InstallPath -eq $CurrentPath)
+    {
+        Write-Yellow "AGI project directory is 'src'; Skipping Backup."
+        return
+    }
+    if (Test-Path $CurrentPath) {
+        if (Test-Path (Join-Path $CurrentPath "zip-agi.py")) {
+            $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+            $backupFile = Join-Path $LocalDir ("{0}_{1}.zip" -f (Split-Path $AgiProject -Leaf), $timestamp)
+            Write-Blue "Existing AGI project found at $AgiProject. Creating backup: $backupFile"
+
+            try {
+                # Use Compress-Archive as a backup mechanism
+                Compress-Archive -Path $AgiProject\* -DestinationPath $backupFile -Force
+                Write-Green "Backup created successfully at $backupFile."
+                if ((Split-Path $AgiProject -Leaf) -ne "agi") {
+                    Remove-Item -Recurse -Force $AgiProject
+                    Write-Green "Existing AGI project directory removed."
+                }
+                else {
+                    Write-Yellow "AGI project directory is 'src'; preserving it."
+                }
+            }
+            catch {
+                Write-Red "Error: Backup failed. Aborting installation."
+                Write-Red "Details: $($_.Exception.Message)"
+                Stop-Transcript
+                exit 1
+            }
+        }
+        else {
+            Write-Yellow "Existing AGI project found at $AgiProject but no zip-agi.py found. Skipping backup."
+        }
+    }
+    else {
+        Write-Yellow "No existing AGI project found at $AgiProject. Skipping backup."
+    }
+    Write-Host ""
+}
+
+function Copy-ProjectFiles {
+    if ($InstallPath -ne $CurrentPath) {
+        if (Test-Path "$CurrentPath/src") {
+            Write-Blue "Copying project files to install directory..."
+            New-Item -ItemType Directory -Force -Path $InstallPath | Out-Null
+            robocopy $CurrentPath $InstallPath /E /MIR /NFL /NDL /NJH /NJS | Out-Null
+        } else {
+            Write-Red "Source directory 'src' not found. Exiting."
+            exit 1
+        }
+    } else {
+        Write-Yellow "Using current directory as install directory; no copy needed."
+    }
+    "$InstallPath/src/agilab" | Set-Content -Encoding UTF8 -Path $AgiPathFile
+    [System.Environment]::SetEnvironmentVariable('AGI_ROOT', "$InstallPath/src/agilab", [System.EnvironmentVariableTarget]::User)
+    Write-Green "Installation root path has been exported as AGI_ROOT and written in $LocalDir"
+
+}
+
+function Update-Environment {
+    $envFile = Join-Path $LocalDir ".env"
+
+    if (Test-Path $envFile) {
+        Remove-Item $envFile
+    }
+
+    @"
+OPENAI_API_KEY="$OpenaiApiKey"
+CLUSTER_CREDENTIALS="$AgiCredentials"
+AGI_PYTHON_VERSION="$env:PYTHON_VERSION"
+"@ | Set-Content -Encoding UTF8 -Path $envFile
+
+    Write-Green "Environment updated in $envFile"
+}
+
+function Install-Core {
+    $frameworkDir = Join-Path $InstallPath "src\agilab\core"
+
+    Write-Blue "Installing Framework..."
+    Write-Blue $frameworkDir
+    Push-Location $frameworkDir
+    if ($Offline) {
+        & "./install.ps1" -$AgiProject $frameworkDir -Offline
+    } else {
+        & "./install.ps1" -$AgiProject $frameworkDir
+    }
+
+    Pop-Location
+}
+
+function Install-Apps {
+    $appsDir = Join-Path $InstallPath "src\agilab\apps"
+
+    Write-Blue "Installing Apps..."
+    Write-Blue "$appsDir"
+    Push-Location $appsDir
+    & "./install.ps1" $appsDir "1"
+    Pop-Location
+}
+
+
+function Write-EnvValues {
+    $sharedDir = $env:LOCALAPPDATA
+    $sharedEnv = Join-Path $sharedDir "agilab\.env"
+    $sharedPath = Join-Path $sharedDir "agilab\.agilab-path"
+    $agilabEnv = Join-Path $env:USERPROFILE ".agilab\.env"
+
+    if (-not (Test-Path $sharedEnv)) {
+        Write-Host "Error: $sharedEnv does not exist." -ForegroundColor Red
+        exit 1
+    }
+    # Append the shared env file content to agilab env file
+    $path = Get-Content $sharedPath
+    if (($path -like "*MyApp*") -and ($username -like "T0*"))
+    {
+        $userDir = [Environment]::GetFolderPath('UserProfile')
+        $agilabEnv = Join-Path $userDir "MyApp/.agilab/.env"
+    }
+    Write-Host $path
+    Write-Host $agilabEnv
+    Get-Content $sharedEnv | Out-File -Append -FilePath $agilabEnv -Encoding UTF8
+
+    Write-Host ".env file updated." -ForegroundColor Green
+}
+
+function Install-PyCharmScript {
+    uv run -p $env:PYTHON_VERSION python pycharm/install-app-script.py @args
+}
+
+# Main Flow
+
+# Prevent Running as Administrator
+if ([Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Red "Error: This script should not be run as Administrator. Please run as a regular user."
     Stop-Transcript
     exit 1
 }
 
-# Remove unwanted files/directories
-Get-ChildItem -Path . -Recurse -Include ".venv", "uv.lock", "build", "dist", "*egg-info" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+if (-not $offline) {
+    $missingVars = @()
 
-# Argument parsing (simulate bash style)
-param (
-    [string]$cluster_credentials,
-    [string]$openai_api_key,
-    [string]$install_path = (Get-Location)
-)
+    if (-not $openai_api_key) { $missingVars += "openai_api_key" }
+    if (-not $cluster_credentials) { $missingVars += "cluster_credentials" }
+
+    if ($missingVars.Count -gt 0) {
+        Write-Red ("{0} {1} required when not in offline mode." -f ($missingVars -join " and "),
+                   $(if ($missingVars.Count -gt 1) { "are" } else { "is" }))
+        Stop-Transcript
+        exit 1
+    }
+}
+
+$LogDir = Join-Path $env:USERPROFILE "log\install_logs"
+if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir | Out-Null }
+$LogFile = Join-Path $LogDir ("install_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
+Start-Transcript -Path $LogFile
+
+Get-ChildItem -Recurse -Directory | Where-Object {
+    $_.Name -match '\.venv|uv.lock|build|dist|.*egg-info'
+} | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
 if (-not $cluster_credentials -or -not $openai_api_key) {
     Write-Red "Usage: .\install.ps1 -cluster_credentials <user[:password]> -openai_api_key <api-key> [-install_path <path>]"
+    Write-Yellow "If ExecutionPolicy is set to Default (Restricted mode) use 'powershell.exe -ExecutionPolicy ByPass' to call the script"
     Stop-Transcript
     exit 1
 }
-
-# Ask for python version
-$PYTHON_VERSION = Read-Host "Enter Python version [3.13]"
-if (-not $PYTHON_VERSION) { $PYTHON_VERSION = "3.13" }
-Write-Host "You selected Python version $PYTHON_VERSION"
-
-# Check internet
-Write-Blue "Checking internet connectivity..."
-try {
-    Invoke-WebRequest "https://www.google.com" -UseBasicParsing -ErrorAction Stop | Out-Null
-    Write-Green "Internet connection is OK."
-} catch {
-    Write-Red "No internet connection detected. Aborting."
-    Stop-Transcript
-    exit 1
+if (-not $Offline)
+{
+    Test-Internet
 }
-
-# Set locale (Windows: skip, but can inform user)
-Write-Blue "Setting locale..."
-Write-Yellow "Locale setting for en_US.UTF-8 skipped (Windows manages locale differently)."
-
-# Install dependencies: ask user
-$confirm = Read-Host "Do you want to install system dependencies? (y/N)"
-if ($confirm -match "^[Yy]$") {
-    if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-        Write-Green "Installing uv..."
-        Invoke-WebRequest -Uri "https://astral.sh/uv/install.ps1" -OutFile "$env:TEMP\uv_install.ps1"
-        & "$env:TEMP\uv_install.ps1"
-    }
-    # (Add Windows dependency install steps here if any)
-    Write-Yellow "On Windows, dependencies may need to be installed manually."
-} else {
-    Write-Yellow "Skipping dependency installation."
+Test-VisualStudio
+if (-not $Offline)
+{
+    Install-Dependencies
 }
-
-# Install core
-Write-Blue "Installing core framework..."
-Push-Location "src\agilab\core"
-& .\install.ps1
-Pop-Location
-
-# Install apps
-Write-Blue "Installing apps..."
-Push-Location "src\agilab\apps"
-& .\install.ps1
-Pop-Location
-
-Write-Green "Installation complete!"
-Stop-Transcript
-
-    Write-Host ".env file updated." -ForegroundColor Green
-}
+Select-PythonVersion
+Backup-AGIProject
+Copy-ProjectFiles
+Update-Environment
+Install-Core
+Write-EnvValues
+Install-Apps
