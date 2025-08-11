@@ -1,28 +1,60 @@
+# ======================
+# Apps-only auto run: install.sh "$apps_dir" "1" + generate configs + set interpreter
+# (follows symlinks for .venv/.idea checks; interpreter name from link folder)
+# ======================
+import os, time, shutil, subprocess
 from pathlib import Path as _P
 import xml.etree.ElementTree as _ET
-import time, shutil, os, subprocess
+
+def _xml_write(_tree: _ET.ElementTree, _target: _P):
+    _tree.write(_target, encoding="utf-8", xml_declaration=True)
+
+def _ensure_sdk_in_misc(_misc_path: _P, desired_name: str) -> bool:
+    if _misc_path.exists():
+        try:
+            t = _ET.parse(_misc_path); r = t.getroot()
+        except _ET.ParseError as e:
+            print(f"[misc.xml] {_misc_path.parent.name}: XML parse error: {e}")
+            return False
+    else:
+        r = _ET.Element("project", version="4"); t = _ET.ElementTree(r)
+
+    comp = None
+    for c in r.findall("component"):
+        if c.get("name") == "ProjectRootManager":
+            comp = c; break
+    if comp is None:
+        comp = _ET.SubElement(r, "component", {"name": "ProjectRootManager"})
+
+    changed = False
+    if comp.get("project-jdk-type") != "Python SDK":
+        comp.set("project-jdk-type", "Python SDK"); changed = True
+    if comp.get("project-jdk-name") != desired_name:
+        comp.set("project-jdk-name", desired_name); changed = True
+    if comp.get("version") != "2":
+        comp.set("version", "2"); changed = True
+
+    if changed:
+        _xml_write(t, _misc_path)
+        print(f"[misc.xml] {_misc_path.parent.name}: set interpreter declaration -> '{desired_name}'")
+    return changed
 
 def _set_interpreter_for_project(_apps_link_dir: _P) -> bool:
-    """
-    Follow symlink from apps/<name> to the real project root for file ops,
-    but keep interpreter name based on the link name.
-    """
-    link_name = _apps_link_dir.name                            # name shown in PyCharm, and used in "uv (name)"
-    proj_root = _apps_link_dir.resolve(strict=False)           # follow symlink if any; else same path
+    """Follow symlink to target, but keep interpreter name from link folder."""
+    link_name = _apps_link_dir.name
+    proj_root = _apps_link_dir.resolve(strict=False)
 
     idea = proj_root / ".idea"
-    ws = idea / "workspace.xml"
+    ws   = idea / "workspace.xml"
     misc = idea / "misc.xml"
-    venv = proj_root / ".venv"                                 # .venv may be a dir or a symlink; exists() is fine
+    venv = proj_root / ".venv"
 
     if not idea.is_dir() or not ws.is_file() or not venv.exists():
         return False
 
-    desired = f"uv ({link_name})"                              # keep name from apps/* link, not target basename
-
+    desired = f"uv ({link_name})"
     try:
-        tws = _ET.parse(ws)
-        rws = tws.getroot()
+        tws = _ET.parse(ws); rws = tws.getroot()
     except _ET.ParseError as e:
         print(f"[workspace.xml] {link_name}: XML parse error: {e}")
         return False
@@ -42,46 +74,71 @@ def _set_interpreter_for_project(_apps_link_dir: _P) -> bool:
 
     if changed:
         bak = ws.with_suffix(f".xml.bak-{time.strftime('%Y%m%d-%H%M%S')}")
-        try:
-            shutil.copy2(ws, bak)
-        except Exception as e:
-            print(f"[workspace.xml] {link_name}: WARN backup failed: {e}")
-        tws.write(ws, encoding="utf-8", xml_declaration=True)
+        try: shutil.copy2(ws, bak)
+        except Exception as e: print(f"[workspace.xml] {link_name}: WARN backup failed: {e}")
+        _xml_write(tws, ws)
         print(f"[workspace.xml] {link_name}: set interpreter -> '{desired}' (backup: {bak.name})")
 
-    # misc.xml SDK declaration (also on the resolved target)
     _ensure_sdk_in_misc(misc, desired)
     return changed
 
-# In your apps loop, change just this part:
-for app_dir in sorted(p for p in _apps.iterdir() if p.is_dir() and p.name.endswith("_project")):
-    FOLDER_NAME = app_dir.name
-    CONFIG_NAME = FOLDER_NAME.replace("_project", "")
-    CONFIG_TYPE = "PythonConfigurationType"
+def _apps_base_candidates(script_dir: _P) -> list[_P]:
+    return [
+        script_dir / "src" / "agilab" / "apps",
+        script_dir.parent / "src" / "agilab" / "apps",
+        script_dir.parent.parent / "src" / "agilab" / "apps",
+    ]
 
-    try:
-        # 1) Run installer against the LINK PATH (your install.sh knows how to handle it)
-        if install_sh.exists():
-            subprocess.run([str(install_sh), str(app_dir), "1"], cwd=_here, check=True)
-        else:
-            print(f"[install.sh] Not found at {_here}. Skipping installer for {FOLDER_NAME}.")
+# ---------- AUTO-RUN ----------
+try:
+    _here = _P(__file__).resolve().parent
+    install_sh = (_here / "install.sh").resolve()
+    total = 0
 
-        # 2) Generate/update run configs in the LINK PATH (cwd = link; PyCharm will read from target)
-        cwd_before = os.getcwd()
-        os.chdir(app_dir)  # link path
-        try:
-            update_workspace_xml(CONFIG_NAME, CONFIG_TYPE, FOLDER_NAME)
-        finally:
-            os.chdir(cwd_before)
+    for apps_root in _apps_base_candidates(_here):
+        if not apps_root.is_dir():
+            continue
 
-        # 3) Patch interpreter by FOLLOWING the symlink to real project root,
-        #    but keep the interpreter name based on the LINK name
-        if _set_interpreter_for_project(app_dir):
-            total += 1
-        else:
-            print(f"[apps] {FOLDER_NAME}: no interpreter change (no .venv/.idea or already correct).")
+        # iterate *after* apps_root is defined
+        for app_dir in sorted(
+            [d for d in apps_root.iterdir() if d.is_dir() and d.name.endswith("_project")],
+            key=lambda p: p.name
+        ):
+            FOLDER_NAME = app_dir.name
+            CONFIG_NAME = FOLDER_NAME.replace("_project", "")
+            CONFIG_TYPE = "PythonConfigurationType"
 
-    except subprocess.CalledProcessError as e:
-        print(f"[install.sh] {FOLDER_NAME}: ERROR (exit {e.returncode})")
-    except Exception as e:
-        print(f"[apps] {FOLDER_NAME}: ERROR {e}")
+            try:
+                # 1) run installer with the two args: "$apps_dir" "1"
+                if install_sh.exists():
+                    subprocess.run([str(install_sh), str(app_dir), "1"], cwd=_here, check=True)
+                else:
+                    print(f"[install.sh] Not found at {_here}. Skipping installer for {FOLDER_NAME}.")
+
+                # 2) run your existing config generation in the link path
+                cwd_before = os.getcwd()
+                os.chdir(app_dir)
+                try:
+                    update_workspace_xml(CONFIG_NAME, CONFIG_TYPE, FOLDER_NAME)
+                finally:
+                    os.chdir(cwd_before)
+
+                # 3) patch interpreter (resolve symlink for files, keep link name)
+                if _set_interpreter_for_project(app_dir):
+                    total += 1
+                else:
+                    print(f"[apps] {FOLDER_NAME}: no interpreter change (no .venv/.idea or already correct).")
+
+            except subprocess.CalledProcessError as e:
+                print(f"[install.sh] {FOLDER_NAME}: ERROR (exit {e.returncode})")
+            except Exception as e:
+                print(f"[apps] {FOLDER_NAME}: ERROR {e}")
+
+        break  # stop after first detected apps_root
+
+    if total:
+        print(f"[apps] Done. Interpreters updated for {total} project(s).")
+    else:
+        print("[apps] No interpreter updates were needed.")
+except Exception as _e:
+    print(f"[apps] ERROR during apps-only pass: {_e}")
