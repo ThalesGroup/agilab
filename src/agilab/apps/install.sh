@@ -31,6 +31,7 @@ declare -a PUBLIC_APPS=(
 
 # Merge both into INCLUDED_APPS
 declare -a INCLUDED_APPS=("${PRIVATE_APPS[@]}" "${PUBLIC_APPS[@]}")
+echo "Merged apps: ${INCLUDED_APPS[@]}"
 
 # DEST_BASE default (overridable by env); where links are created
 : "${DEST_BASE:=$(pwd)}"
@@ -143,7 +144,7 @@ while IFS= read -r -d '' dir; do
   if [[ " ${INCLUDED_APPS[*]} " == *" $dir_name "* ]]; then
     apps+=("$dir_name")
   fi
-done < <(find "$DEST_BASE" -mindepth 1 -maxdepth 1 -type d -name '*_project' -print0)
+done < <(find "$DEST_BASE" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -name '*_project' -print0)
 
 echo -e "${BLUE}Apps to install:${NC} ${apps[*]:-<none>}"
 
