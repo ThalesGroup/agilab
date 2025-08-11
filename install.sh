@@ -280,7 +280,7 @@ install_enduser() {
 
 install_pycharm_script() {
 # Run the script
-    uv run -p "$PYTHON_VERSION" python pycharm/gen-app-script.py "$@"
+    uv run -p "$PYTHON_VERSION" python pycharm/install-app-script.py "$@"
 }
 
 # ================================
