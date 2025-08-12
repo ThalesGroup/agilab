@@ -109,23 +109,23 @@ class Mycode(BaseWorker):
                         "functions name": "algo_C",
                         "args": 3
                     },
-                    ["algo_B"]),
+                    ["algo_B","algo_A"]),
             ],
             [  # worker 1
                 (
                     {
-                        "functions name": "algo_A",
+                        "functions name": "algo_X",
                         "args": {"a":15,"b":20,"c":30}
                     }, []),
                 (
                     {
-                        "functions name": "algo_A",
+                        "functions name": "algo_Y",
                         "args": {"a":15,"b":20,"c":30}
                     },
                     ["algo_X"]),
                 (
                     {
-                        "functions name": "algo_A",
+                        "functions name": "algo_Z",
                         "args": {"a": 15, "b": 20, "c": 30}
                     },
                     ["algo_Y"]),
