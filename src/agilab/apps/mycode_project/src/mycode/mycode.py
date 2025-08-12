@@ -64,16 +64,71 @@ class Mycode(BaseWorker):
     def build_distribution(self, workers):
         """Build distribution as a calling graph."""
 
+        # workers_tree is a list representing multiple "workers" (parallel execution units).
+        # Each worker is represented as a list of tasks.
+        #
+        # Each task is stored as a tuple:
+        #    (
+        #        function_info: dict,   # Metadata about the function to execute
+        #            {
+        #                "functions name": str,   # Name/identifier of the function
+        #                "args": dict | list      # Arguments to pass to the function
+        #            }
+        #        dependencies: list[str]          # List of function names this task depends on
+        #    )
+        #
+        # Structure:
+        # [
+        #     [  # Worker 0's tasks
+        #         ({"functions name": ..., "args": ...}, [dependency names]),
+        #     ],
+        #     [  # Worker 1's tasks
+        #     ],
+        #     ...
+        # ]
+        #
+        # Example meaning:
+        # workers_tree[0][1] → Second task of worker 0:
+        #   function: "algo_B", args: [15, 20, 30], dependencies: ["algo_A"]
+
         workers_tree = [
             [  # worker 0
-                ("algo_A", []),
-                ("algo_B", ["algo_A"]),
-                ("algo_C", ["algo_B"]),
+                (
+                    {
+                        "functions name": "algo_A",
+                        "args": {"a":15,"b":20,"c":30}
+                    }, []),
+                (
+                    {
+                        "functions name": "algo_B",
+                        "args": [15, 20, 30]
+                    },
+                    ["algo_A"]),
+                (
+                    {
+                        "functions name": "algo_C",
+                        "args": 3
+                    },
+                    ["algo_B"]),
             ],
             [  # worker 1
-                ("algo_X", []),
-                ("algo_Y", ["algo_X"]),
-                ("algo_Z", ["algo_Y"]),
+                (
+                    {
+                        "functions name": "algo_A",
+                        "args": {"a":15,"b":20,"c":30}
+                    }, []),
+                (
+                    {
+                        "functions name": "algo_A",
+                        "args": {"a":15,"b":20,"c":30}
+                    },
+                    ["algo_X"]),
+                (
+                    {
+                        "functions name": "algo_A",
+                        "args": {"a": 15, "b": 20, "c": 30}
+                    },
+                    ["algo_Y"]),
             ],
         ]
 
