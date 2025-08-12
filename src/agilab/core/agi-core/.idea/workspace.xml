@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="f492f55a-368d-44c1-a62a-a0f4f0845f9a" name="Changes" comment="">
@@ -179,27 +179,27 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/../../../.." />
   </component>
-  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  <component name="GitHubPullRequestSearchHistory">{
   "lastFilter": {
     "state": "OPEN",
     "assignee": "jpmorard"
   }
-}]]></component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
+}</component>
+  <component name="GithubPullRequestsUISettings">{
   "selectedUrlAndAccountId": {
     "url": "https://github.com/ThalesGroup/agilab",
     "accountId": "0c2e577a-e791-46fe-b29b-da53f6fe7b1d"
   }
-}]]></component>
-  <component name="ProjectColorInfo"><![CDATA[{
+}</component>
+  <component name="ProjectColorInfo">{
   "associatedIndex": 5
-}]]></component>
+}</component>
   <component name="ProjectId" id="30gcCtpMwQeESo4oprwGdMYOAIv" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
+  <component name="PropertiesComponent">{
   "keyToString": {
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
@@ -208,7 +208,7 @@
     "last_opened_file_path": "/Users/jpm/PycharmProjects/agilab/src/agilab/core/agi-core",
     "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable"
   }
-}]]></component>
+}</component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -227,4 +227,4 @@
     </task>
     <servers />
   </component>
-</project>
+<component name="ProjectRootManager" project-jdk-type="Python SDK" project-jdk-name="uv (agi-core)" /></project>

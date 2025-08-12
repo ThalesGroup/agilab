@@ -1,107 +1,55 @@
+# install.ps1
+# Purpose: Root/Main AGI Framework Installer (PowerShell version)
+# Argument parsing (simulate bash style)
 param(
     [Parameter(Mandatory = $false)]
-    [switch]$Offline,
+    [switch]$offline,
 
     [Parameter(Mandatory = $false)]
-    [string]$OpenaiApiKey,
+    [string]$openai_api_key,
 
     [Parameter(Mandatory = $false)]
-    [string]$AgiCredentials = "",
+    [string]$cluster_credentials = "",
 
     [Parameter(Mandatory = $false)]
-    [string]$InstallPath = (Get-Location).Path
+    [string]$install_path = (Get-Location).Path
 )
 
-if (-not $Offline) {
-    if (-not $OpenaiApiKey) {
-        throw "OpenaiApiKey is required when not in offline mode."
-    }
-    if (-not $AgiCredentials) {
-        throw "AgiCredentials is required when not in offline mode."
-    }
-}
+function Write-Blue($msg)  { Write-Host $msg -ForegroundColor Blue }
+function Write-Green($msg) { Write-Host $msg -ForegroundColor Green }
+function Write-Yellow($msg) { Write-Host $msg -ForegroundColor Yellow }
+function Write-Red($msg)   { Write-Host $msg -ForegroundColor Red }
 
-$LogDir = Join-Path $env:USERPROFILE "log\install_logs"
-if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir | Out-Null }
-$LogFile = Join-Path $LogDir ("install_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
-Start-Transcript -Path $LogFile
+$ErrorActionPreference = "Stop"
 
-Get-ChildItem -Recurse -Directory | Where-Object {
-    $_.Name -match '\.venv|uv.lock|build|dist|.*egg-info'
-} | Remove-Item -Recurse -Force
-
-
-
-# ================================
-# Prevent Running as Administrator
-# ================================
-if ([Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "Error: This script should not be run as Administrator. Please run as a regular user." -ForegroundColor Red
-    Stop-Transcript
-    exit 1
-}
-
-# ================================
-# Global Variables and Paths
-# ================================
-# AGI_INSTALL_PATH corresponds to $InstallPath.
-$CurrentPath = (Get-Location).Path
-
-$LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
-New-Item -ItemType Directory -Force -Path $LocalDir | Out-Null
-$AgiPathFile = Join-Path $LocalDir ".agilab-path"
-
-$PYTHON_VERSION = "3.13"
-
-# Define project directories (AGI_PROJECT_SRC is "$AgiDir\src")
-$AgiProject = Join-Path $CurrentPath "src/agilab"
-
-$AppsDir = Join-Path $AgiProject "apps"
-
-$currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-$username = $currentUser.Split('\')[-1]
-
-
-Write-Host "Installation Directory: $InstallPath" -ForegroundColor Cyan
-if (-not $Offline)
-{
-    Write-Host "Selected user: $AgiCredentials" -ForegroundColor Yellow
-    Write-Host "OpenAI API Key: $OpenaiApiKey" -ForegroundColor Yellow
-}
-
-# ================================
-# Utility Functions
-# ================================
-
-function Check-VisualStudio {
+function Test-VisualStudio {
     $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
     if (Test-Path $vswhere) {
         $vs2022 = & $vswhere -version 17.0 -latest -products * -property installationPath
 
         if ($vs2022) {
-            Write-Host "Visual Studio 2022 is installed at: $vs2022" -ForegroundColor Green
+            Write-Green "Visual Studio 2022 is installed at: $vs2022"
         } else {
-            Write-Host "Visual Studio 2022 is not found." -ForegroundColor Red
+            Write-Red "Visual Studio 2022 is not found."
             exit 1
         }
     } else {
-        Write-Host "vswhere.exe not found. Cannot determine VS installation." -ForegroundColor Red
-        Write-Host "Please ensure Visual Studio 2022 is installed before continuing." -ForegroundColor Green
+        Write-Red "vswhere.exe not found. Cannot determine VS installation."
+        Write-Red "Please ensure Visual Studio 2022 is installed before continuing."
         exit 1
     }
-
 }
 
-function Check-Internet {
-    Write-Host "Checking internet connectivity..." -ForegroundColor Blue
+function Test-Internet {
+    Write-Blue "Testing internet connectivity..."
     try {
         $response = Invoke-WebRequest -Uri "https://www.google.com" -Method Head -TimeoutSec 10
         if ($response.StatusCode -eq 200) {
-            Write-Host "Internet connection is OK." -ForegroundColor Green
+            Write-Green "Internet connection is OK."
         }
     }
     catch {
-        Write-Host "No internet connection detected. Abording." -ForegroundColor Red
+        Write-Red "No internet connection detected. Abording."
         Stop-Transcript
         exit 1
     }
@@ -109,27 +57,27 @@ function Check-Internet {
 }
 
 function Install-Dependencies {
-    Write-Host "Installing system dependencies" -ForegroundColor Blue
+    Write-Blue "Installing system dependencies"
     Write-Host ""
     $choice = Read-Host "Do you want to install system dependencies? (y/N)"
     if ($choice -match "^[Yy]$") {
         if (-not (Get-Command "uv" -ErrorAction SilentlyContinue))
         {
-            Write-Host "Installing uv..." -ForegroundColor Blue
+            Write-Blue "Installing uv..."
             powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
         }
-        Write-Host "NOTE: Please install required dependencies manually or via your preferred package manager on Windows." -ForegroundColor Yellow
+        Write-Yellow "NOTE: Please install required dependencies manually or via your preferred package manager on Windows."
         # Optionally, add code here to install dependencies using Chocolatey if desired.
     }
     Write-Host ""
 }
 
-function Choose-PythonVersion {
-    Write-Host "Choosing Python version..." -ForegroundColor Blue
+function Select-PythonVersion {
+    Write-Blue "Selecting Python version..."
 
     $availablePythonVersions = uv python list | Where-Object { $_ -match $PYTHON_VERSION }
     if (-not $availablePythonVersions) {
-        Write-Host "No matching Python versions found for '$PYTHON_VERSION'" -ForegroundColor Red
+        Write-Red "No matching Python versions found for '$PYTHON_VERSION'"
         exit 1
     }
 
@@ -152,9 +100,9 @@ function Choose-PythonVersion {
             $selection = 1
         }
 
-        $valid = $selection -as [int] -and $selection -ge 1 -and $selection -le $pythonArray.Count
+        $valid = [int]$selection -ge 1 -and [int]$selection -le $pythonArray.Count
         if (-not $valid) {
-            Write-Host "Invalid selection. Please try again." -ForegroundColor Red
+            Write-Red "Invalid selection. Please try again."
         }
     } while (-not $valid)
 
@@ -163,11 +111,11 @@ function Choose-PythonVersion {
     $installedPythons = (uv python list --only-installed | ForEach-Object { ($_ -split '\s+')[0] })
 
     if ($installedPythons -notcontains $chosenPython) {
-        Write-Host "Installing $chosenPython..." -ForegroundColor Yellow
+        Write-Blue "Installing $chosenPython..."
         uv python install $chosenPython
-        Write-Host "Python version ($chosenPython) is now installed." -ForegroundColor Green
+        Write-Green "Python version ($chosenPython) is now installed."
     } else {
-        Write-Host "Python version ($chosenPython) is already installed." -ForegroundColor Green
+        Write-Green "Python version ($chosenPython) is already installed."
     }
 
     $env:PYTHON_VERSION = ($chosenPython -split '-')[1]
@@ -175,64 +123,68 @@ function Choose-PythonVersion {
 
 
 function Backup-AGIProject {
-    Write-Host "Backing Up Existing AGI Project (if any)" -ForegroundColor Blue
+    Write-Blue "Backing Up Existing AGI Project (if any)"
     Write-Host ""
-    if ($InstallPath -eq $CurrentPath)
+    if ($install_path -eq $CurrentPath)
     {
-        Write-Host "AGI project directory is 'src'; Skipping Backup." -ForegroundColor Yellow
+        Write-Yellow "AGI project directory is 'src'; Skipping Backup."
         return
     }
     if (Test-Path $CurrentPath) {
         if (Test-Path (Join-Path $CurrentPath "zip-agi.py")) {
             $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
             $backupFile = Join-Path $LocalDir ("{0}_{1}.zip" -f (Split-Path $AgiProject -Leaf), $timestamp)
-            Write-Host "Existing AGI project found at $AgiProject. Creating backup: $backupFile" -ForegroundColor Yellow
+            Write-Blue "Existing AGI project found at $AgiProject. Creating backup: $backupFile"
 
             try {
                 # Use Compress-Archive as a backup mechanism
                 Compress-Archive -Path $AgiProject\* -DestinationPath $backupFile -Force
-                Write-Host "Backup created successfully at $backupFile." -ForegroundColor Green
+                Write-Green "Backup created successfully at $backupFile."
                 if ((Split-Path $AgiProject -Leaf) -ne "agi") {
                     Remove-Item -Recurse -Force $AgiProject
-                    Write-Host "Existing AGI project directory removed." -ForegroundColor Green
+                    Write-Green "Existing AGI project directory removed."
                 }
                 else {
-                    Write-Host "AGI project directory is 'src'; preserving it." -ForegroundColor Yellow
+                    Write-Yellow "AGI project directory is 'src'; preserving it."
                 }
             }
             catch {
-                Write-Host "Error: Backup failed. Aborting installation." -ForegroundColor Red
-                Write-Host "Details: $($_.Exception.Message)" -ForegroundColor Red
+                Write-Red "Error: Backup failed. Aborting installation."
+                Write-Red "Details: $($_.Exception.Message)"
                 Stop-Transcript
                 exit 1
             }
         }
         else {
-            Write-Host "Existing AGI project found at $AgiProject but no zip-agi.py found. Skipping backup." -ForegroundColor Yellow
+            Write-Yellow "Existing AGI project found at $AgiProject but no zip-agi.py found. Skipping backup."
         }
     }
     else {
-        Write-Host "No existing AGI project found at $AgiProject. Skipping backup." -ForegroundColor Yellow
+        Write-Yellow "No existing AGI project found at $AgiProject. Skipping backup."
     }
     Write-Host ""
 }
 
 function Copy-ProjectFiles {
-    if ($InstallPath -ne $CurrentPath) {
+    Write-Blue $install_path
+    Write-Blue $AgiPathFile
+    Write-Blue $CurrentPath
+
+    if ($install_path -ne $CurrentPath) {
         if (Test-Path "$CurrentPath/src") {
-            Write-Host "Copying project files to install directory..." -ForegroundColor Blue
-            New-Item -ItemType Directory -Force -Path $InstallPath | Out-Null
-            robocopy $CurrentPath $InstallPath /E /MIR /NFL /NDL /NJH /NJS | Out-Null
+            Write-Blue "Copying project files to install directory..."
+            New-Item -ItemType Directory -Force -Path $install_path | Out-Null
+            robocopy $CurrentPath $install_path /E /MIR /NFL /NDL /NJH /NJS | Out-Null
         } else {
-            Write-Host "Source directory 'src' not found. Exiting." -ForegroundColor Red
+            Write-Red "Source directory 'src' not found. Exiting."
             exit 1
         }
     } else {
-        Write-Host "Using current directory as install directory; no copy needed." -ForegroundColor Yellow
+        Write-Yellow "Using current directory as install directory; no copy needed."
     }
-    "$InstallPath/src/agilab" | Set-Content -Encoding UTF8 -Path $AgiPathFile
-    [System.Environment]::SetEnvironmentVariable('AGI_ROOT', "$InstallPath/src/agilab", [System.EnvironmentVariableTarget]::User)
-    Write-Host "Installation root path has been exported as AGI_ROOT and written in $LocalDir" -ForegroundColor Green
+    "$install_path/src/agilab" | Set-Content -Encoding UTF8 -Path $AgiPathFile
+    [System.Environment]::SetEnvironmentVariable('AGI_ROOT', "$install_path/src/agilab", [System.EnvironmentVariableTarget]::User)
+    Write-Green "Installation root path has been exported as AGI_ROOT and written in $LocalDir"
 
 }
 
@@ -249,14 +201,14 @@ CLUSTER_CREDENTIALS="$AgiCredentials"
 AGI_PYTHON_VERSION="$env:PYTHON_VERSION"
 "@ | Set-Content -Encoding UTF8 -Path $envFile
 
-    Write-Host "Environment updated in $envFile" -ForegroundColor Green
+    Write-Green "Environment updated in $envFile"
 }
 
 function Install-Core {
-    $frameworkDir = Join-Path $InstallPath "src\agilab\core"
+    $frameworkDir = Join-Path $install_path "src\agilab\core"
 
-    Write-Host "Installing Framework..." -ForegroundColor Blue
-    Write-Host $frameworkDir
+    Write-Blue "Installing Framework..."
+    Write-Blue $frameworkDir
     Push-Location $frameworkDir
     if ($Offline) {
         & "./install.ps1" -$AgiProject $frameworkDir -Offline
@@ -268,10 +220,10 @@ function Install-Core {
 }
 
 function Install-Apps {
-    $appsDir = Join-Path $InstallPath "src\agilab\apps"
+    $appsDir = Join-Path $install_path "src\agilab\apps"
 
-    Write-Host "Installing Apps..." -ForegroundColor Blue
-    Write-Host "$appsDir" -ForegroundColor Yellow
+    Write-Blue "Installing Apps..."
+    Write-Blue "$appsDir"
     Push-Location $appsDir
     & "./install.ps1" $appsDir "1"
     Pop-Location
@@ -302,22 +254,86 @@ function Write-EnvValues {
     Write-Host ".env file updated." -ForegroundColor Green
 }
 
-# ================================
+function Install-PyCharmScript {
+    uv run -p $env:PYTHON_VERSION python pycharm/install-app-script.py @args
+}
+
+
+
 # Main Flow
+
+# Prevent Running as Administrator
+if ([Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Red "Error: This script should not be run as Administrator. Please run as a regular user."
+    Stop-Transcript
+    exit 1
+}
+
 # ================================
+# Global Variables and Paths
+# ================================
+# AGI_INSTALL_PATH corresponds to $install_path.
+$CurrentPath = (Get-Location).Path
+
+$LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
+New-Item -ItemType Directory -Force -Path $LocalDir | Out-Null
+$AgiPathFile = Join-Path $LocalDir ".agilab-path"
+
+$PYTHON_VERSION = "3.13"
+
+# Define project directories (AGI_PROJECT_SRC is "$AgiDir\src")
+$AgiProject = Join-Path $CurrentPath "src/agilab"
+
+$AppsDir = Join-Path $AgiProject "apps"
+
+$currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+$username = $currentUser.Split('\')[-1]
+
+
+Write-Blue "Installation Directory: $install_path"
+
+if (-not $offline) {
+    $missingVars = @()
+
+    if (-not $openai_api_key) { $missingVars += "openai_api_key" }
+    if (-not $cluster_credentials) { $missingVars += "cluster_credentials" }
+
+    if ($missingVars.Count -gt 0) {
+        Write-Red ("{0} {1} required when not in offline mode." -f ($missingVars -join " and "),
+                   $(if ($missingVars.Count -gt 1) { "are" } else { "is" }))
+        Stop-Transcript
+        exit 1
+    }
+}
+
+$LogDir = Join-Path $env:USERPROFILE "log\install_logs"
+if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir | Out-Null }
+$LogFile = Join-Path $LogDir ("install_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
+Start-Transcript -Path $LogFile
+
+# Get-ChildItem -Recurse -Directory | Where-Object {
+#     $_.Name -match '\.venv|uv.lock|build|dist|.*egg-info'
+# } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+if (-not $cluster_credentials -or -not $openai_api_key) {
+    Write-Red "Usage: .\install.ps1 -cluster_credentials <user[:password]> -openai_api_key <api-key> [-install_path <path>]"
+    Write-Yellow "If ExecutionPolicy is set to Default (Restricted mode) use 'powershell.exe -ExecutionPolicy ByPass' to call the script"
+    Stop-Transcript
+    exit 1
+}
 if (-not $Offline)
 {
-    Check-Internet
+    Test-Internet
 }
-Check-VisualStudio
+Test-VisualStudio
 if (-not $Offline)
 {
     Install-Dependencies
 }
-Choose-PythonVersion
+Select-PythonVersion
 Backup-AGIProject
 Copy-ProjectFiles
 Update-Environment
 Install-Core
 Write-EnvValues
-Install-Apps
+#Install-Apps

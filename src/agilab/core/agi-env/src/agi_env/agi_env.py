@@ -1,3 +1,16 @@
+# BSD 3-Clause License
+#
+# Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+# 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or THALES SIX GTS France SAS, may be used to endorse or promote products derived from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 from IPython.core.ultratb import FormattedTB
 import ast
 import asyncio
@@ -20,6 +33,7 @@ from pathspec.patterns import GitWildMatchPattern
 import py7zr
 import urllib.request
 import inspect
+from concurrent.futures import ThreadPoolExecutor
 
 # Get constructor parameters of FormattedTB
 _sig = inspect.signature(FormattedTB.__init__).parameters
@@ -175,52 +189,54 @@ class AgiEnv:
         home_abs = Path.home() / "MyApp" if AgiEnv.is_managed_pc else Path.home()
         self.home_abs = home_abs
 
-        self.resource_path = home_abs / self.agi_resources.name
-        env_path = self.resource_path / ".env"
-        self.benchmark = self.resource_path / "benchmark.json"
-        self.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
-        envars = self.envars
+        AgiEnv.resource_path = home_abs / self.agi_resources.name
+        env_path = AgiEnv.resource_path / ".env"
+        self.benchmark = AgiEnv.resource_path / "benchmark.json"
+        AgiEnv.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
+        envars = AgiEnv.envars
 
         if install_type is None:
             install_type = 1 if ("site-packages" not in __file__ or sys.prefix.endswith("agilab/.venv")) else 0
         elif isinstance(install_type, str):
             install_type = int(install_type)
 
-        self.install_type = install_type
+        AgiEnv.install_type = install_type
 
         if install_type != 2:
-            self.agi_fwk = AgiEnv.locate_agi_installation(verbose)
+            self.agilab_src = AgiEnv.locate_agi_installation(verbose)
         else:
-            self.agi_fwk = home_abs / "wenv" / active_app
+            self.agilab_src = home_abs / "wenv" / active_app
 
         if install_type == 1:
-            if "site-packages" in self.agi_fwk.parts:
-                self.env_root = self.agi_fwk.parent / "agi_env"
-                self.cluster_root = self.agi_fwk.parent
-                self.node_root = self.agi_fwk.parent / "agi-node"
+            if "site-packages" in self.agilab_src.parts:
+                self.env_root = self.agilab_src.parent / "agi_env"
+                self.cluster_root = self.agilab_src.parent
+                self.node_root = self.agilab_src.parent / "agi-node"
                 resource_path = self.env_root / self.agi_resources
             else:
-                self.env_root = self.agi_fwk / "core/agi-env"
-                self.node_root = self.agi_fwk / "core/agi-node"
-                self.cluster_root = self.agi_fwk / "core/agi-cluster"
+                self.env_root = self.agilab_src / "core/agi-env"
+                self.node_root = self.agilab_src / "core/agi-node"
+                self.cluster_root = self.agilab_src / "core/agi-cluster"
                 resource_path = self.env_root / "src/agi_env" / self.agi_resources
             if not self.env_root.exists():
                 raise RuntimeError(f"{self.env_root} do not exist\nYour Agilab installation is not valid")
             self._init_resources(resource_path)
         elif install_type == 2:
             if AgiEnv.debug:
-                self.env_root = self.agi_fwk / "core/agi-env"
-                self.cluster_root = self.agi_fwk / "core/agi-cluster"
-                self.node_root = self.agi_fwk / "core/agi-node"
+                self.env_root = self.agilab_src / "core/agi-env"
+                self.cluster_root = self.agilab_src / "core/agi-cluster"
+                self.node_root = self.agilab_src / "core/agi-node"
             else:
                 self.env_root = list(Path(sys.prefix).rglob('agi_env'))[0]
                 # self.agi_cluster_root = list(Path(sys.prefix).rglob('cluster'))[0]
         elif install_type == 0:
-            head, sep, _ = __file__.partition("site-packages")
+            head, sep, _ =  __file__.partition("agi_env")
             if not sep:
                 raise ValueError("site-packages not in", __file__)
-            _ = Path(head + sep)
-            self.env_root, self.cluster_root, self.cluster_node = _, _, _
+            core = Path(head)
+            self.env_root = core / "agi-env"
+            self.cluster_root = core / "agi-cluster"
+            self.node_root = core / "agi-node"
 
         if not apps_dir:
             apps_dir = 'apps'
@@ -235,7 +251,7 @@ class AgiEnv:
             if apps_dir.exists():
                 self.apps_dir = apps_dir
             elif install_type < 2:
-                self.apps_dir = self.agi_fwk / apps_dir
+                self.apps_dir = self.agilab_src / apps_dir
             #else:
             #    os.makedirs(str(apps_dir), exist_ok=True)
         except FileNotFoundError:
@@ -254,10 +270,13 @@ class AgiEnv:
                 active_app = active_app + '_project'
             self.app = active_app
             if not install_type:
-                src_apps = self.agi_fwk / "apps"
-                apps_dir = Path(self.agi_fwk).parents[4] / "apps"
+                src_apps = self.agilab_src / "apps"
+                #apps_dir = Path(self.agilab_src).parents[4] / "apps"
                 if not apps_dir.exists():
-                    shutil.copytree(src_apps, apps_dir)
+                    if src_apps.exists():
+                        self.copy_existing_projects(src_apps, apps_dir)
+                    else:
+                        print(f"Warning: {src_apps} does not exist, nothing to copy!")
                 else:
                     self.copy_missing(src_apps, apps_dir)
                 src_apps = apps_dir
@@ -298,7 +317,7 @@ class AgiEnv:
             worker_module_path = self.worker_path.parent
 
         elif install_type == 1:
-            app_abs = self.agi_fwk / apps_dir / active_app
+            app_abs = self.agilab_src / apps_dir / active_app
             app_src = app_abs / "src"
             self.app_pyproject = app_abs / "pyproject.toml"
             self.worker_path = app_src / target_worker / f"{target_worker}.py"
@@ -307,8 +326,8 @@ class AgiEnv:
             worker_module_path = self.worker_path.parent
 
         elif install_type == 2:
-            app_abs = self.agi_fwk
-            app_src = self.agi_fwk / "src"
+            app_abs = self.agilab_src
+            app_src = self.agilab_src / "src"
             self.worker_path = self.wenv_rel / 'src' / target_worker / f"{target_worker}.py"
             self.module_path = self.wenv_rel / 'src' / module / f"{self.module}.py"
             worker_module_path = self.worker_path.parent
@@ -342,7 +361,7 @@ class AgiEnv:
             logging.info(f"Missing {self.target_worker_class} definition; should be in {self.worker_path} but it does not exist")
             sys.exit(1)
 
-        envars = self.envars
+        envars = AgiEnv.envars
         self.credantials = envars.get("CLUSTER_CREDENTIALS", getpass.getuser())
         credantials = self.credantials.split(":")
         self.user = credantials[0]
@@ -350,18 +369,18 @@ class AgiEnv:
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.13")
 
         # os.makedirs(AgiEnv.apps_dir, exist_ok=True)
-        if "site-packages" in self.agi_fwk.parts:
-            self.agi_fwk = self.agi_fwk.parent
+        if "site-packages" in self.agilab_src.parts:
+            self.agilab_src = self.agilab_src.parent
 
         if install_type != 2:
             self.update_pyproject()
 
         self.projects = self.get_projects(self.apps_dir)
         if not self.projects:
-            logging.info(f"Could not find any target project app in {self.agi_fwk / 'apps'}.")
+            logging.info(f"Could not find any target project app in {self.agilab_src / 'apps'}.")
 
         self.setup_app = app_abs / "build.py"
-        self.setup_core = self.agi_fwk / "core/agi-node/src/agi_node/agi_dispatcher/build.py"
+        self.setup_core = self.agilab_src / "core/agi-node/src/agi_node/agi_dispatcher/build.py"
 
         if isinstance(module, Path):
             module_path = module.expanduser().resolve()
@@ -380,8 +399,8 @@ class AgiEnv:
         if not self.is_valid_ip(self.scheduler_ip):
             raise ValueError(f"Invalid scheduler IP address: {self.scheduler_ip}")
 
-        if self.install_type:
-            self.help_path = str(self.agi_fwk / "../docs/html")
+        if AgiEnv.install_type:
+            self.help_path = str(self.agilab_src / "../docs/html")
         else:
             self.help_path = "https://thalesgroup.github.io/agilab"
         self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", home_abs / "data"))
@@ -395,7 +414,7 @@ class AgiEnv:
 
         # type 3: only core install
         if AgiEnv.install_type != 3:
-            self.init_envars_app(self.envars)
+            self.init_envars_app(AgiEnv.envars)
             self._init_apps()
 
         if os.name == "nt":
@@ -430,10 +449,10 @@ class AgiEnv:
             formatted_errors.append(user_message)
         return formatted_errors
 
-    def set_env_var(self, key: str, value: str):
-        self.envars[key] = value
+    def set_env_var(key: str, value: str):
+        AgiEnv.envars[key] = value
         os.environ[key] = str(value)
-        self._update_env_file({key: value})
+        AgiEnv._update_env_file({key: value})
 
     @staticmethod
     def locate_agi_installation(verbose=False):
@@ -471,19 +490,60 @@ class AgiEnv:
         logging.info("Falling back to current working directory")
         return Path(os.getcwd())
 
-    def copy_missing(self, src: Path, dst: Path):
+    def copy_existing_projects(self, src_apps: Path, dst_apps: Path):
+        dst_apps.mkdir(parents=True, exist_ok=True)
+        for item in src_apps.iterdir():
+            if item.is_dir() and item.name.startswith("project"):
+                dst_item = dst_apps / item.name
+                try:
+                    shutil.copytree(item, dst_item, dirs_exist_ok=True)
+                except FileExistsError:
+                    pass  # Already exists, that's fine
+                except Exception as e:
+                    print(f"Warning: Could not copy {item} → {dst_item}: {e}")
+
+    def copy_missing(self, src: Path, dst: Path, max_workers=8):
+        """
+        Copy missing files/directories from src to dst, skipping files/dirs that already exist at dst.
+        Robust: skips any missing src_item, logs a warning, never crashes.
+        """
         dst.mkdir(parents=True, exist_ok=True)
+        to_copy = []
+        dirs = []
+
         for item in src.iterdir():
             src_item = item
             dst_item = dst / item.name
+            if not src_item.exists():
+                print(f"[WARN] Source item missing: {src_item}, skipping")
+                continue
             if src_item.is_dir():
-                self.copy_missing(src_item, dst_item)
+                dirs.append((src_item, dst_item))
             else:
-                if not dst_item.exists():
-                    shutil.copy2(src_item, dst_item)
+                to_copy.append((src_item, dst_item))
 
-    def _update_env_file(self, updates: dict):
-        env_file = self.resource_path / ".env"
+        def safe_copy(args):
+            src_item, dst_item = args
+            if src_item.exists():
+                try:
+                    shutil.copy2(src_item, dst_item)
+                except Exception as e:
+                    print(f"[WARN] Could not copy {src_item} → {dst_item}: {e}")
+            else:
+                print(f"[WARN] Source file missing (skipped): {src_item}")
+
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            list(executor.map(safe_copy, to_copy))
+
+        for src_dir, dst_dir in dirs:
+            if src_dir.exists():
+                self.copy_missing(src_dir, dst_dir, max_workers=max_workers)
+            else:
+                print(f"[WARN] Source dir missing (skipped): {src_dir}")
+
+    def _update_env_file(updates: dict):
+        env_file = AgiEnv.resource_path / ".env"
         #os.makedirs(env_file.parent, exist_ok=True)
         #env_file.touch(exist_ok=True)
         for k, v in updates.items():
@@ -491,7 +551,7 @@ class AgiEnv:
 
     def _init_resources(self, resources_path):
         src_env_path = resources_path / ".env"
-        dest_env_file = self.resource_path / ".env"
+        dest_env_file = AgiEnv.resource_path / ".env"
         if not src_env_path.exists():
             msg = f"Installation issue: {src_env_path} is missing!"
             logging.info(msg)
@@ -503,7 +563,7 @@ class AgiEnv:
             for file in files:
                 src_file = Path(root) / file
                 relative_path = src_file.relative_to(resources_path)
-                dest_file = self.resource_path / relative_path
+                dest_file = AgiEnv.resource_path / relative_path
                 dest_file.parent.mkdir(parents=True, exist_ok=True)
                 if not dest_file.exists():
                     shutil.copy(src_file, dest_file)
@@ -661,15 +721,15 @@ class AgiEnv:
         if not self.export_apps.exists():
             os.makedirs(str(self.export_apps), exist_ok=True)
         self.MLFLOW_TRACKING_DIR = Path(envars.get("MLFLOW_TRACKING_DIR", self.home_abs / ".mlflow"))
-        self.AGILAB_VIEWS_ABS = Path(envars.get("AGI_VIEWS_DIR", self.agi_fwk / "views"))
+        self.AGILAB_VIEWS_ABS = Path(envars.get("AGI_VIEWS_DIR", self.agilab_src / "views"))
         self.AGILAB_VIEWS_REL = Path(envars.get("AGI_VIEWS_DIR", "agilab/_"))
-        if self.install_type == 0:
-            self.copilot_file = self.agi_fwk / "agi_copilot.py" # WTF ?
+        if AgiEnv.install_type == 0:
+            self.copilot_file = self.agilab_src / "agi_copilot.py" # WTF ?
         else:
-            self.copilot_file = self.agi_fwk / "agi_copilot.py"
+            self.copilot_file = self.agilab_src / "agi_copilot.py"
 
     def update_pyproject(self):
-        agi_fwk = self.agi_fwk
+        agilab_src = self.agilab_src
         for file in [self.worker_pyproject, self.app_pyproject]:
             if not file.exists():
                 raise FileNotFoundError(f"{file} not found in {self.app_abs}")
@@ -687,7 +747,7 @@ class AgiEnv:
 
             sources = uv["sources"]
 
-            if "site-packages" in agi_fwk.parts:
+            if "site-packages" in agilab_src.parts:
                 if "agi-node" in sources:
                     del sources["agi-node"]
                     if not sources:
@@ -703,16 +763,38 @@ class AgiEnv:
 
             file.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
-    def copy_missing(self, src: Path, dst: Path):
+    @staticmethod
+    def _copy_file(src_item, dst_item):
+        if not dst_item.exists():
+            if not src_item.exists():
+                print(f"[WARN] Source file missing (skipped): {src_item}")
+                return
+            try:
+                shutil.copy2(src_item, dst_item)
+            except Exception as e:
+                print(f"[WARN] Could not copy {src_item} → {dst_item}: {e}")
+
+    def copy_missing(self, src: Path, dst: Path, max_workers=8):
         dst.mkdir(parents=True, exist_ok=True)
+        to_copy = []
+        dirs = []
+
         for item in src.iterdir():
             src_item = item
             dst_item = dst / item.name
             if src_item.is_dir():
-                self.copy_missing(src_item, dst_item)
+                dirs.append((src_item, dst_item))
             else:
-                if not dst_item.exists():
-                    shutil.copy2(src_item, dst_item)
+                to_copy.append((src_item, dst_item))
+
+        # Parallel file copy
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            list(executor.map(lambda args: AgiEnv._copy_file(*args), to_copy))
+
+        # Recurse into directories
+        for src_dir, dst_dir in dirs:
+            self.copy_missing(src_dir, dst_dir, max_workers=max_workers)
+
 
     def _init_apps(self):
         app_settings_file = self.app_src / "app_settings.toml"
@@ -724,8 +806,8 @@ class AgiEnv:
         self.args_ui_snippet = args_ui_snippet
 
         self.gitignore_file = self.app_abs / ".gitignore"
-        dest = self.resource_path
-        shutil.copytree(self.agi_fwk / self.agi_resources, dest, dirs_exist_ok=True)
+        dest = AgiEnv.resource_path
+        shutil.copytree(self.agilab_src / "resources", dest, dirs_exist_ok=True)
 
 
     @staticmethod
@@ -1070,9 +1152,9 @@ class AgiEnv:
         self.OPENAI_API_KEY = api_key
         self.set_env_var("OPENAI_API_KEY", api_key)
 
-    def set_install_type(self, install_type: int):
-        self.install_type = install_type
-        self.set_env_var("INSTALL_TYPE", str(install_type))
+    def set_install_type(install_type: int):
+        AgiEnv.install_type = install_type
+        AgiEnv.set_env_var("INSTALL_TYPE", str(install_type))
 
     def set_apps_dir(self, apps_dir: Path):
         self.apps_dir =apps_dir

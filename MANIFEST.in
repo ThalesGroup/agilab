@@ -1,3 +1,4 @@
-include src/agi/apps/*/src/*.*
-include src/agi/apps/*/*.*
-exclude src/agi/apps/*/build/
+include src/agilab/apps/*/*
+include src/resources/*/*.*
+recursive-exclude src/agilab/apps/ build/**
+

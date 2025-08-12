@@ -1,54 +1,70 @@
-# Script: install_Agi_framework.ps1
+# install_Agi_framework.ps1
 # Purpose: Install the framework
-param(
-    [Parameter(Mandatory = $true)]
-    [string]$FrameworkDir,
-    [Parameter(Mandatory = $false)]
-    [switch]$Offline
-)
 
-# Exit immediately if a command fails
+# Stop execution if any command fails
 $ErrorActionPreference = "Stop"
 
+# Load environment variables from .env
+$envDir = $env:LOCALAPPDATA
+$envFile = Join-Path $envDir "agilab\.env"
+if (Test-Path $envFile) {
+    Get-Content $envFile | ForEach-Object {
+        if ($_ -match '^\s*#') { return } # Skip comments
+        if ($_ -match '^\s*$') { return } # Skip empty lines
+        $parts = $_ -split '=', 2
+        if ($parts.Count -eq 2) {
+            $name = $parts[0].Trim()
+            $value = $parts[1].Trim()
+            Set-Item -Path "Env:$name" -Value $value
+        }
+    }
+} else {
+    Write-Host "Environment file not found: $envFile" -ForegroundColor Red
+    exit 1
+}
+
+# Clean up AGI_PYTHON_VERSION
+$env:AGI_PYTHON_VERSION = $env:AGI_PYTHON_VERSION -replace '^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*','$1'
 
 Write-Host "Installing framework from $(Get-Location)..." -ForegroundColor Blue
+Write-Host "Python Version: $env:AGI_PYTHON_VERSION" -ForegroundColor Blue
 
-# Install agi-env
-Write-Host "Installing agi-env..." -ForegroundColor Blue
-Push-Location "agi-env"
-uv sync -p $env:PYTHON_VERSION --dev --directory (Resolve-Path "$($FrameworkDir)\agi-env")
-uv pip install -e .
-Pop-Location
-
-# Install agi-cluster
-Write-Host "Installing agi-cluster..." -ForegroundColor Blue
-Push-Location "core"
-
-Push-Location "agi-cluster"
-if ($Offline) {
-    uv sync -p $env:PYTHON_VERSION --extra managers --dev --directory (Resolve-Path "$($FrameworkDir)\agi-cluster")
-} else {
-    uv sync -p $env:PYTHON_VERSION --config-file uv_config.toml --extra managers --dev --directory (Resolve-Path "$($FrameworkDir)\agi-cluster")
+function Install-ModulePath {
+    param(
+        [string]$Path,
+        [string[]]$ExtraInstalls = @()
+    )
+    Push-Location $Path
+    Write-Host "uv sync -p $env:AGI_PYTHON_VERSION --dev" -ForegroundColor Blue
+    uv sync -p $env:AGI_PYTHON_VERSION --dev
+    uv run python -m ensurepip
+    uv pip install -e .
+    foreach ($pkg in $ExtraInstalls) {
+        uv pip install -e $pkg
+    }
+    Pop-Location
 }
-uv pip install -e .
-Pop-Location
+
+Write-Host "Installing agi-cluster..." -ForegroundColor Blue
+Install-ModulePath "agi-cluster" @("../agi-node", "../agi-env")
 
 Write-Host "Installing agi-node..." -ForegroundColor Blue
-Push-Location "agi-node"
-if ($Offline) {
-    uv sync -p $env:PYTHON_VERSION --extra managers --dev --directory (Resolve-Path "$($FrameworkDir)\agi-node")
-} else {
-    uv sync -p $env:PYTHON_VERSION --config-file uv_config.toml --extra managers --dev --directory (Resolve-Path "$($FrameworkDir)\agi-node")
-}
-uv pip install -e .
-Pop-Location
+Install-ModulePath "agi-node" @("../agi-env")
 
-Pop-Location
+Write-Host "Installing agi-env..." -ForegroundColor Blue
+Install-ModulePath "agi-env"
 
-# Install agilab
 Write-Host "Installing agilab..." -ForegroundColor Blue
+Push-Location (Resolve-Path "..\..\..")
+uv sync -p $env:AGI_PYTHON_VERSION --dev
+uv run python -m ensurepip
+Write-Host (Get-Location)
+uv pip install -e .
+uv pip install -e src/agilab/core/agi-env
+uv pip install -e src/agilab/core/agi-node
+uv pip install -e src/agilab/core/agi-cluster
+Pop-Location
 
-uv sync -p $env:PYTHON_VERSION --dev --directory (Resolve-Path "$FrameworkDir")
-
-
-
+Write-Host "Installing framework from $(Get-Location)..." -ForegroundColor Blue
+Write-Host "Checking installation..." -ForegroundColor Green
+uv run -p $env:AGI_PYTHON_VERSION --project agi-cluster python run-all-test.py
