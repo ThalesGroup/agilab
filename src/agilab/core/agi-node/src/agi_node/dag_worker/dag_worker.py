@@ -67,7 +67,6 @@ class DagWorker(BaseWorker):
         if not assigned:
             logging.info(f"No tasks for worker {worker_id}")
             return
-
         # execute each branch sequentially
         for tree, info in assigned:
             fargs = {t[0]["functions name"]:t[0]["args"] for t in tree}
@@ -95,13 +94,16 @@ class DagWorker(BaseWorker):
             except (KeyError, ValueError) as e:
                 logging.error(f"Error during topological sort: {e}")
                 continue
-            prev_result=None
+            prev_result={}
             # execute in order
             for fn in topo_order:
                 pname = function_info[fn]["partition_name"]
                 logging.info(f"Executing {fn} for partition {pname}")
+                pipeline_result = {}
+                for dependency in dependency_graph[fn]:
+                    pipeline_result[dependency] = prev_result[dependency]
                 try:
-                    prev_result = self.get_work(fn,fargs[fn],prev_result)
+                    prev_result[fn] = self.get_work(fn,fargs[fn],pipeline_result)
                 except Exception as e:
                     logging.error(f"Error executing {fn}: {e}")
 
