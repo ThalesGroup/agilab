@@ -28,4 +28,4 @@ if [ ! -f pyproject.toml ]; then
     uv init --bare
 fi
 uv add --upgrade --force-reinstall *.whl *.gz
-popd
+popd > /dev/null
