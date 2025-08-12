@@ -1,7 +1,7 @@
 [project]
 name = "agi-node"
 description = "agi-node the local code for AGI framework"
-version = "0.4.01"
+version = "0.5.1"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [
@@ -66,7 +66,6 @@ Tracker = "https://github.com/ThalesGroup/agilab/issue"
 
 [dependency-groups]
 dev = [
-    "agi-node",
     "black",
     "pytest",
     "licensecheck",
@@ -82,7 +81,7 @@ path = "../agi-env"
 editable = true
 
 [tool.uv.sources.agi-node]
-path = "."
+path = "../agi-node"
 editable = true
 
 [tool.mypy]

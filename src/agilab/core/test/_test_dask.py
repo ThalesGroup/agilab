@@ -23,7 +23,7 @@ async def main():
 
     # Kill dask process on worker
     cmd_prefix = await AGI._detect_export_cmd(ip_worker1)
-    env.set_env_var(f"{ip_worker1}_CMD_PREFIX", cmd_prefix)
+    AgiEnv.set_env_var(f"{ip_worker1}_CMD_PREFIX", cmd_prefix)
     AGI.env = env
     env.user = "nsbl"
     await AGI._kill(ip_worker1, current_pid=os.getpid(), force=True)

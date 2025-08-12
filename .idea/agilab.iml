@@ -5,8 +5,8 @@
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
       <excludeFolder url="file://$MODULE_DIR$/src/agilab/apps/mycode_project/.idea" />
+      <excludeFolder url="file://$MODULE_DIR$/dist" />
     </content>
-    <orderEntry type="jdk" jdkName="uv (agilab)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="agilab" />
     <orderEntry type="module" module-name="agi-space" />
@@ -16,10 +16,6 @@
     <orderEntry type="module" module-name="agi-env" />
     <orderEntry type="module" module-name="flight_project" />
     <orderEntry type="module" module-name="mycode_project" />
-    <orderEntry type="module" module-name="flight_legacy_project" />
-    <orderEntry type="module" module-name="flight_trajectory_project" />
-    <orderEntry type="module" module-name="link_sim_project" />
-    <orderEntry type="module" module-name="sat_trajectory_project" />
   </component>
   <component name="PyDocumentationSettings">
     <option name="format" value="PLAIN" />
