@@ -132,6 +132,82 @@ def replace_placeholders(tree: ET.ElementTree, app: str) -> None:
         if el.text and "{APP}" in el.text:
             el.text = el.text.replace("{APP}", app)
 
+# ---------- new helpers added ----------
+def ensure_method(config_elem: ET.Element) -> None:
+    if config_elem.find("method") is None:
+        ET.SubElement(config_elem, "method", {"v": "2"})
+
+def ensure_common_python_options(config_elem: ET.Element, workdir: Path) -> None:
+    # Required/handy options for Python run configs
+    ensure_option(config_elem, "WORKING_DIRECTORY", str(workdir))
+    ensure_option(config_elem, "ADD_CONTENT_ROOTS", "true")
+    ensure_option(config_elem, "ADD_SOURCE_ROOTS", "true")
+    ensure_option(config_elem, "PARENT_ENVS", "true")
+    ensure_option(config_elem, "INTERPRETER_OPTIONS", "")
+
+def bind_module(config_elem: ET.Element, module_name: str) -> None:
+    m = config_elem.find("module")
+    if m is None:
+        ET.SubElement(config_elem, "module", {"name": module_name})
+    elif m.get("name") != module_name:
+        m.set("name", module_name)
+
+def set_sdk_name(config_elem: ET.Element, sdk_name: str) -> None:
+    # purely cosmetic when SDK_HOME is set; but helpful in UI
+    if config_elem.get("SDK_NAME") != sdk_name:
+        config_elem.set("SDK_NAME", sdk_name)
+
+def resolve_module_name(app: str, project_root: Path) -> str:
+    """
+    Pick the module name by inspecting .idea/modules.xml and matching
+    content root to a likely app directory. Fall back to `app`.
+    """
+    modules_xml = project_root / ".idea" / "modules.xml"
+    if not modules_xml.exists():
+        return app
+    try:
+        tree = ET.parse(modules_xml)
+    except ET.ParseError:
+        return app
+
+    # Heuristics: prefer a module whose content root path ends with the app name
+    candidates = [
+        (project_root / "src" / "agilab" / "apps" / app),
+        (project_root / "apps" / app),
+        (project_root / app),
+    ]
+    candidates = [c.resolve() for c in candidates if c.exists()]
+
+    modules_parent = tree.getroot().find("./component[@name='ProjectModuleManager']/modules")
+    if modules_parent is None:
+        return app
+
+    def iml_path(m: ET.Element):
+        fp = m.get("filepath") or m.get("fileurl") or ""
+        p = fp.replace("file://$PROJECT_DIR$/", "").replace("$PROJECT_DIR$/", "").replace("file://", "")
+        return (project_root / p).resolve()
+
+    for m in modules_parent.findall("module"):
+        p = iml_path(m)
+        if not (p and p.exists()):
+            continue
+        try:
+            t = ET.parse(p)
+        except ET.ParseError:
+            continue
+        content = t.getroot().find("./component[@name='NewModuleRootManager']/content")
+        if content is None:
+            continue
+        url = content.get("url", "")
+        if not url.startswith("file://"):
+            continue
+        root = Path(url[len("file://"):]).resolve()
+        if any(str(root).endswith(str(c)) for c in candidates):
+            # module name is the .iml file stem
+            return p.stem
+
+    return app
+
 # ---------- main ----------
 def main() -> int:
     if len(sys.argv) < 2:
@@ -173,6 +249,30 @@ def main() -> int:
         config_elem = next(tree.getroot().iter("configuration"))
         config_name = config_elem.attrib.get("name", out_base.rsplit(".", 1)[0])
         config_type = config_elem.attrib.get("type", "PythonConfigurationType")
+
+        # -------- NEW: bind module, set workdir, common opts, sdk name, method -------
+        # Resolve a sensible working directory (prefer app dir if it exists)
+        app_dir_candidates = [
+            Path.cwd() / "src" / "agilab" / "apps" / app,
+            Path.cwd() / "apps" / app,
+            Path.cwd() / app,
+        ]
+        workdir = next((p for p in app_dir_candidates if p.exists()), Path.cwd())
+
+        # Bind module to this run configuration
+        module_name = resolve_module_name(app, Path.cwd())
+        bind_module(config_elem, module_name)
+
+        # Common run options
+        ensure_common_python_options(config_elem, workdir)
+
+        # Cosmetic SDK name (useful in UI)
+        if py:
+            set_sdk_name(config_elem, f"uv ({app})")
+
+        # Ensure method node
+        ensure_method(config_elem)
+        # ---------------------------------------------------------------------------
 
         # Idempotent write (compare first)
         if out_path.exists():
