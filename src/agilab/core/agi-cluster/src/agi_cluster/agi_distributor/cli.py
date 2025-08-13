@@ -56,7 +56,7 @@ def get_processes_containing(substring):
         try:
             logger.info("Running ps to find matching processes...")
             output = subprocess.check_output(
-                ["ps", "-eo", "pid,command"], text=True, timeout=5)
+                ["ps", "-eo", "pid,command"], text=True, timeout=1)
             for line in output.strip().splitlines()[1:]:
                 try:
                     pid_str, cmd = line.strip().split(None, 1)
@@ -70,7 +70,7 @@ def get_processes_containing(substring):
         try:
             logger.info("Running tasklist to find matching processes...")
             output = subprocess.check_output(
-                ["tasklist", "/fo", "csv", "/nh"], text=True, timeout=5)
+                ["tasklist", "/fo", "csv", "/nh"], text=True, timeout=1)
             for line in output.strip().splitlines():
                 parts = [p.strip('"') for p in line.split('","')]
                 if len(parts) < 2:
@@ -91,7 +91,7 @@ def get_child_pids(parent_pids):
         try:
             logger.info("Finding child PIDs...")
             output = subprocess.check_output(
-                ["ps", "-eo", "pid,ppid"], text=True, timeout=5)
+                ["ps", "-eo", "pid,ppid"], text=True, timeout=1)
             for line in output.strip().splitlines()[1:]:
                 try:
                     pid_str, ppid_str = line.strip().split(None, 1)
@@ -126,7 +126,7 @@ def kill(exclude_pids=None):
     dask_pids -= exclude_pids
 
     kill_pids(dask_pids, signal.SIGTERM)
-    time.sleep(2)
+    time.sleep(1)
     if hasattr(signal, "SIGKILL"):
         kill_pids(dask_pids, signal.SIGKILL)
 
@@ -154,7 +154,7 @@ def kill(exclude_pids=None):
     if file_pids:
         logger.info(f"PIDs from pid files and their children to kill: {file_pids}")
         kill_pids(file_pids, signal.SIGTERM)
-        time.sleep(2)
+        time.sleep(1)
         if hasattr(signal, "SIGKILL"):
             kill_pids(file_pids, signal.SIGKILL)
     else:
