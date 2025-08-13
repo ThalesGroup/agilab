@@ -1,0 +1,16 @@
+
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/src/agilab/core/agi-cluster/.idea/agi-cluster.iml" filepath="$PROJECT_DIR$/src/agilab/core/agi-cluster/.idea/agi-cluster.iml" />
+      <module fileurl="file://$PROJECT_DIR$/src/agilab/core/agi-core/.idea/agi-core.iml" filepath="$PROJECT_DIR$/src/agilab/core/agi-core/.idea/agi-core.iml" />
+      <module fileurl="file://$PROJECT_DIR$/src/agilab/core/agi-env/.idea/agi-env.iml" filepath="$PROJECT_DIR$/src/agilab/core/agi-env/.idea/agi-env.iml" />
+      <module fileurl="file://$PROJECT_DIR$/src/agilab/core/agi-node/.idea/agi-node.iml" filepath="$PROJECT_DIR$/src/agilab/core/agi-node/.idea/agi-node.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../agi-space/.idea/agi-space.iml" filepath="$PROJECT_DIR$/../agi-space/.idea/agi-space.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/agilab.iml" filepath="$PROJECT_DIR$/.idea/agilab.iml" />
+      <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/flight_project/.idea/flight_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/flight_project/.idea/flight_project.iml" />
+      <module fileurl="file://$PROJECT_DIR$/src/agilab/apps/mycode_project/.idea/mycode_project.iml" filepath="$PROJECT_DIR$/src/agilab/apps/mycode_project/.idea/mycode_project.iml" />
+    </modules>
+  </component>
+</project>
