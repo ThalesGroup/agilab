@@ -4,63 +4,45 @@
 
 set -euo pipefail
 
+# Colors for output
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+BLUE='\033[1;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
 # Load env + normalize Python version
 # shellcheck source=/dev/null
 source "$HOME/.local/share/agilab/.env"
+
 AGI_PYTHON_VERSION=$(echo "${AGI_PYTHON_VERSION:-}" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*/\1/')
+
+AGILAB_PUBLIC="$(cat "$HOME/.local/share/agilab/.agilab-path")"
+AGILAB_PRIVATE="${AGILAB_PRIVATE:-}"
+
+TARGET_BASE="$AGILAB_PRIVATE/src/agilab/apps"
+[[ -d "$TARGET_BASE" ]] || { echo -e "${RED}Error:${NC} Missing directory: $TARGET_BASE"; exit 1; }
+
+INSTALL_TYPE="${INSTALL_TYPE:-1}"
+
 export AGI_PYTHON_VERSION
 export PYTHONPATH="$PWD:${PYTHONPATH-}"
 
-# Colors
-BLUE='\033[1;34m'; GREEN='\033[1;32m'; YELLOW='\033[1;33m'; RED='\033[1;31m'; NC='\033[0m'
-
-# Installer entrypoint (must run from src/agilab/apps so ../core/cluster is valid)
-APP_INSTALL="uv -q run -p $AGI_PYTHON_VERSION --project ../core/cluster python install.py"
-
 # --- App lists (merge private + public) --------------------------------------
+
+# Destination base for creating local app symlinks (defaults to current dir)
+: "${DEST_BASE:=$(pwd)}"
+mkdir -p -- "$DEST_BASE"
+echo -e "${YELLOW}Destination base:${NC} $(cd -- "$DEST_BASE" && pwd -P)"
+echo -e "${YELLOW}Using AGILAB_PRIVATE:${NC} $AGILAB_PRIVATE"
+echo -e "${YELLOW}Link target base:${NC} $TARGET_BASE\n"
+
 declare -a PRIVATE_APPS=(
   flight_trajectory_project
   sat_trajectory_project
   link_sim_project
   # flight_legacy_project
 )
-
-# Destination base for creating local app symlinks (defaults to current dir)
-: "${DEST_BASE:=$(pwd)}"
-mkdir -p -- "$DEST_BASE"
-echo -e "${YELLOW}Destination base:${NC} $(cd -- "$DEST_BASE" && pwd -P)"
-
-# --- Locate thales-agilab root (the tree that has src/agilab/apps) ----------
-find_thales_agilab() {
-  local depth="${1:-5}" hit
-  hit="$(
-    find "$HOME" \
-      -maxdepth "$depth" \
-      \( -path "$HOME/Music" -o -path "$HOME/Documents" -o -path "$HOME/Desktop" \
-         -o -path "$HOME/Library/Mobile Documents" -o -path "$HOME/Library/Application Support" \
-      \) -prune -o \
-      -type d -path '*/src/agilab/apps' -print 2>/dev/null | head -n 1
-  )"
-  [[ -n "$hit" ]] && { printf '%s\n' "${hit%/src/agilab/apps}"; return 0; }
-  return 1
-}
-
-AGILAB_PUBLIC="$(cat "$HOME/.local/share/agilab/.agilab-path")"
-AGILAB_PRIVATE="${AGILAB_PRIVATE:-}"
-
-if [[ -z "$AGILAB_PRIVATE" ]]; then
-  if ! AGILAB_PRIVATE="$(find_thales_agilab 5)"; then
-    echo -e "${RED}Error:${NC} Could not locate '*/src/agilab/apps' from \$HOME."
-    exit 1
-  fi
-fi
-
-TARGET_BASE="$AGILAB_PRIVATE/src/agilab/apps"
-[[ -d "$TARGET_BASE" ]] || { echo -e "${RED}Error:${NC} Missing directory: $TARGET_BASE"; exit 1; }
-
-echo -e "${YELLOW}Using AGILAB_PRIVATE:${NC} $AGILAB_PRIVATE"
-echo -e "${YELLOW}Link target base:${NC} $TARGET_BASE"
-echo
 
 # --- Build the list of apps present locally (only *_project) -----------------
 declare -a PUBLIC_APPS=()
@@ -69,10 +51,13 @@ while IFS= read -r -d '' dir; do
   PUBLIC_APPS+=("$dir_name")
 done < <(find "$DEST_BASE" -mindepth 1 -maxdepth 1 -type d -name '*_project' -print0)
 
-declare -a INCLUDED_APPS=("${PRIVATE_APPS[@]}" "${PUBLIC_APPS[@]}")
+if [[ -z "$AGILAB_PRIVATE" ]]; then
+  declare -a INCLUDED_APPS=("${PUBLIC_APPS[@]}")
+else
+  declare -a INCLUDED_APPS=("${PRIVATE_APPS[@]}" "${PUBLIC_APPS[@]}")
+fi
 
-echo -e "${BLUE}Apps to install:${NC} ${INCLUDED_APPS[*]:-<none>}"
-echo
+echo -e "${BLUE}Apps to install:${NC} ${INCLUDED_APPS[*]:-<none>}\n"
 
 # --- Ensure local symlinks exist/refresh in DEST_BASE ------------------------
 pushd "$AGILAB_PRIVATE/src/agilab" >/dev/null
@@ -117,8 +102,6 @@ done
 
 # --- Run installer for each app (stable CWD so ../core/cluster resolves) -----
 pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
-
-INSTALL_TYPE="${INSTALL_TYPE:-1}"
 
 for app in "${INCLUDED_APPS[@]}"; do
   echo -e "${BLUE}Installing $app...${NC}"
