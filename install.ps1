@@ -100,7 +100,7 @@ function Select-PythonVersion {
             $selection = 1
         }
 
-        $valid = $selection -as [int] -and $selection -ge 1 -and $selection -le $pythonArray.Count
+        $valid = [int]$selection -ge 1 -and [int]$selection -le $pythonArray.Count
         if (-not $valid) {
             Write-Red "Invalid selection. Please try again."
         }
@@ -125,7 +125,7 @@ function Select-PythonVersion {
 function Backup-AGIProject {
     Write-Blue "Backing Up Existing AGI Project (if any)"
     Write-Host ""
-    if ($InstallPath -eq $CurrentPath)
+    if ($install_path -eq $CurrentPath)
     {
         Write-Yellow "AGI project directory is 'src'; Skipping Backup."
         return
@@ -166,11 +166,15 @@ function Backup-AGIProject {
 }
 
 function Copy-ProjectFiles {
-    if ($InstallPath -ne $CurrentPath) {
+    Write-Blue $install_path
+    Write-Blue $AgiPathFile
+    Write-Blue $CurrentPath
+
+    if ($install_path -ne $CurrentPath) {
         if (Test-Path "$CurrentPath/src") {
             Write-Blue "Copying project files to install directory..."
-            New-Item -ItemType Directory -Force -Path $InstallPath | Out-Null
-            robocopy $CurrentPath $InstallPath /E /MIR /NFL /NDL /NJH /NJS | Out-Null
+            New-Item -ItemType Directory -Force -Path $install_path | Out-Null
+            robocopy $CurrentPath $install_path /E /MIR /NFL /NDL /NJH /NJS | Out-Null
         } else {
             Write-Red "Source directory 'src' not found. Exiting."
             exit 1
@@ -178,8 +182,8 @@ function Copy-ProjectFiles {
     } else {
         Write-Yellow "Using current directory as install directory; no copy needed."
     }
-    "$InstallPath/src/agilab" | Set-Content -Encoding UTF8 -Path $AgiPathFile
-    [System.Environment]::SetEnvironmentVariable('AGI_ROOT', "$InstallPath/src/agilab", [System.EnvironmentVariableTarget]::User)
+    "$install_path/src/agilab" | Set-Content -Encoding UTF8 -Path $AgiPathFile
+    [System.Environment]::SetEnvironmentVariable('AGI_ROOT', "$install_path/src/agilab", [System.EnvironmentVariableTarget]::User)
     Write-Green "Installation root path has been exported as AGI_ROOT and written in $LocalDir"
 
 }
@@ -201,7 +205,7 @@ AGI_PYTHON_VERSION="$env:PYTHON_VERSION"
 }
 
 function Install-Core {
-    $frameworkDir = Join-Path $InstallPath "src\agilab\core"
+    $frameworkDir = Join-Path $install_path "src\agilab\core"
 
     Write-Blue "Installing Framework..."
     Write-Blue $frameworkDir
@@ -216,7 +220,7 @@ function Install-Core {
 }
 
 function Install-Apps {
-    $appsDir = Join-Path $InstallPath "src\agilab\apps"
+    $appsDir = Join-Path $install_path "src\agilab\apps"
 
     Write-Blue "Installing Apps..."
     Write-Blue "$appsDir"
@@ -254,6 +258,8 @@ function Install-PyCharmScript {
     uv run -p $env:PYTHON_VERSION python pycharm/install-app-script.py @args
 }
 
+
+
 # Main Flow
 
 # Prevent Running as Administrator
@@ -262,6 +268,29 @@ if ([Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdenti
     Stop-Transcript
     exit 1
 }
+
+# ================================
+# Global Variables and Paths
+# ================================
+# AGI_INSTALL_PATH corresponds to $install_path.
+$CurrentPath = (Get-Location).Path
+
+$LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
+New-Item -ItemType Directory -Force -Path $LocalDir | Out-Null
+$AgiPathFile = Join-Path $LocalDir ".agilab-path"
+
+$PYTHON_VERSION = "3.13"
+
+# Define project directories (AGI_PROJECT_SRC is "$AgiDir\src")
+$AgiProject = Join-Path $CurrentPath "src/agilab"
+
+$AppsDir = Join-Path $AgiProject "apps"
+
+$currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+$username = $currentUser.Split('\')[-1]
+
+
+Write-Blue "Installation Directory: $install_path"
 
 if (-not $offline) {
     $missingVars = @()
@@ -282,9 +311,9 @@ if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir | Out
 $LogFile = Join-Path $LogDir ("install_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
 Start-Transcript -Path $LogFile
 
-Get-ChildItem -Recurse -Directory | Where-Object {
-    $_.Name -match '\.venv|uv.lock|build|dist|.*egg-info'
-} | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+# Get-ChildItem -Recurse -Directory | Where-Object {
+#     $_.Name -match '\.venv|uv.lock|build|dist|.*egg-info'
+# } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
 if (-not $cluster_credentials -or -not $openai_api_key) {
     Write-Red "Usage: .\install.ps1 -cluster_credentials <user[:password]> -openai_api_key <api-key> [-install_path <path>]"
@@ -307,4 +336,4 @@ Copy-ProjectFiles
 Update-Environment
 Install-Core
 Write-EnvValues
-Install-Apps
+#Install-Apps
