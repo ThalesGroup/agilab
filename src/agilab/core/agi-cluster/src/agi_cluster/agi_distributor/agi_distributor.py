@@ -800,7 +800,7 @@ class AGI:
 
         # Install Python
         cmd_prefix = env.envars.get(str("{127.0.0.1}_CMD_PREFIX"), "")
-        uv = cmd_prefix + "PYTHON_GIL=0;" + env.uv
+        uv = cmd_prefix + env.uv
 
         AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
 
@@ -881,7 +881,7 @@ class AGI:
                 raise EnvironmentError("Failed to install uv")
 
             # 3) Install Python
-            uv = cmd_prefix+ "PYTHON_GIL=0;" + env.uv
+            uv = cmd_prefix + env.uv
             await AGI.exec_ssh(ip, f"{uv} python install {pyvers}")
             await AGI.send_file(ip, env.cluster_root / "src/agi_cluster/agi_distributor/cli.py", env.wenv_rel.parent)
 
@@ -984,7 +984,7 @@ class AGI:
         env.has_rapids_hw = has_rapids_hw
         wenv_abs = env.wenv_abs
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-        uv = cmd_prefix + "PYTHON_GIL=0;" + env.uv
+        uv = cmd_prefix + env.uv
         pyvers = env.envars.get(str("{127.0.0.1}_PYTHON_VERSION"), "")
 
         #os.makedirs(wenv_abs, exist_ok=True)
@@ -1092,7 +1092,7 @@ class AGI:
         dist_abs = env.dist_abs
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         pyvers  = env.envars.get(f"{ip}_PYTHON_VERSION", "")
-        uv  = cmd_prefix + "PYTHON_GIL=0;" + env.uv
+        uv  = cmd_prefix + env.uv
 
         cmd = f"{uv} run -p {pyvers} python  -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
         await AGI.exec_ssh(ip, cmd)
@@ -1420,7 +1420,7 @@ class AGI:
             os_id = ''
 
         if any(x in os_id for x in ('Linux', 'Darwin', 'BSD')):
-            return 'export PATH="$HOME/.local/bin:$PATH";export PYTHON_GIL=0;'
+            return 'export PATH="$HOME/.local/bin:$PATH"; export PYTHON_GIL=0;'
         else:
             return ""  # 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
 
@@ -1553,7 +1553,7 @@ class AGI:
 
         # build egg and unzip it into wenv
         #cmd = f"{env.uv} --project {app_path} run python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d {wenv_abs}"
-        cmd = f"{env.uv} --project {wenv_abs} run python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d {wenv_abs}"
+        cmd = f"{env.uv} --project {wenv_abs} run python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d \"{wenv_abs}\""
 
         await AgiEnv.run(cmd, app_path)
 

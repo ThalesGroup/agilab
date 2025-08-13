@@ -848,10 +848,9 @@ class AgiEnv:
     @staticmethod
     async def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
         """
-        Run a shell command synchronously inside a virtual environment.
-        Log stdout lines as info, stderr lines as error.
-
-        Returns full stdout string.
+        Run a shell command inside a virtual environment.
+        Streams stdout/stderr live without blocking (Windows-safe).
+        Returns the full stdout string.
         """
         if AgiEnv.verbose > 1:
             logging.info(f"Executing in {venv}: {cmd}")
@@ -872,67 +871,65 @@ class AgiEnv:
 
         if wait:
             try:
-                process = subprocess.Popen(
+                process = await asyncio.create_subprocess_shell(
                     cmd,
-                    shell=True,
                     cwd=str(cwd),
                     env=process_env,
-                    text=True,
-                    executable=shell_executable,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    bufsize=1,
-                    universal_newlines=True,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    executable=shell_executable
                 )
 
-                result = ""
-                while True:
-                    out_line = process.stdout.readline()
-                    err_line = ""
-                    if not AgiEnv.is_managed_pc:
-                        err_line = process.stderr.readline()
+                result = []
 
-                    result += out_line
-                    result +=  "\n" + err_line if result else err_line
+                async def read_stream(stream, callback):
+                    encoding = sys.stdout.encoding or "utf-8"
 
-                    if out_line:
-                        line = out_line.rstrip("\n")
-                        if log_callback:
-                            log_callback(line)
-                        else:
-                            logging.info(line)
+                    while True:
+                        line = await stream.readline()
+                        if not line:
+                            break
 
-                    if err_line:
-                        line = err_line.rstrip("\n")
-                        if log_callback:
-                            log_callback(line)
-                        else:
-                            logging.info(line)
+                        # Decode from UTF-8 (most CLI tools default to this)
+                        decoded_line = line.decode("utf-8", errors="replace").rstrip()
 
-                    if out_line == '' and err_line == '' and process.poll() is not None:
-                        break
+                        if decoded_line:
+                            # Ensure the string can be encoded in the console's encoding
+                            safe_line = decoded_line.encode(encoding, errors="replace").decode(encoding)
+                            result.append(safe_line)
+                            callback(safe_line)
 
-                process.wait(timeout=timeout)
+                # Read stdout and stderr concurrently
+                await asyncio.wait_for(
+                    asyncio.gather(
+                        read_stream(process.stdout, log_callback if log_callback else logging.info),
+                        read_stream(process.stderr, log_callback if log_callback else logging.error)
+                    ),
+                    timeout=timeout
+                )
+
+                returncode = await process.wait()
                 if AgiEnv.verbose > 1 or AgiEnv.debug:
-                    logging.info(f"Command completed with exit code {process.returncode}")
-                return result
+                    logging.info(f"Command completed with exit code {returncode}")
 
-            except subprocess.TimeoutExpired:
+                return "\n".join(result)
+
+            except asyncio.TimeoutError:
                 process.kill()
                 raise RuntimeError(f"Command timed out after {timeout} seconds: {cmd}")
             except Exception as e:
                 logging.error(traceback.format_exc())
                 raise RuntimeError(f"Command execution error: {e}") from e
+
         else:
-            subprocess.Popen(
+            asyncio.create_task(asyncio.create_subprocess_shell(
                 cmd,
-                shell=True,
                 cwd=str(cwd),
                 env=process_env,
-                executable=shell_executable,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+                executable=shell_executable
+            ))
             return 0
 
     @staticmethod
