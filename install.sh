@@ -30,7 +30,7 @@ find . \( -name ".venv" -o -name "uv.lock" -o -name "build" -o -name "dist" -o -
 # Command-Line Arguments
 # ================================
 usage() {
-    echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path>]"
+    echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path> --private-apps <path>]"
     exit 1
 }
 
@@ -44,6 +44,7 @@ while [[ "$#" -gt 0 ]]; do
         --cluster-ssh-credentials) cluster_credentials="$2"; shift 2;;
         --openai-api-key)      openai_api_key="$2";      shift 2;;
         --install-path)        AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
+        --private-apps)        AGILAB_PRIVATE=$(realpath "$2"); shift 2;;
         *) echo -e "${RED}Unknown option: $1${NC}" && usage;;
     esac
 done
@@ -64,10 +65,6 @@ if [[ -z "$openai_api_key" ]]; then
     echo -e "${RED}Missing mandatory parameter: --openai-api-key${NC}"
     usage
 fi
-
-read -p "Enter Python version [3.13]: " PYTHON_VERSION
-PYTHON_VERSION=${PYTHON_VERSION:-3.13}
-echo "You selected Python version $PYTHON_VERSION"
 
 # ================================
 # Pre-check Functions
@@ -142,35 +139,61 @@ install_dependencies() {
 }
 
 choose_python_version() {
-    echo -e "${BLUE}Available Python versions:${NC}"
+    echo -e "${BLUE}Choosing Python version...${NC}"
+    read -p "Enter Python major version [3.13]: " PYTHON_VERSION
+    PYTHON_VERSION=${PYTHON_VERSION:-3.13}
+    echo "You selected Python version $PYTHON_VERSION"
+    available_python_versions=$(uv python list | grep -F -- "$PYTHON_VERSION" | grep -v "freethreaded")
     python_array=()
-    idx=1
-
-    # On génère la liste
-    while read -r line; do
+    while IFS= read -r line; do
         python_array+=("$line")
-        echo "  $idx - $line"
-        idx=$((idx + 1))
-    done < <(uv python list | grep -F "cpython-3.13.")
+    done <<< "$available_python_versions"
 
-    # Choix utilisateur
+    for idx in "${!python_array[@]}"; do
+        if [[ "${python_array[$idx]}" == *"$PYTHON_VERSION"* ]]; then
+            echo -e "${GREEN}$((idx + 1)) - ${python_array[$idx]}${NC}"
+        else
+            echo -e "$((idx + 1)) - ${python_array[$idx]}"
+        fi
+    done
+
     while true; do
-        read -rp "Enter the number of the Python version you want to use (default: 1): " selection
+        read -rp "Enter the number of the Python version you want to use (default: 1) " selection
         selection=${selection:-1}
         if [[ $selection =~ ^[0-9]+$ ]] && (( selection >= 1 && selection <= ${#python_array[@]} )); then
-            chosen_python_line="${python_array[$((selection - 1))]}"
-            # Extraction POSIX compatible :
-            AGI_PYTHON_VERSION=$(echo "$chosen_python_line" | sed -E 's/.*cpython-([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?)-.*/\1/')
-            echo "Selected version: $AGI_PYTHON_VERSION"
-            # Écriture dans .env (1 seule ligne)
-            echo "AGI_PYTHON_VERSION=$AGI_PYTHON_VERSION" > "$HOME/.local/share/agilab/.env"
-            export AGI_PYTHON_VERSION
+            chosen_python=$(echo "${python_array[$((selection - 1))]}" | cut -d' ' -f1)
             break
         else
             echo "Invalid selection. Please try again."
         fi
     done
+
+    installed_pythons=$(uv python list --only-installed | cut -d' ' -f1)
+    if ! echo "$installed_pythons" | grep -q "$chosen_python"; then
+        echo -e "${YELLOW}Installing $chosen_python...${NC}"
+        uv python install "$chosen_python"
+        echo -e "${GREEN}Python version ($chosen_python) is now installed.${NC}"
+    else
+        echo -e "${GREEN}Python version ($chosen_python) is already installed.${NC}"
+    fi
+
+    chosen_python=$(echo "$chosen_python" | cut -d '-' -f2)
+    if uv python list | grep "$chosen_python" | grep -q "freethreaded"; then
+        echo -e "${YELLOW}Freethreaded version available.${NC}"
+        chosen_python_free="${chosen_python}+freethreaded"
+        if ! echo "$installed_pythons" | grep -q "$chosen_python_free"; then
+            echo -e "${YELLOW}Installing $chosen_python_free...${NC}"
+            uv python install "$chosen_python_free"
+            echo -e "${GREEN}Python version ($chosen_python_free) is now installed.${NC}"
+        else
+            echo -e "${GREEN}Python version ($chosen_python_free) is already installed.${NC}"
+        fi
+    fi
+
+    AGI_PYTHON_VERSION="$chosen_python"
+    export AGI_PYTHON_VERSION
 }
+
 
 backup_existing_project() {
     if [[ -d "$AGI_INSTALL_PATH" && -f "$AGI_INSTALL_PATH/zip-agi.py" && "$AGI_INSTALL_PATH" != "$CURRENT_PATH" ]]; then
@@ -217,7 +240,9 @@ update_environment() {
     {
         echo "OPENAI_API_KEY=\"$openai_api_key\""
         echo "CLUSTER_CREDENTIALS=\"$cluster_credentials\""
-        echo "AGI_PYTHON_VERSION=\"$PYTHON_VERSION\""
+        echo "AGI_PYTHON_VERSION=\"$AGI_PYTHON_VERSION\""
+        echo "AGI_PYTHON_FREETHREADED=\"$AGI_PYTHON_FREETHREADED\""
+        echo "AGILAB_PRIVATE=\"$AGILAB_PRIVATE\""
     } > "$ENV_FILE"
     echo -e "${GREEN}Environment updated in $ENV_FILE${NC}"
 }
@@ -282,7 +307,7 @@ install_pycharm_script() {
     rm -f .idea/workspace.xml
     chmod +x pycharm/install-apps-script.py
     echo -e "${BLUE}Patching PyCharm workspace.xml interpreter settings...${NC}"
-    uv run -p "$PYTHON_VERSION" python pycharm/install-apps-script.py --agilab-home $AGI_INSTALL_PATH || echo -e "${YELLOW}pycharm/install-apps-script.py failed or not found; continuing.${NC}"
+    uv run -p "$AGI_PYTHON_VERSION" python pycharm/install-apps-script.py --agilab-home $AGI_INSTALL_PATH || echo -e "${YELLOW}pycharm/install-apps-script.py failed or not found; continuing.${NC}"
 }
 
 # ================================

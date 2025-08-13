@@ -798,26 +798,30 @@ class AGI:
 
         logging.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
-        # Install Python
-        cmd_prefix = env.envars.get(str("{127.0.0.1}_CMD_PREFIX"), "")
-        uv = cmd_prefix + env.uv
+        # # Install Python
 
-        AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
+        #TODO: Check install freethreaded for workers only
 
-        cli = wenv_abs.parent / file.name
-        cmd = f"{uv} run python {cli} platform"
-        res = await AgiEnv.run(cmd, wenv_abs.parent)
-        pyvers = res.split(':')[-1].strip()
-        AgiEnv.set_env_var(f"{ip}_PYTHON_VERSION", pyvers)
-        await AgiEnv.run(f"{cmd_prefix}{env.uv} python install {pyvers}", wenv_abs)
+        # cmd_prefix = env.envars.get(str(f"{ip}_CMD_PREFIX"), "")
+        # uv = cmd_prefix + env.uv
+
+        #
+        # AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
+        #
+        # cli = wenv_abs.parent / file.name
+        # cmd = f"{uv} run python {cli} platform"
+        # res = await AgiEnv.run(cmd, wenv_abs.parent)
+        # pyvers = res.split(':')[-1].strip()
+        # AgiEnv.set_env_var(f"{ip}_PYTHON_VERSION", pyvers)
+        # await AgiEnv.run(f"{cmd_prefix}{env.uv} python install {pyvers}", wenv_abs)
 
         # cmd = (
         #     f"{uv} --project {wenv_abs} init --bare --no-workspace"
         # )
         # await AgiEnv.run(cmd, wenv_abs)
 
-        cmd = f"{uv} run -p {pyvers} --project {wenv_abs} python {cli} threaded"
-        await AgiEnv.run(cmd, wenv_abs)
+        # cmd = f"{uv} run -p {pyvers} --project {wenv_abs} python {cli} threaded"
+        # await AgiEnv.run(cmd, wenv_abs)
 
 
     @staticmethod
@@ -985,7 +989,8 @@ class AGI:
         wenv_abs = env.wenv_abs
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         uv = cmd_prefix + env.uv
-        pyvers = env.envars.get(str("{127.0.0.1}_PYTHON_VERSION"), "")
+        # pyvers = env.envars.get(str("{ip}_PYTHON_VERSION"), "")
+        pyvers = env.python_version
 
         #os.makedirs(wenv_abs, exist_ok=True)
         #file = env.worker_pyproject
@@ -1081,6 +1086,10 @@ class AGI:
         # Cleanup modules
         await AGI._uninstall_modules()
         AGI._install_done_local = True
+
+        cli = wenv_abs.parent / "cli.py"
+        cmd = f"{uv} run -p {pyvers} --project {wenv_abs} python {cli} threaded"
+        await AgiEnv.run(cmd, wenv_abs)
 
     @staticmethod
     async def _install_app_remote(ip: str, env: AgiEnv, wenv_rel: Path, option: str) -> None:
