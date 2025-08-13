@@ -267,7 +267,7 @@ def main() -> None:
         dest_src =  out_dir / "src"
         dest_src.mkdir(exist_ok=True, parents=True)
         for egg in (out_dir / 'dist').glob("*.egg"):
-            logging.info(f"Unpacking {egg} → {dest_src}")
+            logging.info(f"Unpacking {egg} -> {dest_src}")
             with ZipFile(egg, 'r') as zf:
                 zf.extractall(dest_src)
 

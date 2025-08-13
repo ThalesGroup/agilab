@@ -179,7 +179,7 @@ def unzip(wenv=None):
 
 def cpu_task():
     x = 0
-    for _ in range(10**8):
+    for _ in range(10**4):
         x += 1
 
 def threaded(nthreads=2):
