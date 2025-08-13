@@ -3,15 +3,21 @@
 Attach all `.venv` projects into ONE PyCharm workspace (in CWD) and register
 each `.venv` as an IDE-level Python SDK.
 
-HARD GUARANTEES (by design):
+HARD GUARANTEES (by design of main()):
 - Per-project mutation: NO writes to subproject `.idea/misc.xml`, `.idea/workspace.xml`, or existing `.iml`.
 - Run configurations: NONE written (no RunManager, no SDK_HOME pinning, no aggregated runs).
 - Black plugin alignment: NOT touched.
 - Installers: NOT invoked.
 
-What it DOES:
+What main() DOES:
 - Creates .idea/ (in CWD) with modules.xml and .idea/modules/<module>.iml
 - Registers SDKs in <PyCharm config>/options/jdk.table.xml so interpreters appear in Settings.
+
+Extra helper functions are provided (not used by main()):
+- venv_python_for(), patch_sdk_home(), update_workspace_xml(), update_folders_xml(),
+  add_folder_name_to_config(), parse_template(), patch_run_config_sdk_home(),
+  generate_run_configs()  -> these let you add run-config aggregation later without
+  touching subprojects, by writing only into the root .idea/runConfigurations.
 """
 
 from __future__ import annotations
@@ -19,10 +25,13 @@ import os
 import re
 import platform
 import subprocess
+import tempfile
+import filecmp
 from pathlib import Path
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 from datetime import datetime
+from typing import Optional
 
 # ----------------------------- helpers ----------------------------- #
 
@@ -40,6 +49,11 @@ def make_safe_name(root: Path, proj: Path) -> str:
     except Exception:
         name = proj.name
     return re.sub(r"[^A-Za-z0-9_.\\-]+", "_", name) or "module"
+
+def _text_or_value(elem: ET.Element | None) -> str | None:
+    if elem is None:
+        return None
+    return elem.attrib.get("value") or (elem.text.strip() if elem.text else None)
 
 # --------------------------- discovery ---------------------------- #
 
@@ -65,6 +79,10 @@ def find_venv_python(proj: Path) -> Path | None:
         if p.exists():
             return p.resolve()
     return None
+
+# alias kept for compatibility with earlier snippets
+def venv_python_for(project_dir: Path) -> Path | None:
+    return find_venv_python(project_dir)
 
 def get_python_version_str(py: Path) -> str | None:
     try:
@@ -154,15 +172,12 @@ def jetbrains_config_candidates() -> list[Path]:
 def choose_best_config_dir(cands: list[Path]) -> Path | None:
     if not cands:
         return None
-    best, best_m = None, -1.0
-    for c in cands:
-        try:
-            m = (c / "options").stat().st_mtime
-        except Exception:
-            m = 0.0
-        if m > best_m:
-            best, best_m = c, m
-    return best or cands[-1]
+    # Prefer the highest version suffix like PyCharm2025.1
+    def ver_key(p: Path):
+        m = re.search(r"PyCharm(\d{4}\.\d+)", p.name)
+        return tuple(map(float, m.group(1).split("."))) if m else (0.0,)
+    cands_sorted = sorted(cands, key=ver_key, reverse=True)
+    return cands_sorted[0]
 
 def load_or_create_jdk_table(jdk_file: Path) -> ET.ElementTree:
     if jdk_file.exists():
@@ -181,34 +196,34 @@ def get_or_create_component(root: ET.Element, name: str) -> ET.Element:
     return ET.SubElement(root, "component", {"name": name})
 
 def ensure_python_sdk(component: ET.Element, *, sdk_name: str, python_path: Path, version: str | None) -> None:
-    # find by name
+    # find by name (support both text or @value)
     target = None
     for j in component.findall("jdk"):
         n = j.find("name")
-        if n is not None and n.attrib.get("value") == sdk_name:
+        if _text_or_value(n) == sdk_name:
             target = j; break
     if target is None:
         target = ET.SubElement(component, "jdk", {"version": "2"})
         ET.SubElement(target, "name", {"value": sdk_name})
         ET.SubElement(target, "type", {"value": "Python SDK"})
-    # update home/version
+    # update home/version (support attribute or text)
     hp = target.find("homePath")
     if hp is None:
         ET.SubElement(target, "homePath", {"value": str(python_path)})
     else:
-        hp.attrib["value"] = str(python_path)
+        if "value" in hp.attrib:
+            hp.attrib["value"] = str(python_path)
+        else:
+            hp.text = str(python_path)
     if version:
         ver = target.find("version")
         if ver is None:
             ET.SubElement(target, "version", {"value": version})
         else:
-            ver.attrib["value"] = version
-
-def backup_file(p: Path) -> None:
-    if p.exists():
-        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-        p.with_suffix(p.suffix + f".bak-{ts}").write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
-        debug(f"Backed up {p}")
+            if "value" in ver.attrib:
+                ver.attrib["value"] = version
+            else:
+                ver.text = version
 
 def write_pretty_xml(tree: ET.ElementTree, dest: Path) -> None:
     xml_bytes = ET.tostring(tree.getroot(), encoding="utf-8")
@@ -216,6 +231,134 @@ def write_pretty_xml(tree: ET.ElementTree, dest: Path) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(pretty, encoding="utf-8")
     debug(f"Wrote {dest}")
+
+# --------------- helpers for run-config (not invoked) ------------- #
+# These helpers let you aggregate run/debug configs into the root .idea
+# WITHOUT touching subprojects. They are provided but not used by main().
+
+def patch_sdk_home(tree: ET.ElementTree, py: Path) -> None:
+    root = tree.getroot()
+    for opt in root.iter("option"):
+        n = opt.get("name")
+        if n == "SDK_HOME":
+            opt.set("value", str(py))
+        elif n == "IS_MODULE_SDK":
+            opt.set("value", "false")
+
+def update_workspace_xml(workspace: Path, config_name: str, config_type: str, folder_name: str) -> None:
+    workspace_path = workspace / ".idea" / "workspace.xml"
+    if not workspace_path.exists():
+        prj = ET.Element('project', version="4")
+        ET.SubElement(prj, 'component', {'name': 'RunManager'})
+        ET.ElementTree(prj).write(workspace_path, encoding="utf-8", xml_declaration=True)
+    tree = ET.parse(workspace_path)
+    root = tree.getroot()
+    runmanager = root.find("./component[@name='RunManager']")
+    if runmanager is None:
+        runmanager = ET.SubElement(root, 'component', {'name': 'RunManager'})
+    config_el = None
+    for conf in runmanager.findall('configuration'):
+        if conf.attrib.get('name') == config_name and conf.attrib.get('type') == config_type:
+            config_el = conf
+            break
+    if config_el is None:
+        config_el = ET.SubElement(runmanager, 'configuration', {
+            'name': config_name,
+            'type': config_type,
+            'folderName': folder_name,
+            'factoryName': config_type.replace('ConfigurationType', ''),
+        })
+    else:
+        config_el.attrib['folderName'] = folder_name
+    tree.write(workspace_path, encoding="utf-8", xml_declaration=True)
+
+def update_folders_xml(workspace: Path, folder_name: str) -> None:
+    output_dir = workspace / '.idea' / 'runConfigurations'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    folders_xml_path = output_dir / 'folders.xml'
+    if folders_xml_path.exists():
+        tree = ET.parse(folders_xml_path)
+        root = tree.getroot()
+    else:
+        root = ET.Element('component', attrib={'name': 'RunManager'})
+        tree = ET.ElementTree(root)
+    existing = root.find(f"./folder[@name='{folder_name}']")
+    if existing is None:
+        ET.SubElement(root, 'folder', attrib={'name': folder_name})
+        tree.write(folders_xml_path, encoding='utf-8', xml_declaration=True)
+
+def add_folder_name_to_config(tree: ET.ElementTree, folder_name: str) -> None:
+    config_elem = next(tree.getroot().iter('configuration'), None)
+    if config_elem is not None:
+        config_elem.attrib['folderName'] = folder_name
+
+def parse_template(tpl_path: Path) -> ET.ElementTree:
+    if not tpl_path.exists():
+        raise FileNotFoundError(f"Template not found: {tpl_path}")
+    return ET.parse(str(tpl_path))
+
+def patch_run_config_sdk_home(tree: ET.ElementTree, project_dir: Path) -> None:
+    py = venv_python_for(project_dir)
+    if py:
+        patch_sdk_home(tree, py)
+
+def generate_run_configs(
+    workspace: Path,
+    project_dir: Path,
+    app_name: str,
+    template_paths: list[Path],
+    folder_name: Optional[str] = None,
+) -> list[Path]:
+    """
+    Generate run configs INTO the ROOT workspace based on templates, without
+    touching subproject .idea/. Writes to root/.idea/runConfigurations.
+    Returns the list of generated/updated file paths.
+    """
+    output_dir = workspace / '.idea' / 'runConfigurations'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+    folder = folder_name or app_name
+
+    for tpl in template_paths:
+        tree = parse_template(tpl)
+        root = tree.getroot()
+
+        # replace {APP} placeholders
+        for el in root.iter():
+            for k, v in list(el.attrib.items()):
+                if '{APP}' in v:
+                    el.attrib[k] = v.replace('{APP}', app_name)
+            if el.text and '{APP}' in el.text:
+                el.text = el.text.replace('{APP}', app_name)
+
+        # pin SDK_HOME to this project's venv
+        patch_run_config_sdk_home(tree, project_dir)
+        add_folder_name_to_config(tree, folder)
+
+        base = tpl.name.replace('_template_app', f'_{app_name}')
+        out_path = output_dir / base
+
+        # idempotent write
+        if out_path.exists():
+            fd, tmp_path = tempfile.mkstemp(suffix='.xml')
+            os.close(fd)
+            tree.write(tmp_path)
+            if filecmp.cmp(tmp_path, out_path, shallow=False):
+                os.remove(tmp_path)
+            else:
+                os.replace(tmp_path, out_path)
+        else:
+            tree.write(out_path)
+        written.append(out_path)
+
+        # keep workspace + folders in sync
+        config_elem = next(root.iter('configuration'))
+        cfg_name = config_elem.attrib.get('name', base.rsplit('.', 1)[0])
+        cfg_type = config_elem.attrib.get('type', 'PythonConfigurationType')
+        update_workspace_xml(workspace, cfg_name, cfg_type, folder)
+
+    update_folders_xml(workspace, folder)
+    return written
 
 # ------------------------------- main ------------------------------ #
 
@@ -270,7 +413,8 @@ def main() -> int:
     for _safe, _proj, sdk, py, ver in modules:
         ensure_python_sdk(comp, sdk_name=sdk, python_path=py, version=ver)
 
-    backup_file(jdk_file)
+    # (backup_file intentionally not re-added by request)
+    # write pretty jdk.table.xml
     write_pretty_xml(tree, jdk_file)
 
     debug("Done.")
