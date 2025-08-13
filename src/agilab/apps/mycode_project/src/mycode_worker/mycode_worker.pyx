@@ -57,7 +57,7 @@ class MycodeWorker(DagWorker):
         if(self.mode & 2 and "cy" not in __file__):
             raise RuntimeError("Cython requested but not executed")
 
-    def get_work(self, work: str):
+    def get_work(self, work: str,args,prev_result):
         """
         :param work: contain the worker function name called by BaseWorker.do_work
         this is type string and not type function to avoid manager (e.g. Mycode) to be dependant of MyCodeWorker
@@ -67,9 +67,9 @@ class MycodeWorker(DagWorker):
         method = getattr(self, work, None)
         if method is None:
             raise AttributeError(f"No such method '{work}' on {self.__class__.__name__}")
-        return method()
+        return method(args, prev_result)
 
-    def algo_A(self):
+    def algo_A(self,args,prev_result):
         """
         Perform algorithm A.
 
@@ -85,8 +85,11 @@ class MycodeWorker(DagWorker):
             str: Print statement indicating the execution of algorithm A.
         """
         logging.info(f"MyCodeWorker.algo_A")
+        logging.info(f"args: {args}")
+        logging.info(f"previous_result: {prev_result}")
+        return args
 
-    def algo_B(self):
+    def algo_B(self,args,prev_result):
         """
         Prints a message indicating the execution of `algo_B` method in MyCodeWorker class.
 
@@ -97,8 +100,11 @@ class MycodeWorker(DagWorker):
             None
         """
         logging.info(f"MyCodeWorker.algo_B")
+        logging.info(f"args: {args}")
+        logging.info(f"previous_result: {prev_result}")
+        return args
 
-    def algo_C(self):
+    def algo_C(self,args,prev_result):
         """
         Prints a message indicating that the algo_C method of MyCodeWorker has been called.
 
@@ -109,6 +115,9 @@ class MycodeWorker(DagWorker):
             None
         """
         print(f"MyCodeWorker.algo_C")
+        logging.info(f"args: {args}")
+        logging.info(f"previous_result: {prev_result}")
+        return args
 
     def algo_X(self):
         """
