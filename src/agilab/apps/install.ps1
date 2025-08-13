@@ -1,93 +1,80 @@
 #!/usr/bin/env pwsh
-# install_agilab_apps.ps1 — auto-detect thales-agilab and (re)create app links on Windows
-# Requires PowerShell 7+ for best results (but works on 5.1 too)
+# Script: install_Agi_apps.ps1
+# Purpose: Install the apps (apps-only; no positional args required)
+# Equivalent to install_Agi_apps.sh
 
-$ErrorActionPreference = 'Stop'
+#Set-StrictMode -Version Latest
+#$ErrorActionPreference = "Stop"
 
-# --- Colors helpers
-function Info($msg){ Write-Host $msg -ForegroundColor Yellow }
-function Ok($msg){ Write-Host $msg -ForegroundColor Green }
-function Warn($msg){ Write-Host $msg -ForegroundColor DarkYellow }
-function Err($msg){ Write-Host $msg -ForegroundColor Red }
+function Write-Blue($msg)   { Write-Host $msg -ForegroundColor Blue }
+function Write-Green($msg)  { Write-Host $msg -ForegroundColor Green }
+function Write-Yellow($msg) { Write-Host $msg -ForegroundColor Yellow }
+function Write-Red($msg)    { Write-Host $msg -ForegroundColor Red }
 
-# --- Default app list (only *_project)
-$IncludedApps = @(
-  'flight_trajectory_project',
-  'sat_trajectory_project',
-  'link_sim_project'
-  # 'flight_legacy_project'
+# --- Load environment ---
+$envDir = Join-Path $env:LOCALAPPDATA "agilab"
+$agiPathFile = Join-Path $envDir ".agilab-path"
+$envFile = Join-Path $envDir ".env"
+if (Test-Path $envFile) {
+    Get-Content $envFile | ForEach-Object {
+        if ($_ -match "^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)$") {
+            $name = $matches[1]
+            $value = $matches[2] -replace "^['""]|['""]$", ""
+            Set-Item -Path "Env:$name" -Value $value
+        }
+    }
+}
+
+# Normalize Python version
+if ($env:AGI_PYTHON_VERSION) {
+    if ($env:AGI_PYTHON_VERSION -match '^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?)') {
+        $env:AGI_PYTHON_VERSION = $matches[1]
+    }
+}
+$env:PYTHONPATH = "$PWD" + $(if ($env:PYTHONPATH) { ":$($env:PYTHONPATH)" } else { "" })
+
+# Installer entrypoint
+$APP_INSTALL = "uv -q run -p $($env:AGI_PYTHON_VERSION) --project ../core/agi-cluster python install.py"
+
+# Private apps list
+$PRIVATE_APPS = @(
+    "flight_trajectory_project"
+#     "sat_trajectory_project",
+#     "link_sim_project"
+    # "flight_legacy_project"
 )
 
-# --- DEST_BASE default (overridable by env)
-$DestBase = if ($env:DEST_BASE) { $env:DEST_BASE } else { (Get-Location).Path }
-New-Item -ItemType Directory -Force -Path $DestBase | Out-Null
-
-Write-Host "create symlink for apps: $($IncludedApps -join ' ')"
-
-if (-not $IncludedApps -or $IncludedApps.Count -eq 0) {
-  Err "Error: No apps specified."; exit 2
+# Destination base
+if (-not $env:DEST_BASE) {
+    $env:DEST_BASE = (Get-Location).Path
 }
-
-Info "Installing Apps..."
-Info ("Working directory: {0}" -f (Get-Location))
-Info ("Destination base: {0}" -f (Resolve-Path $DestBase))
-
-# --- Normalize & filter: only keep *_project; skip numbers & token equal to dest basename
-$destBaseName = Split-Path -Leaf $DestBase
-$clean = @()
-foreach ($a in $IncludedApps) {
-  if ([string]::IsNullOrWhiteSpace($a)) { continue }
-  $a = $a -replace '\\','/'      # normalize slashes
-  $a = ($a -split '/')[ -1 ]     # keep last segment
-  if ([string]::IsNullOrWhiteSpace($a)) { continue }
-
-  if ($a -match '^[0-9]+$') {
-    Warn "Skipping token '$a' (no '_project' suffix)."
-    continue
-  }
-  if ($a -eq $destBaseName) {
-    Warn "Skipping token '$a' (no '_project' suffix)."
-    continue
-  }
-  if ($a -notmatch '_project$') {
-    Warn "Skipping token '$a' (no '_project' suffix)."
-    continue
-  }
-  $clean += $a
-}
-
-$IncludedApps = @($clean)
-if ($IncludedApps.Count -eq 0) {
-  Err "Error: No valid app names after filtering."; exit 2
-}
-
-Info ("Apps to link: {0}" -f ($IncludedApps -join ' '))
+New-Item -ItemType Directory -Force -Path $env:DEST_BASE | Out-Null
+Write-Yellow "Destination base: $(Resolve-Path $env:DEST_BASE)"
 
 # --- Finder under $HOME; strip \src\agilab\apps (skip Windows-problematic folders)
 function Find-ThalesAgilab {
   param([int]$MaxDepth = 5)
 
-  $home = [Environment]::GetFolderPath('UserProfile')
   # Paths to skip to avoid access prompts/slowness (Windows-specific)
   $skip = @(
-    (Join-Path $home 'AppData'),
-    (Join-Path $home 'OneDrive'),
-    #(Join-Path $home 'Documents'),
-    (Join-Path $home 'Desktop'),
-    (Join-Path $home 'Pictures'),
-    (Join-Path $home 'Music'),
-    (Join-Path $home 'Videos'),
-    (Join-Path $home 'Saved Games'),
-    (Join-Path $home 'Contacts'),
-    (Join-Path $home 'Searches'),
-    (Join-Path $home 'Links'),
-    (Join-Path $home 'Favorites'),
-    (Join-Path $home 'NTUSER.DIR') # rare, defensive
+    (Join-Path $HOME 'AppData'),
+    (Join-Path $HOME 'OneDrive'),
+    #(Join-Path HOME 'Documents'),
+    #(Join-Path $HOME 'Desktop'),
+    (Join-Path $HOME 'Pictures'),
+    (Join-Path $HOME 'Music'),
+    (Join-Path $HOME 'Videos'),
+    (Join-Path $HOME 'Saved Games'),
+    (Join-Path $HOME 'Contacts'),
+    (Join-Path $HOME 'Searches'),
+    (Join-Path $HOME 'Links'),
+    (Join-Path $HOME 'Favorites'),
+    (Join-Path $HOME 'NTUSER.DIR') # rare, defensive
   ) | ForEach-Object { $_.ToLowerInvariant() }
 
   # BFS with depth control; do not descend into reparse points or skipped paths
   $q = New-Object System.Collections.Generic.Queue[psobject]
-  $q.Enqueue([pscustomobject]@{Dir = Get-Item -LiteralPath $home; Depth = 0})
+  $q.Enqueue([pscustomobject]@{Dir = Get-Item -LiteralPath $HOME; Depth = 0})
 
   while ($q.Count -gt 0) {
     $node = $q.Dequeue()
@@ -126,88 +113,110 @@ function Find-ThalesAgilab {
   return $null
 }
 
-# Honor THALES_AGILAB_ROOT env if provided, else discover
-$THALES_AGILAB_ROOT = $env:THALES_AGILAB_ROOT
-if ([string]::IsNullOrWhiteSpace($THALES_AGILAB_ROOT)) {
-  $THALES_AGILAB_ROOT = Find-ThalesAgilab -MaxDepth 5
-  if (-not $THALES_AGILAB_ROOT) {
-    Err "Error: Could not locate '*\src\agilab\apps' under HOME."; exit 1
-  }
+$AGILAB_PUBLIC  = Get-Content $agiPathFile
+$AGILAB_PRIVATE = $env:AGILAB_PRIVATE
+
+if (-not $AGILAB_PRIVATE) {
+    $AGILAB_PRIVATE = Find-ThalesAgilab -Depth 5
+    if (-not $AGILAB_PRIVATE) {
+        Write-Red "Error: Could not locate '*/src/agilab/apps' from `$HOME."
+        exit 1
+    }
 }
 
-$TARGET_BASE = Join-Path $THALES_AGILAB_ROOT 'src\agilab\apps'
-if (-not (Test-Path -LiteralPath $TARGET_BASE -PathType Container)) {
-  Err "Error: Missing directory: $TARGET_BASE"; exit 1
+Write-Yellow "Using AGILAB_PRIVATE: $AGILAB_PRIVATE"
+
+$TARGET_BASE = Join-Path $AGILAB_PRIVATE "agilab/apps"
+if (-not (Test-Path $TARGET_BASE)) {
+    Write-Red "Error: Missing directory: $TARGET_BASE"
+    exit 1
 }
 
-Info ("Using THALES_AGILAB_ROOT: {0}" -f $THALES_AGILAB_ROOT)
-Info ("Link target base: {0}" -f $TARGET_BASE)
+Write-Yellow "Link target base: $TARGET_BASE"
 Write-Host ""
 
-# --- Create / refresh links
-$status = 0
+# Build the list of public apps
+$PUBLIC_APPS = Get-ChildItem -Path $env:DEST_BASE -Directory -Filter "*_project" | ForEach-Object { $_.Name }
+$INCLUDED_APPS = $PRIVATE_APPS + $PUBLIC_APPS
 
-function New-Link {
-  param([string]$Path, [string]$Target)
+Write-Blue "Apps to install: $($INCLUDED_APPS -join ' ')"
+Write-Host ""
 
-  # Try symbolic link first (works if Dev Mode enabled or elevated)
-  try {
-    New-Item -ItemType SymbolicLink -Path $Path -Target $Target -Force -ErrorAction Stop | Out-Null
-    return "symlink"
-  } catch {
-    # Fallback to junction for directories
-    try {
-      New-Item -ItemType Junction -Path $Path -Target $Target -Force -ErrorAction Stop | Out-Null
-      return "junction"
-    } catch {
-      throw
+# Ensure local symlinks exist
+Push-Location (Join-Path $AGILAB_PRIVATE "agilab")
+    Remove-Item -Force core -ErrorAction SilentlyContinue
+    if (Test-Path (Join-Path $AGILAB_PUBLIC "core")) {
+        $target = (Join-Path $AGILAB_PUBLIC "core")
+    } elseif (Test-Path (Join-Path $AGILAB_PUBLIC "src/agilab/core")) {
+        $target = (Join-Path $AGILAB_PUBLIC "src/agilab/core")
+    } else {
+        Write-Red "ERROR: can't find 'core' under $AGILAB_PUBLIC."
+        exit 1
     }
-  }
+    New-Item -ItemType Junction -Path "core" -Target $target | Out-Null
+    & uv run python -c "import pathlib; p = pathlib.Path('core').resolve(); print(f'Private core -> {p}')"
+Pop-Location
+
+$status = 0
+foreach ($app in $PRIVATE_APPS) {
+    $app_target = Join-Path $TARGET_BASE $app
+    $app_dest   = Join-Path $env:DEST_BASE $app
+
+    if (-not (Test-Path $app_target)) {
+        Write-Host "Target for $app not found: $app_target - skipping" -ForegroundColor Red
+        $status = 1
+        continue
+    }
+
+    if ((Test-Path $app_dest) -and (Get-Item $app_dest).LinkType) {
+        Write-Blue "App '$app_dest' is a symlink. Recreating -> '$app_target'..."
+        Remove-Item -Force $app_dest
+        New-Item -ItemType Junction -Path $app_dest -Target $app_target | Out-Null
+    } elseif (-not (Test-Path $app_dest)) {
+        Write-Host "Ici 5"
+        Write-Blue "App '$app_dest' does not exist. Creating symlink -> '$app_target'..."
+        New-Item -ItemType Junction -Path $app_dest -Target $app_target | Out-Null
+    } else {
+        Write-Green "App '$app_dest' exists and is not a symlink. Leaving untouched."
+    }
 }
 
-foreach ($app in $IncludedApps) {
-  $appTarget = Join-Path $TARGET_BASE $app
-  $appDest   = Join-Path $DestBase $app
+# Run installer for each app
+Push-Location (Join-Path $AGILAB_PUBLIC "apps")
 
-  if (-not (Test-Path -LiteralPath $appTarget)) {
-    Err ("Target for '{0}' not found: {1} — skipping." -f $app, $appTarget)
-    $status = 1
-    continue
-  }
+if (-not $env:INSTALL_TYPE) { $env:INSTALL_TYPE = "1" }
 
-  $destExists = Test-Path -LiteralPath $appDest
-  $isReparse  = $false
-  if ($destExists) {
-    try {
-      $itm = Get-Item -LiteralPath $appDest -Force -ErrorAction Stop
-      $isReparse = [bool]($itm.Attributes -band [IO.FileAttributes]::ReparsePoint)
-    } catch {
-      $isReparse = $false
+foreach ($app in $INCLUDED_APPS) {
+    Write-Blue "Installing $app..."
+    Write-Host "uv -q run -p $env:AGI_PYTHON_VERSION --project ../core/agi-cluster python install.py $app --apps-dir '$AGILAB_PUBLIC/apps' --install-type $env:INSTALL_TYPE"
+    if (& uv -q run -p $env:AGI_PYTHON_VERSION --project ../core/agi-cluster python install.py `
+        $app --apps-dir "$AGILAB_PUBLIC/apps" --install-type $env:INSTALL_TYPE) {
+        Write-Green "$app successfully installed."
+        Write-Green "Checking installation..."
+        if (Test-Path $app) {
+            Push-Location $app
+            if (Test-Path "run-all-test.py") {
+                & uv run -p $env:AGI_PYTHON_VERSION python run-all-test.py
+            } else {
+                Write-Blue "No run-all-test.py in $app, skipping tests."
+            }
+            Pop-Location
+        } else {
+            Write-Yellow "Warning: could not enter $app to run tests."
+        }
+    } else {
+        Write-Red "$app installation failed."
+        $status = 1
     }
-  }
+}
 
-  if ($isReparse) {
-    Info ("App '{0}' is a link. Recreating -> '{1}'..." -f $appDest, $appTarget)
-    Remove-Item -LiteralPath $appDest -Force
-    try {
-      $kind = New-Link -Path $appDest -Target $appTarget
-      Ok ("Recreated $kind: {0} -> {1}" -f $appDest, $appTarget)
-    } catch {
-      Err ("Failed to recreate link for {0}: {1}" -f $app, $_.Exception.Message)
-      $status = 1
-    }
-  } elseif (-not $destExists) {
-    Info ("App '{0}' does not exist. Creating link -> '{1}'..." -f $appDest, $appTarget)
-    try {
-      $kind = New-Link -Path $appDest -Target $appTarget
-      Ok ("Created $kind: {0} -> {1}" -f $appDest, $appTarget)
-    } catch {
-      Err ("Failed to create link for {0}: {1}" -f $app, $_.Exception.Message)
-      $status = 1
-    }
-  } else {
-    Ok ("App '{0}' exists and is not a link. Leaving untouched." -f $appDest)
-  }
+Pop-Location
+
+# Final message
+if ($status -eq 0) {
+    Write-Green "Installation of apps complete!"
+} else {
+    Write-Yellow "Installation finished with some errors (status=$status)."
 }
 
 exit $status
