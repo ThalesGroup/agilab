@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<module type="PYTHON_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file:///Users/jpm/agilab">
+      <excludeFolder url="file:///Users/jpm/agilab/.venv"/>
+      <excludeFolder url="file:///Users/jpm/agilab/.git"/>
+      <excludeFolder url="file:///Users/jpm/agilab/__pycache__"/>
+      <excludeFolder url="file:///Users/jpm/agilab/build"/>
+      <excludeFolder url="file:///Users/jpm/agilab/dist"/>
+      <excludeFolder url="file:///Users/jpm/agilab/.mypy_cache"/>
+      <excludeFolder url="file:///Users/jpm/agilab/.pytest_cache"/>
+      <excludeFolder url="file:///Users/jpm/agilab/.ruff_cache"/>
+    </content>
+    <orderEntry type="jdk" jdkType="Python SDK" jdkName="uv (module)"/>
+    <orderEntry type="sourceFolder" forTests="false"/>
+  </component>
+</module>
