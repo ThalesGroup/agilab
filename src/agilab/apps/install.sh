@@ -151,9 +151,4 @@ else
   echo -e "${YELLOW}Installation finished with some errors (status=$status).${NC}"
 fi
 
-# --- Patch PyCharm interpreter settings in workspace.xml ---------------------
-echo -e "${BLUE}Patching PyCharm workspace.xml interpreter settings...${NC}"
-chmod +x pycharm/install-apps-script.py
-uv run python pycharm/install-apps-script.py || echo -e "${YELLOW}pycharm/install-apps-script.py failed or not found; continuing.${NC}"
-
 exit "$status"
