@@ -1,564 +1,283 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """
-install-apps-script.py — Per-project uv interpreters, optional per-module SDKs,
-root-aggregated run configs, and optional per-project installers.
+Minimal: attach all `.venv` projects under CWD into one PyCharm workspace
+and register each `.venv` as a Python SDK (no CLI options, no IDE launch).
 
-Key flags
----------
---modules-use-own-sdk          : Set each module's .iml to its own "uv (project)" SDK (not inherited)
---pin-sdk-home-in-runs         : (default) Pin SDK_HOME in run configs to that subproject's .venv python
---no-pin-sdk-home-in-runs      : Do not set SDK_HOME in run configs
---write-ide-sdk                : Create/update IDE SDKs (jdk.table.xml) for each "uv (project)" and de-dupe
---run-installer                : Run per-project installer (see --installer-cmd or auto-detect)
+Defaults kept:
+- root = workspace = Path.cwd()
+- recurse without depth limit
+- no excludes
+- SDK name template: "uv ({name})"
+- Auto-detect PyCharm config dir and merge into options/jdk.table.xml
 """
 
 from __future__ import annotations
-import argparse
 import os
+import re
+import platform
 import subprocess
-import sys
 from pathlib import Path
 import xml.etree.ElementTree as ET
-from typing import List, Tuple, Optional, Dict
+from xml.dom import minidom
+from datetime import datetime
 
-# ---------- Console ----------
-BLUE = "\033[1;34m"; GREEN = "\033[1;32m"; YELLOW = "\033[1;33m"; RED = "\033[1;31m"; NC = "\033[0m"
-def info(m): print(f"{BLUE}[apps]{NC} {m}")
-def ok(m):   print(f"{GREEN}[ok]{NC}   {m}")
-def warn(m): print(f"{YELLOW}[warn]{NC} {m}")
-def err(m):  print(f"{RED}[err]{NC}  {m}")
+# ----------------------------- tiny helpers ----------------------------- #
 
-# ---------- Discover ---------
-EXCLUDES = {".git", ".hg", ".svn", ".Trash", "Library", ".cache", ".DS_Store"}
-EXCLUDE_SUBSTR = ("JetBrains/PyCharm", "cpython-cache")
+def debug(msg: str):
+    print(f"[attach] {msg}")
 
-def find_projects_with_venv(root: Path, venv_name: str = ".venv") -> list[Path]:
-    root_res = root.resolve()
-    projects = set()
-    for venv in root.rglob(venv_name):
-        try:
-            if not venv.is_dir():
-                continue
-            # keep strictly under base
-            if not venv.resolve().is_relative_to(root_res):
-                continue
-            # skip noisy/system paths
-            if EXCLUDES & set(venv.parts):
-                continue
-            s = str(venv)
-            if any(x in s for x in EXCLUDE_SUBSTR):
-                continue
-            projects.add(venv.parent)
-        except Exception:
-            continue
-    return sorted(projects)
+def prettify_xml(elem: ET.Element) -> str:
+    rough = ET.tostring(elem, encoding="utf-8")
+    parsed = minidom.parseString(rough)
+    return parsed.toprettyxml(indent="  ", encoding="utf-8").decode("utf-8")
 
-# ---------- .venv python ----------
-def venv_python_path(project_dir: Path) -> Optional[Path]:
-    venv = project_dir / '.venv'
-    if os.name == "nt":
-        cand = venv / "Scripts" / "python.exe"
-        return cand if cand.exists() else None
-    else:
-        for name in ("python3", "python"):
-            cand = venv / "bin" / name
-            if cand.exists():
-                return cand  # keep .venv path literal (do not resolve symlink)
-    return None
-
-# ---------- XML helpers ----------
-def _read_or_create_xml(path: Path, root_tag: str = "project") -> Tuple[ET.ElementTree, bool]:
-    if path.exists():
-        try:
-            return ET.parse(path), False
-        except ET.ParseError:
-            warn(f"Malformed XML at {path}; recreating.")
-    root = ET.Element(root_tag, {"version": "4"} if root_tag == "project" else {})
-    return ET.ElementTree(root), True
-
-def _write_xml(tree: ET.ElementTree, path: Path) -> None:
+def path_depth(base: Path, p: Path) -> int:
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-    except FileExistsError:
-        pass
-    with path.open("wb") as f:
-        f.write(b'<?xml version="1.0" encoding="UTF-8"?>\n')
-        f.write(ET.tostring(tree.getroot(), encoding="utf-8"))
-    ok(f"Updated: {path}")
-
-def ensure_idea_dir(project_dir: Path) -> Tuple[Path, bool]:
-    idea = project_dir / ".idea"
-    if idea.is_dir():
-        return idea, False
-    try:
-        idea.mkdir(parents=True, exist_ok=True)
-    except FileExistsError:
-        pass
-    ok(f"Created: {idea}")
-    return idea, True
-
-# ---------- misc.xml (Project interpreter label) ----------
-def set_project_sdk_in_misc(tree: ET.ElementTree, sdk_name: str) -> bool:
-    root = tree.getroot()
-    comp = None
-    for c in root.findall("component"):
-        if c.get("name") == "ProjectRootManager":
-            comp = c
-            break
-    modified = False
-    if comp is None:
-        comp = ET.SubElement(root, "component", {"name": "ProjectRootManager"})
-        modified = True
-    if comp.get("project-jdk-name") != sdk_name:
-        comp.set("project-jdk-name", sdk_name); modified = True
-    if comp.get("project-jdk-type") != "Python SDK":
-        comp.set("project-jdk-type", "Python SDK"); modified = True
-    return modified
-
-# ---------- Align Black plugin SDK (optional nicety) ----------
-def normalize_black_sdk(misc_tree: ET.ElementTree, sdk_name: str) -> bool:
-    root = misc_tree.getroot()
-    comp = None
-    for c in root.findall("component"):
-        if c.get("name") == "Black":
-            comp = c; break
-    if comp is None:
-        return False
-    opt = comp.find("./option[@name='sdkName']")
-    if opt is not None and opt.get("value") != sdk_name:
-        opt.set("value", sdk_name)
-        return True
-    return False
-
-# ---------- module name detection ----------
-def detect_module_name(idea_dir: Path, project_dir: Path) -> str:
-    modules_xml = idea_dir / "modules.xml"
-    if modules_xml.exists():
-        try:
-            tree = ET.parse(modules_xml)
-            node = tree.getroot().find("./component[@name='ProjectModuleManager']/modules/module")
-            if node is not None:
-                fileurl = node.get("fileurl") or node.get("filepath") or ""
-                base = Path(fileurl.replace("file://$PROJECT_DIR$/", "").replace("file://", ""))
-                stem = base.stem
-                if stem:
-                    return stem
-        except ET.ParseError:
-            pass
-    imls = list(idea_dir.glob("*.iml"))
-    if len(imls) == 1:
-        return imls[0].stem
-    return project_dir.name
-
-# ---------- .iml helpers ----------
-def ensure_modules_inherit_sdk(idea_dir: Path) -> bool:
-    changed_any = False
-    for iml in idea_dir.glob("*.iml"):
-        try:
-            tree = ET.parse(iml)
-        except ET.ParseError:
-            continue
-        root = tree.getroot()
-        nmr = root.find("./component[@name='NewModuleRootManager']")
-        if nmr is None:
-            nmr = ET.SubElement(root, "component", {"name": "NewModuleRootManager"})
-        changed = False
-        # remove any explicit jdk entries, ensure inherited
-        for oe in list(nmr.findall("orderEntry")):
-            if oe.get("type") == "jdk":
-                nmr.remove(oe); changed = True
-        if not any(oe.get("type") == "inheritedJdk" for oe in nmr.findall("orderEntry")):
-            ET.SubElement(nmr, "orderEntry", {"type": "inheritedJdk"}); changed = True
-        if changed:
-            with iml.open("wb") as f:
-                f.write(b'<?xml version="1.0" encoding="UTF-8"?>\n')
-                f.write(ET.tostring(root, encoding="utf-8"))
-            changed_any = True
-    if changed_any:
-        ok(f"Updated module(s) to inherit project SDK in {idea_dir}")
-    return changed_any
-
-def ensure_modules_use_own_sdk(idea_dir: Path, sdk_name: str) -> bool:
-    changed_any = False
-    for iml in idea_dir.glob("*.iml"):
-        try:
-            tree = ET.parse(iml)
-        except ET.ParseError:
-            continue
-        root = tree.getroot()
-        nmr = root.find("./component[@name='NewModuleRootManager']")
-        if nmr is None:
-            nmr = ET.SubElement(root, "component", {"name": "NewModuleRootManager"})
-        # wipe previous jdk/inherited entries
-        for oe in list(nmr.findall("orderEntry")):
-            if oe.get("type") in ("inheritedJdk", "jdk"):
-                nmr.remove(oe)
-        ET.SubElement(nmr, "orderEntry", {"type": "jdk", "jdkName": sdk_name, "jdkType": "Python SDK"})
-        with iml.open("wb") as f:
-            f.write(b'<?xml version="1.0" encoding="UTF-8"?>\n')
-            f.write(ET.tostring(root, encoding="utf-8"))
-        changed_any = True
-    if changed_any:
-        ok(f"Updated module(s) to use own SDK '{sdk_name}' in {idea_dir}")
-    return changed_any
-
-# ---------- workspace.xml (Run config) ----------
-def _ensure_option(config: ET.Element, name: str, value: str) -> bool:
-    for o in config.findall("option"):
-        if o.get("name") == name:
-            if o.get("value") != value:
-                o.set("value", value); return True
-            return False
-    ET.SubElement(config, "option", {"name": name, "value": value})
-    return True
-
-def ensure_run_config(
-    tree: ET.ElementTree,
-    project_dir: Path,
-    sdk_name: str,
-    python_path: Optional[Path],
-    module_name: str,
-    config_name: str,
-) -> bool:
-    root = tree.getroot()
-    modified = False
-
-    # RunManager
-    run_mgr = None
-    for c in root.findall("component"):
-        if c.get("name") == "RunManager":
-            run_mgr = c; break
-    if run_mgr is None:
-        run_mgr = ET.SubElement(root, "component", {"name": "RunManager"})
-        modified = True
-
-    # Keep selected on first created config name
-    if run_mgr.get("selected") is None:
-        run_mgr.set("selected", f"Python.{config_name}"); modified = True
-
-    # Find or create config
-    config = None
-    for c in run_mgr.findall("configuration"):
-        if c.get("name") == config_name and c.get("type") == "PythonConfigurationType":
-            config = c; break
-    if config is None:
-        config = ET.SubElement(run_mgr, "configuration", {
-            "name": config_name,
-            "type": "PythonConfigurationType",
-            "factoryName": "Python",
-        })
-        modified = True
-
-    changed = False
-
-    changed |= _ensure_option(config, "SDK_HOME", str(python_path))
-    changed |= _ensure_option(config, "WORKING_DIRECTORY", str(project_dir))
-    changed |= _ensure_option(config, "ADD_CONTENT_ROOTS", "true")
-    changed |= _ensure_option(config, "ADD_SOURCE_ROOTS", "true")
-    changed |= _ensure_option(config, "PARENT_ENVS", "true")
-    changed |= _ensure_option(config, "INTERPRETER_OPTIONS", "")
-
-    # Cosmetic SDK_NAME
-    if config.get("SDK_NAME") != sdk_name:
-        config.set("SDK_NAME", sdk_name); changed = True
-
-    # Bind module
-    module = config.find("module")
-    if module is None:
-        ET.SubElement(config, "module", {"name": module_name}); changed = True
-    elif module.get("name") != module_name:
-        module.set("name", module_name); changed = True
-
-    # Ensure method
-    if config.find("method") is None:
-        ET.SubElement(config, "method", {"v": "2"}); changed = True
-
-    if changed:
-        modified = True
-    return modified
-
-# ---------- Aggregate runs into ROOT ----------
-def load_root_modules_map(root_dir: Path) -> Dict[Path, str]:
-    modules_xml = root_dir / ".idea" / "modules.xml"
-    mapping: Dict[Path, str] = {}
-    if not modules_xml.exists():
-        return mapping
-    try:
-        tree = ET.parse(modules_xml)
-    except ET.ParseError:
-        return mapping
-    for m in tree.getroot().findall("./component[@name='ProjectModuleManager']/modules/module"):
-        fp = (m.get("filepath") or m.get("fileurl") or "")
-        if not fp:
-            continue
-        p = fp.replace("$PROJECT_DIR$/", "")
-        iml = (root_dir / p).resolve()
-        module_name = Path(p).stem
-        proj_dir = iml.parent.parent
-        mapping[proj_dir.resolve()] = module_name
-    return mapping
-
-# ---------- IDE SDK writer (jdk.table.xml) ----------
-def locate_ide_options_dir() -> Optional[Path]:
-    roots = []
-    if sys.platform == "darwin":
-        roots.append(Path.home() / "Library" / "Application Support" / "JetBrains")
-    elif os.name == "nt":
-        appdata = os.environ.get("APPDATA", "")
-        if appdata:
-            roots.append(Path(appdata) / "JetBrains")
-    else:
-        roots.append(Path.home() / ".config" / "JetBrains")
-    for base in roots:
-        if not base.is_dir():
-            continue
-        candidates = [p for p in base.glob("PyCharm*") if p.is_dir()]
-        if not candidates:
-            continue
-        candidates.sort()
-        return candidates[-1] / "options"
-    return None
-
-def _load_or_create_jdk_table(path: Path) -> Tuple[ET.ElementTree, ET.Element]:
-    if path.exists():
-        try:
-            tree = ET.parse(path)
-            root = tree.getroot()
-        except ET.ParseError:
-            tree = ET.ElementTree(ET.Element("application"))
-            root = tree.getroot()
-    else:
-        tree = ET.ElementTree(ET.Element("application"))
-        root = tree.getroot()
-    comp = root.find("./component[@name='ProjectJdkTable']")
-    if comp is None:
-        comp = ET.SubElement(root, "component", {"name": "ProjectJdkTable"})
-    return ET.ElementTree(root), comp
-
-def _find_jdk_by_name(comp: ET.Element, name: str) -> Optional[ET.Element]:
-    for jdk in comp.findall("jdk"):
-        nm = jdk.find("./name")
-        if nm is not None and nm.get("value") == name:
-            return jdk
-    return None
-
-def _ensure_child_with_value(parent: ET.Element, tag: str, value: str) -> ET.Element:
-    node = parent.find(f"./{tag}")
-    if node is None:
-        node = ET.SubElement(parent, tag, {"value": value})
-    elif node.get("value") != value:
-        node.set("value", value)
-    return node
-
-def _list_jdks(comp: ET.Element) -> List[ET.Element]:
-    return list(comp.findall("jdk"))
-
-def _home_values_equal(a: str, b: str) -> bool:
-    try:
-        return Path(a).resolve() == Path(b).resolve()
+        rel = p.relative_to(base)
+        return len(rel.parts)
     except Exception:
-        return a == b
+        return 0
 
-def _list_jdks_by_home_equiv(comp: ET.Element, home: str) -> List[ET.Element]:
-    res = []
-    for jdk in _list_jdks(comp):
-        hp = jdk.find("./homePath")
-        if hp is not None and (hp.get("value") == home or _home_values_equal(hp.get("value"), home)):
-            res.append(jdk)
-    return res
+# --------------------------- project scanning --------------------------- #
 
-def dedupe_and_rename_sdk(comp: ET.Element, desired_name: str, home_path: Path) -> bool:
-    home = str(home_path)
-    jdks = _list_jdks_by_home_equiv(comp, home)
-    modified = False
-    target = None
-    for j in jdks:
-        nm = j.find("./name")
-        if nm is not None and nm.get("value") == desired_name:
-            target = j; break
-    if target is None and jdks:
-        target = jdks[0]
-        nm = target.find("./name")
-        if nm is None:
-            ET.SubElement(target, "name", {"value": desired_name}); modified = True
-        elif nm.get("value") != desired_name:
-            nm.set("value", desired_name); modified = True
-        _ensure_child_with_value(target, "type", "Python SDK")
-        _ensure_child_with_value(target, "homePath", home)
-    for j in jdks:
-        if j is target: continue
-        comp.remove(j); modified = True
-    return modified
+def find_projects(root: Path) -> list[Path]:
+    projects = []
+    for dirpath, dirnames, _files in os.walk(root):
+        d = Path(dirpath)
+        if (d / ".venv").is_dir():
+            projects.append(d)
+            dirnames[:] = []  # don't dive inside a found project
+    return sorted(set(projects))
 
-def write_ide_sdk(options_dir: Path, sdk_name: str, python_home: Path) -> bool:
-    jdk_table = options_dir / "jdk.table.xml"
-    tree, comp = _load_or_create_jdk_table(jdk_table)
-    jdk = _find_jdk_by_name(comp, sdk_name)
-    created = False
-    if jdk is None:
-        jdk = ET.SubElement(comp, "jdk", {"version": "2"})
-        _ensure_child_with_value(jdk, "name", sdk_name)
-        _ensure_child_with_value(jdk, "type", "Python SDK")
-        created = True
-    _ensure_child_with_value(jdk, "homePath", str(python_home))
-    if jdk.find("./roots") is None:
-        roots = ET.SubElement(jdk, "roots")
-        ET.SubElement(roots, "annotationsPath").append(ET.Element("root", {"type": "composite"}))
-        ET.SubElement(roots, "classPath").append(ET.Element("root", {"type": "composite"}))
-        ET.SubElement(roots, "javadocPath").append(ET.Element("root", {"type": "composite"}))
-        ET.SubElement(roots, "sourcePath").append(ET.Element("root", {"type": "composite"}))
-    if jdk.find("./additional") is None:
-        ET.SubElement(jdk, "additional")
-    changed_dedupe = dedupe_and_rename_sdk(comp, sdk_name, python_home)
+def find_venv_python(proj: Path) -> Path | None:
+    for p in (
+        proj / ".venv" / "bin" / "python3",
+        proj / ".venv" / "bin" / "python",
+        proj / ".venv" / "Scripts" / "python.exe",  # Windows
+    ):
+        if p.exists():
+            return p.resolve()
+    return None
+
+def get_python_version_str(py: Path) -> str | None:
     try:
-        jdk_table.parent.mkdir(parents=True, exist_ok=True)
-    except FileExistsError:
-        pass
-    with jdk_table.open("wb") as f:
-        f.write(b'<?xml version="1.0" encoding="UTF-8"?>\n')
-        f.write(ET.tostring(tree.getroot(), encoding="utf-8"))
-    ok(f"IDE SDK {'created' if created else 'updated'}: {sdk_name} -> {python_home}")
-    return created or changed_dedupe
+        out = subprocess.check_output(
+            [str(py), "-c", "import sys;print('Python %d.%d.%d' % sys.version_info[:3])"],
+            text=True
+        )
+        return out.strip()
+    except Exception:
+        return None
 
-# ---------- Installer ----------
-def run_installer_for_project(
-    agilab_home: Path,
-    project_dir: Path,
-) -> None:
+def make_safe_name(root: Path, proj: Path) -> str:
+    try:
+        rel = proj.relative_to(root)
+        name = "-".join(rel.parts)
+    except Exception:
+        name = proj.name
+    return re.sub(r"[^A-Za-z0-9_.\-]+", "_", name) or "module"
 
-    cmd = f'uv run --active python {agilab_home / "pycharm/gen-app-script.py"} {project_dir.name}'
-    info(f"Installer (install.py) in {project_dir}: {cmd}")
-    rc = subprocess.run(cmd, shell=True, cwd=str(project_dir)).returncode
-    if rc == 0: ok(f"Installer OK in {project_dir}")
-    else: warn(f"Installer returned rc={rc} in {project_dir}")
-    return
+# ------------------------ workspace + modules (.idea) --------------------- #
 
-# ---------- Per-project patch ----------
-def patch_project(
-    project_dir: Path,
-) -> Tuple[bool, Optional[Path], str]:
-    """
-    Patch a single project.
-    Returns: (changed_anything, venv_python_path_or_None, sdk_name)
-    """
-    changed = False
-    project_name = project_dir.name
-    sdk_name = f"uv ({project_name})"
+def ensure_workspace(workspace: Path) -> None:
+    (workspace / ".idea").mkdir(parents=True, exist_ok=True)
+    (workspace / ".idea" / ".name").write_text(workspace.name, encoding="utf-8")
 
-    # .venv python (keep literal)
-    py_path = venv_python_path(project_dir)
-    if not py_path:
-        warn(f"{project_name}: no .venv python found under {project_dir}; run configs may skip SDK_HOME.")
+def write_modules_xml(workspace: Path, modules: list[tuple[str, Path]]) -> None:
+    idea = workspace / ".idea"
+    mods_dir = idea / "modules"
+    mods_dir.mkdir(parents=True, exist_ok=True)
 
-    idea_dir, _ = ensure_idea_dir(project_dir)
+    root = ET.Element("project", {"version": "4"})
+    comp = ET.SubElement(root, "component", {"name": "ProjectModuleManager"})
+    mods = ET.SubElement(comp, "modules")
 
-    # misc.xml + optional Black sync
-    misc_path = idea_dir / "misc.xml"
-    misc_tree, _ = _read_or_create_xml(misc_path, "project")
-    if set_project_sdk_in_misc(misc_tree, sdk_name):
-        _write_xml(misc_tree, misc_path); changed = True
-    if normalize_black_sdk(misc_tree, sdk_name):
-        _write_xml(misc_tree, misc_path); changed = True
+    for safe_name, proj in modules:
+        iml_rel = f".idea/modules/{safe_name}.iml"
+        ET.SubElement(
+            mods, "module",
+            {"fileurl": f"file://$PROJECT_DIR$/{iml_rel}",
+             "filepath": f"$PROJECT_DIR$/{iml_rel}"}
+        )
 
-    # module SDK policy
-    ensure_modules_use_own_sdk(idea_dir, sdk_name)
+    (idea / "modules.xml").write_text(prettify_xml(root), encoding="utf-8")
+    debug(f"Wrote {(idea / 'modules.xml')}")
 
-    # workspace.xml run config (per-project)
-    ws_path = idea_dir / "workspace.xml"
-    ws_tree, _ = _read_or_create_xml(ws_path, "project")
-    module_name = detect_module_name(idea_dir, project_dir)
-    if ensure_run_config(ws_tree, project_dir, sdk_name, py_path, module_name, "agilab run"):
-        _write_xml(ws_tree, ws_path); changed = True
+def write_iml(workspace: Path, safe_name: str, project_dir: Path, sdk_name: str) -> None:
+    idea = workspace / ".idea"
+    mods_dir = idea / "modules"
+    mods_dir.mkdir(parents=True, exist_ok=True)
+    iml_path = mods_dir / f"{safe_name}.iml"
 
-    ide_options_dir = locate_ide_options_dir()
-    write_ide_sdk(ide_options_dir, sdk_name, py_path)
+    mod = ET.Element("module", {"type": "PYTHON_MODULE", "version": "4"})
+    comp = ET.SubElement(mod, "component", {"name": "NewModuleRootManager"})
+    content = ET.SubElement(comp, "content", {"url": f"file://{project_dir}"})
 
-    return changed, py_path, sdk_name
+    for excl in (".venv", ".git", "__pycache__", "build", "dist", ".mypy_cache", ".pytest_cache", ".ruff_cache"):
+        ET.SubElement(content, "excludeFolder", {"url": f"file://{project_dir / excl}"})
 
+    ET.SubElement(comp, "orderEntry", {"type": "jdk", "jdkType": "Python SDK", "jdkName": sdk_name})
+    ET.SubElement(comp, "orderEntry", {"type": "sourceFolder", "forTests": "false"})
 
-def is_app_project(p: Path) -> bool:
-    # only app folders, e.g. src/agilab/apps/<name>
-    return "/src/agilab/apps/" in str(p.resolve())
+    iml_path.write_text(prettify_xml(mod), encoding="utf-8")
+    debug(f"Wrote {iml_path}")
 
+# ----------------------- PyCharm config (SDK table) ----------------------- #
 
-# ---------- Main ----------
-def main() -> int:
-    # argparse (single parser, single arg)
-    ap = argparse.ArgumentParser(
-        prog="install-apps-script.py",
-        description="Patch PyCharm SDKs/runs per project",
-    )
-    ap.add_argument(
-        "--agilab-home",
-        dest="agilab_home",
-        required=False,
-        type=lambda p: Path(p).expanduser().resolve(),
-        help="Path to the Agilab project root (must contain .idea/)",
-    )
-    args, _unknown = ap.parse_known_args()
+def jetbrains_config_candidates() -> list[Path]:
+    system = platform.system().lower()
+    home = Path.home()
+    cands: list[Path] = []
 
-    if args.agilab_home:
-        base = args.agilab_home
+    if system == "darwin":
+        for base in [home / "Library" / "Application Support" / "JetBrains",
+                     home / "Library" / "Preferences"]:
+            if base.exists():
+                cands += [p for p in base.glob("PyCharm*")]
+    elif system == "linux":
+        for base in [home / ".config" / "JetBrains",
+                     home / ".local" / "share" / "JetBrains"]:
+            if base.exists():
+                cands += [p for p in base.glob("PyCharm*")]
+    else:  # Windows
+        for env in ("APPDATA", "LOCALAPPDATA"):
+            root = os.environ.get(env)
+            if root:
+                b = Path(root) / "JetBrains"
+                if b.exists():
+                    cands += [p for p in b.glob("PyCharm*")]
+
+    return sorted({p for p in cands if (p / "options").exists()})
+
+def choose_best_config_dir(cands: list[Path]) -> Path | None:
+    if not cands:
+        return None
+    best, best_m = None, -1.0
+    for c in cands:
+        try:
+            m = (c / "options").stat().st_mtime
+        except Exception:
+            m = 0.0
+        if m > best_m:
+            best, best_m = c, m
+    return best or cands[-1]
+
+def load_or_create_jdk_table(jdk_file: Path) -> ET.ElementTree:
+    if jdk_file.exists():
+        try:
+            return ET.parse(jdk_file)
+        except Exception:
+            pass
+    root = ET.Element("application")
+    ET.SubElement(root, "component", {"name": "ProjectJdkTable"})
+    return ET.ElementTree(root)
+
+def get_or_create_component(root: ET.Element, name: str) -> ET.Element:
+    for c in root.findall("component"):
+        if c.attrib.get("name") == name:
+            return c
+    return ET.SubElement(root, "component", {"name": name})
+
+def find_jdk(component: ET.Element, sdk_name: str) -> ET.Element | None:
+    for j in component.findall("jdk"):
+        n = j.find("name")
+        if n is not None and n.attrib.get("value") == sdk_name:
+            return j
+    return None
+
+def ensure_python_sdk(component: ET.Element, *, sdk_name: str, python_path: Path, version: str | None) -> None:
+    j = find_jdk(component, sdk_name)
+    if j is None:
+        j = ET.SubElement(component, "jdk", {"version": "2"})
+        ET.SubElement(j, "name", {"value": sdk_name})
+        ET.SubElement(j, "type", {"value": "Python SDK"})
+        ET.SubElement(j, "homePath", {"value": str(python_path)})
+        if version:
+            ET.SubElement(j, "version", {"value": version})
     else:
-        base = Path(__file__).resolve().parents[1]
+        hp = j.find("homePath")
+        if hp is None:
+            ET.SubElement(j, "homePath", {"value": str(python_path)})
+        else:
+            hp.attrib["value"] = str(python_path)
+        if version:
+            ver = j.find("version")
+            if ver is None:
+                ET.SubElement(j, "version", {"value": version})
+            else:
+                ver.attrib["value"] = version
 
-    # hard guard: must be a project root (prevents scanning $HOME)
-    if not (base / ".idea").exists():
-        err(f"Refusing to run: no .idea under {base}. Pass --agilab-home to your project root.")
+def backup_file(p: Path) -> None:
+    if p.exists():
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        p.with_suffix(p.suffix + f".bak-{ts}").write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
+        debug(f"Backed up {p}")
+
+def write_pretty_xml(tree: ET.ElementTree, dest: Path) -> None:
+    xml_bytes = ET.tostring(tree.getroot(), encoding="utf-8")
+    pretty = minidom.parseString(xml_bytes).toprettyxml(indent="  ", encoding="utf-8").decode("utf-8")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(pretty, encoding="utf-8")
+    debug(f"Wrote {dest}")
+
+# ---------------------------------- main ---------------------------------- #
+
+def main() -> int:
+    root = Path.cwd().resolve()
+    workspace = root  # default: workspace at root
+    sdk_name_tpl = "uv ({name})"
+
+    debug(f"Root/workspace : {workspace}")
+
+    projects = find_projects(root)
+    if not projects:
+        print("No projects with `.venv` found.", flush=True)
         return 2
 
-    info(f"Root: {base}")
-    info(f"Scanning subprojects for '.venv'")
-    projects = find_projects_with_venv(base)
-
-
-    total = 0
-    # Root project
-    root_py: Optional[Path] = None
-
-    # Subprojects
-    proj_info: Dict[Path, Tuple[Optional[Path], str]] = {}
+    # Build module + SDK specs
+    modules = []         # (safe_name, project_dir, sdk_name)
+    sdk_specs = []       # (sdk_name, python_path, version)
     for proj in projects:
-        for proj in projects:
-            if not is_app_project(proj):
-                continue
-        try:
-            rel = proj.relative_to(base) if proj.resolve().is_relative_to(base.resolve()) else proj
-        except Exception:
-            rel = proj
-        info(f"Project: {rel}")
-        try:
-            changed, py, sdk_name = patch_project(proj)
-            if changed:
-                total += 1
-            proj_info[proj.resolve()] = (py, sdk_name)
-        except Exception as e:
-            err(f"{proj}: {e}")
-
-    # Aggregate run configs into ROOT
-    if proj_info:
-        root_ws_path = base / ".idea" / "workspace.xml"
-        root_ws_tree, _ = _read_or_create_xml(root_ws_path, "project")
-        mod_map = load_root_modules_map(base)
-        agg_changed = False
-        for proj_dir, (py, sdk_name) in proj_info.items():
-            module_name = mod_map.get(proj_dir, proj_dir.name)
-            cfg_name = f"{module_name} run"
-            if ensure_run_config(root_ws_tree, proj_dir, sdk_name, py, module_name, cfg_name):
-                agg_changed = True
-        if agg_changed:
-            _write_xml(root_ws_tree, root_ws_path)
-
-    # Run installers
-    for proj, (py, _) in proj_info.items():
-        if proj == base:
+        safe = make_safe_name(root, proj)
+        py = find_venv_python(proj)
+        if not py:
+            debug(f"WARNING: {proj} has no python in .venv; skipping.")
             continue
-        run_installer_for_project(base, proj)
+        ver = get_python_version_str(py)
+        sdk_name = sdk_name_tpl.format(name=safe)
+        modules.append((safe, proj, sdk_name))
+        sdk_specs.append((sdk_name, py, ver))
 
-    ok(f"Done. Updated {total} project(s).")
+    if not modules:
+        print("Projects found, but none had a usable `.venv` python.", flush=True)
+        return 3
+
+    # Create workspace + modules
+    ensure_workspace(workspace)
+    write_modules_xml(workspace, [(safe, proj) for (safe, proj, _sdk) in modules])
+    for safe, proj, sdk in modules:
+        write_iml(workspace, safe, proj, sdk)
+
+    # Detect PyCharm config dir
+    config_dir = choose_best_config_dir(jetbrains_config_candidates())
+    if not config_dir:
+        debug("No JetBrains PyCharm config directory found. (Open PyCharm once, then re-run.)")
+        return 4
+
+    jdk_file = config_dir / "options" / "jdk.table.xml"
+    debug(f"Using config dir: {config_dir}")
+
+    # Merge SDKs into jdk.table.xml
+    tree = load_or_create_jdk_table(jdk_file)
+    comp = get_or_create_component(tree.getroot(), "ProjectJdkTable")
+    for sdk_name, py, ver in sdk_specs:
+        ensure_python_sdk(comp, sdk_name=sdk_name, python_path=py, version=ver)
+
+    backup_file(jdk_file)
+    write_pretty_xml(tree, jdk_file)
+
+    debug("Done.")
     return 0
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())
