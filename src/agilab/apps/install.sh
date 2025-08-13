@@ -41,7 +41,7 @@ declare -a PRIVATE_APPS=(
   flight_trajectory_project
   sat_trajectory_project
   link_sim_project
-  # flight_legacy_project
+  sb3_trainer_project
 )
 
 # --- Build the list of apps present locally (only *_project) -----------------
