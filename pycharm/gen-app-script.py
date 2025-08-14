@@ -210,92 +210,44 @@ def resolve_module_name(app: str, project_root: Path) -> str:
 
 # ---------- main ----------
 def main() -> int:
-    if len(sys.argv) < 2:
-        print("Usage: gen-app-script.py <module_name>")
-        return 2
+    ensure_dirs()
 
-    app = sys.argv[1].strip()
-    if not app:
-        print("No module name provided.")
-        return 2
+    if not APPS_DIR.exists():
+        debug(f"Apps directory not found: {APPS_DIR}")
+        return 1
 
-    print(f"Replacement name: {app}")
+    apps = sorted([p for p in APPS_DIR.iterdir() if p.is_dir() and p.name.endswith("_project")])
+    if not apps:
+        debug("No *_project apps found.")
+        return 0
 
-    # Ensure .idea/runConfigurations exists under the *current* project dir
-    output_dir = Path.cwd() / ".idea" / "runConfigurations"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    folder_name = app
+    gen_script = ROOT / "gen-app-script.py"
+    if not gen_script.exists():
+        debug(f"Missing {gen_script}, cannot generate run configurations.")
+        return 1
 
-    # Try to locate the interpreter of this project's venv
-    project_dir = Path.cwd()
-    py = venv_python_for(project_dir)
+    import subprocess, sys
 
-    for tpl_name in TEMPLATES:
-        tree = parse_template(tpl_name)
-
-        # Replace APP placeholders + folderName
-        replace_placeholders(tree, app)
-        add_folder_name_to_config(tree, folder_name)
-
-        # Always patch SDK_HOME (new or existing)
-        if py:
-            patch_sdk_home(tree, py)
-
-        # Output file name: _template_app_X.xml -> _<app>_X.xml
-        out_base = Path(tpl_name).name.replace("_template_app", f"_{app}")
-        out_path = output_dir / out_base
-
-        # Read config name/type for workspace.xml (after placeholder replacement)
-        config_elem = next(tree.getroot().iter("configuration"))
-        config_name = config_elem.attrib.get("name", out_base.rsplit(".", 1)[0])
-        config_type = config_elem.attrib.get("type", "PythonConfigurationType")
-
-        # -------- NEW: bind module, set workdir, common opts, sdk name, method -------
-        # Resolve a sensible working directory (prefer app dir if it exists)
-        app_dir_candidates = [
-            Path.cwd() / "src" / "agilab" / "apps" / app,
-            Path.cwd() / "apps" / app,
-            Path.cwd() / app,
-        ]
-        workdir = next((p for p in app_dir_candidates if p.exists()), Path.cwd())
-
-        # Bind module to this run configuration
-        module_name = resolve_module_name(app, Path.cwd())
-        bind_module(config_elem, module_name)
-
-        # Common run options
-        ensure_common_python_options(config_elem, workdir)
-
-        # Cosmetic SDK name (useful in UI)
-        if py:
-            set_sdk_name(config_elem, f"uv ({app})")
-
-        # Ensure method node
-        ensure_method(config_elem)
-        # ---------------------------------------------------------------------------
-
-        # Idempotent write (compare first)
-        if out_path.exists():
-            fd, tmp_path = tempfile.mkstemp(suffix=".xml")
-            os.close(fd)
-            tree.write(tmp_path, encoding="UTF-8", xml_declaration=True)
-            if filecmp.cmp(tmp_path, out_path, shallow=False):
-                print(f"Skipped (unchanged): {out_path}")
-                os.remove(tmp_path)
-            else:
-                os.replace(tmp_path, out_path)
-                print(f"Updated config (changed): {out_path}")
-            update_workspace_xml(config_name, config_type, folder_name)
+    for app_dir in apps:
+        app = app_dir.name  # e.g. "flight_trajectory_project"
+        py = venv_python_for(app_dir)
+        if not py:
+            debug(f"Skip {app}: .venv python not found.")
             continue
 
-        # First time write
-        tree.write(out_path, encoding="UTF-8", xml_declaration=True)
-        print(f"Generated config: {out_path}")
-        update_workspace_xml(config_name, config_type, folder_name)
+        # 1) per-app module
+        ensure_module(app, app_dir)
 
-    # One-time folders.xml update
-    update_folders_xml(folder_name)
-    print(f"All {app} configurations processed.")
+        # 2) run configurations via gen-app-script.py (per app)
+        module_name = app[:-8] if app.endswith("_project") else app  # strip "_project"
+        debug(f"Calling {gen_script} for module '{module_name}'...")
+        subprocess.run(
+            [sys.executable, str(gen_script), "--module-name", module_name],
+            check=True,
+            cwd=str(ROOT),
+        )
+
+    debug("Done.")
     return 0
 
 if __name__ == "__main__":
