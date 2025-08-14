@@ -1,137 +1,197 @@
 #!/usr/bin/env python3
+"""
+gen-apps.py — Generate PyCharm run configurations per app, grouped by folder.
+
+Usage:
+  # scan current ./apps dir for *_project
+  ./gen-apps.py
+
+  # specify apps dir
+  ./gen-apps.py --apps-dir /path/to/apps
+
+  # explicit app names
+  ./gen-apps.py flight_trajectory_project sat_trajectory_project
+"""
+from __future__ import annotations
+import argparse
+import filecmp
+import os
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, List
 
-# ---- paths ----
-SCRIPT_DIR = Path(__file__).resolve().parent      # .../pycharm
-ROOT = SCRIPT_DIR.parent                           # repo root
-APPS_DIR = ROOT / "src" / "agilab" / "apps"
-IDEA = ROOT / ".idea"
-RUNCFG_DIR = IDEA / "runConfigurations"
+# ---- Templates to expand (must contain {APP} placeholders) -------------------
+TEMPLATE_PATHS = [
+    'pycharm/_template_app_egg_manager.xml',
+    'pycharm/_template_app_lib_worker.xml',
+    'pycharm/_template_app_preinstall_manager.xml',
+    'pycharm/_template_app_postinstall_worker.xml',
+    'pycharm/_template_app_run.xml',
+    'pycharm/_template_app_test_manager.xml',
+    'pycharm/_template_app_test_worker.xml',
+    'pycharm/_template_app_test.xml',
+]
 
-# Discover all app templates placed next to this script
-TEMPLATES = sorted([p for p in SCRIPT_DIR.glob("_template_app_*.xml")])
+# ---- Helpers -----------------------------------------------------------------
+def ensure_workspace_has_runmanager(workspace_path: Path) -> ET.ElementTree:
+    if not workspace_path.exists():
+        workspace_path.parent.mkdir(parents=True, exist_ok=True)
+        root = ET.Element('project', version="4")
+        ET.SubElement(root, 'component', {'name': 'RunManager'})
+        tree = ET.ElementTree(root)
+        tree.write(workspace_path, encoding="utf-8", xml_declaration=True)
+        return tree
+    tree = ET.parse(workspace_path)
+    root = tree.getroot()
+    if root.find("./component[@name='RunManager']") is None:
+        ET.SubElement(root, 'component', {'name': 'RunManager'})
+    return tree
 
-# ---- tiny utils ----
-def debug(msg: str) -> None:
-    print(f"[gen-app] {msg}")
+def update_workspace_xml(workspace_path: Path, config_name: str, config_type: str, folder_name: str) -> None:
+    tree = ensure_workspace_has_runmanager(workspace_path)
+    root = tree.getroot()
+    runmanager = root.find("./component[@name='RunManager']")
+    assert runmanager is not None
 
-def ensure_dirs() -> None:
-    IDEA.mkdir(exist_ok=True)
-    RUNCFG_DIR.mkdir(parents=True, exist_ok=True)
+    config_el = None
+    for conf in runmanager.findall('configuration'):
+        if conf.attrib.get('name') == config_name and conf.attrib.get('type') == config_type:
+            config_el = conf
+            break
 
-def venv_python_for(project_dir: Path) -> Optional[Path]:
-    for p in [
-        project_dir / ".venv" / "bin" / "python3",        # unix/mac
-        project_dir / ".venv" / "bin" / "python",         # unix/mac alt
-        project_dir / ".venv" / "Scripts" / "python.exe", # windows
-    ]:
-        if p.exists():
-            return p.resolve()
-    return None
+    if config_el is None:
+        config_el = ET.SubElement(runmanager, 'configuration', {
+            'name': config_name,
+            'type': config_type,
+            'folderName': folder_name,
+            'factoryName': config_type.replace('ConfigurationType', ''),
+        })
+    else:
+        config_el.attrib['folderName'] = folder_name
 
-def parse_template(path: Path) -> ET.ElementTree:
-    return ET.parse(str(path))
+    tree.write(workspace_path, encoding="utf-8", xml_declaration=True)
 
-def ensure_option(config_elem: ET.Element, name: str, value: str) -> None:
-    for o in config_elem.findall("option"):
-        if o.get("name") == name:
-            o.set("value", value)
-            return
-    ET.SubElement(config_elem, "option", {"name": name, "value": value})
+def update_folders_xml(runconfigs_dir: Path, folder_name: str) -> None:
+    runconfigs_dir.mkdir(parents=True, exist_ok=True)
+    folders_xml_path = runconfigs_dir / 'folders.xml'
+    if folders_xml_path.exists():
+        tree = ET.parse(folders_xml_path)
+        root = tree.getroot()
+    else:
+        root = ET.Element('component', attrib={'name': 'RunManager'})
+        tree = ET.ElementTree(root)
 
-def replace_placeholders(root: ET.Element, app: str) -> None:
-    """Replace {APP} in attributes and text."""
+    if root.find(f"./folder[@name='{folder_name}']") is None:
+        ET.SubElement(root, 'folder', attrib={'name': folder_name})
+        tree.write(folders_xml_path, encoding='utf-8', xml_declaration=True)
+
+def add_folder_name_to_config(tree: ET.ElementTree, folder_name: str) -> None:
+    config_elem = next(tree.getroot().iter('configuration'), None)
+    if config_elem is not None:
+        config_elem.attrib['folderName'] = folder_name
+
+def iter_apps(apps_dir: Path) -> Iterable[str]:
+    for p in sorted(apps_dir.glob("*_project")):
+        if p.is_dir():
+            yield p.name
+
+def load_and_replace(tpl_path: Path, app: str) -> ET.ElementTree:
+    tree = ET.parse(tpl_path)
+    root = tree.getroot()
     for el in root.iter():
         for k, v in list(el.attrib.items()):
-            el.set(k, v.replace("{APP}", app))
-        if el.text:
-            el.text = el.text.replace("{APP}", app)
+            if '{APP}' in v:
+                el.attrib[k] = v.replace('{APP}', app)
+        if el.text and '{APP}' in el.text:
+            el.text = el.text.replace('{APP}', app)
+    return tree
 
-def set_folder(config_elem: ET.Element, folder: str) -> None:
-    # support both attributes used by different IDE versions
-    if "folder" in config_elem.attrib:
-        config_elem.set("folder", folder)
+def write_if_changed(tree: ET.ElementTree, out_path: Path) -> str:
+    # returns action string for logging
+    if out_path.exists():
+        fd, tmp_path = tempfile.mkstemp(suffix='.xml')
+        os.close(fd)
+        tmp_path_p = Path(tmp_path)
+        tree.write(tmp_path_p, encoding="utf-8", xml_declaration=True)
+        if filecmp.cmp(tmp_path_p, out_path, shallow=False):
+            tmp_path_p.unlink()
+            return f"Skipped (unchanged): {out_path.name}"
+        else:
+            os.replace(tmp_path_p, out_path)
+            return f"Updated (changed): {out_path.name}"
     else:
-        config_elem.set("folderName", folder)
+        tree.write(out_path, encoding="utf-8", xml_declaration=True)
+        return f"Generated: {out_path.name}"
 
-def patch_sdk_home(tree: ET.ElementTree, py: Path) -> None:
-    cfg = tree.getroot().find(".//configuration")
-    if cfg is None:
-        return
-    ensure_option(cfg, "SDK_HOME", str(py))
-    # Keep SDK_NAME from template (cosmetic)
+def process_app(app: str, project_root: Path) -> None:
+    # Paths
+    idea_dir = project_root / ".idea"
+    runconfigs_dir = idea_dir / "runConfigurations"
+    workspace_path = idea_dir / "workspace.xml"
 
-def safe_filename_from_conf_name(name: str) -> str:
-    import re
-    base = name.strip().lower().replace(" ", "_")
-    base = re.sub(r"[^a-z0-9_\-]+", "_", base)
-    base = re.sub(r"_+", "_", base).strip("_")
-    return f"{base}.xml" if base else "config.xml"
+    # One folder per app
+    folder_name = app
 
-def write_run_config(tree: ET.ElementTree, out_name: str) -> None:
-    out_path = RUNCFG_DIR / out_name
-    tree.write(str(out_path), encoding="UTF-8", xml_declaration=True)
-    debug(f"wrote {out_path.relative_to(ROOT)}")
+    # Ensure the folder exists in folders.xml (once per app)
+    update_folders_xml(runconfigs_dir, folder_name)
 
-# ---- main ----
-def main() -> int:
-    ensure_dirs()
-
-    # Accept positional <module_name> or --module-name <module_name>
-    module_name: Optional[str] = None
-    args = [a for a in sys.argv[1:] if a != "--"]
-    if not args:
-        print("Usage: gen-app-script.py <module_name>  (or --module-name <module_name>)")
-        return 2
-    if args[0] == "--module-name":
-        if len(args) < 2:
-            print("error: --module-name requires a value")
-            return 2
-        module_name = args[1]
-    else:
-        module_name = args[0]
-
-    app = module_name  # {APP} placeholder (without '_project')
-    app_dir = APPS_DIR / f"{app}_project"
-    if not app_dir.exists():
-        debug(f"warning: {app_dir} not found; falling back to project root for interpreter.")
-        app_dir = ROOT
-
-    py = venv_python_for(app_dir)
-    if py is None:
-        debug(f"warning: no .venv interpreter found for {app_dir}; SDK_HOME will be empty.")
-    else:
-        debug(f"interpreter for {app}: {py}")
-
-    if not TEMPLATES:
-        debug(f"no templates found in {SCRIPT_DIR}")
-        return 0
-
-    for tpl in TEMPLATES:
-        try:
-            tree = parse_template(tpl)
-        except Exception as e:
-            debug(f"skip template {tpl.name}: {e}")
+    # Generate every template for this app
+    for tpl in TEMPLATE_PATHS:
+        tpl_path = project_root / tpl
+        if not tpl_path.exists():
+            print(f"[warn] Missing template: {tpl}")
             continue
 
-        root = tree.getroot()
-        replace_placeholders(root, app)
+        tree = load_and_replace(tpl_path, app)
+        add_folder_name_to_config(tree, folder_name)
 
-        if py is not None:
-            patch_sdk_home(tree, py)
+        base = tpl_path.name.replace('_template_app', f'_{app}')
+        out_path = runconfigs_dir / base
 
-        cfg = root.find(".//configuration")
-        conf_name = cfg.get("name", f"{app}_config") if cfg is not None else f"{app}_config"
-        if cfg is not None:
-            set_folder(cfg, app)
+        # Determine config name/type for workspace.xml
+        cfg = next(tree.getroot().iter('configuration'))
+        config_name = cfg.attrib.get('name', base.rsplit('.', 1)[0])
+        config_type = cfg.attrib.get('type', 'PythonConfigurationType')
 
-        out_name = safe_filename_from_conf_name(conf_name)
-        write_run_config(tree, out_name)
+        action = write_if_changed(tree, out_path)
+        print(action)
+
+        # Keep workspace.xml in sync
+        update_workspace_xml(workspace_path, config_name, config_type, folder_name)
+
+    print(f"[ok] All '{app}' configurations grouped under '{folder_name}'")
+
+# ---- CLI --------------------------------------------------------------------
+def parse_args(argv: List[str]) -> argparse.Namespace:
+    ap = argparse.ArgumentParser(description="Generate grouped PyCharm run configs per app.")
+    ap.add_argument("apps", nargs="*", help="App names (e.g., flight_trajectory_project). If empty, scan --apps-dir.")
+    ap.add_argument("--apps-dir", default=str((Path.cwd() / "apps").resolve()),
+                    help="Directory to scan for *_project when no apps are passed (default: ./apps).")
+    ap.add_argument("--project-root", default=str(Path.cwd().resolve()),
+                    help="Project root containing .idea/ and pycharm/ (default: CWD).")
+    return ap.parse_args(argv)
+
+def main(argv: List[str]) -> int:
+    args = parse_args(argv)
+    project_root = Path(args.project_root).resolve()
+    apps: List[str] = args.apps
+
+    if not apps:
+        apps_dir = Path(args.apps_dir).resolve()
+        if not apps_dir.exists():
+            print(f"[error] apps dir not found: {apps_dir}")
+            return 2
+        apps = list(iter_apps(apps_dir))
+        if not apps:
+            print(f"[warn] no *_project found in {apps_dir}")
+            return 0
+
+    for app in apps:
+        process_app(app, project_root)
 
     return 0
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main(sys.argv[1:]))
