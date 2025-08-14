@@ -188,9 +188,11 @@ choose_python_version() {
         else
             echo -e "${GREEN}Python version ($chosen_python_free) is already installed.${NC}"
         fi
+        AGI_PYTHON_FREE_THREADED=1
     fi
 
     AGI_PYTHON_VERSION="$chosen_python"
+    export AGI_PYTHON_FREE_THREADED
     export AGI_PYTHON_VERSION
 }
 
@@ -241,7 +243,7 @@ update_environment() {
         echo "OPENAI_API_KEY=\"$openai_api_key\""
         echo "CLUSTER_CREDENTIALS=\"$cluster_credentials\""
         echo "AGI_PYTHON_VERSION=\"$AGI_PYTHON_VERSION\""
-        echo "AGI_PYTHON_FREETHREADED=\"$AGI_PYTHON_FREETHREADED\""
+        echo "AGI_PYTHON_FREE_THREADED=\"$AGI_PYTHON_FREE_THREADED\""
         echo "AGILAB_PRIVATE=\"$AGILAB_PRIVATE\""
     } > "$ENV_FILE"
     echo -e "${GREEN}Environment updated in $ENV_FILE${NC}"
@@ -322,8 +324,8 @@ copy_project_files
 update_environment
 install_core
 write_env_values
-install_apps
-install_enduser
-install_pycharm_script
+#install_apps
+#install_enduser
+#install_pycharm_script
 
 echo -e "${GREEN}Installation complete!${NC}"
