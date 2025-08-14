@@ -83,32 +83,101 @@ def ensure_project_name(name: str) -> None:
         debug(f"Set project name to '{name}' (.idea/.name)")
 
 def ensure_root_module_iml(name: str) -> Path:
+    """
+    Ensure .idea/modules/<name>.iml exists and has a minimal, valid PYTHON_MODULE:
+      - <component name="NewModuleRootManager">
+      - <content url="file://$PROJECT_DIR$">
+      - <orderEntry type="inheritedJdk"> (we'll override per-module SDKs elsewhere)
+    If the existing file is empty or malformed, it is replaced.
+    """
+    MODULES_DIR.mkdir(parents=True, exist_ok=True)
     iml = MODULES_DIR / f"{name}.iml"
-    if iml.exists():
+
+    def _write_minimal(dest: Path):
+        m = ET.Element("module", {"type": "PYTHON_MODULE", "version": "4"})
+        comp = ET.SubElement(m, "component", {"name": "NewModuleRootManager"})
+        ET.SubElement(comp, "content", {"url": "file://$PROJECT_DIR$"})
+        ET.SubElement(comp, "orderEntry", {"type": "inheritedJdk"})
+        ET.SubElement(comp, "orderEntry", {"type": "sourceFolder", "forTests": "false"})
+        _write_xml(m, dest)
+
+    # Create fresh if missing or zero-length
+    if not iml.exists() or iml.stat().st_size == 0:
+        _write_minimal(iml)
+        debug(f"Root module IML created: {iml}")
+        return iml
+
+    # If present, try to parse and normalize; if parsing fails, replace.
+    try:
+        tree = read_xml(iml)
+        root = tree.getroot()
+        if root.tag != "module":
+            raise ET.ParseError("root tag is not <module>")
+
+        comp = root.find("./component[@name='NewModuleRootManager']")
+        if comp is None:
+            comp = ET.SubElement(root, "component", {"name": "NewModuleRootManager"})
+        content = comp.find("content")
+        if content is None:
+            ET.SubElement(comp, "content", {"url": "file://$PROJECT_DIR$"})
+        else:
+            content.set("url", "file://$PROJECT_DIR$")
+
+        # Ensure at least inheritedJdk + sourceFolder entries exist
+        has_jdk = any(oe.get("type") in {"inheritedJdk", "jdk"} for oe in comp.findall("orderEntry"))
+        if not has_jdk:
+            ET.SubElement(comp, "orderEntry", {"type": "inheritedJdk"})
+        has_src = any(oe.get("type") == "sourceFolder" for oe in comp.findall("orderEntry"))
+        if not has_src:
+            ET.SubElement(comp, "orderEntry", {"type": "sourceFolder", "forTests": "false"})
+
+        _write_xml(tree, iml)
+        return iml
+
+    except ET.ParseError:
+        # Malformed or empty XML → replace with minimal valid content
+        _write_minimal(iml)
+        debug(f"Root module IML repaired: {iml}")
+        return iml
+
+def _base(app_dir: Path) -> str:
+    n = app_dir.name
+    return n[:-8] if n.endswith("_project") else n
+
+def ensure_app_module_iml(app_dir: Path) -> Path:
+    """
+    Create/ensure .idea/modules/<base>.iml pointing to app_dir, where base strips '_project'.
+    This makes the module name match run configs and SDK name 'uv (<base>)'.
+    """
+    base = _base(app_dir)
+    iml_path = MODULES_DIR / f"{base}.iml"
+
+    if iml_path.exists():
         try:
-            tree = read_xml(iml)
+            tree = read_xml(iml_path)
             root = tree.getroot()
             comp = root.find("./component[@name='NewModuleRootManager']")
             if comp is None:
                 comp = ET.SubElement(root, "component", {"name": "NewModuleRootManager"})
             content = comp.find("content")
+            url = app_rel_content_url(app_dir)
             if content is None:
-                ET.SubElement(comp, "content", {"url": "file://$PROJECT_DIR$"})
+                ET.SubElement(comp, "content", {"url": url})
             else:
-                content.set("url", "file://$PROJECT_DIR$")
-            _write_xml(tree, iml)
+                content.set("url", url)
+            _write_xml(tree, iml_path)
         except ET.ParseError:
             pass
-        return iml
+        return iml_path
 
     m = ET.Element("module", {"type": "PYTHON_MODULE", "version": "4"})
     comp = ET.SubElement(m, "component", {"name": "NewModuleRootManager"})
-    ET.SubElement(comp, "content", {"url": "file://$PROJECT_DIR$"})
+    ET.SubElement(comp, "content", {"url": app_rel_content_url(app_dir)})
     ET.SubElement(comp, "orderEntry", {"type": "inheritedJdk"})
     ET.SubElement(comp, "orderEntry", {"type": "sourceFolder", "forTests": "false"})
-    _write_xml(m, iml)
-    debug(f"Root module IML created: {iml}")
-    return iml
+    _write_xml(m, iml_path)
+    debug(f"IML created: {iml_path}")
+    return iml_path
 
 # ----------------------------- modules.xml / .iml for apps ----------------------------- #
 def ensure_app_module_iml(app_dir: Path) -> Path:
@@ -184,13 +253,17 @@ def _jb_base_dirs() -> List[Path]:
     return [b for b in bases if b.exists()]
 
 def _find_jdk_tables() -> List[Path]:
+    """
+    Return all candidate jdk.table.xml paths under JetBrains configs,
+    even if the file doesn't exist yet (we'll create it).
+    """
     tables: List[Path] = []
     for base in _jb_base_dirs():
         for product in ("PyCharm*", "PyCharmCE*"):
             for candidate in base.glob(product):
-                p = candidate / "options" / "jdk.table.xml"
-                if p.exists():
-                    tables.append(p)
+                options = candidate / "options"
+                if options.exists():
+                    tables.append(options / "jdk.table.xml")
     return tables
 
 def _load_or_init_jdk_table(path: Path) -> ET.ElementTree:
@@ -271,11 +344,18 @@ def attach_all_subprojects() -> None:
     # collect (base -> venv python) for those that have a venv
     pairs: list[tuple[str, Path]] = []
     for a in apps:
+        base = _base(a)
+        iml = ensure_app_module_iml(a)
         py = venv_python_for(a)
         if py:
             pairs.append((_base(a), py))
         else:
             debug(f"{a.name}: missing .venv python → leaving inheritedJdk")
+            continue
+
+        sdk_name = f"uv ({base})"
+        # batch-register all SDKs once is great; but ensure it contains this one
+        set_module_sdk(iml, sdk_name)  # module now named <base> → matches run config module
 
     # batch update SDK registry
     name_to_home = { _sdk_name(b): str(py) for (b, py) in pairs }
