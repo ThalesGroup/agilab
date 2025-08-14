@@ -52,6 +52,7 @@ def update_workspace_xml(config_name, config_type, folder_name, idea_dir: Path):
         config_el.attrib['folderName'] = folder_name
 
     tree.write(workspace_path, encoding="utf-8", xml_declaration=True)
+    write_pretty_xml(tree, workspace_path)
     print(f"[workspace.xml] Set folder='{folder_name}' for config '{config_name}' (type={config_type}).")
 
 def update_folders_xml(folder_name, idea_dir: Path):
@@ -69,7 +70,7 @@ def update_folders_xml(folder_name, idea_dir: Path):
     existing = root.find(f"./folder[@name='{folder_name}']")
     if existing is None:
         ET.SubElement(root, 'folder', attrib={'name': folder_name})
-        tree.write(folders_xml_path, encoding='utf-8', xml_declaration=True)
+        write_pretty_xml(tree, folders_xml_path)
         print(f"[folders.xml] Added folder '{folder_name}'.")
     else:
         print(f"[folders.xml] Folder '{folder_name}' already present.")
@@ -78,6 +79,14 @@ def add_folder_name_to_config(tree, folder_name):
     config_elem = next(tree.getroot().iter('configuration'), None)
     if config_elem is not None:
         config_elem.attrib['folderName'] = folder_name
+
+def write_pretty_xml(tree: ET.ElementTree, path):
+    """Write XML tree to file with indentation."""
+    xml_bytes = ET.tostring(tree.getroot(), encoding="utf-8")
+    parsed = minidom.parseString(xml_bytes)
+    pretty_xml = parsed.toprettyxml(indent="  ", encoding="utf-8")
+    with open(path, "wb") as f:
+        f.write(pretty_xml)
 
 # -----------------------------
 # PyCharm SDK / interpreter patcher
@@ -118,7 +127,7 @@ def ensure_jdk_table_sdk(sdk_name: str, home_path: Path, idea_dir: Path):
         print(f"[jdk.table.xml] Updated SDK '{sdk_name}' homePath: {old} -> {home_path}")
 
     ensure_parent_dir(jdk_table)
-    tree.write(jdk_table, encoding="utf-8", xml_declaration=True)
+    write_pretty_xml(tree, jdk_table)
 
 def set_project_interpreter(sdk_name: str, idea_dir: Path):
     """Set the project interpreter in .idea/misc.xml."""
@@ -138,7 +147,7 @@ def set_project_interpreter(sdk_name: str, idea_dir: Path):
     prm.set("project-jdk-type", "Python SDK")
 
     ensure_parent_dir(misc)
-    tree.write(misc, encoding="utf-8", xml_declaration=True)
+    write_pretty_xml(tree, misc)
     print(f"[misc.xml] Project interpreter set to '{sdk_name}'.")
 
 def patch_module_iml_to_sdk(iml_file: Path, sdk_name: str):
@@ -162,7 +171,7 @@ def patch_module_iml_to_sdk(iml_file: Path, sdk_name: str):
     # add our jdk
     ET.SubElement(comp, "orderEntry", {"type": "jdk", "jdkName": sdk_name, "jdkType": "Python SDK"})
 
-    tree.write(iml_file, encoding="utf-8", xml_declaration=True)
+    write_pretty_xml(tree, iml_file)
     print(f"[iml] {iml_file.name}: set SDK -> {sdk_name}")
 
 def patch_everything_with_local_venvs(project_root: Path):
@@ -238,6 +247,7 @@ def main():
     run_cfg_dir.mkdir(parents=True, exist_ok=True)
 
     template_paths = [
+        'pycharm/_template_app_modules.xml',
         'pycharm/_template_app_egg_manager.xml',
         'pycharm/_template_app_lib_worker.xml',
         'pycharm/_template_app_preinstall_manager.xml',
@@ -262,22 +272,27 @@ def main():
             if el.text and '{APP}' in el.text:
                 el.text = el.text.replace('{APP}', app)
 
+        if tpl.name.endswith("modules.iml"):
+            base = os.path.basename(tpl).replace('_template_app_', '')
+            out_path = idea_dir / base
+            write_pretty_xml(tree, out_path)
+            print(f"Generated config: {out_path}")
+            continue
+
         # Add folder name
         add_folder_name_to_config(tree, FOLDER_NAME)
-
         base = os.path.basename(tpl).replace('_template_app', f'_{app}')
-        out_path = run_cfg_dir / base
-
         # Extract config name/type for workspace.xml
         config_elem = next(root.iter('configuration'))
         config_name = config_elem.attrib.get('name', base.rsplit('.', 1)[0])
         config_type = config_elem.attrib.get('type', 'PythonConfigurationType')
 
+        out_path = run_cfg_dir / base
         # idempotency
         if out_path.exists():
             fd, tmp_path = tempfile.mkstemp(suffix='.xml')
             os.close(fd)
-            tree.write(tmp_path)
+            write_pretty_xml(tree, tmp_path)
             if filecmp.cmp(tmp_path, out_path, shallow=False):
                 print(f"Skipped (unchanged): {out_path}")
                 os.remove(tmp_path)
@@ -286,7 +301,7 @@ def main():
                 print(f"Updated config (changed): {out_path}")
                 update_workspace_xml(config_name, config_type, FOLDER_NAME, idea_dir)
         else:
-            tree.write(out_path)
+            write_pretty_xml(tree, out_path)
             print(f"Generated config: {out_path}")
             update_workspace_xml(config_name, config_type, FOLDER_NAME, idea_dir)
 
