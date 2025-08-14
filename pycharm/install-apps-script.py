@@ -61,9 +61,24 @@ def as_project_macro(path: Path) -> str:
 def as_project_url(path: Path) -> str:
     return f"file://{as_project_macro(path)}"
 
+def _rel_from_root(path: Path) -> Optional[Path]:
+    """Return path relative to ROOT without following symlinks; None if outside."""
+    try:
+        return path.relative_to(ROOT)  # DO NOT .resolve()
+    except ValueError:
+        return None
+
 def app_rel_content_url(app_dir: Path) -> str:
-    rel = app_dir.resolve().relative_to(ROOT.resolve())
-    return f"file://$PROJECT_DIR$/{rel.as_posix()}"
+    """
+    Content URL for .iml:
+    - Prefer file://$PROJECT_DIR$/... (symlink-friendly)
+    - If app_dir is truly outside the project, fall back to absolute file://...
+    """
+    rel = _rel_from_root(app_dir)
+    if rel is not None:
+        return f"file://$PROJECT_DIR$/{rel.as_posix()}"
+    # rare fallback: app_dir not under project at all
+    return f"file://{app_dir.resolve().as_posix()}"
 
 # ----------------------------- root project name & module ----------------------------- #
 def ensure_project_name(name: str) -> None:
