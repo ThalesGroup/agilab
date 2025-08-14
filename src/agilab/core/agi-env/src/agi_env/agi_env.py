@@ -368,6 +368,22 @@ class AgiEnv:
         self.password = credantials[1] if len(credantials) > 1 else None
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.13")
 
+        self.is_free_threading_available = envars.get("AGI_PYTHON_FREE_THREADED", 0)
+        with open(self.worker_pyproject, "r") as f:
+            data = tomlkit.parse(f.read())
+        try:
+            use_freethread = data["tool"]["freethread_info"]["is_app_freethreaded"]
+            if use_freethread and self.is_free_threading_available:
+                self.uv_worker = "PYTHON_GIL=0 " + self.uv
+                self.pyvers_worker = self.python_version + "t"
+            else:
+                self.uv_worker = self.uv
+                self.pyvers_worker = self.python_version
+        except KeyError as e:
+            use_freethread = False
+            self.uv_worker = self.uv
+            self.pyvers_worker = self.python_version
+
         # os.makedirs(AgiEnv.apps_dir, exist_ok=True)
         if "site-packages" in self.agilab_src.parts:
             self.agilab_src = self.agilab_src.parent
