@@ -40,7 +40,7 @@ def find_idea_dir(root: Path) -> Path:
             return d
     return root / ".idea"
 
-ROOT = Path(__file__).parent
+ROOT = Path(__file__).parents[1]
 IDEA = find_idea_dir(ROOT)
 CFG = Config(
     root=ROOT,
