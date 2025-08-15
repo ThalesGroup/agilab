@@ -34,7 +34,7 @@ ENSURE_UV_VENVS = True
 UV_EXE = os.environ.get("UV_EXE", "uv")
 
 # Optional modules.xml template (use {{MODULES}} placeholder)
-MODULES_TEMPLATE = ROOT / "pycharm" / "templates" / "modules.xml.tmpl"
+MODULES_TEMPLATE = ROOT / "pycharm" / "templates" / "_template_app_modules.xml"
 
 # ----------------------------- utils ----------------------------- #
 def debug(msg: str) -> None:
@@ -132,7 +132,7 @@ def ensure_root_module_iml(name: str) -> Path:
         if content is None:
             ET.SubElement(comp, "content", {"url": "file://$PROJECT_DIR$"})
         else:
-            content.set("url", "file://$PROJECT_DIR$"})
+            content.set("url", "file://$PROJECT_DIR$")
         has_jdk = any(oe.get("type") in {"inheritedJdk", "jdk"} for oe in comp.findall("orderEntry"))
         if not has_jdk:
             ET.SubElement(comp, "orderEntry", {"type": "inheritedJdk"})
@@ -209,10 +209,24 @@ def _write_modules_from_template() -> bool:
     try:
         body = MODULES_TEMPLATE.read_text(encoding="utf-8")
         modules_block = "\n".join(_build_module_lines())
-        body = body.replace("{{MODULES}}", modules_block)
+
+        # accept either {{MODULES}} or <!-- MODULES -->
+        if "{{MODULES}}" in body:
+            body = body.replace("{{MODULES}}", modules_block)
+        elif "<!-- MODULES -->" in body:
+            body = body.replace("<!-- MODULES -->", modules_block)
+        else:
+            # fallback: inject before </modules>
+            insert_at = body.rfind("</modules>")
+            if insert_at == -1:
+                raise ValueError("No placeholder and no </modules> tag in template")
+            body = body[:insert_at] + modules_block + "\n" + body[insert_at:]
+
         out = IDEA / "modules.xml"
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(body + ("\n" if not body.endswith("\n") else ""), encoding="utf-8")
+        if not body.endswith("\n"):
+            body += "\n"
+        out.write_text(body, encoding="utf-8")
         debug(f"modules.xml written from template: {out}")
         return True
     except Exception as e:
