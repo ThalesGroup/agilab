@@ -421,6 +421,25 @@ def generate_run_configs_for_apps(cfg: Config, app_names: List[str]) -> None:
         subprocess.run([sys.executable, str(cfg.gen_script), name], check=True, cwd=str(cfg.root))
 
 # =============================================================================
+# minimal writer for core modules
+# =============================================================================
+
+def write_module_minimal(self, module_name: str, dir_path: Path) -> Path:
+    """
+    Write a minimal, template-free .iml for core modules.
+    Keeps $PROJECT_DIR$ macros and avoids any template dependency.
+    """
+    iml_path = self.cfg.modules_dir / f"{module_name}.iml"
+    m = ET.Element("module", {"type": "PYTHON_MODULE", "version": "4"})
+    comp = ET.SubElement(m, "component", {"name": "NewModuleRootManager"})
+    ET.SubElement(comp, "content", {"url": content_url_for(dir_path)})
+    ET.SubElement(comp, "orderEntry", {"type": "inheritedJdk"})
+    ET.SubElement(comp, "orderEntry", {"type": "sourceFolder", "forTests": "false"})
+    write_xml(ET.ElementTree(m), iml_path)
+    log(f"IML created (minimal core): {iml_path}")
+    return iml_path
+
+# =============================================================================
 # Main
 # =============================================================================
 
@@ -452,6 +471,7 @@ def main() -> int:
     apps = eligible_apps(CFG, require_venv=not CFG.ensure_uv_venvs_apps and CFG.attach_only_venvs)
     realized_apps: List[Tuple[Path, str]] = []   # (path, sdk_name)
 
+    # --- Apps:  use template + run/debug generation ---
     for app in apps:
         py = ensure_uv_venv(app) if CFG.ensure_uv_venvs_apps else venv_python_for(app)
         if not py:
@@ -466,6 +486,21 @@ def main() -> int:
         jdk.upsert_many({sdk_name: str(py)})
         model.set_module_sdk(iml, sdk_name)
         realized_apps.append((app, sdk_name))
+
+    # --- Core: NO template; minimal IML; NO run/debug generation ---
+    cores = eligible_core(CFG, require_venv=True and not CFG.ensure_uv_venvs_core)
+    for core in cores:
+        py = venv_python_for(core) if not CFG.ensure_uv_venvs_core else ensure_uv_venv(core)
+        if not py:
+            continue
+
+        # MINIMAL for core
+        iml = model.write_module_minimal(core.name, core)
+
+        sdk_name = f"uv ({core.name})"
+        jdk.upsert_many({sdk_name: str(py)})
+        model.set_module_sdk(iml, sdk_name)
+        realized_cores.append((core, sdk_name))
 
     # Discover/realize core (attach only if venv exists; no run configs)
     cores = eligible_core(CFG, require_venv=True and not CFG.ensure_uv_venvs_core)
@@ -497,6 +532,7 @@ def main() -> int:
 
     log("Done.")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
