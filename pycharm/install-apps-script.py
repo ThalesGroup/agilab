@@ -8,7 +8,7 @@ from typing import Optional, List
 import xml.etree.ElementTree as ET
 
 # ----------------------------- paths / constants ----------------------------- #
-ROOT = Path.cwd().parent
+ROOT = Path(__file__).parents[1]
 
 def find_idea_dir(root: Path) -> Path:
     for name in (".idea", "idea"):
@@ -396,13 +396,8 @@ def _eligible_apps(require_venv: bool) -> list[Path]:
         return []
     apps: list[Path] = []
     for p in sorted(APPS_DIR.iterdir()):
-        if not p.is_dir():
-            continue
-        if not p.name.endswith("_project"):
-            continue
-        if require_venv and not venv_python_for(p):
-            continue
-        apps.append(p)
+        if p.is_dir() and p.name.endswith("_project") or (require_venv and not (venv_python_for(p) is None)):
+            apps.append(p)
     return apps
 
 def attach_all_subprojects(root_py: Optional[Path]) -> None:
