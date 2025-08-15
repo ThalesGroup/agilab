@@ -8,7 +8,7 @@ from typing import Optional, List
 import xml.etree.ElementTree as ET
 
 # ----------------------------- paths / constants ----------------------------- #
-ROOT = Path.cwd()
+ROOT = Path.cwd().parent
 
 def find_idea_dir(root: Path) -> Path:
     for name in (".idea", "idea"):
