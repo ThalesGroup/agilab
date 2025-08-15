@@ -6,8 +6,11 @@
     <option name="PARENT_ENVS" value="true" />
     <envs>
       <env name="PYTHONUNBUFFERED" value="1" />
+      <env name="PROJECT_PATH" value="$PROJECT_DIR$/src/agilab/apps/{APP}_project" />
+      <env name="VIRTUAL_ENV" value="$USER_HOME$/wenv/{APP}_worker/.venv" />
+      <env name="PYTHON_EXECUTABLE" value="$USER_HOME$/wenv/{APP}_worker/.venv/bin/python" />
     </envs>
-    <option name="SDK_HOME" value="" />
+    <option name="SDK_HOME" value="$USER_HOME$/wenv/{APP}_worker/.venv/bin/python" />
     <option name="SDK_NAME" value="uv ({APP}_worker)" />
     <option name="WORKING_DIRECTORY" value="$USER_HOME$/wenv/{APP}_worker" />
     <option name="IS_MODULE_SDK" value="false" />
