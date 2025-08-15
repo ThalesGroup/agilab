@@ -376,6 +376,21 @@ class ProjectModel:
         except Exception:
             pass
 
+    def write_module_minimal(self, module_name: str, dir_path: Path) -> Path:
+        """
+        Write a minimal, template-free .iml for core modules.
+        Keeps $PROJECT_DIR$ macros and avoids any template dependency.
+        """
+        iml_path = self.cfg.modules_dir / f"{module_name}.iml"
+        m = ET.Element("module", {"type": "PYTHON_MODULE", "version": "4"})
+        comp = ET.SubElement(m, "component", {"name": "NewModuleRootManager"})
+        ET.SubElement(comp, "content", {"url": content_url_for(dir_path)})
+        ET.SubElement(comp, "orderEntry", {"type": "inheritedJdk"})
+        ET.SubElement(comp, "orderEntry", {"type": "sourceFolder", "forTests": "false"})
+        write_xml(ET.ElementTree(m), iml_path)
+        log(f"IML created (minimal core): {iml_path}")
+        return iml_path
+
 # =============================================================================
 # Discovery
 # =============================================================================
@@ -420,24 +435,6 @@ def generate_run_configs_for_apps(cfg: Config, app_names: List[str]) -> None:
         log(f"Generating run configs for '{name}' via {cfg.gen_script.name} …")
         subprocess.run([sys.executable, str(cfg.gen_script), name], check=True, cwd=str(cfg.root))
 
-# =============================================================================
-# minimal writer for core modules
-# =============================================================================
-
-def write_module_minimal(self, module_name: str, dir_path: Path) -> Path:
-    """
-    Write a minimal, template-free .iml for core modules.
-    Keeps $PROJECT_DIR$ macros and avoids any template dependency.
-    """
-    iml_path = self.cfg.modules_dir / f"{module_name}.iml"
-    m = ET.Element("module", {"type": "PYTHON_MODULE", "version": "4"})
-    comp = ET.SubElement(m, "component", {"name": "NewModuleRootManager"})
-    ET.SubElement(comp, "content", {"url": content_url_for(dir_path)})
-    ET.SubElement(comp, "orderEntry", {"type": "inheritedJdk"})
-    ET.SubElement(comp, "orderEntry", {"type": "sourceFolder", "forTests": "false"})
-    write_xml(ET.ElementTree(m), iml_path)
-    log(f"IML created (minimal core): {iml_path}")
-    return iml_path
 
 # =============================================================================
 # Main
