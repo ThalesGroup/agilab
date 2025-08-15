@@ -222,21 +222,19 @@ def set_module_sdk(iml_path: Path, sdk_name: str) -> None:
     ET.SubElement(comp, "orderEntry", {"type": "jdk", "jdkName": sdk_name, "jdkType": SDK_TYPE})
     _write_xml(tree, iml_path)
 
-def rebuild_modules_xml_from_disk() -> None:
-    """Write modules.xml from every IML in .idea/modules (root + subprojects), LF endings."""
+def rebuild_modules_xml_from_disk():
     imls = sorted(MODULES_DIR.glob("*.iml"))
     with open(IDEA / "modules.xml", "w", encoding="utf-8", newline="\n") as f:
-        f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
-        f.write('<project version="4">\n')
-        f.write('  <component name="ProjectModuleManager">\n')
-        f.write('    <modules>\n')
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n'
+                '<project version="4">\n'
+                '  <component name="ProjectModuleManager">\n'
+                '    <modules>\n')
         for p in imls:
-            # include root and all subprojects
             f.write(f'      <module fileurl="{as_project_url(p)}" filepath="{as_project_macro(p)}"/>\n')
-        f.write('    </modules>\n')
-        f.write('  </component>\n')
-        f.write('</project>\n')
-    debug(f"modules.xml rebuilt with {len(imls)} module(s)")
+        f.write('    </modules>\n'
+                '  </component>\n'
+                '</project>\n')
+
 
 # ----------------------------- JetBrains SDK registry ----------------------------- #
 def _jb_base_dirs() -> List[Path]:
