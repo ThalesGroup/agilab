@@ -23,6 +23,7 @@ RUNCFG_DIR = IDEA / "runConfigurations"
 PROJECT_NAME = IDEA.parent.name
 PROJECT_SDK_NAME = f"uv ({PROJECT_NAME})"
 APPS_DIR = ROOT / "src" / PROJECT_NAME / "apps"
+CORE_DIR = ROOT / "src" / PROJECT_NAME / "core"
 GEN_SCRIPT = (ROOT / "pycharm" / "gen-app-script.py") if (ROOT / "pycharm" / "gen-app-script.py").exists() else (ROOT / "gen-app-script.py")
 SDK_TYPE = "Python SDK"
 
@@ -32,6 +33,7 @@ ATTACH_ONLY_VENVS = True
 # Optionally auto-create missing .venv with uv venv (so the SDKs are true uv)
 ENSURE_UV_VENVS = True
 UV_EXE = os.environ.get("UV_EXE", "uv")
+
 
 # Optional modules.xml template (use {{MODULES}} placeholder)
 MODULES_TEMPLATE = ROOT / "pycharm" / "templates" / "_template_app_modules.xml"
@@ -408,6 +410,19 @@ def ensure_module_sdk_exists(module_name: str, app_dir: Path, root_py: Optional[
     return sdk_name
 
 # ---------- discovery / attach / cleanup ----------
+def _eligible_core_projects() -> list[Path]:
+    if not CORE_DIR.exists():
+        return []
+    out: list[Path] = []
+    for p in sorted(CORE_DIR.iterdir()):
+        if not p.is_dir():
+            continue
+        if p.name.startswith((".", "__")):
+            continue
+        if venv_python_for(p):
+            out.append(p)
+    return out
+
 def _eligible_apps(require_venv: bool) -> list[Path]:
     """Only subprojects ending with _project (optionally require .venv)."""
     if not APPS_DIR.exists():
@@ -420,7 +435,7 @@ def _eligible_apps(require_venv: bool) -> list[Path]:
 
 def attach_all_subprojects(root_py: Optional[Path]) -> None:
     to_attach = _eligible_apps(require_venv=ATTACH_ONLY_VENVS)
-    attached_names = set(a.name for a in to_attach)
+    attached_names = [a.name for a in to_attach]
 
     if not to_attach:
         debug("No eligible subprojects found under src/agilab/apps")
@@ -428,32 +443,247 @@ def attach_all_subprojects(root_py: Optional[Path]) -> None:
         for a in to_attach:
             module_name = a.name
             iml = ensure_app_module_iml(a)
-            sdk_name = ensure_module_sdk_exists(module_name, a, root_py)
-            if sdk_name:
-                set_module_sdk(iml, sdk_name)
-                debug(f"{module_name}: module SDK set to '{sdk_name}'")
+
+            # Create/detect per-app venv; DO NOT fall back to root
+            py = ensure_uv_venv(a) if ENSURE_UV_VENVS else venv_python_for(a)
+            if py:
+                preferred = f"uv ({module_name})"
+                actual = _sdk_name_for_home(str(py), preferred)
+                _table_upsert_batch({actual: str(py)})   # ensure SDK exists
+                set_module_sdk(iml, actual)              # bind module to its own SDK
+                debug(f"{module_name}: module SDK set to '{actual}'")
+                attached_names.append(module_name)
             else:
                 debug(f"{module_name}: leaving module on inheritedJdk (no interpreter available)")
-
-    # Remove any existing modules not in the newly attached set (keep the root)
+    # Drop any stale module .iml that isn’t attached now (except the root)
     for iml in MODULES_DIR.glob("*.iml"):
         name = iml.stem
-        if name == PROJECT_NAME:
-            continue
-        if name not in attached_names:
+        if name != PROJECT_NAME and name not in attached_names:
             remove_module(name)
 
     # modules.xml via template (if present) or fallback build
     rebuild_modules_xml_from_disk()
 
-    # Generate run configs only for attached apps
+    # Generate run configs for attached apps only
     if GEN_SCRIPT.exists():
-        for a in to_attach:
-            module_name = a.name
-            debug(f"Generating run configs for '{module_name}' via {GEN_SCRIPT.name} …")
-            subprocess.run([sys.executable, str(GEN_SCRIPT), module_name], check=True, cwd=str(ROOT))
+        for name in attached_names:
+            debug(f"Generating run configs for '{name}' via {GEN_SCRIPT.name} …")
+            subprocess.run([sys.executable, str(GEN_SCRIPT), name], check=True, cwd=str(ROOT))
     else:
         debug(f"Missing {GEN_SCRIPT}; skipping run configuration generation.")
+
+    # NEW: generate for core
+    generate_core_run_configs(core_dirs)
+
+    # optional: patch everything (apps + core) to enforce WORKING_DIRECTORY/env/module
+    patch_run_configs_for([p.name for p in app_dirs + core_dirs])
+    debug("Patched run/debug configs with app/core working dir and env vars.")
+
+    return attached_names
+
+
+
+def _app_macros(app: str):
+    workdir = f"$PROJECT_DIR$/src/agilab/apps/{app}"
+    venv    = f"{workdir}/.venv"
+    pyexe   = f"{venv}/Scripts/python.exe" if os.name == "nt" else f"{venv}/bin/python"
+    return workdir, venv, pyexe
+
+def _ensure_child(parent: ET.Element, tag: str, attrs: dict | None = None) -> ET.Element:
+    el = parent.find(tag)
+    if el is None:
+        el = ET.SubElement(parent, tag, attrs or {})
+    return el
+
+def _ensure_env(envs: ET.Element, name: str, value: str):
+    el = envs.find(f"./env[@name='{name}']")
+    if el is None:
+        ET.SubElement(envs, "env", {"name": name, "value": value})
+    else:
+        el.set("value", value)
+
+import os
+import xml.etree.ElementTree as ET
+
+def _app_macros(app: str):
+    workdir = f"$PROJECT_DIR$/src/agilab/apps/{app}"
+    venv    = f"{workdir}/.venv"
+    pyexe   = f"{venv}/Scripts/python.exe" if os.name == "nt" else f"{venv}/bin/python"
+    return workdir, venv, pyexe
+
+def _ensure_child(parent: ET.Element, tag: str, attrs: dict | None = None) -> ET.Element:
+    el = parent.find(tag)
+    if el is None:
+        el = ET.SubElement(parent, tag, attrs or {})
+    return el
+
+def _ensure_env(envs: ET.Element, name: str, value: str):
+    el = envs.find(f"./env[@name='{name}']")
+    if el is None:
+        ET.SubElement(envs, "env", {"name": name, "value": value})
+    else:
+        el.set("value", value)
+
+def patch_run_configs_for(app_names: list[str]):
+    rc_dir = RUNCFG_DIR
+    if not rc_dir.exists():
+        return
+
+    for xml in sorted(rc_dir.glob("*.xml")):
+        try:
+            tree = ET.parse(str(xml))
+        except ET.ParseError:
+            continue
+
+        root = tree.getroot()
+        cfg = root.find(".//configuration")
+        if cfg is None:
+            continue
+
+        # which app does this config belong to?
+        cfg_name = cfg.get("name", "")
+        app = next((a for a in app_names if xml.name.startswith(f"_{a}_") or a in cfg_name), None)
+        if not app:
+            continue
+
+        workdir = f"$PROJECT_DIR$/src/agilab/apps/{app}"
+        venv    = f"{workdir}/.venv"
+        pyexe   = f"{venv}/Scripts/python.exe" if os.name == "nt" else f"{venv}/bin/python"
+
+        # 1) Always bind to module SDK
+        mod = cfg.find("./module")
+        if mod is None:
+            ET.SubElement(cfg, "module", {"name": app})
+        else:
+            mod.set("name", app)
+
+        # 2) Never override with a specific SDK path
+        sdk_home = cfg.find("./option[@name='SDK_HOME']")
+        if sdk_home is not None:
+            sdk_home.set("value", "")
+
+        # 3) Working dir + envs (force overwrite)
+        wd = cfg.find("./option[@name='WORKING_DIRECTORY']")
+        if wd is None:
+            ET.SubElement(cfg, "option", {"name": "WORKING_DIRECTORY", "value": workdir})
+        else:
+            wd.set("value", workdir)
+
+        envs = _ensure_child(cfg, "envs")
+        def ensure_env(k, v):
+            e = envs.find(f"./env[@name='{k}']")
+            (e.set("value", v) if e is not None else ET.SubElement(envs, "env", {"name": k, "value": v}))
+        ensure_env("PROJECT_PATH", workdir)
+        ensure_env("VIRTUAL_ENV", venv)
+        ensure_env("PYTHON_EXECUTABLE", pyexe)
+
+        xml.write_text(ET.tostring(root, encoding="unicode"), encoding="utf-8", newline="\n")
+
+def _all_jdk_tables() -> list[Path]:
+    tables = []
+    for base in _jb_base_dirs():
+        for product in ("PyCharm*", "PyCharmCE*"):
+            for candidate in base.glob(product):
+                p = candidate / "options" / "jdk.table.xml"
+                if p.parent.exists():
+                    tables.append(p)  # include even if file not created yet
+    return tables
+
+def _sdk_name_for_home(home_path: str, preferred: str) -> str:
+    """
+    If an SDK already exists for this interpreter homePath, reuse its existing name.
+    Otherwise return 'preferred'.
+    """
+    for tbl in _all_jdk_tables():
+        if not tbl.exists():
+            continue
+        try:
+            tree = ET.parse(str(tbl))
+        except ET.ParseError:
+            continue
+        comp = tree.getroot().find("./component[@name='ProjectJdkTable']")
+        if comp is None:
+            continue
+        for jdk in comp.findall("jdk"):
+            hp = jdk.find("homePath")
+            hpv = (hp.get("value") if hp is not None else jdk.attrib.get("homePath")) or ""
+            if hpv == home_path:
+                nm = jdk.find("name")
+                return nm.get("value") if nm is not None else jdk.attrib.get("name", preferred)
+    return preferred
+
+def _core_template_dir() -> Path:
+    # look next to gen script first, then project root
+    for base in (ROOT / "pycharm", ROOT):
+        d = base
+        if d.exists():
+            return d
+    return ROOT
+
+def _app_macros_for_dir(dirname: str, base: str) -> tuple[str, str, str]:
+    workdir = f"$PROJECT_DIR$/src/agilab/{base}/{dirname}"
+    venv    = f"{workdir}/.venv"
+    pyexe   = f"{venv}/Scripts/python.exe" if os.name == "nt" else f"{venv}/bin/python"
+    return workdir, venv, pyexe
+
+def _write_text_xml(path: Path, root: ET.Element):
+    path.write_text(ET.tostring(root, encoding="unicode"), encoding="utf-8", newline="\n")
+
+def _materialize_core_from_template(core_name: str) -> bool:
+    tpl_dir = _core_template_dir()
+    tpl = tpl_dir / "_template_core_run.xml"
+    if not tpl.exists():
+        return False
+    text = tpl.read_text(encoding="utf-8").replace("{APP}", core_name)
+    out = RUNCFG_DIR / f"_{core_name}_run.xml"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8", newline="\n")
+    # patch WORKING_DIRECTORY + envs + module tag, just like apps
+    return True
+
+def _create_default_pytest_core_run(core_name: str):
+    """Create a minimal, valid PyTest run configuration for the core module."""
+    workdir, venv, pyexe = _app_macros_for_dir(core_name, base="core")
+    cfg_name = f"{core_name} tests"
+
+    comp = ET.Element("component", {"name": "ProjectRunConfigurationManager"})
+    cfg = ET.SubElement(comp, "configuration", {
+        "type": "tests",              # PyTest
+        "factoryName": "py.test",
+        "name": cfg_name,
+    })
+    ET.SubElement(cfg, "module", {"name": core_name})
+    ET.SubElement(cfg, "option", {"name": "WORKING_DIRECTORY", "value": workdir})
+    ET.SubElement(cfg, "option", {"name": "ADD_CONTENT_ROOTS", "value": "true"})
+    ET.SubElement(cfg, "option", {"name": "ADD_SOURCE_ROOTS", "value": "true"})
+    # Run tests in folder
+    ET.SubElement(cfg, "option", {"name": "testType", "value": "TEST_FOLDER"})
+    ET.SubElement(cfg, "option", {"name": "FOLDER_NAME", "value": workdir})
+    # Ensure module SDK (not SDK_HOME)
+    ET.SubElement(cfg, "option", {"name": "SDK_HOME", "value": ""})
+    # Env vars
+    envs = ET.SubElement(cfg, "envs")
+    ET.SubElement(envs, "env", {"name": "PROJECT_PATH", "value": workdir})
+    ET.SubElement(envs, "env", {"name": "VIRTUAL_ENV", "value": venv})
+    ET.SubElement(envs, "env", {"name": "PYTHON_EXECUTABLE", "value": pyexe})
+    ET.SubElement(cfg, "method", {"v": "2"})
+
+    out = RUNCFG_DIR / f"_{core_name}_tests.xml"
+    _write_text_xml(out, comp)
+
+def generate_core_run_configs(core_dirs: list[Path]):
+    """
+    For each core module:
+      - Use _template_core_run.xml if present (with {APP} replacement),
+      - else create a default PyTest config bound to that module + venv.
+    """
+    if not core_dirs:
+        return
+    RUNCFG_DIR.mkdir(parents=True, exist_ok=True)
+    for d in core_dirs:
+        name = d.name
+        if not _materialize_core_from_template(name):
+            _create_default_pytest_core_run(name)
 
 # ----------------------------- main ----------------------------- #
 def main() -> int:
@@ -465,27 +695,41 @@ def main() -> int:
 
     # Root project SDK -> uv (agilab) bound to ROOT/.venv python
     root_py = ensure_uv_venv(ROOT) if ENSURE_UV_VENVS else venv_python_for(ROOT)
+    root_iml = ensure_root_module_iml(PROJECT_NAME)
+
     if root_py:
-        _table_upsert_batch({PROJECT_SDK_NAME: str(root_py)})
-        set_project_sdk(PROJECT_SDK_NAME, SDK_TYPE)
+        # Resolve name that IDE already uses for this interpreter, or keep preferred
+        root_preferred = PROJECT_SDK_NAME              # e.g. "uv (agilab)"
+        root_actual = _sdk_name_for_home(str(root_py), root_preferred)
+
+        # Register (with UV marker/roots), set project + root module SDK to that name
+        _table_upsert_batch({root_actual: str(root_py)})
+        set_project_sdk(root_actual, SDK_TYPE)
+        set_module_sdk(root_iml, root_actual)
     else:
         debug("Root .venv not found; run `uv venv` at repo root if you want a project SDK.")
 
-    # Ensure root module and bind it explicitly (avoid <No Interpreter>)
-    root_iml = ensure_root_module_iml(PROJECT_NAME)
-    if root_py:
-        set_module_sdk(root_iml, PROJECT_SDK_NAME)
-
-    # Attach subprojects and bind interpreters
-    attach_all_subprojects(root_py)
+    # Attach subprojects and bind interpreters (returns attached names)
+    attached = attach_all_subprojects(root_py)
 
     # Keep exactly one interpreter per project (root + each attached app)
-    keep_names: set[str] = {PROJECT_SDK_NAME}
-    keep_names.update(f"uv ({p.name})" for p in _eligible_apps(require_venv=ATTACH_ONLY_VENVS))
+    keep_names: set[str] = { _sdk_name_for_home(str(root_py), PROJECT_SDK_NAME) } if root_py else set()
+    keep_names.update(_sdk_name_for_home(str((APPS_DIR / name / '.venv' / ('Scripts/python.exe' if os.name=='nt' else 'bin/python'))), f"uv ({name})")
+                        for name in attached)
+    # Fall back to preferred names if resolving home fails:
+    keep_names.update({f"uv ({name})" for name in attached})
+    if root_py:
+        keep_names.add(PROJECT_SDK_NAME)
+
     _table_prune_sdks(keep_names)
+
+    # (Optional) ensure run configs show app workdir/env even if template disagrees
+    patch_run_configs_for(attached)
+    debug("Patched run/debug configs with app working dir and env vars.")
 
     debug("Done.")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
