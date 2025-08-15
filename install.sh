@@ -324,8 +324,8 @@ copy_project_files
 update_environment
 install_core
 write_env_values
-#install_apps
-#install_enduser
-#install_pycharm_script
+install_apps
+install_enduser
+install_pycharm_script
 
 echo -e "${GREEN}Installation complete!${NC}"

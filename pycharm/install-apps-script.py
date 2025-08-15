@@ -28,6 +28,14 @@ SDK_TYPE = "Python SDK"
 PROJECT_SDK_NAME = "uv (agilab)"  # root project interpreter name
 
 # ----------------------------- utils ----------------------------- #
+
+def _ensure_roots_additional(jdk_node):
+    """Guarantee <roots/> and <additional/> children exist on a <jdk> node."""
+    import xml.etree.ElementTree as ET
+    if jdk_node.find("roots") is None:
+        ET.SubElement(jdk_node, "roots")
+    if jdk_node.find("additional") is None:
+        ET.SubElement(jdk_node, "additional")
 def debug(msg: str) -> None:
     print(f"[install-apps] {msg}")
 
