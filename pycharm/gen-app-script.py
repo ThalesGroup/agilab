@@ -65,6 +65,41 @@ def add_folder_name_to_config(tree, folder_name):
     if config_elem is not None:
         config_elem.attrib['folderName'] = folder_name
 
+def _ensure_option(cfg, name, value):
+    for o in cfg.findall("option"):
+        if o.get("name") == name:
+            o.set("value", value)
+            return
+    ET.SubElement(cfg, "option", {"name": name, "value": value})
+
+def _remove_options(cfg, names):
+    for o in list(cfg.findall("option")):
+        if o.get("name") in names:
+            cfg.remove(o)
+
+def _fix_module_and_interpreter(cfg: ET.Element, app: str, project_name: str):
+    # 1) Correct the module binding
+    mod = cfg.find("module")
+    if mod is None:
+        mod = ET.SubElement(cfg, "module", {"name": app})
+    else:
+        # If template had "{APP}_project", replace it by the real module name (app)
+        mod.set("name", app)
+
+    # 2) Force using the module SDK (works in 2025.2 and older builds)
+    _ensure_option(cfg, "USE_MODULE_SDK", "true")
+    _ensure_option(cfg, "IS_MODULE_SDK", "true")
+
+    # 3) Remove misleading SDK_NAME from template (prevents mismatches)
+    _remove_options(cfg, {"SDK_NAME"})
+
+    # 4) Optional fallback: explicit SDK_HOME to the app venv python
+    app_dir = f"$PROJECT_DIR$/src/{project_name}/apps/{app}"
+    _ensure_option(cfg, "SDK_HOME", f"{app_dir}/.venv/bin/python")
+
+    # 5) Sensible working dir: the app folder
+    _ensure_option(cfg, "WORKING_DIRECTORY", app_dir)
+
 
 if len(sys.argv) < 2:
     print("Usage: script.py <replacement_name>")
@@ -109,6 +144,9 @@ for tpl in template_paths:
     # Add folderName attribute to configuration element
     add_folder_name_to_config(tree, FOLDER_NAME)
 
+    for cfg in tree.getroot().iter("configuration"):
+        _fix_module_and_interpreter(cfg, app, PROJECT_NAME)
+
     # derive output filename
     base = os.path.basename(tpl).replace('_template_app', f'_{app}')
     out_path = os.path.join(output_dir, base)
@@ -117,6 +155,15 @@ for tpl in template_paths:
     config_elem = next(root.iter('configuration'))
     config_name = config_elem.attrib.get('name', base.rsplit('.', 1)[0])
     config_type = config_elem.attrib.get('type', 'PythonConfigurationType')
+
+    first_cfg = next(tree.getroot().iter("configuration"), None)
+    if first_cfg is None:
+        print(f"Skip {tpl.name}: no <configuration> element.")
+        continue
+
+    config_name = first_cfg.attrib.get("name", out_name.rsplit(".", 1)[0])
+    config_type = first_cfg.attrib.get("type", "PythonConfigurationType")
+    update_workspace_xml(config_name, config_type, folder_name)
 
     # --- idempotency check ----------------
     if os.path.exists(out_path):
