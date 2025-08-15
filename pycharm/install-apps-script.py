@@ -28,22 +28,14 @@ SDK_TYPE = "Python SDK"
 PROJECT_SDK_NAME = "uv (agilab)"  # root project interpreter name
 
 # ----------------------------- utils ----------------------------- #
-
-def _ensure_roots_additional(jdk_node):
-    """Guarantee <roots/> and <additional/> children exist on a <jdk> node."""
-    import xml.etree.ElementTree as ET
-    if jdk_node.find("roots") is None:
-        ET.SubElement(jdk_node, "roots")
-    if jdk_node.find("additional") is None:
-        ET.SubElement(jdk_node, "additional")
 def debug(msg: str) -> None:
     print(f"[install-apps] {msg}")
 
 def _write_xml(elem_or_tree, dest: Path) -> None:
-    """Compact XML write (no pretty print), LF-only, binary to avoid bytes/str issue."""
+    """Compact XML write (no pretty print), binary to avoid bytes/str mismatch."""
     tree = elem_or_tree if isinstance(elem_or_tree, ET.ElementTree) else ET.ElementTree(elem_or_tree)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    with open(dest, "wb") as f:  # binary mode (ElementTree writes bytes when encoding is set)
+    with open(dest, "wb") as f:
         tree.write(f, encoding="UTF-8", xml_declaration=True, short_empty_elements=True)
 
 def read_xml(path: Path) -> ET.ElementTree:
@@ -92,11 +84,7 @@ def ensure_project_name(name: str) -> None:
 
 def ensure_root_module_iml(name: str) -> Path:
     """
-    Ensure .idea/modules/<name>.iml exists and has a minimal, valid PYTHON_MODULE:
-      - <component name="NewModuleRootManager">
-      - <content url="file://$PROJECT_DIR$">
-      - <orderEntry type="inheritedJdk"> (we'll override per-module SDKs elsewhere)
-    If the existing file is empty or malformed, it is replaced.
+    Ensure .idea/modules/<name>.iml exists and is valid.
     """
     MODULES_DIR.mkdir(parents=True, exist_ok=True)
     iml = MODULES_DIR / f"{name}.iml"
@@ -109,19 +97,16 @@ def ensure_root_module_iml(name: str) -> Path:
         ET.SubElement(comp, "orderEntry", {"type": "sourceFolder", "forTests": "false"})
         _write_xml(m, dest)
 
-    # Create fresh if missing or zero-length
     if not iml.exists() or iml.stat().st_size == 0:
         _write_minimal(iml)
         debug(f"Root module IML created: {iml}")
         return iml
 
-    # If present, try to parse and normalize; if parsing fails, replace.
     try:
         tree = read_xml(iml)
         root = tree.getroot()
         if root.tag != "module":
             raise ET.ParseError("root tag is not <module>")
-
         comp = root.find("./component[@name='NewModuleRootManager']")
         if comp is None:
             comp = ET.SubElement(root, "component", {"name": "NewModuleRootManager"})
@@ -130,67 +115,27 @@ def ensure_root_module_iml(name: str) -> Path:
             ET.SubElement(comp, "content", {"url": "file://$PROJECT_DIR$"})
         else:
             content.set("url", "file://$PROJECT_DIR$")
-
-        # Ensure at least inheritedJdk + sourceFolder entries exist
         has_jdk = any(oe.get("type") in {"inheritedJdk", "jdk"} for oe in comp.findall("orderEntry"))
         if not has_jdk:
             ET.SubElement(comp, "orderEntry", {"type": "inheritedJdk"})
         has_src = any(oe.get("type") == "sourceFolder" for oe in comp.findall("orderEntry"))
         if not has_src:
             ET.SubElement(comp, "orderEntry", {"type": "sourceFolder", "forTests": "false"})
-
         _write_xml(tree, iml)
         return iml
-
     except ET.ParseError:
-        # Malformed or empty XML → replace with minimal valid content
         _write_minimal(iml)
         debug(f"Root module IML repaired: {iml}")
         return iml
 
-def _base(app_dir: Path) -> str:
-    n = app_dir.name
-    return n[:-8] if n.endswith("_project") else n
-
-def ensure_app_module_iml(app_dir: Path) -> Path:
-    """
-    Create/ensure .idea/modules/<base>.iml pointing to app_dir, where base strips '_project'.
-    This makes the module name match run configs and SDK name 'uv (<base>)'.
-    """
-    base = _base(app_dir)
-    iml_path = MODULES_DIR / f"{base}.iml"
-
-    if iml_path.exists():
-        try:
-            tree = read_xml(iml_path)
-            root = tree.getroot()
-            comp = root.find("./component[@name='NewModuleRootManager']")
-            if comp is None:
-                comp = ET.SubElement(root, "component", {"name": "NewModuleRootManager"})
-            content = comp.find("content")
-            url = app_rel_content_url(app_dir)
-            if content is None:
-                ET.SubElement(comp, "content", {"url": url})
-            else:
-                content.set("url", url)
-            _write_xml(tree, iml_path)
-        except ET.ParseError:
-            pass
-        return iml_path
-
-    m = ET.Element("module", {"type": "PYTHON_MODULE", "version": "4"})
-    comp = ET.SubElement(m, "component", {"name": "NewModuleRootManager"})
-    ET.SubElement(comp, "content", {"url": app_rel_content_url(app_dir)})
-    ET.SubElement(comp, "orderEntry", {"type": "inheritedJdk"})
-    ET.SubElement(comp, "orderEntry", {"type": "sourceFolder", "forTests": "false"})
-    _write_xml(m, iml_path)
-    debug(f"IML created: {iml_path}")
-    return iml_path
-
 # ----------------------------- modules.xml / .iml for apps ----------------------------- #
 def ensure_app_module_iml(app_dir: Path) -> Path:
-    app = app_dir.name  # keeps *_project for the IML filename
-    iml_path = MODULES_DIR / f"{app}.iml"
+    """
+    Create/ensure .idea/modules/<module>.iml pointing to app_dir.
+    Module name == app_dir.name (keep *_project if present).
+    """
+    module_name = app_dir.name
+    iml_path = MODULES_DIR / f"{module_name}.iml"
     if iml_path.exists():
         try:
             tree = read_xml(iml_path)
@@ -230,19 +175,20 @@ def set_module_sdk(iml_path: Path, sdk_name: str) -> None:
     ET.SubElement(comp, "orderEntry", {"type": "jdk", "jdkName": sdk_name, "jdkType": SDK_TYPE})
     _write_xml(tree, iml_path)
 
-def rebuild_modules_xml_from_disk():
+def rebuild_modules_xml_from_disk() -> None:
+    """Write modules.xml from every IML in .idea/modules (root + subprojects), LF endings."""
     imls = sorted(MODULES_DIR.glob("*.iml"))
     with open(IDEA / "modules.xml", "w", encoding="utf-8", newline="\n") as f:
-        f.write('<?xml version="1.0" encoding="UTF-8"?>\n'
-                '<project version="4">\n'
-                '  <component name="ProjectModuleManager">\n'
-                '    <modules>\n')
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+        f.write('<project version="4">\n')
+        f.write('  <component name="ProjectModuleManager">\n')
+        f.write('    <modules>\n')
         for p in imls:
             f.write(f'      <module fileurl="{as_project_url(p)}" filepath="{as_project_macro(p)}"/>\n')
-        f.write('    </modules>\n'
-                '  </component>\n'
-                '</project>\n')
-
+        f.write('    </modules>\n')
+        f.write('  </component>\n')
+        f.write('</project>\n')
+    debug(f"modules.xml rebuilt with {len(imls)} module(s)")
 
 # ----------------------------- JetBrains SDK registry ----------------------------- #
 def _jb_base_dirs() -> List[Path]:
@@ -260,8 +206,7 @@ def _jb_base_dirs() -> List[Path]:
 
 def _find_jdk_tables() -> List[Path]:
     """
-    Return all candidate jdk.table.xml paths under JetBrains configs,
-    even if the file doesn't exist yet (we'll create it).
+    Return candidate jdk.table.xml paths even if the file doesn't exist yet.
     """
     tables: List[Path] = []
     for base in _jb_base_dirs():
@@ -282,34 +227,61 @@ def _load_or_init_jdk_table(path: Path) -> ET.ElementTree:
     ET.SubElement(root, "component", {"name": "ProjectJdkTable"})
     return ET.ElementTree(root)
 
-def _table_upsert_batch(name_to_home: dict[str, str]) -> None:
-    """Remove stale entries by name, then re-insert all with current homePath. One write per table."""
-    tables = []
-    for tbl in _find_jdk_tables():
-        tree = _load_or_init_jdk_table(tbl)
-        root = tree.getroot()
-        comp = root.find("./component[@name='ProjectJdkTable']")
-        if comp is None:
-            comp = ET.SubElement(root, "component", {"name": "ProjectJdkTable"})
-        tables.append((tbl, tree, comp))
+def _ensure_roots_additional(jdk: ET.Element) -> None:
+    if jdk.find("roots") is None: ET.SubElement(jdk, "roots")
+    if jdk.find("additional") is None: ET.SubElement(jdk, "additional")
 
+def _upsert_sdk_in_table(tree: ET.ElementTree, name: str, home: str) -> bool:
+    """Create or update a single SDK in a given table (adds roots/additional). Returns True if modified."""
+    root = tree.getroot()
+    comp = root.find("./component[@name='ProjectJdkTable']") or ET.SubElement(root, "component", {"name": "ProjectJdkTable"})
+    # find existing
+    for jdk in comp.findall("jdk"):
+        nm = jdk.find("name")
+        if nm is not None and nm.get("value") == name:
+            # update
+            t = jdk.find("type") or ET.SubElement(jdk, "type", {"value": SDK_TYPE})
+            t.set("value", SDK_TYPE)
+            hp = jdk.find("homePath") or ET.SubElement(jdk, "homePath", {"value": home})
+            changed = False
+            if hp.get("value") != home:
+                hp.set("value", home)
+                changed = True
+            _ensure_roots_additional(jdk)
+            return changed
+    # create new
+    j = ET.SubElement(comp, "jdk", {"version": "2"})
+    ET.SubElement(j, "name", {"value": name})
+    ET.SubElement(j, "type", {"value": SDK_TYPE})
+    ET.SubElement(j, "homePath", {"value": home})
+    _ensure_roots_additional(j)
+    return True
+
+def _table_upsert_batch(name_to_home: dict[str, str]) -> None:
+    """Upsert a set of SDKs across all discovered tables (adds roots/additional)."""
+    tables = list(_find_jdk_tables())
     if not tables:
         debug("No JetBrains jdk.table.xml found; open PyCharm once so it creates it.")
         return
-
-    for path, tree, comp in tables:
+    for tbl in tables:
+        tree = _load_or_init_jdk_table(tbl)
+        changed = False
+        # remove stale with the same names so we control structure
+        root = tree.getroot()
+        comp = root.find("./component[@name='ProjectJdkTable']") or ET.SubElement(root, "component", {"name": "ProjectJdkTable"})
         wanted = set(name_to_home.keys())
         for jdk in list(comp.findall("jdk")):
             nm = jdk.find("name")
             if nm is not None and nm.get("value") in wanted:
                 comp.remove(jdk)
+                changed = True
+        # add fresh ones
         for name, home in name_to_home.items():
-            j = ET.SubElement(comp, "jdk", {"version": "2"})
-            ET.SubElement(j, "name", {"value": name})
-            ET.SubElement(j, "type", {"value": SDK_TYPE})
-            ET.SubElement(j, "homePath", {"value": home})
-        _write_xml(tree, path)
-        debug(f"Updated {path} with {len(name_to_home)} SDK(s)")
+            if _upsert_sdk_in_table(tree, name, home):
+                changed = True
+        if changed:
+            _write_xml(tree, tbl)
+            debug(f"Updated {tbl} with {len(name_to_home)} SDK(s)")
 
 # ----------------------------- project SDK (misc.xml) ----------------------------- #
 def set_project_sdk(name: str, sdk_type: str = SDK_TYPE) -> None:
@@ -329,62 +301,50 @@ def set_project_sdk(name: str, sdk_type: str = SDK_TYPE) -> None:
     _write_xml(tree, misc)
     debug(f"Project SDK set to '{name}' in misc.xml")
 
-# ---------- subprojects → unique SDKs, IMLs, modules.xml, runConfigs ----------
+# ---------- attach subprojects, ensure SDKs exist before binding ----------
 def _subprojects() -> list[Path]:
     if not APPS_DIR.exists():
         return []
-    return sorted(p for p in APPS_DIR.iterdir() if p.is_dir() and p.name.endswith("_project"))
-
-def _base(app_dir: Path) -> str:
-    n = app_dir.name
-    return n[:-8] if n.endswith("_project") else n
-
-def _sdk_name(base: str) -> str:
-    return f"uv ({base})"
+    return sorted(p for p in APPS_DIR.iterdir() if p.is_dir())
 
 def attach_all_subprojects() -> None:
     apps = _subprojects()
     if not apps:
-        debug("No *_project apps found.")
+        debug("No subprojects found under src/agilab/apps")
+        return
 
-    # collect (base -> venv python) for those that have a venv
-    pairs: list[tuple[str, Path]] = []
+    # Collect SDKs to upsert: uv (<module_name>) -> python path
+    name_to_home: dict[str, str] = {}
+    iml_targets: list[tuple[Path, str]] = []
+
     for a in apps:
-        base = _base(a)
+        module_name = a.name  # keep exact name (e.g., flight_project)
         iml = ensure_app_module_iml(a)
         py = venv_python_for(a)
         if py:
-            pairs.append((_base(a), py))
+            sdk_name = f"uv ({module_name})"
+            name_to_home[sdk_name] = str(py)
+            iml_targets.append((iml, sdk_name))
         else:
-            debug(f"{a.name}: missing .venv python → leaving inheritedJdk")
-            continue
+            debug(f"{module_name}: missing .venv python → leaving inheritedJdk")
 
-        sdk_name = f"uv ({base})"
-        # batch-register all SDKs once is great; but ensure it contains this one
-        set_module_sdk(iml, sdk_name)  # module now named <base> → matches run config module
-
-    # batch update SDK registry
-    name_to_home = { _sdk_name(b): str(py) for (b, py) in pairs }
+    # Ensure SDKs exist in jdk.table.xml first
     if name_to_home:
         _table_upsert_batch(name_to_home)
 
-    # ensure each subproject has an IML and bind SDK if available
-    for a in apps:
-        b = _base(a)
-        iml = ensure_app_module_iml(a)
-        sdk = _sdk_name(b)
-        if sdk in name_to_home:
-            set_module_sdk(iml, sdk)
+    # Now bind the modules
+    for iml, sdk_name in iml_targets:
+        set_module_sdk(iml, sdk_name)
+        debug(f"{iml.stem}: module SDK set to '{sdk_name}'")
 
-    # rebuild modules.xml from all IMLs (root + subprojects)
     rebuild_modules_xml_from_disk()
 
-    # generate run configs with matching base names
+    # Generate run configs (module_name passed exactly as directory name)
     if GEN_SCRIPT.exists():
         for a in apps:
-            b = _base(a)
-            debug(f"Generating run configs for '{b}' via {GEN_SCRIPT.name}...")
-            subprocess.run([sys.executable, str(GEN_SCRIPT), b], check=True, cwd=str(ROOT))
+            module_name = a.name
+            debug(f"Generating run configs for '{module_name}' via {GEN_SCRIPT.name}...")
+            subprocess.run([sys.executable, str(GEN_SCRIPT), module_name], check=True, cwd=str(ROOT))
     else:
         debug(f"Missing {GEN_SCRIPT}; skipping run configuration generation.")
 
@@ -397,7 +357,7 @@ def main() -> int:
     ensure_project_name(PROJECT_NAME)
     ensure_root_module_iml(PROJECT_NAME)
 
-    # root project SDK -> uv (agilab)
+    # Root project SDK -> uv (agilab) bound to ROOT/.venv python
     root_py = venv_python_for(ROOT)
     if root_py:
         _table_upsert_batch({PROJECT_SDK_NAME: str(root_py)})
@@ -405,7 +365,7 @@ def main() -> int:
     else:
         debug("Root .venv python not found; run `uv venv` at repo root if you want a project SDK.")
 
-    # attach subprojects to the root project
+    # Attach subprojects and bind interpreters
     attach_all_subprojects()
 
     debug("Done.")
