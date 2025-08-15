@@ -486,6 +486,7 @@ def main() -> int:
 
     # --- Core: NO template; minimal IML; NO run/debug generation ---
     cores = eligible_core(CFG, require_venv=True and not CFG.ensure_uv_venvs_core)
+    realized_cores: List[Tuple[Path, str]] = []
     for core in cores:
         py = venv_python_for(core) if not CFG.ensure_uv_venvs_core else ensure_uv_venv(core)
         if not py:
