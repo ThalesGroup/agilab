@@ -40,8 +40,8 @@ echo -e "${YELLOW}Link target base:${NC} $TARGET_BASE\n"
 declare -a PRIVATE_APPS=(
    flight_trajectory_project
    sat_trajectory_project
-   link_sim_project
-   #sb3_trainer_project
+#  link_sim_project
+   sb3_trainer_project
 )
 
 # --- Build the list of apps present locally (only *_project) -----------------
