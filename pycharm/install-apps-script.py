@@ -27,6 +27,13 @@ PROJECT_NAME = "agilab"           # shows as "Project: agilab" in Settings
 SDK_TYPE = "Python SDK"
 PROJECT_SDK_NAME = "uv (agilab)"  # root project interpreter name
 
+# Attach only subprojects that have their own .venv (strict)
+ATTACH_ONLY_VENVS = True
+
+# Optionally create missing venvs with uv so they are true uv envs
+ENSURE_UV_VENVS = True
+UV_EXE = os.environ.get("UV_EXE", "uv")
+
 # ----------------------------- utils ----------------------------- #
 def debug(msg: str) -> None:
     print(f"[install-apps] {msg}")
@@ -51,6 +58,19 @@ def venv_python_for(project_dir: Path) -> Optional[Path]:
             return c.resolve()
     return None
 
+def ensure_uv_venv(project_dir: Path) -> Optional[Path]:
+    """Create .venv with `uv venv` if missing (when ENSURE_UV_VENVS=True)."""
+    py = venv_python_for(project_dir)
+    if py or not ENSURE_UV_VENVS:
+        return py
+    try:
+        debug(f"{project_dir.name}: creating .venv via `uv venv` …")
+        subprocess.run([UV_EXE, "venv"], cwd=str(project_dir), check=True)
+    except Exception as e:
+        debug(f"{project_dir.name}: uv venv failed: {e}")
+        return None
+    return venv_python_for(project_dir)
+
 def as_project_macro(path: Path) -> str:
     rel = path.resolve().relative_to(ROOT.resolve())
     return f"$PROJECT_DIR$/{rel.as_posix()}"
@@ -59,17 +79,12 @@ def as_project_url(path: Path) -> str:
     return f"file://{as_project_macro(path)}"
 
 def _rel_from_root(path: Path) -> Optional[Path]:
-    """Return path relative to ROOT without following symlinks; None if outside."""
     try:
         return path.relative_to(ROOT)  # DO NOT .resolve()
     except ValueError:
         return None
 
 def app_rel_content_url(app_dir: Path) -> str:
-    """
-    Content URL for .iml: prefer file://$PROJECT_DIR$/... (symlink-friendly),
-    else absolute file://... if outside.
-    """
     rel = _rel_from_root(app_dir)
     if rel is not None:
         return f"file://$PROJECT_DIR$/{rel.as_posix()}"
@@ -77,7 +92,6 @@ def app_rel_content_url(app_dir: Path) -> str:
 
 # ----------------------------- root project name & module ----------------------------- #
 def ensure_project_name(name: str) -> None:
-    """Make Settings show 'Project: <name>' by writing .idea/.name."""
     name_file = IDEA / ".name"
     try:
         old = name_file.read_text(encoding="utf-8").strip()
@@ -89,9 +103,6 @@ def ensure_project_name(name: str) -> None:
         debug(f"Set project name to '{name}' (.idea/.name)")
 
 def ensure_root_module_iml(name: str) -> Path:
-    """
-    Ensure .idea/modules/<name>.iml exists and has a minimal, valid PYTHON_MODULE.
-    """
     MODULES_DIR.mkdir(parents=True, exist_ok=True)
     iml = MODULES_DIR / f"{name}.iml"
 
@@ -136,10 +147,6 @@ def ensure_root_module_iml(name: str) -> Path:
 
 # ----------------------------- modules.xml / .iml for apps ----------------------------- #
 def ensure_app_module_iml(app_dir: Path) -> Path:
-    """
-    Create/ensure .idea/modules/<module>.iml pointing to app_dir.
-    Module name == app_dir.name (keep *_project if present).
-    """
     module_name = app_dir.name
     iml_path = MODULES_DIR / f"{module_name}.iml"
     if iml_path.exists():
@@ -181,8 +188,13 @@ def set_module_sdk(iml_path: Path, sdk_name: str) -> None:
     ET.SubElement(comp, "orderEntry", {"type": "jdk", "jdkName": sdk_name, "jdkType": SDK_TYPE})
     _write_xml(tree, iml_path)
 
+def remove_module(module_name: str) -> None:
+    iml = MODULES_DIR / f"{module_name}.iml"
+    if iml.exists():
+        iml.unlink()
+        debug(f"Removed module IML: {iml}")
+
 def rebuild_modules_xml_from_disk() -> None:
-    """Write modules.xml from every IML in .idea/modules (root + subprojects), LF endings."""
     imls = sorted(MODULES_DIR.glob("*.iml"))
     with open(IDEA / "modules.xml", "w", encoding="utf-8", newline="\n") as f:
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
@@ -211,9 +223,7 @@ def _jb_base_dirs() -> List[Path]:
     return [b for b in bases if b.exists()]
 
 def _find_jdk_tables() -> List[Path]:
-    """
-    Return candidate jdk.table.xml paths even if the file doesn't exist yet.
-    """
+    """Return candidate jdk.table.xml paths even if the file doesn't exist yet."""
     tables: List[Path] = []
     for base in _jb_base_dirs():
         for product in ("PyCharm*", "PyCharmCE*"):
@@ -237,10 +247,25 @@ def _ensure_roots_additional(jdk: ET.Element) -> None:
     if jdk.find("roots") is None: ET.SubElement(jdk, "roots")
     if jdk.find("additional") is None: ET.SubElement(jdk, "additional")
 
+def _ensure_uv_option(jdk: ET.Element) -> None:
+    """Ensure <additional><option name="UV" value="true"/></additional> exists."""
+    add = jdk.find("additional")
+    if add is None:
+        add = ET.SubElement(jdk, "additional")
+    uv_opt = None
+    for o in add.findall("option"):
+        if o.get("name") == "UV":
+            uv_opt = o
+            break
+    if uv_opt is None:
+        ET.SubElement(add, "option", {"name": "UV", "value": "true"})
+    else:
+        uv_opt.set("value", "true")
+
 def _table_upsert_batch(name_to_home: dict[str, str]) -> None:
     """
     Remove stale entries by name, then insert all with current homePath.
-    One write per table. Always add <roots/> and <additional/>.
+    Always add <roots/>, <additional/>, and the uv marker option.
     """
     tables_data = []
     for tbl in _find_jdk_tables():
@@ -257,20 +282,49 @@ def _table_upsert_batch(name_to_home: dict[str, str]) -> None:
 
     for path, tree, comp in tables_data:
         wanted = set(name_to_home.keys())
-        # remove old
+        # remove old entries for these names
         for jdk in list(comp.findall("jdk")):
-            nm = jdk.find("name")
-            if nm is not None and nm.get("value") in wanted:
+            nm_el = jdk.find("name")
+            nm = nm_el.get("value") if nm_el is not None else jdk.attrib.get("name")
+            if nm in wanted:
                 comp.remove(jdk)
-        # add fresh
+        # add fresh entries with uv marker
         for name, home in name_to_home.items():
             j = ET.SubElement(comp, "jdk", {"version": "2"})
             ET.SubElement(j, "name", {"value": name})
             ET.SubElement(j, "type", {"value": SDK_TYPE})
             ET.SubElement(j, "homePath", {"value": home})
             _ensure_roots_additional(j)
+            _ensure_uv_option(j)
         _write_xml(tree, path)
         debug(f"Updated {path} with {len(name_to_home)} SDK(s)")
+
+def _table_prune_sdks(keep_names: set[str]) -> None:
+    """
+    Keep only the Python SDKs whose name is in keep_names.
+    """
+    for tbl in _find_jdk_tables():
+        tree = _load_or_init_jdk_table(tbl)
+        root = tree.getroot()
+        comp = root.find("./component[@name='ProjectJdkTable']")
+        if comp is None:
+            continue
+        changed = False
+        for jdk in list(comp.findall("jdk")):
+            name_el = jdk.find("name")
+            nm = name_el.get("value") if name_el is not None else jdk.attrib.get("name")
+            type_el = jdk.find("type")
+            tp = type_el.get("value") if type_el is not None else jdk.attrib.get("type")
+            if tp == SDK_TYPE and (nm is None or nm not in keep_names):
+                comp.remove(jdk)
+                changed = True
+            elif tp == SDK_TYPE and nm in keep_names:
+                _ensure_roots_additional(jdk)
+                _ensure_uv_option(jdk)
+                changed = True
+        if changed:
+            _write_xml(tree, tbl)
+            debug(f"Pruned SDKs in {tbl}, kept: {sorted(keep_names)}")
 
 # ----------------------------- project SDK (misc.xml) ----------------------------- #
 def set_project_sdk(name: str, sdk_type: str = SDK_TYPE) -> None:
@@ -286,7 +340,7 @@ def set_project_sdk(name: str, sdk_type: str = SDK_TYPE) -> None:
         prm = ET.SubElement(root, "component", {"name": "ProjectRootManager"})
     prm.set("version", "2")
     prm.set("project-jdk-name", name)
-    prm.set("project-jdk-type", sdk_type)
+    prm.set("project-jdk-type", sdk_type)  # correct for Python (uv identified via <additional>)
     _write_xml(tree, misc)
     debug(f"Project SDK set to '{name}' in misc.xml")
 
@@ -294,46 +348,63 @@ def set_project_sdk(name: str, sdk_type: str = SDK_TYPE) -> None:
 def ensure_module_sdk_exists(module_name: str, app_dir: Path, root_py: Optional[Path]) -> Optional[str]:
     """
     Ensure a 'uv (<module_name>)' SDK exists in jdk.table.xml.
-    - Uses <app_dir>/.venv if present; else falls back to root venv (root_py).
-    - Returns the SDK name if ensured, else None.
+    Prefer a true uv venv in the app; if missing, optionally create it.
     """
-    py = venv_python_for(app_dir) or root_py
+    py = ensure_uv_venv(app_dir) or root_py
     if not py:
         debug(f"{module_name}: no .venv found (and no root venv) → cannot create SDK")
         return None
     sdk_name = f"uv ({module_name})"
-    _table_upsert_batch({sdk_name: str(py)})   # writes <roots/> and <additional/>
+    _table_upsert_batch({sdk_name: str(py)})
     return sdk_name
 
-# ---------- attach subprojects, bind SDKs that match module names ----------
-def _subprojects() -> list[Path]:
+# ---------- discovery / attach / cleanup ----------
+def _eligible_apps(require_venv: bool) -> list[Path]:
+    """Return only subprojects ending with _project (optionally require .venv)."""
     if not APPS_DIR.exists():
         return []
-    return sorted(p for p in APPS_DIR.iterdir() if p.is_dir())
+    apps: list[Path] = []
+    for p in sorted(APPS_DIR.iterdir()):
+        if not p.is_dir():
+            continue
+        if not p.name.endswith("_project"):
+            continue
+        if require_venv and not venv_python_for(p):
+            continue
+        apps.append(p)
+    return apps
 
 def attach_all_subprojects(root_py: Optional[Path]) -> None:
-    apps = _subprojects()
-    if not apps:
-        debug("No subprojects found under src/agilab/apps")
-        return
+    # Attach only apps that pass filters (.venv required if ATTACH_ONLY_VENVS)
+    to_attach = _eligible_apps(require_venv=ATTACH_ONLY_VENVS)
+    attached_names = set(a.name for a in to_attach)
 
-    for a in apps:
-        module_name = a.name  # keep exact name (e.g., flight_project)
-        iml = ensure_app_module_iml(a)
+    if not to_attach:
+        debug("No eligible subprojects found under src/agilab/apps")
+    else:
+        for a in to_attach:
+            module_name = a.name
+            iml = ensure_app_module_iml(a)
+            sdk_name = ensure_module_sdk_exists(module_name, a, root_py)
+            if sdk_name:
+                set_module_sdk(iml, sdk_name)
+                debug(f"{module_name}: module SDK set to '{sdk_name}'")
+            else:
+                debug(f"{module_name}: leaving module on inheritedJdk (no interpreter available)")
 
-        # Ensure the SDK exists in jdk.table.xml before referencing it in the .iml
-        sdk_name = ensure_module_sdk_exists(module_name, a, root_py)
-
-        if sdk_name:
-            set_module_sdk(iml, sdk_name)
-            debug(f"{module_name}: module SDK set to '{sdk_name}'")
-        else:
-            debug(f"{module_name}: leaving module on inheritedJdk (no interpreter available)")
+    # Remove any existing modules not in the newly attached set (keep the root)
+    for iml in MODULES_DIR.glob("*.iml"):
+        name = iml.stem
+        if name == PROJECT_NAME:
+            continue
+        if name not in attached_names:
+            remove_module(name)
 
     rebuild_modules_xml_from_disk()
 
+    # Optionally generate run configs only for attached apps
     if GEN_SCRIPT.exists():
-        for a in apps:
+        for a in to_attach:
             module_name = a.name
             debug(f"Generating run configs for '{module_name}' via {GEN_SCRIPT.name}...")
             subprocess.run([sys.executable, str(GEN_SCRIPT), module_name], check=True, cwd=str(ROOT))
@@ -346,22 +417,29 @@ def main() -> int:
     MODULES_DIR.mkdir(parents=True, exist_ok=True)
     RUNCFG_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Make the project show up as "Project: agilab" in Settings
     ensure_project_name(PROJECT_NAME)
 
-    # Root project SDK -> uv (agilab) bound to ROOT/.venv python
-    root_py = venv_python_for(ROOT)
+    # Root project SDK -> uv (agilab) bound to ROOT/.venv python (create if desired)
+    root_py = ensure_uv_venv(ROOT) if ENSURE_UV_VENVS else venv_python_for(ROOT)
     if root_py:
         _table_upsert_batch({PROJECT_SDK_NAME: str(root_py)})
-        set_project_sdk(PROJECT_SDK_NAME, SDK_TYPE)
+        set_project_sdk(PROJECT_SDK_NAME, SDK_TYPE)  # ensures project-jdk-* is set
     else:
         debug("Root .venv python not found; run `uv venv` at repo root if you want a project SDK.")
 
-    # Ensure a root module that points to $PROJECT_DIR$ (appears in Project Structure)
-    ensure_root_module_iml(PROJECT_NAME)
+    # Ensure root module exists and bind it explicitly to uv (agilab)
+    root_iml = ensure_root_module_iml(PROJECT_NAME)
+    if root_py:
+        set_module_sdk(root_iml, PROJECT_SDK_NAME)
 
     # Attach subprojects and bind interpreters
     attach_all_subprojects(root_py)
+
+    # After attachment, compute the authoritative set of SDK names and prune the rest
+    keep_names: set[str] = set()
+    keep_names.add(PROJECT_SDK_NAME)                              # exact SDK name for root
+    keep_names.update(f"uv ({p.name})" for p in _eligible_apps(require_venv=ATTACH_ONLY_VENVS))
+    _table_prune_sdks(keep_names)
 
     debug("Done.")
     return 0
