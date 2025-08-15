@@ -51,12 +51,26 @@ def read_xml(path: Path) -> ET.ElementTree:
     return ET.parse(str(path))
 
 def venv_python_for(project_dir: Path) -> Optional[Path]:
+    """
+    Return the python inside <project_dir>/.venv that looks like a real venv.
+    Accept uv venvs where .venv/bin/python is a symlink to a shared CPython.
+    """
+    venv_dir = project_dir / ".venv"
+    # must look like a venv
+    has_marker = (venv_dir / "pyvenv.cfg").exists() or \
+                 (venv_dir / "bin" / "activate").exists() or \
+                 (venv_dir / "Scripts" / "activate").exists()
+
+    if not has_marker:
+        return None
+
     for c in (
-        project_dir / ".venv" / "bin" / "python3",
-        project_dir / ".venv" / "bin" / "python",
-        project_dir / ".venv" / "Scripts" / "python.exe",
+        venv_dir / "bin" / "python3",
+        venv_dir / "bin" / "python",
+        venv_dir / "Scripts" / "python.exe",
     ):
         if c.exists():
+            # accept even if it resolves outside .venv (typical for uv)
             return c.resolve()
     return None
 
@@ -380,10 +394,14 @@ def set_project_sdk(name: str, sdk_type: str = SDK_TYPE) -> None:
 
 # ----------------------------- ensure module SDK exists ----------------------------- #
 def ensure_module_sdk_exists(module_name: str, app_dir: Path, root_py: Optional[Path]) -> Optional[str]:
-    """Ensure a 'uv (<module_name>)' SDK exists; prefer per-app uv venv."""
-    py = ensure_uv_venv(app_dir) or root_py
+    """
+    Ensure a 'uv (<module_name>)' SDK exists.
+    - Only use the app's own .venv (create with uv if allowed).
+    - Do NOT fall back to root venv for app modules.
+    """
+    py = ensure_uv_venv(app_dir) if ENSURE_UV_VENVS else venv_python_for(app_dir)
     if not py:
-        debug(f"{module_name}: no .venv (and no root venv) → cannot create SDK")
+        debug(f"{module_name}: no .venv → not creating SDK")
         return None
     sdk_name = f"uv ({module_name})"
     _table_upsert_batch({sdk_name: str(py)})
