@@ -33,6 +33,9 @@ class Config:
     ensure_uv_venvs_apps: bool = True   # apps: create .venv if missing
     ensure_uv_venvs_core: bool = False  # core: attach only if .venv already exists (no run configs)
 
+# allow adding modules that resolve outside the repo
+ALLOW_EXTERNAL_MODULES = False
+
 def find_idea_dir(root: Path) -> Path:
     for name in (".idea", "idea"):
         d = root / name
@@ -92,6 +95,52 @@ def content_url_for(dir_path: Path) -> str:
         return f"file://$PROJECT_DIR$/{rel.as_posix()}"
     except ValueError:
         return f"file://{dir_path.resolve().as_posix()}"
+
+def _ensure_modules_xml() -> ET.ElementTree:
+    modules_xml = CFG.idea / "modules.xml"
+    if modules_xml.exists():
+        try:
+            return read_xml(modules_xml)
+        except ET.ParseError:
+            pass  # recreate
+    project = ET.Element("project", {"version": "4"})
+    ET.SubElement(ET.SubElement(project, "component", {"name": "ProjectModuleManager"}), "modules")
+    tree = ET.ElementTree(project)
+    write_xml(tree, modules_xml)
+    return tree
+
+# ---- modules.xml merge helpers ----
+
+def _modules_node(tree: ET.ElementTree) -> ET.Element:
+    root = tree.getroot()
+    comp = root.find("./component[@name='ProjectModuleManager']")
+    if comp is None:
+        comp = ET.SubElement(root, "component", {"name": "ProjectModuleManager"})
+    mods = comp.find("modules")
+    if mods is None:
+        mods = ET.SubElement(comp, "modules")
+    return mods
+
+def _norm_path_attr(val: Optional[str]) -> str:
+    return (val or "").strip()
+
+def _entry_key(el: ET.Element) -> Tuple[str, str]:
+    return (_norm_path_attr(el.get("filepath")), _norm_path_attr(el.get("fileurl")))
+
+def _resolve_macros(raw: str, app_name: str) -> Path:
+    s = raw.replace("{APP}", app_name)
+    s = s.replace("$PROJECT_DIR$", str(CFG.root))
+    s = s.replace("$USER_HOME$", str(Path.home()))
+    if s.startswith("file://"):
+        s = s[len("file://"):]
+    return Path(s)
+
+def _is_within_repo(p: Path) -> bool:
+    try:
+        return p.resolve().is_relative_to(CFG.root.resolve())
+    except AttributeError:
+        rp = str(CFG.root.resolve())
+        return str(p.resolve()).startswith(rp + os.sep)
 
 # =============================================================================
 # Venv (uv)
@@ -174,7 +223,6 @@ class JdkTable:
             try:
                 return read_xml(path)
             except ET.ParseError:
-                # corrupted — start fresh but keep the component
                 root = ET.Element("application")
                 self._ensure_component(root)
                 return ET.ElementTree(root)
@@ -209,12 +257,23 @@ class JdkTable:
                     self._ensure_roots(target)
                     changed = True
                 else:
-                    (target.find("name") or ET.SubElement(target, "name", {"value": name})).set("value", name)
-                    (target.find("type") or ET.SubElement(target, "type", {"value": self.sdk_type})).set("value", self.sdk_type)
-                    home_el = target.find("homePath") or ET.SubElement(target, "homePath", {"value": home})
+                    name_el = target.find("name")
+                    if name_el is None:
+                        name_el = ET.SubElement(target, "name", {"value": name})
+                    name_el.set("value", name)
+
+                    type_el = target.find("type")
+                    if type_el is None:
+                        type_el = ET.SubElement(target, "type", {"value": self.sdk_type})
+                    type_el.set("value", self.sdk_type)
+
+                    home_el = target.find("homePath")
+                    if home_el is None:
+                        home_el = ET.SubElement(target, "homePath", {"value": home})
                     if home_el.get("value") != home:
                         home_el.set("value", home)
                         changed = True
+
                     self._ensure_roots(target)
 
             if changed:
@@ -247,12 +306,14 @@ class JdkTable:
                 log(f"Pruned SDKs in {table}, kept: {sorted(keep)}")
 
 # =============================================================================
-# Project model (misc.xml, modules & modules.xml)
+# Project model (misc.xml, .iml, and modules.xml MERGE from app template)
 # =============================================================================
 
 class ProjectModel:
     def __init__(self, cfg: Config):
         self.cfg = cfg
+
+    # ---- misc.xml / root module ----
 
     def ensure_project_name(self) -> None:
         name_file = self.cfg.idea / ".name"
@@ -319,68 +380,9 @@ class ProjectModel:
         ET.SubElement(comp, "orderEntry", {"type": "jdk", "jdkName": sdk_name, "jdkType": self.cfg.sdk_type})
         write_xml(tree, iml_path)
 
-    def rebuild_modules_xml_from_disk(self) -> None:
-        imls = sorted(p for p in self.cfg.modules_dir.glob("*.iml") if p.exists() and p.name != "module.iml")
-        project = ET.Element("project", {"version": "4"})
-        comp = ET.SubElement(project, "component", {"name": "ProjectModuleManager"})
-        mods = ET.SubElement(comp, "modules")
-        for p in imls:
-            ET.SubElement(mods, "module", {"fileurl": as_project_url(p), "filepath": as_project_macro(p)})
-        write_xml(ET.ElementTree(project), self.cfg.idea / "modules.xml")
-        log(f"modules.xml rebuilt with {len(imls)} module(s)")
-
-    # ---------- template-based module writing (no regression) ----------
-
-    def _find_module_template(self) -> Optional[Path]:
-        candidates = [
-            self.cfg.root / "pycharm" / "_template_module.iml",
-            self.cfg.root / "pycharm" / "templates" / "_template_module.iml",
-            self.cfg.root / "pycharm" / "_template_app_modules.xml",  # legacy
-        ]
-        for c in candidates:
-            if c.exists():
-                return c
-        return None
-
-    def write_module_from_template(self, module_name: str, dir_path: Path) -> Path:
-        iml_path = self.cfg.modules_dir / f"{module_name}.iml"
-        tpl = self._find_module_template()
-        if not tpl:
-            # minimal fallback
-            m = ET.Element("module", {"type": "PYTHON_MODULE", "version": "4"})
-            comp = ET.SubElement(m, "component", {"name": "NewModuleRootManager"})
-            ET.SubElement(comp, "content", {"url": content_url_for(dir_path)})
-            ET.SubElement(comp, "orderEntry", {"type": "inheritedJdk"})
-            ET.SubElement(comp, "orderEntry", {"type": "sourceFolder", "forTests": "false"})
-            write_xml(ET.ElementTree(m), iml_path)
-            log(f"IML created (minimal): {iml_path}")
-            return iml_path
-
-        text = tpl.read_text(encoding="utf-8")
-        url = content_url_for(dir_path)
-        text = (text
-                .replace("$MODULE_NAME$", module_name)
-                .replace("$CONTENT_URL$", url)
-                .replace("$MODULE_URL$", url))
-        iml_path.parent.mkdir(parents=True, exist_ok=True)
-        iml_path.write_text(text, encoding="utf-8")
-        log(f"IML from template: {iml_path}")
-        return iml_path
-
-    def remove_module(self, module_name: str) -> None:
-        iml = self.cfg.modules_dir / f"{module_name}.iml"
-        try:
-            if iml.exists():
-                iml.unlink()
-                log(f"Removed stale module: {module_name}")
-        except Exception:
-            pass
+    # ---- .iml helpers for apps/cores ----
 
     def write_module_minimal(self, module_name: str, dir_path: Path) -> Path:
-        """
-        Write a minimal, template-free .iml for core modules.
-        Keeps $PROJECT_DIR$ macros and avoids any template dependency.
-        """
         iml_path = self.cfg.modules_dir / f"{module_name}.iml"
         m = ET.Element("module", {"type": "PYTHON_MODULE", "version": "4"})
         comp = ET.SubElement(m, "component", {"name": "NewModuleRootManager"})
@@ -388,8 +390,76 @@ class ProjectModel:
         ET.SubElement(comp, "orderEntry", {"type": "inheritedJdk"})
         ET.SubElement(comp, "orderEntry", {"type": "sourceFolder", "forTests": "false"})
         write_xml(ET.ElementTree(m), iml_path)
-        log(f"IML created (minimal core): {iml_path}")
+        log(f"IML created (minimal): {iml_path}")
         return iml_path
+
+    # ---- modules.xml MERGE from pycharm/_template_app_modules.xml ----
+
+    def _merge_modules_from_app_template(self, app_name: str, app_dir: Path) -> List[Path]:
+        """
+        Merge <module> entries from pycharm/_template_app_modules.xml into .idea/modules.xml,
+        after substituting {APP}. Returns the list of 'in-repo' .iml paths referenced by entries.
+        """
+        tpl = self.cfg.root / "pycharm" / "_template_app_modules.xml"
+        if not tpl.exists():
+            log("_template_app_modules.xml not found; skipping modules merge.")
+            return []
+
+        # substitute tokens and parse
+        raw = tpl.read_text(encoding="utf-8").replace("{APP}", app_name)
+        try:
+            tpl_root = ET.fromstring(raw)
+        except ET.ParseError:
+            log("_template_app_modules.xml is not parseable; skipping modules merge.")
+            return []
+
+        tpl_modules = tpl_root.find(".//modules")
+        if tpl_modules is None:
+            log("_template_app_modules.xml has no <modules>; skipping modules merge.")
+            return []
+
+        tree = _ensure_modules_xml()
+        mods = _modules_node(tree)
+
+        # build existing index for dedup
+        existing = { _entry_key(m) : m for m in mods.findall("module") }
+
+        added_iml_paths: List[Path] = []
+        for m in tpl_modules.findall("module"):
+            fp = _norm_path_attr(m.get("filepath"))
+            fu = _norm_path_attr(m.get("fileurl"))
+            if not fp and not fu:
+                continue
+
+            # resolve for policy
+            resolved_fp = _resolve_macros(fp or fu, app_name)
+            if not ALLOW_EXTERNAL_MODULES and not _is_within_repo(resolved_fp):
+                # skip external modules silently (or log if you prefer)
+                continue
+
+            key = (fp, fu)
+            if key in existing:
+                # already present; keep as-is
+                continue
+
+            # copy (not reference) to avoid parent conflicts
+            new_m = ET.Element("module")
+            if fp:
+                new_m.set("filepath", fp)
+            if fu:
+                new_m.set("fileurl", fu)
+            mods.append(new_m)
+            existing[key] = new_m
+
+            # track in-repo .iml paths so we can ensure app's *_project.iml exists
+            if _is_within_repo(resolved_fp):
+                added_iml_paths.append(resolved_fp)
+
+        if added_iml_paths:
+            write_xml(tree, CFG.idea / "modules.xml")
+            log(f"modules.xml merged entries for app '{app_name}' ({len(added_iml_paths)} added).")
+
+        return added_iml_paths
 
 # =============================================================================
 # Discovery
@@ -402,7 +472,7 @@ def eligible_apps(cfg: Config, require_venv: bool) -> List[Path]:
     for p in sorted(cfg.apps_dir.iterdir()):
         if not p.is_dir():
             continue
-        if not p.name.endswith("_project"):     # rule you asked for
+        if not p.name.endswith("_project"):     # rule requested
             continue
         if require_venv and venv_python_for(p) is None:
             continue
@@ -435,7 +505,6 @@ def generate_run_configs_for_apps(cfg: Config, app_names: List[str]) -> None:
         log(f"Generating run configs for '{name}' via {cfg.gen_script.name} …")
         subprocess.run([sys.executable, str(cfg.gen_script), name], check=True, cwd=str(cfg.root))
 
-
 # =============================================================================
 # Main
 # =============================================================================
@@ -464,11 +533,11 @@ def main() -> int:
     if root_py:
         model.set_module_sdk(root_iml, CFG.project_sdk_name)
 
-    # Discover/realize apps
+    # Discover/realize apps (ONLY *_project)
     apps = eligible_apps(CFG, require_venv=not CFG.ensure_uv_venvs_apps and CFG.attach_only_venvs)
-    realized_apps: List[Tuple[Path, str]] = []   # (path, sdk_name)
+    realized_apps: List[Tuple[Path, str]] = []
 
-    # --- Apps:  use template + run/debug generation ---
+    # --- Apps: ensure venv, MERGE modules.xml from template, ensure *_project.iml exists, set SDK, run configs ---
     for app in apps:
         py = ensure_uv_venv(app) if CFG.ensure_uv_venvs_apps else venv_python_for(app)
         if not py:
@@ -478,10 +547,34 @@ def main() -> int:
             log(f"{app.name}: still no .venv → skipping.")
             continue
 
-        iml = model.write_module_from_template(app.name, app)
+        # 1) merge template module entries for this app
+        added_imls = model._merge_modules_from_app_template(app.name, app)
+
+        # 2) ensure the app’s *_project.iml exists (if template pointed to it)
+        #    otherwise create a minimal one under .idea/modules/<app>.iml
+        target_iml = None
+        for p in added_imls:
+            if p.name.endswith("_project.iml"):
+                target_iml = p
+                break
+        if target_iml is None:
+            target_iml = CFG.modules_dir / f"{app.name}.iml"
+
+        if not target_iml.exists():
+            # write a minimal iml pointing to the app source
+            model.write_module_minimal(target_iml.stem, app)
+            # If the minimal wrote to a different path (modules/<name>.iml), move/rename if needed
+            default_path = CFG.modules_dir / f"{target_iml.stem}.iml"
+            if default_path != target_iml and default_path.exists():
+                target_iml.parent.mkdir(parents=True, exist_ok=True)
+                default_path.replace(target_iml)
+                log(f"Moved IML to match template path: {target_iml}")
+
+        # 3) register SDK and pin into that module
         sdk_name = f"uv ({app.name})"
         jdk.upsert_many({sdk_name: str(py)})
-        model.set_module_sdk(iml, sdk_name)
+        model.set_module_sdk(target_iml, sdk_name)
+
         realized_apps.append((app, sdk_name))
 
     # --- Core: NO template; minimal IML; NO run/debug generation ---
@@ -491,35 +584,15 @@ def main() -> int:
         py = venv_python_for(core) if not CFG.ensure_uv_venvs_core else ensure_uv_venv(core)
         if not py:
             continue
-
-        # MINIMAL for core
         iml = model.write_module_minimal(core.name, core)
-
         sdk_name = f"uv ({core.name})"
         jdk.upsert_many({sdk_name: str(py)})
         model.set_module_sdk(iml, sdk_name)
         realized_cores.append((core, sdk_name))
 
-    # Discover/realize core (attach only if venv exists; no run configs)
-    cores = eligible_core(CFG, require_venv=True and not CFG.ensure_uv_venvs_core)
-    realized_cores: List[Tuple[Path, str]] = []
-    for core in cores:
-        py = venv_python_for(core) if not CFG.ensure_uv_venvs_core else ensure_uv_venv(core)
-        if not py:
-            continue
-        iml = model.write_module_from_template(core.name, core)
-        sdk_name = f"uv ({core.name})"
-        jdk.upsert_many({sdk_name: str(py)})
-        model.set_module_sdk(iml, sdk_name)
-        realized_cores.append((core, sdk_name))
-
-    # Prune stale modules (keep exactly root + realized apps + cores)
-    keep_mod_names = {CFG.project_name} | {p.name for p, _ in realized_apps} | {p.name for p, _ in realized_cores}
-    for iml in CFG.modules_dir.glob("*.iml"):
-        if iml.stem not in keep_mod_names:
-            model.remove_module(iml.stem)
-
-    model.rebuild_modules_xml_from_disk()
+    # NOTE: We DO NOT rebuild modules.xml from disk anymore,
+    # because we want to preserve/merge entries coming from the app template.
+    # (If you still want to drop stale modules, you can add a pruning step here.)
 
     # Run/debug configs for apps (only)
     generate_run_configs_for_apps(CFG, [p.name for p, _ in realized_apps])
@@ -530,7 +603,6 @@ def main() -> int:
 
     log("Done.")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
