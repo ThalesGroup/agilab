@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import os
+import uuid
+
 import sys
 import subprocess
 from dataclasses import dataclass
@@ -148,13 +150,13 @@ def _is_within_repo(p: Path) -> bool:
 
 def venv_python_for(project_dir: Path) -> Optional[Path]:
     for c in (
-        project_dir / ".venv" / "bin" / "python3",
         project_dir / ".venv" / "bin" / "python",
+        project_dir / ".venv" / "bin" / "python3",
         project_dir / ".venv" / "Scripts" / "python.exe",
     ):
         if c.exists():
             try:
-                return c.resolve()
+                return c.absolute()
             except Exception:
                 return c
     return None
@@ -230,6 +232,21 @@ class JdkTable:
         self._ensure_component(root)
         return ET.ElementTree(root)
 
+    @staticmethod
+    def _generate_unique_uuid(xml_path: Path):
+        used = set()
+        try:
+            if xml_path.exists():
+                tree = ET.parse(xml_path)
+                root = tree.getroot()
+                used = {el.attrib["SDK_UUID"] for el in root.findall(".//additional[@SDK_UUID]")}
+        except Exception:
+            used = set()
+        new_uuid = str(uuid.uuid4())
+        while new_uuid in used:
+            new_uuid = str(uuid.uuid4())
+        return new_uuid
+
     def upsert_many(self, name_to_home: Dict[str, str]) -> None:
         changed_any = False
         for table in self._tables():
@@ -240,6 +257,7 @@ class JdkTable:
 
             for name, home in name_to_home.items():
                 target: Optional[ET.Element] = None
+                project_dir = Path(home).parent.parent.parent
                 for jdk in comp.findall("jdk"):
                     nm = jdk.find("name")
                     if nm is not None and nm.get("value") == name:
@@ -254,6 +272,14 @@ class JdkTable:
                     ET.SubElement(target, "name", {"value": name})
                     ET.SubElement(target, "type", {"value": self.sdk_type})
                     ET.SubElement(target, "homePath", {"value": home})
+                    add_el = ET.SubElement(target, "additional", {"ASSOCIATED_PROJECT_PATH": str(project_dir)})
+                                                                  #"SDK_UUID": JdkTable._generate_unique_uuid(table),
+                                                                  #"IS_UV":"true",
+                                                                  #UV_WORKING_DIR":str(project_dir)})
+                    # ET.SubElement(add_el, "PATHS_TO_TRANSFER_ROOT", {"PATHS_TO_TRANSFER": str(project_dir / "src")})
+                    ET.SubElement(add_el, "setting", {"name":"FLAVOR_ID", "value":"UvSdkFlavor"})
+                    ET.SubElement(add_el, "setting", {"name":"FLAVOR_DATA", "value":"{}"})
+
                     self._ensure_roots(target)
                     changed = True
                 else:
@@ -273,6 +299,32 @@ class JdkTable:
                     if home_el.get("value") != home:
                         home_el.set("value", home)
                         changed = True
+
+                    add_el = target.find("additional")
+                    if add_el is None:
+                        add_el = ET.SubElement(target, "additional", {"ASSOCIATED_PROJECT_PATH": str(project_dir),
+                                                                      "IS_UV":"true",
+                                                                      "UV_WORKING_DIR":str(project_dir)})
+                    if add_el.get("ASSOCIATED_PROJECT_PATH") != str(project_dir):
+                        add_el.set("ASSOCIATED_PROJECT_PATH", str(project_dir))
+                        changed = True
+                    if add_el.get("UV_WORKING_DIR") != str(project_dir):
+                        add_el.set("UV_WORKING_DIR", str(project_dir))
+                        changed = True
+                    if add_el.get("IS_UV") != "true":
+                        add_el.set("IS_UV", "true")
+                        changed = True
+
+                    setting_els = add_el.findall("setting")
+                    if setting_els is None:
+                        ET.SubElement(add_el, "setting", {"name": "FLAVOR_ID", "value": "UvSdkFlavor"})
+                        ET.SubElement(add_el, "setting", {"name": "FLAVOR_DATA", "value": "{}"})
+                    else:
+                        for el in setting_els:
+                            if el.get("name") == "FLAVOR_ID" and el.get("value") != "UvSdkFlavor":
+                                el.set("value", "UvSdkFlavor")
+                            if el.get("name") == "FLAVOR_DATA" and el.get("value") != "{}":
+                                el.set("value", "{}")
 
                     self._ensure_roots(target)
 
@@ -406,7 +458,8 @@ class ProjectModel:
             return []
 
         # substitute tokens and parse
-        raw = tpl.read_text(encoding="utf-8").replace("{APP}", app_name)
+        project_name = app_name.split("_")[0]
+        raw = tpl.read_text(encoding="utf-8").replace("{APP}", project_name)
         try:
             tpl_root = ET.fromstring(raw)
         except ET.ParseError:
@@ -460,6 +513,19 @@ class ProjectModel:
             log(f"modules.xml merged entries for app '{app_name}' ({len(added_iml_paths)} added).")
 
         return added_iml_paths
+
+    def register_module_in_modules_xml(self, iml_path: Path) -> None:
+        tree = _ensure_modules_xml()
+        mods = _modules_node(tree)
+        fp = as_project_macro(iml_path)
+        fu = as_project_url(iml_path)
+        # de-dupe
+        for m in mods.findall("module"):
+            if (_norm_path_attr(m.get("filepath")), _norm_path_attr(m.get("fileurl"))) == (fp, fu):
+                return
+        ET.SubElement(mods, "module", {"fileurl": fu, "filepath": fp})
+        write_xml(tree, CFG.idea / "modules.xml")
+        log(f"Registered module in modules.xml: {iml_path.name}")
 
 # =============================================================================
 # Discovery
@@ -588,6 +654,7 @@ def main() -> int:
         sdk_name = f"uv ({core.name})"
         jdk.upsert_many({sdk_name: str(py)})
         model.set_module_sdk(iml, sdk_name)
+        model.register_module_in_modules_xml(iml)
         realized_cores.append((core, sdk_name))
 
     # NOTE: We DO NOT rebuild modules.xml from disk anymore,
