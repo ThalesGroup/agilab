@@ -94,7 +94,7 @@ def as_project_url(p: Path) -> str:
 def content_url_for(dir_path: Path) -> str:
     try:
         rel = dir_path.relative_to(CFG.root)   # keep macros, no resolve here
-        return f"file://$PROJECT_DIR$/{rel.as_posix()}"
+        return f"file://$MODULE_DIR$/../../{rel.as_posix()}"
     except ValueError:
         return f"file://{dir_path.resolve().as_posix()}"
 
@@ -168,7 +168,7 @@ def ensure_uv_venv(project_dir: Path) -> Optional[Path]:
     try:
         name = project_dir.name if project_dir != CFG.root else CFG.project_name
         log(f"{name}: creating .venv via `uv venv` …")
-        subprocess.run(["uv", "venv"], cwd=str(project_dir), check=True)
+        subprocess.run(["uv", "venv"], cwd=project_dir, check=True)
     except Exception as e:
         log(f"{project_dir.name}: uv venv failed: {e}")
         return None
@@ -247,6 +247,41 @@ class JdkTable:
             new_uuid = str(uuid.uuid4())
         return new_uuid
 
+    def modify_associated_project(self, name_to_project: Dict[str, str]) -> None:
+        changed_any = False
+        for table in self._tables():
+            tree = self._load_or_init(table)
+            root = tree.getroot()
+            comp = self._ensure_component(root)
+            changed = False
+
+            for name, project in name_to_project.items():
+                project_dir = str(Path(project).parent.parent.parent)
+                project_dir.replace(str(Path.home()), "$USER_HOME$")
+
+                target: Optional[ET.Element] = None
+                for jdk in comp.findall("jdk"):
+                    nm = jdk.find("name")
+                    if (nm is not None and nm.get("value") == name) or \
+                            (nm is None and jdk.attrib.get("name") == name):
+                        target = jdk
+                        break
+
+                if target is not None:
+                    add_el = target.find("additional")
+                    if add_el is not None:
+                        if add_el.get("ASSOCIATED_PROJECT_PATH") != project_dir:
+                            add_el.set("ASSOCIATED_PROJECT_PATH", project_dir)
+                            changed = True
+
+            if changed:
+                write_xml(tree, table)
+                changed_any = True
+                log(f"Updated ASSOCIATED_PROJECT_PATH in {table} for {len(name_to_project)} SDK(s)")
+
+        if not changed_any:
+            log("No matching SDKs found to modify associated_project.")
+
     def upsert_many(self, name_to_home: Dict[str, str]) -> None:
         changed_any = False
         for table in self._tables():
@@ -257,7 +292,9 @@ class JdkTable:
 
             for name, home in name_to_home.items():
                 target: Optional[ET.Element] = None
-                project_dir = Path(home).parent.parent.parent
+                project_dir = str(Path(home).parent.parent.parent)
+                project_dir.replace(str(Path.home()), "$USER_HOME$")
+
                 for jdk in comp.findall("jdk"):
                     nm = jdk.find("name")
                     if nm is not None and nm.get("value") == name:
@@ -272,11 +309,9 @@ class JdkTable:
                     ET.SubElement(target, "name", {"value": name})
                     ET.SubElement(target, "type", {"value": self.sdk_type})
                     ET.SubElement(target, "homePath", {"value": home})
-                    add_el = ET.SubElement(target, "additional", {"ASSOCIATED_PROJECT_PATH": str(project_dir)})
-                                                                  #"SDK_UUID": JdkTable._generate_unique_uuid(table),
-                                                                  #"IS_UV":"true",
-                                                                  #UV_WORKING_DIR":str(project_dir)})
-                    # ET.SubElement(add_el, "PATHS_TO_TRANSFER_ROOT", {"PATHS_TO_TRANSFER": str(project_dir / "src")})
+                    add_el = ET.SubElement(target, "additional", {"ASSOCIATED_PROJECT_PATH": project_dir,
+                                                                  "IS_UV": "true",
+                                                                  "UV_WORKING_DIR": project_dir})
                     ET.SubElement(add_el, "setting", {"name":"FLAVOR_ID", "value":"UvSdkFlavor"})
                     ET.SubElement(add_el, "setting", {"name":"FLAVOR_DATA", "value":"{}"})
 
@@ -302,14 +337,15 @@ class JdkTable:
 
                     add_el = target.find("additional")
                     if add_el is None:
-                        add_el = ET.SubElement(target, "additional", {"ASSOCIATED_PROJECT_PATH": str(project_dir),
+                        add_el = ET.SubElement(target, "additional", {"ASSOCIATED_PROJECT_PATH": project_dir,
                                                                       "IS_UV":"true",
-                                                                      "UV_WORKING_DIR":str(project_dir)})
-                    if add_el.get("ASSOCIATED_PROJECT_PATH") != str(project_dir):
-                        add_el.set("ASSOCIATED_PROJECT_PATH", str(project_dir))
+                                                                      "UV_WORKING_DIR":project_dir})
+                    if add_el.get("ASSOCIATED_PROJECT_PATH") != project_dir:
+                        add_el.set("ASSOCIATED_PROJECT_PATH", project_dir)
                         changed = True
-                    if add_el.get("UV_WORKING_DIR") != str(project_dir):
-                        add_el.set("UV_WORKING_DIR", str(project_dir))
+
+                    if add_el.get("UV_WORKING_DIR") != project_dir:
+                        add_el.set("UV_WORKING_DIR", project_dir)
                         changed = True
                     if add_el.get("IS_UV") != "true":
                         add_el.set("IS_UV", "true")
@@ -446,7 +482,6 @@ class ProjectModel:
         return iml_path
 
     # ---- modules.xml MERGE from pycharm/_template_app_modules.xml ----
-
     def _merge_modules_from_app_template(self, app_name: str, app_dir: Path) -> List[Path]:
         """
         Merge <module> entries from pycharm/_template_app_modules.xml into .idea/modules.xml,
@@ -605,8 +640,8 @@ def main() -> int:
 
     # --- Apps: ensure venv, MERGE modules.xml from template, ensure *_project.iml exists, set SDK, run configs ---
     for app in apps:
-        py = ensure_uv_venv(app) if CFG.ensure_uv_venvs_apps else venv_python_for(app)
-        if not py:
+        py_app = ensure_uv_venv(app) if CFG.ensure_uv_venvs_apps else venv_python_for(app)
+        if not py_app:
             if CFG.attach_only_venvs:
                 log(f"{app.name}: no .venv → skipping.")
                 continue
@@ -638,8 +673,16 @@ def main() -> int:
 
         # 3) register SDK and pin into that module
         sdk_name = f"uv ({app.name})"
-        jdk.upsert_many({sdk_name: str(py)})
+        jdk.upsert_many({sdk_name: str(py_app)})
         model.set_module_sdk(target_iml, sdk_name)
+
+        # WENV
+        project = app.name.split("_")[0]
+        worker_path = Path.home() / "wenv" / f"{project}_worker"
+        sdk_name = f"uv ({project}_worker)"
+        py_worker = ensure_uv_venv(worker_path) if CFG.ensure_uv_venvs_apps else venv_python_for(worker_path)
+        jdk.upsert_many({sdk_name: str(py_worker)})
+        jdk.modify_associated_project({sdk_name: str(py_app)})
 
         realized_apps.append((app, sdk_name))
 
