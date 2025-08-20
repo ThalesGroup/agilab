@@ -227,7 +227,7 @@ class JdkTable:
             changed = False
 
             target = None
-            project_dir = str(Path(home).parent.parent.parent)
+            project_dir = str(home.parent.parent.parent)
             project_dir.replace(str(Path.home()), "$USER_HOME$")
 
             for jdk in comp.findall("jdk"):
@@ -554,7 +554,7 @@ def main():
         jdk_table.add_jdk(sdk_app, app_py)
         model.set_module_sdk(target, sdk_app)
 
-        project = app.name.split("_")[0]
+        project = app.name[:-8]
         worker_path = Path.home() / "wenv" / f"{project}_worker"
         sdk_worker = f"uv ({project}_worker)"
         worker_py = venv_python_for(worker_path)
