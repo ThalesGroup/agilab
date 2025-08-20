@@ -307,9 +307,8 @@ install_enduser() {
 
 install_pycharm_script() {
     rm -f .idea/workspace.xml
-    chmod +x pycharm/install-apps-script.py
     echo -e "${BLUE}Patching PyCharm workspace.xml interpreter settings...${NC}"
-    uv run -p "$AGI_PYTHON_VERSION" python pycharm/install-apps-script.py || echo -e "${YELLOW}pycharm/install-apps-script.py failed or not found; continuing.${NC}"
+    uv run -p "$AGI_PYTHON_VERSION" python pycharm/setup-pycharm.py || echo -e "${YELLOW}pycharm/install-apps-script.py failed or not found; continuing.${NC}"
 }
 
 # ================================
