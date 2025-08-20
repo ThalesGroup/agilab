@@ -418,7 +418,7 @@ class Project:
 
     def add_app_module_entry(self, module_name: str) -> Path | None:
         """Generate a module for the given app directory."""
-        project_name = module_name.split("_")[0]
+        project_name = module_name[:-8]
 
         tree = read_xml(self.cfg.MODULES)
         root = tree.getroot()
@@ -540,7 +540,7 @@ def main():
             if added_project.name.endswith("_project.iml"):
                 target = added_project
         if not target:
-            target = cfg.MODULES_DIR / f"{app.name}_project.iml"
+            target = cfg.MODULES_DIR / f"{app.name}.iml"
         if not target.exists():
             model.write_module_minimal(target.stem, app)
             # If the minimal wrote to a different path (modules/<name>.iml), move/rename if needed
