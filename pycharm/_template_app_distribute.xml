@@ -1,14 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="{APP} distribute" type="PythonConfigurationType" factoryName="Python" folder="{APP}">
+  <configuration default="false" name="{APP} distribute" type="PythonConfigurationType" factoryName="Python" folderName="{APP}_project">
     <module name="{APP}_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
     <envs>
       <env name="PYTHONUNBUFFERED" value="1" />
-      <env name="PROJECT_PATH" value="$PROJECT_DIR$/src/agilab/apps/{APP}_project" />
-      <env name="VIRTUAL_ENV" value="$PROJECT_DIR$/src/agilab/apps/{APP}_project/.venv" />
-      <env name="PYTHON_EXECUTABLE" value="$PROJECT_DIR$/src/agilab/apps/{APP}_project/.venv/bin/python" />
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="SDK_NAME" value="uv ({APP}_project)" />
@@ -27,5 +25,3 @@
     <method v="2" />
   </configuration>
 </component>
-
-
