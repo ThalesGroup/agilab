@@ -4,6 +4,7 @@
 .idea/
 !.idea/runConfigurations/
 .idea.bak/
+agi-space
 
 
 # Python virtual environments and build artifacts
