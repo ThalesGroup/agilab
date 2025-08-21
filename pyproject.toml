@@ -108,6 +108,7 @@ exclude = [
     ".idea*",
     "test*",
     "build*",
+    ".venv*"
 ]
 
 [tool.setuptools.package-data]
