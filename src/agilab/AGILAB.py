@@ -7,6 +7,7 @@ import streamlit as st
 import sys
 import argparse
 
+
 # ----------------- Fast-Loading Banner UI -----------------
 def quick_logo(resources_path: Path):
     try:
@@ -27,6 +28,7 @@ def quick_logo(resources_path: Path):
     except Exception as e:
         st.info(str(e))
         st.info("Welcome to AGILAB", icon="📦")
+
 
 def display_landing_page(resources_path: Path):
     from agilab.pagelib import get_base64_of_image
@@ -65,9 +67,11 @@ def display_landing_page(resources_path: Path):
     """
     st.markdown(md_content, unsafe_allow_html=True)
 
+
 def show_banner_and_intro(resources_path: Path):
     quick_logo(resources_path)
     display_landing_page(resources_path)
+
 
 def page(env):
     cols = st.columns(2)
@@ -94,6 +98,7 @@ def page(env):
     if "GUI_SAMPLING" not in st.session_state:
         st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
 
+
 # ------------------------- Main Entrypoint -------------------------
 
 def main():
@@ -119,15 +124,28 @@ def main():
         with st.spinner("Initializing environment..."):
             from agilab.pagelib import activate_mlflow
             from agi_env import AgiEnv
-
             parser = argparse.ArgumentParser(description="Run the AGI Streamlit App with optional parameters.")
-            parser.add_argument("--cluster-ssh-credentials", type=str, help="Cluster credentials (username:password)", default=None)
+            parser.add_argument("--cluster-ssh-credentials", type=str, help="Cluster credentials (username:password)",
+                                default=None)
             parser.add_argument("--openai-api-key", type=str, help="OpenAI API key (mandatory)", default=None)
-            parser.add_argument("--apps-dir", type=str, help="Where you store your apps (default is ./)", default="apps")
             parser.add_argument("--install-type", type=str, help="0:enduser(default)\n1:dev", default="0")
+            parser.add_argument("--apps-dir", type=str, help="Where you store your apps (default is ./)",
+                                default="apps")
+
             args, _ = parser.parse_known_args()
 
+            if args.apps_dir is None:
+                with open(Path("~/").expanduser() / ".local/share/agilab/.agi-path", "r") as f:
+                    agilab_path = f.read()
+                    before, sep, after = agilab_path.rpartition(".venv")
+                    args.apps_dir = Path(before) / "apps"
+
+            if args.apps_dir is None:
+                st.error("Error: Missing mandatory parameter: --apps-dir")
+                sys.exit(1)
+
             st.session_state["apps_dir"] = args.apps_dir
+
             st.session_state["INSTALL_TYPE"] = args.install_type
             env = AgiEnv(apps_dir=Path(args.apps_dir), install_type=int(args.install_type), verbose=1)
             env.init_done = True
