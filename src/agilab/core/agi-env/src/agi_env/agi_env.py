@@ -205,13 +205,26 @@ class AgiEnv:
         if not active_app:
             active_app = envars.get("APP_DEFAULT", 'flight_project')
 
-        if install_type == 1:
+        if install_type == 0:
+            # remote case
+            self.agilab_src = AgiEnv.locate_agilab_installation(verbose)
+            if AgiEnv.debug:
+                self.env_root = self.agilab_src / "agi-env"
+                self.cluster_root = self.agilab_src / "agi-cluster"
+                self.node_root = self.agilab_src / "agi-node"
+            else:
+                self.env_root = list(Path(sys.prefix).rglob('agi_env'))[0]
+                self.cluster_root = self.env_root .parent / "agi-cluster"
+                self.node_root = self.env_root .parent / "agi-node"
+
+        elif install_type == 1:
             # dev case
             self.agilab_src = AgiEnv.read_agilab_path(verbose)
-            self.env_root = self.agilab_src.parent / "agi_env"
-            self.cluster_root = self.agilab_src.parent
-            self.node_root = self.agilab_src.parent / "agi-node"
+            self.env_root = self.agilab_src.parent / "core/agi_env"
+            self.cluster_root = self.agilab_src / "core/agi-cluster"
+            self.node_root = self.agilab_src.parent / "core/agi-node"
             resource_path = self.env_root / self.agi_resources
+
         elif install_type == 2:
             # enduser case
             self.agilab_src = home_abs / "wenv" / active_app
@@ -222,24 +235,6 @@ class AgiEnv:
             if not self.env_root.exists():
                 raise RuntimeError(f"{self.env_root} do not exist\nYour Agilab installation is not valid")
             self._init_resources(resource_path)
-        elif install_type == 0:
-            # remote case
-            self.agilab_src = AgiEnv.locate_agilab_installation(verbose)
-            if AgiEnv.debug:
-                self.env_root = self.agilab_src / "core/agi-env"
-                self.cluster_root = self.agilab_src / "core/agi-cluster"
-                self.node_root = self.agilab_src / "core/agi-node"
-            else:
-                self.env_root = list(Path(sys.prefix).rglob('agi_env'))[0]
-                # self.agi_cluster_root = list(Path(sys.prefix).rglob('cluster'))[0]
-        elif install_type == 0:
-            head, sep, _ =  __file__.partition("agi_env")
-            if not sep:
-                raise ValueError("site-packages not in", __file__)
-            core = Path(head)
-            self.env_root = core / "agi-env"
-            self.cluster_root = core / "agi-cluster"
-            self.node_root = core / "agi-node"
 
         if not apps_dir:
             apps_dir = 'apps'
@@ -384,10 +379,6 @@ class AgiEnv:
             self.uv_worker = self.uv
             self.pyvers_worker = self.python_version
 
-        # os.makedirs(AgiEnv.apps_dir, exist_ok=True)
-        if "site-packages" in self.agilab_src.parts:
-            self.agilab_src = self.agilab_src.parent
-
         if install_type != 2:
             self.update_pyproject()
 
@@ -396,7 +387,7 @@ class AgiEnv:
             logging.info(f"Could not find any target project app in {self.agilab_src / 'apps'}.")
 
         self.setup_app = app_abs / "build.py"
-        self.setup_core = self.agilab_src / "core/agi-node/src/agi_node/agi_dispatcher/build.py"
+        self.setup_core = self.env_root.parent / "agi_node/agi_dispatcher/build.py"
 
         if isinstance(module, Path):
             module_path = module.expanduser().resolve()
@@ -497,7 +488,7 @@ class AgiEnv:
     def locate_agilab_installation(verbose=False):
         for p in sys.path_importer_cache:
             if p.endswith("agi_env"):
-                base_dir = os.path.dirname(p).replace('_env', 'lab')
+                base_dir = p.replace('_env', 'lab')
                 if verbose:
                     logging.info(f"Fallback agilab path found: {base_dir}")
                 if AgiEnv.install_type == 0:
