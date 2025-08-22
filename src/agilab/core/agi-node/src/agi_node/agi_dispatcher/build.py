@@ -177,13 +177,12 @@ def main() -> None:
 
     # For bdist_egg, choose target_pkg/module differently:
     if outdir:
-        target_pkg = Path(outdir).stem.removesuffix("_worker").removesuffix("_project")
+        target_pkg = Path(outdir).removesuffix("_worker").removesuffix("_project")
     else:
-        if packages:
-            target_pkg = packages[0].replace("_worker", "").replace("_project", "")
-        else:
-            logging.error("Cannot determine target package name.")
-            sys.exit(1)
+    #     if packages:
+    #         target_pkg = packages[0].replace("_worker", "").replace("_project", "")
+        logging.error("Cannot determine target package name.")
+        sys.exit(1)
 
     target_module = target_pkg.replace("-", "_")
     env = AgiEnv(active_app=target_pkg + "_project", install_type=install_type)

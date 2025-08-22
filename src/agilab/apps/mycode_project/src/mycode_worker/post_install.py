@@ -10,7 +10,7 @@ if __name__ == "__main__":
         print("Usage: python post_install.py <app> <install_type> [destination]")
         sys.exit(1)
 
-    env = AgiEnv(active_app=sys.argv[1], install_type=sys.argv[2])
+    env = AgiEnv(active_app=Path(sys.argv[1]), install_type=sys.argv[2])
     archive = Path(__file__).parent / "dataset.7z"
     dest_arg = sys.argv[3] if len(sys.argv) == 4 else None
     env.unzip_data(archive, dest_arg)
