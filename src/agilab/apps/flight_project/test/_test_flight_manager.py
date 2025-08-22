@@ -4,7 +4,7 @@ from flight import Flight  # assuming your Flight class is here
 from datetime import date
 
 async def main():
-    env = AgiEnv(active_app='flight', verbose=True)
+    env = AgiEnv(active_app=Path(__file_).parents[1], verbose=True)
 
     # Instantiate Flight with your parameters
     flight = Flight(

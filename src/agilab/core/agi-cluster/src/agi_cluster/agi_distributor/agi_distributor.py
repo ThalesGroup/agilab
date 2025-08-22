@@ -1073,7 +1073,7 @@ class AGI:
         if src.exists():
             os.makedirs(env.home_abs / env.data_rel / "dataset", exist_ok=True)
             shutil.copy2(src, dest)
-        cmd = f"{uv_worker} run --no-sync --project {wenv_abs} python {env.home_abs / env.post_install_rel} {env.target} 1 {env.data_rel}"
+        cmd = f"{uv_worker} run --no-sync --project {wenv_abs} python {env.home_abs / env.post_install_rel} {env.app_abs} 2 {env.data_rel}"
         await AgiEnv.run(cmd, wenv_abs)
 
         # Build target_worker lib local
@@ -1238,7 +1238,7 @@ class AGI:
         Update the cluster's virtual environment.
 
         Args:
-            module_name_or_path (str):
+            project_path (Path):
                 The name of the module to install or the path to the module.
             list_ip (List[str], optional):
                 A list of IPv4 addresses with SSH access. Each IP should have Python,

@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
-base_path = Path(__file__).resolve().parents[3]
-path = str(base_path  / "core/node/src")
+base_path = Path(__file__).resolve()
+path = str(base_path.parent[3]  / "core/node/src")
 if path not in sys.path:
     sys.path.append(path)
 from agi_node.agi_dispatcher import BaseWorker
@@ -22,11 +22,11 @@ async def main():
         'datemax': "2021-01-01",
         'output_format': "csv"
     }
-
-    sys.path.insert(0, base_path / 'apps/flight_project/src')
+    app_abs = base_path.parents[1]
+    sys.path.insert(0, app_abs / 'src')
     sys.path.insert(0,'~/wenv/flight_worker/dist')
 
-    env = AgiEnv(install_type=1, active_app="flight_project", verbose=True)
+    env = AgiEnv(install_type=1, active_app=app_abs, verbose=True)
     # build the egg
     wenv = env.wenv_abs
     build = wenv / "build.py"

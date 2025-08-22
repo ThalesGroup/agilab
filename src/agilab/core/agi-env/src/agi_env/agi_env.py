@@ -177,8 +177,19 @@ class AgiEnv:
 
         logging.debug(f"Logging initialized at level {logging.getLevelName(root.level)}")
 
-    def __init__(self, install_type: int = None, apps_dir: Path = None,
-                 active_app: Path | str = None, verbose: int = None, debug=False, python_variante: str = ''):
+    def __init__(self,
+                 active_app: Path,
+                 install_type: int = None,
+                 verbose: int = None,
+                 debug=False,
+                 python_variante: str = ''):
+  # normalize to Path
+        if not active_app.name.endswith('_project'):
+            raise ValueError(f"{active_app} must end with '_project'")
+        self.active_app = active_app
+        if not active_app.name.endswith('_project'):
+            raise ValueError(f"{active_app} must end with '_project'")
+
         AgiEnv.verbose = verbose
         self.verbose = verbose
         AgiEnv.python_variante = python_variante
@@ -203,7 +214,7 @@ class AgiEnv:
         AgiEnv.install_type = install_type
 
         if not active_app:
-            active_app = envars.get("APP_DEFAULT", 'flight_project')
+            active_app = Path(envars.get("APP_DEFAULT", 'flight_project'))
 
         if install_type == 0:
             # remote case
@@ -220,9 +231,9 @@ class AgiEnv:
         elif install_type == 1:
             # dev case
             self.agilab_src = AgiEnv.read_agilab_path(verbose)
-            self.env_root = self.agilab_src.parent / "core/agi_env"
+            self.env_root = self.agilab_src / "core/agi-env"
             self.cluster_root = self.agilab_src / "core/agi-cluster"
-            self.node_root = self.agilab_src.parent / "core/agi-node"
+            self.node_root = self.agilab_src / "core/agi-node"
             resource_path = self.env_root / self.agi_resources
 
         elif install_type == 2:
@@ -236,14 +247,7 @@ class AgiEnv:
                 raise RuntimeError(f"{self.env_root} do not exist\nYour Agilab installation is not valid")
             self._init_resources(resource_path)
 
-        if not apps_dir:
-            apps_dir = 'apps'
-            if install_type != 2:
-                apps_dir = envars.get("APPS_DIR", apps_dir)
-        else:
-            set_key(dotenv_path=env_path, key_to_set="APPS_DIR", value_to_set=str(apps_dir))
-
-        apps_dir = Path(apps_dir)
+        apps_dir = active_app.parent
 
         try:
             if apps_dir.exists():
@@ -260,25 +264,7 @@ class AgiEnv:
         self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
 
         src_apps = None
-        if isinstance(active_app, str):
-            if not active_app.endswith('_project'):
-                active_app = active_app + '_project'
-            self.app = active_app
-            if not install_type:
-                src_apps = self.agilab_src / "apps"
-                #apps_dir = Path(self.agilab_src).parents[4] / "apps"
-                if not apps_dir.exists():
-                    if src_apps.exists():
-                        self.copy_existing_projects(src_apps, apps_dir)
-                    else:
-                        print(f"Warning: {src_apps} does not exist, nothing to copy!")
-                else:
-                    self.copy_missing(src_apps, apps_dir)
-                src_apps = apps_dir
-            module = active_app.replace("_project", "").replace("-", "_")
-        else:
-            apps_dir = self._determine_apps_dir(active_app)
-            module = apps_dir.name.replace("_project", "").replace("-", "_")
+        module = active_app.name.replace("_project", "").replace("-", "_")
         self.module = module
         wenv_root = Path("wenv")
         target_worker = f"{module}_worker"
@@ -303,32 +289,33 @@ class AgiEnv:
         self.wenv_target_worker = self.wenv_abs
 
         if install_type == 0:
-            app_abs = src_apps / active_app
-            app_src = app_abs / "src"
-            self.app_pyproject = app_abs / "pyproject.toml"
+            app_src = active_app / "src"
+            self.app_pyproject = active_app / "pyproject.toml"
             self.worker_path = app_src / target_worker / f"{target_worker}.py"
             self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
             self.module_path = app_src / module / f"{self.module}.py"
             worker_module_path = self.worker_path.parent
+            self.setup_core = self.agilab_src / "core/agi_node/agi_dispatcher/build.py"
 
         elif install_type == 1:
-            app_abs = self.agilab_src / apps_dir / active_app
-            app_src = app_abs / "src"
-            self.app_pyproject = app_abs / "pyproject.toml"
+            app_src = active_app / "src"
+            self.app_pyproject = active_app / "pyproject.toml"
             self.worker_path = app_src / target_worker / f"{target_worker}.py"
             self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
             self.module_path = app_src / module / f"{self.module}.py"
             worker_module_path = self.worker_path.parent
+            self.setup_core = self.agilab_src / "core/agi-node/src/agi_node/agi_dispatcher/build.py"
 
         elif install_type == 2:
-            app_abs = self.agilab_src
+            active_app = self.agilab_src
             app_src = self.agilab_src / "src"
             self.worker_path = self.wenv_rel / 'src' / target_worker / f"{target_worker}.py"
             self.module_path = self.wenv_rel / 'src' / module / f"{self.module}.py"
             worker_module_path = self.worker_path.parent
+            self.setup_core = self.wenv_rel / "src/agi_dispatcher/build.py"
 
-        self.app_abs = app_abs
-        self.uvproject = app_abs / "uv_config.toml"
+        self.app_abs = active_app
+        self.uvproject = active_app / "uv_config.toml"
         self.post_install = worker_module_path / "post_install.py"
         self.pre_install = worker_module_path / "pre_install.py"
         self.post_install_rel = self.wenv_rel / 'src' / target_worker / "post_install.py"
@@ -386,8 +373,7 @@ class AgiEnv:
         if not self.projects:
             logging.info(f"Could not find any target project app in {self.agilab_src / 'apps'}.")
 
-        self.setup_app = app_abs / "build.py"
-        self.setup_core = self.env_root.parent / "agi_node/agi_dispatcher/build.py"
+        self.setup_app = active_app / "build.py"
 
         if isinstance(module, Path):
             module_path = module.expanduser().resolve()
@@ -417,7 +403,7 @@ class AgiEnv:
         if app_src_str not in sys.path:
             sys.path.append(app_src_str)
         self.app_src = app_src
-        self.app_abs = app_abs
+        self.app_abs = active_app
 
         # type 3: only core install
         if AgiEnv.install_type != 3:
@@ -430,8 +416,8 @@ class AgiEnv:
             AgiEnv.export_local_bin = 'export PATH="$HOME/.local/bin:$PATH";'
 
     def active(self, target, install_type):
-        if self.module != target:
-            self.change_active_app(target + '_project', install_type)
+        if str(self.active_app) != target:
+            self.change_active_app(target, install_type)
 
     def check_args(self, target_args_class, target_args):
         try:
@@ -1095,15 +1081,8 @@ class AgiEnv:
             logger.error(f"Failed to create symlink {dest} -> {src}: {e}")
 
     def change_active_app(self, app, install_type=1):
-        if isinstance(app, str):
-            app_name = app
-        elif isinstance(app, Path):
-            app_name = app.name
-        else:
-            raise TypeError(f"Invalid app type (<str>|<Path>): {type(app)}")
-
-        if app_name != self.app:
-            self.__init__(active_app=app_name, install_type=install_type, verbose=AgiEnv.verbose)
+        if app != str(self.active_app):
+            self.__init__(active_app=app, install_type=install_type, verbose=AgiEnv.verbose)
 
     @staticmethod
     def is_local(ip):

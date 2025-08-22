@@ -49,9 +49,6 @@ async def main():
         parser.add_argument("app", type=str, help="Module name")
 
         parser.add_argument(
-            "--apps-dir", type=str, help="Directory for apps", required=True
-        )
-        parser.add_argument(
             "--install-type", type=str, help="Install type", required=True
         )
         parser.add_argument(
@@ -60,14 +57,14 @@ async def main():
 
         args, unknown = parser.parse_known_args()
         # print(args.apps_dir)
-        env = AgiEnv(active_app=args.app, apps_dir=args.apps_dir, install_type=int(args.install_type),
+        env = AgiEnv(Path(args.app), install_type=int(args.install_type),
                      verbose=args.verbose)
 
     except Exception as e:
         raise Exception("Failed to resolve env and core path in toml") from e
 
     await AGI.install(
-        args.app.replace("_project", ""),
+        args.app,
         env=env,
         type=int(args.install_type),
         scheduler="127.0.0.1",
