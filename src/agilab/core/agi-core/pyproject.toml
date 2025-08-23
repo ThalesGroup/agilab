@@ -1,6 +1,6 @@
 [project]
 name = "agi-core"
-version = "0.5.1"
+version = "0.5.2"
 description = "AGI core aggregation of agi-env, agi-cluster, agi-node"
 requires-python = ">=3.11"
 authors = [
