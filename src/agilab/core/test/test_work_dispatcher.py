@@ -22,12 +22,12 @@ def test__convert_delegates_correctly(dispatcher):
 
 
 def test_do_distrib_calls_expected_methods(dispatcher):
-    if hasattr(dispatcher, 'do_work'):
-        with patch.object(dispatcher, 'do_work') as mock_do_work:
+    if hasattr(dispatcher, 'do_distrib'):
+        with patch.object(dispatcher, 'do_distrib') as mock_do_work:
             # Ici tu peux ajouter le code de test réel si besoin
             pass
     else:
-        pytest.skip("No _do_work method in WorkDispatcher")
+        pytest.skip("No do_work method in WorkDispatcher")
 
 
 def test_onerror_handles_exception(dispatcher):
