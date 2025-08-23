@@ -22,7 +22,7 @@
 | brotli | MIT LICENSE |
 | certifi | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | cffi | MIT LICENSE |
-| charset-normalizer | MIT LICENSE |
+| charset-normalizer | MIT |
 | click | BSD-3-CLAUSE |
 | cloudpickle | BSD LICENSE |
 | comm | BSD LICENSE |
@@ -87,7 +87,6 @@
 | notebook-shim | BSD LICENSE |
 | numba | BSD LICENSE |
 | numpy | BSD LICENSE |
-| overrides | APACHE LICENSE_ VERSION 2.0 |
 | packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | pandas | BSD LICENSE |
 | pandocfilters | BSD LICENSE |
@@ -124,7 +123,7 @@
 | rfc3339-validator | MIT LICENSE |
 | rfc3986-validator | MIT LICENSE |
 | rfc3987-syntax | APACHE SOFTWARE LICENSE |
-| rpds-py | MIT |
+| rpds-py |  |
 | scikit-learn | BSD-3-CLAUSE |
 | scipy | BSD LICENSE |
 | scp | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
