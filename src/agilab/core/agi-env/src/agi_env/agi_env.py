@@ -236,6 +236,8 @@ class AgiEnv:
         elif install_type == 1:
             # dev case for manager
             self.agilab_src = AgiEnv.read_agilab_path(verbose)
+            if not self.agilab_src:
+                self.agilab_src = AgiEnv.locate_agilab_installation(verbose)
             self.env_root = self.agilab_src / "core/agi-env"
             self.cluster_root = self.agilab_src / "core/agi-cluster"
             self.node_root = self.agilab_src / "core/agi-node"
