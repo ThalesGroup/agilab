@@ -148,3 +148,21 @@ The following message appears when you try to [debug] `<gen-docstings>`:
 
 This is because your Pycharm script is pointing an a venv but the project containing this venv is not attach to your current project.
 So you have to attach this project to your currrent project for enabling your script to be runnable again.
+
+
+<PYCHARM> Can't open your project
+---------------------------------
+After an install of agilab when you select your project to open but it failed.
+This might come from pycharm/setup-pycharm.sh that have corrupted your pycharm settings
+
+**Solution (macOS):**
+
+# remove caches and index
+rm -rf ~/Library/Caches/JetBrains/PyCharm*
+
+# remove locks / and broken files
+find ~/Library/Application\ Support/JetBrains -maxdepth 2 -type f -name '*.lock' -delete
+rm -f  ~/Library/Application\ Support/JetBrains/PyCharm*/options/recentProjects.xml
+rm -f  ~/Library/Application\ Support/JetBrains/PyCharm*/options/other.xml.___jb_tmp___
+rm -f  ~/Library/Application\ Support/JetBrains/PyCharm*/options/jdk.table.xml
+rm -f  ~/Library/Application\ Support/JetBrains/PyCharm*/options/jdk.table.xml.___jb_tmp___

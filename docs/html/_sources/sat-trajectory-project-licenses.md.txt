@@ -1,6 +1,9 @@
 # Sat-trajectory-project Licenses
 | Package Name | License |
 |--------------|---------|
+| agi-cluster |  |
+| agi-env |  |
+| agi-node |  |
 | annotated-types | MIT LICENSE |
 | anyio | MIT LICENSE |
 | appnope | BSD LICENSE |
@@ -22,7 +25,6 @@
 | charset-normalizer | MIT LICENSE |
 | click | BSD-3-CLAUSE |
 | cloudpickle | BSD LICENSE |
-| cluster | GNU LESSER GENERAL PUBLIC LICENSE V2 _LGPLV2_ |
 | comm | BSD LICENSE |
 | cramjam | MIT |
 | cryptography | APACHE-2.0;; BSD-3-CLAUSE |
@@ -32,7 +34,6 @@
 | decorator | BSD LICENSE |
 | defusedxml | PYTHON SOFTWARE FOUNDATION LICENSE |
 | distributed | BSD LICENSE |
-| env | BSD LICENSE |
 | executing | MIT LICENSE |
 | fastjsonschema | BSD LICENSE |
 | fastparquet | APACHE SOFTWARE LICENSE |
@@ -46,6 +47,7 @@
 | humanize | MIT License |
 | idna | BSD LICENSE |
 | inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| invoke | BSD LICENSE |
 | ipykernel | BSD 3-CLAUSE LICENSE |
 | ipython | BSD LICENSE |
 | ipython-pygments-lexers | BSD LICENSE |
@@ -85,12 +87,10 @@
 | nbconvert | BSD LICENSE |
 | nbformat | BSD LICENSE |
 | nest-asyncio | BSD LICENSE |
-| node | BSD LICENSE |
 | notebook | BSD LICENSE |
 | notebook-shim | BSD LICENSE |
 | numba | BSD LICENSE |
 | numpy | BSD LICENSE |
-| overrides | APACHE LICENSE_ VERSION 2.0 |
 | packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | pandas | BSD LICENSE |
 | pandocfilters | BSD LICENSE |
