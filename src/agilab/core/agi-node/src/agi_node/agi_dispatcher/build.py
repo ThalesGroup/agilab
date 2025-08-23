@@ -164,7 +164,6 @@ def cleanup_links(links: list[Path]) -> None:
             logging.warning(f"Failed to remove {link}: {e}")
 
 def main() -> None:
-
     cwd = Path(__file__).parent
     os.chdir(cwd)
     opts = parse_custom_args(sys.argv[1:], cwd)
@@ -172,20 +171,19 @@ def main() -> None:
     packages = opts.packages
     install_type = opts.install_type
 
-    # Determine out_dir (strip file to dir)
     outdir = opts.build_dir if cmd == "build_ext" else opts.dist_dir
-
-    # For bdist_egg, choose target_pkg/module differently:
-    if outdir:
-        target_pkg = Path(outdir).removesuffix("_worker").removesuffix("_project")
-    else:
-    #     if packages:
-    #         target_pkg = packages[0].replace("_worker", "").replace("_project", "")
+    if not outdir:
         logging.error("Cannot determine target package name.")
         sys.exit(1)
 
-    target_module = target_pkg.replace("-", "_")
-    env = AgiEnv(active_app=target_pkg + "_project", install_type=install_type)
+    outdir = Path(outdir)
+    name = outdir.name.removesuffix("_worker").removesuffix("_project")
+
+    target_pkg = outdir.with_name(name)
+    target_module = name.replace("-", "_")
+    active_app = target_pkg.with_name(name + "_project")
+
+    env = AgiEnv(active_app=active_app, install_type=install_type)
 
     p = Path(outdir)
     if p.suffix and not p.is_dir():

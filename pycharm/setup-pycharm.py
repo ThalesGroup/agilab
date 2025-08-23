@@ -227,7 +227,7 @@ class JdkTable:
             changed = False
 
             target = None
-            project_dir = str(home.parent.parent.parent)
+            project_dir = str(home.parents[2])
             project_dir.replace(str(Path.home()), "$USER_HOME$")
 
             for jdk in comp.findall("jdk"):

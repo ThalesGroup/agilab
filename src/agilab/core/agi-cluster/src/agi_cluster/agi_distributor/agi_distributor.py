@@ -154,7 +154,6 @@ class AGI:
 
     @staticmethod
     async def run(
-            target: str,
             env: AgiEnv,  # some_default_value must be defined
             scheduler: Optional[str] = None,
             workers: Optional[Dict[str, int]] = None,
@@ -189,7 +188,7 @@ class AGI:
             RuntimeError: If the target module fails to load.
         """
         AGI.env = env
-        env.active(target, env.install_type)
+        #env.active(target, env.install_type)
 
         if not workers:
             workers = workers_default
@@ -199,7 +198,7 @@ class AGI:
         AGI.target_path = env.module_path
         AGI._target = env.target
         AGI._rapids_enabled = rapids_enabled
-        logging.info(f"AGI instance created for target {target} with verbosity {env.verbose}")
+        logging.info(f"AGI instance created for target {env.target} with verbosity {env.verbose}")
 
         if mode is None or isinstance(mode, list):
             mode_range = range(8) if mode is None else sorted(mode)
@@ -982,14 +981,8 @@ class AGI:
         wenv_abs = env.wenv_abs
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         uv = cmd_prefix + env.uv
-        # pyvers = env.envars.get(str("{ip}_PYTHON_VERSION"), "")
         pyvers = env.python_version
 
-        #os.makedirs(wenv_abs, exist_ok=True)
-        #file = env.worker_pyproject
-        #logging.info(f"Copying {file} -> {wenv_abs}")
-
-        #shutil.copy(file, wenv_abs / file.name)
         file = env.setup_core
         logging.info(f"Copying {file} -> {wenv_abs}")
 
@@ -1045,7 +1038,6 @@ class AGI:
         except StopIteration:
            raise RuntimeError(cmd)
 
-        #cmd = f"{uv} --project {wenv_abs} add {whl}"
         cmd = f"{uv_worker} pip install -e {env.env_root}"
         await AgiEnv.run(cmd, wenv_abs)
 
@@ -1061,7 +1053,6 @@ class AGI:
         except StopIteration:
            raise RuntimeError(cmd)
 
-        #cmd = f"{uv} --project {wenv_abs} add {whl}"
         cmd = f"{uv_worker} pip install -e {env.node_root}"
         await AgiEnv.run(cmd, wenv_abs)
 
@@ -1073,7 +1064,10 @@ class AGI:
         if src.exists():
             os.makedirs(env.home_abs / env.data_rel / "dataset", exist_ok=True)
             shutil.copy2(src, dest)
-        cmd = f"{uv_worker} run --no-sync --project {wenv_abs} python {env.home_abs / env.post_install_rel} {env.app_abs} 2 {env.data_rel}"
+        cmd = (f"{uv_worker} run --no-sync --project {wenv_abs} python {env.home_abs / env.post_install_rel} "
+               f"{env.app_abs} "
+               f"{env.install_type} "
+               f"{env.data_rel}")
         await AgiEnv.run(cmd, wenv_abs)
 
         # Build target_worker lib local
@@ -1177,7 +1171,7 @@ class AGI:
         await AGI.exec_ssh(ip, cmd)
 
         # build target_worker lib from src/
-        cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {wenv_rel / env.setup_app.name} build_ext -i 2 -b {wenv_rel}"
+        cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {wenv_rel / env.setup_app.name} build_ext --install-type 2 -b {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
 
     @staticmethod
@@ -1226,7 +1220,6 @@ class AGI:
 
     @staticmethod
     async def install(
-    module_name: str,
     env: AgiEnv,
     scheduler: Optional[str] = None,
     workers: Optional[Dict[str, int]] = None,
@@ -1262,8 +1255,7 @@ class AGI:
         """
         AGI._run_type = "sync"
         mode = (AGI.INSTALL_MODE | modes_enabled)
-        await AGI.run(module_name,
-                      scheduler=scheduler,
+        await AGI.run(scheduler=scheduler,
                       workers=workers,
                       env=env,
                       mode=mode,
@@ -1272,7 +1264,6 @@ class AGI:
 
     @staticmethod
     async def update(
-    module_name: str,
     scheduler: Optional[str] = None,
     workers: Optional[Dict[str, int]] = None,
     env: Optional[AgiEnv] = None,
@@ -1561,7 +1552,6 @@ class AGI:
         cmd_prefix = env.envars.get(f"127.0.0.1_CMD_PREFIX", "")
         if env.is_free_threading_available:
             uv = cmd_prefix + " PYTHON_GIL=0 " + env.uv
-        #cmd = f"{uv} --project {app_path} run python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d {wenv_abs}"
         cmd = f"{env.uv} --project {wenv_abs} run --no-sync python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d \"{wenv_abs}\""
 
         await AgiEnv.run(cmd, app_path)
@@ -1576,7 +1566,7 @@ class AGI:
         if is_cy:
             # cython compilation of wenv/src into wenv
             shutil.copy2(env.setup_core, wenv_abs)
-            cmd = f"{env.uv} --project {app_path} run --no-sync python {env.setup_app} build_ext -b {wenv_abs}"
+            cmd = f"{env.uv} --project {app_path} run --no-sync python {env.setup_app} build_ext --install-type 1 -b {wenv_abs}"
             res = await AgiEnv.run(cmd, app_path)
             try:
                 worker_lib = next(iter((wenv_abs / 'dist').glob("*_cy.*")), None)
@@ -1632,13 +1622,6 @@ class AGI:
         if AGI._mode & AGI.CYTHON_MODE:
             wenv_abs = env.wenv_abs
             cython_lib_path = Path(wenv_abs)
-
-            # Look for any files or directories in the Cython lib path that match the "*cy*" pattern.
-            # cython_libs = list(cython_lib_path.glob("*cy*"))
-            # if cython_libs:
-            #     lib_path = normalize_path(cython_libs[0])
-            # else:
-            #     AGI._build_lib_local()
 
         if env.debug:
             BaseWorker.new(env.app, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)

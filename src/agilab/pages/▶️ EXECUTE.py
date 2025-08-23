@@ -718,8 +718,8 @@ from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv, normalize_path
 
 async def main():
-    env = AgiEnv(install_type={env.install_type}, verbose={verbose})
-    res = await AGI.install('{module}', env, modes_enabled={st.session_state.mode},
+    app_env = AgiEnv(active_app={env.app_path} ,install_type={env.install_type}, verbose={verbose})
+    res = await AGI.install(app_env, modes_enabled={st.session_state.mode},
                             verbose={verbose}, 
                             scheduler={scheduler}, workers={workers})
     print(res)
@@ -801,8 +801,8 @@ from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv, normalize_path
 
 async def main():
-    env = AgiEnv(install_type={env.install_type}, verbose={verbose})
-    res = await AGI.distribute('{module}', env, verbose={verbose}, 
+    app_env = AgiEnv(active_app={env.app_path}, install_type={env.install_type}, verbose={verbose})
+    res = await AGI.distribute(app_env, verbose={verbose}, 
                                 scheduler={scheduler}, workers={workers}, {st.session_state.args_serialized})
     print(res)
     return res
@@ -902,8 +902,8 @@ from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv, normalize_path
 
 async def main():
-    env = AgiEnv(install_type={env.install_type}, verbose={verbose}) 
-    res = await AGI.run('{module}', env, mode={st.session_state["mode"]}, 
+    app_env = AgiEnv(active_app={env.app_path}, install_type={env.install_type}, verbose={verbose}) 
+    res = await AGI.run(app_env, mode={st.session_state["mode"]}, 
                         scheduler={scheduler}, workers={workers}, 
                         verbose={verbose}, {st.session_state.args_serialized})
     print(res)
