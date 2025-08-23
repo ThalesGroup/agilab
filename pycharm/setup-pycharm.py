@@ -557,9 +557,13 @@ def main():
         project = app.name[:-8]
         worker_path = Path.home() / "wenv" / f"{project}_worker"
         sdk_worker = f"uv ({project}_worker)"
-        worker_py = venv_python_for(worker_path)
-        jdk_table.add_jdk(sdk_worker, worker_py)
         jdk_table.set_associated_project(sdk_worker, app_py)
+
+        worker_py = venv_python_for(worker_path)
+        if not worker_py:
+            logging.warning(f"No virtual environment found for {worker_path.name}, skipping.")
+            continue
+        jdk_table.add_jdk(sdk_worker, worker_py)
 
         realized_apps.append(app.name)
 

@@ -10,7 +10,8 @@ from mycode import Mycode
 
 @pytest.mark.asyncio
 async def test_mycode_build_distribution():
-    env = AgiEnv(active_app='mycode', verbose=True)
+    active_app = Path(__file__).resolve().parents[1]
+    env = AgiEnv(active_app=active_app, verbose=True)
 
     mycode = Mycode(
         env=env,
