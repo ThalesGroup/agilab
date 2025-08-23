@@ -57,15 +57,14 @@ async def main():
 
         args, unknown = parser.parse_known_args()
         # print(args.apps_dir)
-        env = AgiEnv(Path(args.app), install_type=int(args.install_type),
+        app_env = AgiEnv(Path(args.app), install_type=int(args.install_type),
                      verbose=args.verbose)
 
     except Exception as e:
         raise Exception("Failed to resolve env and core path in toml") from e
 
     await AGI.install(
-        args.app,
-        env=env,
+        env=app_env,
         type=int(args.install_type),
         scheduler="127.0.0.1",
         verbose=args.verbose,

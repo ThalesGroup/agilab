@@ -238,10 +238,10 @@ class AgiEnv:
 
         elif install_type == 2:
             # enduser case
-            self.agilab_src = home_abs / "wenv" / active_app
-            self.env_root = self.agilab_src / "core/agi-env"
-            self.node_root = self.agilab_src / "core/agi-node"
-            self.cluster_root = self.agilab_src / "core/agi-cluster"
+            self.agilab_src = AgiEnv.locate_agilab_installation(verbose)
+            self.env_root = self.agilab_src / "../agi-env"
+            self.node_root = self.agilab_src / "../agi-node"
+            self.cluster_root = self.agilab_src / "../agi-cluster"
             resource_path = self.env_root / "src/agi_env" / self.agi_resources
             if not self.env_root.exists():
                 raise RuntimeError(f"{self.env_root} do not exist\nYour Agilab installation is not valid")
@@ -263,7 +263,6 @@ class AgiEnv:
         self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
         self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
 
-        src_apps = None
         module = active_app.name.replace("_project", "").replace("-", "_")
         self.module = module
         wenv_root = Path("wenv")
@@ -1081,7 +1080,7 @@ class AgiEnv:
             logger.error(f"Failed to create symlink {dest} -> {src}: {e}")
 
     def change_active_app(self, app, install_type=1):
-        if app != str(self.active_app):
+        if app != str(self.active_app.name):
             self.__init__(active_app=app, install_type=install_type, verbose=AgiEnv.verbose)
 
     @staticmethod

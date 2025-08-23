@@ -8,8 +8,8 @@ from agi_env import AgiEnv
 @pytest.fixture
 def env():
     agipath = AgiEnv.locate_agilab_installation(verbose=False)
-    apps_dir = agipath / 'apps'
-    return AgiEnv(active_app='flight_project', apps_dir=apps_dir, install_type=1, verbose=1)
+    app_path = agipath / 'apps/flight_project'
+    return AgiEnv(active_app=app_path, install_type=1, verbose=1)
 
 def test_replace_content_replaces_whole_words(env):
     txt = 'foo foo_bar barfoo bar Foo foo.'
