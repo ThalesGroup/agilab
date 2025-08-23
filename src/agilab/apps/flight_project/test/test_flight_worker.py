@@ -33,7 +33,7 @@ def args():
 
 @pytest_asyncio.fixture(scope="session")
 async def env():
-    env = AgiEnv(install_type=1, active_app=app_abs, verbose=True)
+    env = AgiEnv(active_app=app_abs, verbose=True)
     wenv = env.wenv_abs
     build = wenv / 'build.py'
 
