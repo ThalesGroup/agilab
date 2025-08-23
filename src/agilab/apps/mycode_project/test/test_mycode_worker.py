@@ -24,7 +24,8 @@ async def test_baseworker_mycode_project(mode):
     from agi_env import AgiEnv
     from agi_node.agi_dispatcher import BaseWorker
 
-    env = AgiEnv(install_type=1, active_app="mycode_project", verbose=True)
+    active_app = Path(__file__).resolve().parents[1]
+    env = AgiEnv(active_app=active_app, verbose=True)
     with open(env.home_abs / ".local/share/agilab/.agilab-path", 'r') as f:
         agilab_path = Path(f.read().strip())
 

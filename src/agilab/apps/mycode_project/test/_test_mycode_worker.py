@@ -15,7 +15,8 @@ async def main():
     sys.path.insert(0, base_path/ 'apps/mycode_project/src')
     sys.path.insert(0,'~/wenv/mycode_worker/dist')
 
-    env = AgiEnv(install_type=1, active_app="mycode_project", verbose=True)
+    active_app = Path(__file__).resolve().parents[1]
+    env = AgiEnv(active_app=active_app, verbose=True)
     # build the egg
     wenv = env.wenv_abs
     build = wenv / "build.py"

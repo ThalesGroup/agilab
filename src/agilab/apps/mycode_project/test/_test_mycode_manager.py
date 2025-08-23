@@ -4,7 +4,8 @@ from mycode import Mycode  # assuming your Mycode class is here
 from datetime import date
 
 async def main():
-    env = AgiEnv(active_app='mycode', verbose=True)
+    active_app = Path(__file__).resolve().parents[1]
+    env = AgiEnv(active_app=active_app, verbose=True)
 
     # Instantiate Mycode with your parameters
     mycode = Mycode(

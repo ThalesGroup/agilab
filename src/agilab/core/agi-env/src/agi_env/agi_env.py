@@ -69,6 +69,7 @@ class AgiEnv:
     GUI_SAMPLING = None
     init_done = False
     has_rapids_hw = None
+    is_worker_env = False
     debug = False
     uv = None
     benchmark = None
@@ -178,17 +179,21 @@ class AgiEnv:
         logging.debug(f"Logging initialized at level {logging.getLevelName(root.level)}")
 
     def __init__(self,
-                 active_app: Path,
+                 active_app: Path | str = None,
                  install_type: int = None,
                  verbose: int = None,
                  debug=False,
                  python_variante: str = ''):
-  # normalize to Path
-        if not active_app.name.endswith('_project'):
-            raise ValueError(f"{active_app} must end with '_project'")
-        self.active_app = active_app
-        if not active_app.name.endswith('_project'):
-            raise ValueError(f"{active_app} must end with '_project'")
+
+        if isinstance(active_app, str):
+            # case only worker_env
+            self.is_worker_env = True
+        else:
+            if not active_app.name.endswith('_project'):
+                raise ValueError(f"{active_app} must end with '_project'")
+            self.active_app = active_app
+            if not active_app.name.endswith('_project'):
+                raise ValueError(f"{active_app} must end with '_project'")
 
         AgiEnv.verbose = verbose
         self.verbose = verbose
@@ -229,7 +234,7 @@ class AgiEnv:
                 self.node_root = self.env_root .parent / "agi-node"
 
         elif install_type == 1:
-            # dev case
+            # dev case for manager
             self.agilab_src = AgiEnv.read_agilab_path(verbose)
             self.env_root = self.agilab_src / "core/agi-env"
             self.cluster_root = self.agilab_src / "core/agi-cluster"
@@ -246,7 +251,6 @@ class AgiEnv:
             if not self.env_root.exists():
                 raise RuntimeError(f"{self.env_root} do not exist\nYour Agilab installation is not valid")
             self._init_resources(resource_path)
-
         apps_dir = active_app.parent
 
         try:

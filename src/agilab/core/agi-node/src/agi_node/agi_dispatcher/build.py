@@ -164,9 +164,9 @@ def cleanup_links(links: list[Path]) -> None:
             logging.warning(f"Failed to remove {link}: {e}")
 
 def main() -> None:
-    cwd = Path(__file__).parent
-    os.chdir(cwd)
-    opts = parse_custom_args(sys.argv[1:], cwd)
+    active_app = Path(__file__).parent
+    os.chdir(active_app)
+    opts = parse_custom_args(sys.argv[1:], active_app)
     cmd = opts.command
     packages = opts.packages
     install_type = opts.install_type
@@ -181,7 +181,6 @@ def main() -> None:
 
     target_pkg = outdir.with_name(name)
     target_module = name.replace("-", "_")
-    active_app = target_pkg.with_name(name + "_project")
 
     env = AgiEnv(active_app=active_app, install_type=install_type)
 
@@ -216,7 +215,7 @@ def main() -> None:
 
     # Change directory to build_dir BEFORE setup if build_ext
     if cmd == 'build_ext':
-        logging.info(f"cwd: {cwd}")
+        logging.info(f"cwd: {active_app}")
         #os.chdir(opts.build_dir)
         logging.info(f"build_dir: {opts.build_dir}")
         src_rel = Path("src") / worker_module / f"{worker_module}.pyx"

@@ -1065,8 +1065,8 @@ class AGI:
             os.makedirs(env.home_abs / env.data_rel / "dataset", exist_ok=True)
             shutil.copy2(src, dest)
         cmd = (f"{uv_worker} run --no-sync --project {wenv_abs} python {env.home_abs / env.post_install_rel} "
-               f"{env.app_abs} "
-               f"{env.install_type} "
+               f"{env.active_app} "
+               f"1 "
                f"{env.data_rel}")
         await AgiEnv.run(cmd, wenv_abs)
 
@@ -1552,8 +1552,7 @@ class AGI:
         cmd_prefix = env.envars.get(f"127.0.0.1_CMD_PREFIX", "")
         if env.is_free_threading_available:
             uv = cmd_prefix + " PYTHON_GIL=0 " + env.uv
-        cmd = f"{env.uv} --project {wenv_abs} run --no-sync python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d \"{wenv_abs}\""
-
+        cmd = f"{env.uv} --project {app_path} run --no-sync python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d \"{wenv_abs}\""
         await AgiEnv.run(cmd, app_path)
 
         dask_client = AGI._dask_client
