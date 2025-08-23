@@ -1,7 +1,8 @@
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, Mock
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
-
+import asyncio
+pytestmark = pytest.mark.asyncio
 
 class DummyWorker(BaseWorker):
     def __init__(self, *args, **kwargs):
@@ -19,12 +20,18 @@ class DummyWorker(BaseWorker):
 def worker():
     return DummyWorker()
 
+def teardown_function(_fn):
+    BaseWorker.worker_id = None
+    BaseWorker._insts = {}
+    BaseWorker.env = None
 
-def test_baseworker_run_calls_exec():
-    with patch.object(BaseWorker, 'env', new=MagicMock(module='mod')), \
-         patch.object(BaseWorker, '_load_manager', return_value=DummyWorker), \
-         patch('agi_node.agi_dispatcher.WorkDispatcher.do_distrib', return_value=({}, {}, {})):
-        BaseWorker.run(args={})
+async def test_baseworker_run_calls_exec():
+    mock_env = Mock()
+    mock_env.mode2str.return_value = "mode=0"
+    with patch.object(BaseWorker, 'env', new=mock_env), \
+            patch.object(BaseWorker, '_load_manager', return_value=DummyWorker()), \
+            patch('agi_node.agi_dispatcher.WorkDispatcher.do_distrib', return_value=({}, {}, {})):
+        await BaseWorker.run(args={})
 
 
 def test_baseworker_build_calls_load_and_sets_attrs(worker):

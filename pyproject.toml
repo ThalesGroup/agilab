@@ -46,6 +46,7 @@ dependencies = [
     "plotly",
     "polars",
     "py7zr",
+    "pytest-asyncio>=1.1.0",
     "seaborn",
     "setuptools",
     "streamlit",
