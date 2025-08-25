@@ -371,8 +371,11 @@ class AgiEnv:
             self.uv_worker = self.uv
             self.pyvers_worker = self.python_version
 
-        if install_type != 2:
+        if install_type == 1:
             self.update_pyproject()
+        elif install_type == 0:
+            self.update_pyproject_enduser()
+
 
         self.projects = self.get_projects(self.apps_dir)
         if not self.projects:
@@ -739,9 +742,45 @@ class AgiEnv:
         else:
             self.copilot_file = self.agilab_src / "agi_copilot.py"
 
-    def update_pyproject(self):
+    def update_pyproject_enduser(self):
         agilab_src = self.agilab_src
         for file in [self.worker_pyproject, self.app_pyproject]:
+            if not file.exists():
+                raise FileNotFoundError(f"{file} not found in {self.app_abs}")
+
+            text = file.read_text(encoding="utf-8")
+            doc = tomlkit.parse(text)
+
+            try:
+                uv = doc["tool"]["uv"]
+            except KeyError:
+                continue
+
+            if "sources" not in uv or not isinstance(uv["sources"], tomlkit.items.Table):
+                continue
+
+            sources = uv["sources"]
+
+            if "site-packages" in agilab_src.parts:
+                for package in ["agi-env", "agi-node", "agi-cluster"]:
+                    if package in sources:
+                        del sources[package]
+                        if not sources:
+                            del uv["sources"]
+                        if not uv:
+                            del doc["tool"]["uv"]
+                        if not doc["tool"]:
+                            del doc["tool"]
+                    deps = doc["project"].get("dependencies", [])
+                    if not any(dep.split()[0] == package for dep in deps):
+                        deps.append(package)
+                        doc["project"]["dependencies"] = deps
+
+            file.write_text(tomlkit.dumps(doc), encoding="utf-8")
+
+    def update_pyproject(self):
+        agilab_src = self.agilab_src
+        for file in [self.worker_pyproject, self.app_pyproject]: #, self.core_root / "src/agilab/core/pyproject.toml"]:
             if not file.exists():
                 raise FileNotFoundError(f"{file} not found in {self.app_abs}")
 

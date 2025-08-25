@@ -62,7 +62,7 @@ dependencies = [
     "mypy",
     "pydantic",
     "requests",
-    "asyncssh"
+    "asyncssh",
 ]
 
 [project.urls]
@@ -72,9 +72,6 @@ Tracker = "https://github.com/ThalesGroup/agilab/issue"
 
 [dependency-groups]
 dev = [
-    "agi-node",
-    "agi-cluster",
-    "agi-env",
     "black",
     "pytest",
     "licensecheck",
