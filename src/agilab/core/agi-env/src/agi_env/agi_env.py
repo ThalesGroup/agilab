@@ -764,17 +764,7 @@ class AgiEnv:
             if "site-packages" in agilab_src.parts:
                 for package in ["agi-env", "agi-node", "agi-cluster"]:
                     if package in sources:
-                        del sources[package]
-                        if not sources:
-                            del uv["sources"]
-                        if not uv:
-                            del doc["tool"]["uv"]
-                        if not doc["tool"]:
-                            del doc["tool"]
-                    deps = doc["project"].get("dependencies", [])
-                    if not any(dep.split()[0] == package for dep in deps):
-                        deps.append(package)
-                        doc["project"]["dependencies"] = deps
+                        sources[package] = {"path": "../../.venv/lib/python3.13/site-packages/" + package.replace("-", "_")}
 
             file.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
