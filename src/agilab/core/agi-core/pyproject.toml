@@ -64,7 +64,7 @@ dependencies = [
     "asyncssh",
 ]
 
-version = "0.5.4"
+version = "0.5.6"
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab"
