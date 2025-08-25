@@ -751,26 +751,27 @@ class AgiEnv:
             try:
                 uv = doc["tool"]["uv"]
             except KeyError:
-                return
+                continue
 
             if "sources" not in uv or not isinstance(uv["sources"], tomlkit.items.Table):
-                return
+                continue
 
             sources = uv["sources"]
 
             if "site-packages" in agilab_src.parts:
-                if "agi-node" in sources:
-                    del sources["agi-node"]
-                    if not sources:
-                        del uv["sources"]
-                    if not uv:
-                        del doc["tool"]["uv"]
-                    if not doc["tool"]:
-                        del doc["tool"]
-                deps = doc["project"].get("dependencies", [])
-                if not any(dep.split()[0] == "agi-node" for dep in deps):
-                    deps.append("agi-node")
-                    doc["project"]["dependencies"] = deps
+                for package in ["agi-env", "agi-node", "agi-cluster"]:
+                    if package in sources:
+                        del sources[package]
+                        if not sources:
+                            del uv["sources"]
+                        if not uv:
+                            del doc["tool"]["uv"]
+                        if not doc["tool"]:
+                            del doc["tool"]
+                    deps = doc["project"].get("dependencies", [])
+                    if not any(dep.split()[0] == package for dep in deps):
+                        deps.append(package)
+                        doc["project"]["dependencies"] = deps
 
             file.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
