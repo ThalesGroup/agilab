@@ -82,19 +82,52 @@ jobs:
         env:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
-          set -eux
-          VERSION=${VERSION#v}
+          set -euxo pipefail
+          VERSION=${VERSION#v}; VERSION=${VERSION#V}
           echo "Bumping version to $VERSION"
+
+          bump_in_file() {
+            py="$1"
+            # Edit only inside the [project] table:
+            awk -v NEWVER="$VERSION" '
+              BEGIN{ in_project=0; replaced=0 }
+              # Start of any table
+              /^\[/{
+                if(in_project && !replaced){
+                  print "version = \"" NEWVER "\""
+                  replaced=1
+                }
+                in_project=0
+              }
+              # Enter [project] exactly
+              /^\[project\]$/{
+                in_project=1
+              }
+              {
+                # Within [project], drop any existing version = "..."
+                if(in_project && match($0, /^[[:space:]]*version[[:space:]]*=/)){
+                  next
+                }
+                print $0
+              }
+              END{
+                # If file ended while still in [project] and not replaced, insert
+                if(in_project && !replaced){
+                  print "version = \"" NEWVER "\""
+                }
+              }
+            ' "$py" > "$py.tmp" && mv "$py.tmp" "$py"
+            # Also purge stray top-level version typos (e.g., version="O.5.4") outside tables:
+            sed -i 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"O\./version = "0./' "$py"
+            # Remove any top-level `dynamic = [...]` that conflicts
+            sed -i '/^[[:space:]]*dynamic[[:space:]]*=/d' "$py"
+          }
+
           for pkg in agi-env agi-node agi-cluster agi-core; do
             base="src/agilab/core/$pkg"
-            find "$base" -type f -name pyproject.toml -not -path "./.git/*" | while read -r file; do
+            find "$base" -type f -name pyproject.toml -print0 | while IFS= read -r -d "" file; do
               echo "→ Updating $file"
-              sed -i '/^dynamic\s*=/d' "$file"
-              if grep -q '^version *= *".*"' "$file"; then
-                sed -i "s/^version *= *.*/version = \"$VERSION\"/" "$file"
-              else
-                sed -i "/^\[project\]/a version = \"$VERSION\"" "$file"
-              fi
+              bump_in_file "$file"
             done
           done
 
