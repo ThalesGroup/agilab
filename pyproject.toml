@@ -58,6 +58,9 @@ dependencies = [
     "twine",
     "watchdog",
     "wheel",
+    "agi-cluster",
+    "agi-env",
+    "agi-node",
 ]
 
 [project.urls]
@@ -92,6 +95,18 @@ default-groups = ["dev"]
 
 [tool.uv.sources.agilab]
 workspace = true
+
+[tool.uv.sources.agi-env]
+path = "src/agilab/core/agi-env"
+editable = true
+
+[tool.uv.sources.agi-node]
+path = "src/agilab/core/agi-node"
+editable = true
+
+[tool.uv.sources.agi-cluster]
+path = "src/agilab/core/agi-cluster"
+editable = true
 
 [build-system]
 requires = ["setuptools"]
