@@ -374,7 +374,7 @@ class AgiEnv:
         if install_type == 1:
             self.update_pyproject()
         elif install_type == 0:
-            self.update_pyproject_enduser()
+            self.update_pyproject()
 
 
         self.projects = self.get_projects(self.apps_dir)
@@ -764,7 +764,10 @@ class AgiEnv:
             if "site-packages" in agilab_src.parts:
                 for package in ["agi-env", "agi-node", "agi-cluster"]:
                     if package in sources:
-                        sources[package] = {"path": "../../.venv/lib/python3.13/site-packages/" + package.replace("-", "_")}
+                        sources[package] = {
+                            "path": "../../.venv/lib/python3.13/site-packages/" + package.replace("-", "_"),
+                            "editable": True
+                        }
 
             file.write_text(tomlkit.dumps(doc), encoding="utf-8")
 

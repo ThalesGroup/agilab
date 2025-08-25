@@ -58,6 +58,9 @@ dependencies = [
     "twine",
     "watchdog",
     "wheel",
+    "agi-cluster",
+    "agi-env",
+    "agi-node",
 ]
 
 [project.urls]
