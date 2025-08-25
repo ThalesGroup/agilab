@@ -47,7 +47,7 @@ jobs:
           popd
 
   publish-agi-core:
-    needs: test
+    needs: publish-agi-core
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -100,16 +100,6 @@ jobs:
             echo "No changes to commit."
           fi
 
-      - name: Build agi-core package
-        run: uv build --project src/agilab/core/agi-core --wheel
-      - name: Upload agi-core package artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: agi-core-distributions
-          path: src/agilab/core/agi-core/dist/
-      - name: Verify agi-core package files before upload
-        run: twine upload src/agilab/core/agi-core/dist/*
-
       - name: Build agi-env package
         run: uv build --project src/agilab/core/agi-env --wheel
       - name: Upload agi-env package artifacts
@@ -118,17 +108,13 @@ jobs:
           name: agi-env-distributions
           path: src/agilab/core/agi-env/dist/
       - name: Verify agi-env package files before upload
-        run: twine upload src/agilab/core/agi-env/dist/*
+        run: twine check src/agilab/core/agi-env/dist/*
 
-      - name: Build agi-cluster package
-        run: uv build --project src/agilab/core/agi-cluster --wheel
-      - name: Upload agi-cluster package artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: agi-cluster-distributions
-          path: src/agilab/core/agi-cluster/dist/
-      - name: Verify agi-cluster package files before upload
-        run: twine upload src/agilab/core/agi-cluster/dist/*
+      - name: Publish agi-env package to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
+        run: twine upload src/agilab/core/agi-core/dist/*
 
       - name: Build agi-node package
         run: uv build --project src/agilab/core/agi-node --wheel
@@ -138,7 +124,39 @@ jobs:
           name: agi-node-distributions
           path: src/agilab/core/agi-node/dist/
       - name: Verify agi-node package files before upload
-        run: twine upload src/agilab/core/agi-node/dist/*
+        run: twine check src/agilab/core/agi-node/dist/*
+
+      - name: Publish agi-node package to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
+        run: twine upload src/agilab/core/agi-core/dist/*
+
+      - name: Build agi-cluster package
+        run: uv build --project src/agilab/core/agi-cluster --wheel
+      - name: Upload agi-cluster package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: agi-cluster-distributions
+          path: src/agilab/core/agi-cluster/dist/
+      - name: Verify agi-cluster package files before upload
+        run: twine check src/agilab/core/agi-cluster/dist/*
+
+      - name: Publish agi-cluster package to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
+        run: twine upload src/agilab/core/agi-core/dist/*
+
+      - name: Build agi-core package
+        run: uv build --project src/agilab/core/agi-core --wheel
+      - name: Upload agi-core package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: agi-core-distributions
+          path: src/agilab/core/agi-core/dist/
+      - name: Verify agi-core package files before upload
+        run: twine check src/agilab/core/agi-core/dist/*
 
       - name: Publish agi-core package to PyPI
         env:
