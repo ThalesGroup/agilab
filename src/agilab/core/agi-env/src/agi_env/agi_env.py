@@ -185,21 +185,6 @@ class AgiEnv:
                  debug=False,
                  python_variante: str = ''):
 
-        if isinstance(active_app, str):
-            # case only worker_env
-            self.is_worker_env = True
-        else:
-            if not active_app.name.endswith('_project'):
-                raise ValueError(f"{active_app} must end with '_project'")
-            self.active_app = active_app
-            if not active_app.name.endswith('_project'):
-                raise ValueError(f"{active_app} must end with '_project'")
-
-        AgiEnv.verbose = verbose
-        self.verbose = verbose
-        AgiEnv.python_variante = python_variante
-        self.init_logging(verbose)
-        AgiEnv.debug = debug
         AgiEnv.is_managed_pc = getpass.getuser().startswith("T0")
         self.agi_resources = Path("resources/.agilab")
         home_abs = Path.home() / "MyApp" if AgiEnv.is_managed_pc else Path.home()
@@ -211,15 +196,32 @@ class AgiEnv:
         AgiEnv.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
         envars = AgiEnv.envars
 
+        if isinstance(active_app, str):
+            # case only worker_env
+            self.is_worker_env = True
+        else:
+            if not active_app:
+                before, sep, after = __file__.rpartition(".venv")
+                active_app = Path(before) / "apps" / envars.get("APP_DEFAULT", 'flight_project')
+            if not active_app.name.endswith('_project'):
+                raise ValueError(f"{active_app} must end with '_project'")
+            self.active_app = active_app
+            if not active_app.name.endswith('_project'):
+                raise ValueError(f"{active_app} must end with '_project'")
+
+        AgiEnv.verbose = verbose
+        self.verbose = verbose
+        AgiEnv.python_variante = python_variante
+        self.init_logging(verbose)
+        AgiEnv.debug = debug
+
         if install_type is None:
             install_type = 1 if ("site-packages" not in __file__ or sys.prefix.endswith("agilab/.venv")) else 0
         elif isinstance(install_type, str):
             install_type = int(install_type)
 
         AgiEnv.install_type = install_type
-
-        if not active_app:
-            active_app = Path(envars.get("APP_DEFAULT", 'flight_project'))
+        apps_dir = active_app.parent
 
         if install_type == 0:
             # remote case
@@ -232,6 +234,16 @@ class AgiEnv:
                 self.env_root = list(Path(sys.prefix).rglob('agi_env'))[0]
                 self.cluster_root = self.env_root .parent / "agi-cluster"
                 self.node_root = self.env_root .parent / "agi-node"
+
+            if not active_app.exists():
+                src_apps = self.agilab_src / "apps"
+                if not active_app.exists():
+                    if src_apps.exists():
+                        self.copy_existing_projects(src_apps, apps_dir)
+                    else:
+                        print(f"Warning: {src_apps} does not exist, nothing to copy!")
+                else:
+                    self.copy_missing(src_apps, apps_dir)
 
         elif install_type == 1:
             # dev case for manager
@@ -253,18 +265,6 @@ class AgiEnv:
             if not self.env_root.exists():
                 raise RuntimeError(f"{self.env_root} do not exist\nYour Agilab installation is not valid")
             self._init_resources(resource_path)
-        apps_dir = active_app.parent
-
-        try:
-            if apps_dir.exists():
-                self.apps_dir = apps_dir
-            elif install_type < 2:
-                self.apps_dir = self.agilab_src / apps_dir
-            #else:
-            #    os.makedirs(str(apps_dir), exist_ok=True)
-        except FileNotFoundError:
-            logging.error("apps_dir not found: %s", apps_dir)
-            sys.exit(1)
 
         self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
         self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
@@ -492,16 +492,27 @@ class AgiEnv:
 
     def copy_existing_projects(self, src_apps: Path, dst_apps: Path):
         dst_apps.mkdir(parents=True, exist_ok=True)
-        for item in src_apps.iterdir():
-            if item.is_dir() and item.name.startswith("project"):
-                dst_item = dst_apps / item.name
-                try:
-                    shutil.copytree(item, dst_item, dirs_exist_ok=True)
-                except FileExistsError:
-                    pass  # Already exists, that's fine
-                except Exception as e:
-                    print(f"Warning: Could not copy {item} → {dst_item}: {e}")
 
+        # match every nested directory ending with "_project"
+        for item in src_apps.rglob("*_project"):
+            if not item.is_dir():
+                continue
+
+            rel = item.relative_to(src_apps)  # keep nested structure
+            dst_item = dst_apps / rel
+            try:
+                shutil.copytree(
+                    item,
+                    dst_item,
+                    dirs_exist_ok=True,  # merge into existing tree
+                    symlinks=True,  # keep symlinks as symlinks
+                    ignore=shutil.ignore_patterns(  # skip bulky/ephemeral stuff
+                        ".venv", "build", "dist", "__pycache__", ".pytest_cache",
+                        ".idea", ".mypy_cache", ".ruff_cache", "*.egg-info"
+                    ),
+                )
+            except Exception as e:
+                print(f"Warning: Could not copy {item} → {dst_item}: {e}")
     def copy_missing(self, src: Path, dst: Path, max_workers=8):
         """
         Copy missing files/directories from src to dst, skipping files/dirs that already exist at dst.

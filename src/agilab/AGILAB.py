@@ -147,7 +147,7 @@ def main():
             st.session_state["apps_dir"] = args.apps_dir
 
             st.session_state["INSTALL_TYPE"] = args.install_type
-            env = AgiEnv(apps_dir=Path(args.apps_dir), install_type=int(args.install_type), verbose=1)
+            env = AgiEnv(install_type=int(args.install_type), verbose=1)
             env.init_done = True
             st.session_state['env'] = env
 
