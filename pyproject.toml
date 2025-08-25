@@ -88,10 +88,20 @@ sphinx = [
     "geopy",
     "requests",
     "licensecheck",
+    "twine",
 ]
 
 [tool.uv]
 default-groups = ["dev"]
+
+[tool.uv.sources.agi-env]
+path = "src/agilab/core/agi-env"
+
+[tool.uv.sources.agi-node]
+path = "src/agilab/core/agi-node"
+
+[tool.uv.sources.agi-cluster]
+path = "src/agilab/core/agi-cluster"
 
 [build-system]
 requires = ["setuptools"]
