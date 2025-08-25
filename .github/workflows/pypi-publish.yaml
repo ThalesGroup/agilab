@@ -140,7 +140,6 @@ jobs:
       - name: Verify agi-node package files before upload
         run: twine check src/agilab/core/agi-node/dist/*
 
-
       - name: Publish agi-core package to PyPI
         env:
           TWINE_USERNAME: __token__

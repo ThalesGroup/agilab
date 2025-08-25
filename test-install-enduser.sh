@@ -22,6 +22,27 @@ uv build --wheel
 mv dist/*.whl "$home/../agi-space"
 popd > /dev/null
 
+pushd "src/agilab/core/agi-cluster" > /dev/null
+rm -rf dist  # clean previous builds
+rm -rf build
+uv build --wheel
+mv dist/*.whl "$home/../agi-space"
+popd > /dev/null
+
+pushd "src/agilab/core/agi-node" > /dev/null
+rm -rf dist  # clean previous builds
+rm -rf build
+uv build --wheel
+mv dist/*.whl "$home/../agi-space"
+popd > /dev/null
+
+pushd "src/agilab/core/agi-env" > /dev/null
+rm -rf dist  # clean previous builds
+rm -rf build
+uv build --wheel
+mv dist/*.whl "$home/../agi-space"
+popd > /dev/null
+
 pushd "$home/../agi-space"
 rm -fr .venv uv.lock
 if [ ! -f pyproject.toml ]; then
