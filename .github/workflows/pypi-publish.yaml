@@ -4,32 +4,37 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag for the release (e.g. 0.3.66)'
+        description: "Version tag for the release (e.g. 0.3.66)"
         required: true
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
+
+concurrency:
+  group: pypi-publish-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    outputs:
-      python-version: '3.13'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Python 3.13
-        uses: actions/setup-python@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install uv
-        run: python3 -m pip install --upgrade --no-cache-dir uv
+        run: python -m pip install --upgrade --no-cache-dir uv
 
-      - name: Sync and build uv projects
+      - name: Sync and install editable core projects
         run: |
           set -eux
           pushd "src/agilab/core/agi-cluster"
@@ -46,8 +51,8 @@ jobs:
           uv run --dev --project agi-cluster python -m pytest --maxfail=5 --disable-warnings -v
           popd
 
-  publish-agi-core:
-    needs: publish-agi-core
+  publish-core-packages:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -58,114 +63,123 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Python 3.13
-        uses: actions/setup-python@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install uv and twine
-        run: python3 -m pip install --upgrade --no-cache-dir uv twine
+        run: python -m pip install --upgrade --no-cache-dir uv twine
 
       - name: Clean previous builds
-        run: rm -rf src/agilab/core/agi-core/dist
+        run: |
+          rm -rf src/agilab/core/agi-env/dist
+          rm -rf src/agilab/core/agi-node/dist
+          rm -rf src/agilab/core/agi-cluster/dist
+          rm -rf src/agilab/core/agi-core/dist
 
-      - name: Update version in pyproject.toml files
+      - name: Update version in core pyproject.toml files
         env:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
+          set -eux
           VERSION=${VERSION#v}
           echo "Bumping version to $VERSION"
-          find src/agilab/core/agi-core -type f -name pyproject.toml -not -path "./.git/*" | while read -r file; do
-            echo "→ Updating $file"
-            sed -i '/^dynamic\s*=/d' "$file"
-            if grep -q '^version *= *".*"' "$file"; then
-              sed -i "s/^version *= *.*/version = \"$VERSION\"/" "$file"
-            else
-              sed -i "/^\[project\]/a version = \"$VERSION\"" "$file"
-            fi
+          for pkg in agi-env agi-node agi-cluster agi-core; do
+            base="src/agilab/core/$pkg"
+            find "$base" -type f -name pyproject.toml -not -path "./.git/*" | while read -r file; do
+              echo "→ Updating $file"
+              sed -i '/^dynamic\s*=/d' "$file"
+              if grep -q '^version *= *".*"' "$file"; then
+                sed -i "s/^version *= *.*/version = \"$VERSION\"/" "$file"
+              else
+                sed -i "/^\[project\]/a version = \"$VERSION\"" "$file"
+              fi
+            done
           done
 
       - name: Commit version changes if any
         env:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
+          set -eux
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add $(find src/agilab/core/agi-core -type f -name pyproject.toml -not -path "./.git/*")
+          git add $(find src/agilab/core -type f -name pyproject.toml -not -path "./.git/*")
           if ! git diff --cached --quiet; then
-            git commit -m "Bump version to ${VERSION#v}"
+            git commit -m "Bump core package versions to ${VERSION#v}"
             git pull --rebase origin main
             git push origin main
           else
             echo "No changes to commit."
           fi
 
-      - name: Build agi-env package
+      # --- agi-env ---
+      - name: Build agi-env
         run: uv build --project src/agilab/core/agi-env --wheel
-      - name: Upload agi-env package artifacts
+      - name: Upload agi-env artifacts
         uses: actions/upload-artifact@v4
         with:
           name: agi-env-distributions
           path: src/agilab/core/agi-env/dist/
-      - name: Verify agi-env package files before upload
+      - name: Verify agi-env
         run: twine check src/agilab/core/agi-env/dist/*
-
-      - name: Publish agi-env package to PyPI
+      - name: Publish agi-env to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-        run: twine upload src/agilab/core/agi-core/dist/*
+        run: twine upload src/agilab/core/agi-env/dist/*
 
-      - name: Build agi-node package
+      # --- agi-node ---
+      - name: Build agi-node
         run: uv build --project src/agilab/core/agi-node --wheel
-      - name: Upload agi-node package artifacts
+      - name: Upload agi-node artifacts
         uses: actions/upload-artifact@v4
         with:
           name: agi-node-distributions
           path: src/agilab/core/agi-node/dist/
-      - name: Verify agi-node package files before upload
+      - name: Verify agi-node
         run: twine check src/agilab/core/agi-node/dist/*
-
-      - name: Publish agi-node package to PyPI
+      - name: Publish agi-node to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-        run: twine upload src/agilab/core/agi-core/dist/*
+        run: twine upload src/agilab/core/agi-node/dist/*
 
-      - name: Build agi-cluster package
+      # --- agi-cluster ---
+      - name: Build agi-cluster
         run: uv build --project src/agilab/core/agi-cluster --wheel
-      - name: Upload agi-cluster package artifacts
+      - name: Upload agi-cluster artifacts
         uses: actions/upload-artifact@v4
         with:
           name: agi-cluster-distributions
           path: src/agilab/core/agi-cluster/dist/
-      - name: Verify agi-cluster package files before upload
+      - name: Verify agi-cluster
         run: twine check src/agilab/core/agi-cluster/dist/*
-
-      - name: Publish agi-cluster package to PyPI
+      - name: Publish agi-cluster to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-        run: twine upload src/agilab/core/agi-core/dist/*
+        run: twine upload src/agilab/core/agi-cluster/dist/*
 
-      - name: Build agi-core package
+      # --- agi-core ---
+      - name: Build agi-core
         run: uv build --project src/agilab/core/agi-core --wheel
-      - name: Upload agi-core package artifacts
+      - name: Upload agi-core artifacts
         uses: actions/upload-artifact@v4
         with:
           name: agi-core-distributions
           path: src/agilab/core/agi-core/dist/
-      - name: Verify agi-core package files before upload
+      - name: Verify agi-core
         run: twine check src/agilab/core/agi-core/dist/*
-
-      - name: Publish agi-core package to PyPI
+      - name: Publish agi-core to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: twine upload src/agilab/core/agi-core/dist/*
 
   publish-agilab:
-    needs: publish-agi-core
+    needs: publish-core-packages
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -176,23 +190,24 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Python 3.13
-        uses: actions/setup-python@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install uv
-        run: python3 -m pip install --upgrade --no-cache-dir uv twine
+      - name: Install uv and twine
+        run: python -m pip install --upgrade --no-cache-dir uv twine
 
       - name: Clean previous builds
         run: rm -rf dist
 
-      - name: Update version in pyproject.toml files
+      - name: Update version across repository
         env:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
+          set -eux
           VERSION=${VERSION#v}
-          echo "Bumping version to $VERSION"
+          echo "Bumping repo-wide version to $VERSION"
           find . -type f -name pyproject.toml -not -path "./.git/*" | while read -r file; do
             echo "→ Updating $file"
             sed -i '/^dynamic\s*=/d' "$file"
@@ -207,30 +222,31 @@ jobs:
         env:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
+          set -eux
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add $(find . -type f -name pyproject.toml -not -path "./.git/*")
           if ! git diff --cached --quiet; then
-            git commit -m "Bump version to ${VERSION#v}"
+            git commit -m "Bump agilab version to ${VERSION#v}"
             git pull --rebase origin main
             git push origin main
           else
             echo "No changes to commit."
           fi
 
-      - name: Build agilab package
+      - name: Build agilab
         run: uv build --wheel
 
-      - name: Upload agilab package artifacts
+      - name: Upload agilab artifacts
         uses: actions/upload-artifact@v4
         with:
           name: agilab-distributions
           path: dist/
 
-      - name: Verify agilab package files before upload
+      - name: Verify agilab
         run: twine check dist/*
 
-      - name: Publish agilab package to PyPI
+      - name: Publish agilab to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
