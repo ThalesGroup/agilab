@@ -34,6 +34,18 @@ jobs:
       - name: Install uv
         run: python -m pip install --upgrade --no-cache-dir uv
 
+      - name: Fix accidental O.* version typos
+        run: |
+          set -euxo pipefail
+          find src/agilab/core -type f -name pyproject.toml -print0 |
+          while IFS= read -r -d '' f; do
+            sed -i -E '/^[[:space:]]*version[[:space:]]*=/ s/"O\./"0./' "$f"
+          done
+          # fail loudly if any bad versions remain
+          if grep -R --line-number '^[[:space:]]*version[[:space:]]*=[[:space:]]*"O\.' src/agilab/core; then
+            echo "❌ Still found bad version lines (capital O)"; exit 1
+          fi
+
       - name: Sync and install editable core projects
         run: |
           set -eux
@@ -88,38 +100,22 @@ jobs:
 
           bump_in_file() {
             py="$1"
-            # Edit only inside the [project] table:
             awk -v NEWVER="$VERSION" '
               BEGIN{ in_project=0; replaced=0 }
-              # Start of any table
               /^\[/{
-                if(in_project && !replaced){
-                  print "version = \"" NEWVER "\""
-                  replaced=1
-                }
+                if(in_project && !replaced){ print "version = \"" NEWVER "\""; replaced=1 }
                 in_project=0
               }
-              # Enter [project] exactly
-              /^\[project\]$/{
-                in_project=1
-              }
+              /^\[project\]$/{ in_project=1 }
               {
-                # Within [project], drop any existing version = "..."
-                if(in_project && match($0, /^[[:space:]]*version[[:space:]]*=/)){
-                  next
-                }
+                if(in_project && match($0, /^[[:space:]]*version[[:space:]]*=/)) next
                 print $0
               }
               END{
-                # If file ended while still in [project] and not replaced, insert
-                if(in_project && !replaced){
-                  print "version = \"" NEWVER "\""
-                }
+                if(in_project && !replaced){ print "version = \"" NEWVER "\"" }
               }
             ' "$py" > "$py.tmp" && mv "$py.tmp" "$py"
-            # Also purge stray top-level version typos (e.g., version="O.5.4") outside tables:
-            sed -i 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"O\./version = "0./' "$py"
-            # Remove any top-level `dynamic = [...]` that conflicts
+            sed -i -E '/^[[:space:]]*version[[:space:]]*=/ s/"O\./"0./' "$py"
             sed -i '/^[[:space:]]*dynamic[[:space:]]*=/d' "$py"
           }
 
@@ -239,11 +235,12 @@ jobs:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
           set -eux
-          VERSION=${VERSION#v}
+          VERSION=${VERSION#v}; VERSION=${VERSION#V}
           echo "Bumping repo-wide version to $VERSION"
           find . -type f -name pyproject.toml -not -path "./.git/*" | while read -r file; do
             echo "→ Updating $file"
             sed -i '/^dynamic\s*=/d' "$file"
+            sed -i -E '/^[[:space:]]*version[[:space:]]*=/ s/"O\./"0./' "$file"
             if grep -q '^version *= *".*"' "$file"; then
               sed -i "s/^version *= *.*/version = \"$VERSION\"/" "$file"
             else
