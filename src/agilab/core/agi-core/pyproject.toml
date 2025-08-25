@@ -1,6 +1,5 @@
 [project]
 name = "agi-core"
-version = "O.5.4"
 description = "AGI core aggregation of agi-env, agi-cluster, agi-node"
 requires-python = ">=3.11"
 authors = [
@@ -65,6 +64,7 @@ dependencies = [
     "asyncssh",
 ]
 
+version = "0.5.4"
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab"
