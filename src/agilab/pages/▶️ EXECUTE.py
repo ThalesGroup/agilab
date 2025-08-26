@@ -676,7 +676,7 @@ async def page():
         current_project = projects[0] if projects else None
     select_project(projects, current_project)
     module = env.target
-    project_path = env.app_abs
+    project_path = env.active_app
     export_abs_module = env.AGILAB_EXPORT_ABS / module
     export_abs_module.mkdir(parents=True, exist_ok=True)
     pyproject_file = env.app_abs / "pyproject.toml"
@@ -922,36 +922,36 @@ if __name__ == '__main__':
             st.code(cmd, language="python")
         if _is_app_installed(env):
             if st.button("RUN", key="run_btn", type="primary", help="Run your snippet with your cluster and app settings"):
-            clear_log()
-            live_log_placeholder = st.empty()
-            with st.spinner("Running AGI..."):
-                stdout, stderr = await env.run_agi(
-                    cmd,
-                    log_callback=lambda message: update_log(live_log_placeholder, message),
-                    venv=project_path
-                )
-                #live_log_placeholder.empty()
-                display_log(stdout, stderr)
-                run_log = stdout
+                clear_log()
+                live_log_placeholder = st.empty()
+                with st.spinner("Running AGI..."):
+                    stdout, stderr = await env.run_agi(
+                        cmd,
+                        log_callback=lambda message: update_log(live_log_placeholder, message),
+                        venv=project_path
+                    )
+                    #live_log_placeholder.empty()
+                    display_log(stdout, stderr)
+                    run_log = stdout
 
-            if not st.session_state.get('mode'):
-                try:
-                    if env.benchmark.exists():
-                        with open(env.benchmark, "r") as f:
-                            data = json.loads(f.read())
-                            if data:
-                                benchmark_df = pd.DataFrame.from_dict(data, orient='index')
-                                st.text("Benchmark result:")
-                                st.dataframe(benchmark_df)
-                    else:
-                        st.error("program abort before all mode have been run")
-                        st.session_state['mode'] = 0
-                        st.session_state['bencchmark'] = False
+                if not st.session_state.get('mode'):
+                    try:
+                        if env.benchmark.exists():
+                            with open(env.benchmark, "r") as f:
+                                data = json.loads(f.read())
+                                if data:
+                                    benchmark_df = pd.DataFrame.from_dict(data, orient='index')
+                                    st.text("Benchmark result:")
+                                    st.dataframe(benchmark_df)
+                        else:
+                            st.error("program abort before all mode have been run")
+                            st.session_state['mode'] = 0
+                            st.session_state['bencchmark'] = False
 
-                except json.JSONDecodeError as e:
-                    print("Error decoding JSON:", e)
+                    except json.JSONDecodeError as e:
+                        print("Error decoding JSON:", e)
 
-            st.session_state["loaded_df"] = cached_load_df(Path().home() / env.dataframe_path,with_index=False)
+                st.session_state["loaded_df"] = cached_load_df(Path().home() / env.dataframe_path,with_index=False)
 
         if st.sidebar.button("Load Data", key="load_data"):
             st.session_state["loaded_df"] = cached_load_df(Path().home() / env.dataframe_path,with_index=False)

@@ -228,14 +228,10 @@ class AgiEnv:
         if install_type == 0:
             # remote case
             self.agilab_src = AgiEnv.locate_agilab_installation(verbose)
-            if AgiEnv.debug:
-                self.env_root = self.agilab_src / "agi-env"
-                self.cluster_root = self.agilab_src / "agi-cluster"
-                self.node_root = self.agilab_src / "agi-node"
-            else:
-                self.env_root = list(Path(sys.prefix).rglob('agi_env'))[0]
-                self.cluster_root = self.env_root .parent / "agi-cluster"
-                self.node_root = self.env_root .parent / "agi-node"
+            agilab_src_parent = self.agilab_src.parent
+            self.env_root = agilab_src_parent / "agi_env"
+            self.cluster_root = agilab_src_parent / "agi_cluster"
+            self.node_root = agilab_src_parent / "agi_node"
 
             if not active_app.exists():
                 src_apps = self.agilab_src / "apps"
@@ -301,7 +297,7 @@ class AgiEnv:
             self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
             self.module_path = app_src / module / f"{self.module}.py"
             worker_module_path = self.worker_path.parent
-            self.setup_core = self.agilab_src / "core/agi_node/agi_dispatcher/build.py"
+            self.setup_core = self.agi_node / "agi_dispatcher/build.py"
 
         elif install_type == 1:
             app_src = active_app / "src"
