@@ -1026,34 +1026,35 @@ class AGI:
         cmd = f"{uv_worker} pip install -e ."
         await AgiEnv.run(cmd, wenv_abs)
 
-        # build agi_env*.whl
-        menv = env.env_root
-        cmd = f"{uv} --project {menv} build --wheel"
-        await AgiEnv.run(cmd, menv)
-        src = menv / "dist"
-        try:
-           whl = next(iter(src.glob("agi_env*.whl")))
-           # shutil.copy2(whl, wenv_abs)
-        except StopIteration:
-           raise RuntimeError(cmd)
+        if env.install_type:
+            # build agi_env*.whl
+            menv = env.env_root
+            cmd = f"{uv} --project {menv} build --wheel"
+            await AgiEnv.run(cmd, menv)
+            src = menv / "dist"
+            try:
+               whl = next(iter(src.glob("agi_env*.whl")))
+               # shutil.copy2(whl, wenv_abs)
+            except StopIteration:
+               raise RuntimeError(cmd)
 
-        cmd = f"{uv_worker} pip install -e {env.env_root}"
-        await AgiEnv.run(cmd, wenv_abs)
+            cmd = f"{uv_worker} pip install -e {env.env_root}"
+            await AgiEnv.run(cmd, wenv_abs)
 
 
-        # build agi_node*.whl
-        menv = env.node_root
-        cmd = f"{uv} --project {menv} build --wheel"
-        await AgiEnv.run(cmd, menv)
-        src = menv / "dist"
-        try:
-           whl = next(iter(src.glob("agi_node*.whl")))
-           shutil.copy2(whl, wenv_abs)
-        except StopIteration:
-           raise RuntimeError(cmd)
+            # build agi_node*.whl
+            menv = env.node_root
+            cmd = f"{uv} --project {menv} build --wheel"
+            await AgiEnv.run(cmd, menv)
+            src = menv / "dist"
+            try:
+               whl = next(iter(src.glob("agi_node*.whl")))
+               shutil.copy2(whl, wenv_abs)
+            except StopIteration:
+               raise RuntimeError(cmd)
 
-        cmd = f"{uv_worker} pip install -e {env.node_root}"
-        await AgiEnv.run(cmd, wenv_abs)
+            cmd = f"{uv_worker} pip install -e {env.node_root}"
+            await AgiEnv.run(cmd, wenv_abs)
 
         # Post-install script
         dest = wenv_abs / "src" / env.target_worker
