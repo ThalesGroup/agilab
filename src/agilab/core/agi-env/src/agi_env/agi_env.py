@@ -200,6 +200,7 @@ class AgiEnv:
             # case only worker_env
             self.is_worker_env = True
             module = active_app.replace("_project", "").replace("-", "_")
+            active_app = Path(active_app).resolve()
         else:
             if not active_app:
                 before, sep, after = __file__.rpartition(".venv")
