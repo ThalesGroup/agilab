@@ -1,27 +1,66 @@
 [project]
-name = "agi-core"
 version = "0.5.7"
-description = "AGI meta-package that installs agi-env, agi-node, and agi-cluster"
-readme = "README.md"
+name = "agilab"
+description = "AGILAB a datascience IDE for engineering to explore AI"
 requires-python = ">=3.11"
-authors = [{ name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }]
-classifiers = [
-  "Intended Audience :: Developers",
-  "Development Status :: 3 - Alpha",
-  "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
-  "Operating System :: MacOS",
-  "Operating System :: Microsoft :: Windows",
-  "Operating System :: POSIX :: Linux",
+readme = "README.md"
+authors = [
+    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
 ]
 
-# 👉 The key bit: depend on the three subpackages by name
+classifiers = [
+    "Intended Audience :: Developers",
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+]
+
+keywords = [
+    "jupyter", "mlflow", "asyncio", "dask", "rapids",
+    "streamlit", "distributed", "cython", "cluster", "dataframe",
+    "dataset", "load balancing", "gen ai", "copilot", "agi",
+    "pycharm", "datascience"
+]
+
 dependencies = [
-  "agi-env",       # pin to the first known-good version (adjust)
-  "agi-node",
-  "agi-cluster",
+    "astor",
+    "asyncssh",
+    "build",
+    "fastparquet",
+    "geojson",
+    "humanize",
+    "jupyter-ai[all]",
+    "keras",
+    "matplotlib",
+    "mlflow",
+    "networkx",
+    "numba",
+    "openai",
+    "pathspec",
+    "pip",
+    "plotly",
+    "polars",
+    "py7zr",
+    "pytest-asyncio>=1.1.0",
+    "seaborn",
+    "setuptools",
+    "streamlit",
+    "streamlit-modal",
+    "streamlit_code_editor",
+    "streamlit_extras",
+    "tomli",
+    "tomli_w",
+    "twine",
+    "watchdog",
+    "wheel",
+    "agi-cluster",
+    "agi-env",
+    "agi-node",
 ]
 
 [project.urls]
