@@ -209,8 +209,6 @@ class AgiEnv:
             if not active_app.name.endswith('_project'):
                 raise ValueError(f"{active_app} must end with '_project'")
             self.active_app = active_app
-            if not active_app.name.endswith('_project'):
-                raise ValueError(f"{active_app} must end with '_project'")
             module = active_app.name.replace("_project", "").replace("-", "_")
 
 
