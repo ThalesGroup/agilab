@@ -68,3 +68,46 @@ Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab"
 Issues = "https://github.com/ThalesGroup/agilab/issues"
 
+[tool.uv.sources.agi-node]
+path = "src/agilab/core/agi-node"
+
+[tool.uv.sources.agi-cluster]
+path = "src/agilab/core/agi-cluster"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["agilab*"]  # This grabs agilab, agilab.gui, agilab.apps, etc.
+exclude = [
+    "agilab.core*",
+    ".idea*",
+    "test*",
+    "build*",
+    ".venv*"
+]
+
+[tool.setuptools.package-data]
+agilab = [
+    "resources/*.*",
+    "resources/help/*",
+    "*.toml",
+    "*.ipynb",
+]
+
+[tool.mypy]
+mypy_path = [
+    "stubs",
+]
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pyment]
+source_dir = "src"
+format = "google"
