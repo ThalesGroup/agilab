@@ -208,9 +208,9 @@ class AgiEnv:
                 active_app = Path(before) / "apps" / envars.get("APP_DEFAULT", 'flight_project')
             if not active_app.name.endswith('_project'):
                 raise ValueError(f"{active_app} must end with '_project'")
-            self.active_app = active_app
-            module = active_app.name.replace("_project", "").replace("-", "_")
 
+        self.active_app = active_app
+        module = active_app.name.replace("_project", "").replace("-", "_")
 
         AgiEnv.verbose = verbose
         self.verbose = verbose
@@ -229,9 +229,9 @@ class AgiEnv:
             # remote case
             self.agilab_src = AgiEnv.locate_agilab_installation(verbose)
             agilab_src_parent = self.agilab_src.parent
-            self.env_root = agilab_src_parent / "agi_env"
-            self.cluster_root = agilab_src_parent / "agi_cluster"
+            self.src_cluster = agilab_src_parent / "agi_cluster"
             self.node_root = agilab_src_parent / "agi_node"
+            self.env_root = agilab_src_parent / "agi_env"
 
             if not active_app.exists():
                 src_apps = self.agilab_src / "apps"
@@ -251,6 +251,7 @@ class AgiEnv:
                 self.agilab_src = AgiEnv.locate_agilab_installation(verbose)
             self.env_root = self.agilab_src / "core/agi-env"
             self.cluster_root = self.agilab_src / "core/agi-cluster"
+            self.src_cluster = self.cluster_root / "src/agi_cluster"
             self.node_root = self.agilab_src / "core/agi-node"
             resource_path = self.env_root / "src/agi_env" / self.agi_resources
 
@@ -260,12 +261,13 @@ class AgiEnv:
             self.env_root = self.agilab_src / "../agi-env"
             self.node_root = self.agilab_src / "../agi-node"
             self.cluster_root = self.agilab_src / "../agi-cluster"
+            self.src_cluster = self.cluster_root / "src/agi_cluster"
             resource_path = self.env_root / "src/agi_env" / self.agi_resources
             if not self.env_root.exists():
                 raise RuntimeError(f"{self.env_root} do not exist\nYour Agilab installation is not valid")
 
         self._init_resources(resource_path)
-        self.st_resources = self.agilab_src / "agilab/resources"
+        self.st_resources = self.agilab_src / "resources"
         self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
         self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
 
