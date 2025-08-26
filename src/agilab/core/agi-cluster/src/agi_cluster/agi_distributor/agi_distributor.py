@@ -188,7 +188,6 @@ class AGI:
             RuntimeError: If the target module fails to load.
         """
         AGI.env = env
-        #env.active(target, env.install_type)
 
         if not workers:
             workers = workers_default
@@ -787,7 +786,7 @@ class AGI:
         logging.info(f"Copying {file} -> {wenv_abs}")
         shutil.copy2(file, wenv_abs)
 
-        file = env.cluster_root / "src/agi_cluster/agi_distributor/cli.py"
+        file = env.src_cluster / "agi_distributor/cli.py"
         logging.info(f"Copying {file} -> {wenv_abs.parent}")
         shutil.copy(file, wenv_abs.parent)
 
@@ -1255,22 +1254,24 @@ class AGI:
         """
         AGI._run_type = "sync"
         mode = (AGI.INSTALL_MODE | modes_enabled)
-        await AGI.run(scheduler=scheduler,
-                      workers=workers,
-                      env=env,
-                      mode=mode,
-                      rapids_enabled=AGI.INSTALL_MODE & modes_enabled,
-                      verbose=verbose, **args)
+        await AGI.run(
+            env=env,
+            scheduler=scheduler,
+            workers=workers,
+            mode=mode,
+            rapids_enabled=AGI.INSTALL_MODE & modes_enabled,
+            verbose=verbose, **args
+        )
 
     @staticmethod
     async def update(
-    scheduler: Optional[str] = None,
-    workers: Optional[Dict[str, int]] = None,
-    env: Optional[AgiEnv] = None,
-    modes_enabled: int = RUN_MASK,
-    verbose: Optional[int] = None,
-    **args: Any,
-) -> None:
+        env: Optional[AgiEnv] = None,
+        scheduler: Optional[str] = None,
+        workers: Optional[Dict[str, int]] = None,
+        modes_enabled: int = RUN_MASK,
+        verbose: Optional[int] = None,
+        **args: Any,
+    ) -> None:
         """
         install cluster virtual environment
         Parameters
@@ -1286,20 +1287,19 @@ class AGI:
 
         """
         AGI._run_type = "upgrade"
-        await AGI.run(module_name, scheduler=scheduler, workers=workers,
-                      env=env, mode=(AGI.UPDATE_MODE | modes_enabled) & AGI.DASK_RESET,
+        await AGI.run(env=env, scheduler=scheduler, workers=workers,
+                      mode=(AGI.UPDATE_MODE | modes_enabled) & AGI.DASK_RESET,
                       rapids_enabled=AGI.UPDATE_MODE & modes_enabled,
                       verbose=verbose, **args)
 
     @staticmethod
     async def distribute(
-    app: str,
-    env: AgiEnv,
-    scheduler: Optional[str] = None,
-    workers: Optional[Dict[str, int]] = None,
-    verbose: int = 0,
-    **args: Any,
-) -> Any:
+        env: AgiEnv,
+        scheduler: Optional[str] = None,
+        workers: Optional[Dict[str, int]] = None,
+        verbose: int = 0,
+        **args: Any,
+    ) -> Any:
         """
         check the distribution with a dry run
         Parameters
