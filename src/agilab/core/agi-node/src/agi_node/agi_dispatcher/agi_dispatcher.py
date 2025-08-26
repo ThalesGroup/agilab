@@ -918,7 +918,7 @@ class WorkDispatcher:
 
         except ModuleNotFoundError as e:
             module_to_install = (str(e).replace("No module named ", "").lower().replace("'", ""))
-            app_path = AGI.env.app_abs
+            app_path = AGI.env.active_app
             cmd = f"{AGI.env.uv} add --upgrade {module_to_install}"
             logging.info(f"{cmd} from {app_path}")
             await AgiEnv.run(cmd, app_path)
