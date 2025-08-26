@@ -62,6 +62,7 @@ agi_env = [
     "*.json",
     "*.toml",
 ]
+
 [tool.mypy]
 mypy_path = ["stubs"]
 disallow_untyped_defs = false
