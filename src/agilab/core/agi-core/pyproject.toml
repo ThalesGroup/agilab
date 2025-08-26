@@ -1,7 +1,3 @@
-[build-system]
-requires = ["hatchling>=1.25"]
-build-backend = "hatchling.build"
-
 [project]
 name = "agi-core"
 version = "0.5.7"
@@ -32,6 +28,10 @@ dependencies = [
 Homepage = "https://github.com/ThalesGroup/agilab"
 Issues = "https://github.com/ThalesGroup/agilab/issues"
 Documentation = "https://thalesgroup.github.io/agilab"
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 # Tell Hatch exactly what to ship (the tiny placeholder pkg).
