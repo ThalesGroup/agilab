@@ -221,7 +221,6 @@ class AgiEnv:
             install_type = int(install_type)
 
         AgiEnv.install_type = install_type
-        apps_dir = active_app.parent
 
         if install_type == 0:
             # remote case
@@ -239,11 +238,11 @@ class AgiEnv:
                 src_apps = self.agilab_src / "apps"
                 if not active_app.exists():
                     if src_apps.exists():
-                        self.copy_existing_projects(src_apps, apps_dir)
+                        self.copy_existing_projects(src_apps, active_app.parent)
                     else:
                         print(f"Warning: {src_apps} does not exist, nothing to copy!")
                 else:
-                    self.copy_missing(src_apps, apps_dir)
+                    self.copy_missing(src_apps, active_app.parent)
 
         elif install_type == 1:
             # dev case for manager
@@ -269,6 +268,7 @@ class AgiEnv:
         self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
         self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
 
+        apps_dir = active_app.parent
         module = active_app.name.replace("_project", "").replace("-", "_")
         self.module = module
         wenv_root = Path("wenv")
@@ -377,7 +377,7 @@ class AgiEnv:
             self.update_pyproject()
 
 
-        self.projects = self.get_projects(self.apps_dir)
+        self.projects = self.get_projects(AgiEnv.apps_dir)
         if not self.projects:
             logging.info(f"Could not find any target project app in {self.agilab_src / 'apps'}.")
 
@@ -606,7 +606,7 @@ class AgiEnv:
             project_name = name + "_project"
         else:
             project_name = name.replace("_", "-") + "_project"
-        module_path = self.apps_dir / project_name / "src" / module_name / (module_name + ".py")
+        module_path = AgiEnv.apps_dir / project_name / "src" / module_name / (module_name + ".py")
         return module_path.resolve()
 
     def get_projects(self, path: Path):
@@ -1191,7 +1191,7 @@ class AgiEnv:
         AgiEnv.set_env_var("INSTALL_TYPE", str(install_type))
 
     def set_apps_dir(self, apps_dir: Path):
-        self.apps_dir =apps_dir
+        self.apps_dir = apps_dir
         self.set_env_var("APPS_DIR", apps_dir)
 
     def has_admin_rights():
@@ -1326,8 +1326,8 @@ class AgiEnv:
             dest_project = dest_project.with_name(dest_project.name + "_project")
 
         rename_map  = self.create_rename_map(target_project, dest_project)
-        source_root = self.apps_dir / target_project
-        dest_root   = self.apps_dir / dest_project
+        source_root = AgiEnv.apps_dir / target_project
+        dest_root   = AgiEnv.apps_dir / dest_project
 
         if not source_root.exists():
             print(f"Source project '{target_project}' does not exist.")
