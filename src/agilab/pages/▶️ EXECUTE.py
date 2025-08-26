@@ -623,6 +623,10 @@ def workload_barchart(workers, workers_chunks, partition_key, weights_key, weigh
         fig.add_annotation(x=worker, y=total, text=f"<b>{total}</b>", showarrow=False, yshift=10)
     st.plotly_chart(fig, use_container_width=True)
 
+def _is_app_installed(env):
+    venv_root = env.active_app / ".venv"
+    return venv_root.exists()
+
 # ===========================
 # Main Application UI
 # ===========================
@@ -916,7 +920,8 @@ if __name__ == '__main__':
         asyncio.run(main())
             """
             st.code(cmd, language="python")
-        if st.button("RUN", key="run_btn", type="primary", help="Run your snippet with your cluster and app settings"):
+        if _is_app_installed(env):
+            if st.button("RUN", key="run_btn", type="primary", help="Run your snippet with your cluster and app settings"):
             clear_log()
             live_log_placeholder = st.empty()
             with st.spinner("Running AGI..."):
