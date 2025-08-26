@@ -199,6 +199,7 @@ class AgiEnv:
         if isinstance(active_app, str):
             # case only worker_env
             self.is_worker_env = True
+            module = active_app.replace("_project", "").replace("-", "_")
         else:
             if not active_app:
                 before, sep, after = __file__.rpartition(".venv")
@@ -208,6 +209,8 @@ class AgiEnv:
             self.active_app = active_app
             if not active_app.name.endswith('_project'):
                 raise ValueError(f"{active_app} must end with '_project'")
+            module = active_app.name.replace("_project", "").replace("-", "_")
+
 
         AgiEnv.verbose = verbose
         self.verbose = verbose
@@ -268,8 +271,6 @@ class AgiEnv:
         self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
         self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
 
-        apps_dir = active_app.parent
-        module = active_app.name.replace("_project", "").replace("-", "_")
         self.module = module
         wenv_root = Path("wenv")
         target_worker = f"{module}_worker"
@@ -325,13 +326,11 @@ class AgiEnv:
         self.pre_install = worker_module_path / "pre_install.py"
         self.post_install_rel = self.wenv_rel / 'src' / target_worker / "post_install.py"
 
-
         src_path = normalize_path(app_src)
         if not src_path in sys.path:
             sys.path.append(src_path)
 
-
-        AgiEnv.apps_dir = apps_dir
+        AgiEnv.apps_dir = active_app.parent
         distribution_tree = self.wenv_abs / "distribution_tree.json"
         if distribution_tree.exists():
             distribution_tree.unlink()
