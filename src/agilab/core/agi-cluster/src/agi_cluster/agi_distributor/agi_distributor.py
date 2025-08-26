@@ -996,7 +996,7 @@ class AGI:
         logging.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
         # manager install command with and without rapids capable
-        app_path = env.app_abs
+        app_path = env.active_app
         if has_rapids_hw:
             cmd_manager = f"{uv} {run_type} --config-file uv_config.toml --project {app_path}"
         else:
