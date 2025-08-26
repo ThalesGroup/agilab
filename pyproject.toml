@@ -1,6 +1,6 @@
 [project]
 name = "agi-core"
-version = "0.5.4"
+version = "0.5.7"
 description = "AGI meta-package that installs agi-env, agi-node, and agi-cluster"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -19,9 +19,9 @@ classifiers = [
 
 # 👉 The key bit: depend on the three subpackages by name
 dependencies = [
-  "agi-env>=0.5.3",       # pin to the first known-good version (adjust)
-  "agi-node>=0.5.3",
-  "agi-cluster>=0.5.3",
+  "agi-env",       # pin to the first known-good version (adjust)
+  "agi-node",
+  "agi-cluster",
 ]
 
 [project.urls]

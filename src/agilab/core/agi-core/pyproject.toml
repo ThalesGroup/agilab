@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agi-core"
-version = "0.5.4"
+version = "0.5.7"
 description = "AGI meta-package that installs agi-env, agi-node, and agi-cluster"
 readme = "README.md"
 requires-python = ">=3.11"
