@@ -741,10 +741,11 @@ if __name__ == '__main__':
             clear_log()
             live_log_placeholder = st.empty()
             with st.spinner("Installing worker..."):
+                venv = env.cluster_root if env.install_type else env.active_app.parents[1]
                 stdout, stderr = await env.run_agi(
                     cmd,
                     log_callback=lambda message: update_log(live_log_placeholder, message),
-                    venv=env.cluster_root
+                    venv=venv
                 )
 
                 live_log_placeholder.empty()
