@@ -165,7 +165,7 @@ def get_base64_of_image(image_path):
 @st.cache_data
 def get_css_text():
     env = st.session_state["env"]
-    with open(env.resource_path / "code_editor.scss") as file:
+    with open(env.st_resources / "code_editor.scss") as file:
         return file.read()
 
 @st.cache_resource
@@ -175,7 +175,7 @@ def render_logo(edit_text):
     else:
         return
 
-    agilab_logo_path = env.resource_path / "agilab_logo.png"  # Replace with your logo filename
+    agilab_logo_path = env.st_resources / "agilab_logo.png"  # Replace with your logo filename
     agilab_logo_base64 = get_base64_of_image(agilab_logo_path)
     if agilab_logo_base64:
         st.markdown(
@@ -444,7 +444,7 @@ def get_custom_buttons():
         This function uses Streamlit's caching mechanism to avoid reloading the data each time it is called.
     """
     env = st.session_state["env"]
-    with open(env.resource_path / "custom_buttons.json") as file:
+    with open(env.env.st_resources / "custom_buttons.json") as file:
         return json.load(file)
 
 
@@ -461,7 +461,7 @@ def get_info_bar():
     :raise FileNotFoundError: If the 'info_bar.json' file cannot be found.
     """
     env = st.session_state["env"]
-    with open(env.resource_path / "info_bar.json") as file:
+    with open(env.st_resources / "info_bar.json") as file:
         return json.load(file)
 
 

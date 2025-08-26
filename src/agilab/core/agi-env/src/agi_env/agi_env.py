@@ -242,6 +242,7 @@ class AgiEnv:
                         print(f"Warning: {src_apps} does not exist, nothing to copy!")
                 else:
                     self.copy_missing(src_apps, active_app.parent)
+            resource_path = self.env_root / self.agi_resources
 
         elif install_type == 1:
             # dev case for manager
@@ -251,7 +252,7 @@ class AgiEnv:
             self.env_root = self.agilab_src / "core/agi-env"
             self.cluster_root = self.agilab_src / "core/agi-cluster"
             self.node_root = self.agilab_src / "core/agi-node"
-            resource_path = self.env_root / self.agi_resources
+            resource_path = self.env_root / "src/agi_env" / self.agi_resources
 
         elif install_type == 2:
             # enduser case
@@ -262,8 +263,9 @@ class AgiEnv:
             resource_path = self.env_root / "src/agi_env" / self.agi_resources
             if not self.env_root.exists():
                 raise RuntimeError(f"{self.env_root} do not exist\nYour Agilab installation is not valid")
-            self._init_resources(resource_path)
 
+        self._init_resources(resource_path)
+        self.st_resources = self.agilab_src / "agilab/resources"
         self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
         self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
 

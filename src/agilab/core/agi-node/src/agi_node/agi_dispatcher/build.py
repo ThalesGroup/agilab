@@ -231,7 +231,7 @@ def main() -> None:
 
     elif install_type != 2:
         # For bdist_egg copy modules under src
-        os.chdir(env.app_abs)
+        os.chdir(env.active_app)
         for module in packages:
             links_created.extend(create_symlink_for_module(env, module))
 

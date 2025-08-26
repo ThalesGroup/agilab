@@ -915,7 +915,7 @@ class AGI:
     async def _install_app(scheduler_addr: Optional[str]) -> None:
         AGI._initialize_installation()
         env = AGI.env
-        app_path = env.app_abs
+        app_path = env.active_app
         wenv_rel = env.wenv_rel
         if isinstance(env.base_worker_cls, str):
             options_worker = " --extra "  + " --extra ".join(AGI.install_worker_group)
@@ -1358,7 +1358,7 @@ class AGI:
             except Exception as e:
                 raise
 
-            toml_local = env.app_abs / "pyproject.toml"
+            toml_local = env.active_app / "pyproject.toml"
             wenv_rel = env.wenv_rel
             wenv_abs = env.wenv_abs
             if env.is_local(AGI._scheduler_ip):
@@ -1368,7 +1368,7 @@ class AGI:
                     f"--host {AGI._scheduler_ip} --pid-file {wenv_abs.parent / 'dask_scheduler.pid' } "
                 )
                 logging.info(f"Starting dask scheduler locally: {cmd}")
-                result = AGI._exec_bg(cmd, env.app_abs)
+                result = AGI._exec_bg(cmd, env.active_app)
                 if result:# assuming _exec_bg is sync
                     logging.info(result)
             else:
@@ -1543,7 +1543,7 @@ class AGI:
         elif baseworker.startswith("Polars"):
             packages += "polars_worker"
 
-        app_path = env.app_abs
+        app_path = env.active_app
         wenv_abs = env.wenv_abs
         shutil.copy2(env.setup_core, app_path)
 
