@@ -1032,7 +1032,7 @@ class AgiEnv:
         snippet_file = os.path.join(self.runenv, f"{matches[0]}-{self.target}.py")
         with open(snippet_file, "w") as file:
             file.write(code)
-        cmd = f"uv -q run --no-install --project {str(venv)} python {snippet_file}"
+        cmd = f"uv -q run --no-sync --project {str(venv)} python {snippet_file}"
         result = await AgiEnv._run_bg(cmd, cwd=venv, log_callback=log_callback)
         if log_callback:
             log_callback(f"Process finished with output: {result}")
