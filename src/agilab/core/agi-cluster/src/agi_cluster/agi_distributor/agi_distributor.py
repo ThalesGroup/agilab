@@ -624,7 +624,8 @@ class AGI:
         kill_prefix = f'{cmd_prefix}{uv} run -p {env.python_version} python'
 
         if env.is_local(ip):
-            shutil.copy(env.cluster_root / "src/agi_cluster/agi_distributor/cli.py", cli_abs)
+            if not cli_abs.exists():
+                shutil.copy(env.cluster_root / "src/agi_cluster/agi_distributor/cli.py", cli_abs)
             if force:
                 cmd = f"{kill_prefix} {cli_abs} kill"
                 cmds.append(cmd)
