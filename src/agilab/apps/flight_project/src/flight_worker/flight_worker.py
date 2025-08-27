@@ -17,9 +17,9 @@ from pathlib import Path
 import logging
 
 from numpy.linalg import norm  # Imported norm
+from agi_env import normalize_path
 from agi_node.polars_worker import PolarsWorker
 from agi_node.agi_dispatcher import BaseWorker
-from agi_env import normalize_path
 
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
