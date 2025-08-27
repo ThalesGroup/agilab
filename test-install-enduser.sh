@@ -3,8 +3,6 @@ set -eux
 
 home=$(pwd)
 
-
-
 # Prepare output directory
 rm  -rf "$home/../agi-space"
 mkdir -p "$home/../agi-space"

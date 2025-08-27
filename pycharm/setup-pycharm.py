@@ -15,6 +15,7 @@ class Config:
         self.RUN_CONFIGS_DIR = self.IDEA_DIR / "runConfigurations"
         self.MISC = self.IDEA_DIR / "misc.xml"
         self.MODULES = self.IDEA_DIR / "modules.xml"
+        self.AGISPACE = root / ".." / "agi-space"
 
         self.PROJECT_NAME = self.IDEA_DIR.parent.name
         self.PROJECT_SDK = f"uv ({self.PROJECT_NAME})"
@@ -360,11 +361,13 @@ class Project:
             root =  ET.Element("project", {"version": "4"})
             tree = ET.ElementTree(root)
 
-        prm = root.find("./component[@name='ProjectRootManager']")
+        prm = root.find("./component[@name='Black']")
         if prm is None:
-            prm = ET.SubElement(root, "component", {"name": "ProjectRootManager"})
-        prm.set("project-jdk-name", sdk_name)
-        prm.set("project-jdk-type", self.cfg.PROJECT_SDK_TYPE)
+            prm = ET.SubElement(root, "component", {"name": "Black"})
+        option = prm.find("./option[@name='sdkName']")
+        if option is None:
+            option = ET.SubElement(prm, "option", {"name": "sdkName"})
+        option.set("value", sdk_name)
         write_xml(tree, self.cfg.MISC)
         logging.info(f"Project SDK set to {sdk_name} in {self.cfg.MISC}")
 
@@ -409,7 +412,7 @@ class Project:
 
         m = ET.Element("module", {"type": "PYTHON_MODULE", "version": "4"})
         comp = ET.SubElement(m, "component", {"name": "NewModuleRootManager"})
-        ET.SubElement(comp, "content", {"url": "file://$PROJECT_DIR$"})
+        ET.SubElement(comp, "content", {"url": "file://$MODULE_DIR$/../"})
         ET.SubElement(comp, "orderEntry", {"type": "inheritedJdk"})
         ET.SubElement(comp, "orderEntry", {"type": "sourceFolder", "forTests": "false"})
         write_xml(ET.ElementTree(m), path)
@@ -501,6 +504,24 @@ class Project:
             logging.info(f"Generating run configs for '{name}' via {self.cfg.GEN_SCRIPT.name} …")
             subprocess.run([sys.executable, str(self.cfg.GEN_SCRIPT), name], check=True, cwd=str(self.cfg.ROOT))
 
+    def python_terminal_settings(self):
+        term_cfg = self.cfg.IDEA_DIR / "python-terminal.xml"
+        if term_cfg.exists():
+            tree = read_xml(term_cfg)
+            root = tree.getroot()
+        else:
+            root =  ET.Element("project", {"version": "4"})
+            tree = ET.ElementTree(root)
+
+        comp = root.find("./component[@name='PyVirtualEnvTerminalCustomizer']")
+        if comp is None:
+            comp = ET.SubElement(root, "component", {"name": "PyVirtualEnvTerminalCustomizer"})
+        option = comp.find("./option[@name='virtualEnvActivate']")
+        if option is None:
+            option = ET.SubElement(comp, "option", {"name": "virtualEnvActivate"})
+        option.set("virtualEnvActivate", "false")
+
+        write_xml(tree, term_cfg)
 
 def main():
     path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parents[1]
@@ -526,6 +547,7 @@ def main():
 
     root_iml = model.ensure_root_module_iml()
     model.set_module_sdk(root_iml, cfg.PROJECT_SDK)
+    model.add_core_module_entry(root_iml)
 
     realized_apps = []
     for app in cfg.eligible_apps:
@@ -590,6 +612,23 @@ def main():
     logging.info("Project setup completed successfully.")
     logging.info(f"Realized apps: {', '.join([app for app in realized_apps])}")
     logging.info(f"Realized core: {', '.join([core for core in realized_core])}")
+
+    if cfg.AGISPACE.exists():
+        logging.info("Realizing agi-space as a module.")
+        agi_iml = model.write_module_minimal("agi-space", cfg.AGISPACE)
+        agi_py = venv_python_for(cfg.AGISPACE)
+        if agi_py:
+            sdk_name = "uv (agi-space)"
+            jdk_table.add_jdk(sdk_name, agi_py)
+            model.set_module_sdk(agi_iml, sdk_name)
+            model.add_core_module_entry(agi_iml)
+        else:
+            logging.warning("No virtual environment found for agi-space, skipping SDK assignment.")
+    else:
+        logging.info("No agi-space directory found, skipping.")
+
+    model.python_terminal_settings()
+
     return 0
 
 if __name__ == "__main__":
