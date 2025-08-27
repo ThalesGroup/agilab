@@ -190,9 +190,9 @@ class AgiEnv:
         home_abs = Path.home() / "MyApp" if AgiEnv.is_managed_pc else Path.home()
         self.home_abs = home_abs
 
-        AgiEnv.resource_path = home_abs / self.agi_resources.name
-        env_path = AgiEnv.resource_path / ".env"
-        self.benchmark = AgiEnv.resource_path / "benchmark.json"
+        AgiEnv.resources_path = home_abs / self.agi_resources.name
+        env_path = AgiEnv.resources_path / ".env"
+        self.benchmark = AgiEnv.resources_path / "benchmark.json"
         AgiEnv.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
         envars = AgiEnv.envars
 
@@ -242,7 +242,7 @@ class AgiEnv:
                         print(f"Warning: {src_apps} does not exist, nothing to copy!")
                 else:
                     self.copy_missing(src_apps, active_app.parent)
-            resource_path = self.env_root / self.agi_resources
+            resources_src = self.env_root / self.agi_resources
 
         elif install_type == 1:
             # dev case for manager
@@ -253,7 +253,7 @@ class AgiEnv:
             self.cluster_root = self.agilab_src / "core/agi-cluster"
             self.src_cluster = self.cluster_root / "src/agi_cluster"
             self.node_root = self.agilab_src / "core/agi-node"
-            resource_path = self.env_root / "src/agi_env" / self.agi_resources
+            resources_src = self.env_root / "src/agi_env" / self.agi_resources
 
         elif install_type == 2:
             # enduser case
@@ -262,11 +262,11 @@ class AgiEnv:
             self.node_root = self.agilab_src / "../agi-node"
             self.cluster_root = self.agilab_src / "../agi-cluster"
             self.src_cluster = self.cluster_root / "src/agi_cluster"
-            resource_path = self.env_root / "src/agi_env" / self.agi_resources
+            resources_src = self.env_root / "src/agi_env" / self.agi_resources
             if not self.env_root.exists():
                 raise RuntimeError(f"{self.env_root} do not exist\nYour Agilab installation is not valid")
 
-        self._init_resources(resource_path)
+        self._init_resources(resources_src)
         self.st_resources = self.agilab_src / "resources"
         self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
         self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
@@ -556,13 +556,13 @@ class AgiEnv:
                 print(f"[WARN] Source dir missing (skipped): {src_dir}")
 
     def _update_env_file(updates: dict):
-        env_file = AgiEnv.resource_path / ".env"
+        env_file = AgiEnv.resources_path / ".env"
         for k, v in updates.items():
             set_key(str(env_file), k, str(v), quote_mode="never")
 
-    def _init_resources(self, resources_path):
-        src_env_path = resources_path / ".env"
-        dest_env_file = AgiEnv.resource_path / ".env"
+    def _init_resources(self, resources_src):
+        src_env_path = resources_src / ".env"
+        dest_env_file = AgiEnv.resources_path / ".env"
         if not src_env_path.exists():
             msg = f"Installation issue: {src_env_path} is missing!"
             logging.info(msg)
@@ -570,11 +570,11 @@ class AgiEnv:
         if not dest_env_file.exists():
             os.makedirs(dest_env_file.parent, exist_ok=True)
             shutil.copy(src_env_path, dest_env_file)
-        for root, dirs, files in os.walk(resources_path):
+        for root, dirs, files in os.walk(resources_src):
             for file in files:
                 src_file = Path(root) / file
-                relative_path = src_file.relative_to(resources_path)
-                dest_file = AgiEnv.resource_path / relative_path
+                relative_path = src_file.relative_to(resources_src)
+                dest_file = AgiEnv.resources_path / relative_path
                 dest_file.parent.mkdir(parents=True, exist_ok=True)
                 if not dest_file.exists():
                     shutil.copy(src_file, dest_file)
