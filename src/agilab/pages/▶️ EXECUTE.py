@@ -694,7 +694,7 @@ async def page():
     # Sidebar toggles for each page section
     show_install = st.sidebar.checkbox("INSTALL", value=True)
     show_distribute = st.sidebar.checkbox("SET ARGS", value=False)
-    if st.session_state.get("args_serialized") or show_distribute:
+    if (st.session_state.get("args_serialized") or show_distribute) and _is_app_installed(env):
         show_run = st.sidebar.checkbox("RUN", value=False)
     else:
         show_run = False
@@ -924,8 +924,7 @@ if __name__ == '__main__':
         asyncio.run(main())
             """
             st.code(cmd, language="python")
-        if _is_app_installed(env):
-            if st.button("RUN", key="run_btn", type="primary", help="Run your snippet with your cluster and app settings"):
+        if st.button("RUN", key="run_btn", type="primary", help="Run your snippet with your cluster and app settings"):
                 clear_log()
                 live_log_placeholder = st.empty()
                 with st.spinner("Running AGI..."):
