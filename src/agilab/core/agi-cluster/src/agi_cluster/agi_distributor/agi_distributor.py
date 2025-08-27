@@ -1057,10 +1057,10 @@ class AGI:
             cmd = f"{uv_worker} pip install -e {env.node_root}"
             await AgiEnv.run(cmd, wenv_abs)
         else:
-            cmd = f"{uv_worker} sync --project {env.env_root}"
+            cmd = f"{uv_worker} sync --upgrade --project {env.env_root}"
             await AgiEnv.run(cmd, wenv_abs)
 
-            cmd = f"{uv_worker} sync --project {env.node_root}"
+            cmd = f"{uv_worker} sync --upgrade --project {env.node_root}"
             await AgiEnv.run(cmd, wenv_abs)
 
         # Post-install script
