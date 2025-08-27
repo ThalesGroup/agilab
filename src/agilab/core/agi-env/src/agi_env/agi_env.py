@@ -373,7 +373,7 @@ class AgiEnv:
         if install_type == 1:
             self.update_pyproject()
         elif install_type == 0:
-            self.update_pyproject()
+            self.update_pyproject_enduser()
 
 
         self.projects = self.get_projects(AgiEnv.apps_dir)
