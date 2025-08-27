@@ -3,4 +3,4 @@ name = "src"
 description = "Add your description here"
 requires-python = ">=3.11"
 dependencies = []
-version = "0.5.7"
+version = "0.6.0"
