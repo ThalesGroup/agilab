@@ -843,8 +843,18 @@ class AgiEnv:
         self.args_ui_snippet = args_ui_snippet
 
         self.gitignore_file = self.app_abs / ".gitignore"
-        #dest = AgiEnv.resources_path
-        #shutil.copytree(self.agilab_src / "resources", dest, dirs_exist_ok=True)
+        dest = AgiEnv.resources_path
+        src = self.agilab_src / "resources"
+        for file in src.iterdir():
+            if not file.is_file():
+                continue
+
+            dest_file = dest / file.name
+            if dest_file.exists():
+                continue
+
+            shutil.copy2(file, dest_file)
+        # shutil.copytree(self.agilab_src / "resources", dest, dirs_exist_ok=True)
 
 
     @staticmethod
