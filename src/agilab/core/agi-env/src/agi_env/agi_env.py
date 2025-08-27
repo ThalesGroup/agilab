@@ -370,11 +370,7 @@ class AgiEnv:
             self.uv_worker = self.uv
             self.pyvers_worker = self.python_version
 
-        if install_type == 1:
-            self.update_pyproject()
-        elif install_type == 0:
-            self.update_pyproject_enduser()
-
+        self.update_pyproject()
 
         self.projects = self.get_projects(AgiEnv.apps_dir)
         if not self.projects:
@@ -848,7 +844,6 @@ class AgiEnv:
 
         self.gitignore_file = self.app_abs / ".gitignore"
         #dest = AgiEnv.resources_path
-
         #shutil.copytree(self.agilab_src / "resources", dest, dirs_exist_ok=True)
 
 
