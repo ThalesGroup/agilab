@@ -634,15 +634,6 @@ class AGI:
                 cmd = f"{kill_prefix} {cli_rel} kill"
                 cmds.append(cmd)
 
-        # # 3) If we found any explicit pid files, terminate those PIDs
-        # if pids_to_kill:
-        #     cmds.append(
-        #         f'{kill_prefix} -c "import os, psutil; '
-        #         f"pids={pids_to_kill}; "
-        #         "[psutil.Process(p).kill() for p in pids if p!=os.getpid()]"
-        #         '"'
-        #     )
-
         last_res = None
         for cmd in cmds:
             # choose working directory based on local vs remote
