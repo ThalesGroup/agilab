@@ -229,8 +229,8 @@ class AGI:
             AGI.workers = workers
             AGI._run_time = {}
 
-            AGI._capacity_data_file = env.resource_path / "balancer_df.csv"
-            AGI._capacity_model_file = env.resource_path / "balancer_model.pkl"
+            AGI._capacity_data_file = env.resources_path / "balancer_df.csv"
+            AGI._capacity_model_file = env.resources_path / "balancer_model.pkl"
             path = Path(AGI._capacity_model_file)
 
             if path.is_file():

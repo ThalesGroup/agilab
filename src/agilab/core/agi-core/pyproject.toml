@@ -18,9 +18,9 @@ classifiers = [
 
 # 👇 The whole point of the meta-package:
 dependencies = [
-  "agi-env>=0.5.3,<0.6.0",
-  "agi-node>=0.5.3,<0.6.0",
-  "agi-cluster>=0.5.3,<0.6.0",
+  "agi-env",
+  "agi-node",
+  "agi-cluster",
 ]
 
 version = "0.6.0"
