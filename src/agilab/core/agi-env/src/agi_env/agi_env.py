@@ -847,7 +847,7 @@ class AgiEnv:
         self.args_ui_snippet = args_ui_snippet
 
         self.gitignore_file = self.app_abs / ".gitignore"
-        dest = AgiEnv.resource_path
+        dest = AgiEnv.resources_path
         shutil.copytree(self.agilab_src / "resources", dest, dirs_exist_ok=True)
 
 
