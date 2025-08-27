@@ -1,6 +1,5 @@
 [project]
 name = "agi-core"
-version = "0.5.7"
 description = "AGI meta-package that installs agi-env, agi-node, and agi-cluster"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -24,6 +23,7 @@ dependencies = [
   "agi-cluster>=0.5.3,<0.6.0",
 ]
 
+version = "0.6.0"
 [project.urls]
 Homepage = "https://github.com/ThalesGroup/agilab"
 Issues = "https://github.com/ThalesGroup/agilab/issues"

@@ -65,7 +65,7 @@ dependencies = [
     "wheel"
 ]
 
-version = "0.5.7"
+version = "0.6.0"
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/agilab/core/agi-cluster"
