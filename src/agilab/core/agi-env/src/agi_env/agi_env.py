@@ -232,6 +232,7 @@ class AgiEnv:
             self.src_cluster = agilab_src_parent / "agi_cluster"
             self.node_root = agilab_src_parent / "agi_node"
             self.env_root = agilab_src_parent / "agi_env"
+            self.cluster_root = self.active_app.parent
 
             if not active_app.exists():
                 src_apps = self.agilab_src / "apps"
