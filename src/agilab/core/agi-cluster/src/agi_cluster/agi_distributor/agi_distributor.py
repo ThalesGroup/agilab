@@ -1055,6 +1055,12 @@ class AGI:
 
             cmd = f"{uv_worker} pip install -e {env.node_root}"
             await AgiEnv.run(cmd, wenv_abs)
+        else:
+            cmd = f"{uv_worker} sync --project {env.env_root}"
+            await AgiEnv.run(cmd, wenv_abs)
+
+            cmd = f"{uv_worker} sync --project {env.node_root}"
+            await AgiEnv.run(cmd, wenv_abs)
 
         # Post-install script
         dest = wenv_abs / "src" / env.target_worker
