@@ -1,6 +1,6 @@
 [project]
 name = "polars_app_project"
-version = "0.6.7"
+version = "0.6.8"
 description = ""
 requires-python = ">=3.11"
 readme = "README.md"
