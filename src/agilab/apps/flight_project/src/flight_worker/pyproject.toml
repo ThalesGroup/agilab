@@ -5,20 +5,22 @@ description = ""
 requires-python = ">=3.11"
 readme = "README.md"
 dependencies = [
-"cython",
-"dask[distributed]",
-"fastparquet",
-"geopy",
-"humanize",
-"logging",
-"numpy",
-"parso",
-"polars",
-"psutil",
-"py7zr",
-"python-dotenv",
-"scipy==1.15.2",
-"setuptools",
+    "cython",
+    "dask[distributed]",
+    "fastparquet",
+    "geopy",
+    "humanize",
+    "logging",
+    "numpy",
+    "parso",
+    "polars",
+    "psutil",
+    "py7zr",
+    "python-dotenv",
+    "scipy==1.15.2",
+    "setuptools",
+    "agi-env",
+    "agi-node",
 ]
 
 [dependency-groups]
