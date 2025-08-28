@@ -4,7 +4,21 @@ version = "0.6.7"
 description = ""
 requires-python = ">=3.11"
 readme = "README.md"
-dependencies = [ "numpy", "geopy", "setuptools", "cython", "psutil", "parso", "py7zr", "python-dotenv", "humanize", "requests", "dask[distributed]"]
+dependencies = [
+    "numpy",
+    "geopy",
+    "setuptools",
+    "cython",
+    "psutil",
+    "parso",
+    "py7zr",
+    "python-dotenv",
+    "humanize",
+    "requests",
+    "dask[distributed]",
+    "agi-env",
+    "agi-node",
+]
 [[project.authors]]
 name = "Jean-Pierre Morard"
 email = "focus@thalesgroup.com"
