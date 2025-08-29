@@ -58,7 +58,7 @@ dependencies = [
     "pandas",
 ]
 
-version = "0.7.1"
+version = "0.7.2"
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/agilab/agi-cluster"
