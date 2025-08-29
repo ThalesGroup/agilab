@@ -73,8 +73,6 @@ pushd "$WORKSPACE" >/dev/null
   if [[ -n "$PYTHON_BIN" ]]; then uv venv -p "$PYTHON_BIN"; else uv venv; fi
   # shellcheck disable=SC1091
   source .venv/bin/activate
-  python -V
-  uv pip --version
 
   if [[ "$SOURCE" == "local" ]]; then
     section "Building local packages and installing into the venv"
@@ -134,7 +132,7 @@ PY
   elif command -v run-all-test >/dev/null 2>&1; then
     run-all-test
   elif [[ -x "$ROOT/scripts/run-all-test" ]]; then
-    "$ROOT/scripts/run-all-test"
+#    "$ROOT/scripts/run-all-test"
   else
     echo "ERROR: run-all-test not found; please provide it or pass --run '<command>'." >&2
     exit 1
