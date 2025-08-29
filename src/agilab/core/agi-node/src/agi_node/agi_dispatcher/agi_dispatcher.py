@@ -370,6 +370,7 @@ class BaseWorker(abc.ABC):
     def new(
             app,
             mode=mode,
+            install_type,
             env=None,
             verbose=0,
             worker_id=0,
@@ -391,8 +392,17 @@ class BaseWorker(abc.ABC):
         """
         try:
             if env == None:
-                #install_type = 1 if worker.startswith("localhost") or worker.startswith("127.0.0.1") else 2
-                BaseWorker.env = AgiEnv(active_app=app, install_type=2, verbose=verbose)
+                if install_type:
+                    # cas app manager install_type == 0
+                    install_type = 2   # set app worker install_type
+                else:
+                    # cas app manager install_type == 1
+                    if worker.startswith("localhost") or worker.startswith("127.0.0.1"):
+                        #case local worker
+                        install_type = 1  # set local worker install_type == 1 for debug/pip install -e/ debug from src
+                    else:
+                        install_type = 2  # set remote worker install_type == 2 install for install from pypi.org
+                BaseWorker.env = AgiEnv(active_app=app, install_type=install_type, verbose=verbose)
             else:
                 BaseWorker.env = env
 
