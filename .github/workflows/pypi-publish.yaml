@@ -262,6 +262,19 @@ jobs:
             git push origin HEAD:main
           fi
 
+      - name: Remove symlinks (apps/ and views/)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          # List and delete only symlinks under these trees
+          find src/agilab/apps src/agilab/views -type l -print -delete || true
+
+      - name: Remove symlinks (apps/ and views/)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          find src/agilab/apps src/agilab/views -type l -print -delete || true
+
       - name: Build agilab
         run: uv build --wheel
 
@@ -404,6 +417,12 @@ jobs:
 
       - name: Clean previous builds
         run: rm -rf dist
+
+      - name: Remove symlinks (apps/ and views/)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          find src/agilab/apps src/agilab/views -type l -print -delete || true
 
       - name: Build agilab
         run: uv build --wheel

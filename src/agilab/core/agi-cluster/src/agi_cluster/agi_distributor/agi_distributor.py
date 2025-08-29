@@ -217,7 +217,7 @@ class AGI:
                 logging.info("parameter <mode> must be an int, a list of int or a string")
                 sys.exit(1)
 
-            AGI._run_types = ["run --no-sync", "sync --force-reinstall --upgrade --dev", "sync --force-reinstall --upgrade --dev", "simulate"]
+            AGI._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
             if AGI._mode:
                 if AGI._mode & AGI.RUN_MASK not in range(0, AGI.RAPIDS_MODE):
                     raise ValueError(f"mode {AGI._mode} not implemented")

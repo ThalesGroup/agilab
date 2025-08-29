@@ -80,9 +80,17 @@ pushd "$WORKSPACE" >/dev/null
     set -x
     # Build main project (sdist) and the four core subpackages (wheels), like the original script. :contentReference[oaicite:3]{index=3}
     rm -rf dist build
+    # Remove symlinks that should never be packaged (apps/ & views/)
+    find src/agilab/apps src/agilab/views -type l -print -delete || true
     uv build --sdist
     mkdir -p "$WORKSPACE/.artifacts"
     cp dist/*.gz "$WORKSPACE/.artifacts"
+
+    # Verify the sdist doesn’t contain known symlinked app folders
+    tar -tzf "$WORKSPACE/.artifacts/"agilab-*.tar.gz | \
+      grep -E 'src/agilab/apps/(flight_trajectory_project|link_sim_project|sat_trajectory_project|sb3_trainer_project)|src/agilab/views/maps-network-graph' \
+      && { echo "ERROR: symlinked app content found in sdist"; exit 1; } \
+      || echo "OK: symlinked app content not present in sdist"
 
     for pkg in agi-core agi-cluster agi-node agi-env; do
       pushd "src/agilab/core/$pkg" >/dev/null
@@ -93,13 +101,13 @@ pushd "$WORKSPACE" >/dev/null
     done
     set +x
     pushd "$WORKSPACE" >/dev/null
-    uv pip install --upgrade --force-reinstall ./.artifacts/*.whl ./.artifacts/*.gz
+    uv pip install ./.artifacts/*.whl ./.artifacts/*.gz
   else
     section "Installing packages from TestPyPI (version ${VERSION})"
     for pkg in $PACKAGES; do
       spec="${pkg}==${VERSION}"
       echo "+ uv pip install $spec"
-      uv pip install --no-cache-dir --upgrade --force-reinstall \
+      uv pip install \
         --index-url "$INDEX_URL" --extra-index-url "$EXTRA_INDEX_URL" \
         "$spec"
     done
