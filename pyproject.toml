@@ -101,6 +101,9 @@ agilab = [
     "*.ipynb",
 ]
 
+[project.scripts]
+agilab = "agilab.lab_run:main"
+
 [tool.mypy]
 mypy_path = [
     "stubs",
