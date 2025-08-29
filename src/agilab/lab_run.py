@@ -12,26 +12,11 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import argparse
+from dotenv import dotenv_values, set_key
 import os
 import sys
 from pathlib import Path
 import streamlit.web.cli as stcli
-
-def check_environment():
-
-    # Check if current directory is acceptable:
-    cwd = Path.cwd()
-    # For example, accept if the cwd contains 'pyproject.toml'
-    if not (cwd / "pyproject.toml").exists() and "agilab/src/agilab/gui" not in str(cwd):
-        print("Error: Please run this command from a directory that contains your agilab project (e.g. the project root or agilab/src/agilab/gui).")
-        sys.exit(1)
-
-    # Check if the package is installed (optional):
-    try:
-        import agilab  # or any module from your package
-    except ImportError:
-        print("Error: The agilab package is not installed in this environment.")
-        sys.exit(1)
 
 def main():
     check_environment()
@@ -44,9 +29,6 @@ def main():
     )
     parser.add_argument(
         "--openai-api-key", type=str, help="OpenAI API key", default=None
-    )
-    parser.add_argument(
-        "--apps-dir", type=str, help="Directory for apps", default=None
     )
     parser.add_argument(
         "--install-type", type=str, help="Install type", default=None
@@ -66,48 +48,30 @@ def main():
         custom_args.extend(["--cluster-ssh-credentials", args.cluster_ssh_credentials])
     if args.openai_api_key is not None:
         custom_args.extend(["--openai-api-key", args.openai_api_key])
-    if args.apps_dir is None:
-        before, sep, after = __file__.rpartition(".venv")
-        args.apps_dir = Path(before) / "apps"
-    custom_args.extend(["--apps-dir", args.apps_dir])
-    agi_path_storage = Path("~/").expanduser() / ".local/share/agilab/.agi-path"
-    if args.install_type is not None:
-        agilab_install = None
-        custom_args.extend(["--install-type", args.install_type])
-        if not args.install_type:
-            if agi_path_storage.exists():
-                with open(agi_path_storage, "r") as f:
-                    agilab_install = f.read()
-                    agilab_install = Path(agilab_install)
-                    if not agilab_install.exists():
-                        agilab_install = None
-                    else:
-                        print("agilab found in", agilab_install)
-        if not agilab_install:
-            os.makedirs(agi_path_storage.parent, exist_ok=True)
-            with open(agi_path_storage, "w") as f:
-                agilab_install = Path(args.apps_dir).parents[2].absolute()
-                print("agilab found in", agilab_install)
-                f.write(str(agilab_install))
-        else:
-            print("No agilab installed in", agilab_install)
-            sys.exit(1)
+
+    if len(custom_args) != 2:
+        print("SSH Credentials and OpenAI API key are required")
+        sys.exit(1)
+
+    install_type = 0
+    if args.install_type is None:
+        env_path = Path("~/").expanduser() / ".agilab" / ".env"
+        env = dotenv_values(env_path)
+        install_type = env.get("INSTALL_TYPE", "0")
     else:
-        with open(agi_path_storage, "w") as f:
-            f.write(str(Path(__file__).parents[1].absolute() / "agilab"))
+        install_type = args.install_type
+
+    custom_args.extend(["--install_type", install_type])
 
     if unknown:
         custom_args.extend(unknown)
 
     # Only add the double dash and custom arguments if there are any.
-    if custom_args:
-        new_argv.append("--")
-        new_argv.extend(custom_args)
+    new_argv.append("--")
+    new_argv.extend(custom_args)
 
     sys.argv = new_argv
     sys.exit(stcli.main())
-
-
 
 if __name__ == "__main__":
     main()
