@@ -58,9 +58,7 @@ dependencies = [
     "twine",
     "watchdog",
     "wheel",
-    "agi-cluster",
-    "agi-env",
-    "agi-node",
+    "agi-core",
 ]
 
 [project.urls]
@@ -68,11 +66,6 @@ Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab"
 Issues = "https://github.com/ThalesGroup/agilab/issues"
 
-[tool.uv.sources.agi-node]
-path = "src/agilab/core/agi-node"
-
-[tool.uv.sources.agi-cluster]
-path = "src/agilab/core/agi-cluster"
 
 [build-system]
 requires = ["setuptools"]
