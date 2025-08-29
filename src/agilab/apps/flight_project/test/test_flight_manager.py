@@ -3,15 +3,15 @@ from pathlib import Path
 import pytest
 from datetime import date
 from agi_env import AgiEnv
-app_abs = Path(__file__).resolve().parents[1]
-path = str(app_abs  / "src")
+active_app = Path(__file__).resolve().parents[1]
+path = str(active_app  / "src")
 if path not in sys.path:
     sys.path.append(path)
 from flight import Flight
 
 @pytest.fixture
 def flight():
-    env = AgiEnv(active_app=app_abs, verbose=True)
+    env = AgiEnv(active_app=active_app, verbose=True)
     return Flight(
         env=env,
         verbose=True,
