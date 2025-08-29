@@ -23,7 +23,7 @@ dependencies = [
   "agi-cluster",
 ]
 
-version = "0.6.9"
+version = "0.7.1"
 [project.urls]
 Homepage = "https://github.com/ThalesGroup/agilab"
 Issues = "https://github.com/ThalesGroup/agilab/issues"
