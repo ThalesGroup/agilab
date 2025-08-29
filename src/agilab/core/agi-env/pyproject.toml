@@ -51,9 +51,6 @@ dev = [
     "black", "pytest", "pytest-asyncio", "licensecheck", "pytest-cov"
 ]
 
-[tool.uv.sources.agi-env]
-path="../agi-env"
-editable = true
 
 [tool.setuptools.data-files]
 agi_env = [
