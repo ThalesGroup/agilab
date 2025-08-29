@@ -305,6 +305,24 @@ install_enduser() {
     ./test-install-enduser.sh "$apps_dir" "1"
 }
 
+AGI_USE_TESTPYPI=1
+AGI_VERSION=0.6.9
+
+install_enduser() {
+    chmod +x "./test-install-enduser.sh"
+    echo -e "${BLUE}End-user installation smoke test...${NC}"
+    if [[ "${AGI_USE_TESTPYPI:-0}" == "1" ]]; then
+        if [[ -z "${AGI_VERSION:-}" ]]; then
+            echo -e "${RED}AGI_USE_TESTPYPI=1 but AGI_VERSION is not set. Aborting.${NC}"
+            exit 1
+        fi
+        ./test-install-enduser.sh --source testpypi --version "$AGI_VERSION"
+    else
+        ./test-install-enduser.sh --source local
+    fi
+}
+
+
 install_pycharm_script() {
     rm -f .idea/workspace.xml
     echo -e "${BLUE}Patching PyCharm workspace.xml interpreter settings...${NC}"
