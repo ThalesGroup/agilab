@@ -60,7 +60,8 @@ fi
 echo -e "${BLUE}Apps to install:${NC} ${INCLUDED_APPS[*]:-<none>}\n"
 
 # --- Ensure local symlinks exist/refresh in DEST_BASE ------------------------
-pushd "$AGILAB_PRIVATE/src/agilab" >/dev/null
+if [[ ! -z "$AGILAB_PRIVATE" ]]; then
+  pushd "$AGILAB_PRIVATE/src/agilab" > /dev/null
   rm -f core
   if [[ -d "$AGILAB_PUBLIC/core" ]]; then
     target="$AGILAB_PUBLIC/core"
@@ -77,7 +78,8 @@ import pathlib
 p = pathlib.Path("core").resolve()
 print(f"Private core -> {p}")
 PY
-popd >/dev/null
+  popd >/dev/null
+fi
 
 status=0
 for app in "${PRIVATE_APPS[@]}"; do
