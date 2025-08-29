@@ -22,8 +22,8 @@ async def main():
         'datemax': "2021-01-01",
         'output_format': "csv"
     }
-    app_abs = base_path.parents[1]
-    sys.path.insert(0, app_abs / 'src')
+    active_app = base_path.parents[1]
+    sys.path.insert(0, active_app / 'src')
     sys.path.insert(0,'~/wenv/flight_worker/dist')
 
     active_app = Path(__file__).resolve().parents[1]

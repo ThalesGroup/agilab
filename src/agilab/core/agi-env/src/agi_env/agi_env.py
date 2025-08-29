@@ -321,7 +321,15 @@ class AgiEnv:
             worker_module_path = self.worker_path.parent
             self.setup_core = self.wenv_rel / "src/agi_dispatcher/build.py"
 
-        self.app_abs = active_app
+        elif install_type == 3:
+            active_app = self.agilab_src
+            app_src = active_app / "src"
+            self.worker_path = self.wenv_rel / 'src' / target_worker / f"{target_worker}.py"
+            self.module_path = self.wenv_rel / 'src' / module / f"{self.module}.py"
+            worker_module_path = self.worker_path.parent
+            self.setup_core = self.wenv_rel / "src/agi_dispatcher/build.py"
+
+        self.active_app = active_app
         self.uvproject = active_app / "uv_config.toml"
         self.post_install = worker_module_path / "post_install.py"
         self.pre_install = worker_module_path / "pre_install.py"
@@ -407,7 +415,7 @@ class AgiEnv:
         if app_src_str not in sys.path:
             sys.path.append(app_src_str)
         self.app_src = app_src
-        self.app_abs = active_app
+        self.active_app = active_app
 
         # type 3: only core install
         if AgiEnv.install_type != 3:
@@ -580,7 +588,7 @@ class AgiEnv:
         self.projects = self.get_projects(self.apps_dir)
         for idx, project in enumerate(self.projects):
             if self.target == project[:-8].replace("-", "_"):
-                self.app_abs = AgiEnv.apps_dir / project
+                self.active_app = AgiEnv.apps_dir / project
                 self.project_index = idx
                 self.app = project
                 break
@@ -740,7 +748,7 @@ class AgiEnv:
         agilab_src = self.agilab_src
         for file in [self.worker_pyproject, self.app_pyproject]:
             if not file.exists():
-                raise FileNotFoundError(f"{file} not found in {self.app_abs}")
+                raise FileNotFoundError(f"{file} not found in {self.active_app}")
 
             text = file.read_text(encoding="utf-8")
             doc = tomlkit.parse(text)
@@ -769,7 +777,7 @@ class AgiEnv:
         agilab_src = self.agilab_src
         for file in [self.worker_pyproject, self.app_pyproject]: #, self.core_root / "src/agilab/core/pyproject.toml"]:
             if not file.exists():
-                raise FileNotFoundError(f"{file} not found in {self.app_abs}")
+                raise FileNotFoundError(f"{file} not found in {self.active_app}")
 
             text = file.read_text(encoding="utf-8")
             doc = tomlkit.parse(text)
@@ -843,7 +851,7 @@ class AgiEnv:
         args_ui_snippet.touch(exist_ok=True)
         self.args_ui_snippet = args_ui_snippet
 
-        self.gitignore_file = self.app_abs / ".gitignore"
+        self.gitignore_file = self.active_app / ".gitignore"
         dest = AgiEnv.resources_path
         src = self.agilab_src / "resources"
         if src.exists():
