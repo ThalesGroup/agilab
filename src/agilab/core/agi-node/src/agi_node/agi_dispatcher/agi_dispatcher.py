@@ -370,7 +370,7 @@ class BaseWorker(abc.ABC):
     def new(
             app,
             mode=mode,
-            install_type,
+            install_type=None,
             env=None,
             verbose=0,
             worker_id=0,
