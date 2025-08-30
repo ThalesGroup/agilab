@@ -1,4 +1,5 @@
 name: test-pypi-publish
+
 on:
   workflow_dispatch:
     inputs:
@@ -36,6 +37,7 @@ jobs:
         run: python -m pip install --upgrade --no-cache-dir uv
 
       - name: Fix accidental O.* version typos (core only)
+        shell: bash
         run: |
           set -euxo pipefail
           find src/agilab/core -type f -name pyproject.toml -print0 |
@@ -47,6 +49,7 @@ jobs:
           fi
 
       - name: Sync and install editable core projects
+        shell: bash
         run: |
           set -eux
           pushd "src/agilab/core/agi-cluster"
@@ -57,6 +60,7 @@ jobs:
           popd
 
       - name: Run tests
+        shell: bash
         run: |
           set -eux
           pushd "src/agilab/core"
@@ -95,51 +99,56 @@ jobs:
           rm -rf src/agilab/core/agi-core/dist
 
       - name: Resolve TestPyPI versions (per package)
-          id: resolve
-          env:
-            BASE_VERSION: ${{ env.VERSION }}
-          run: |
-            set -euo pipefail
-            
-            resolve_one() {
-              local project="$1"
-              local base="${2#v}"; base="${base#V}"
-              python -c 'import json,sys,urllib.request,re,os
-      project,base=sys.argv[1],sys.argv[2]
-      url=f"https://test.pypi.org/pypi/{project}/json"
-      try:
-        with urllib.request.urlopen(url,timeout=10) as r:
-          data=json.load(r)
-        versions=list(data.get("releases",{}).keys())
-      except Exception:
-        versions=[]
-      if base not in versions:
-        print(base); raise SystemExit(0)
-      post=[int(m.group(1)) for v in versions for m in [re.match(re.escape(base)+r"\.post(\d+)$",v)] if m]
-      nxt=(max(post)+1) if post else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
-      print(f"{base}.post{nxt}")' "$project" "$base"
-    }
+        id: resolve
+        env:
+          BASE_VERSION: ${{ env.VERSION }}
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      AGI_ENV_VER=$(resolve_one "agi-env" "$BASE_VERSION")
-      AGI_NODE_VER=$(resolve_one "agi-node" "$BASE_VERSION")
-      AGI_CLUSTER_VER=$(resolve_one "agi-cluster" "$BASE_VERSION")
-      AGI_CORE_VER=$(resolve_one "agi-core" "$BASE_VERSION")
+          resolve_one() {
+            local project="$1"
+            local base="${2#v}"; base="${base#V}"
+            python - "$project" "$base" <<'PY'
+import json, sys, urllib.request, re, os
+project, base = sys.argv[1], sys.argv[2]
+url = f"https://test.pypi.org/pypi/{project}/json"
+try:
+    with urllib.request.urlopen(url, timeout=10) as r:
+        data = json.load(r)
+    versions = list(data.get("releases", {}).keys())
+except Exception:
+    versions = []
+if base not in versions:
+    print(base)
+    raise SystemExit(0)
+post = [int(m.group(1)) for v in versions for m in [re.match(re.escape(base)+r"\.post(\d+)$", v)] if m]
+nxt = (max(post)+1) if post else int(os.environ.get("GITHUB_RUN_NUMBER", "1"))
+print(f"{base}.post{nxt}")
+PY
+          }
 
-      {
-        echo "agi_env=$AGI_ENV_VER"
-        echo "agi_node=$AGI_NODE_VER"
-        echo "agi_cluster=$AGI_CLUSTER_VER"
-        echo "agi_core=$AGI_CORE_VER"
-      } >> "$GITHUB_OUTPUT"
-      
-      echo "Resolved: agi-env=$AGI_ENV_VER agi-node=$AGI_NODE_VER agi-cluster=$AGI_CLUSTER_VER agi-core=$AGI_CORE_VER"
-      
+          AGI_ENV_VER=$(resolve_one "agi-env" "$BASE_VERSION")
+          AGI_NODE_VER=$(resolve_one "agi-node" "$BASE_VERSION")
+          AGI_CLUSTER_VER=$(resolve_one "agi-cluster" "$BASE_VERSION")
+          AGI_CORE_VER=$(resolve_one "agi-core" "$BASE_VERSION")
+
+          {
+            echo "agi_env=$AGI_ENV_VER"
+            echo "agi_node=$AGI_NODE_VER"
+            echo "agi_cluster=$AGI_CLUSTER_VER"
+            echo "agi_core=$AGI_CORE_VER"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Resolved: agi-env=$AGI_ENV_VER agi-node=$AGI_NODE_VER agi-cluster=$AGI_CLUSTER_VER agi-core=$AGI_CORE_VER"
+
       - name: Update version in core pyproject.toml files
         env:
           AGI_ENV_VERSION: ${{ steps.resolve.outputs.agi_env }}
           AGI_NODE_VERSION: ${{ steps.resolve.outputs.agi_node }}
           AGI_CLUSTER_VERSION: ${{ steps.resolve.outputs.agi_cluster }}
           AGI_CORE_VERSION: ${{ steps.resolve.outputs.agi_core }}
+        shell: bash
         run: |
           set -euxo pipefail
 
@@ -161,7 +170,7 @@ jobs:
               }
             ' "$py" > "$py.tmp" && mv "$py.tmp" "$py"
             sed -i -E '/^[[:space:]]*version[[:space:]]*=/ s/"O\./"0./' "$py"
-            sed -i '/^[[:space:]]*dynamic[[:space:]]*=/d' "$py"
+            sed -i -E '/^[[:space:]]*dynamic[[:space:]]*=/d' "$py"
           }
 
           for pkg in agi-env agi-node agi-cluster agi-core; do
@@ -175,6 +184,7 @@ jobs:
           done
 
       - name: Commit version bumps to a side branch (optional)
+        shell: bash
         run: |
           set -euxo pipefail
           git config user.name "GitHub Actions"
@@ -256,33 +266,41 @@ jobs:
 
       - name: Clean previous builds
         run: rm -rf dist
-    
-    - name: Resolve TestPyPI version (agilab umbrella)
+
+      - name: Resolve TestPyPI version (agilab umbrella)
         id: resolve_agilab
         env:
           BASE_VERSION: ${{ env.VERSION }}
+        shell: bash
         run: |
           set -euo pipefail
-          ver=$(python -c 'import json,sys,urllib.request,re,os
-    project,base=sys.argv[1],sys.argv[2]
-    url=f"https://test.pypi.org/pypi/{project}/json"
-    try:
-    with urllib.request.urlopen(url,timeout=10) as r:
-        data=json.load(r)
-    versions=list(data.get("releases",{}).keys())
-    except Exception:
-    versions=[]
-    if base not in versions:
-    print(base); raise SystemExit
-    post=[int(m.group(1)) for v in versions for m in [re.match(re.escape(base)+r"\.post(\d+)$",v)] if m]
-    nxt=(max(post)+1) if post else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
-    print(f"{base}.post{nxt}")' "agilab" "${BASE_VERSION#v}")
+          ver=$(
+            python - "$BASE_VERSION" <<'PY'
+import json, sys, urllib.request, re, os
+base = sys.argv[1]
+base = base.lstrip("vV")
+url = "https://test.pypi.org/pypi/agilab/json"
+try:
+    with urllib.request.urlopen(url, timeout=10) as r:
+        data = json.load(r)
+    versions = list(data.get("releases", {}).keys())
+except Exception:
+    versions = []
+if base not in versions:
+    print(base)
+    raise SystemExit(0)
+post = [int(m.group(1)) for v in versions for m in [re.match(re.escape(base)+r"\.post(\d+)$", v)] if m]
+nxt = (max(post)+1) if post else int(os.environ.get("GITHUB_RUN_NUMBER", "1"))
+print(f"{base}.post{nxt}")
+PY
+          )
           echo "value=$ver" >> "$GITHUB_OUTPUT"
           echo "Resolved agilab version: $ver"
-    
+
       - name: Update version across repository (exclude core/*)
         env:
           VERSION: ${{ steps.resolve_agilab.outputs.value }}
+        shell: bash
         run: |
           set -eux
           echo "Bumping umbrella agilab version to $VERSION (excluding src/agilab/core/*)"
@@ -291,16 +309,20 @@ jobs:
             -not -path "./src/agilab/core/*" \
           | while read -r file; do
             echo "→ Updating $file"
-            sed -i '/^dynamic\s*=/d' "$file"
+            sed -i -E '/^[[:space:]]*dynamic[[:space:]]*=/d' "$file"
             sed -i -E '/^[[:space:]]*version[[:space:]]*=/ s/"O\./"0./' "$file"
-            if grep -q '^version *= *".*"' "$file"; then
-              sed -i "s/^version *= *.*/version = \"$VERSION\"/" "$file"
+            if grep -Eq '^[[:space:]]*version[[:space:]]*=' "$file"; then
+              sed -i -E "s/^[[:space:]]*version[[:space:]]*=.*/version = \"$VERSION\"/" "$file"
             else
-              sed -i "/^\[project\]/a version = \"$VERSION\"" "$file"
+              awk -v NEWVER="$VERSION" '
+                /^\[project\]/{ print; print "version = \"" NEWVER "\""; next }
+                { print }
+              ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
             fi
           done
 
       - name: Commit umbrella bump to a side branch (optional)
+        shell: bash
         run: |
           set -euxo pipefail
           git config user.name "GitHub Actions"
@@ -315,4 +337,12 @@ jobs:
           fi
 
       - name: Capture & remove symlinks (apps/ and views/)
-        shell:
+        shell: bash
+        run: |
+          set -eux
+          tmpfile=$(mktemp)
+          find apps views -xtype l -print 2>/dev/null | tee "$tmpfile" || true
+          if [ -s "$tmpfile" ]; then
+            xargs -a "$tmpfile" rm -f
+          fi
+          rm -f "$tmpfile"
