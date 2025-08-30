@@ -401,7 +401,7 @@ jobs:
                       print(f"  {whl}: agilab/{rel}")
                   sys.exit(1)
               print("✅ wheel OK")
-            PY
+              PY
             python .check_wheel.py
           else
             echo "No symlinks existed; skipping artifact payload checks."
