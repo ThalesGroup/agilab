@@ -134,7 +134,6 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: twine upload --skip-existing src/agilab/core/agi-core/dist/*
-
   publish-agilab:
     needs: publish-core-packages
     runs-on: ubuntu-latest
