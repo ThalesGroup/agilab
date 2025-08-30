@@ -87,7 +87,7 @@ jobs:
         run: python -m pip install --upgrade --no-cache-dir uv twine
 
       - name: Clean previous builds
-          run: rm -rf dist
+        run: rm -rf dist
 
             - name: Capture & remove symlinks (apps/ and views/)
               shell: bash
