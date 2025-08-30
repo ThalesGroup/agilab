@@ -105,24 +105,24 @@ jobs:
             local project="$1"
             local base="${2#v}"; base="${base#V}"
             py <<'PY' "$project" "$base"
-            import json, sys, urllib.request, re, os
-            project, base = sys.argv[1], sys.argv[2]
-            url = f"https://test.pypi.org/pypi/{project}/json"
-            def fetch_versions():
-                try:
-                    with urllib.request.urlopen(url, timeout=10) as r:
-                        data = json.load(r)
-                    return list(data.get("releases", {}).keys())
-                except Exception:
-                    return []
-            versions = fetch_versions()
-            if base not in versions:
-                print(base); raise SystemExit(0)
-            post_re = re.compile(rf"^{re.escape(base)}\.post(\d+)$")
-            existing = [int(m.group(1)) for v in versions for m in [post_re.match(v)] if m]
-            nxt = (max(existing) + 1) if existing else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
-            print(f"{base}.post{nxt}")
-          PY
+import json, sys, urllib.request, re, os
+project, base = sys.argv[1], sys.argv[2]
+url = f"https://test.pypi.org/pypi/{project}/json"
+def fetch_versions():
+    try:
+        with urllib.request.urlopen(url, timeout=10) as r:
+            data = json.load(r)
+        return list(data.get("releases", {}).keys())
+    except Exception:
+        return []
+versions = fetch_versions()
+if base not in versions:
+    print(base); raise SystemExit(0)
+post_re = re.compile(rf"^{re.escape(base)}\.post(\d+)$")
+existing = [int(m.group(1)) for v in versions for m in [post_re.match(v)] if m]
+nxt = (max(existing) + 1) if existing else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
+print(f"{base}.post{nxt}")
+PY
           }
 
           AGI_ENV_VER=$(resolve_one "agi-env" "$BASE_VERSION")
@@ -184,7 +184,7 @@ jobs:
           set -euxo pipefail
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git checkout -b "ci/testpypi-bump-${GITHUB_RUN_ID}"
+          git checkout -B "ci/testpypi-bump-${GITHUB_RUN_ID}"
           git add $(find src/agilab/core -type f -name pyproject.toml -not -path "./.git/*")
           if git diff --cached --quiet; then
             echo "No changes to commit."
@@ -269,25 +269,25 @@ jobs:
         run: |
           set -euo pipefail
           py() { python - "$@"; }
-            ver=$(py <<'PY' "agilab" "${BASE_VERSION#v}"
-            import json, sys, urllib.request, re, os
-            project, base = sys.argv[1], sys.argv[2]
-            url = f"https://test.pypi.org/pypi/{project}/json"
-            def fetch_versions():
-                try:
-                    with urllib.request.urlopen(url, timeout=10) as r:
-                        data = json.load(r)
-                    return list(data.get("releases", {}).keys())
-                except Exception:
-                    return []
-            versions = fetch_versions()
-            if base not in versions:
-                print(base); raise SystemExit
-            post_re = re.compile(rf"^{re.escape(base)}\.post(\d+)$")
-            existing = [int(m.group(1)) for v in versions for m in [post_re.match(v)] if m]
-            nxt = (max(existing)+1) if existing else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
-            print(f"{base}.post{nxt}")
-            PY
+          ver=$(py <<'PY' "agilab" "${BASE_VERSION#v}"
+import json, sys, urllib.request, re, os
+project, base = sys.argv[1], sys.argv[2]
+url = f"https://test.pypi.org/pypi/{project}/json"
+def fetch_versions():
+    try:
+        with urllib.request.urlopen(url, timeout=10) as r:
+            data = json.load(r)
+        return list(data.get("releases", {}).keys())
+    except Exception:
+        return []
+versions = fetch_versions()
+if base not in versions:
+    print(base); raise SystemExit
+post_re = re.compile(rf"^{re.escape(base)}\.post(\d+)$")
+existing = [int(m.group(1)) for v in versions for m in [post_re.match(v)] if m]
+nxt = (max(existing)+1) if existing else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
+print(f"{base}.post{nxt}")
+PY
           )
           echo "value=$ver" >> "$GITHUB_OUTPUT"
           echo "Resolved agilab version: $ver"
@@ -327,125 +327,4 @@ jobs:
           fi
 
       - name: Capture & remove symlinks (apps/ and views/)
-        shell: bash
-        run: |
-          set -euo pipefail
-          SYMLIST=".removed_symlinks.txt"
-          : > "$SYMLIST"
-
-          while IFS= read -r -d '' p; do
-            rel="${p#src/agilab/}"
-            echo "$rel" >> "$SYMLIST"
-            echo "Removing symlink: $rel"
-          done < <(find src/agilab/apps src/agilab/views -type l -print0 2>/dev/null || true)
-
-          find src/agilab/apps src/agilab/views -type l -delete || true
-          if find src/agilab/apps src/agilab/views -type l | grep -q .; then
-            echo "❌ Some symlinks still remain under apps/ or views/"; exit 1
-          fi
-
-      - name: Build agilab (sdist + wheel)
-        run: uv build --sdist --wheel
-
-      - name: Verify agilab does not package removed symlink payload (sdist + wheel)
-        shell: bash
-        run: |
-          set -euo pipefail
-          SYMLIST=".removed_symlinks.txt"
-
-          if [[ -s "$SYMLIST" ]]; then
-            echo "→ Checking sdist for removed symlink paths"
-            : > .sdist.list
-            for tarball in dist/*.tar.gz; do
-              tar -tzf "$tarball" >> .sdist.list
-            done
-
-            esc() { sed -E 's/[][\.^$*+?(){}|/]/\\&/g'; }
-            ec=0
-            while IFS= read -r rel; do
-              [[ -z "$rel" ]] && continue
-              e=$(printf '%s' "$rel" | esc)
-              if grep -E "/(src/)?agilab/${e}(/|$)" .sdist.list; then
-                echo "Found removed symlink path in sdist: $rel"
-                ec=1
-              fi
-            done < "$SYMLIST"
-            if [[ $ec -ne 0 ]]; then
-              echo "❌ sdist contains payload from removed symlinks"; exit 1
-            else
-              echo "✅ sdist OK"
-            fi
-
-            echo "→ Checking wheel for removed symlink paths and disallow symlink entries"
-            cat > .check_wheel.py <<'PY'
-              import re, glob, zipfile, sys, os
-              symlist = [l.strip() for l in open(".removed_symlinks.txt").read().splitlines()] if os.path.exists(".removed_symlinks.txt") else []
-              bad = []
-              for whl in glob.glob("dist/*.whl"):
-                  with zipfile.ZipFile(whl) as z:
-                      for zi in z.infolist():
-                          mode = (zi.external_attr >> 16) & 0o170000
-                          if mode == 0o120000:
-                              print(f"Wheel contains a symlink entry: {whl}: {zi.filename}")
-                              sys.exit(1)
-                      names = z.namelist()
-                      for rel in symlist:
-                          if not rel: 
-                              continue
-                          pat = re.compile(r'(^|/)agilab/' + re.escape(rel) + r'(/|$)')
-                          if any(pat.search(n) for n in names):
-                              bad.append((whl, rel))
-              if bad:
-                  print("Found removed symlink payload in wheel:")
-                  for whl, rel in bad:
-                      print(f"  {whl}: agilab/{rel}")
-                  sys.exit(1)
-              print("✅ wheel OK")
-              PY
-            python .check_wheel.py
-          else
-            echo "No symlinks existed; skipping artifact payload checks."
-          fi
-
-      - name: Verify agilab metadata
-        run: twine check dist/*
-
-      - name: Publish agilab to TestPyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ dist/*
-
-  e2e-install-from-testpypi:
-    needs: publish-agilab-testpypi
-    runs-on: ubuntu-latest
-    env:
-      VERSION: ${{ needs.publish-agilab-testpypi.outputs.agilab_version }}
-    steps:
-      - name: Checkout repository (exact triggering commit)
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-          ref: ${{ github.sha }}
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install uv
-        run: python -m pip install --upgrade --no-cache-dir uv
-
-      - name: Show version under test
-        shell: bash
-        run: |
-          echo "Testing install from TestPyPI at version: $VERSION"
-
-      - name: Run end-user install & product tests from TestPyPI
-        shell: bash
-        run: |
-          set -euxo pipefail
-          chmod +x ./test-install-enduser.sh
-          ./test-install-enduser.sh --source testpypi --version "$VERSION"
-
+        shell:
