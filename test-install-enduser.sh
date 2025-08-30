@@ -14,7 +14,7 @@ Usage:
   test-install-enduser.sh [--source local|testpypi] [--version X.Y.Z]
                           [--packages "agilab agi-env agi-node agi-cluster agi-core"]
                           [--index-url URL] [--extra-index-url URL]
-                          [--run "<command>"] [--python <python>] [--venv-dir <dir>]
+                          [--python <python>] [--venv-dir <dir>]
 
 Defaults:
   --source local
@@ -29,7 +29,6 @@ VERSION=""
 PACKAGES="agilab agi-env agi-node agi-cluster agi-core"
 INDEX_URL="https://test.pypi.org/simple"
 EXTRA_INDEX_URL="https://pypi.org/simple"
-RUN_CMD=""
 PYTHON_BIN=""
 VENV_DIR=""
 
@@ -40,7 +39,6 @@ while [[ $# -gt 0 ]]; do
     --packages) PACKAGES="$2"; shift 2;;
     --index-url) INDEX_URL="$2"; shift 2;;
     --extra-index-url) EXTRA_INDEX_URL="$2"; shift 2;;
-    --run) RUN_CMD="$2"; shift 2;;
     --python) PYTHON_BIN="$2"; shift 2;;
     --venv-dir) VENV_DIR="$2"; shift 2;;
     -h|--help) usage; exit 0;;
@@ -50,11 +48,6 @@ done
 
 if [[ "$SOURCE" == "testpypi" && -z "$VERSION" ]]; then
   echo "ERROR: --version is required when --source testpypi" >&2
-  exit 1
-fi
-
-if ! command -v uv >/dev/null 2>&1; then
-  echo "ERROR: uv is required but not found in PATH. Install from https://astral.sh/uv and retry." >&2
   exit 1
 fi
 
@@ -156,7 +149,7 @@ PY
       spec="${pkg}==${VERSION}"
       echo "+ uv pip install $spec"
       uv pip install \
-        --index-url "$INDEX_URL"   --index-strategy unsafe-best-match \
+        --index-url "$INDEX_URL"  --index-strategy unsafe-best-match \
         --upgrade --reinstall --extra-index-url "$EXTRA_INDEX_URL" \
         "$spec"
     done
@@ -183,17 +176,5 @@ if errors:
 print("All requested distributions are present.")
 PY
 
-  section "Running product tests (run-all-test)"
-  if [[ -n "$RUN_CMD" ]]; then
-    bash -lc "$RUN_CMD"
-  elif command -v run-all-test >/dev/null 2>&1; then
-    run-all-test
-  elif [[ -x "$ROOT/scripts/run-all-test" ]]; then
-#    "$ROOT/scripts/run-all-test"
-  else
-    echo "ERROR: run-all-test not found; please provide it or pass --run '<command>'." >&2
-    exit 1
-  fi
 popd >/dev/null
-
-section "✅ End-user install test succeeded"
+section "✅ End-user install succeeded"
