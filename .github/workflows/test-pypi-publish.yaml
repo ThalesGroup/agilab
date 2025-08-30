@@ -90,98 +90,11 @@ jobs:
         run: python -m pip install --upgrade --no-cache-dir uv twine
 
       - name: Clean previous builds
-        run: rm -rf dist
-
-      - name: Capture & remove symlinks (apps/ and views/)
-        shell: bash
         run: |
-          set -euo pipefail
-          SYMLIST=".removed_symlinks.txt"
-          : > "$SYMLIST"
-          while IFS= read -r -d '' p; do
-            rel="${p#src/agilab/}"   # -> e.g. "apps/foo" or "views/bar"
-            echo "$rel" >> "$SYMLIST"
-            echo "Removing symlink: $rel"
-          done < <(find src/agilab/apps src/agilab/views -type l -print0 2>/dev/null || true)
-          find src/agilab/apps src/agilab/views -type l -delete || true
-          if find src/agilab/apps src/agilab/views -type l | grep -q .; then
-            echo "❌ Some symlinks still remain under apps/ or views/"; exit 1
-          fi
-
-      - name: Build agilab (sdist + wheel)
-        run: uv build --sdist --wheel
-
-      - name: Verify agilab does not package removed symlink payload (sdist + wheel)
-        shell: bash
-        run: |
-          set -euo pipefail
-          SYMLIST=".removed_symlinks.txt"
-
-          # --- sdist check ---
-          if [[ -s "$SYMLIST" ]]; then
-            echo "→ Checking sdist for removed symlink paths"
-            : > .sdist.list
-            for tarball in dist/*.tar.gz; do
-              tar -tzf "$tarball" >> .sdist.list
-            done
-            esc() { sed -E 's/[][\.^$*+?(){}|/]/\\&/g'; }
-            ec=0
-            while IFS= read -r rel; do
-              [[ -z "$rel" ]] && continue
-              e=$(printf '%s' "$rel" | esc)
-              # match ".../agilab/<rel>(/|$)", with or without "src/" prefix
-              if grep -E "/(src/)?agilab/${e}(/|$)" .sdist.list; then
-                echo "Found removed symlink path in sdist: $rel"
-                ec=1
-              fi
-            done < "$SYMLIST"
-            if [[ $ec -ne 0 ]]; then
-              echo "❌ sdist contains payload from removed symlinks"; exit 1
-            else
-              echo "✅ sdist OK"
-            fi
-          else
-            echo "No symlinks existed; skipping sdist payload check."
-          fi
-
-          # --- wheel check + forbid true symlink entries ---
-          echo "→ Checking wheel for removed symlink paths and disallow symlink entries"
-          cat > .check_wheel.py <<'PY'
-import re, glob, zipfile, sys, os
-symlist = [l.strip() for l in open(".removed_symlinks.txt").read().splitlines()] if os.path.exists(".removed_symlinks.txt") else []
-bad = []
-for whl in glob.glob("dist/*.whl"):
-    with zipfile.ZipFile(whl) as z:
-        # Disallow true symlink entries (POSIX 0120000)
-        for zi in z.infolist():
-            mode = (zi.external_attr >> 16) & 0o170000
-            if mode == 0o120000:
-                print(f"Wheel contains a symlink entry: {whl}: {zi.filename}")
-                sys.exit(1)
-        names = z.namelist()
-        for rel in symlist:            # rel is like "apps/foo" or "views/bar"
-            if not rel:
-                continue
-            pat = re.compile(r'(^|/)agilab/' + re.escape(rel) + r'(/|$)')
-            if any(pat.search(n) for n in names):
-                bad.append((whl, rel))
-if bad:
-    print("Found removed symlink payload in wheel:")
-    for whl, rel in bad:
-        print(f"  {whl}: agilab/{rel}")
-    sys.exit(1)
-print("✅ wheel OK")
-PY
-          python .check_wheel.py
-
-      - name: Verify agilab metadata
-        run: twine check dist/*
-
-      - name: Publish agilab to TestPyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ dist/*
+          rm -rf src/agilab/core/agi-env/dist
+          rm -rf src/agilab/core/agi-node/dist
+          rm -rf src/agilab/core/agi-cluster/dist
+          rm -rf src/agilab/core/agi-core/dist
 
       - name: Prepare git (rebase first, before edits)
         shell: bash
@@ -386,8 +299,10 @@ PY
           # --- sdist check ---
           if [[ -s "$SYMLIST" ]]; then
             echo "→ Checking sdist for removed symlink paths"
-            tarball=$(ls -1 dist/*.tar.gz)
-            tar -tzf "$tarball" > .sdist.list
+            : > .sdist.list
+            for tarball in dist/*.tar.gz; do
+              tar -tzf "$tarball" >> .sdist.list
+            done
             esc() { sed -E 's/[][\.^$*+?(){}|/]/\\&/g'; }
             ec=0
             while IFS= read -r rel; do
@@ -425,22 +340,19 @@ for whl in glob.glob("dist/*.whl"):
         for rel in symlist:
             if not rel:
                 continue
-            pat = re.compile(r'(^|/)agilab/(apps|views)/' + re.escape(rel) + r'(/|$)')
+            pat = re.compile(r'(^|/)agilab/' + re.escape(rel) + r'(/|$)')
             if any(pat.search(n) for n in names):
                 bad.append((whl, rel))
 if bad:
     print("Found removed symlink payload in wheel:")
     for whl, rel in bad:
-        print(f"  {whl}: agilab/(apps|views)/{rel}")
+        print(f"  {whl}: agilab/{rel}")
     sys.exit(1)
 print("✅ wheel OK")
 PY
           python .check_wheel.py
 
-      - name: Build agilab
-        run: uv build --wheel
-
-      - name: Verify agilab
+      - name: Verify agilab metadata
         run: twine check dist/*
 
       - name: Publish agilab to TestPyPI
