@@ -1,5 +1,4 @@
 name: test-pypi-publish
-
 on:
   workflow_dispatch:
     inputs:
