@@ -78,20 +78,84 @@ pushd "$WORKSPACE" >/dev/null
     section "Building local packages and installing into the venv"
     popd >/dev/null
     set -x
-    # Build main project (sdist) and the four core subpackages (wheels), like the original script. :contentReference[oaicite:3]{index=3}
+
+    # Clean and prepare artifacts dir
     rm -rf dist build
-    # Remove symlinks that should never be packaged (apps/ & views/)
-    find src/agilab/apps src/agilab/views -type l -print -delete || true
-    uv build --sdist
     mkdir -p "$WORKSPACE/.artifacts"
-    cp dist/*.gz "$WORKSPACE/.artifacts"
+    SYMLIST="$WORKSPACE/.artifacts/removed-symlinks.txt"
+    : > "$SYMLIST"
 
-    # Verify the sdist doesn’t contain known symlinked app folders
-    tar -tzf "$WORKSPACE/.artifacts/"agilab-*.tar.gz | \
-      grep -E 'src/agilab/apps/(flight_trajectory_project|link_sim_project|sat_trajectory_project|sb3_trainer_project)|src/agilab/views/maps-network-graph' \
-      && { echo "ERROR: symlinked app content found in sdist"; exit 1; } \
-      || echo "OK: symlinked app content not present in sdist"
+    # Capture & remove *all* symlinks under apps/ and views/ (names unknown)
+    while IFS= read -r -d '' p; do
+      rel="${p#src/agilab/}"
+      echo "$rel" >> "$SYMLIST"
+      echo "Removing symlink: $rel"
+    done < <(find src/agilab/apps src/agilab/views -type l -print0 2>/dev/null || true)
+    find src/agilab/apps src/agilab/views -type l -delete || true
+    if find src/agilab/apps src/agilab/views -type l | grep -q .; then
+      echo "ERROR: Some symlinks still remain under apps/ or views/"; exit 1
+    fi
 
+    # Build agilab artifacts (sdist + wheel) so we can check both
+    uv build --sdist --wheel
+    cp dist/*.gz "$WORKSPACE/.artifacts" || true
+    cp dist/*.whl "$WORKSPACE/.artifacts" || true
+
+    # Generic verification: no removed symlink paths should appear in sdist/wheel
+    if [[ -s "$SYMLIST" ]]; then
+      # --- sdist ---
+      tar -tzf "$WORKSPACE/.artifacts/"agilab-*.tar.gz > "$WORKSPACE/.artifacts/sdist.list"
+      esc() { sed -E 's/[][\.^$*+?(){}|/]/\\&/g'; }
+      ec=0
+      while IFS= read -r rel; do
+        [[ -z "$rel" ]] && continue
+        e=$(printf '%s' "$rel" | esc)
+        if grep grep -E "/(src/)?agilab/${e}(/|$)"; then
+          echo "Found removed symlink path in sdist: $rel"
+          ec=1
+        fi
+      done < "$SYMLIST"
+      if [[ $ec -ne 0 ]]; then
+        echo "ERROR: sdist contains payload from removed symlinks"; exit 1
+      else
+        echo "OK: sdist OK"
+      fi
+
+      # --- wheel ---
+      python - <<'PY'
+import os, re, glob, zipfile, sys
+WORKSPACE = os.environ['WORKSPACE']
+symlist = [l.strip() for l in open(os.path.join(WORKSPACE, '.artifacts', 'removed-symlinks.txt')).read().splitlines()]
+
+# Check each wheel (agilab wheel is the one that would contain agilab/*)
+bad = []
+for whl in glob.glob(os.path.join(WORKSPACE, '.artifacts', '*.whl')):
+    with zipfile.ZipFile(whl) as z:
+        # Forbid actual symlink entries (POSIX)
+        for zi in z.infolist():
+            mode = (zi.external_attr >> 16) & 0o170000
+            if mode == 0o120000:
+                print(f"ERROR: wheel contains a symlink entry: {whl}: {zi.filename}")
+                sys.exit(1)
+        names = z.namelist()
+        for rel in symlist:
+            if not rel: continue
+            pat = re.compile(r'(^|/)agilab/' + re.escape(rel) + r'(/|$)')
+            if any(pat.search(n) for n in names):
+                bad.append((whl, rel))
+
+if bad:
+    print("ERROR: wheel contains payload from removed symlinks:")
+    for whl, rel in bad:
+        print(f"  {whl}: agilab/(apps|views)/{rel}")
+    sys.exit(1)
+print("OK: wheel OK")
+PY
+    else
+      echo "No symlinks were present; skipping artifact payload checks."
+    fi
+
+    # Build the four core packages (wheels) and add to artifacts
     for pkg in agi-core agi-cluster agi-node agi-env; do
       pushd "src/agilab/core/$pkg" >/dev/null
         rm -rf dist build
@@ -100,8 +164,11 @@ pushd "$WORKSPACE" >/dev/null
       cp "src/agilab/core/$pkg/dist/"*.whl "$WORKSPACE/.artifacts"
     done
     set +x
+
+    # Install everything we just built
     pushd "$WORKSPACE" >/dev/null
     uv pip install ./.artifacts/*.whl ./.artifacts/*.gz
+
   else
     section "Installing packages from TestPyPI (version ${VERSION})"
     for pkg in $PACKAGES; do
