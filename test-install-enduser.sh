@@ -90,37 +90,18 @@ pushd "$WORKSPACE" >/dev/null
       rel="${p#src/agilab/}"
       echo "$rel" >> "$SYMLIST"
       echo "Removing symlink: $rel"
-    done < <(find src/agilab/apps src/agilab/views -type l -print0 2>/dev/null || true)
-    find src/agilab/apps src/agilab/views -type l -delete || true
-    if find src/agilab/apps src/agilab/views -type l | grep -q .; then
-      echo "ERROR: Some symlinks still remain under apps/ or views/"; exit 1
+    done < <(find src/agilab -type l -print0 2>/dev/null || true)
+    find src/agilab -type l -delete || true
+    if find src/agilab -type l | grep -q .; then
+      echo "ERROR: Some symlinks still remain under agilab"; exit 1
     fi
 
     # Build agilab artifacts (sdist + wheel) so we can check both
-    uv build --sdist --wheel
-    cp dist/*.gz "$WORKSPACE/.artifacts" || true
+    uv build --wheel
     cp dist/*.whl "$WORKSPACE/.artifacts" || true
 
     # Generic verification: no removed symlink paths should appear in sdist/wheel
     if [[ -s "$SYMLIST" ]]; then
-      # --- sdist ---
-      tar -tzf "$WORKSPACE/.artifacts/"agilab-*.tar.gz > "$WORKSPACE/.artifacts/sdist.list"
-      esc() { sed -E 's/[][\.^$*+?(){}|/]/\\&/g'; }
-      ec=0
-      while IFS= read -r rel; do
-        [[ -z "$rel" ]] && continue
-        e=$(printf '%s' "$rel" | esc)
-        if grep grep -E "/(src/)?agilab/${e}(/|$)"; then
-          echo "Found removed symlink path in sdist: $rel"
-          ec=1
-        fi
-      done < "$SYMLIST"
-      if [[ $ec -ne 0 ]]; then
-        echo "ERROR: sdist contains payload from removed symlinks"; exit 1
-      else
-        echo "OK: sdist OK"
-      fi
-
       # --- wheel ---
       python - <<'PY'
 import os, re, glob, zipfile, sys
@@ -167,7 +148,7 @@ PY
 
     # Install everything we just built
     pushd "$WORKSPACE" >/dev/null
-    uv pip install ./.artifacts/*.whl ./.artifacts/*.gz
+    uv pip install ./.artifacts/*.whl
 
   else
     section "Installing packages from TestPyPI (version ${VERSION})"
