@@ -156,7 +156,8 @@ PY
       spec="${pkg}==${VERSION}"
       echo "+ uv pip install $spec"
       uv pip install \
-        --index-url "$INDEX_URL" --extra-index-url "$EXTRA_INDEX_URL" \
+        --index-url "$INDEX_URL"   --index-strategy unsafe-best-match \
+        --upgrade --reinstall --extra-index-url "$EXTRA_INDEX_URL" \
         "$spec"
     done
   fi
