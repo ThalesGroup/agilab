@@ -24,6 +24,7 @@ EGG*
 *.whl
 *.c
 coverage.xml
+build.py
 
 # Specific src patterns (adjust if needed)
 src/*-info/
