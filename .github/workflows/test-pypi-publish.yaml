@@ -36,7 +36,6 @@ jobs:
         run: python -m pip install --upgrade --no-cache-dir uv
 
       - name: Fix accidental O.* version typos (core only)
-        shell: bash
         run: |
           set -euxo pipefail
           find src/agilab/core -type f -name pyproject.toml -print0 |
@@ -48,7 +47,6 @@ jobs:
           fi
 
       - name: Sync and install editable core projects
-        shell: bash
         run: |
           set -eux
           pushd "src/agilab/core/agi-cluster"
@@ -59,7 +57,6 @@ jobs:
           popd
 
       - name: Run tests
-        shell: bash
         run: |
           set -eux
           pushd "src/agilab/core"
@@ -90,7 +87,6 @@ jobs:
         run: python -m pip install --upgrade --no-cache-dir uv twine
 
       - name: Clean previous builds
-        shell: bash
         run: |
           rm -rf src/agilab/core/agi-env/dist
           rm -rf src/agilab/core/agi-node/dist
@@ -98,7 +94,6 @@ jobs:
           rm -rf src/agilab/core/agi-core/dist
 
       - name: Prepare git (rebase first, before edits)
-        shell: bash
         run: |
           set -euxo pipefail
           git config user.name "GitHub Actions"
@@ -109,7 +104,6 @@ jobs:
       - name: Update version in core pyproject.toml files
         env:
           VERSION: ${{ env.VERSION }}
-        shell: bash
         run: |
           set -euxo pipefail
           VERSION=${VERSION#v}; VERSION=${VERSION#V}
@@ -147,7 +141,6 @@ jobs:
       - name: Commit & push (ours-wins on race)
         env:
           VERSION: ${{ env.VERSION }}
-        shell: bash
         run: |
           set -euxo pipefail
           git add $(find src/agilab/core -type f -name pyproject.toml -not -path "./.git/*")
@@ -230,7 +223,6 @@ jobs:
         run: rm -rf dist
 
       - name: Prepare git (rebase first, before edits)
-        shell: bash
         run: |
           set -euxo pipefail
           git config user.name "GitHub Actions"
@@ -241,7 +233,6 @@ jobs:
       - name: Update version across repository
         env:
           VERSION: ${{ env.VERSION }}
-        shell: bash
         run: |
           set -eux
           VERSION=${VERSION#v}; VERSION=${VERSION#V}
@@ -260,7 +251,6 @@ jobs:
       - name: Commit & push (ours-wins on race)
         env:
           VERSION: ${{ env.VERSION }}
-        shell: bash
         run: |
           set -euxo pipefail
           git add $(find . -type f -name pyproject.toml -not -path "./.git/*")
@@ -273,84 +263,99 @@ jobs:
           fi
 
       - name: Capture & remove symlinks (apps/ and views/)
-        shell: bash
-        run: |
-          set -euo pipefail
-          SYMLIST=".removed_symlinks.txt"
-          : > "$SYMLIST"
-          while IFS= read -r -d '' p; do
+          shell: bash
+          run: |
+            set -euo pipefail
+            SYMLIST=".removed_symlinks.txt"
+            : > "$SYMLIST"
+            
+            # Capture *whatever* symlinks exist, as paths relative to src/agilab/
+            while IFS= read -r -d '' p; do
             rel="${p#src/agilab/}"
             echo "$rel" >> "$SYMLIST"
             echo "Removing symlink: $rel"
-          done < <(find src/agilab/apps src/agilab/views -type l -print0 2>/dev/null || true)
-          find src/agilab/apps src/agilab/views -type l -delete || true
-          if find src/agilab/apps src/agilab/views -type l | grep -q .; then
+            done < <(find src/agilab/apps src/agilab/views -type l -print0 2>/dev/null || true)
+            
+            # Remove them and assert none remain
+            find src/agilab/apps src/agilab/views -type l -delete || true
+            if find src/agilab/apps src/agilab/views -type l | grep -q .; then
             echo "❌ Some symlinks still remain under apps/ or views/"; exit 1
-          fi
-
-      - name: Build agilab (sdist + wheel)
-        run: uv build --sdist --wheel
-
-      - name: Verify agilab does not package removed symlink payload
-        shell: bash
-        run: |
-          set -euo pipefail
-          SYMLIST=".removed_symlinks.txt"
-
-          # --- sdist check ---
-          if [[ -s "$SYMLIST" ]]; then
-            echo "→ Checking sdist for removed symlink paths"
-            tarball=$(ls -1 dist/*.tar.gz)
-            tar -tzf "$tarball" > .sdist.list
-            esc() { sed -E 's/[][\.^$*+?(){}|/]/\\&/g'; }
-            ec=0
-            while IFS= read -r rel; do
-              [[ -z "$rel" ]] && continue
-              e=$(printf '%s' "$rel" | esc)
-              if grep -E "/(src/)?agilab/${e}(/|$)" .sdist.list; then
-                echo "Found removed symlink path in sdist: $rel"
-                ec=1
-              fi
-            done < "$SYMLIST"
-            if [[ $ec -ne 0 ]]; then
-              echo "❌ sdist contains payload from removed symlinks"; exit 1
-            else
-              echo "✅ sdist OK"
             fi
 
-            # --- wheel check + forbid actual symlink entries ---
-            echo "→ Checking wheel for removed symlink paths and disallow symlink entries"
-            python - <<'PY'
-import re, glob, zipfile, sys, os
-symlist = [l.strip() for l in open(".removed_symlinks.txt").read().splitlines()] if os.path.exists(".removed_symlinks.txt") else []
-bad = []
-for whl in glob.glob("dist/*.whl"):
-    with zipfile.ZipFile(whl) as z:
-        # Disallow true symlink entries (POSIX 0120000)
-        for zi in z.infolist():
+            - name: Build agilab (sdist + wheel)
+              run: uv build --sdist --wheel
+
+            - name: Verify agilab does not package removed symlink payload
+              shell: bash
+              run: |
+                set -euo pipefail
+                SYMLIST=".removed_symlinks.txt"
+                
+                # --- sdist check ---
+                if [[ -s "$SYMLIST" ]]; then
+                  echo "→ Checking sdist for removed symlink paths"
+                  tarball=$(ls -1 dist/*.tar.gz)
+                  tar -tzf "$tarball" > .sdist.list
+                
+                  esc() { sed -E 's/[][\.^$*+?(){}|/]/\\&/g'; }
+                  ec=0
+                  while IFS= read -r rel; do
+                    [[ -z "$rel" ]] && continue
+                    e=$(printf '%s' "$rel" | esc)
+                    # Match in sdist regardless of leading directory (e.g., agilab-X.Y.Z/src/...)
+                    if grep -E "/(src/)?agilab/(apps|views)/${e}(/|$)" .sdist.list; then
+                      echo "Found removed symlink path in sdist: $rel"
+                      ec=1
+                    fi
+                  done < "$SYMLIST"
+                  if [[ $ec -ne 0 ]]; then
+                    echo "❌ sdist contains payload from removed symlinks"; exit 1
+                  else
+                    echo "✅ sdist OK"
+                  fi
+                else
+                  echo "No symlinks existed; skipping sdist payload check."
+                fi
+                
+                # --- wheel check + forbid actual symlink entries ---
+                echo "→ Checking wheel for removed symlink paths and disallow symlink entries"
+                python - <<'PY'
+      import re, glob, zipfile, sys, os
+      symlist = [l.strip() for l in open(".removed_symlinks.txt").read().splitlines()] if os.path.exists(".removed_symlinks.txt") else []
+
+      # Verify: no removed-symlink payload inside agilab/(apps|views)/...
+      bad = []
+      for whl in glob.glob("dist/*.whl"):
+        with zipfile.ZipFile(whl) as z:
+          names = z.namelist()
+
+          # Disallow true symlink entries (POSIX bit 0120000)
+          for zi in z.infolist():
             mode = (zi.external_attr >> 16) & 0o170000
             if mode == 0o120000:
-                print(f"Wheel contains a symlink entry: {whl}: {zi.filename}")
-                sys.exit(1)
-        names = z.namelist()
-        for rel in symlist:
-            if not rel:
-                continue
-            pat = re.compile(r'(^|/)agilab/' + re.escape(rel) + r'(/|$)')
-            if any(pat.search(n) for n in names):
-                bad.append((whl, rel))
-if bad:
-    print("Found removed symlink payload in wheel:")
-    for whl, rel in bad:
-        print(f"  {whl}: agilab/{rel}")
-    sys.exit(1)
-print("✅ wheel OK")
-PY
-          else
-            echo "No symlinks existed; skipping artifact payload checks."
-          fi
+              print(f"Wheel contains a symlink entry: { whl }: { zi.filename }")
+                      sys.exit(1)
 
-      - name: Verify agilab metadata
+              for rel in symlist:
+                  if not rel: continue
+                  pat = re.compile(r'(^|/)agilab/(apps|views)/' + re.escape(rel) + r'(/|$)')
+                  if any(pat.search(n) for n in names):
+                      bad.append((whl, rel))
+
+      if bad:
+          print("Found removed symlink payload in wheel:")
+        for whl, rel in bad:
+          print(f"  {whl}: agilab/(apps|views)/{rel}")
+        sys.exit(1)
+
+      print("✅ wheel OK")
+      PY
+
+
+      - name: Build agilab
+        run: uv build --wheel
+
+      - name: Verify agilab
         run: twine check dist/*
 
       - name: Publish agilab to TestPyPI
@@ -381,7 +386,6 @@ PY
 
       - name: Compute version
         id: ver
-        shell: bash
         run: |
           v="${{ env.VERSION }}"
           v="${v#v}"; v="${v#V}"
@@ -389,7 +393,6 @@ PY
           echo "Testing install from TestPyPI at version: $v"
 
       - name: Run end-user install & product tests from TestPyPI
-        shell: bash
         run: |
           set -euxo pipefail
           chmod +x ./test-install-enduser.sh
