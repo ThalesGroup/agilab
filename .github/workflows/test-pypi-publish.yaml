@@ -347,7 +347,6 @@ jobs:
           else
             echo "No symlinks existed; skipping artifact payload checks."
           fi
-
       - name: Verify agilab metadata
         run: twine check dist/*
 
