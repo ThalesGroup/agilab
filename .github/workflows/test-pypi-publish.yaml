@@ -286,7 +286,6 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
         run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-core/dist/*
-
   publish-agilab-testpypi:
     needs: publish-core-packages-testpypi
     runs-on: ubuntu-latest
@@ -453,7 +452,6 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
         run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ dist/*
-
   e2e-install-from-testpypi:
     needs: publish-agilab-testpypi
     runs-on: ubuntu-latest
