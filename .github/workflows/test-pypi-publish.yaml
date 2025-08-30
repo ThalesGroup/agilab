@@ -109,24 +109,19 @@ jobs:
           resolve_one() {
             local project="$1"
             local base="${2#v}"; base="${base#V}"
-            python - "$project" "$base" <<'PY'
-import json, sys, urllib.request, re, os
-project, base = sys.argv[1], sys.argv[2]
-url = f"https://test.pypi.org/pypi/{project}/json"
+            python -c 'import json,sys,urllib.request,re,os;
+project,base=sys.argv[1],sys.argv[2]
 try:
-    with urllib.request.urlopen(url, timeout=10) as r:
-        data = json.load(r)
-    versions = list(data.get("releases", {}).keys())
+    with urllib.request.urlopen(f"https://test.pypi.org/pypi/{project}/json",timeout=10) as r:
+        data=json.load(r)
+    versions=list(data.get("releases",{}).keys())
 except Exception:
-    versions = []
+    versions=[]
 if base not in versions:
-    print(base)
-    raise SystemExit(0)
-post = [int(m.group(1)) for v in versions
-        for m in [re.match(re.escape(base)+r"\.post(\d+)$", v)] if m]
-nxt = (max(post)+1) if post else int(os.environ.get("GITHUB_RUN_NUMBER", "1"))
-print(f"{base}.post{nxt}")
-PY
+    print(base); raise SystemExit(0)
+post=[int(m.group(1)) for v in versions for m in [re.match(re.escape(base)+r"\.post(\d+)$",v)] if m]
+nxt=(max(post)+1) if post else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
+print(f"{base}.post{nxt}")' "$project" "$base"
           }
 
           AGI_ENV_VER=$(resolve_one "agi-env" "$BASE_VERSION")
@@ -276,24 +271,19 @@ PY
         run: |
           set -euo pipefail
           ver=$(
-            python - "$BASE_VERSION" <<'PY'
-import json, sys, urllib.request, re, os
-base = sys.argv[1].lstrip("vV")
-url = "https://test.pypi.org/pypi/agilab/json"
+            python -c 'import json,sys,urllib.request,re,os;
+base=sys.argv[1].lstrip("vV")
 try:
-    with urllib.request.urlopen(url, timeout=10) as r:
-        data = json.load(r)
-    versions = list(data.get("releases", {}).keys())
+    with urllib.request.urlopen("https://test.pypi.org/pypi/agilab/json",timeout=10) as r:
+        data=json.load(r)
+    versions=list(data.get("releases",{}).keys())
 except Exception:
-    versions = []
+    versions=[]
 if base not in versions:
-    print(base)
-    raise SystemExit(0)
-post = [int(m.group(1)) for v in versions
-        for m in [re.match(re.escape(base)+r"\.post(\d+)$", v)] if m]
-nxt = (max(post)+1) if post else int(os.environ.get("GITHUB_RUN_NUMBER", "1"))
-print(f"{base}.post{nxt}")
-PY
+    print(base); raise SystemExit(0)
+post=[int(m.group(1)) for v in versions for m in [re.match(re.escape(base)+r"\.post(\d+)$",v)] if m]
+nxt=(max(post)+1) if post else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
+print(f"{base}.post{nxt}")' "$BASE_VERSION"
           )
           echo "value=$ver" >> "$GITHUB_OUTPUT"
           echo "Resolved agilab version: $ver"
