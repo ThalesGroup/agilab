@@ -122,7 +122,8 @@ except Exception:
 if base not in versions:
     print(base)
     raise SystemExit(0)
-post = [int(m.group(1)) for v in versions for m in [re.match(re.escape(base)+r"\.post(\d+)$", v)] if m]
+post = [int(m.group(1)) for v in versions
+        for m in [re.match(re.escape(base)+r"\.post(\d+)$", v)] if m]
 nxt = (max(post)+1) if post else int(os.environ.get("GITHUB_RUN_NUMBER", "1"))
 print(f"{base}.post{nxt}")
 PY
@@ -277,8 +278,7 @@ PY
           ver=$(
             python - "$BASE_VERSION" <<'PY'
 import json, sys, urllib.request, re, os
-base = sys.argv[1]
-base = base.lstrip("vV")
+base = sys.argv[1].lstrip("vV")
 url = "https://test.pypi.org/pypi/agilab/json"
 try:
     with urllib.request.urlopen(url, timeout=10) as r:
@@ -289,7 +289,8 @@ except Exception:
 if base not in versions:
     print(base)
     raise SystemExit(0)
-post = [int(m.group(1)) for v in versions for m in [re.match(re.escape(base)+r"\.post(\d+)$", v)] if m]
+post = [int(m.group(1)) for v in versions
+        for m in [re.match(re.escape(base)+r"\.post(\d+)$", v)] if m]
 nxt = (max(post)+1) if post else int(os.environ.get("GITHUB_RUN_NUMBER", "1"))
 print(f"{base}.post{nxt}")
 PY
