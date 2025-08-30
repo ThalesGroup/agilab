@@ -90,6 +90,7 @@ jobs:
         run: python -m pip install --upgrade --no-cache-dir uv twine
 
       - name: Clean previous builds
+        shell: bash
         run: |
           rm -rf src/agilab/core/agi-env/dist
           rm -rf src/agilab/core/agi-node/dist
@@ -277,11 +278,13 @@ jobs:
           set -euo pipefail
           SYMLIST=".removed_symlinks.txt"
           : > "$SYMLIST"
+          # Capture any symlinks under src/agilab/{apps,views}, record relative to src/agilab/
           while IFS= read -r -d '' p; do
-            rel="${p#src/agilab/}"
+            rel="${p#src/agilab/}"   # -> "apps/..." or "views/..."
             echo "$rel" >> "$SYMLIST"
             echo "Removing symlink: $rel"
           done < <(find src/agilab/apps src/agilab/views -type l -print0 2>/dev/null || true)
+          # Remove and assert none remain
           find src/agilab/apps src/agilab/views -type l -delete || true
           if find src/agilab/apps src/agilab/views -type l | grep -q .; then
             echo "❌ Some symlinks still remain under apps/ or views/"; exit 1
@@ -308,6 +311,7 @@ jobs:
             while IFS= read -r rel; do
               [[ -z "$rel" ]] && continue
               e=$(printf '%s' "$rel" | esc)
+              # match ".../agilab/<rel>(/|$)", with or without "src/" in sdist layout
               if grep -E "/(src/)?agilab/${e}(/|$)" .sdist.list; then
                 echo "Found removed symlink path in sdist: $rel"
                 ec=1
@@ -337,7 +341,7 @@ for whl in glob.glob("dist/*.whl"):
             if mode == 0o120000:
                 print(f"Wheel contains a symlink entry: {whl}: {zi.filename}")
                 sys.exit(1)
-        for rel in symlist:
+        for rel in symlist:            # rel is "apps/..." or "views/..."
             if not rel:
                 continue
             pat = re.compile(r'(^|/)agilab/' + re.escape(rel) + r'(/|$)')
