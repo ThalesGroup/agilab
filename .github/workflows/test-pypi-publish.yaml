@@ -160,7 +160,7 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-env/dist/*
+        run: twine upload --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-env/dist/*
 
       # --- agi-node ---
       - name: Build agi-node
@@ -171,7 +171,7 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-node/dist/*
+        run: twine upload --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-node/dist/*
 
       # --- agi-cluster ---
       - name: Build agi-cluster
@@ -182,7 +182,7 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-cluster/dist/*
+        run: twine upload --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-cluster/dist/*
 
       # --- agi-core ---
       - name: Build agi-core
@@ -193,7 +193,7 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-core/dist/*
+        run: twine upload --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-core/dist/*
 
   publish-agilab-testpypi:
     needs: publish-core-packages-testpypi
@@ -354,7 +354,7 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ dist/*
+        run: twine upload --repository-url https://test.pypi.org/legacy/ dist/*
 
   e2e-install-from-testpypi:
     needs: publish-agilab-testpypi
