@@ -438,9 +438,11 @@ jobs:
         run: python -m pip install --upgrade --no-cache-dir uv
 
       - name: Show version under test
+        shell: bash
         run: echo "Testing install from TestPyPI at version: $VERSION"
 
       - name: Run end-user install & product tests from TestPyPI
+        shell: bash
         run: |
           set -euxo pipefail
           chmod +x ./test-install-enduser.sh
