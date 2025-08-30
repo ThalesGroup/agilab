@@ -105,23 +105,23 @@ jobs:
             local project="$1"
             local base="${2#v}"; base="${base#V}"
             py <<'PY' "$project" "$base"
-              import json, sys, urllib.request, re, os
-              project, base = sys.argv[1], sys.argv[2]
-              url = f"https://test.pypi.org/pypi/{project}/json"
-              def fetch_versions():
-                  try:
-                      with urllib.request.urlopen(url, timeout=10) as r:
-                          data = json.load(r)
-                      return list(data.get("releases", {}).keys())
-                  except Exception:
-                      return []
-              versions = fetch_versions()
-              if base not in versions:
-                  print(base); raise SystemExit(0)
-              post_re = re.compile(rf"^{re.escape(base)}\.post(\d+)$")
-              existing = [int(m.group(1)) for v in versions for m in [post_re.match(v)] if m]
-              nxt = (max(existing) + 1) if existing else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
-              print(f"{base}.post{nxt}")
+            import json, sys, urllib.request, re, os
+            project, base = sys.argv[1], sys.argv[2]
+            url = f"https://test.pypi.org/pypi/{project}/json"
+            def fetch_versions():
+                try:
+                    with urllib.request.urlopen(url, timeout=10) as r:
+                        data = json.load(r)
+                    return list(data.get("releases", {}).keys())
+                except Exception:
+                    return []
+            versions = fetch_versions()
+            if base not in versions:
+                print(base); raise SystemExit(0)
+            post_re = re.compile(rf"^{re.escape(base)}\.post(\d+)$")
+            existing = [int(m.group(1)) for v in versions for m in [post_re.match(v)] if m]
+            nxt = (max(existing) + 1) if existing else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
+            print(f"{base}.post{nxt}")
           PY
           }
 
@@ -270,24 +270,24 @@ jobs:
           set -euo pipefail
           py() { python - "$@"; }
             ver=$(py <<'PY' "agilab" "${BASE_VERSION#v}"
-              import json, sys, urllib.request, re, os
-              project, base = sys.argv[1], sys.argv[2]
-              url = f"https://test.pypi.org/pypi/{project}/json"
-              def fetch_versions():
-                  try:
-                      with urllib.request.urlopen(url, timeout=10) as r:
-                          data = json.load(r)
-                      return list(data.get("releases", {}).keys())
-                  except Exception:
-                      return []
-              versions = fetch_versions()
-              if base not in versions:
-                  print(base); raise SystemExit
-              post_re = re.compile(rf"^{re.escape(base)}\.post(\d+)$")
-              existing = [int(m.group(1)) for v in versions for m in [post_re.match(v)] if m]
-              nxt = (max(existing)+1) if existing else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
-              print(f"{base}.post{nxt}")
-          PY
+            import json, sys, urllib.request, re, os
+            project, base = sys.argv[1], sys.argv[2]
+            url = f"https://test.pypi.org/pypi/{project}/json"
+            def fetch_versions():
+                try:
+                    with urllib.request.urlopen(url, timeout=10) as r:
+                        data = json.load(r)
+                    return list(data.get("releases", {}).keys())
+                except Exception:
+                    return []
+            versions = fetch_versions()
+            if base not in versions:
+                print(base); raise SystemExit
+            post_re = re.compile(rf"^{re.escape(base)}\.post(\d+)$")
+            existing = [int(m.group(1)) for v in versions for m in [post_re.match(v)] if m]
+            nxt = (max(existing)+1) if existing else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
+            print(f"{base}.post{nxt}")
+            PY
           )
           echo "value=$ver" >> "$GITHUB_OUTPUT"
           echo "Resolved agilab version: $ver"
