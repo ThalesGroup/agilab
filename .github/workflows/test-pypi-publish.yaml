@@ -356,85 +356,78 @@ PY
           
           # Capture *whatever* symlinks exist, as paths relative to src/agilab/
           while IFS= read -r -d '' p; do
-          rel="${p#src/agilab/}"
-          echo "$rel" >> "$SYMLIST"
-          echo "Removing symlink: $rel"
+            rel="${p#src/agilab/}"
+            echo "$rel" >> "$SYMLIST"
+            echo "Removing symlink: $rel"
           done < <(find src/agilab/apps src/agilab/views -type l -print0 2>/dev/null || true)
-          
           # Remove them and assert none remain
           find src/agilab/apps src/agilab/views -type l -delete || true
           if find src/agilab/apps src/agilab/views -type l | grep -q .; then
-          echo "❌ Some symlinks still remain under apps/ or views/"; exit 1
+            echo "❌ Some symlinks still remain under apps/ or views/"; exit 1
           fi
 
-          - name: Build agilab (sdist + wheel)
-            run: uv build --sdist --wheel
+      - name: Build agilab (sdist + wheel)
+        run: uv build --sdist --wheel
 
-          - name: Verify agilab does not package removed symlink payload
-            shell: bash
-            run: |
-              set -euo pipefail
-              SYMLIST=".removed_symlinks.txt"
-              
-              # --- sdist check ---
-              if [[ -s "$SYMLIST" ]]; then
-                echo "→ Checking sdist for removed symlink paths"
-                tarball=$(ls -1 dist/*.tar.gz)
-                tar -tzf "$tarball" > .sdist.list
-              
-                esc() { sed -E 's/[][\.^$*+?(){}|/]/\\&/g'; }
-                ec=0
-                while IFS= read -r rel; do
-                  [[ -z "$rel" ]] && continue
-                  e=$(printf '%s' "$rel" | esc)
-                  # Match in sdist regardless of leading directory (e.g., agilab-X.Y.Z/src/...)
-                  if grep -E grep -E "/(src/)?agilab/${e}(/|$)"if grep -E "/(src/)?agilab/${e}(/|$)" "$WORKSPACE/.artifacts/sdist.list"; then/app| .sdist.list; then
-                    echo "Found removed symlink path in sdist: $rel"
-                    ec=1
-                  fi
-                done < "$SYMLIST"
-                if [[ $ec -ne 0 ]]; then
-                  echo "❌ sdist contains payload from removed symlinks"; exit 1
-                else
-                  echo "✅ sdist OK"
-                fi
-              else
-                echo "No symlinks existed; skipping sdist payload check."
+      - name: Verify agilab does not package removed symlink payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          SYMLIST=".removed_symlinks.txt"
+
+          # --- sdist check ---
+          if [[ -s "$SYMLIST" ]]; then
+            echo "→ Checking sdist for removed symlink paths"
+            tarball=$(ls -1 dist/*.tar.gz)
+            tar -tzf "$tarball" > .sdist.list
+            esc() { sed -E 's/[][\.^$*+?(){}|/]/\\&/g'; }
+            ec=0
+            while IFS= read -r rel; do
+              [[ -z "$rel" ]] && continue
+              e=$(printf '%s' "$rel" | esc)
+              # Match with or without leading src/
+              if grep -E "/(src/)?agilab/${e}(/|$)" .sdist.list; then
+                echo "Found removed symlink path in sdist: $rel"
+                ec=1
               fi
-              
-              # --- wheel check + forbid actual symlink entries ---
-              echo "→ Checking wheel for removed symlink paths and disallow symlink entries"
-              python - <<'PY'
-    import re, glob, zipfile, sys, os
-    symlist = [l.strip() for l in open(".removed_symlinks.txt").read().splitlines()] if os.path.exists(".removed_symlinks.txt") else []
+            done < "$SYMLIST"
+            if [[ $ec -ne 0 ]]; then
+              echo "❌ sdist contains payload from removed symlinks"; exit 1
+            else
+              echo "✅ sdist OK"
+            fi
+          else
+            echo "No symlinks existed; skipping sdist payload check."
+          fi
 
-    # Verify: no removed-symlink payload inside agilab/(apps|views)/...
-    bad = []
-    for whl in glob.glob("dist/*.whl"):
-      with zipfile.ZipFile(whl) as z:
+          # --- wheel check + forbid actual symlink entries ---
+          echo "→ Checking wheel for removed symlink paths and disallow symlink entries"
+          python - <<'PY'
+import re, glob, zipfile, sys, os
+symlist = [l.strip() for l in open(".removed_symlinks.txt").read().splitlines()] if os.path.exists(".removed_symlinks.txt") else []
+bad = []
+for whl in glob.glob("dist/*.whl"):
+    with zipfile.ZipFile(whl) as z:
         names = z.namelist()
-
-        # Disallow true symlink entries (POSIX bit 0120000)
+        # Disallow true symlink entries (POSIX 0120000)
         for zi in z.infolist():
-          mode = (zi.external_attr >> 16) & 0o170000
-          if mode == 0o120000:
-            print(f"Wheel contains a symlink entry: { whl }: { zi.filename }")
-                    sys.exit(1)
-
-            for rel in symlist:
-                if not rel: continue
-                pat = re.compile(r'(^|/)agilab/(apps|views)/' + re.escape(rel) + r'(/|$)')
-                if any(pat.search(n) for n in names):
-                    bad.append((whl, rel))
-
-    if bad:
-        print("Found removed symlink payload in wheel:")
-      for whl, rel in bad:
+            mode = (zi.external_attr >> 16) & 0o170000
+            if mode == 0o120000:
+                print(f"Wheel contains a symlink entry: {whl}: {zi.filename}")
+                sys.exit(1)
+        for rel in symlist:
+            if not rel:
+                continue
+            pat = re.compile(r'(^|/)agilab/(apps|views)/' + re.escape(rel) + r'(/|$)')
+            if any(pat.search(n) for n in names):
+                bad.append((whl, rel))
+if bad:
+    print("Found removed symlink payload in wheel:")
+    for whl, rel in bad:
         print(f"  {whl}: agilab/(apps|views)/{rel}")
-      sys.exit(1)
-
-    print("✅ wheel OK")
-    PY
+    sys.exit(1)
+print("✅ wheel OK")
+PY
 
 
       - name: Build agilab
