@@ -71,11 +71,12 @@ jobs:
     env:
       VERSION: ${{ github.event.inputs.version || github.ref_name }}
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (exact triggering commit)
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+          ref: ${{ github.sha }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -92,61 +93,42 @@ jobs:
           rm -rf src/agilab/core/agi-cluster/dist
           rm -rf src/agilab/core/agi-core/dist
 
-      - name: Prepare git (rebase first, before edits)
-        run: |
-          set -euxo pipefail
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git fetch origin main
-          git checkout -B main origin/main
-
       - name: Resolve TestPyPI versions (per package)
         id: resolve
         env:
           BASE_VERSION: ${{ env.VERSION }}
         run: |
           set -euo pipefail
-          py() {
-            python - "$@"
-          }
+          py() { python - "$@"; }
 
-          # Input: project name, base version -> prints resolved version
           resolve_one() {
             local project="$1"
             local base="${2#v}"; base="${base#V}"
             py <<'PY' "$project" "$base"
-              import json, sys, urllib.request, re, os
-              project, base = sys.argv[1], sys.argv[2]
-              url = f"https://test.pypi.org/pypi/{project}/json"
-              def fetch_versions():
-                  try:
-                      with urllib.request.urlopen(url, timeout=10) as r:
-                          data = json.load(r)
-                      return list(data.get("releases", {}).keys())
-                  except Exception:
-                      return []
-              versions = fetch_versions()
-              # Already free to use
-              if base not in versions:
-                  print(base)
-                  sys.exit(0)
-              
-              # Find existing .postN for this base
-              post_re = re.compile(rf"^{re.escape(base)}\.post(\d+)$")
-              existing = [int(m.group(1)) for v in versions for m in [post_re.match(v)] if m]
-              if existing:
-                  nxt = max(existing) + 1
-              else:
-                  # Fallback: use GitHub run number if present, else 1
-                  nxt = int(os.environ.get("GITHUB_RUN_NUMBER","1"))
-              print(f"{base}.post{nxt}")
-            PY
+import json, sys, urllib.request, re, os
+project, base = sys.argv[1], sys.argv[2]
+url = f"https://test.pypi.org/pypi/{project}/json"
+def fetch_versions():
+    try:
+        with urllib.request.urlopen(url, timeout=10) as r:
+            data = json.load(r)
+        return list(data.get("releases", {}).keys())
+    except Exception:
+        return []
+versions = fetch_versions()
+if base not in versions:
+    print(base); raise SystemExit(0)
+post_re = re.compile(rf"^{re.escape(base)}\.post(\d+)$")
+existing = [int(m.group(1)) for v in versions for m in [post_re.match(v)] if m]
+nxt = (max(existing) + 1) if existing else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
+print(f"{base}.post{nxt}")
+PY
           }
 
-          AGI_ENV_VER=$(resolve_one "agi-env"      "$BASE_VERSION")
-          AGI_NODE_VER=$(resolve_one "agi-node"     "$BASE_VERSION")
+          AGI_ENV_VER=$(resolve_one "agi-env"        "$BASE_VERSION")
+          AGI_NODE_VER=$(resolve_one "agi-node"      "$BASE_VERSION")
           AGI_CLUSTER_VER=$(resolve_one "agi-cluster" "$BASE_VERSION")
-          AGI_CORE_VER=$(resolve_one "agi-core"     "$BASE_VERSION")
+          AGI_CORE_VER=$(resolve_one "agi-core"      "$BASE_VERSION")
 
           {
             echo "agi_env=$AGI_ENV_VER"
@@ -197,16 +179,18 @@ jobs:
             done
           done
 
-      - name: Commit & push (ours-wins on race)
+      - name: Commit version bumps to a side branch (optional)
         run: |
           set -euxo pipefail
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git checkout -b "ci/testpypi-bump-${GITHUB_RUN_ID}"
           git add $(find src/agilab/core -type f -name pyproject.toml -not -path "./.git/*")
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
             git commit -m "Bump core package versions (auto .postN if needed)"
-            git pull --rebase -X ours origin main || (git rebase --abort && echo "Rebase aborted; proceeding with our local bump")
-            git push origin HEAD:main
+            git push -u origin "ci/testpypi-bump-${GITHUB_RUN_ID}"
           fi
 
       # --- agi-env ---
@@ -259,14 +243,17 @@ jobs:
     permissions:
       contents: write
       id-token: write
+    outputs:
+      agilab_version: ${{ steps.resolve_agilab.outputs.value }}
     env:
       VERSION: ${{ github.event.inputs.version || github.ref_name }}
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (exact triggering commit)
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+          ref: ${{ github.sha }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -279,14 +266,6 @@ jobs:
       - name: Clean previous builds
         run: rm -rf dist
 
-      - name: Prepare git (rebase first, before edits)
-        run: |
-          set -euxo pipefail
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git fetch origin main
-          git checkout -B main origin/main
-
       - name: Resolve TestPyPI version (agilab umbrella)
         id: resolve_agilab
         env:
@@ -295,36 +274,38 @@ jobs:
           set -euo pipefail
           py() { python - "$@"; }
           ver=$(py <<'PY' "agilab" "${BASE_VERSION#v}"
-            import json, sys, urllib.request, re, os
-            project, base = sys.argv[1], sys.argv[2]
-            url = f"https://test.pypi.org/pypi/{project}/json"
-            def fetch_versions():
-                try:
-                    with urllib.request.urlopen(url, timeout=10) as r:
-                        data = json.load(r)
-                    return list(data.get("releases", {}).keys())
-                except Exception:
-                    return []
-            versions = fetch_versions()
-            if base not in versions:
-                print(base); raise SystemExit
-            import re
-            post_re = re.compile(rf"^{re.escape(base)}\.post(\d+)$")
-            existing = [int(m.group(1)) for v in versions for m in [post_re.match(v)] if m]
-            nxt = (max(existing)+1) if existing else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
-            print(f"{base}.post{nxt}")
-          PY
+import json, sys, urllib.request, re, os
+project, base = sys.argv[1], sys.argv[2]
+url = f"https://test.pypi.org/pypi/{project}/json"
+def fetch_versions():
+    try:
+        with urllib.request.urlopen(url, timeout=10) as r:
+            data = json.load(r)
+        return list(data.get("releases", {}).keys())
+    except Exception:
+        return []
+versions = fetch_versions()
+if base not in versions:
+    print(base); raise SystemExit
+post_re = re.compile(rf"^{re.escape(base)}\.post(\d+)$")
+existing = [int(m.group(1)) for v in versions for m in [post_re.match(v)] if m]
+nxt = (max(existing)+1) if existing else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
+print(f"{base}.post{nxt}")
+PY
           )
           echo "value=$ver" >> "$GITHUB_OUTPUT"
           echo "Resolved agilab version: $ver"
 
-      - name: Update version across repository
+      - name: Update version across repository (exclude core/*)
         env:
           VERSION: ${{ steps.resolve_agilab.outputs.value }}
         run: |
           set -eux
-          echo "Bumping repo-wide version to $VERSION"
-          find . -type f -name pyproject.toml -not -path "./.git/*" | while read -r file; do
+          echo "Bumping umbrella agilab version to $VERSION (excluding src/agilab/core/*)"
+          find . -type f -name pyproject.toml \
+            -not -path "./.git/*" \
+            -not -path "./src/agilab/core/*" \
+          | while read -r file; do
             echo "→ Updating $file"
             sed -i '/^dynamic\s*=/d' "$file"
             sed -i -E '/^[[:space:]]*version[[:space:]]*=/ s/"O\./"0./' "$file"
@@ -335,18 +316,18 @@ jobs:
             fi
           done
 
-      - name: Commit & push (ours-wins on race)
-        env:
-          VERSION: ${{ steps.resolve_agilab.outputs.value }}
+      - name: Commit umbrella bump to a side branch (optional)
         run: |
           set -euxo pipefail
-          git add $(find . -type f -name pyproject.toml -not -path "./.git/*")
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git checkout -B "ci/testpypi-bump-${GITHUB_RUN_ID}" || git checkout -b "ci/testpypi-bump-${GITHUB_RUN_ID}"
+          git add $(find . -type f -name pyproject.toml -not -path "./.git/*" -not -path "./src/agilab/core/*")
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
-            git commit -m "Bump agilab version (auto .postN if needed) to $VERSION"
-            git pull --rebase -X ours origin main || (git rebase --abort && echo "Rebase aborted; proceeding with our local bump")
-            git push origin HEAD:main
+            git commit -m "Bump agilab umbrella version (auto .postN if needed) to ${{ steps.resolve_agilab.outputs.value }}"
+            git push -u origin "ci/testpypi-bump-${GITHUB_RUN_ID}"
           fi
 
       - name: Capture & remove symlinks (apps/ and views/)
@@ -401,30 +382,30 @@ jobs:
 
             echo "→ Checking wheel for removed symlink paths and disallow symlink entries"
             cat > .check_wheel.py <<'PY'
-              import re, glob, zipfile, sys, os
-              symlist = [l.strip() for l in open(".removed_symlinks.txt").read().splitlines()] if os.path.exists(".removed_symlinks.txt") else []
-              bad = []
-              for whl in glob.glob("dist/*.whl"):
-                  with zipfile.ZipFile(whl) as z:
-                      for zi in z.infolist():
-                          mode = (zi.external_attr >> 16) & 0o170000
-                          if mode == 0o120000:
-                              print(f"Wheel contains a symlink entry: {whl}: {zi.filename}")
-                              sys.exit(1)
-                      names = z.namelist()
-                      for rel in symlist:
-                          if not rel:
-                              continue
-                          pat = re.compile(r'(^|/)agilab/' + re.escape(rel) + r'(/|$)')
-                          if any(pat.search(n) for n in names):
-                              bad.append((whl, rel))
-              if bad:
-                  print("Found removed symlink payload in wheel:")
-                  for whl, rel in bad:
-                      print(f"  {whl}: agilab/{rel}")
-                  sys.exit(1)
-              print("✅ wheel OK")
-            PY
+import re, glob, zipfile, sys, os
+symlist = [l.strip() for l in open(".removed_symlinks.txt").read().splitlines()] if os.path.exists(".removed_symlinks.txt") else []
+bad = []
+for whl in glob.glob("dist/*.whl"):
+    with zipfile.ZipFile(whl) as z:
+        for zi in z.infolist():
+            mode = (zi.external_attr >> 16) & 0o170000
+            if mode == 0o120000:
+                print(f"Wheel contains a symlink entry: {whl}: {zi.filename}")
+                sys.exit(1)
+        names = z.namelist()
+        for rel in symlist:
+            if not rel: 
+                continue
+            pat = re.compile(r'(^|/)agilab/' + re.escape(rel) + r'(/|$)')
+            if any(pat.search(n) for n in names):
+                bad.append((whl, rel))
+if bad:
+    print("Found removed symlink payload in wheel:")
+    for whl, rel in bad:
+        print(f"  {whl}: agilab/{rel}")
+    sys.exit(1)
+print("✅ wheel OK")
+PY
             python .check_wheel.py
           else
             echo "No symlinks existed; skipping artifact payload checks."
@@ -443,13 +424,14 @@ jobs:
     needs: publish-agilab-testpypi
     runs-on: ubuntu-latest
     env:
-      VERSION: ${{ github.event.inputs.version || github.ref_name }}
+      VERSION: ${{ needs.publish-agilab-testpypi.outputs.agilab_version }}
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (exact triggering commit)
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+          ref: ${{ github.sha }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -459,16 +441,11 @@ jobs:
       - name: Install uv
         run: python -m pip install --upgrade --no-cache-dir uv
 
-      - name: Compute version
-        id: ver
-        run: |
-          v="${{ env.VERSION }}"
-          v="${v#v}"; v="${v#V}"
-          echo "value=$v" >> "$GITHUB_OUTPUT"
-          echo "Testing install from TestPyPI at version: $v"
+      - name: Show version under test
+        run: echo "Testing install from TestPyPI at version: $VERSION"
 
       - name: Run end-user install & product tests from TestPyPI
         run: |
           set -euxo pipefail
           chmod +x ./test-install-enduser.sh
-          ./test-install-enduser.sh --source testpypi --version "${{ steps.ver.outputs.value }}"
+          ./test-install-enduser.sh --source testpypi --version "$VERSION"
