@@ -100,17 +100,75 @@ jobs:
           git fetch origin main
           git checkout -B main origin/main
 
+      - name: Resolve TestPyPI versions (per package)
+        id: resolve
+        env:
+          BASE_VERSION: ${{ env.VERSION }}
+        run: |
+          set -euo pipefail
+          py() {
+            python - "$@"
+          }
+
+          # Input: project name, base version -> prints resolved version
+          resolve_one() {
+            local project="$1"
+            local base="${2#v}"; base="${base#V}"
+            py <<'PY' "$project" "$base"
+import json, sys, urllib.request, re, os
+project, base = sys.argv[1], sys.argv[2]
+url = f"https://test.pypi.org/pypi/{project}/json"
+def fetch_versions():
+    try:
+        with urllib.request.urlopen(url, timeout=10) as r:
+            data = json.load(r)
+        return list(data.get("releases", {}).keys())
+    except Exception:
+        return []
+versions = fetch_versions()
+# Already free to use
+if base not in versions:
+    print(base)
+    sys.exit(0)
+
+# Find existing .postN for this base
+post_re = re.compile(rf"^{re.escape(base)}\.post(\d+)$")
+existing = [int(m.group(1)) for v in versions for m in [post_re.match(v)] if m]
+if existing:
+    nxt = max(existing) + 1
+else:
+    # Fallback: use GitHub run number if present, else 1
+    nxt = int(os.environ.get("GITHUB_RUN_NUMBER","1"))
+print(f"{base}.post{nxt}")
+PY
+          }
+
+          AGI_ENV_VER=$(resolve_one "agi-env"      "$BASE_VERSION")
+          AGI_NODE_VER=$(resolve_one "agi-node"     "$BASE_VERSION")
+          AGI_CLUSTER_VER=$(resolve_one "agi-cluster" "$BASE_VERSION")
+          AGI_CORE_VER=$(resolve_one "agi-core"     "$BASE_VERSION")
+
+          {
+            echo "agi_env=$AGI_ENV_VER"
+            echo "agi_node=$AGI_NODE_VER"
+            echo "agi_cluster=$AGI_CLUSTER_VER"
+            echo "agi_core=$AGI_CORE_VER"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Resolved: agi-env=$AGI_ENV_VER agi-node=$AGI_NODE_VER agi-cluster=$AGI_CLUSTER_VER agi-core=$AGI_CORE_VER"
+
       - name: Update version in core pyproject.toml files
         env:
-          VERSION: ${{ env.VERSION }}
+          AGI_ENV_VERSION: ${{ steps.resolve.outputs.agi_env }}
+          AGI_NODE_VERSION: ${{ steps.resolve.outputs.agi_node }}
+          AGI_CLUSTER_VERSION: ${{ steps.resolve.outputs.agi_cluster }}
+          AGI_CORE_VERSION: ${{ steps.resolve.outputs.agi_core }}
         run: |
           set -euxo pipefail
-          VERSION=${VERSION#v}; VERSION=${VERSION#V}
-          echo "Bumping version to $VERSION"
 
           bump_in_file() {
-            py="$1"
-            awk -v NEWVER="$VERSION" '
+            local py="$1" ver="$2"
+            awk -v NEWVER="$ver" '
               BEGIN{ in_project=0; replaced=0 }
               /^\[/{
                 if(in_project && !replaced){ print "version = \"" NEWVER "\""; replaced=1 }
@@ -131,22 +189,22 @@ jobs:
 
           for pkg in agi-env agi-node agi-cluster agi-core; do
             base="src/agilab/core/$pkg"
+            ver_var=$(echo "${pkg}_version" | tr '[:lower:]-' '[:upper:]_')
+            ver="${!ver_var}"
             find "$base" -type f -name pyproject.toml -print0 | while IFS= read -r -d "" file; do
-              echo "→ Updating $file"
-              bump_in_file "$file"
+              echo "→ Updating $file to $ver"
+              bump_in_file "$file" "$ver"
             done
           done
 
       - name: Commit & push (ours-wins on race)
-        env:
-          VERSION: ${{ env.VERSION }}
         run: |
           set -euxo pipefail
           git add $(find src/agilab/core -type f -name pyproject.toml -not -path "./.git/*")
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
-            git commit -m "Bump core package versions to ${VERSION#v}"
+            git commit -m "Bump core package versions (auto .postN if needed)"
             git pull --rebase -X ours origin main || (git rebase --abort && echo "Rebase aborted; proceeding with our local bump")
             git push origin HEAD:main
           fi
@@ -160,7 +218,7 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-env/dist/*
+        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-env/dist/*
 
       # --- agi-node ---
       - name: Build agi-node
@@ -171,7 +229,7 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-node/dist/*
+        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-node/dist/*
 
       # --- agi-cluster ---
       - name: Build agi-cluster
@@ -182,7 +240,7 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-cluster/dist/*
+        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-cluster/dist/*
 
       # --- agi-core ---
       - name: Build agi-core
@@ -193,7 +251,7 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-core/dist/*
+        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-core/dist/*
 
   publish-agilab-testpypi:
     needs: publish-core-packages-testpypi
@@ -229,12 +287,42 @@ jobs:
           git fetch origin main
           git checkout -B main origin/main
 
+      - name: Resolve TestPyPI version (agilab umbrella)
+        id: resolve_agilab
+        env:
+          BASE_VERSION: ${{ env.VERSION }}
+        run: |
+          set -euo pipefail
+          py() { python - "$@"; }
+          ver=$(py <<'PY' "agilab" "${BASE_VERSION#v}"
+import json, sys, urllib.request, re, os
+project, base = sys.argv[1], sys.argv[2]
+url = f"https://test.pypi.org/pypi/{project}/json"
+def fetch_versions():
+    try:
+        with urllib.request.urlopen(url, timeout=10) as r:
+            data = json.load(r)
+        return list(data.get("releases", {}).keys())
+    except Exception:
+        return []
+versions = fetch_versions()
+if base not in versions:
+    print(base); raise SystemExit
+import re
+post_re = re.compile(rf"^{re.escape(base)}\.post(\d+)$")
+existing = [int(m.group(1)) for v in versions for m in [post_re.match(v)] if m]
+nxt = (max(existing)+1) if existing else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
+print(f"{base}.post{nxt}")
+PY
+          )
+          echo "value=$ver" >> "$GITHUB_OUTPUT"
+          echo "Resolved agilab version: $ver"
+
       - name: Update version across repository
         env:
-          VERSION: ${{ env.VERSION }}
+          VERSION: ${{ steps.resolve_agilab.outputs.value }}
         run: |
           set -eux
-          VERSION=${VERSION#v}; VERSION=${VERSION#V}
           echo "Bumping repo-wide version to $VERSION"
           find . -type f -name pyproject.toml -not -path "./.git/*" | while read -r file; do
             echo "→ Updating $file"
@@ -249,14 +337,14 @@ jobs:
 
       - name: Commit & push (ours-wins on race)
         env:
-          VERSION: ${{ env.VERSION }}
+          VERSION: ${{ steps.resolve_agilab.outputs.value }}
         run: |
           set -euxo pipefail
           git add $(find . -type f -name pyproject.toml -not -path "./.git/*")
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
-            git commit -m "Bump agilab version to ${VERSION#v}"
+            git commit -m "Bump agilab version (auto .postN if needed) to $VERSION"
             git pull --rebase -X ours origin main || (git rebase --abort && echo "Rebase aborted; proceeding with our local bump")
             git push origin HEAD:main
           fi
@@ -268,14 +356,12 @@ jobs:
           SYMLIST=".removed_symlinks.txt"
           : > "$SYMLIST"
 
-          # Capture symlinks under src/agilab/{apps,views} and store paths relative to src/agilab/
           while IFS= read -r -d '' p; do
-            rel="${p#src/agilab/}"   # -> "apps/..." or "views/..."
+            rel="${p#src/agilab/}"
             echo "$rel" >> "$SYMLIST"
             echo "Removing symlink: $rel"
           done < <(find src/agilab/apps src/agilab/views -type l -print0 2>/dev/null || true)
 
-          # Remove and assert none remain
           find src/agilab/apps src/agilab/views -type l -delete || true
           if find src/agilab/apps src/agilab/views -type l | grep -q .; then
             echo "❌ Some symlinks still remain under apps/ or views/"; exit 1
@@ -290,7 +376,6 @@ jobs:
           set -euo pipefail
           SYMLIST=".removed_symlinks.txt"
 
-          # --- sdist check ---
           if [[ -s "$SYMLIST" ]]; then
             echo "→ Checking sdist for removed symlink paths"
             : > .sdist.list
@@ -303,7 +388,6 @@ jobs:
             while IFS= read -r rel; do
               [[ -z "$rel" ]] && continue
               e=$(printf '%s' "$rel" | esc)
-              # Match agilab/<rel> with or without "src/" in sdist
               if grep -E "/(src/)?agilab/${e}(/|$)" .sdist.list; then
                 echo "Found removed symlink path in sdist: $rel"
                 ec=1
@@ -315,7 +399,6 @@ jobs:
               echo "✅ sdist OK"
             fi
 
-            # --- wheel check + forbid true symlink entries ---
             echo "→ Checking wheel for removed symlink paths and disallow symlink entries"
             cat > .check_wheel.py <<'PY'
           import re, glob, zipfile, sys, os
@@ -323,14 +406,13 @@ jobs:
           bad = []
           for whl in glob.glob("dist/*.whl"):
               with zipfile.ZipFile(whl) as z:
-                  # Disallow true symlink entries (POSIX 0120000)
                   for zi in z.infolist():
                       mode = (zi.external_attr >> 16) & 0o170000
                       if mode == 0o120000:
                           print(f"Wheel contains a symlink entry: {whl}: {zi.filename}")
                           sys.exit(1)
                   names = z.namelist()
-                  for rel in symlist:            # "apps/..." or "views/..."
+                  for rel in symlist:
                       if not rel:
                           continue
                       pat = re.compile(r'(^|/)agilab/' + re.escape(rel) + r'(/|$)')
@@ -342,11 +424,12 @@ jobs:
                   print(f"  {whl}: agilab/{rel}")
               sys.exit(1)
           print("✅ wheel OK")
-          PY
+PY
             python .check_wheel.py
           else
             echo "No symlinks existed; skipping artifact payload checks."
           fi
+
       - name: Verify agilab metadata
         run: twine check dist/*
 
@@ -354,7 +437,7 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --repository-url https://test.pypi.org/legacy/ dist/*
+        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ dist/*
 
   e2e-install-from-testpypi:
     needs: publish-agilab-testpypi
