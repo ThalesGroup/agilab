@@ -318,37 +318,37 @@ jobs:
                 # --- wheel check + forbid true symlink entries ---
                 echo "→ Checking wheel for removed symlink paths and disallow symlink entries"
                 python - <<'PY'
-import re, glob, zipfile, sys, os
-
-symlist = [l.strip() for l in open(".removed_symlinks.txt").read().splitlines()] if os.path.exists(".removed_symlinks.txt") else []
-bad = []
-
-for whl in glob.glob("dist/*.whl"):
-    with zipfile.ZipFile(whl) as z:
-        # Disallow true symlink entries (POSIX 0120000)
-        for zi in z.infolist():
-            mode = (zi.external_attr >> 16) & 0o170000
-            if mode == 0o120000:
-                print(f"Wheel contains a symlink entry: {whl}: {zi.filename}")
-                sys.exit(1)
-
-        names = z.namelist()
-
-        for rel in symlist:            # "apps/..." or "views/..."
-            if not rel:
-                continue
-            pat = re.compile(r'(^|/)agilab/' + re.escape(rel) + r'(/|$)')
-            if any(pat.search(n) for n in names):
-                bad.append((whl, rel))
-
-if bad:
-    print("Found removed symlink payload in wheel:")
-    for whl, rel in bad:
-        print(f"  {whl}: agilab/{rel}")
-    sys.exit(1)
-
-print("✅ wheel OK")
-PY
+                import re, glob, zipfile, sys, os
+                
+                symlist = [l.strip() for l in open(".removed_symlinks.txt").read().splitlines()] if os.path.exists(".removed_symlinks.txt") else []
+                bad = []
+                
+                for whl in glob.glob("dist/*.whl"):
+                    with zipfile.ZipFile(whl) as z:
+                        # Disallow true symlink entries (POSIX 0120000)
+                        for zi in z.infolist():
+                            mode = (zi.external_attr >> 16) & 0o170000
+                            if mode == 0o120000:
+                                print(f"Wheel contains a symlink entry: {whl}: {zi.filename}")
+                                sys.exit(1)
+                
+                        names = z.namelist()
+                
+                        for rel in symlist:            # "apps/..." or "views/..."
+                            if not rel:
+                                continue
+                            pat = re.compile(r'(^|/)agilab/' + re.escape(rel) + r'(/|$)')
+                            if any(pat.search(n) for n in names):
+                                bad.append((whl, rel))
+                
+                if bad:
+                    print("Found removed symlink payload in wheel:")
+                    for whl, rel in bad:
+                        print(f"  {whl}: agilab/{rel}")
+                    sys.exit(1)
+                
+                print("✅ wheel OK")
+                PY
       - name: Verify agilab metadata
         run: twine check dist/*
 
