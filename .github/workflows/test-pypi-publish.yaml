@@ -140,7 +140,7 @@ jobs:
                   # Fallback: use GitHub run number if present, else 1
                   nxt = int(os.environ.get("GITHUB_RUN_NUMBER","1"))
               print(f"{base}.post{nxt}")
-              PY
+            PY
           }
 
           AGI_ENV_VER=$(resolve_one "agi-env"      "$BASE_VERSION")
@@ -313,7 +313,7 @@ jobs:
             existing = [int(m.group(1)) for v in versions for m in [post_re.match(v)] if m]
             nxt = (max(existing)+1) if existing else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
             print(f"{base}.post{nxt}")
-            PY
+          PY
           )
           echo "value=$ver" >> "$GITHUB_OUTPUT"
           echo "Resolved agilab version: $ver"
@@ -424,7 +424,7 @@ jobs:
                       print(f"  {whl}: agilab/{rel}")
                   sys.exit(1)
               print("✅ wheel OK")
-              PY
+            PY
             python .check_wheel.py
           else
             echo "No symlinks existed; skipping artifact payload checks."
