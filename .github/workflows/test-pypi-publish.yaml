@@ -133,7 +133,7 @@ jobs:
       } >> "$GITHUB_OUTPUT"
       
       echo "Resolved: agi-env=$AGI_ENV_VER agi-node=$AGI_NODE_VER agi-cluster=$AGI_CLUSTER_VER agi-core=$AGI_CORE_VER"
-
+      
       - name: Update version in core pyproject.toml files
         env:
           AGI_ENV_VERSION: ${{ steps.resolve.outputs.agi_env }}
@@ -258,29 +258,29 @@ jobs:
         run: rm -rf dist
     
     - name: Resolve TestPyPI version (agilab umbrella)
-          id: resolve_agilab
-          env:
-            BASE_VERSION: ${{ env.VERSION }}
-          run: |
-            set -euo pipefail
-            ver=$(python -c 'import json,sys,urllib.request,re,os
+        id: resolve_agilab
+        env:
+          BASE_VERSION: ${{ env.VERSION }}
+        run: |
+          set -euo pipefail
+          ver=$(python -c 'import json,sys,urllib.request,re,os
     project,base=sys.argv[1],sys.argv[2]
     url=f"https://test.pypi.org/pypi/{project}/json"
     try:
-      with urllib.request.urlopen(url,timeout=10) as r:
-          data=json.load(r)
-      versions=list(data.get("releases",{}).keys())
+    with urllib.request.urlopen(url,timeout=10) as r:
+        data=json.load(r)
+    versions=list(data.get("releases",{}).keys())
     except Exception:
-      versions=[]
+    versions=[]
     if base not in versions:
-      print(base); raise SystemExit
+    print(base); raise SystemExit
     post=[int(m.group(1)) for v in versions for m in [re.match(re.escape(base)+r"\.post(\d+)$",v)] if m]
     nxt=(max(post)+1) if post else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
     print(f"{base}.post{nxt}")' "agilab" "${BASE_VERSION#v}")
-            echo "value=$ver" >> "$GITHUB_OUTPUT"
-            echo "Resolved agilab version: $ver"
+          echo "value=$ver" >> "$GITHUB_OUTPUT"
+          echo "Resolved agilab version: $ver"
     
-    - name: Update version across repository (exclude core/*)
+      - name: Update version across repository (exclude core/*)
         env:
           VERSION: ${{ steps.resolve_agilab.outputs.value }}
         run: |
