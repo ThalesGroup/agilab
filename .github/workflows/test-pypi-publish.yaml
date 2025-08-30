@@ -14,6 +14,10 @@ concurrency:
   group: test-pypi-publish-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash
+
 env:
   PYTHON_VERSION: "3.13"
 
@@ -37,7 +41,6 @@ jobs:
         run: python -m pip install --upgrade --no-cache-dir uv
 
       - name: Fix accidental O.* version typos (core only)
-        shell: bash
         run: |
           set -euxo pipefail
           find src/agilab/core -type f -name pyproject.toml -print0 |
@@ -49,7 +52,6 @@ jobs:
           fi
 
       - name: Sync and install editable core projects
-        shell: bash
         run: |
           set -eux
           pushd "src/agilab/core/agi-cluster"
@@ -60,7 +62,6 @@ jobs:
           popd
 
       - name: Run tests
-        shell: bash
         run: |
           set -eux
           pushd "src/agilab/core"
@@ -100,54 +101,47 @@ jobs:
 
       - name: Resolve TestPyPI versions (per package)
         id: resolve
+        uses: actions/github-script@v7
         env:
           BASE_VERSION: ${{ env.VERSION }}
-        shell: bash
-        run: |
-          set -euo pipefail
+        with:
+          script: |
+            const base = (process.env.BASE_VERSION || '').replace(/^v/i, '');
+            if (!base) core.setFailed('Empty base version.');
+            const pkgs = ['agi-env','agi-node','agi-cluster','agi-core'];
+            const runNumber = parseInt(process.env.GITHUB_RUN_NUMBER || '1', 10);
 
-          resolve_one() {
-            local project="$1"
-            local base="${2#v}"; base="${base#V}"
-            python -c 'import json,sys,urllib.request,re,os;
-project,base=sys.argv[1],sys.argv[2]
-try:
-    with urllib.request.urlopen(f"https://test.pypi.org/pypi/{project}/json",timeout=10) as r:
-        data=json.load(r)
-    versions=list(data.get("releases",{}).keys())
-except Exception:
-    versions=[]
-if base not in versions:
-    print(base); raise SystemExit(0)
-post=[int(m.group(1)) for v in versions for m in [re.match(re.escape(base)+r"\.post(\d+)$",v)] if m]
-nxt=(max(post)+1) if post else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
-print(f"{base}.post{nxt}")' "$project" "$base"
-          }
+            async function releases(pkg) {
+              try {
+                const res = await fetch(`https://test.pypi.org/pypi/${pkg}/json`, { headers: { 'Accept':'application/json' } });
+                if (!res.ok) return [];
+                const data = await res.json();
+                return Object.keys(data.releases || {});
+              } catch { return []; }
+            }
+            const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-          AGI_ENV_VER=$(resolve_one "agi-env" "$BASE_VERSION")
-          AGI_NODE_VER=$(resolve_one "agi-node" "$BASE_VERSION")
-          AGI_CLUSTER_VER=$(resolve_one "agi-cluster" "$BASE_VERSION")
-          AGI_CORE_VER=$(resolve_one "agi-core" "$BASE_VERSION")
-
-          {
-            echo "agi_env=$AGI_ENV_VER"
-            echo "agi_node=$AGI_NODE_VER"
-            echo "agi_cluster=$AGI_CLUSTER_VER"
-            echo "agi_core=$AGI_CORE_VER"
-          } >> "$GITHUB_OUTPUT"
-
-          echo "Resolved: agi-env=$AGI_ENV_VER agi-node=$AGI_NODE_VER agi-cluster=$AGI_CLUSTER_VER agi-core=$AGI_CORE_VER"
+            for (const p of pkgs) {
+              const versions = await releases(p);
+              let v = base;
+              if (versions.includes(base)) {
+                const re = new RegExp(`^${esc(base)}\\.post(\\d+)$`);
+                const posts = versions.map(x => (x.match(re)||[])[1]).filter(Boolean).map(Number);
+                const next = posts.length ? Math.max(...posts) + 1 : runNumber;
+                v = `${base}.post${next}`;
+              }
+              core.setOutput(p.replace(/-/g,'_'), v);
+              console.log(`${p} -> ${v}`);
+            }
 
       - name: Update version in core pyproject.toml files
         env:
-          AGI_ENV_VERSION: ${{ steps.resolve.outputs.agi_env }}
-          AGI_NODE_VERSION: ${{ steps.resolve.outputs.agi_node }}
+          AGI_ENV_VERSION:     ${{ steps.resolve.outputs.agi_env }}
+          AGI_NODE_VERSION:    ${{ steps.resolve.outputs.agi_node }}
           AGI_CLUSTER_VERSION: ${{ steps.resolve.outputs.agi_cluster }}
-          AGI_CORE_VERSION: ${{ steps.resolve.outputs.agi_core }}
-        shell: bash
+          AGI_CORE_VERSION:    ${{ steps.resolve.outputs.agi_core }}
         run: |
           set -euxo pipefail
-
           bump_in_file() {
             local py="$1" ver="$2"
             awk -v NEWVER="$ver" '
@@ -161,26 +155,28 @@ print(f"{base}.post{nxt}")' "$project" "$base"
                 if(in_project && match($0, /^[[:space:]]*version[[:space:]]*=/)) next
                 print $0
               }
-              END{
-                if(in_project && !replaced){ print "version = \"" NEWVER "\"" }
-              }
+              END{ if(in_project && !replaced){ print "version = \"" NEWVER "\"" } }
             ' "$py" > "$py.tmp" && mv "$py.tmp" "$py"
             sed -i -E '/^[[:space:]]*version[[:space:]]*=/ s/"O\./"0./' "$py"
             sed -i -E '/^[[:space:]]*dynamic[[:space:]]*=/d' "$py"
           }
 
-          for pkg in agi-env agi-node agi-cluster agi-core; do
+          declare -A NEWVER=(
+            ["agi-env"]="${AGI_ENV_VERSION}"
+            ["agi-node"]="${AGI_NODE_VERSION}"
+            ["agi-cluster"]="${AGI_CLUSTER_VERSION}"
+            ["agi-core"]="${AGI_CORE_VERSION}"
+          )
+
+          for pkg in "${!NEWVER[@]}"; do
             base="src/agilab/core/$pkg"
-            ver_var=$(echo "${pkg}_version" | tr '[:lower:]-' '[:upper:]_')
-            ver="${!ver_var}"
             find "$base" -type f -name pyproject.toml -print0 | while IFS= read -r -d "" file; do
-              echo "→ Updating $file to $ver"
-              bump_in_file "$file" "$ver"
+              echo "→ Updating $file to ${NEWVER[$pkg]}"
+              bump_in_file "$file" "${NEWVER[$pkg]}"
             done
           done
 
       - name: Commit version bumps to a side branch (optional)
-        shell: bash
         run: |
           set -euxo pipefail
           git config user.name "GitHub Actions"
@@ -194,45 +190,24 @@ print(f"{base}.post{nxt}")' "$project" "$base"
             git push -u origin "ci/testpypi-bump-${GITHUB_RUN_ID}"
           fi
 
-      - name: Build agi-env
-        run: uv build --project src/agilab/core/agi-env --wheel
-      - name: Verify agi-env
-        run: twine check src/agilab/core/agi-env/dist/*
-      - name: Publish agi-env to TestPyPI
+      - name: Build, verify and publish core packages (loop)
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-env/dist/*
-
-      - name: Build agi-node
-        run: uv build --project src/agilab/core/agi-node --wheel
-      - name: Verify agi-node
-        run: twine check src/agilab/core/agi-node/dist/*
-      - name: Publish agi-node to TestPyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-node/dist/*
-
-      - name: Build agi-cluster
-        run: uv build --project src/agilab/core/agi-cluster --wheel
-      - name: Verify agi-cluster
-        run: twine check src/agilab/core/agi-cluster/dist/*
-      - name: Publish agi-cluster to TestPyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-cluster/dist/*
-
-      - name: Build agi-core
-        run: uv build --project src/agilab/core/agi-core --wheel
-      - name: Verify agi-core
-        run: twine check src/agilab/core/agi-core/dist/*
-      - name: Publish agi-core to TestPyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-core/dist/*
+        run: |
+          set -euxo pipefail
+          declare -A V=(
+            ["agi-env"]="${{ steps.resolve.outputs.agi_env }}"
+            ["agi-node"]="${{ steps.resolve.outputs.agi_node }}"
+            ["agi-cluster"]="${{ steps.resolve.outputs.agi_cluster }}"
+            ["agi-core"]="${{ steps.resolve.outputs.agi_core }}"
+          )
+          for pkg in agi-env agi-node agi-cluster agi-core; do
+            echo "→ Building $pkg ${V[$pkg]}"
+            uv build --project "src/agilab/core/$pkg" --wheel
+            twine check "src/agilab/core/$pkg/dist/"*
+            twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ "src/agilab/core/$pkg/dist/"*
+          done
 
   publish-agilab-testpypi:
     needs: publish-core-packages-testpypi
@@ -265,33 +240,35 @@ print(f"{base}.post{nxt}")' "$project" "$base"
 
       - name: Resolve TestPyPI version (agilab umbrella)
         id: resolve_agilab
+        uses: actions/github-script@v7
         env:
           BASE_VERSION: ${{ env.VERSION }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          ver=$(
-            python -c 'import json,sys,urllib.request,re,os;
-base=sys.argv[1].lstrip("vV")
-try:
-    with urllib.request.urlopen("https://test.pypi.org/pypi/agilab/json",timeout=10) as r:
-        data=json.load(r)
-    versions=list(data.get("releases",{}).keys())
-except Exception:
-    versions=[]
-if base not in versions:
-    print(base); raise SystemExit(0)
-post=[int(m.group(1)) for v in versions for m in [re.match(re.escape(base)+r"\.post(\d+)$",v)] if m]
-nxt=(max(post)+1) if post else int(os.environ.get("GITHUB_RUN_NUMBER","1"))
-print(f"{base}.post{nxt}")' "$BASE_VERSION"
-          )
-          echo "value=$ver" >> "$GITHUB_OUTPUT"
-          echo "Resolved agilab version: $ver"
+        with:
+          script: |
+            const base = (process.env.BASE_VERSION || '').replace(/^v/i, '');
+            const runNumber = parseInt(process.env.GITHUB_RUN_NUMBER || '1', 10);
+            let versions = [];
+            try {
+              const res = await fetch('https://test.pypi.org/pypi/agilab/json', { headers: { 'Accept':'application/json' }});
+              if (res.ok) {
+                const data = await res.json();
+                versions = Object.keys(data.releases || {});
+              }
+            } catch {}
+            let v = base;
+            if (versions.includes(base)) {
+              const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const re = new RegExp('^' + esc(base) + '\\.post(\\d+)$');
+              const posts = versions.map(x => (x.match(re)||[])[1]).filter(Boolean).map(Number);
+              const next = posts.length ? Math.max(...posts) + 1 : runNumber;
+              v = `${base}.post${next}`;
+            }
+            core.setOutput('value', v);
+            console.log(`agilab -> ${v}`);
 
       - name: Update version across repository (exclude core/*)
         env:
           VERSION: ${{ steps.resolve_agilab.outputs.value }}
-        shell: bash
         run: |
           set -eux
           echo "Bumping umbrella agilab version to $VERSION (excluding src/agilab/core/*)"
@@ -313,7 +290,6 @@ print(f"{base}.post{nxt}")' "$BASE_VERSION"
           done
 
       - name: Commit umbrella bump to a side branch (optional)
-        shell: bash
         run: |
           set -euxo pipefail
           git config user.name "GitHub Actions"
@@ -328,7 +304,6 @@ print(f"{base}.post{nxt}")' "$BASE_VERSION"
           fi
 
       - name: Capture & remove symlinks (apps/ and views/)
-        shell: bash
         run: |
           set -eux
           tmpfile=$(mktemp)
