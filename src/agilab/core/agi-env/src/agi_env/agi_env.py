@@ -229,13 +229,23 @@ class AgiEnv:
 
         if install_type == 0:
             # remote case
-            self.agilab_src = AgiEnv.locate_agilab_enduser(verbose)
-            agilab_src_parent = self.agilab_src.parent
-            self.src_cluster = agilab_src_parent / "agi_cluster"
-            self.node_root = agilab_src_parent / "agi_node"
-            self.env_root = agilab_src_parent / "agi_env"
-            self.core_root = agilab_src_parent / "agi_core"
-            self.cluster_root = self.active_app.parent
+            site_packages = Path(__file__).parents[1]
+            before, sep, after = __file__.rpartition("agilab")
+            agilab_src = Path(before)
+            if agilab_src.exists():
+                self.agilab_src = agilab_src
+                self.src_cluster = agilab_src / "agilab/core/agi-cluster/src/agi_cluster"
+                self.node_root = agilab_src / "agilab/core/agi-node/src/agi_node"
+                self.env_root = agilab_src / "agilab/core/agi-env/src/agi_env"
+                self.core_root = agilab_src / "agilab/core/agi-core/src/agi_core"
+                self.cluster_root = agilab_src / "agilab/core/agi-cluster/src/agi_cluster"
+            else:
+                self.agilab_src = site_packages
+                self.src_cluster = site_packages / "agilab/core/agi-core/src/agi_cluster"
+                self.node_root = site_packages / "agi_node"
+                self.env_root = site_packages / "agi_env"
+                self.core_root = site_packages / "agi_core"
+                self.cluster_root = site_packages / "agi_cluster"
 
             if not active_app.exists():
                 src_apps = self.agilab_src / "apps"
@@ -486,12 +496,6 @@ class AgiEnv:
                 logging.error(f"Permission denied when accessing {where_is_agi}.")
             except Exception as e:
                 logging.error(f"An error occurred: {e}")
-
-    @staticmethod
-    def locate_agilab_enduser(verbose=False):
-        path =  Path( __file__).parents[1]
-        before, sep, after = __file__.rpartition("agilab")
-        return before / "src" if before.exists() else path
 
     @staticmethod
     def locate_agilab_installation(verbose=False):
