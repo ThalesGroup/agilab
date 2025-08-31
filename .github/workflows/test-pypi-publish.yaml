@@ -23,7 +23,6 @@ jobs:
     permissions:
       contents: write
       id-token: write
-    # Accept either secret name
     env:
       TWINE_USERNAME: __token__
       TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN || secrets.TEST_PYPI_SECRET }}
@@ -43,7 +42,6 @@ jobs:
       - name: Install uv and twine
         run: python -m pip install --upgrade --no-cache-dir uv twine
 
-      # Resolve one unified target version for all core packages from TestPyPI.
       - name: Resolve unified TestPyPI version
         id: resolve
         uses: actions/github-script@v7
@@ -51,10 +49,9 @@ jobs:
           BASE_VERSION: ${{ github.event.inputs.version || github.ref_name }}
         with:
           script: |
-            // 'core' is injected by github-script v7. Node 20 has global fetch.
+            // Node 20 has global fetch; core is injected.
             const enc = encodeURIComponent;
             const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
             async function getReleases(name) {
               const url = `https://test.pypi.org/pypi/${enc(name)}/json`;
               try {
@@ -69,7 +66,6 @@ jobs:
                 return { releases: {} };
               }
             }
-
             const baseRaw = (process.env.BASE_VERSION || '')
               .trim().replace(/^refs\/tags\//, '').replace(/^v/i, '');
             if (!baseRaw) throw new Error('BASE_VERSION is empty');
@@ -106,7 +102,6 @@ jobs:
           "$py" - <<'PY'
           import os, re
           from pathlib import Path
-
           target = os.environ["TARGET"]
           roots = [
               Path("src/agilab/core/agi-env/pyproject.toml"),
@@ -114,11 +109,8 @@ jobs:
               Path("src/agilab/core/agi-cluster/pyproject.toml"),
               Path("src/agilab/core/agi-core/pyproject.toml"),
           ]
-
           def set_version(text: str, ver: str) -> str:
-              return re.sub(r'(?m)^version\s*=\s*["\']?[^"\']+["\']?\s*$',
-                            f'version = "{ver}"', text)
-
+              return re.sub(r'(?m)^\s*version\s*=\s*["\']?[^"\']+["\']?\s*$', f'version = "{ver}"', text)
           for p in roots:
               s = p.read_text(encoding="utf-8")
               s2 = set_version(s, target)
@@ -155,7 +147,11 @@ jobs:
               "src/agilab/core/${pkg}/dist/*"
           done
 
-      # 🔒 Umbrella 'agilab' is fixed at repo root: ./pyproject.toml
+      - name: "Guard: ensure root pyproject.toml exists"
+        run: |
+          set -euo pipefail
+          test -f pyproject.toml || { echo "pyproject.toml not found at repo root"; ls -la; exit 1; }
+
       - name: "Update umbrella agilab version & pin core deps (root pyproject.toml)"
         env:
           TARGET: ${{ steps.resolve.outputs.target }}
@@ -170,96 +166,49 @@ jobs:
           p = Path("pyproject.toml")
           lines = p.read_text(encoding="utf-8").splitlines(True)  # keep EOLs
 
-          dep_names = ("agi-env","agi-node","agi-cluster","agi-core")
-          # quoted match: "agi-env[extras]...anything until same quote"
+          def section_name(line: str):
+              m = re.match(r'^\s*\[([^\]]+)\]\s*$', line)
+              return m.group(1).strip() if m else None
+
+          # Quoted deps for our 4 packages; preserve extras + quotes; markers live outside quotes
           dep_pat = re.compile(
               r'(?P<q>["\'])'
               r'(?P<name>agi-env|agi-node|agi-cluster|agi-core)'
-              r'(?P<extras>\[[^"\']*\])?'      # optional extras
-              r'(?P<rest>[^"\']*)'              # any existing specifiers
+              r'(?P<extras>\[[^"\']*\])?'
+              r'(?P<rest>[^"\']*)'
               r'(?P=q)'
           )
+          def pin_in_line(line: str) -> str:
+              def repl(m):
+                  q = m.group('q')
+                  base = m.group('name') + (m.group('extras') or '')
+                  return f'{q}{base}=={target}{q}'
+              return dep_pat.sub(repl, line)
 
           out = []
-          in_project = False
+          current_section = None
 
           for line in lines:
-              # Enter/leave [project]
-              if re.match(r'^\s*\[project\]\s*$', line):
-                  in_project = True
-                  out.append(line)
-                  continue
-              if re.match(r'^\s*\[', line) and not re.match(r'^\s*\[project\]\s*$', line):
-                  in_project = False
+              sec = section_name(line)
+              if sec is not None:
+                  current_section = sec
                   out.append(line)
                   continue
 
-              if in_project:
-                  # version = "..."
-                  if re.match(r'^\s*version\s*=', line):
-                      indent = re.match(r'^(\s*)', line).group(1)
-                      line = f'{indent}version = "{target}"\n'
-                  # pin any quoted agilab core deps (works in dependencies/optional-dependencies)
-                  def repl(m):
-                      q = m.group('q')
-                      base = m.group('name') + (m.group('extras') or '')
-                      return f'{q}{base}=={target}{q}'
-                  line = dep_pat.sub(repl, line)
+              # version = "<target>" only inside [project]
+              if current_section == 'project' and re.match(r'^\s*version\s*=', line):
+                  indent = re.match(r'^(\s*)', line).group(1)
+                  line = f'{indent}version = "{target}"\n'
+
+              # pin quoted deps in [project] and [project.*] (e.g., optional-dependencies)
+              if current_section and (current_section == 'project' or current_section.startswith('project.')):
+                  line = pin_in_line(line)
 
               out.append(line)
 
           new_txt = ''.join(out)
           p.write_text(new_txt, encoding="utf-8")
           print(f"Updated {p} to version={target} and pinned core deps.")
-          PY
-
-      - name: "Update umbrella agilab version & pin core deps (root pyproject.toml)"
-        env:
-          TARGET: ${{ steps.resolve.outputs.target }}
-        run: |
-          set -euxo pipefail
-          py=$(command -v python || command -v python3)
-          "$py" - <<'PY'
-          import os, re
-          from pathlib import Path
-
-          target = os.environ["TARGET"]
-          p = Path("pyproject.toml")
-          txt = p.read_text(encoding="utf-8")
-
-          # Set [project].version
-          txt = re.sub(r'(?m)^version\s*=\s*["\']?[^"\']+["\']?\s*$', f'version = "{target}"', txt)
-
-          # Pin core deps in [project.dependencies] to ==target, preserving extras/markers
-          def pin_line(line: str, name: str) -> str:
-              parts = line.split(';', 1)
-              left = parts[0].strip()
-              marker = ('; ' + parts[1]) if len(parts) == 2 else ''
-              # keep base package(+extras), drop any existing specifier
-              left = re.sub(r'\s*(?:[<>=!~]=?|==).*$','', left)
-              if re.search(rf'(^|[ "\']){re.escape(name)}(\[.*\])?([ "\']|$)', left):
-                  return f"{left}=={target}{marker}"
-              return line
-
-          dep_names = ("agi-env","agi-node","agi-cluster","agi-core")
-
-          def pin_block(block: str) -> str:
-              lines = block.splitlines()
-              for i, line in enumerate(lines):
-                  for name in dep_names:
-                      if re.search(rf'(^|\\s|["\']){re.escape(name)}([^\w-]|$)', line):
-                          lines[i] = pin_line(lines[i], name)
-              return "\\n".join(lines)
-
-          # Try to confine to [project] section; if not matched, pin whole file
-          new_txt, n = re.subn(r'(?sm)(^\\s*\\[project\\][\\s\\S]*?)(^\\s*\\[)',
-                               lambda m: pin_block(m.group(1)) + m.group(2),
-                               txt, count=1)
-          if n == 0:
-              new_txt = pin_block(txt)
-
-          p.write_text(new_txt, encoding="utf-8")
-          print(f"Updated {p} to version={target} and pinned core deps to =={target}.")
           PY
 
       - name: Build agilab (wheel + sdist) from root
