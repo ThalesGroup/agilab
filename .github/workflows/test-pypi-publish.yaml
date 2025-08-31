@@ -156,10 +156,68 @@ jobs:
           done
 
       # 🔒 Umbrella 'agilab' is fixed at repo root: ./pyproject.toml
-      - name: "Guard: ensure root pyproject.toml exists"
+      - name: "Update umbrella agilab version & pin core deps (root pyproject.toml)"
+        env:
+          TARGET: ${{ steps.resolve.outputs.target }}
         run: |
-          set -euo pipefail
-          test -f pyproject.toml || { echo "pyproject.toml not found at repo root"; ls -la; exit 1; }
+          set -euxo pipefail
+          py=$(command -v python || command -v python3)
+          "$py" - <<'PY'
+          import os, re
+          from pathlib import Path
+          
+          target = os.environ["TARGET"]
+          p = Path("pyproject.toml")
+          s = p.read_text(encoding="utf-8")
+          
+          dep_names = ("agi-env","agi-node","agi-cluster","agi-core")
+          
+          lines = s.splitlines(True)  # keep line endings
+          out = []
+          in_project = False
+          
+          for line in lines:
+              # enter/leave [project] section
+              if re.match(r'^\s*\[project\]\s*$', line):
+                  in_project = True
+                  out.append(line); continue
+              if re.match(r'^\s*\[', line) and not re.match(r'^\s*\[project\]\s*$', line):
+                  in_project = False
+                  out.append(line); continue
+          
+              # set version = "<target>"
+              if in_project and re.match(r'^\s*version\s*=', line):
+                  indent = re.match(r'^(\s*)', line).group(1)
+                  line = f'{indent}version = "{target}"\n'
+          
+              # pin quoted deps: "...", keeping extras and markers
+              if in_project:
+                  for name in dep_names:
+                      pat = re.compile(
+                          r'(?P<q>["\'])'                # opening quote
+                          + re.escape(name) +
+                          r'(?:\[[^"\']*\])?'            # optional extras
+                          r'(?P<spec>[^"\']*)'           # anything until closing quote
+                          r'(?P=q)'                      # same quote
+                      )
+                      def repl(m):
+                          q = m.group('q')
+                          full = m.group(0)
+                          if f"{name}=={target}" in full:   # already pinned
+                              return full
+                          # rebuild as "<name>[extras]==<target>"
+                          # keep the original extras by slicing out the spec
+                          base = full[len(q):-len(q)]
+                          base = re.sub(r'\s*(?:[<>=!~]=?|==).*$','', base)
+                          return f'{q}{base}=={target}{q}'
+                      line = pat.sub(repl, line)
+          
+              out.append(line)
+          
+          new_txt = ''.join(out)
+          p.write_text(new_txt, encoding="utf-8")
+          print(f"Updated {p} to version={target} and pinned core deps.")
+          PY
 
       - name: "Update umbrella agilab version & pin core deps (root pyproject.toml)"
         env:
