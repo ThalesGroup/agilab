@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Base version for the release (e.g. 0.7.4 or v0.7.4). If omitted on tag runs, the tag name is used."
+        description: "Base version (e.g. 0.7.4 or v0.7.4). If omitted on tag runs, the tag name is used."
         required: false
   push:
     tags:
@@ -39,8 +39,7 @@ jobs:
       - name: Install uv and twine
         run: python -m pip install --upgrade --no-cache-dir uv twine
 
-      # Compute a unified target version for all core pkgs.
-      # If the base already exists for ANY of the pkgs on TestPyPI, we publish .postN for ALL.
+      # Resolve one unified target version for all core packages from TestPyPI.
       - name: Resolve unified TestPyPI version
         id: resolve
         uses: actions/github-script@v7
@@ -48,7 +47,7 @@ jobs:
           BASE_VERSION: ${{ github.event.inputs.version || github.ref_name }}
         with:
           script: |
-            // 'core' is provided by github-script runtime (do NOT require('@actions/core'))
+            // 'core' is injected by github-script v7. Node 20 has global fetch.
             const enc = encodeURIComponent;
             const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -91,13 +90,8 @@ jobs:
             const nextPost = Math.max(maxPost + 1, runNumber);
             const target = needPost ? `${baseRaw}.post${nextPost}` : baseRaw;
 
-            // unified version for all core packages
             core.setOutput('target', target);
-            core.setOutput('agi_env', target);
-            core.setOutput('agi_node', target);
-            core.setOutput('agi_cluster', target);
-            core.setOutput('agi_core', target);
-            core.info(`ALL core packages => ${target}`);
+            core.info(`Unified core version => ${target}`);
 
       - name: Update versions in core pyproject.toml files
         env:
@@ -118,15 +112,12 @@ jobs:
           ]
 
           def set_version(text: str, ver: str) -> str:
-              # robust single-line replacement
               return re.sub(r'(?m)^version\s*=\s*["\']?[^"\']+["\']?\s*$',
                             f'version = "{ver}"', text)
 
           for p in roots:
               s = p.read_text(encoding="utf-8")
               s2 = set_version(s, target)
-              if s == s2:
-                  print(f"[info] {p}: version unchanged or already set")
               p.write_text(s2, encoding="utf-8")
               print(f"[ok]   {p}: version -> {target}")
           PY
@@ -141,6 +132,17 @@ jobs:
             popd
           done
 
+      - name: Ensure TestPyPI token present
+        env:
+          TEST_PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TEST_PYPI_API_TOKEN:-}" ]; then
+            echo "ERROR: Missing TEST_PYPI_API_TOKEN secret (TestPyPI API token from https://test.pypi.org)" >&2
+            exit 2
+          fi
+          echo "Found TEST_PYPI_API_TOKEN (length: ${#TEST_PYPI_API_TOKEN})"
+
       - name: Upload core wheels to TestPyPI
         env:
           TWINE_USERNAME: __token__
@@ -148,7 +150,10 @@ jobs:
         run: |
           set -euxo pipefail
           for pkg in agi-env agi-node agi-cluster agi-core; do
-            twine upload --repository-url https://test.pypi.org/legacy/ --non-interactive --skip-existing "src/agilab/core/${pkg}/dist/*"
+            twine upload \
+              --repository-url https://test.pypi.org/legacy/ \
+              --non-interactive \
+              "src/agilab/core/${pkg}/dist/*"
           done
 
       - name: Update umbrella agilab version & pin core deps
@@ -165,41 +170,34 @@ jobs:
           p = Path("src/agilab/pyproject.toml")
           txt = p.read_text(encoding="utf-8")
 
-          # set [project].version
+          # Set [project].version
           txt = re.sub(r'(?m)^version\s*=\s*["\']?[^"\']+["\']?\s*$', f'version = "{target}"', txt)
 
-          # pin deps in [project.dependencies] (keep extras and markers)
+          # Pin core deps in [project.dependencies] to ==target, preserving extras/markers
           def pin_line(line: str, name: str) -> str:
-              # split env markers
               parts = line.split(';', 1)
               left = parts[0].strip()
               marker = ('; ' + parts[1]) if len(parts) == 2 else ''
-              # keep package name (and extras if any), drop specifiers
-              # examples that become 'agi-env' or 'agi-env[extra]'
+              # keep base package(+extras), drop any existing specifier
               left = re.sub(r'\s*(?:[<>=!~]=?|==).*$','', left)
-              if re.match(rf'^{re.escape(name)}(\[.*\])?$', left):
+              if re.match(rf'^(["\']?){re.escape(name)}(\[.*\])?\\1$', left) or name in left:
                   return f"{left}=={target}{marker}"
               return line
 
           dep_names = ("agi-env","agi-node","agi-cluster","agi-core")
-          # rewrite lines in the dependencies array/table
-          def repl_dep_block(m):
-              block = m.group(0)
+
+          def pin_block(block: str) -> str:
               lines = block.splitlines()
               for i, line in enumerate(lines):
                   for name in dep_names:
-                      # work only on lines that start with package name or have quotes around it
-                      # common in PEP 621 arrays: "agi-env>=0.1", or just agi-env==...
-                      # We'll handle both quoted and unquoted approximations.
-                      if re.search(rf'(^|\s|["\']){re.escape(name)}([^\w-]|\Z)', line):
+                      if re.search(rf'(^|\\s|["\']){re.escape(name)}([^\w-]|$)', line):
                           lines[i] = pin_line(lines[i], name)
-              return "\n".join(lines)
+              return "\\n".join(lines)
 
-          txt = re.sub(r'(?s)^\s*\[project\]\s.*?\[', lambda m: repl_dep_block(m) + "[", txt, count=1)
-          # If the above failed to catch (no next table), try to process the rest
-          if '[project.dependencies]' in txt:
-              # Alternate path: process only the dependencies section lines
-              pass
+          # Best-effort: process [project] section up to next table
+          txt = re.sub(r'(?s)(^\\s*\\[project\\][\\s\\S]*?)(^\\s*\\[)',
+                       lambda m: pin_block(m.group(1)) + m.group(2),
+                       txt, count=1, flags=re.MULTILINE)
 
           p.write_text(txt, encoding="utf-8")
           print(f"Updated {p} to version={target} and pinned core deps to =={target}.")
@@ -213,10 +211,13 @@ jobs:
           uv build --sdist --wheel
 
       - name: Upload agilab to TestPyPI
+        working-directory: src/agilab
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
-        working-directory: src/agilab
         run: |
           set -euxo pipefail
-          twine upload --repository-url https://test.pypi.org/legacy/ --non-interactive --skip-existing dist/*
+          twine upload \
+            --repository-url https://test.pypi.org/legacy/ \
+            --non-interactive \
+            dist/*
