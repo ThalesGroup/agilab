@@ -280,29 +280,48 @@ jobs:
           BASE_VERSION: ${{ env.VERSION }}
         with:
           script: |
+              # Replace the whole "Resolve TestPyPI versions (per package)" step's script with:
             const base = (process.env.BASE_VERSION || '').replace(/^v/i, '');
+            const pkgs = ['agi-env','agi-node','agi-cluster','agi-core'];
             const runNumber = parseInt(process.env.GITHUB_RUN_NUMBER || '1', 10);
-
-            let versions = [];
-            try {
-              const res = await fetch('https://test.pypi.org/pypi/agilab/json', { headers: { 'Accept': 'application/json' } });
-              if (res.ok) {
-                const data = await res.json();
-                versions = Object.keys(data.releases || {});
+            
+            const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const fetchJson = async (name) => {
+              try {
+                const res = await fetch(`https://test.pypi.org/pypi/${name}/json`, { headers: { 'Accept': 'application/json' } });
+                if (!res.ok) return { releases: {} };
+                return await res.json();
+              } catch {
+                return { releases: {} };
               }
-            } catch {}
-
-            let v = base;
-            if (versions.includes(base)) {
-              const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              const re = new RegExp('^' + esc(base) + '\\.post(\\d+)$');
-              const posts = versions.map(x => (x.match(re) || [])[1]).filter(Boolean).map(Number);
-              const next = posts.length ? Math.max(...posts) + 1 : runNumber;
-              v = `${base}.post${next}`;
+            };
+            
+            let needPost = false;
+            let maxPost = 0;
+            const re = new RegExp('^' + esc(base) + '\\.post(\\d+)$');
+            
+            for (const p of pkgs) {
+              const data = await fetchJson(p);
+              const versions = Object.keys(data.releases || {});
+              if (versions.includes(base)) needPost = true;
+              for (const v of versions) {
+                const m = v.match(re);
+                if (m) maxPost = Math.max(maxPost, Number(m[1]));
+              }
             }
-
-            core.setOutput('value', v);
-            console.log(`agilab = ${v}`);
+            
+            let target = base;
+            if (needPost) {
+              const next = Math.max(maxPost + 1, runNumber);
+              target = `${base}.post${next}`;
+            }
+            
+            // set the SAME target version for every package
+            core.setOutput('agi_env', target);
+            core.setOutput('agi_node', target);
+            core.setOutput('agi_cluster', target);
+            core.setOutput('agi_core', target);
+            console.log(`ALL core packages => ${target}`);
 
       - name: Update version across repository (exclude core/*)
         env:
