@@ -273,55 +273,66 @@ jobs:
       - name: Clean previous builds
         run: rm -rf dist
 
-      - name: Resolve TestPyPI version (agilab umbrella)
-        id: resolve_agilab
+      - name: Resolve single TestPyPI version for all core packages
+        id: resolve
         uses: actions/github-script@v7
         env:
-          BASE_VERSION: ${{ env.VERSION }}
+          BASE_VERSION: ${{ github.event.inputs.version || github.ref_name }}
         with:
           script: |
-              # Replace the whole "Resolve TestPyPI versions (per package)" step's script with:
-            const base = (process.env.BASE_VERSION || '').replace(/^v/i, '');
-            const pkgs = ['agi-env','agi-node','agi-cluster','agi-core'];
-            const runNumber = parseInt(process.env.GITHUB_RUN_NUMBER || '1', 10);
-            
+            const core = require('@actions/core');
+      
+            // --- helpers -----------------------------------------------------------
+            const fetchFn = globalThis.fetch ?? (await import('node-fetch')).default;
+            const enc = encodeURIComponent;
             const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const fetchJson = async (name) => {
+      
+            async function getReleases(name) {
+              const url = `https://test.pypi.org/pypi/${enc(name)}/json`;
               try {
-                const res = await fetch(`https://test.pypi.org/pypi/${name}/json`, { headers: { 'Accept': 'application/json' } });
-                if (!res.ok) return { releases: {} };
+                const res = await fetchFn(url, { headers: { 'Accept': 'application/json' } });
+                if (!res.ok) {
+                  core.warning(`HTTP ${res.status} from ${url}`);
+                  return { releases: {} };
+                }
                 return await res.json();
-              } catch {
+              } catch (e) {
+                core.warning(`Fetch failed for ${name}: ${String(e)}`);
                 return { releases: {} };
               }
-            };
-            
-            let needPost = false;
-            let maxPost = 0;
-            const re = new RegExp('^' + esc(base) + '\\.post(\\d+)$');
-            
+            }
+            // ----------------------------------------------------------------------
+      
+            const baseRaw = (process.env.BASE_VERSION || '')
+              .trim().replace(/^refs\/tags\//, '').replace(/^v/i, '');
+            if (!baseRaw) throw new Error('BASE_VERSION is empty');
+      
+            const pkgs = ['agi-env','agi-node','agi-cluster','agi-core'];
+            const runNumber = parseInt(process.env.GITHUB_RUN_NUMBER || '1', 10);
+      
+            let needPost = false, maxPost = 0;
+            const re = new RegExp(`^${esc(baseRaw)}\\.post(\\d+)$`);
+      
             for (const p of pkgs) {
-              const data = await fetchJson(p);
+              const data = await getReleases(p);
               const versions = Object.keys(data.releases || {});
-              if (versions.includes(base)) needPost = true;
+              if (versions.includes(baseRaw)) needPost = true;
               for (const v of versions) {
                 const m = v.match(re);
                 if (m) maxPost = Math.max(maxPost, Number(m[1]));
               }
             }
-            
-            let target = base;
-            if (needPost) {
-              const next = Math.max(maxPost + 1, runNumber);
-              target = `${base}.post${next}`;
-            }
-            
-            // set the SAME target version for every package
+      
+            const nextPost = Math.max(maxPost + 1, runNumber);
+            const target = needPost ? `${baseRaw}.post${nextPost}` : baseRaw;
+      
+            // one unified version for all core packages
             core.setOutput('agi_env', target);
             core.setOutput('agi_node', target);
             core.setOutput('agi_cluster', target);
             core.setOutput('agi_core', target);
-            console.log(`ALL core packages => ${target}`);
+            core.setOutput('target', target);
+            core.info(`ALL core packages => ${target}`);
 
       - name: Update version across repository (exclude core/*)
         env:
