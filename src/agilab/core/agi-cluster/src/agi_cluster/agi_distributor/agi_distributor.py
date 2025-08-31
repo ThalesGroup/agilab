@@ -1630,7 +1630,7 @@ class AGI:
                 f"from agi_node.agi_dispatcher import  BaseWorker\n"
                 f"import asyncio\n"
                 f"async def main():\n"
-                f"  BaseWorker.new('{env.app}', mode={AGI._mode}, install_type={install_type}, verbose={AGI._verbose}, args={AGI._args})\n"
+                f"  BaseWorker.new('{env.app}', mode={AGI._mode}, install_type={env.install_type}, verbose={AGI._verbose}, args={AGI._args})\n"
                 f"  res = await BaseWorker.run({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args})\n"
                 f"  print(res)\n"
                 f"if __name__ == '__main__':\n"
