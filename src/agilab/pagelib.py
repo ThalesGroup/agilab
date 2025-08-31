@@ -444,7 +444,7 @@ def get_custom_buttons():
         This function uses Streamlit's caching mechanism to avoid reloading the data each time it is called.
     """
     env = st.session_state["env"]
-    with open(env.env.st_resources / "custom_buttons.json") as file:
+    with open(env.st_resources / "custom_buttons.json") as file:
         return json.load(file)
 
 
