@@ -428,7 +428,7 @@ def sidebar_controls() -> None:
     steps_file_name = st.session_state["steps_file_name"]
     lab_dir = Agi_export_abs / st.session_state["lab_dir_selectbox"]
     st.session_state.df_dir = Agi_export_abs / lab_dir
-    steps_file = env.app_abs / steps_file_name
+    steps_file = env.active_app / steps_file_name
     st.session_state["steps_file"] = steps_file
 
     steps_files = find_files(lab_dir, ".toml")
@@ -695,7 +695,7 @@ def main() -> None:
         st.session_state.setdefault("mlflow_port", 5000)
 
         df_dir_def = Path(env.AGILAB_EXPORT_ABS) / env.target
-        st.session_state.setdefault("steps_file", Path(env.app_abs) / STEPS_FILE_NAME)
+        st.session_state.setdefault("steps_file", Path(env.active_app) / STEPS_FILE_NAME)
         st.session_state.setdefault(
             "df_file_out", df_dir_def / ("lab_" + DEFAULT_DF.replace(".csv", "_out.csv"))
         )

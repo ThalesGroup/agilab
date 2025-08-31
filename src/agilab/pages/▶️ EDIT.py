@@ -285,7 +285,7 @@ def handle_export_project():
     Handle the export of a project to a zip file.
     """
     env = st.session_state["env"]
-    input_dir = env.app_abs
+    input_dir = env.active_app
     output_zip = (env.export_apps / env.app).with_suffix(".zip")
     gitignore_path = input_dir / ".gitignore"
 
@@ -1137,7 +1137,7 @@ def handle_project_selection():
 # helper functions
 
 def _render_python_env(env):
-    app_venv_file = env.app_abs / "pyproject.toml"
+    app_venv_file = env.active_app / "pyproject.toml"
     if app_venv_file.exists():
         app_venv = app_venv_file.read_text()
         render_code_editor(
@@ -1147,7 +1147,7 @@ def _render_python_env(env):
         st.warning("App settings file not found.")
 
 def _render_uv_env(env):
-    app_venv_file = env.app_abs / "uv_config.toml"
+    app_venv_file = env.active_app / "uv_config.toml"
     if app_venv_file.exists():
         app_venv = app_venv_file.read_text()
         if "-cu12" in app_venv:
@@ -1360,7 +1360,7 @@ def handle_project_delete():
             st.error("Please confirm that you want to delete the project.")
         else:
             try:
-                project_path = env.app_abs
+                project_path = env.active_app
                 if project_path.exists():
                     shutil.rmtree(project_path)
                     env.projects = [
