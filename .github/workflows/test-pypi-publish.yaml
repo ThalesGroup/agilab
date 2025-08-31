@@ -156,12 +156,12 @@ jobs:
           done
 
       # 🔒 Umbrella 'agilab' is fixed at repo root: ./pyproject.toml
-      - name: Guard: ensure root pyproject.toml exists
+      - name: "Guard: ensure root pyproject.toml exists"
         run: |
           set -euo pipefail
           test -f pyproject.toml || { echo "pyproject.toml not found at repo root"; ls -la; exit 1; }
 
-      - name: Update umbrella agilab version & pin core deps (root pyproject.toml)
+      - name: "Update umbrella agilab version & pin core deps (root pyproject.toml)"
         env:
           TARGET: ${{ steps.resolve.outputs.target }}
         run: |
