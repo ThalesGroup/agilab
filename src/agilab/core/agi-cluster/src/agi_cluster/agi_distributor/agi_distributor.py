@@ -994,6 +994,8 @@ class AGI:
             cmd_manager = f"{uv} {run_type} --project {app_path}"
 
         if env.install_type == 1:
+            cmd = f"{uv} run --project {app_path} pip install -e {env.core_root}"
+            await AgiEnv.run(cmd, app_path)
             cmd = f"{uv} run --project {app_path} pip install -e {env.env_root}"
             await AgiEnv.run(cmd, app_path)
             cmd = f"{uv} run --project {app_path} pip install -e {env.node_root}"

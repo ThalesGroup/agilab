@@ -234,6 +234,7 @@ class AgiEnv:
             self.src_cluster = agilab_src_parent / "agi_cluster"
             self.node_root = agilab_src_parent / "agi_node"
             self.env_root = agilab_src_parent / "agi_env"
+            self.core_root = self.agilab_src / "../agi-core"
             self.cluster_root = self.active_app.parent
 
             if not active_app.exists():
@@ -253,6 +254,7 @@ class AgiEnv:
             if not self.agilab_src:
                 self.agilab_src = AgiEnv.locate_agilab_installation(verbose)
             self.env_root = self.agilab_src / "core/agi-env"
+            self.core_root = self.agilab_src / "../agi-core"
             self.cluster_root = self.agilab_src / "core/agi-cluster"
             self.src_cluster = self.cluster_root / "src/agi_cluster"
             self.node_root = self.agilab_src / "core/agi-node"
@@ -262,6 +264,7 @@ class AgiEnv:
             # enduser case
             self.agilab_src = AgiEnv.locate_agilab_installation(verbose)
             self.env_root = self.agilab_src / "../agi-env"
+            self.core_root = self.agilab_src / "../agi-core"
             self.node_root = self.agilab_src / "../agi-node"
             self.cluster_root = self.agilab_src / "../agi-cluster"
             self.src_cluster = self.cluster_root / "src/agi_cluster"
