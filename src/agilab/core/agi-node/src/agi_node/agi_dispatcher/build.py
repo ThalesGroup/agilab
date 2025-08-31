@@ -164,7 +164,7 @@ def cleanup_links(links: list[Path]) -> None:
             logging.warning(f"Failed to remove {link}: {e}")
 
 def main() -> None:
-    active_app = Path(__file__).parent
+    active_app = Path(__file__.replace('worker', 'project')).parent.resolve()
     os.chdir(active_app)
     opts = parse_custom_args(sys.argv[1:], active_app)
     cmd = opts.command
