@@ -165,55 +165,49 @@ jobs:
           "$py" - <<'PY'
           import os, re
           from pathlib import Path
-          
+
           target = os.environ["TARGET"]
           p = Path("pyproject.toml")
-          s = p.read_text(encoding="utf-8")
-          
+          lines = p.read_text(encoding="utf-8").splitlines(True)  # keep EOLs
+
           dep_names = ("agi-env","agi-node","agi-cluster","agi-core")
-          
-          lines = s.splitlines(True)  # keep line endings
+          # quoted match: "agi-env[extras]...anything until same quote"
+          dep_pat = re.compile(
+              r'(?P<q>["\'])'
+              r'(?P<name>agi-env|agi-node|agi-cluster|agi-core)'
+              r'(?P<extras>\[[^"\']*\])?'      # optional extras
+              r'(?P<rest>[^"\']*)'              # any existing specifiers
+              r'(?P=q)'
+          )
+
           out = []
           in_project = False
-          
+
           for line in lines:
-              # enter/leave [project] section
+              # Enter/leave [project]
               if re.match(r'^\s*\[project\]\s*$', line):
                   in_project = True
-                  out.append(line); continue
+                  out.append(line)
+                  continue
               if re.match(r'^\s*\[', line) and not re.match(r'^\s*\[project\]\s*$', line):
                   in_project = False
-                  out.append(line); continue
-          
-              # set version = "<target>"
-              if in_project and re.match(r'^\s*version\s*=', line):
-                  indent = re.match(r'^(\s*)', line).group(1)
-                  line = f'{indent}version = "{target}"\n'
-          
-              # pin quoted deps: "...", keeping extras and markers
+                  out.append(line)
+                  continue
+
               if in_project:
-                  for name in dep_names:
-                      pat = re.compile(
-                          r'(?P<q>["\'])'                # opening quote
-                          + re.escape(name) +
-                          r'(?:\[[^"\']*\])?'            # optional extras
-                          r'(?P<spec>[^"\']*)'           # anything until closing quote
-                          r'(?P=q)'                      # same quote
-                      )
-                      def repl(m):
-                          q = m.group('q')
-                          full = m.group(0)
-                          if f"{name}=={target}" in full:   # already pinned
-                              return full
-                          # rebuild as "<name>[extras]==<target>"
-                          # keep the original extras by slicing out the spec
-                          base = full[len(q):-len(q)]
-                          base = re.sub(r'\s*(?:[<>=!~]=?|==).*$','', base)
-                          return f'{q}{base}=={target}{q}'
-                      line = pat.sub(repl, line)
-          
+                  # version = "..."
+                  if re.match(r'^\s*version\s*=', line):
+                      indent = re.match(r'^(\s*)', line).group(1)
+                      line = f'{indent}version = "{target}"\n'
+                  # pin any quoted agilab core deps (works in dependencies/optional-dependencies)
+                  def repl(m):
+                      q = m.group('q')
+                      base = m.group('name') + (m.group('extras') or '')
+                      return f'{q}{base}=={target}{q}'
+                  line = dep_pat.sub(repl, line)
+
               out.append(line)
-          
+
           new_txt = ''.join(out)
           p.write_text(new_txt, encoding="utf-8")
           print(f"Updated {p} to version={target} and pinned core deps.")
