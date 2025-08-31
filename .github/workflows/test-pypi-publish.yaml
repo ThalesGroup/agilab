@@ -23,6 +23,10 @@ jobs:
     permissions:
       contents: write
       id-token: write
+    # Fallback to either secret name
+    env:
+      TWINE_USERNAME: __token__
+      TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN || secrets.TEST_PYPI_SECRET }}
     steps:
       - name: Checkout repository (exact triggering commit)
         uses: actions/checkout@v4
@@ -133,26 +137,21 @@ jobs:
           done
 
       - name: Ensure TestPyPI token present
-        env:
-          TEST_PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -z "${TEST_PYPI_API_TOKEN:-}" ]; then
-            echo "ERROR: Missing TEST_PYPI_API_TOKEN secret (TestPyPI API token from https://test.pypi.org)" >&2
+          if [ -z "${TWINE_PASSWORD:-}" ]; then
+            echo "ERROR: Missing TEST_PYPI_API_TOKEN or TEST_PYPI_SECRET (TestPyPI API token from https://test.pypi.org)" >&2
             exit 2
           fi
-          echo "Found TEST_PYPI_API_TOKEN (length: ${#TEST_PYPI_API_TOKEN})"
+          echo "Found TestPyPI token (length: ${#TWINE_PASSWORD})"
 
       - name: Upload core wheels to TestPyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
         run: |
           set -euxo pipefail
           for pkg in agi-env agi-node agi-cluster agi-core; do
             twine upload \
               --repository-url https://test.pypi.org/legacy/ \
-              --non-interactive \
+              --non-interactive --skip-existing \
               "src/agilab/core/${pkg}/dist/*"
           done
 
@@ -180,7 +179,8 @@ jobs:
               marker = ('; ' + parts[1]) if len(parts) == 2 else ''
               # keep base package(+extras), drop any existing specifier
               left = re.sub(r'\s*(?:[<>=!~]=?|==).*$','', left)
-              if re.match(rf'^(["\']?){re.escape(name)}(\[.*\])?\\1$', left) or name in left:
+              # basic check that the line targets our dep (quoted or not, with optional extras)
+              if re.search(rf'(^|[ "\']){re.escape(name)}(\[.*\])?([ "\']|$)', left):
                   return f"{left}=={target}{marker}"
               return line
 
@@ -212,12 +212,9 @@ jobs:
 
       - name: Upload agilab to TestPyPI
         working-directory: src/agilab
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
         run: |
           set -euxo pipefail
           twine upload \
             --repository-url https://test.pypi.org/legacy/ \
-            --non-interactive \
+            --non-interactive --skip-existing \
             dist/*
