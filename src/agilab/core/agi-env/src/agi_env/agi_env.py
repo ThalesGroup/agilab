@@ -491,7 +491,7 @@ class AgiEnv:
     def locate_agilab_enduser(verbose=False):
         path =  Path( __file__).parents[1]
         before, sep, after = __file__.rpartition("agilab")
-        return path if path.exists() else before
+        return before / "src" if before.exists() else path
 
     @staticmethod
     def locate_agilab_installation(verbose=False):
