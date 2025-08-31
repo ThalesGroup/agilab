@@ -47,6 +47,11 @@ fi
 export PATH="$VENV/bin:$PATH"
 python -m pip install --upgrade pip uv
 
+# 🔥 Clean stale build artifacts (fix for old sources leaking into wheels)
+echo "Cleaning old build artifacts under ~/agilab/src..."
+find "$HOME/agilab/src" -type d -name "build" -exec rm -rf {} +
+find "$HOME/agilab/src" -type d -name "*.egg-info" -exec rm -rf {} +
+
 case "$SOURCE" in
   local)
     echo "Installing packages from local source tree..."
