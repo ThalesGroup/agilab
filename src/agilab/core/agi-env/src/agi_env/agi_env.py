@@ -273,7 +273,7 @@ class AgiEnv:
                 raise RuntimeError(f"{self.env_root} do not exist\nYour Agilab installation is not valid")
 
         self._init_resources(resources_src)
-        self.st_resources = self.agilab_src / "resources"
+        self.st_resources = self.agilab_src / "agilab/resources"
         self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
         self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
 
@@ -489,8 +489,9 @@ class AgiEnv:
 
     @staticmethod
     def locate_agilab_enduser(verbose=False):
-        before, sep, after = __file__.rpartition("site-packages")
-        return Path(before) / sep / "agilab"
+        path =  Path( __file__).parent
+        before, sep, after = __file__.rpartition("agilab")
+        return path if path.exists() else before
 
     @staticmethod
     def locate_agilab_installation(verbose=False):
