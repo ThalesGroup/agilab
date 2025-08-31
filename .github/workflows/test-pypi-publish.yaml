@@ -23,7 +23,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
-    # Fallback to either secret name
+    # Accept either secret name
     env:
       TWINE_USERNAME: __token__
       TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN || secrets.TEST_PYPI_SECRET }}
@@ -155,7 +155,13 @@ jobs:
               "src/agilab/core/${pkg}/dist/*"
           done
 
-      - name: Update umbrella agilab version & pin core deps
+      # 🔒 Umbrella 'agilab' is fixed at repo root: ./pyproject.toml
+      - name: Guard: ensure root pyproject.toml exists
+        run: |
+          set -euo pipefail
+          test -f pyproject.toml || { echo "pyproject.toml not found at repo root"; ls -la; exit 1; }
+
+      - name: Update umbrella agilab version & pin core deps (root pyproject.toml)
         env:
           TARGET: ${{ steps.resolve.outputs.target }}
         run: |
@@ -166,7 +172,7 @@ jobs:
           from pathlib import Path
 
           target = os.environ["TARGET"]
-          p = Path("src/agilab/pyproject.toml")
+          p = Path("pyproject.toml")
           txt = p.read_text(encoding="utf-8")
 
           # Set [project].version
@@ -179,7 +185,6 @@ jobs:
               marker = ('; ' + parts[1]) if len(parts) == 2 else ''
               # keep base package(+extras), drop any existing specifier
               left = re.sub(r'\s*(?:[<>=!~]=?|==).*$','', left)
-              # basic check that the line targets our dep (quoted or not, with optional extras)
               if re.search(rf'(^|[ "\']){re.escape(name)}(\[.*\])?([ "\']|$)', left):
                   return f"{left}=={target}{marker}"
               return line
@@ -194,24 +199,26 @@ jobs:
                           lines[i] = pin_line(lines[i], name)
               return "\\n".join(lines)
 
-          # Best-effort: process [project] section up to next table
-          txt = re.sub(r'(?s)(^\\s*\\[project\\][\\s\\S]*?)(^\\s*\\[)',
-                       lambda m: pin_block(m.group(1)) + m.group(2),
-                       txt, count=1, flags=re.MULTILINE)
+          # Try to confine to [project] section; if not matched, pin whole file
+          new_txt, n = re.subn(r'(?sm)(^\\s*\\[project\\][\\s\\S]*?)(^\\s*\\[)',
+                               lambda m: pin_block(m.group(1)) + m.group(2),
+                               txt, count=1)
+          if n == 0:
+              new_txt = pin_block(txt)
 
-          p.write_text(txt, encoding="utf-8")
+          p.write_text(new_txt, encoding="utf-8")
           print(f"Updated {p} to version={target} and pinned core deps to =={target}.")
           PY
 
-      - name: Build agilab (wheel + sdist)
-        working-directory: ./
+      - name: Build agilab (wheel + sdist) from root
+        working-directory: .
         run: |
           set -euxo pipefail
           rm -rf dist build
           uv build --sdist --wheel
 
       - name: Upload agilab to TestPyPI
-        working-directory: src/agilab
+        working-directory: .
         run: |
           set -euxo pipefail
           twine upload \
