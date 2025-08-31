@@ -204,7 +204,7 @@ jobs:
           PY
 
       - name: Build agilab (wheel + sdist)
-        working-directory: src/agilab
+        working-directory: ./
         run: |
           set -euxo pipefail
           rm -rf dist build
