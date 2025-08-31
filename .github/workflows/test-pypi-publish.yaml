@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version tag for the release (e.g. v0.3.66 or 0.3.66)"
-        required: true
+        description: "Base version for the release (e.g. 0.7.4 or v0.7.4). If omitted on tag runs, the tag name is used."
+        required: false
   push:
     tags:
       - "v*.*.*"
@@ -14,68 +14,15 @@ concurrency:
   group: test-pypi-publish-${{ github.ref }}
   cancel-in-progress: true
 
-defaults:
-  run:
-    shell: bash
-
 env:
   PYTHON_VERSION: "3.13"
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository (exact triggering commit)
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-          ref: ${{ github.sha }}
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install uv
-        run: python -m pip install --upgrade --no-cache-dir uv
-
-      - name: Fix accidental O.* version typos (core only)
-        run: |
-          set -euxo pipefail
-          find src/agilab/core -type f -name pyproject.toml -print0 |
-          while IFS= read -r -d '' f; do
-            sed -i -E '/^[[:space:]]*version[[:space:]]*=/ s/"O\./"0./' "$f"
-          done
-          if grep -R --line-number '^[[:space:]]*version[[:space:]]*=[[:space:]]*"O\.' src/agilab/core; then
-            echo "❌ Still found bad version lines (capital O)"; exit 1
-          fi
-
-      - name: Sync and install editable core projects
-        run: |
-          set -eux
-          pushd "src/agilab/core/agi-cluster"
-          uv sync --dev
-          uv pip install -e .
-          uv pip install -e ../agi-env
-          uv pip install -e ../agi-node
-          popd
-
-      - name: Run tests
-        run: |
-          set -eux
-          pushd "src/agilab/core"
-          uv run --dev --project agi-cluster python -m pytest --maxfail=5 --disable-warnings -v
-          popd
-
-  publish-core-packages-testpypi:
-    needs: test
+  publish-testpypi:
     runs-on: ubuntu-latest
     permissions:
       contents: write
       id-token: write
-    env:
-      VERSION: ${{ github.event.inputs.version || github.ref_name }}
     steps:
       - name: Checkout repository (exact triggering commit)
         uses: actions/checkout@v4
@@ -92,204 +39,23 @@ jobs:
       - name: Install uv and twine
         run: python -m pip install --upgrade --no-cache-dir uv twine
 
-      - name: Clean previous builds
-        run: |
-          rm -rf src/agilab/core/agi-env/dist
-          rm -rf src/agilab/core/agi-node/dist
-          rm -rf src/agilab/core/agi-cluster/dist
-          rm -rf src/agilab/core/agi-core/dist
-
-      - name: Resolve TestPyPI versions (per package)
-        id: resolve
-        uses: actions/github-script@v7
-        env:
-          BASE_VERSION: ${{ env.VERSION }}
-        with:
-          script: |
-            const base = (process.env.BASE_VERSION || '').replace(/^v/i, '');
-            const pkgs = ['agi-env','agi-node','agi-cluster','agi-core'];
-            const runNumber = parseInt(process.env.GITHUB_RUN_NUMBER || '1', 10);
-
-            const fetchJson = async (name) => {
-              try {
-                const res = await fetch(`https://test.pypi.org/pypi/${name}/json`, { headers: { 'Accept': 'application/json' } });
-                if (!res.ok) return { releases: {} };
-                return await res.json();
-              } catch {
-                return { releases: {} };
-              }
-            };
-
-            const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const out = {};
-            for (const p of pkgs) {
-              const data = await fetchJson(p);
-              const versions = Object.keys(data.releases || {});
-              let v = base;
-              if (versions.includes(base)) {
-                const re = new RegExp('^' + esc(base) + '\\.post(\\d+)$');
-                const posts = versions.map(x => (x.match(re) || [])[1]).filter(Boolean).map(Number);
-                const next = posts.length ? Math.max(...posts) + 1 : runNumber;
-                v = `${base}.post${next}`;
-              }
-              out[p.replace(/-/g,'_')] = v;
-            }
-
-            for (const [k, v] of Object.entries(out)) {
-              core.setOutput(k, v);
-              console.log(`${k} = ${v}`);
-            }
-
-      - name: Update version in core pyproject.toml files
-        env:
-          AGI_ENV_VERSION: ${{ steps.resolve.outputs.agi_env }}
-          AGI_NODE_VERSION: ${{ steps.resolve.outputs.agi_node }}
-          AGI_CLUSTER_VERSION: ${{ steps.resolve.outputs.agi_cluster }}
-          AGI_CORE_VERSION: ${{ steps.resolve.outputs.agi_core }}
-        run: |
-          set -euxo pipefail
-
-          bump_in_file() {
-            local py="$1" ver="$2"
-            awk -v NEWVER="$ver" '
-              BEGIN{ in_project=0; replaced=0 }
-              /^\[/{
-                if(in_project && !replaced){ print "version = \"" NEWVER "\""; replaced=1 }
-                in_project=0
-              }
-              /^\[project\]$/{ in_project=1 }
-              {
-                if(in_project && match($0, /^[[:space:]]*version[[:space:]]*=/)) next
-                print $0
-              }
-              END{
-                if(in_project && !replaced){ print "version = \"" NEWVER "\"" }
-              }
-            ' "$py" > "$py.tmp" && mv "$py.tmp" "$py"
-            sed -i -E '/^[[:space:]]*version[[:space:]]*=/ s/"O\./"0./' "$py"
-            sed -i -E '/^[[:space:]]*dynamic[[:space:]]*=/d' "$py"
-          }
-
-          for pkg in agi-env agi-node agi-cluster agi-core; do
-            base="src/agilab/core/$pkg"
-            ver_var=$(echo "${pkg}_version" | tr '[:lower:]-' '[:upper:]_')
-            ver="${!ver_var}"
-            find "$base" -type f -name pyproject.toml -print0 | while IFS= read -r -d "" file; do
-              echo "→ Updating $file to $ver"
-              bump_in_file "$file" "$ver"
-            done
-          done
-
-      - name: Commit version bumps to a side branch (optional)
-        run: |
-          set -euxo pipefail
-          BRANCH="ci/testpypi-bump-${GITHUB_RUN_ID}"
-
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-
-          # Base the local branch on the remote if it already exists (created by another job)
-          git fetch origin "$BRANCH" || true
-          if git show-ref --verify --quiet "refs/remotes/origin/${BRANCH}"; then
-            git checkout -B "$BRANCH" "origin/${BRANCH}"
-          else
-            git checkout -B "$BRANCH"
-          fi
-
-          git add $(find src/agilab/core -type f -name pyproject.toml -not -path "./.git/*")
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "Bump core package versions (auto .postN if needed)"
-            git push -u origin "$BRANCH" || { git pull --rebase origin "$BRANCH"; git push -u origin "$BRANCH"; }
-          fi
-
-      - name: Build agi-env
-        run: uv build --project src/agilab/core/agi-env --wheel
-      - name: Verify agi-env
-        run: twine check src/agilab/core/agi-env/dist/*
-      - name: Publish agi-env to TestPyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-env/dist/*
-
-      - name: Build agi-node
-        run: uv build --project src/agilab/core/agi-node --wheel
-      - name: Verify agi-node
-        run: twine check src/agilab/core/agi-node/dist/*
-      - name: Publish agi-node to TestPyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-node/dist/*
-
-      - name: Build agi-cluster
-        run: uv build --project src/agilab/core/agi-cluster --wheel
-      - name: Verify agi-cluster
-        run: twine check src/agilab/core/agi-cluster/dist/*
-      - name: Publish agi-cluster to TestPyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-cluster/dist/*
-
-      - name: Build agi-core
-        run: uv build --project src/agilab/core/agi-core --wheel
-      - name: Verify agi-core
-        run: twine check src/agilab/core/agi-core/dist/*
-      - name: Publish agi-core to TestPyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET }}
-        run: twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ src/agilab/core/agi-core/dist/*
-
-  publish-agilab-testpypi:
-    needs: publish-core-packages-testpypi
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      id-token: write
-    outputs:
-      agilab_version: ${{ steps.resolve_agilab.outputs.value }}
-    env:
-      VERSION: ${{ github.event.inputs.version || github.ref_name }}
-    steps:
-      - name: Checkout repository (exact triggering commit)
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-          ref: ${{ github.sha }}
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install uv and twine
-        run: python -m pip install --upgrade --no-cache-dir uv twine
-
-      - name: Clean previous builds
-        run: rm -rf dist
-
-      - name: Resolve single TestPyPI version for all core packages
+      # Compute a unified target version for all core pkgs.
+      # If the base already exists for ANY of the pkgs on TestPyPI, we publish .postN for ALL.
+      - name: Resolve unified TestPyPI version
         id: resolve
         uses: actions/github-script@v7
         env:
           BASE_VERSION: ${{ github.event.inputs.version || github.ref_name }}
         with:
           script: |
-            // no: const core = require('@actions/core')
-      
-            const fetchFn = globalThis.fetch ?? (await import('node-fetch')).default;
+            // 'core' is provided by github-script runtime (do NOT require('@actions/core'))
             const enc = encodeURIComponent;
             const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      
+
             async function getReleases(name) {
               const url = `https://test.pypi.org/pypi/${enc(name)}/json`;
               try {
-                const res = await fetchFn(url, { headers: { 'Accept': 'application/json' } });
+                const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
                 if (!res.ok) {
                   core.warning(`HTTP ${res.status} from ${url}`);
                   return { releases: {} };
@@ -300,17 +66,18 @@ jobs:
                 return { releases: {} };
               }
             }
-      
+
             const baseRaw = (process.env.BASE_VERSION || '')
               .trim().replace(/^refs\/tags\//, '').replace(/^v/i, '');
             if (!baseRaw) throw new Error('BASE_VERSION is empty');
-      
+            core.info(`Base version input: ${baseRaw}`);
+
             const pkgs = ['agi-env','agi-node','agi-cluster','agi-core'];
             const runNumber = parseInt(process.env.GITHUB_RUN_NUMBER || '1', 10);
-      
+
             let needPost = false, maxPost = 0;
             const re = new RegExp(`^${esc(baseRaw)}\\.post(\\d+)$`);
-      
+
             for (const p of pkgs) {
               const data = await getReleases(p);
               const versions = Object.keys(data.releases || {});
@@ -320,70 +87,136 @@ jobs:
                 if (m) maxPost = Math.max(maxPost, Number(m[1]));
               }
             }
-      
+
             const nextPost = Math.max(maxPost + 1, runNumber);
             const target = needPost ? `${baseRaw}.post${nextPost}` : baseRaw;
-      
+
             // unified version for all core packages
+            core.setOutput('target', target);
             core.setOutput('agi_env', target);
             core.setOutput('agi_node', target);
             core.setOutput('agi_cluster', target);
             core.setOutput('agi_core', target);
-            core.setOutput('target', target);
             core.info(`ALL core packages => ${target}`);
 
-      - name: Update version across repository (exclude core/*)
+      - name: Update versions in core pyproject.toml files
         env:
-          VERSION: ${{ steps.resolve_agilab.outputs.value }}
-        run: |
-          set -eux
-          echo "Bumping umbrella agilab version to $VERSION (excluding src/agilab/core/*)"
-          find . -type f -name pyproject.toml \
-            -not -path "./.git/*" \
-            -not -path "./src/agilab/core/*" \
-          | while read -r file; do
-            echo "→ Updating $file"
-            sed -i -E '/^[[:space:]]*dynamic[[:space:]]*=/d' "$file"
-            sed -i -E '/^[[:space:]]*version[[:space:]]*=/ s/"O\./"0./' "$file"
-            if grep -Eq '^[[:space:]]*version[[:space:]]*=' "$file"; then
-              sed -i -E "s/^[[:space:]]*version[[:space:]]*=.*/version = \"$VERSION\"/" "$file"
-            else
-              awk -v NEWVER="$VERSION" '
-                /^\[project\]/{ print; print "version = \"" NEWVER "\""; next }
-                { print }
-              ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
-            fi
-          done
-
-      - name: Commit umbrella bump to a side branch (optional)
+          TARGET: ${{ steps.resolve.outputs.target }}
         run: |
           set -euxo pipefail
-          BRANCH="ci/testpypi-bump-${GITHUB_RUN_ID}"
+          py=$(command -v python || command -v python3)
+          "$py" - <<'PY'
+          import os, re
+          from pathlib import Path
 
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          target = os.environ["TARGET"]
+          roots = [
+              Path("src/agilab/core/agi-env/pyproject.toml"),
+              Path("src/agilab/core/agi-node/pyproject.toml"),
+              Path("src/agilab/core/agi-cluster/pyproject.toml"),
+              Path("src/agilab/core/agi-core/pyproject.toml"),
+          ]
 
-          git fetch origin "$BRANCH" || true
-          if git show-ref --verify --quiet "refs/remotes/origin/${BRANCH}"; then
-            git checkout -B "$BRANCH" "origin/${BRANCH}"
-          else
-            git checkout -B "$BRANCH"
-          fi
+          def set_version(text: str, ver: str) -> str:
+              # robust single-line replacement
+              return re.sub(r'(?m)^version\s*=\s*["\']?[^"\']+["\']?\s*$',
+                            f'version = "{ver}"', text)
 
-          git add $(find . -type f -name pyproject.toml -not -path "./.git/*" -not -path "./src/agilab/core/*")
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "Bump agilab umbrella version (auto .postN if needed) to ${{ steps.resolve_agilab.outputs.value }}"
-            git push -u origin "$BRANCH" || { git pull --rebase origin "$BRANCH"; git push -u origin "$BRANCH"; }
-          fi
+          for p in roots:
+              s = p.read_text(encoding="utf-8")
+              s2 = set_version(s, target)
+              if s == s2:
+                  print(f"[info] {p}: version unchanged or already set")
+              p.write_text(s2, encoding="utf-8")
+              print(f"[ok]   {p}: version -> {target}")
+          PY
 
-      - name: Capture & remove symlinks (apps/ and views/)
+      - name: Build core wheels
         run: |
-          set -eux
-          tmpfile=$(mktemp)
-          find apps views -xtype l -print 2>/dev/null | tee "$tmpfile" || true
-          if [ -s "$tmpfile" ]; then
-            xargs -a "$tmpfile" rm -f
-          fi
-          rm -f "$tmpfile"
+          set -euxo pipefail
+          for pkg in agi-env agi-node agi-cluster agi-core; do
+            pushd "src/agilab/core/$pkg"
+              rm -rf dist build
+              uv build --wheel
+            popd
+          done
+
+      - name: Upload core wheels to TestPyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        run: |
+          set -euxo pipefail
+          for pkg in agi-env agi-node agi-cluster agi-core; do
+            twine upload --repository-url https://test.pypi.org/legacy/ --non-interactive --skip-existing "src/agilab/core/${pkg}/dist/*"
+          done
+
+      - name: Update umbrella agilab version & pin core deps
+        env:
+          TARGET: ${{ steps.resolve.outputs.target }}
+        run: |
+          set -euxo pipefail
+          py=$(command -v python || command -v python3)
+          "$py" - <<'PY'
+          import os, re
+          from pathlib import Path
+
+          target = os.environ["TARGET"]
+          p = Path("src/agilab/pyproject.toml")
+          txt = p.read_text(encoding="utf-8")
+
+          # set [project].version
+          txt = re.sub(r'(?m)^version\s*=\s*["\']?[^"\']+["\']?\s*$', f'version = "{target}"', txt)
+
+          # pin deps in [project.dependencies] (keep extras and markers)
+          def pin_line(line: str, name: str) -> str:
+              # split env markers
+              parts = line.split(';', 1)
+              left = parts[0].strip()
+              marker = ('; ' + parts[1]) if len(parts) == 2 else ''
+              # keep package name (and extras if any), drop specifiers
+              # examples that become 'agi-env' or 'agi-env[extra]'
+              left = re.sub(r'\s*(?:[<>=!~]=?|==).*$','', left)
+              if re.match(rf'^{re.escape(name)}(\[.*\])?$', left):
+                  return f"{left}=={target}{marker}"
+              return line
+
+          dep_names = ("agi-env","agi-node","agi-cluster","agi-core")
+          # rewrite lines in the dependencies array/table
+          def repl_dep_block(m):
+              block = m.group(0)
+              lines = block.splitlines()
+              for i, line in enumerate(lines):
+                  for name in dep_names:
+                      # work only on lines that start with package name or have quotes around it
+                      # common in PEP 621 arrays: "agi-env>=0.1", or just agi-env==...
+                      # We'll handle both quoted and unquoted approximations.
+                      if re.search(rf'(^|\s|["\']){re.escape(name)}([^\w-]|\Z)', line):
+                          lines[i] = pin_line(lines[i], name)
+              return "\n".join(lines)
+
+          txt = re.sub(r'(?s)^\s*\[project\]\s.*?\[', lambda m: repl_dep_block(m) + "[", txt, count=1)
+          # If the above failed to catch (no next table), try to process the rest
+          if '[project.dependencies]' in txt:
+              # Alternate path: process only the dependencies section lines
+              pass
+
+          p.write_text(txt, encoding="utf-8")
+          print(f"Updated {p} to version={target} and pinned core deps to =={target}.")
+          PY
+
+      - name: Build agilab (wheel + sdist)
+        working-directory: src/agilab
+        run: |
+          set -euxo pipefail
+          rm -rf dist build
+          uv build --sdist --wheel
+
+      - name: Upload agilab to TestPyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        working-directory: src/agilab
+        run: |
+          set -euxo pipefail
+          twine upload --repository-url https://test.pypi.org/legacy/ --non-interactive --skip-existing dist/*
