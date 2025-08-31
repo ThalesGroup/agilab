@@ -47,9 +47,19 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "$SOURCE" == "testpypi" && -z "$VERSION" ]]; then
-  echo "ERROR: --version is required when --source testpypi" >&2
-  exit 1
+  # Pick first package from list (e.g. agilab) and query TestPyPI for latest version
+  first_pkg="${PACKAGES%% *}"
+  echo "Fetching latest version of $first_pkg from TestPyPI..."
+  VERSION=$(curl -s "https://test.pypi.org/pypi/${first_pkg}/json" | jq -r '.info.version')
+
+  if [[ -z "$VERSION" || "$VERSION" == "null" ]]; then
+    echo "ERROR: Could not determine latest version for $first_pkg on TestPyPI" >&2
+    exit 1
+  fi
+
+  echo "Using latest TestPyPI version: $VERSION"
 fi
+
 
 ROOT="$(pwd)"
 WORKSPACE="${VENV_DIR:-$ROOT/../agi-space}"
