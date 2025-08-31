@@ -76,6 +76,8 @@ class AgiEnv:
     verbose = None
     pyvers_worker = None
     _ip_local_cache: set = set({"127.0.0.1", "::1"})
+    INDEX_URL="https://test.pypi.org/simple"
+    EXTRA_INDEX_URL="https://pypi.org/simple"
 
 
     def init_logging(self, verbosity: int = None):
@@ -227,7 +229,7 @@ class AgiEnv:
 
         if install_type == 0:
             # remote case
-            self.agilab_src = AgiEnv.locate_agilab_installation(verbose)
+            self.agilab_src = AgiEnv.locate_agilab_enduser(verbose)
             agilab_src_parent = self.agilab_src.parent
             self.src_cluster = agilab_src_parent / "agi_cluster"
             self.node_root = agilab_src_parent / "agi_node"
@@ -481,6 +483,11 @@ class AgiEnv:
                 logging.error(f"Permission denied when accessing {where_is_agi}.")
             except Exception as e:
                 logging.error(f"An error occurred: {e}")
+
+    @staticmethod
+    def locate_agilab_endusern(verbose=False):
+        before, sep, after = __file__.rpartition("site-packages")
+        return Path(before) / sep / "agilab"
 
     @staticmethod
     def locate_agilab_installation(verbose=False):
