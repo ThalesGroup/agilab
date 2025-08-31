@@ -280,9 +280,8 @@ jobs:
           BASE_VERSION: ${{ github.event.inputs.version || github.ref_name }}
         with:
           script: |
-            const core = require('@actions/core');
+            // no: const core = require('@actions/core')
       
-            // --- helpers -----------------------------------------------------------
             const fetchFn = globalThis.fetch ?? (await import('node-fetch')).default;
             const enc = encodeURIComponent;
             const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -301,7 +300,6 @@ jobs:
                 return { releases: {} };
               }
             }
-            // ----------------------------------------------------------------------
       
             const baseRaw = (process.env.BASE_VERSION || '')
               .trim().replace(/^refs\/tags\//, '').replace(/^v/i, '');
@@ -326,7 +324,7 @@ jobs:
             const nextPost = Math.max(maxPost + 1, runNumber);
             const target = needPost ? `${baseRaw}.post${nextPost}` : baseRaw;
       
-            // one unified version for all core packages
+            // unified version for all core packages
             core.setOutput('agi_env', target);
             core.setOutput('agi_node', target);
             core.setOutput('agi_cluster', target);
