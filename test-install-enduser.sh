@@ -4,6 +4,7 @@ set -euo pipefail
 WORKSPACE="$HOME/agi-space"
 VENV="$WORKSPACE/.venv"
 PACKAGES="agilab agi-env agi-node agi-cluster agi-core"
+SRCROOT="$HOME/agilab/src/agilab"
 
 SOURCE="local"
 VERSION=""
@@ -56,10 +57,10 @@ case "$SOURCE" in
   local)
     echo "Installing packages from local source tree..."
     for pkg in $PACKAGES; do
-      if [[ -d "$HOME/src/agilab/apps/$pkg" ]]; then
-        uv pip install -e "$HOME/src/agilab/apps/$pkg"
-      elif [[ -d "$HOME/src/agilab/core/$pkg" ]]; then
-        uv pip install -e "$HOME/src/agilab/core/$pkg"
+      if [[ -d "$SRCROOT/apps/$pkg" ]]; then
+        uv pip install -e "$SRCROOT/apps/$pkg"
+      elif [[ -d "$SRCROOT/core/$pkg" ]]; then
+        uv pip install -e "$SRCROOT/core/$pkg"
       fi
     done
     ;;
