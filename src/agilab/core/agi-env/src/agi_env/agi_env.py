@@ -319,7 +319,7 @@ class AgiEnv:
             self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
             self.module_path = app_src / module / f"{self.module}.py"
             worker_module_path = self.worker_path.parent
-            self.setup_core = self.node_root / "agi_dispatcher/build.py"
+            self.setup_core = self.node_root / "src/agi_node/agi_dispatcher/build.py"
 
         elif install_type == 1:
             app_src = active_app / "src"
@@ -328,7 +328,7 @@ class AgiEnv:
             self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
             self.module_path = app_src / module / f"{self.module}.py"
             worker_module_path = self.worker_path.parent
-            self.setup_core = self.agilab_src / "core/agi-node/src/agi_node/agi_dispatcher/build.py"
+            self.setup_core = self.agilab_src / "agilab/core/agi-node/src/agi_node/agi_dispatcher/build.py"
 
         elif install_type == 2:
             active_app = self.agilab_src

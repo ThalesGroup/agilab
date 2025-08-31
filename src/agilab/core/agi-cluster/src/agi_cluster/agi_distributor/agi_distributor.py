@@ -778,7 +778,7 @@ class AGI:
         logging.info(f"Copying {file} -> {wenv_abs}")
         shutil.copy2(file, wenv_abs)
 
-        file = env.src_cluster / "agi_distributor/cli.py"
+        file = env.src_cluster / "agi_cluster/agi_distributor/cli.py"
         logging.info(f"Copying {file} -> {wenv_abs.parent}")
         shutil.copy(file, wenv_abs.parent)
 
