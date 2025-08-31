@@ -30,7 +30,7 @@ find . \( -name ".venv" -o -name "uv.lock" -o -name "build" -o -name "dist" -o -
 # Command-Line Arguments
 # ================================
 usage() {
-    echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path> --private-apps <path>]"
+    echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path> --private-apps <path>] [--source local|pypi|testpypi]"
     exit 1
 }
 
@@ -38,6 +38,7 @@ AGI_INSTALL_PATH="$(realpath '.')"
 CURRENT_PATH="$(realpath '.')"
 cluster_credentials=""
 openai_api_key=""
+SOURCE="local"
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -45,6 +46,7 @@ while [[ "$#" -gt 0 ]]; do
         --openai-api-key)      openai_api_key="$2";      shift 2;;
         --install-path)        AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
         --private-apps)        AGILAB_PRIVATE=$(realpath "$2"); shift 2;;
+        --source)             SOURCE="$2"; shift 2;;
         *) echo -e "${RED}Unknown option: $1${NC}" && usage;;
     esac
 done
@@ -305,21 +307,8 @@ install_enduser() {
     ./test-install-enduser.sh "$apps_dir" "1"
 }
 
-AGI_USE_TESTPYPI=1
-AGI_VERSION=0.6.9
-
 install_enduser() {
-    chmod +x "./test-install-enduser.sh"
-    echo -e "${BLUE}End-user installation smoke test...${NC}"
-    if [[ "${AGI_USE_TESTPYPI:-0}" == "1" ]]; then
-        if [[ -z "${AGI_VERSION:-}" ]]; then
-            echo -e "${RED}AGI_USE_TESTPYPI=1 but AGI_VERSION is not set. Aborting.${NC}"
-            exit 1
-        fi
-        ./test-install-enduser.sh --source testpypi --version "$AGI_VERSION"
-    else
-        ./test-install-enduser.sh --source local
-    fi
+    ./test-install-enduser.sh --source $SOURCE
 }
 
 
