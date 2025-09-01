@@ -37,11 +37,11 @@ workspace = true
 [tool.setuptools]
 include-package-data = true
 
-[tool.setuptools.data-files]
+[tool.setuptools.package-data]
 mycode = [
-    "src/*.ipynb",
-    "src/*.json",
-    "src/*.toml",
+    "**/*.ipynb",
+    "**/*.json",
+    "**/*.toml",
 ]
 
 [tool.mypy]

@@ -27,12 +27,11 @@ workspace = true
 [tool.setuptools]
 include-package-data = true
 
-[tool.setuptools.data-files]
-pyprojects = [
-    "src/*.ipynb",
-    "src/*.json",
-    "src/*.toml",
-    "src/*/*.py*",
+[tool.setuptools.package-data]
+your_pandas_project = [
+    "**/*.ipynb",
+    "**/*.json",
+    "**/*.toml",
 ]
 
 [tool.mypy]

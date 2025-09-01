@@ -44,12 +44,11 @@ workspace = true
 [tool.setuptools]
 include-package-data = true
 
-[tool.setuptools.data-files]
-pyprojects = [
-    "src/*.ipynb",
-    "src/*.json",
-    "src/*.toml",
-    "src/*/*.py*",
+[tool.setuptools.package-data]
+flight_project = [
+    "**/*.ipynb",
+    "**/*.json",
+    "**/*.toml",
 ]
 
 [tool.mypy]
