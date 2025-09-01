@@ -283,8 +283,6 @@ class AgiEnv:
             self.src_node = site_packages / "agi_node"
             self.src_cluster = site_packages / "agi_cluster"
             resources_src = self.src_env  / self.agi_resources
-            if not self.env_root.exists():
-                raise RuntimeError(f"{self.src_env} do not exist\nYour Agilab installation is not valid")
             self.st_resources = None
 
         self._init_resources(resources_src)
@@ -1521,8 +1519,8 @@ class AgiEnv:
 
         # Normalize extract_to to a Path relative to cwd or absolute
         if not extract_to:
-            extract_to = Path("data")
-        dest = self.home_abs / Path(extract_to)
+            extract_to = "data"
+        dest = self.home_abs / extract_to
         dataset = dest / "dataset"
 
         # Clear existing folder if not empty to avoid extraction errors on second call
