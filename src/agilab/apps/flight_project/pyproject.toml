@@ -36,7 +36,7 @@ dev = [
     "pytest-local-badge",
     "pytest-asyncio",
     "licensecheck",
-    "dask[distributed]",
+    "flight_project",
 ]
 
 [tool.uv.sources.flight_project]
