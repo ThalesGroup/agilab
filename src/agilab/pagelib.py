@@ -350,7 +350,7 @@ def on_project_change(project, switch_to_select=True):
     try:
 
         # Change the app/project
-        env.change_active_app(project, env.install_type)
+        env.change_active_app(env.apps_dir / project, env.install_type)
 
         module = env.target
 

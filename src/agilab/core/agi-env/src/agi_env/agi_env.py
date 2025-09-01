@@ -197,6 +197,9 @@ class AgiEnv:
         self.benchmark = AgiEnv.resources_path / "benchmark.json"
         AgiEnv.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
         envars = AgiEnv.envars
+        site_packages = Path(__file__).parents[1]
+        before, sep, after = __file__.rpartition("agilab")
+        agilab_src = Path(before).resolve()
 
         if isinstance(active_app, str):
             # case only worker_env
@@ -206,8 +209,11 @@ class AgiEnv:
 
         else:
             if not active_app:
-                before, sep, after = __file__.rpartition(".venv")
-                active_app = Path(before) / "apps" / envars.get("APP_DEFAULT", 'flight_project')
+                if before.exists():
+                    active_app = agilab_src / "apps" / envars.get("APP_DEFAULT", 'flight_project')
+                else:
+                    active_app = site_packages / "apps" / envars.get("APP_DEFAULT", 'flight_project')
+
             if not active_app.name.endswith('_project'):
                 raise ValueError(f"{active_app} must end with '_project'")
 
@@ -226,9 +232,6 @@ class AgiEnv:
             install_type = int(install_type)
 
         AgiEnv.install_type = install_type
-        site_packages = Path(__file__).parents[1]
-        before, sep, after = __file__.rpartition("agilab")
-        agilab_src = Path(before).resolve()
 
         if install_type == 0:
             # remote case
