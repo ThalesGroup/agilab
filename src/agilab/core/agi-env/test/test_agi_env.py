@@ -22,20 +22,25 @@ def test_change_active_app_reinitializes_on_change(monkeypatch, env):
     def fake_init(self, *a, **k):
         called['count'] += 1
         called['kwargs'] = k
-    env.app = 'flight_project'
+    apps_path = AgiEnv.locate_agilab_installation(verbose=False) / "apps"
+    flight_path = apps_path / 'flight_project'
+    env.app = flight_path
+    mycode_path = apps_path / "mycode_path"
     with mock.patch.object(AgiEnv, '__init__', fake_init, create=True):
-        env.change_active_app('mycode_project', install_type=1)
+        env.change_active_app(mycode_path, install_type=1)
     assert called['count'] == 1
-    assert called['kwargs'].get('active_app') == 'mycode_project'
+    assert called['kwargs'].get('active_app') == mycode_path
     assert called['kwargs'].get('install_type') == 1
 
 def test_change_active_app_noop_when_same_app(monkeypatch, env):
     called = {'count': 0}
     def fake_init(self, *a, **k):
         called['count'] += 1
-    env.app = 'flight_project'
+    apps_path = AgiEnv.locate_agilab_installation(verbose=False) / "apps"
+    flight_path = apps_path / 'flight_project'
+    env.app = flight_path
     with mock.patch.object(AgiEnv, '__init__', fake_init, create=True):
-        env.change_active_app('flight_project', install_type=1)
+        env.change_active_app(flight_path, install_type=1)
     assert called['count'] == 0
 
 def test_humanize_validation_errors(env):
