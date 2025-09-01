@@ -22,7 +22,7 @@ jobs:
     env:
       PYTHON_VERSION: "3.13"
       TWINE_USERNAME: __token__
-      TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN || secrets.TEST_PYPI_SECRET }}
+      TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET || secrets.TEST_PYPI_SECRET }}
 
     steps:
       - name: Checkout
