@@ -10,7 +10,6 @@ dependencies = [
     "fastparquet",
     "geopy",
     "humanize",
-    "logging",
     "numpy",
     "parso",
     "polars",

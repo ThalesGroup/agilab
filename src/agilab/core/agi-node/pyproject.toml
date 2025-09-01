@@ -47,7 +47,6 @@ dependencies = [
     "py7zr",
     "python-dotenv",
     "tomli",
-    "logging",
     "dask[distributed]",
     "cython",
     "wheel",

@@ -44,7 +44,6 @@ dependencies = [
     "humanize",
     "ipython",
     "jupyter",
-    "logging",
     "msgpack",
     "mypy",
     "numba",
