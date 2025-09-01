@@ -301,14 +301,11 @@ write_env_values() {
     echo -e "${GREEN}.env file updated.${NC}"
 }
 
+
 install_enduser() {
     chmod +x "test-install-enduser.sh"
     echo -e "${BLUE}Installing Apps...${NC}"
-    ./test-install-enduser.sh "$apps_dir" "1"
-}
-
-install_enduser() {
-    ./test-install-enduser.sh --source $SOURCE
+    ./test-install-enduser.sh --source $SOURCE "$apps_dir" "1"
 }
 
 
