@@ -272,7 +272,7 @@ class AgiEnv:
             self.env_root = agilab_src / "agilab/core/agi-env"
             self.core_root = agilab_src / "agilab/core/agi-core"
             self.cluster_root = agilab_src / "agilab/core/agi-cluster"
-            self.st_resources = self.agilab_src / "resources"
+            self.st_resources = self.agilab_src / "agilab/resources"
             resources_src = self.env_root / "src/agi_env" / self.agi_resources
             self.st_resources = self.agilab_src / "resources"
 
