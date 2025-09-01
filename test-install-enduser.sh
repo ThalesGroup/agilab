@@ -4,17 +4,15 @@ set -euo pipefail
 # -----------------------------
 # Config
 # -----------------------------
-WORKSPACE="${HOME}/agi-space"
+WORKSPACE = "$home/../agi-space"
 VENV="${WORKSPACE}/.venv"
 PACKAGES="agilab agi-env agi-node agi-cluster agi-core"
-SRCROOT="${HOME}/agilab/src/agilab"
-
 SOURCE="local"     # local | pypi | testpypi
 VERSION=""         # optional, e.g. 1.2.3
-CLEAN=false
+AGI_INSTALL_PATH=""
 
 usage() {
-  echo "Usage: $0 [--source local|pypi|testpypi] [--version X.Y.Z] [--clean]"
+  echo "Usage: $0 ---install-path install-path [--source local|pypi|testpypi] [--version X.Y.Z]"
   exit 1
 }
 
@@ -25,45 +23,39 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --source) SOURCE="$2"; shift 2 ;;
     --version) VERSION="$2"; shift 2 ;;
-    --clean) CLEAN=true; shift ;;
+    --install-path) AGI_INSTALL_PATH="$2"; shift 2 ;;
     *) usage ;;
   esac
 done
 
+
 echo "===================================="
 echo " MODE:     ${SOURCE}"
 echo " VERSION:  ${VERSION:-<latest>}"
-echo " WORKSPACE ${WORKSPACE}"
-echo " CLEAN:    ${CLEAN}"
+echo " INSTALL_PATH: ${AGI_INSTALL_PATH}"
 echo "===================================="
+
+
+home=$(pwd)
+
+# Build the main project as a sdist and move it
+rm -rf dist
+rm -rf build
+uv build --wheel
+mv dist/*.whl "$home/../agi-space"
 
 # -----------------------------
 # Workspace / venv
 # -----------------------------
-if $CLEAN; then
-  echo "⚠️ Deleting workspace ${WORKSPACE}"
-  rm -rf "${WORKSPACE}"
-fi
-
 mkdir -p "${WORKSPACE}"
-cd "${WORKSPACE}"
 
-if [[ ! -d "${VENV}" ]]; then
-  echo "Creating venv at ${VENV}"
-  python3 -m venv "${VENV}"
+pushd "$WORKSPACE"
+rm -fr .venv uv.lock
+if [ ! -f pyproject.toml ]; then
+    uv init --bare
 fi
-
-export PATH="${VENV}/bin:${PATH}"
-python -m pip install --upgrade pip uv
-
-# -----------------------------
-# Clean local build artifacts (avoid stale wheels)
-# -----------------------------
-if [[ -d "${HOME}/agilab/src" ]]; then
-  echo "Cleaning old build artifacts under ~/agilab/src..."
-  find "${HOME}/agilab/src" -type d -name "build" -exec rm -rf {} +
-  find "${HOME}/agilab/src" -type d -name "*.egg-info" -exec rm -rf {} +
-fi
+uv add --upgrade --force-reinstall *.whl
+popd > /dev/null
 
 # -----------------------------
 # Installation modes
@@ -71,13 +63,11 @@ fi
 case "${SOURCE}" in
   local)
     echo "Installing packages from local source tree..."
+    AGI_ROOT=AGI_INSTALL_PATH.remove_suffix('src/agilab')
+    uv pip install -e "${AGI_ROOT}/agilab"
     for pkg in ${PACKAGES}; do
-      if [[ -d "${SRCROOT}/apps/${pkg}" ]]; then
-        uv pip install -e "${SRCROOT}/apps/${pkg}"
-      elif [[ -d "${SRCROOT}/core/${pkg}" ]]; then
-        uv pip install -e "${SRCROOT}/core/${pkg}"
-      else
-        echo "WARN: ${pkg} not found under apps/ or core/ in ${SRCROOT}" >&2
+      if [[ -d "${AGI_INSTALL_PATH}/core/${pkg}" ]]; then
+        uv pip install -e "${AGI_INSTALL_PATH}/core/${pkg}"
       fi
     done
     ;;
