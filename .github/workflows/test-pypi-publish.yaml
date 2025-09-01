@@ -142,6 +142,7 @@ jobs:
           set -euxo pipefail
           for pkg in agi-env agi-node agi-cluster agi-core; do
             twine upload \
+              --verbose \
               --repository-url https://test.pypi.org/legacy/ \
               --non-interactive --skip-existing \
               "src/agilab/core/${pkg}/dist/*"
@@ -223,6 +224,7 @@ jobs:
         run: |
           set -euxo pipefail
           twine upload \
+            --verbose \
             --repository-url https://test.pypi.org/legacy/ \
             --non-interactive --skip-existing \
             dist/*
