@@ -305,7 +305,7 @@ write_env_values() {
 install_enduser() {
     chmod +x "test-install-enduser.sh"
     echo -e "${BLUE}Installing Apps...${NC}"
-    ./test-install-enduser.sh --source $SOURCE "$apps_dir" "1"
+    ./test-install-enduser.sh --source $SOURCE --install-path $AGI_INSTALL_PATH
 }
 
 
