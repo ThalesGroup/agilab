@@ -26,8 +26,9 @@ jobs:
     env:
       TWINE_USERNAME: __token__
       TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN || secrets.TEST_PYPI_SECRET }}
+
     steps:
-      - name: Checkout repository (exact triggering commit)
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -42,58 +43,44 @@ jobs:
       - name: Install uv and twine
         run: python -m pip install --upgrade --no-cache-dir uv twine
 
-      - name: Resolve unified TestPyPI version
+      - name: Resolve TestPyPI version (auto .postN if needed)
         id: resolve
-        uses: actions/github-script@v7
-        env:
-          BASE_VERSION: ${{ github.event.inputs.version || github.ref_name }}
-        with:
-          script: |
-            // Node 20 has global fetch; core is injected.
-            const enc = encodeURIComponent;
-            const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            async function getReleases(name) {
-              const url = `https://test.pypi.org/pypi/${enc(name)}/json`;
-              try {
-                const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-                if (!res.ok) {
-                  core.warning(`HTTP ${res.status} from ${url}`);
-                  return { releases: {} };
-                }
-                return await res.json();
-              } catch (e) {
-                core.warning(`Fetch failed for ${name}: ${String(e)}`);
-                return { releases: {} };
-              }
-            }
-            const baseRaw = (process.env.BASE_VERSION || '')
-              .trim().replace(/^refs\/tags\//, '').replace(/^v/i, '');
-            if (!baseRaw) throw new Error('BASE_VERSION is empty');
-            core.info(`Base version input: ${baseRaw}`);
+        run: |
+          set -euo pipefail
+          BASE_VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          BASE_VERSION="${BASE_VERSION#refs/tags/}"
+          BASE_VERSION="${BASE_VERSION#v}"
 
-            const pkgs = ['agi-env','agi-node','agi-cluster','agi-core'];
-            const runNumber = parseInt(process.env.GITHUB_RUN_NUMBER || '1', 10);
+          echo "Base version: $BASE_VERSION"
 
-            let needPost = false, maxPost = 0;
-            const re = new RegExp(`^${esc(baseRaw)}\\.post(\\d+)$`);
+          PKGS="agi-env agi-node agi-cluster agi-core"
+          NEED_POST=0
+          MAX_POST=0
 
-            for (const p of pkgs) {
-              const data = await getReleases(p);
-              const versions = Object.keys(data.releases || {});
-              if (versions.includes(baseRaw)) needPost = true;
-              for (const v of versions) {
-                const m = v.match(re);
-                if (m) maxPost = Math.max(maxPost, Number(m[1]));
-              }
-            }
+          for pkg in $PKGS; do
+            url="https://test.pypi.org/pypi/$pkg/json"
+            if curl -fsS "$url" > resp.json; then
+              if jq -e --arg v "$BASE_VERSION" '.releases[$v]' resp.json > /dev/null; then
+                NEED_POST=1
+              fi
+              POST=$(jq -r 'keys[]' resp.json | grep "^$BASE_VERSION\.post" | sed -E "s/.*\.post([0-9]+)/\1/" | sort -n | tail -1 || true)
+              if [ -n "$POST" ]; then
+                MAX_POST=$(( POST > MAX_POST ? POST : MAX_POST ))
+              fi
+            fi
+          done
 
-            const nextPost = Math.max(maxPost + 1, runNumber);
-            const target = needPost ? `${baseRaw}.post${nextPost}` : baseRaw;
+          if [ $NEED_POST -eq 1 ]; then
+            NEXT=$((MAX_POST+1))
+            TARGET="$BASE_VERSION.post$NEXT"
+          else
+            TARGET="$BASE_VERSION"
+          fi
 
-            core.setOutput('target', target);
-            core.info(`Unified core version => ${target}`);
+          echo "Resolved target version: $TARGET"
+          echo "target=$TARGET" >> $GITHUB_OUTPUT
 
-      - name: Update versions in core pyproject.toml files
+      - name: Update versions in core pyproject.toml
         env:
           TARGET: ${{ steps.resolve.outputs.target }}
         run: |
@@ -110,12 +97,11 @@ jobs:
               Path("src/agilab/core/agi-core/pyproject.toml"),
           ]
           def set_version(text: str, ver: str) -> str:
-              return re.sub(r'(?m)^\s*version\s*=\s*["\']?[^"\']+["\']?\s*$', f'version = "{ver}"', text)
+              return re.sub(r'(?m)^\s*version\s*=.*$', f'version = \"{ver}\"', text)
           for p in roots:
               s = p.read_text(encoding="utf-8")
-              s2 = set_version(s, target)
-              p.write_text(s2, encoding="utf-8")
-              print(f"[ok]   {p}: version -> {target}")
+              p.write_text(set_version(s, target), encoding="utf-8")
+              print(f"[ok] {p}: version -> {target}")
           PY
 
       - name: Build core wheels
@@ -132,7 +118,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${TWINE_PASSWORD:-}" ]; then
-            echo "ERROR: Missing TEST_PYPI_API_TOKEN or TEST_PYPI_SECRET (TestPyPI API token from https://test.pypi.org)" >&2
+            echo "ERROR: Missing TEST_PYPI_API_TOKEN or TEST_PYPI_SECRET" >&2
             exit 2
           fi
           echo "Found TestPyPI token (length: ${#TWINE_PASSWORD})"
@@ -148,12 +134,10 @@ jobs:
               "src/agilab/core/${pkg}/dist/*"
           done
 
-      - name: "Guard: ensure root pyproject.toml exists"
-        run: |
-          set -euo pipefail
-          test -f pyproject.toml || { echo "pyproject.toml not found at repo root"; ls -la; exit 1; }
+      - name: Guard: ensure root pyproject.toml exists
+        run: test -f pyproject.toml
 
-      - name: "Update umbrella agilab version & pin core deps (root pyproject.toml)"
+      - name: Update umbrella agilab version & pin core deps
         env:
           TARGET: ${{ steps.resolve.outputs.target }}
         run: |
@@ -162,65 +146,30 @@ jobs:
           "$py" - <<'PY'
           import os, re
           from pathlib import Path
-
           target = os.environ["TARGET"]
           p = Path("pyproject.toml")
-          lines = p.read_text(encoding="utf-8").splitlines(True)  # keep EOLs
-
-          def section_name(line: str):
-              m = re.match(r'^\s*\[([^\]]+)\]\s*$', line)
-              return m.group(1).strip() if m else None
-
-          # Quoted deps for our 4 packages; preserve extras + quotes; markers live outside quotes
-          dep_pat = re.compile(
-              r'(?P<q>["\'])'
-              r'(?P<name>agi-env|agi-node|agi-cluster|agi-core)'
-              r'(?P<extras>\[[^"\']*\])?'
-              r'(?P<rest>[^"\']*)'
-              r'(?P=q)'
-          )
-          def pin_in_line(line: str) -> str:
-              def repl(m):
-                  q = m.group('q')
-                  base = m.group('name') + (m.group('extras') or '')
-                  return f'{q}{base}=={target}{q}'
-              return dep_pat.sub(repl, line)
-
-          out = []
-          current_section = None
-
+          lines = p.read_text(encoding="utf-8").splitlines(True)
+          dep_pat = re.compile(r'(?P<q>["\'])(agi-env|agi-node|agi-cluster|agi-core)(?P<extras>\[[^"\']*\])?[^"\']*(?P=q)')
+          out, section = [], None
           for line in lines:
-              sec = section_name(line)
-              if sec is not None:
-                  current_section = sec
-                  out.append(line)
-                  continue
-
-              # version = "<target>" only inside [project]
-              if current_section == 'project' and re.match(r'^\s*version\s*=', line):
-                  indent = re.match(r'^(\s*)', line).group(1)
-                  line = f'{indent}version = "{target}"\n'
-
-              # pin quoted deps in [project] and [project.*] (e.g., optional-dependencies)
-              if current_section and (current_section == 'project' or current_section.startswith('project.')):
-                  line = pin_in_line(line)
-
+              if line.strip().startswith("["):
+                  section = line.strip("[] \n")
+              if section == "project" and line.strip().startswith("version"):
+                  line = f'version = "{target}"\n'
+              if section and (section == "project" or section.startswith("project.")):
+                  line = dep_pat.sub(lambda m: f'{m.group(1)}{m.group(2)}{m.group("extras") or ""}=={target}{m.group(1)}', line)
               out.append(line)
-
-          new_txt = ''.join(out)
-          p.write_text(new_txt, encoding="utf-8")
-          print(f"Updated {p} to version={target} and pinned core deps.")
+          p.write_text("".join(out), encoding="utf-8")
+          print(f"Updated {p} to version={target} and pinned deps.")
           PY
 
-      - name: Build agilab (wheel + sdist) from root
-        working-directory: .
+      - name: Build agilab (wheel + sdist)
         run: |
           set -euxo pipefail
           rm -rf dist build
           uv build --sdist --wheel
 
       - name: Upload agilab to TestPyPI
-        working-directory: .
         run: |
           set -euxo pipefail
           twine upload \
