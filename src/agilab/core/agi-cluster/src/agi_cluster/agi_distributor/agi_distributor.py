@@ -986,7 +986,10 @@ class AGI:
 
         logging.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
-        # manager install command with and without rapids capable
+        #=========
+        # MANAGER install command with and without rapids capable
+        #=========
+
         app_path = env.active_app
         if has_rapids_hw:
             cmd_manager = f"{uv} {run_type} --config-file uv_config.toml --project {app_path}"
@@ -1004,7 +1007,10 @@ class AGI:
         logging.info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
 
-        # worker install command with and without rapids capable
+        #========
+        # WORKER install command with and without rapids capable
+        #========
+
         uv_worker = cmd_prefix + env.uv_worker
         pyvers_worker = env.pyvers_worker
 

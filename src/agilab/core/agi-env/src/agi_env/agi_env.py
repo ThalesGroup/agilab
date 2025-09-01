@@ -1146,7 +1146,7 @@ class AgiEnv:
             logger.error(f"Failed to create symlink {dest} -> {src}: {e}")
 
     def change_active_app(self, app, install_type=1):
-        if app != str(self.active_app.name):
+        if app.name != str(self.active_app.name):
             self.__init__(active_app=app, install_type=install_type, verbose=AgiEnv.verbose)
 
     @staticmethod
