@@ -274,7 +274,6 @@ class AgiEnv:
             self.cluster_root = agilab_src / "agilab/core/agi-cluster"
             self.st_resources = self.agilab_src / "agilab/resources"
             resources_src = self.env_root / "src/agi_env" / self.agi_resources
-            self.st_resources = self.agilab_src / "resources"
 
         elif install_type == 2:
             # enduser case
