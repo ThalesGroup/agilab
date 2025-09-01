@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Base version (e.g. 0.7.4). If omitted on tag runs, the tag name is used."
+        description: "Base version (e.g. 0.7.4 or v0.7.4). If omitted on tag runs, the tag name is used."
         required: false
   push:
     tags:
@@ -25,6 +25,7 @@ jobs:
     env:
       TWINE_USERNAME: __token__
       TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN || secrets.TEST_PYPI_SECRET }}
+      REPOSITORY_URL: https://test.pypi.org/legacy/
 
     steps:
       - name: Checkout
@@ -42,41 +43,64 @@ jobs:
           set -euxo pipefail
           python -m pip install --upgrade --no-cache-dir pip build twine tomlkit
 
-      # --- VERSION RESOLUTION (per-package .postN) + SAFE EDITS ----------------
-      - name: Resolve per-package versions & update pyprojects (safe)
+      - name: Build & upload with automatic .postN fallback on 400 reuse
         env:
           BASE_VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, os, re, sys, urllib.request
+          import json, os, re, sys, subprocess, shutil, urllib.request
           from pathlib import Path
           from tomlkit import parse, dumps
 
-          # ---- Base version -----------------------------------------------------
-          base = (os.environ.get("BASE_VERSION","")
+          # ---- Inputs / constants ----------------------------------------------
+          BASE = (os.environ.get("BASE_VERSION","")
                   .replace("refs/tags/","").lstrip("v").strip())
-          if not base:
-              print("BASE_VERSION missing; pass via workflow input 'version' or push a tag like v1.2.3.", file=sys.stderr)
+          if not BASE:
+              print("BASE_VERSION missing; pass via workflow input 'version' or tag like v1.2.3.", file=sys.stderr)
               sys.exit(1)
+          REPO_URL = os.environ.get("REPOSITORY_URL", "https://test.pypi.org/legacy/")
 
-          # ---- Project files ----------------------------------------------------
-          files = [
-              Path("src/agilab/core/agi-env/pyproject.toml"),
-              Path("src/agilab/core/agi-node/pyproject.toml"),
-              Path("src/agilab/core/agi-cluster/pyproject.toml"),
-              Path("src/agilab/core/agi-core/pyproject.toml"),
-              Path("pyproject.toml"),  # umbrella
+          CORE = [
+              ("agi-env",     Path("src/agilab/core/agi-env/pyproject.toml"),     Path("src/agilab/core/agi-env")),
+              ("agi-node",    Path("src/agilab/core/agi-node/pyproject.toml"),    Path("src/agilab/core/agi-node")),
+              ("agi-cluster", Path("src/agilab/core/agi-cluster/pyproject.toml"), Path("src/agilab/core/agi-cluster")),
+              ("agi-core",    Path("src/agilab/core/agi-core/pyproject.toml"),    Path("src/agilab/core/agi-core")),
           ]
-          files = [p for p in files if p.exists()]
+          UMBRELLA = ("agilab", Path("pyproject.toml"), Path("."))
 
-          # ---- Helpers -----------------------------------------------------------
-          def clean_pkg_name(s: str) -> str:
-              # Keep only bare PEP 508 name; strip any extras/specifiers accidentally present
-              m = re.match(r'^[A-Za-z0-9_.-]+', str(s))
-              return m.group(0) if m else str(s)
+          # ---- Helpers ----------------------------------------------------------
+          def run(cmd, cwd=None):
+              print(f"+ RUN {' '.join(cmd)} (cwd={cwd or os.getcwd()})")
+              p = subprocess.run(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+              print(p.stdout)
+              return p.returncode, p.stdout
 
-          def release_keys(name: str) -> set[str]:
+          def load_doc(p: Path):
+              return parse(p.read_text(encoding="utf-8"))
+
+          def save_doc(p: Path, doc):
+              p.write_text(dumps(doc), encoding="utf-8")
+
+          def clean_name(name: str) -> str:
+              m = re.match(r'^[A-Za-z0-9_.-]+', str(name))
+              return m.group(0) if m else str(name)
+
+          def sanitize_project_names(paths):
+              for p in paths:
+                  if not p.exists(): 
+                      continue
+                  doc = load_doc(p)
+                  proj = doc.get("project") or {}
+                  raw = str(proj.get("name",""))
+                  cleaned = clean_name(raw)
+                  if raw and raw != cleaned:
+                      proj["name"] = cleaned
+                      doc["project"] = proj
+                      save_doc(p, doc)
+                      print(f"[fix] {p}: project.name '{raw}' -> '{cleaned}'")
+
+          def pypi_releases(name: str) -> set[str]:
               url = f"https://test.pypi.org/pypi/{name}/json"
               try:
                   with urllib.request.urlopen(url, timeout=10) as r:
@@ -85,154 +109,178 @@ jobs:
               except Exception:
                   return set()
 
-          def next_version(base: str, keys: set[str]) -> str:
-              if base not in keys:
-                  return base
-              max_post = 0
-              for v in keys:
+          def next_post_version(base: str, name: str) -> str:
+              # Always compute next base.postN. Works even if base was deleted historically.
+              max_n = 0
+              for v in pypi_releases(name):
                   m = re.fullmatch(re.escape(base) + r"\.post(\d+)", v)
                   if m:
                       try:
-                          n = int(m.group(1))
-                          if n > max_post:
-                              max_post = n
+                          max_n = max(max_n, int(m.group(1)))
                       except Exception:
                           pass
-              return f"{base}.post{max_post + 1}"
+              return f"{base}.post{max_n + 1}"
 
-          # Discover package names from pyprojects (and clean them)
-          pkg_by_path = {}
-          for p in files:
-              doc = parse(p.read_text(encoding="utf-8"))
-              proj = doc.get("project")
-              if not proj:
-                  continue
-              raw = str(proj.get("name", "")).strip()
-              name = clean_pkg_name(raw)
-              pkg_by_path[p] = name
+          def initial_target(base: str, name: str) -> str:
+              # If base exists right now, start from next .postN; else try base and fall back on 400.
+              keys = pypi_releases(name)
+              return next_post_version(base, name) if base in keys else base
 
-          # Compute per-package target versions (independent .postN decisions)
-          targets = {}
-          for name in {n for n in pkg_by_path.values() if n}:
-              targets[name] = next_version(base, release_keys(name))
-          print("Resolved targets:", json.dumps(targets, indent=2))
+          def set_project_version(pyproject: Path, version: str):
+              doc = load_doc(pyproject)
+              proj = doc.get("project") or {}
+              proj["version"] = version
+              proj["name"] = clean_name(proj.get("name",""))
+              doc["project"] = proj
+              save_doc(pyproject, doc)
 
-          # Pin only dependencies (not project.name)
-          def pin_req(s: str) -> str:
-              s = str(s)
-              parts = s.split(";", 1)
-              left = parts[0].strip()
-              marker = ";" + parts[1] if len(parts) == 2 else ""
-              m = re.match(r'^\s*([A-Za-z0-9_.-]+)(\[[^\]]+\])?', left)
-              if not m:
-                  return s
-              pkg, extras = m.group(1), (m.group(2) or "")
-              if pkg not in targets:
-                  return s
-              return f"{pkg}{extras}=={targets[pkg]}{marker}"
+          def pin_dep_in_pyproject(pyproject: Path, pkg: str, version: str):
+              if not pyproject.exists():
+                  return False
+              doc = load_doc(pyproject)
+              proj = doc.get("project") or {}
+              changed = False
 
-          # Write back: repair project.name if corrupted; set version; pin deps
-          for p, name in pkg_by_path.items():
-              doc = parse(p.read_text(encoding="utf-8"))
-              proj = doc.get("project")
-              if not proj:
-                  continue
+              def pin_list(arr):
+                  nonlocal changed
+                  out = []
+                  for dep in arr:
+                      s = str(dep)
+                      parts = s.split(";", 1)
+                      left, marker = parts[0].strip(), (";" + parts[1] if len(parts) == 2 else "")
+                      m = re.match(r'^([A-Za-z0-9_.-]+)(\[[^\]]+\])?', left)
+                      if m and m.group(1) == pkg:
+                          extras = m.group(2) or ""
+                          s = f"{pkg}{extras}=={version}{marker}"
+                          changed = True
+                      out.append(s)
+                  return out
 
-              raw_name = str(proj.get("name", "")).strip()
-              clean_name = clean_pkg_name(raw_name)
-              if raw_name != clean_name and clean_name:
-                  proj["name"] = clean_name
-                  print(f"[fix] {p}: project.name '{raw_name}' -> '{clean_name}'")
-
-              # Set the package's own version if we computed a target for it
-              if clean_name in targets:
-                  proj["version"] = targets[clean_name]
-
-              # Pin internal deps in dependencies / optional-dependencies
               if "dependencies" in proj and proj["dependencies"] is not None:
-                  proj["dependencies"] = [pin_req(x) for x in proj["dependencies"]]
+                  proj["dependencies"] = pin_list(proj["dependencies"])
               if "optional-dependencies" in proj and proj["optional-dependencies"] is not None:
                   for group, arr in list(proj["optional-dependencies"].items()):
-                      proj["optional-dependencies"][group] = [pin_req(x) for x in arr]
+                      proj["optional-dependencies"][group] = pin_list(arr)
 
-              doc["project"] = proj
-              p.write_text(dumps(doc), encoding="utf-8")
-              print(f"[ok] {p} -> version {proj.get('version')}")
+              if changed:
+                  doc["project"] = proj
+                  save_doc(pyproject, doc)
+                  print(f"[deps] pinned {pkg}=={version} in {pyproject}")
+              return changed
 
-          # For debugging / traceability in the workflow run
-          Path("versions.json").write_text(json.dumps(targets, indent=2), encoding="utf-8")
+          def build_pkg(pkg_dir: Path, outdir: Path|None=None, sdist=False):
+              if outdir:
+                  if outdir.exists(): shutil.rmtree(outdir)
+                  outdir.mkdir(parents=True, exist_ok=True)
+              cmd = [sys.executable, "-m", "build"]
+              if sdist:
+                  cmd += ["--sdist", "--wheel"]
+              else:
+                  cmd += ["--wheel"]
+              if outdir:
+                  cmd += ["--outdir", str(outdir)]
+              rc, _ = run(cmd, cwd=str(pkg_dir))
+              if rc != 0:
+                  raise SystemExit(f"Build failed: {pkg_dir}")
+
+          def upload_dist(pattern: str) -> tuple[bool, str]:
+              cmd = [sys.executable, "-m", "twine", "upload",
+                     "--non-interactive", "--skip-existing",
+                     "--repository-url", REPO_URL, pattern]
+              rc, out = run(cmd)
+              return (rc == 0), out
+
+          # ---- Sanitize names up front -----------------------------------------
+          all_pyprojects = [p for _,p,_ in CORE] + [UMBRELLA[1]]
+          sanitize_project_names(all_pyprojects)
+
+          # ---- Choose initial targets and write them ----------------------------
+          versions: dict[str, str] = {}
+          for name, toml, _ in CORE:
+              tgt = initial_target(BASE, name)
+              versions[name] = tgt
+              set_project_version(toml, tgt)
+
+          # Keep a record for later umbrella pinning
+          Path("versions.json").write_text(json.dumps(versions, indent=2), encoding="utf-8")
+
+          # ---- Build & upload core packages with 400->.postN fallback ----------
+          for name, toml, pkg_dir in CORE:
+              dist_dir = pkg_dir / "dist"
+              build_pkg(pkg_dir, outdir=dist_dir, sdist=False)
+              ok, out = upload_dist(str(dist_dir / "*"))
+
+              tries = 0
+              while not ok and tries < 5:
+                  tries += 1
+                  if ("HTTPError: 400 Bad Request" in out or
+                      "File already exists" in out or
+                      "filename has already been used" in out):
+                      new_ver = next_post_version(BASE, name)
+                      print(f"[fallback] {name}: bumping to {new_ver} due to 400/file reuse")
+                      versions[name] = new_ver
+                      set_project_version(toml, new_ver)
+
+                      # Pin this new version anywhere it's referenced (including umbrella)
+                      for _, other_toml, _ in CORE:
+                          pin_dep_in_pyproject(other_toml, name, new_ver)
+                      pin_dep_in_pyproject(UMBRELLA[1], name, new_ver)
+
+                      # Rebuild & retry
+                      build_pkg(pkg_dir, outdir=dist_dir, sdist=False)
+                      ok, out = upload_dist(str(dist_dir / "*"))
+                      continue
+                  break
+
+              if not ok:
+                  print(out)
+                  raise SystemExit(f"Upload failed for {name}")
+
+              Path("versions.json").write_text(json.dumps(versions, indent=2), encoding="utf-8")
+
+          # ---- Umbrella: pin to final core versions, build & upload with fallback
+          umb_name, umb_toml, umb_dir = UMBRELLA
+
+          # Ensure umbrella pins to final resolved versions of core
+          for core_name in [n for n,_,_ in CORE]:
+              if core_name in versions:
+                  pin_dep_in_pyproject(umb_toml, core_name, versions[core_name])
+
+          # Decide umbrella version and write it
+          umb_target = initial_target(BASE, umb_name)
+          versions[umb_name] = umb_target
+          set_project_version(umb_toml, umb_target)
+          Path("versions.json").write_text(json.dumps(versions, indent=2), encoding="utf-8")
+
+          # Clean root build dirs and build
+          for path in ["dist", "build"]:
+              p = Path(path)
+              if p.exists(): shutil.rmtree(p)
+          build_pkg(umb_dir, outdir=None, sdist=True)
+
+          ok, out = upload_dist("dist/*")
+          tries = 0
+          while not ok and tries < 5:
+              tries += 1
+              if ("HTTPError: 400 Bad Request" in out or
+                  "File already exists" in out or
+                  "filename has already been used" in out):
+                  new_ver = next_post_version(BASE, umb_name)
+                  print(f"[fallback] {umb_name}: bumping to {new_ver} due to 400/file reuse")
+                  versions[umb_name] = new_ver
+                  set_project_version(umb_toml, new_ver)
+
+                  for path in ["dist", "build"]:
+                      p = Path(path)
+                      if p.exists(): shutil.rmtree(p)
+                  build_pkg(umb_dir, outdir=None, sdist=True)
+                  ok, out = upload_dist("dist/*")
+                  continue
+              break
+
+          if not ok:
+              print(out)
+              raise SystemExit(f"Upload failed for {umb_name}")
+
+          print("All uploads completed successfully.")
           PY
-
-      # --- EXTRA HARDENING: ensure no lingering 'name="pkg==..."' anywhere -----
-      - name: Sanitize project.name fields (belt & suspenders)
-        run: |
-          set -euxo pipefail
-          py=$(command -v python || command -v python3)
-          for f in pyproject.toml src/agilab/core/*/pyproject.toml; do
-            [ -f "$f" ] || continue
-            "$py" - "$f" <<PY
-          import sys, re
-          from pathlib import Path
-          from tomlkit import parse, dumps
-          p = Path(sys.argv[1])
-          doc = parse(p.read_text(encoding="utf-8"))
-          proj = doc.get("project") or {}
-          name = str(proj.get("name",""))
-          m = re.match(r'^([A-Za-z0-9_.-]+)', name)
-          clean = m.group(1) if m else name
-          if name and name != clean:
-              proj["name"] = clean
-              doc["project"] = proj
-              p.write_text(dumps(doc), encoding="utf-8")
-              print(f"[fix] {p}: name '{name}' -> '{clean}'")
-          PY
-          done
-      - name: Validate pyproject names are clean
-        run: |
-          set -euo pipefail
-          if grep -REn '^\s*name\s*=\s*".*==.*"' -- pyproject.toml src/agilab/core/*/pyproject.toml; then
-            echo "Error: found version spec in project.name" >&2
-            exit 1
-          fi
-          echo "All project.name fields look good."
-
-      # --- BUILD & PUBLISH -----------------------------------------------------
-      - name: Build core wheels
-        run: |
-          set -euxo pipefail
-          for pkg in agi-env agi-node agi-cluster agi-core; do
-            python -m build --wheel --outdir "src/agilab/core/${pkg}/dist" "src/agilab/core/${pkg}"
-          done
-
-      - name: Build umbrella (agilab)
-        run: |
-          set -euxo pipefail
-          rm -rf dist build
-          python -m build --sdist --wheel
-
-      - name: Ensure TestPyPI token present
-        run: |
-          set -euo pipefail
-          if [ -z "${TWINE_PASSWORD:-}" ]; then
-            echo "ERROR: Missing TEST_PYPI_API_TOKEN or TEST_PYPI_SECRET" >&2
-            exit 2
-          fi
-          echo "Found TestPyPI token."
-
-      - name: Upload core wheels to TestPyPI
-        run: |
-          set -euxo pipefail
-          for pkg in agi-env agi-node agi-cluster agi-core; do
-            twine upload \
-              --repository-url https://test.pypi.org/legacy/ \
-              --non-interactive --skip-existing \
-              "src/agilab/core/${pkg}/dist/*"
-          done
-
-      - name: Upload agilab to TestPyPI
-        run: |
-          set -euxo pipefail
-          twine upload \
-            --repository-url https://test.pypi.org/legacy/ \
-            --non-interactive --skip-existing \
-            dist/*
