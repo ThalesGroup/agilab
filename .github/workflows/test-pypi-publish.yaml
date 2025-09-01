@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Base version (e.g. 0.7.4 or v0.7.4). If omitted on tag runs, the tag name is used."
+        description: "Base version (e.g. 0.7.4). If omitted on tag runs, the tag name is used."
         required: false
   push:
     tags:
@@ -14,15 +14,17 @@ concurrency:
   group: test-pypi-publish-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHON_VERSION: "3.13"
+
 jobs:
   publish-testpypi:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
-      PYTHON_VERSION: "3.13"
       TWINE_USERNAME: __token__
-      TWINE_PASSWORD: ${{ secrets.TEST_PYPI_SECRET || secrets.TEST_PYPI_SECRET }}
+      TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN || secrets.TEST_PYPI_SECRET }}
 
     steps:
       - name: Checkout
@@ -37,9 +39,11 @@ jobs:
 
       - name: Install build tooling
         run: |
-          python -m pip install --upgrade --no-cache-dir pip build twine
+          set -euxo pipefail
+          python -m pip install --upgrade --no-cache-dir pip build twine tomlkit
 
-      - name: Resolve per-package versions & update pyprojects
+      # --- VERSION RESOLUTION (per-package .postN) + SAFE EDITS ----------------
+      - name: Resolve per-package versions & update pyprojects (safe)
         env:
           BASE_VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
@@ -47,29 +51,37 @@ jobs:
           python - <<'PY'
           import json, os, re, sys, urllib.request
           from pathlib import Path
+          from tomlkit import parse, dumps
 
-          # ---- Input / packages ------------------------------------------------
-          base = os.environ.get("BASE_VERSION","").replace("refs/tags/","").lstrip("v").strip()
+          # ---- Base version -----------------------------------------------------
+          base = (os.environ.get("BASE_VERSION","")
+                  .replace("refs/tags/","").lstrip("v").strip())
           if not base:
               print("BASE_VERSION missing; pass via workflow input 'version' or push a tag like v1.2.3.", file=sys.stderr)
               sys.exit(1)
 
-          core = {
-              "agi-env": "src/agilab/core/agi-env/pyproject.toml",
-              "agi-node": "src/agilab/core/agi-node/pyproject.toml",
-              "agi-cluster": "src/agilab/core/agi-cluster/pyproject.toml",
-              "agi-core": "src/agilab/core/agi-core/pyproject.toml",
-          }
-          umbrella = {"agilab": "pyproject.toml"}
-          packages = {**core, **umbrella}
+          # ---- Project files ----------------------------------------------------
+          files = [
+              Path("src/agilab/core/agi-env/pyproject.toml"),
+              Path("src/agilab/core/agi-node/pyproject.toml"),
+              Path("src/agilab/core/agi-cluster/pyproject.toml"),
+              Path("src/agilab/core/agi-core/pyproject.toml"),
+              Path("pyproject.toml"),  # umbrella
+          ]
+          files = [p for p in files if p.exists()]
 
-          # ---- Query TestPyPI and resolve targets per package ------------------
+          # ---- Helpers -----------------------------------------------------------
+          def clean_pkg_name(s: str) -> str:
+              # Keep only bare PEP 508 name; strip any extras/specifiers accidentally present
+              m = re.match(r'^[A-Za-z0-9_.-]+', str(s))
+              return m.group(0) if m else str(s)
+
           def release_keys(name: str) -> set[str]:
               url = f"https://test.pypi.org/pypi/{name}/json"
               try:
                   with urllib.request.urlopen(url, timeout=10) as r:
                       data = json.load(r) or {}
-                      return set((data.get("releases") or {}).keys())
+                  return set((data.get("releases") or {}).keys())
               except Exception:
                   return set()
 
@@ -77,41 +89,116 @@ jobs:
               if base not in keys:
                   return base
               max_post = 0
-              pref = base + ".post"
               for v in keys:
-                  if v.startswith(pref):
+                  m = re.fullmatch(re.escape(base) + r"\.post(\d+)", v)
+                  if m:
                       try:
-                          n = int(v.split(".post", 1)[1])
-                          max_post = max(max_post, n)
+                          n = int(m.group(1))
+                          if n > max_post:
+                              max_post = n
                       except Exception:
                           pass
-              return f"{base}.post{max_post+1}"
+              return f"{base}.post{max_post + 1}"
 
-          targets: dict[str, str] = {name: next_version(base, release_keys(name)) for name in packages}
+          # Discover package names from pyprojects (and clean them)
+          pkg_by_path = {}
+          for p in files:
+              doc = parse(p.read_text(encoding="utf-8"))
+              proj = doc.get("project")
+              if not proj:
+                  continue
+              raw = str(proj.get("name", "")).strip()
+              name = clean_pkg_name(raw)
+              pkg_by_path[p] = name
+
+          # Compute per-package target versions (independent .postN decisions)
+          targets = {}
+          for name in {n for n in pkg_by_path.values() if n}:
+              targets[name] = next_version(base, release_keys(name))
           print("Resolved targets:", json.dumps(targets, indent=2))
 
-          # ---- Update versions and pin internal deps across all pyprojects -----
-          ver_line = re.compile(r'(?m)^\s*version\s*=\s*["\'].*?["\']\s*$')
-          dep_pat  = re.compile(r'(?P<q>["\'])(agi-env|agi-node|agi-cluster|agi-core)(?P<extras>\[[^"\']*\])?[^"\']*(?P=q)')
+          # Pin only dependencies (not project.name)
+          def pin_req(s: str) -> str:
+              s = str(s)
+              parts = s.split(";", 1)
+              left = parts[0].strip()
+              marker = ";" + parts[1] if len(parts) == 2 else ""
+              m = re.match(r'^\s*([A-Za-z0-9_.-]+)(\[[^\]]+\])?', left)
+              if not m:
+                  return s
+              pkg, extras = m.group(1), (m.group(2) or "")
+              if pkg not in targets:
+                  return s
+              return f"{pkg}{extras}=={targets[pkg]}{marker}"
 
-          def pin_deps(text: str) -> str:
-              def repl(m):
-                  pkg = m.group(2)
-                  return f'{m.group(1)}{pkg}{m.group("extras") or ""}=={targets[pkg]}{m.group(1)}'
-              return dep_pat.sub(repl, text)
+          # Write back: repair project.name if corrupted; set version; pin deps
+          for p, name in pkg_by_path.items():
+              doc = parse(p.read_text(encoding="utf-8"))
+              proj = doc.get("project")
+              if not proj:
+                  continue
 
-          for name, path in packages.items():
-              p = Path(path)
-              s = p.read_text(encoding="utf-8")
-              s = ver_line.sub(f'version = "{targets[name]}"', s)
-              s = pin_deps(s)
-              p.write_text(s, encoding="utf-8")
-              print(f"[ok] {p} -> version {targets[name]}")
+              raw_name = str(proj.get("name", "")).strip()
+              clean_name = clean_pkg_name(raw_name)
+              if raw_name != clean_name and clean_name:
+                  proj["name"] = clean_name
+                  print(f"[fix] {p}: project.name '{raw_name}' -> '{clean_name}'")
 
+              # Set the package's own version if we computed a target for it
+              if clean_name in targets:
+                  proj["version"] = targets[clean_name]
+
+              # Pin internal deps in dependencies / optional-dependencies
+              if "dependencies" in proj and proj["dependencies"] is not None:
+                  proj["dependencies"] = [pin_req(x) for x in proj["dependencies"]]
+              if "optional-dependencies" in proj and proj["optional-dependencies"] is not None:
+                  for group, arr in list(proj["optional-dependencies"].items()):
+                      proj["optional-dependencies"][group] = [pin_req(x) for x in arr]
+
+              doc["project"] = proj
+              p.write_text(dumps(doc), encoding="utf-8")
+              print(f"[ok] {p} -> version {proj.get('version')}")
+
+          # For debugging / traceability in the workflow run
           Path("versions.json").write_text(json.dumps(targets, indent=2), encoding="utf-8")
           PY
 
-      - name: Build (core) wheels
+      # --- EXTRA HARDENING: ensure no lingering 'name="pkg==..."' anywhere -----
+      - name: Sanitize project.name fields (belt & suspenders)
+        run: |
+          set -euxo pipefail
+          py=$(command -v python || command -v python3)
+          for f in pyproject.toml src/agilab/core/*/pyproject.toml; do
+            [ -f "$f" ] || continue
+            "$py" - <<'PY' "$f"
+            import sys, re
+            from pathlib import Path
+            from tomlkit import parse, dumps
+            p = Path(sys.argv[1])
+            doc = parse(p.read_text(encoding="utf-8"))
+            proj = doc.get("project") or {}
+            name = str(proj.get("name",""))
+            m = re.match(r'^([A-Za-z0-9_.-]+)', name)
+            clean = m.group(1) if m else name
+            if name and name != clean:
+                proj["name"] = clean
+                doc["project"] = proj
+                p.write_text(dumps(doc), encoding="utf-8")
+                print(f"[fix] {p}: name '{name}' -> '{clean}'")
+            PY
+          done
+
+      - name: Validate pyproject names are clean
+        run: |
+          set -euo pipefail
+          if grep -REn '^\s*name\s*=\s*".*==.*"' -- pyproject.toml src/agilab/core/*/pyproject.toml; then
+            echo "Error: found version spec in project.name" >&2
+            exit 1
+          fi
+          echo "All project.name fields look good."
+
+      # --- BUILD & PUBLISH -----------------------------------------------------
+      - name: Build core wheels
         run: |
           set -euxo pipefail
           for pkg in agi-env agi-node agi-cluster agi-core; do
@@ -124,14 +211,29 @@ jobs:
           rm -rf dist build
           python -m build --sdist --wheel
 
-      - name: Upload to TestPyPI
+      - name: Ensure TestPyPI token present
         run: |
           set -euo pipefail
           if [ -z "${TWINE_PASSWORD:-}" ]; then
             echo "ERROR: Missing TEST_PYPI_API_TOKEN or TEST_PYPI_SECRET" >&2
             exit 2
           fi
+          echo "Found TestPyPI token."
+
+      - name: Upload core wheels to TestPyPI
+        run: |
+          set -euxo pipefail
+          for pkg in agi-env agi-node agi-cluster agi-core; do
+            twine upload \
+              --repository-url https://test.pypi.org/legacy/ \
+              --non-interactive --skip-existing \
+              "src/agilab/core/${pkg}/dist/*"
+          done
+
+      - name: Upload agilab to TestPyPI
+        run: |
+          set -euxo pipefail
           twine upload \
             --repository-url https://test.pypi.org/legacy/ \
             --non-interactive --skip-existing \
-            src/agilab/core/*/dist/* dist/*
+            dist/*
