@@ -16,34 +16,47 @@ concurrency:
 
 env:
   PYTHON_VERSION: "3.13"
+  REPOSITORY_URL: https://test.pypi.org/legacy/
 
 jobs:
   publish-testpypi:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
     env:
       TWINE_USERNAME: __token__
       TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN || secrets.TEST_PYPI_SECRET }}
-      REPOSITORY_URL: https://test.pypi.org/legacy/
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+          ref: ${{ github.sha }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install build tooling
-        run: |
-          set -euxo pipefail
-          python -m pip install --upgrade --no-cache-dir pip build twine tomlkit
+      - name: Install uv, twine, tomlkit
+        run: python -m pip install --upgrade --no-cache-dir uv twine tomlkit
 
-      - name: Build & upload with automatic .postN fallback on 400 reuse
+      - name: Ensure TestPyPI token present
+        run: |
+          set -euo pipefail
+          if [ -z "${TWINE_PASSWORD:-}" ]; then
+            echo "ERROR: Missing TEST_PYPI_API_TOKEN or TEST_PYPI_SECRET" >&2
+            exit 2
+          fi
+          echo "Found TestPyPI token."
+
+      # ---------------------- CORE: build & upload with uv ----------------------
+      # Per-package versioning (auto .postN when needed) + HTTP 400 fallback.
+      # Also repairs any accidental `project.name = "pkg==X.Y.Z"` before building.
+      - name: Build & upload core packages (uv) with per-package .postN + 400 fallback
         env:
           BASE_VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
@@ -57,24 +70,23 @@ jobs:
           BASE = (os.environ.get("BASE_VERSION","")
                   .replace("refs/tags/","").lstrip("v").strip())
           if not BASE:
-              print("BASE_VERSION missing; pass via workflow input 'version' or tag like v1.2.3.", file=sys.stderr)
+              print("BASE_VERSION missing; pass input 'version' or tag like v1.2.3.", file=sys.stderr)
               sys.exit(1)
           REPO_URL = os.environ.get("REPOSITORY_URL", "https://test.pypi.org/legacy/")
-
           REPO_ROOT = Path.cwd().resolve()
 
+          # Build order mirrors your prod workflow (uv, per project).  :contentReference[oaicite:2]{index=2}
           CORE = [
               ("agi-env",     REPO_ROOT / "src/agilab/core/agi-env/pyproject.toml",     REPO_ROOT / "src/agilab/core/agi-env"),
               ("agi-node",    REPO_ROOT / "src/agilab/core/agi-node/pyproject.toml",    REPO_ROOT / "src/agilab/core/agi-node"),
               ("agi-cluster", REPO_ROOT / "src/agilab/core/agi-cluster/pyproject.toml", REPO_ROOT / "src/agilab/core/agi-cluster"),
               ("agi-core",    REPO_ROOT / "src/agilab/core/agi-core/pyproject.toml",    REPO_ROOT / "src/agilab/core/agi-core"),
           ]
-          UMBRELLA = ("agilab", REPO_ROOT / "pyproject.toml", REPO_ROOT)
 
-          # ---- Helpers ----------------------------------------------------------
+          # ---- Utilities --------------------------------------------------------
           def run(cmd, cwd=None):
               loc = str(cwd or Path.cwd())
-              print(f"+ RUN {' '.join(cmd)} (cwd={loc})")
+              print(f"+ RUN {' '.join(map(str,cmd))} (cwd={loc})")
               p = subprocess.run(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
               print(p.stdout)
               return p.returncode, p.stdout
@@ -85,8 +97,9 @@ jobs:
           def save_doc(p: Path, doc):
               p.write_text(dumps(doc), encoding="utf-8")
 
+          _name_pat = re.compile(r'^[A-Za-z0-9_.-]+')
           def clean_name(name: str) -> str:
-              m = re.match(r'^[A-Za-z0-9_.-]+', str(name))
+              m = _name_pat.match(str(name))
               return m.group(0) if m else str(name)
 
           def sanitize_project_names(paths):
@@ -113,6 +126,7 @@ jobs:
                   return set()
 
           def next_post_version(base: str, name: str) -> str:
+              # Choose a fresh base.postN, even if historical base was deleted.
               max_n = 0
               for v in pypi_releases(name):
                   m = re.fullmatch(re.escape(base) + r"\.post(\d+)", v)
@@ -124,6 +138,7 @@ jobs:
               return f"{base}.post{max_n + 1}"
 
           def initial_target(base: str, name: str) -> str:
+              # If base currently exists for this package -> start at next .postN; else try base first.
               keys = pypi_releases(name)
               return next_post_version(base, name) if base in keys else base
 
@@ -135,7 +150,8 @@ jobs:
               doc["project"] = proj
               save_doc(pyproject, doc)
 
-          def pin_dep_in_pyproject(pyproject: Path, pkg: str, version: str):
+          def pin_deps(pyproject: Path, pins: dict[str,str]):
+              """Pin only known internal deps to exact resolved versions."""
               if not pyproject.exists():
                   return False
               doc = load_doc(pyproject)
@@ -150,10 +166,11 @@ jobs:
                       parts = s.split(";", 1)
                       left, marker = parts[0].strip(), (";" + parts[1] if len(parts) == 2 else "")
                       m = re.match(r'^([A-Za-z0-9_.-]+)(\[[^\]]+\])?', left)
-                      if m and m.group(1) == pkg:
-                          extras = m.group(2) or ""
-                          s = f"{pkg}{extras}=={version}{marker}"
-                          changed = True
+                      if m:
+                          pkg, extras = m.group(1), (m.group(2) or "")
+                          if pkg in pins:
+                              s = f"{pkg}{extras}=={pins[pkg]}{marker}"
+                              changed = True
                       out.append(s)
                   return out
 
@@ -166,134 +183,274 @@ jobs:
               if changed:
                   doc["project"] = proj
                   save_doc(pyproject, doc)
-                  print(f"[deps] pinned {pkg}=={version} in {pyproject.relative_to(REPO_ROOT)}")
               return changed
 
-          def build_pkg(pkg_dir: Path, outdir: Path|None=None, sdist=False):
-              # Ensure absolute paths to avoid nested 'src/.../src/.../dist' issues
-              pkg_dir_abs = pkg_dir.resolve()
-              outdir_abs = None
-              if outdir:
-                  outdir_abs = outdir.resolve()
-                  if outdir_abs.exists():
-                      shutil.rmtree(outdir_abs)
-                  outdir_abs.mkdir(parents=True, exist_ok=True)
-
-              cmd = [sys.executable, "-m", "build"]
-              if sdist:
-                  cmd += ["--sdist", "--wheel"]
-              else:
-                  cmd += ["--wheel"]
-              if outdir_abs:
-                  cmd += ["--outdir", str(outdir_abs)]
-              rc, _ = run(cmd, cwd=str(pkg_dir_abs))
+          def uv_build_project(project_dir: Path, wheel_only=True):
+              # Clean existing dist/build to avoid stale artifacts
+              for sub in ("dist","build"):
+                  d = project_dir / sub
+                  if d.exists():
+                      shutil.rmtree(d)
+              cmd = ["uv","build","--project", str(project_dir)]
+              cmd += ["--wheel"] if wheel_only else ["--sdist","--wheel"]
+              rc, _ = run(cmd, cwd=str(REPO_ROOT))
               if rc != 0:
-                  raise SystemExit(f"Build failed: {pkg_dir_abs}")
+                  raise SystemExit(f"Build failed: {project_dir}")
 
-              # List artifacts for debugging
-              if outdir_abs:
-                  print(f"[built] artifacts in {outdir_abs}: {list(outdir_abs.glob('*'))}")
+          def dist_files(project_dir: Path):
+              return sorted(glob.glob(str((project_dir / "dist" / "*").resolve())))
 
-          def upload_dist(pattern: str) -> tuple[bool, str]:
-              # Verify files exist before invoking twine
-              matches = glob.glob(pattern)
-              print(f"[upload] pattern={pattern} matches={matches}")
-              if not matches:
-                  return False, f"No files matched pattern: {pattern}"
-              cmd = [sys.executable, "-m", "twine", "upload",
-                     "--non-interactive", "--skip-existing",
-                     "--repository-url", REPO_URL, *matches]
-              rc, out = run(cmd)
+          def twine_check(files):
+              if not files:
+                  return False, "No artifacts found"
+              cmd = [sys.executable, "-m", "twine", "check", *files]
+              rc, out = run(cmd, cwd=str(REPO_ROOT))
               return (rc == 0), out
 
+          def twine_upload(files):
+              if not files:
+                  return False, "No artifacts to upload"
+              cmd = [sys.executable, "-m", "twine", "upload",
+                     "--non-interactive", "--skip-existing",
+                     "--repository-url", REPO_URL, *files]
+              rc, out = run(cmd, cwd=str(REPO_ROOT))
+              return (rc == 0), out
+
+          def is_reuse_400(out: str) -> bool:
+              out = out or ""
+              return ("HTTPError: 400 Bad Request" in out
+                      or "filename has already been used" in out
+                      or "File already exists" in out)
+
           # ---- Sanitize names up front -----------------------------------------
-          all_pyprojects = [p for _,p,_ in CORE] + [UMBRELLA[1]]
-          sanitize_project_names(all_pyprojects)
+          sanitize_project_names([p for _,p,_ in CORE])
 
-          # ---- Choose initial targets and write them ----------------------------
-          versions: dict[str, str] = {}
-          for name, toml, _ in CORE:
-              tgt = initial_target(BASE, name)
-              versions[name] = tgt
-              set_project_version(toml, tgt)
+          # ---- Build & upload each core package --------------------------------
+          final = {}
+          for name, toml, project in CORE:
+              # Set initial target and pin deps to already-finalized internals
+              target = initial_target(BASE, name)
+              set_project_version(toml, target)
+              if final:  # pin only deps whose versions are already known
+                  pin_deps(toml, final)
 
-          Path("versions.json").write_text(json.dumps(versions, indent=2), encoding="utf-8")
+              # Build (uv) and verify
+              uv_build_project(project, wheel_only=True)
+              files = dist_files(project)
+              ok, out = twine_check(files)
+              if not ok:
+                  print(out)
+                  raise SystemExit(f"twine check failed for {name}")
 
-          # ---- Build & upload core packages with 400->.postN fallback ----------
-          for name, toml, pkg_dir in CORE:
-              dist_dir = (pkg_dir / "dist").resolve()  # absolute to avoid nesting
-              build_pkg(pkg_dir, outdir=dist_dir, sdist=False)
-              ok, out = upload_dist(str(dist_dir / "*"))
-
+              # Upload; if 400 (deleted file reuse), bump to next .postN and retry
+              ok, out = twine_upload(files)
               tries = 0
-              while not ok and tries < 5:
+              while not ok and tries < 5 and is_reuse_400(out):
                   tries += 1
-                  if ("HTTPError: 400 Bad Request" in out or
-                      "File already exists" in out or
-                      "filename has already been used" in out):
-                      new_ver = next_post_version(BASE, name)
-                      print(f"[fallback] {name}: bumping to {new_ver} due to 400/file reuse")
-                      versions[name] = new_ver
-                      set_project_version(toml, new_ver)
+                  new_ver = next_post_version(BASE, name)
+                  print(f"[fallback] {name}: bumping to {new_ver} due to 400/file reuse")
+                  set_project_version(toml, new_ver)
+                  # re-pin dependents that are not built yet will be pinned just-in-time;
+                  # nothing to rebuild among already-published packages.
 
-                      # Pin this new version anywhere it's referenced (including umbrella)
-                      for _, other_toml, _ in CORE:
-                          pin_dep_in_pyproject(other_toml, name, new_ver)
-                      pin_dep_in_pyproject(UMBRELLA[1], name, new_ver)
-
-                      # Rebuild & retry
-                      build_pkg(pkg_dir, outdir=dist_dir, sdist=False)
-                      ok, out = upload_dist(str(dist_dir / "*"))
-                      continue
-                  break
+                  uv_build_project(project, wheel_only=True)
+                  files = dist_files(project)
+                  ok, out = twine_check(files)
+                  if not ok:
+                      print(out)
+                      raise SystemExit(f"twine check failed after bump for {name}")
+                  ok, out = twine_upload(files)
 
               if not ok:
                   print(out)
                   raise SystemExit(f"Upload failed for {name}")
 
-              Path("versions.json").write_text(json.dumps(versions, indent=2), encoding="utf-8")
+              # Record the final version for downstream pins
+              # re-read to ensure we store the actually-written value
+              doc = load_doc(toml)
+              final[name] = str((doc.get("project") or {}).get("version"))
+              Path("versions.json").write_text(json.dumps(final, indent=2), encoding="utf-8")
 
-          # ---- Umbrella: pin to final core versions, build & upload with fallback
-          umb_name, umb_toml, umb_dir = UMBRELLA
+          print("Core packages uploaded. Final versions:", final)
+          PY
 
-          for core_name, _, _ in CORE:
-              if core_name in versions:
-                  pin_dep_in_pyproject(umb_toml, core_name, versions[core_name])
+      # ---------------- Umbrella project (agilab) using uv, separate step -------
+      - name: Remove symlinks (apps/ and views/) before umbrella build
+        shell: bash
+        run: |
+          set -euxo pipefail
+          find src/agilab/apps src/agilab/views -type l -print -delete || true
+        # Mirrors your production workflow's symlink cleanup. :contentReference[oaicite:3]{index=3}
 
-          umb_target = initial_target(BASE, umb_name)
-          versions[umb_name] = umb_target
-          set_project_version(umb_toml, umb_target)
-          Path("versions.json").write_text(json.dumps(versions, indent=2), encoding="utf-8")
+      - name: Build & upload umbrella (agilab) with uv + .postN and 400 fallback
+        env:
+          BASE_VERSION: ${{ github.event.inputs.version || github.ref_name }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, re, sys, subprocess, shutil, urllib.request, glob
+          from pathlib import Path
+          from tomlkit import parse, dumps
 
-          # Clean root build dirs and build umbrella to repo-root 'dist/'
-          for path in ["dist", "build"]:
-              p = REPO_ROOT / path
-              if p.exists(): shutil.rmtree(p)
-          build_pkg(umb_dir, outdir=(REPO_ROOT / "dist"), sdist=True)
+          BASE = (os.environ.get("BASE_VERSION","")
+                  .replace("refs/tags/","").lstrip("v").strip())
+          if not BASE:
+              print("BASE_VERSION missing; pass input 'version' or tag like v1.2.3.", file=sys.stderr)
+              sys.exit(1)
+          REPO_URL = os.environ.get("REPOSITORY_URL", "https://test.pypi.org/legacy/")
+          REPO_ROOT = Path.cwd().resolve()
+          UMBRELLA = ("agilab", REPO_ROOT / "pyproject.toml", REPO_ROOT)
 
-          ok, out = upload_dist(str((REPO_ROOT / "dist" / "*")))
+          def run(cmd, cwd=None):
+              loc = str(cwd or Path.cwd())
+              print(f"+ RUN {' '.join(map(str,cmd))} (cwd={loc})")
+              p = subprocess.run(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+              print(p.stdout)
+              return p.returncode, p.stdout
+
+          def load_doc(p: Path):
+              return parse(p.read_text(encoding="utf-8"))
+
+          def save_doc(p: Path, doc):
+              p.write_text(dumps(doc), encoding="utf-8")
+
+          _name_pat = re.compile(r'^[A-Za-z0-9_.-]+')
+          def clean_name(name: str) -> str:
+              m = _name_pat.match(str(name))
+              return m.group(0) if m else str(name)
+
+          def pypi_releases(name: str) -> set[str]:
+              url = f"https://test.pypi.org/pypi/{name}/json"
+              try:
+                  with urllib.request.urlopen(url, timeout=10) as r:
+                      data = json.load(r) or {}
+                  return set((data.get("releases") or {}).keys())
+              except Exception:
+                  return set()
+
+          def next_post_version(base: str, name: str) -> str:
+              max_n = 0
+              for v in pypi_releases(name):
+                  m = re.fullmatch(re.escape(base) + r"\.post(\d+)", v)
+                  if m:
+                      try:
+                          max_n = max(max_n, int(m.group(1)))
+                      except Exception:
+                          pass
+              return f"{base}.post{max_n + 1}"
+
+          def initial_target(base: str, name: str) -> str:
+              keys = pypi_releases(name)
+              return next_post_version(base, name) if base in keys else base
+
+          def uv_build_repo_root(wheel_only=True):
+              # Clean root dist/build
+              for sub in ("dist","build"):
+                  d = REPO_ROOT / sub
+                  if d.exists():
+                      shutil.rmtree(d)
+              cmd = ["uv","build"]
+              cmd += ["--wheel"] if wheel_only else ["--sdist","--wheel"]
+              rc, _ = run(cmd, cwd=str(REPO_ROOT))
+              if rc != 0:
+                  raise SystemExit("Umbrella build failed")
+
+          def dist_files_root():
+              return sorted(glob.glob(str((REPO_ROOT / "dist" / "*").resolve())))
+
+          def twine_check(files):
+              if not files:
+                  return False, "No umbrella artifacts found"
+              cmd = [sys.executable, "-m", "twine", "check", *files]
+              rc, out = run(cmd, cwd=str(REPO_ROOT))
+              return (rc == 0), out
+
+          def twine_upload(files):
+              if not files:
+                  return False, "No umbrella artifacts to upload"
+              cmd = [sys.executable, "-m", "twine", "upload",
+                     "--non-interactive", "--skip-existing",
+                     "--repository-url", REPO_URL, *files]
+              rc, out = run(cmd, cwd=str(REPO_ROOT))
+              return (rc == 0), out
+
+          def is_reuse_400(out: str) -> bool:
+              out = out or ""
+              return ("HTTPError: 400 Bad Request" in out
+                      or "filename has already been used" in out
+                      or "File already exists" in out)
+
+          # Read final core versions from previous step
+          final_core = {}
+          vf = REPO_ROOT / "versions.json"
+          if vf.exists():
+              final_core = json.loads(vf.read_text(encoding="utf-8"))
+          print("Core versions for pinning:", final_core)
+
+          name, toml, _ = UMBRELLA
+          # Set initial target
+          target = initial_target(BASE, name)
+
+          # Write umbrella version and pin core deps to their final resolved versions
+          doc = load_doc(toml)
+          proj = doc.get("project") or {}
+          proj["name"] = clean_name(proj.get("name",""))
+          proj["version"] = target
+
+          def pin_list(arr):
+              out = []
+              for dep in arr:
+                  s = str(dep)
+                  parts = s.split(";", 1)
+                  left, marker = parts[0].strip(), (";" + parts[1] if len(parts) == 2 else "")
+                  m = re.match(r'^([A-Za-z0-9_.-]+)(\[[^\]]+\])?', left)
+                  if m:
+                      pkg, extras = m.group(1), (m.group(2) or "")
+                      if pkg in final_core:
+                          s = f"{pkg}{extras}=={final_core[pkg]}{marker}"
+                  out.append(s)
+              return out
+
+          if "dependencies" in proj and proj["dependencies"] is not None:
+              proj["dependencies"] = pin_list(proj["dependencies"])
+          if "optional-dependencies" in proj and proj["optional-dependencies"] is not None:
+              for g, arr in list(proj["optional-dependencies"].items()):
+                  proj["optional-dependencies"][g] = pin_list(arr)
+          doc["project"] = proj
+          save_doc(toml, doc)
+
+          # Build (uv) and verify
+          uv_build_repo_root(wheel_only=True)  # matches your prod wheel build style. :contentReference[oaicite:4]{index=4}
+          files = dist_files_root()
+          ok, out = twine_check(files)
+          if not ok:
+              print(out)
+              raise SystemExit("twine check failed for umbrella")
+
+          # Upload; fallback on 400/file reuse
+          ok, out = twine_upload(files)
           tries = 0
-          while not ok and tries < 5:
+          while not ok and tries < 5 and is_reuse_400(out):
               tries += 1
-              if ("HTTPError: 400 Bad Request" in out or
-                  "File already exists" in out or
-                  "filename has already been used" in out):
-                  new_ver = next_post_version(BASE, umb_name)
-                  print(f"[fallback] {umb_name}: bumping to {new_ver} due to 400/file reuse")
-                  versions[umb_name] = new_ver
-                  set_project_version(umb_toml, new_ver)
+              new_ver = next_post_version(BASE, name)
+              print(f"[fallback] {name}: bumping to {new_ver} due to 400/file reuse")
+              doc = load_doc(toml)
+              proj = doc.get("project") or {}
+              proj["version"] = new_ver
+              doc["project"] = proj
+              save_doc(toml, doc)
 
-                  for path in ["dist", "build"]:
-                      p = REPO_ROOT / path
-                      if p.exists(): shutil.rmtree(p)
-                  build_pkg(umb_dir, outdir=(REPO_ROOT / "dist"), sdist=True)
-                  ok, out = upload_dist(str((REPO_ROOT / "dist" / "*")))
-                  continue
-              break
+              uv_build_repo_root(wheel_only=True)
+              files = dist_files_root()
+              ok, out = twine_check(files)
+              if not ok:
+                  print(out)
+                  raise SystemExit("twine check failed for umbrella after bump")
+              ok, out = twine_upload(files)
 
           if not ok:
               print(out)
-              raise SystemExit(f"Upload failed for {umb_name}")
+              raise SystemExit("Umbrella upload failed")
 
-          print("All uploads completed successfully.")
+          print("Umbrella uploaded successfully.")
           PY
