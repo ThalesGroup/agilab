@@ -21,11 +21,6 @@ dev = [
     "your_pandas_project",
 ]
 
-[tool.uv.sources]
-agi-env = {path = "../../core/agi-env", editable = true}
-agi-node = {path = "../../core/agi-node", editable = true}
-agi-cluster = {path = "../../core/agi-cluster", editable = true}
-
 [tool.uv.sources.your_pandas_project]
 workspace = true
 

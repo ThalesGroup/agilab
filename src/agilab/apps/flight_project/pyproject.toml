@@ -1,3 +1,4 @@
+
 [project]
 name = "flight_project"
 version = "0.1.0"
@@ -22,9 +23,6 @@ dependencies = [
     "logging",
     "psutil",
     "scipy==1.15.2",
-    "agi-env",
-    "agi-node",
-    "agi-cluster",
 ]
 
 [project.license]
@@ -40,11 +38,6 @@ dev = [
     "licensecheck",
     "dask[distributed]",
 ]
-
-[tool.uv.sources]
-agi-env = {path = "../../core/agi-env", editable = true}
-agi-node = {path = "../../core/agi-node", editable = true}
-agi-cluster = {path = "../../core/agi-cluster", editable = true}
 
 [tool.uv.sources.flight_project]
 workspace = true

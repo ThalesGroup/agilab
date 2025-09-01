@@ -16,9 +16,6 @@ dependencies = [
     "python-dotenv",
     "ipython",
     "psutil",
-    "agi-env",
-    "agi-node",
-    "agi-cluster",
 ]
 
 [dependency-groups]
@@ -31,11 +28,6 @@ dev = [
     "licensecheck",
     "your_agent_project",
 ]
-
-[tool.uv.sources]
-agi-env = {path = "../../core/agi-env", editable = true}
-agi-node = {path = "../../core/agi-node", editable = true}
-agi-cluster = {path = "../../core/agi-cluster", editable = true}
 
 # do not remove
 [tool.uv.sources.your_agent_project]
