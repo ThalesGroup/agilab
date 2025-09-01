@@ -242,7 +242,7 @@ function Write-EnvValues {
     }
     # Append the shared env file content to agilab env file
     $path = Get-Content $sharedPath
-    if (($path -like "*MyApp*") -and ($username -like "T0*"))
+    if (($path -like "A:*" -or $path -like "*MyApp*") -and ($username -like "T0*"))
     {
         $userDir = [Environment]::GetFolderPath('UserProfile')
         $agilabEnv = Join-Path $userDir "MyApp/.agilab/.env"
@@ -279,7 +279,7 @@ $LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
 New-Item -ItemType Directory -Force -Path $LocalDir | Out-Null
 $AgiPathFile = Join-Path $LocalDir ".agilab-path"
 
-$PYTHON_VERSION = "3.13"
+$PYTHON_VERSION = "3.12"
 
 # Define project directories (AGI_PROJECT_SRC is "$AgiDir\src")
 $AgiProject = Join-Path $CurrentPath "src/agilab"
@@ -315,12 +315,6 @@ Start-Transcript -Path $LogFile
 #     $_.Name -match '\.venv|uv.lock|build|dist|.*egg-info'
 # } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
-if (-not $cluster_credentials -or -not $openai_api_key) {
-    Write-Red "Usage: .\install.ps1 -cluster_credentials <user[:password]> -openai_api_key <api-key> [-install_path <path>]"
-    Write-Yellow "If ExecutionPolicy is set to Default (Restricted mode) use 'powershell.exe -ExecutionPolicy ByPass' to call the script"
-    Stop-Transcript
-    exit 1
-}
 if (-not $Offline)
 {
     Test-Internet
@@ -336,4 +330,4 @@ Copy-ProjectFiles
 Update-Environment
 Install-Core
 Write-EnvValues
-#Install-Apps
+Install-Apps
