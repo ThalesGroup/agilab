@@ -259,10 +259,13 @@ class AGI:
                 logging.error(f"failed to connect \n{e}")
                 return
 
+            except ModuleNotFoundError as e:
+                logging.error(f"failed to load module \n{e}")
+                return
+
             except Exception as err:
                 logging.error(f"Unhandled exception in AGI.run: {err}", exc_info=True)
 
-        raise
 
     @staticmethod
     async def _run_all_modes(
@@ -997,11 +1000,11 @@ class AGI:
             cmd_manager = f"{uv} {run_type} --project {app_path}"
 
         if env.install_type == 1:
-            cmd = f"{uv} run --project {app_path} pip install -e {env.core_root}"
+            cmd = f"{uv} pip install -e {env.core_root}"
             await AgiEnv.run(cmd, app_path)
-            cmd = f"{uv} run --project {app_path} pip install -e {env.env_root}"
+            cmd = f"{uv} pip install -e {env.env_root}"
             await AgiEnv.run(cmd, app_path)
-            cmd = f"{uv} run --project {app_path} pip install -e {env.node_root}"
+            cmd = f"{uv} pip install -e {env.node_root}"
             await AgiEnv.run(cmd, app_path)
 
         logging.info(f"Installing manager: {cmd_manager}")
