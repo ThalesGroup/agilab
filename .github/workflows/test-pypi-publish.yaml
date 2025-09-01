@@ -135,7 +135,8 @@ jobs:
           done
 
       - name: Guard: ensure root pyproject.toml exists
-        run: test -f pyproject.toml
+        run: |
+          test -f pyproject.toml
 
       - name: Update umbrella agilab version & pin core deps
         env:
