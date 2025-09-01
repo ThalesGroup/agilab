@@ -240,7 +240,7 @@ class AgiEnv:
                 self.env_root = agilab_src / "agilab/core/agi-env"
                 self.core_root = agilab_src / "agilab/core/agi-core"
                 self.cluster_root = agilab_src / "agilab/core/agi-cluster"
-                self.st_resources = self.agilab_src / "resources"
+                self.st_resources = self.agilab_src / "agilab/resources"
             else:
                 self.agilab_src = site_packages
                 self.src_cluster = site_packages
