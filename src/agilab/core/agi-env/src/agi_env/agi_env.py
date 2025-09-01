@@ -209,10 +209,11 @@ class AgiEnv:
 
         else:
             if not active_app:
-                if agilab_src.exists():
+                venv_home = Path(sys.prefix).parent
+                if venv_home.name == "agilab":
                     active_app = agilab_src / "agilab/apps" / envars.get("APP_DEFAULT", 'flight_project')
                 else:
-                    active_app = site_packages / "apps" / envars.get("APP_DEFAULT", 'flight_project')
+                    active_app = venv_home / "apps" / envars.get("APP_DEFAULT", 'flight_project')
 
             if not active_app.name.endswith('_project'):
                 raise ValueError(f"{active_app} must end with '_project'")
