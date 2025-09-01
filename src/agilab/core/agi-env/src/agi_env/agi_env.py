@@ -215,11 +215,11 @@ class AgiEnv:
                 else:
                     active_app = venv_home / "apps" / envars.get("APP_DEFAULT", 'flight_project')
 
-            if not active_app.name.endswith('_project'):
+            if not active_app.name.endswith('_project') or not active_app.name.endswith('_worker'):
                 raise ValueError(f"{active_app} must end with '_project'")
 
         self.active_app = active_app
-        module = active_app.name.replace("_project", "").replace("-", "_")
+        module = active_app.name.replace("_project", "").replace("_worker","").replace("-", "_")
 
         AgiEnv.verbose = verbose
         self.verbose = verbose
