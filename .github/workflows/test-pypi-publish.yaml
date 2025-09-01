@@ -170,24 +170,23 @@ jobs:
           py=$(command -v python || command -v python3)
           for f in pyproject.toml src/agilab/core/*/pyproject.toml; do
             [ -f "$f" ] || continue
-            "$py" - <<'PY' "$f"
-            import sys, re
-            from pathlib import Path
-            from tomlkit import parse, dumps
-            p = Path(sys.argv[1])
-            doc = parse(p.read_text(encoding="utf-8"))
-            proj = doc.get("project") or {}
-            name = str(proj.get("name",""))
-            m = re.match(r'^([A-Za-z0-9_.-]+)', name)
-            clean = m.group(1) if m else name
-            if name and name != clean:
-                proj["name"] = clean
-                doc["project"] = proj
-                p.write_text(dumps(doc), encoding="utf-8")
-                print(f"[fix] {p}: name '{name}' -> '{clean}'")
-            PY
+            "$py" - "$f" <<PY
+          import sys, re
+          from pathlib import Path
+          from tomlkit import parse, dumps
+          p = Path(sys.argv[1])
+          doc = parse(p.read_text(encoding="utf-8"))
+          proj = doc.get("project") or {}
+          name = str(proj.get("name",""))
+          m = re.match(r'^([A-Za-z0-9_.-]+)', name)
+          clean = m.group(1) if m else name
+          if name and name != clean:
+              proj["name"] = clean
+              doc["project"] = proj
+              p.write_text(dumps(doc), encoding="utf-8")
+              print(f"[fix] {p}: name '{name}' -> '{clean}'")
+          PY
           done
-
       - name: Validate pyproject names are clean
         run: |
           set -euo pipefail
