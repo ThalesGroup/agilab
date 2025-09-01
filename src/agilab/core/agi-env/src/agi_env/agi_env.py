@@ -210,7 +210,7 @@ class AgiEnv:
         else:
             if not active_app:
                 if agilab_src.exists():
-                    active_app = agilab_src / "apps" / envars.get("APP_DEFAULT", 'flight_project')
+                    active_app = agilab_src / "agilab/apps" / envars.get("APP_DEFAULT", 'flight_project')
                 else:
                     active_app = site_packages / "apps" / envars.get("APP_DEFAULT", 'flight_project')
 
