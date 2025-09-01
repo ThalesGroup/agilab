@@ -49,7 +49,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, os, re, sys, subprocess, shutil, urllib.request
+          import json, os, re, sys, subprocess, shutil, urllib.request, glob
           from pathlib import Path
           from tomlkit import parse, dumps
 
@@ -61,17 +61,20 @@ jobs:
               sys.exit(1)
           REPO_URL = os.environ.get("REPOSITORY_URL", "https://test.pypi.org/legacy/")
 
+          REPO_ROOT = Path.cwd().resolve()
+
           CORE = [
-              ("agi-env",     Path("src/agilab/core/agi-env/pyproject.toml"),     Path("src/agilab/core/agi-env")),
-              ("agi-node",    Path("src/agilab/core/agi-node/pyproject.toml"),    Path("src/agilab/core/agi-node")),
-              ("agi-cluster", Path("src/agilab/core/agi-cluster/pyproject.toml"), Path("src/agilab/core/agi-cluster")),
-              ("agi-core",    Path("src/agilab/core/agi-core/pyproject.toml"),    Path("src/agilab/core/agi-core")),
+              ("agi-env",     REPO_ROOT / "src/agilab/core/agi-env/pyproject.toml",     REPO_ROOT / "src/agilab/core/agi-env"),
+              ("agi-node",    REPO_ROOT / "src/agilab/core/agi-node/pyproject.toml",    REPO_ROOT / "src/agilab/core/agi-node"),
+              ("agi-cluster", REPO_ROOT / "src/agilab/core/agi-cluster/pyproject.toml", REPO_ROOT / "src/agilab/core/agi-cluster"),
+              ("agi-core",    REPO_ROOT / "src/agilab/core/agi-core/pyproject.toml",    REPO_ROOT / "src/agilab/core/agi-core"),
           ]
-          UMBRELLA = ("agilab", Path("pyproject.toml"), Path("."))
+          UMBRELLA = ("agilab", REPO_ROOT / "pyproject.toml", REPO_ROOT)
 
           # ---- Helpers ----------------------------------------------------------
           def run(cmd, cwd=None):
-              print(f"+ RUN {' '.join(cmd)} (cwd={cwd or os.getcwd()})")
+              loc = str(cwd or Path.cwd())
+              print(f"+ RUN {' '.join(cmd)} (cwd={loc})")
               p = subprocess.run(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
               print(p.stdout)
               return p.returncode, p.stdout
@@ -88,7 +91,7 @@ jobs:
 
           def sanitize_project_names(paths):
               for p in paths:
-                  if not p.exists(): 
+                  if not p.exists():
                       continue
                   doc = load_doc(p)
                   proj = doc.get("project") or {}
@@ -98,7 +101,7 @@ jobs:
                       proj["name"] = cleaned
                       doc["project"] = proj
                       save_doc(p, doc)
-                      print(f"[fix] {p}: project.name '{raw}' -> '{cleaned}'")
+                      print(f"[fix] {p.relative_to(REPO_ROOT)}: project.name '{raw}' -> '{cleaned}'")
 
           def pypi_releases(name: str) -> set[str]:
               url = f"https://test.pypi.org/pypi/{name}/json"
@@ -110,7 +113,6 @@ jobs:
                   return set()
 
           def next_post_version(base: str, name: str) -> str:
-              # Always compute next base.postN. Works even if base was deleted historically.
               max_n = 0
               for v in pypi_releases(name):
                   m = re.fullmatch(re.escape(base) + r"\.post(\d+)", v)
@@ -122,7 +124,6 @@ jobs:
               return f"{base}.post{max_n + 1}"
 
           def initial_target(base: str, name: str) -> str:
-              # If base exists right now, start from next .postN; else try base and fall back on 400.
               keys = pypi_releases(name)
               return next_post_version(base, name) if base in keys else base
 
@@ -165,28 +166,43 @@ jobs:
               if changed:
                   doc["project"] = proj
                   save_doc(pyproject, doc)
-                  print(f"[deps] pinned {pkg}=={version} in {pyproject}")
+                  print(f"[deps] pinned {pkg}=={version} in {pyproject.relative_to(REPO_ROOT)}")
               return changed
 
           def build_pkg(pkg_dir: Path, outdir: Path|None=None, sdist=False):
+              # Ensure absolute paths to avoid nested 'src/.../src/.../dist' issues
+              pkg_dir_abs = pkg_dir.resolve()
+              outdir_abs = None
               if outdir:
-                  if outdir.exists(): shutil.rmtree(outdir)
-                  outdir.mkdir(parents=True, exist_ok=True)
+                  outdir_abs = outdir.resolve()
+                  if outdir_abs.exists():
+                      shutil.rmtree(outdir_abs)
+                  outdir_abs.mkdir(parents=True, exist_ok=True)
+
               cmd = [sys.executable, "-m", "build"]
               if sdist:
                   cmd += ["--sdist", "--wheel"]
               else:
                   cmd += ["--wheel"]
-              if outdir:
-                  cmd += ["--outdir", str(outdir)]
-              rc, _ = run(cmd, cwd=str(pkg_dir))
+              if outdir_abs:
+                  cmd += ["--outdir", str(outdir_abs)]
+              rc, _ = run(cmd, cwd=str(pkg_dir_abs))
               if rc != 0:
-                  raise SystemExit(f"Build failed: {pkg_dir}")
+                  raise SystemExit(f"Build failed: {pkg_dir_abs}")
+
+              # List artifacts for debugging
+              if outdir_abs:
+                  print(f"[built] artifacts in {outdir_abs}: {list(outdir_abs.glob('*'))}")
 
           def upload_dist(pattern: str) -> tuple[bool, str]:
+              # Verify files exist before invoking twine
+              matches = glob.glob(pattern)
+              print(f"[upload] pattern={pattern} matches={matches}")
+              if not matches:
+                  return False, f"No files matched pattern: {pattern}"
               cmd = [sys.executable, "-m", "twine", "upload",
                      "--non-interactive", "--skip-existing",
-                     "--repository-url", REPO_URL, pattern]
+                     "--repository-url", REPO_URL, *matches]
               rc, out = run(cmd)
               return (rc == 0), out
 
@@ -201,12 +217,11 @@ jobs:
               versions[name] = tgt
               set_project_version(toml, tgt)
 
-          # Keep a record for later umbrella pinning
           Path("versions.json").write_text(json.dumps(versions, indent=2), encoding="utf-8")
 
           # ---- Build & upload core packages with 400->.postN fallback ----------
           for name, toml, pkg_dir in CORE:
-              dist_dir = pkg_dir / "dist"
+              dist_dir = (pkg_dir / "dist").resolve()  # absolute to avoid nesting
               build_pkg(pkg_dir, outdir=dist_dir, sdist=False)
               ok, out = upload_dist(str(dist_dir / "*"))
 
@@ -241,24 +256,22 @@ jobs:
           # ---- Umbrella: pin to final core versions, build & upload with fallback
           umb_name, umb_toml, umb_dir = UMBRELLA
 
-          # Ensure umbrella pins to final resolved versions of core
-          for core_name in [n for n,_,_ in CORE]:
+          for core_name, _, _ in CORE:
               if core_name in versions:
                   pin_dep_in_pyproject(umb_toml, core_name, versions[core_name])
 
-          # Decide umbrella version and write it
           umb_target = initial_target(BASE, umb_name)
           versions[umb_name] = umb_target
           set_project_version(umb_toml, umb_target)
           Path("versions.json").write_text(json.dumps(versions, indent=2), encoding="utf-8")
 
-          # Clean root build dirs and build
+          # Clean root build dirs and build umbrella to repo-root 'dist/'
           for path in ["dist", "build"]:
-              p = Path(path)
+              p = REPO_ROOT / path
               if p.exists(): shutil.rmtree(p)
-          build_pkg(umb_dir, outdir=None, sdist=True)
+          build_pkg(umb_dir, outdir=(REPO_ROOT / "dist"), sdist=True)
 
-          ok, out = upload_dist("dist/*")
+          ok, out = upload_dist(str((REPO_ROOT / "dist" / "*")))
           tries = 0
           while not ok and tries < 5:
               tries += 1
@@ -271,10 +284,10 @@ jobs:
                   set_project_version(umb_toml, new_ver)
 
                   for path in ["dist", "build"]:
-                      p = Path(path)
+                      p = REPO_ROOT / path
                       if p.exists(): shutil.rmtree(p)
-                  build_pkg(umb_dir, outdir=None, sdist=True)
-                  ok, out = upload_dist("dist/*")
+                  build_pkg(umb_dir, outdir=(REPO_ROOT / "dist"), sdist=True)
+                  ok, out = upload_dist(str((REPO_ROOT / "dist" / "*")))
                   continue
               break
 
