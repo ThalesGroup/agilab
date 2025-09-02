@@ -398,7 +398,7 @@ class BaseWorker(abc.ABC):
             BaseWorker.env = env if env else AgiEnv(active_app=app, install_type=2, verbose=verbose)
 
             logging.info(f"venv: {sys.prefix}")
-            logging.info(f"BaseWorker.new - worker #{worker_id}: {worker} from: {os.path.relpath(__file__)}")
+            logging.info(f"BaseWorker.new - worker #{worker_id}: {worker} from: {Path(__file__)}")
 
             # import of derived Class of WorkDispatcher, name target_inst which is typically an instance of MyCode
             worker_class = BaseWorker._load_worker(mode)
@@ -505,7 +505,7 @@ class BaseWorker(abc.ABC):
         BaseWorker.worker = worker
 
         logging.info(
-            f"build - worker #{BaseWorker.worker_id}: {worker} from: {os.path.relpath(__file__)}"
+            f"build - worker #{BaseWorker.worker_id}: {worker} from: {Path(__file__)}"
         )
 
         try:
@@ -570,7 +570,7 @@ class BaseWorker(abc.ABC):
         try:
             worker_id = BaseWorker.worker_id
             if worker_id is not None:
-                logging.info(f"do_works - worker #{worker_id}: {BaseWorker.worker} from {os.path.relpath(__file__)}")
+                logging.info(f"do_works - worker #{worker_id}: {BaseWorker.worker} from {Path(__file__)}")
                 logging.info(f"BaseWorker.work - #{worker_id + 1} / {len(workers_tree)}")
                 BaseWorker._insts[worker_id].works(workers_tree, workers_tree_info)
             else:

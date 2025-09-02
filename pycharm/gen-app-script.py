@@ -70,6 +70,8 @@ if __name__ == "__main__":
 
     if app.endswith('_project'):
         app_name = app[:-8]  # Remove '_project' suffix if present
+    else:
+        app_name = app
 
     print(f"Replacement name: {app}")
 

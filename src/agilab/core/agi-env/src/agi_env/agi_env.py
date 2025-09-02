@@ -433,7 +433,7 @@ class AgiEnv:
             self._init_apps()
 
         if os.name == "nt":
-            AgiEnv.export_local_bin = None
+            AgiEnv.export_local_bin = ""
         else:
             AgiEnv.export_local_bin = 'export PATH="$HOME/.local/bin:$PATH";'
 
