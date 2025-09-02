@@ -4,7 +4,7 @@ set -o pipefail
 
 # ================================
 # Initial Setup
-# ================================
+# ================================f
 LOG_DIR="$HOME/log/install_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/install_$(date +%Y%m%d_%H%M%S).log"

@@ -4,7 +4,8 @@ set -euo pipefail
 # -----------------------------
 # Config
 # -----------------------------
-WORKSPACE = "$home/../agi-space"
+WORKSPACE="${HOME}/agi-space"
+[[ -d "${WORKSPACE}" ]] || { echo "Error: Missing workspace directory: ${WORKSPACE}" >&2; exit 1; }
 VENV="${WORKSPACE}/.venv"
 PACKAGES="agilab agi-env agi-node agi-cluster agi-core"
 SOURCE="local"     # local | pypi | testpypi
@@ -36,26 +37,16 @@ echo " INSTALL_PATH: ${AGI_INSTALL_PATH}"
 echo "===================================="
 
 
-home=$(pwd)
-
-# Build the main project as a sdist and move it
-rm -rf dist
-rm -rf build
-uv build --wheel
-mv dist/*.whl "$home/../agi-space"
-
 # -----------------------------
 # Workspace / venv
 # -----------------------------
 mkdir -p "${WORKSPACE}"
-
 pushd "$WORKSPACE"
 rm -fr .venv uv.lock
 if [ ! -f pyproject.toml ]; then
     uv init --bare
 fi
-uv add --upgrade --force-reinstall *.whl
-popd > /dev/null
+popd "$WORKSPACE"
 
 # -----------------------------
 # Installation modes
@@ -63,10 +54,10 @@ popd > /dev/null
 case "${SOURCE}" in
   local)
     echo "Installing packages from local source tree..."
-    AGI_ROOT=AGI_INSTALL_PATH.remove_suffix('src/agilab')
-    uv pip install -e "${AGI_ROOT}/agilab"
+    echo uv pip install -e "${AGI_INSTALL_PATH}"
+    uv pip install -e "${AGI_INSTALL_PATH}"
     for pkg in ${PACKAGES}; do
-      if [[ -d "${AGI_INSTALL_PATH}/core/${pkg}" ]]; then
+      if [[ -d "${AGI_INSTALL_PATH}/src/agilab/core/${pkg}" ]]; then
         uv pip install -e "${AGI_INSTALL_PATH}/core/${pkg}"
       fi
     done
