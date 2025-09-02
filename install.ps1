@@ -247,18 +247,20 @@ function Write-EnvValues {
         $userDir = [Environment]::GetFolderPath('UserProfile')
         $agilabEnv = Join-Path $userDir "MyApp/.agilab/.env"
     }
-    Write-Host $path
-    Write-Host $agilabEnv
+
     Get-Content $sharedEnv | Out-File -Append -FilePath $agilabEnv -Encoding UTF8
 
     Write-Host ".env file updated." -ForegroundColor Green
 }
 
 function Install-PyCharmScript {
-    uv run -p $env:PYTHON_VERSION python pycharm/install-app-script.py @args
+    rm -f .idea/workspace.xml
+    Write-Host "Patching PyCharm workspace.xml interpreter settings..." -ForegroundColor Blue
+    uv run -p $env:PYTHON_VERSION python pycharm/setup-pycharm.py
+    if ($LastExitCode -ne 0) {
+        Write-Host "Pycharm/setup-pycharm.py failed or not found; continuing..." -ForegroundColor Yellow
+    }
 }
-
-
 
 # Main Flow
 
@@ -331,3 +333,4 @@ Update-Environment
 Install-Core
 Write-EnvValues
 Install-Apps
+Install-PyCharmScript

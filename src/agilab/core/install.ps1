@@ -26,9 +26,6 @@ if (Test-Path $envFile) {
 # Clean up AGI_PYTHON_VERSION
 $env:AGI_PYTHON_VERSION = $env:AGI_PYTHON_VERSION -replace '^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*','$1'
 
-Write-Host "Installing framework from $(Get-Location)..." -ForegroundColor Blue
-Write-Host "Python Version: $env:AGI_PYTHON_VERSION" -ForegroundColor Blue
-
 function Install-ModulePath {
     param(
         [string]$Path,
@@ -45,6 +42,9 @@ function Install-ModulePath {
     Pop-Location
 }
 
+Write-Host "Installing framework from $(Get-Location)..." -ForegroundColor Blue
+Write-Host "Python Version: $env:AGI_PYTHON_VERSION" -ForegroundColor Blue
+
 Write-Host "Installing agi-cluster..." -ForegroundColor Blue
 Install-ModulePath "agi-cluster" @("../agi-node", "../agi-env")
 
@@ -56,15 +56,12 @@ Install-ModulePath "agi-env"
 
 Write-Host "Installing agilab..." -ForegroundColor Blue
 Push-Location (Resolve-Path "..\..\..")
-uv sync -p $env:AGI_PYTHON_VERSION --dev
-uv run python -m ensurepip
-Write-Host (Get-Location)
-uv pip install -e .
+uv sync -p $env:AGI_PYTHON_VERSION
 uv pip install -e src/agilab/core/agi-env
 uv pip install -e src/agilab/core/agi-node
 uv pip install -e src/agilab/core/agi-cluster
+uv pip install -e src/agilab/core/agi-core
 Pop-Location
 
-Write-Host "Installing framework from $(Get-Location)..." -ForegroundColor Blue
 Write-Host "Checking installation..." -ForegroundColor Green
 uv run -p $env:AGI_PYTHON_VERSION --project agi-cluster python run-all-test.py
