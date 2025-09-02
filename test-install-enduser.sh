@@ -52,6 +52,8 @@ echo "===================================="
 # -----------------------------
 # AGI_SPACE / venv
 # -----------------------------
+uv build --wheel
+
 pushd "$AGI_SPACE" >/dev/null
 rm -fr .venv uv.lock
 if [ ! -f pyproject.toml ]; then
@@ -65,7 +67,9 @@ uv sync
 case "${SOURCE}" in
   local)
     echo "Installing packages from local source tree..."
-    uv pip install -e "${AGI_INSTALL_ROOT}"
+
+    uv pip install "${AGI_INSTALL_ROOT}/dist/agilab-"*.whl
+
     for pkg in ${PACKAGES}; do
       if [[ -d "${AGI_INSTALL_PATH}/core/${pkg}" ]]; then
         uv pip install -e "${AGI_INSTALL_PATH}/core/${pkg}"

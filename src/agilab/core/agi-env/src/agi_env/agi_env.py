@@ -199,7 +199,10 @@ class AgiEnv:
         envars = AgiEnv.envars
         site_packages = Path(__file__).parents[1]
         before, sep, after = __file__.rpartition("agilab")
-        agilab_src = Path(before).resolve()
+        if (Path(sys.prefix) / "lib").rglob("agilab"):
+            agilab_src = list((Path(sys.prefix) / "lib").rglob("agilab"))[0]
+        else:
+            agilab_src = Path(before).resolve()
 
         if isinstance(active_app, str):
             # case only worker_env
