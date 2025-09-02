@@ -4,16 +4,30 @@ set -euo pipefail
 # -----------------------------
 # Config
 # -----------------------------
-WORKSPACE="${HOME}/agi-space"
-[[ -d "${WORKSPACE}" ]] || { echo "Error: Missing workspace directory: ${WORKSPACE}" >&2; exit 1; }
-VENV="${WORKSPACE}/.venv"
+AGI_SPACE="${HOME}/agi-space"
+mkdir -p "$AGI_SPACE"
+echo "Using AGI_SPACE: ${AGI_SPACE}"
+
+[[ -d "${AGI_SPACE}" ]] || { echo "Error: Missing AGI_SPACE directory: ${AGI_SPACE}" >&2; exit 1; }
+VENV="${AGI_SPACE}/.venv"
 PACKAGES="agilab agi-env agi-node agi-cluster agi-core"
 SOURCE="local"     # local | pypi | testpypi
 VERSION=""         # optional, e.g. 1.2.3
+AGI_PATH_FILE="$HOME/.local/share/agilab/.agilab-path"
 AGI_INSTALL_PATH=""
 
+
+if [[ -f "$AGI_PATH_FILE" ]]; then
+    AGI_INSTALL_PATH="$(cat "$AGI_PATH_FILE")"
+    echo "agilab install path: $AGI_INSTALL_PATH"
+else
+    echo "No saved agilab install path found." >&2
+fi
+
+AGI_INSTALL_ROOT="${AGI_INSTALL_PATH%/src/agilab}"
+
 usage() {
-  echo "Usage: $0 ---install-path install-path [--source local|pypi|testpypi] [--version X.Y.Z]"
+  echo "Usage: $0 [--source local|pypi|testpypi] [--version X.Y.Z]"
   exit 1
 }
 
@@ -24,29 +38,26 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --source) SOURCE="$2"; shift 2 ;;
     --version) VERSION="$2"; shift 2 ;;
-    --install-path) AGI_INSTALL_PATH="$2"; shift 2 ;;
     *) usage ;;
   esac
 done
 
+[[ -n "${AGI_INSTALL_PATH}" && -d "${AGI_INSTALL_PATH}" ]] || { echo "Error: Missing or invalid install path: ${AGI_INSTALL_PATH}" >&2; exit 1; }
 
 echo "===================================="
 echo " MODE:     ${SOURCE}"
 echo " VERSION:  ${VERSION:-<latest>}"
-echo " INSTALL_PATH: ${AGI_INSTALL_PATH}"
 echo "===================================="
 
-
 # -----------------------------
-# Workspace / venv
+# AGI_SPACE / venv
 # -----------------------------
-mkdir -p "${WORKSPACE}"
-pushd "$WORKSPACE"
+pushd "$AGI_SPACE" >/dev/null
 rm -fr .venv uv.lock
 if [ ! -f pyproject.toml ]; then
-    uv init --bare
+    uv init --bare --no-workspace
 fi
-popd "$WORKSPACE"
+uv sync
 
 # -----------------------------
 # Installation modes
@@ -54,10 +65,9 @@ popd "$WORKSPACE"
 case "${SOURCE}" in
   local)
     echo "Installing packages from local source tree..."
-    echo uv pip install -e "${AGI_INSTALL_PATH}"
-    uv pip install -e "${AGI_INSTALL_PATH}"
+    uv pip install -e "${AGI_INSTALL_ROOT}"
     for pkg in ${PACKAGES}; do
-      if [[ -d "${AGI_INSTALL_PATH}/src/agilab/core/${pkg}" ]]; then
+      if [[ -d "${AGI_INSTALL_PATH}/core/${pkg}" ]]; then
         uv pip install -e "${AGI_INSTALL_PATH}/core/${pkg}"
       fi
     done
@@ -77,10 +87,8 @@ case "${SOURCE}" in
     INDEX_URL="https://test.pypi.org/simple"
     EXTRA_INDEX_URL="https://pypi.org/simple"
 
-    # ensure 'packaging' is available for the resolver snippet
     python -m pip install --quiet packaging
 
-    # Helper: resolve a single latest version that exists for *all* packages on TestPyPI
     resolve_common_latest() {
       python - "$@" <<'PY'
 import json, sys, urllib.request
@@ -91,7 +99,6 @@ pkgs = sys.argv[1:]
 def releases(pkg):
     with urllib.request.urlopen(f"https://test.pypi.org/pypi/{pkg}/json") as r:
         data = json.load(r)
-    # only versions that actually have files
     return {v for v, files in data.get("releases", {}).items() if files}
 
 common = None
@@ -100,40 +107,28 @@ for pkg in pkgs:
     common = rs if common is None else (common & rs)
 
 if not common:
-    # signal "not ready yet"
     print("", end="")
     sys.exit(0)
 
-# pick highest PEP 440 version
 latest = str(sorted((Version(v) for v in common))[-1])
 print(latest, end="")
 PY
     }
 
-    # If no VERSION is provided, compute a common latest with brief retries
     if [[ -z "${VERSION}" ]]; then
       echo "Resolving newest *common* TestPyPI version across: ${PACKAGES}"
       attempt=0
-      VERSION=""
       until [[ -n "${VERSION}" || ${attempt} -ge 10 ]]; do
         VERSION="$(resolve_common_latest ${PACKAGES} || true)"
-        if [[ -z "${VERSION}" ]]; then
-          attempt=$((attempt+1))
-          sleep 3
-        fi
+        [[ -n "${VERSION}" ]] || { attempt=$((attempt+1)); sleep 3; }
       done
-      if [[ -z "${VERSION}" ]]; then
-        echo "ERROR: Could not find a common version for all packages on TestPyPI after retries." >&2
-        exit 1
-      fi
+      [[ -n "${VERSION}" ]] || { echo "ERROR: Could not find a common version for all packages on TestPyPI after retries." >&2; exit 1; }
       echo "✔ Using version ${VERSION} for all packages"
     else
       echo "Installing from TestPyPI (forced VERSION=${VERSION} for all)…"
     fi
 
     echo "Installing packages: ${PACKAGES} == ${VERSION}"
-    # Single resolver run, all pins at once (fast & consistent)
-    # shellcheck disable=SC2046
     uv pip install \
       --index-url "${INDEX_URL}" \
       --extra-index-url "${EXTRA_INDEX_URL}" \
@@ -147,6 +142,7 @@ PY
     ;;
 esac
 
+popd >/dev/null
 # -----------------------------
 # Show results
 # -----------------------------
