@@ -258,10 +258,6 @@ install_core() {
     echo -e "${BLUE}Installing Framework...${NC}"
     pushd "$framework_dir" > /dev/null
       ./install.sh "$framework_dir"
-    pushd agi-core > /dev/null
-    uv sync --dev
-    uv build --wheel
-    popd  > /dev/null
     popd  > /dev/null
 }
 
