@@ -33,6 +33,7 @@ from pathspec.patterns import GitWildMatchPattern
 import py7zr
 import urllib.request
 import inspect
+import importlib.util
 from concurrent.futures import ThreadPoolExecutor
 
 # Get constructor parameters of FormattedTB
@@ -197,11 +198,13 @@ class AgiEnv:
         self.benchmark = AgiEnv.resources_path / "benchmark.json"
         AgiEnv.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
         envars = AgiEnv.envars
-        site_packages = Path(__file__).parents[1]
         before, sep, after = __file__.rpartition("agilab")
-        if (Path(sys.prefix) / "lib").rglob("agilab"):
-            agilab_src = list((Path(sys.prefix) / "lib").rglob("agilab"))[0]
+        agilab = importlib.util.find_spec("agilab")
+        if agilab is not None and agilab.origin:
+            # Direct path to the 'agilab' package folder
+            agilab_src = Path(agilab.origin).parents[1]
         else:
+            # Fallback if not installed
             agilab_src = Path(before).resolve()
 
         if isinstance(active_app, str):
@@ -209,7 +212,6 @@ class AgiEnv:
             self.is_worker_env = True
             active_app = Path(active_app).resolve()
             module = active_app.name.replace("_project", "").replace("-", "_")
-
         else:
             if not active_app:
                 venv_home = Path(sys.prefix).parent
@@ -237,59 +239,39 @@ class AgiEnv:
 
         AgiEnv.install_type = install_type
 
-        if install_type == 0:
-            # remote case
-            agilab_src = Path(agilab_src)
-            if agilab_src.exists():
-                self.agilab_src = agilab_src
-                self.src_cluster = agilab_src / "agilab/core/agi-cluster/src"
-                self.node_root = agilab_src / "agilab/core/agi-node"
-                self.env_root = agilab_src / "agilab/core/agi-env"
-                self.core_root = agilab_src / "agilab/core/agi-core"
-                self.cluster_root = agilab_src / "agilab/core/agi-cluster"
-                self.st_resources = self.agilab_src / "agilab/resources"
-            else:
-                self.agilab_src = site_packages
-                self.src_cluster = site_packages
-                self.node_root = site_packages / "agi_node"
-                self.env_root = site_packages / "agi_env"
-                self.core_root = site_packages / "agi_core"
-                self.cluster_root = site_packages / "agi_cluster"
-                self.st_resources = site_packages / "agilab/resources"
+        agi_node = "agi_node"
+        agi_env = "agi_env"
+        agi_core = "agi_core"
+        agi_cluster = "agi_cluster"
 
+        if install_type == 1:
+            agi_node = Path("agilab/core/agi-node")
+            agi_env = Path("agilab/core/agi-env")
+            agi_core = Path("agilab/core/agi-core")
+            agi_cluster = Path("agilab/core/agi-cluster")
+
+        self.agilab_src = agilab_src
+        self.node_root = agilab_src / agi_node
+        self.env_root = agilab_src / agi_env
+        self.core_root = agilab_src / agi_core
+        self.cluster_root = agilab_src / agi_cluster
+        self.st_resources = agilab_src / "agilab/resources"
+        self.src_cluster = agilab_src / "agilab/core/agi-cluster/src"
+
+        if install_type == 0 and not active_app.exists():
+            src_apps = self.agilab_src / "apps"
             if not active_app.exists():
-                src_apps = self.agilab_src / "apps"
-                if not active_app.exists():
-                    if src_apps.exists():
-                        self.copy_existing_projects(src_apps, active_app.parent)
-                    else:
-                        print(f"Warning: {src_apps} does not exist, nothing to copy!")
+                if src_apps.exists():
+                    self.copy_existing_projects(src_apps, active_app.parent)
                 else:
-                    self.copy_missing(src_apps, active_app.parent)
-            resources_src = self.env_root / "src/agi_env" / self.agi_resources
+                    print(f"Warning: {src_apps} does not exist, nothing to copy!")
+            else:
+                self.copy_missing(src_apps, active_app.parent)
 
-        elif install_type == 1:
-            # dev case for manager
-            self.agilab_src = agilab_src
-            self.src_cluster = agilab_src / "agilab/core/agi-cluster/src"
-            self.node_root = agilab_src / "agilab/core/agi-node"
-            self.env_root = agilab_src / "agilab/core/agi-env"
-            self.core_root = agilab_src / "agilab/core/agi-core"
-            self.cluster_root = agilab_src / "agilab/core/agi-cluster"
-            self.st_resources = self.agilab_src / "agilab/resources"
-            resources_src = self.env_root / "src/agi_env" / self.agi_resources
-
-        elif install_type == 2:
-            # enduser case
-            self.agilab_src = site_packages
-            self.src_env = site_packages / "agi_env"
-            self.src_core = site_packages / "agi_core"
-            self.src_node = site_packages / "agi_node"
-            self.src_cluster = site_packages / "agi_cluster"
-            resources_src = self.src_env  / self.agi_resources
-            self.st_resources = None
-
-        self._init_resources(resources_src)
+        res = self.env_root
+        if install_type==1:
+            res = res / "src/agi_env"
+        self._init_resources(res / self.agi_resources)
         self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
         self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
 
@@ -315,34 +297,26 @@ class AgiEnv:
             sys.path.append(dist)
         self.dist_abs = dist_abs
         self.wenv_target_worker = self.wenv_abs
+        app_src = active_app / "src"
+        self.app_pyproject = active_app / "pyproject.toml"
+        self.worker_path = app_src / target_worker / f"{target_worker}.py"
+        self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
+        self.module_path = app_src / module / f"{self.module}.py"
+        worker_module_path = self.worker_path.parent
 
         if install_type == 0:
-            app_src = active_app / "src"
-            self.app_pyproject = active_app / "pyproject.toml"
-            self.worker_path = app_src / target_worker / f"{target_worker}.py"
-            self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
-            self.module_path = app_src / module / f"{self.module}.py"
-            worker_module_path = self.worker_path.parent
-            self.setup_core = self.node_root / "src/agi_node/agi_dispatcher/build.py"
-
+            self.setup_core = self.node_root / "src"
         elif install_type == 1:
-            app_src = active_app / "src"
-            self.app_pyproject = active_app / "pyproject.toml"
-            self.worker_path = app_src / target_worker / f"{target_worker}.py"
-            self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
-            self.module_path = app_src / module / f"{self.module}.py"
-            worker_module_path = self.worker_path.parent
-            self.setup_core = self.agilab_src / "agilab/core/agi-node/src/agi_node/agi_dispatcher/build.py"
-
+            self.setup_core = self.agilab_src / "agilab/core/agi-node/src"
         elif install_type == 2:
+            self.setup_core = self.wenv_rel / "src"
             active_app = self.agilab_src
             app_src = self.agilab_src / "src"
             self.worker_path = self.wenv_rel / 'src' / target_worker / f"{target_worker}.py"
             self.module_path = self.wenv_rel / 'src' / module / f"{self.module}.py"
             worker_module_path = self.worker_path.parent
-            self.setup_core = self.wenv_rel / "src/agi_dispatcher/build.py"
+        self.setup_core = self.setup_core / "agi_node/agi_dispatcher/build.py"
 
-        self.active_app = active_app
         self.uvproject = active_app / "uv_config.toml"
         self.post_install = worker_module_path / "post_install.py"
         self.pre_install = worker_module_path / "pre_install.py"
@@ -428,7 +402,6 @@ class AgiEnv:
         if app_src_str not in sys.path:
             sys.path.append(app_src_str)
         self.app_src = app_src
-        self.active_app = active_app
 
         # type 3: only core install
         if AgiEnv.install_type != 3:
