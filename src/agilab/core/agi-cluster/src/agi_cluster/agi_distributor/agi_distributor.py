@@ -1065,6 +1065,12 @@ class AGI:
             cmd = f"{uv_worker} pip install -e {env.node_root}"
             await AgiEnv.run(cmd, wenv_abs)
         else:
+            cmd = f"{uv_worker} pip install --upgrade agi-env"
+            await AgiEnv.run(cmd, wenv_abs)
+
+            cmd = f"{uv_worker} pip install --upgrade agi-node"
+            await AgiEnv.run(cmd, wenv_abs)
+
             cmd = f"{uv_worker} sync --upgrade --project {env.env_root}"
             await AgiEnv.run(cmd, wenv_abs)
 
