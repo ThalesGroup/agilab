@@ -58,6 +58,10 @@ dependencies = [
     "twine",
     "watchdog",
     "wheel",
+]
+
+[optional-dependencies]
+dev = [
     "agi-core",
 ]
 
@@ -65,7 +69,6 @@ dependencies = [
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab"
 Issues = "https://github.com/ThalesGroup/agilab/issues"
-
 
 [build-system]
 requires = ["setuptools"]
