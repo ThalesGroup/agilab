@@ -271,7 +271,7 @@ install_apps() {
 
     echo -e "${BLUE}Installing Apps...${NC}"
     pushd "$apps_dir" > /dev/null
-    ./install.sh -debug "$apps_dir" "1"
+    ./install.sh
     popd  > /dev/null
 }
 

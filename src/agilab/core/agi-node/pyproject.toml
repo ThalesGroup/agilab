@@ -72,16 +72,9 @@ dev = [
     "pytest-cov",
     "pytest-asyncio",
     "fastparquet",
-    "pytest-cov"
+    "pytest-cov",
+    "agi-node",
 ]
-
-[tool.uv.sources.agi-env]
-path = "../agi-env"
-editable = true
-
-[tool.uv.sources.agi-node]
-path = "../agi-node"
-editable = true
 
 [tool.mypy]
 mypy_path = [

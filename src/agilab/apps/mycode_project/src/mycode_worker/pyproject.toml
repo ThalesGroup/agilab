@@ -16,8 +16,6 @@ dependencies = [
     "python-dotenv",
     "requests",
     "setuptools",
-    "agi-env",
-    "agi-node",
 ]
 
 [[project.authors]]

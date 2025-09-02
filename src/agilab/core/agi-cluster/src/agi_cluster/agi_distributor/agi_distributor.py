@@ -999,16 +999,16 @@ class AGI:
         else:
             cmd_manager = f"{uv} {run_type} --project {app_path}"
 
+        logging.info(f"Installing manager: {cmd_manager}")
+        await AgiEnv.run(cmd_manager, app_path)
+
         if env.install_type == 1:
-            cmd = f"{uv} pip install -e {env.core_root}"
-            await AgiEnv.run(cmd, app_path)
             cmd = f"{uv} pip install -e {env.env_root}"
             await AgiEnv.run(cmd, app_path)
             cmd = f"{uv} pip install -e {env.node_root}"
             await AgiEnv.run(cmd, app_path)
-
-        logging.info(f"Installing manager: {cmd_manager}")
-        await AgiEnv.run(cmd_manager, app_path)
+            cmd = f"{uv} pip install -e {env.cluster_root}"
+            await AgiEnv.run(cmd, app_path)
 
         #========
         # WORKER install command with and without rapids capable
@@ -1568,6 +1568,10 @@ class AGI:
         app_path = env.active_app
         wenv_abs = env.wenv_abs
         shutil.copy2(env.setup_core, app_path)
+
+        # build egg and unzip it into appth
+        #cmd = f"{env.uv} --project {app_path} pip install -e {env.core_root} {env.env_root}"
+        #await AgiEnv.run(cmd, app_path)
 
         # build egg and unzip it into wenv
         uv = env.uv

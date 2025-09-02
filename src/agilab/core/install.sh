@@ -12,13 +12,11 @@ source "$HOME/.local/share/agilab/.env"
 AGI_PYTHON_VERSION=$(echo "$AGI_PYTHON_VERSION" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*/\1/')
 export AGI_PYTHON_VERSION
 
-
 BLUE='\033[1;34m'
 GREEN='\033[1;32m'
 NC='\033[0m' # No Color
 echo -e "${BLUE}Installing framework from $(pwd)...${NC}"
 echo -e "${BLUE}Python Version: $AGI_PYTHON_VERSION${NC}"
-
 echo -e "${BLUE}Installing agi-cluster...${NC}"
 pushd agi-cluster > /dev/null
 echo "uv sync -p $AGI_PYTHON_VERSION --dev"
@@ -29,7 +27,6 @@ uv pip install -e ../agi-node
 uv pip install -e ../agi-env
 
 popd > /dev/null
-
 echo -e "${BLUE}Installing agi-node...${NC}"
 pushd agi-node > /dev/null
 echo "uv sync -p $AGI_PYTHON_VERSION --dev"
@@ -46,16 +43,13 @@ uv sync -p "$AGI_PYTHON_VERSION" --dev
 uv run python -m ensurepip
 uv pip install -e .
 popd > /dev/null
-
 echo -e "${BLUE}Installing agilab...${NC}"
 pushd ../../.. > /dev/null
-uv sync -p "$AGI_PYTHON_VERSION" --dev
-uv run python -m ensurepip
-echo $(pwd)
-uv pip install -e .
+uv sync -p "$AGI_PYTHON_VERSION"
 uv pip install -e src/agilab/core/agi-env
 uv pip install -e src/agilab/core/agi-node
 uv pip install -e src/agilab/core/agi-cluster
+uv pip install -e src/agilab/core/agi-core
 popd > /dev/null
 
 echo -e "${GREEN}Checking installation...${NC}"

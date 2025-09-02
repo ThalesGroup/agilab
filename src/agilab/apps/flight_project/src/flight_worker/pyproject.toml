@@ -18,8 +18,6 @@ dependencies = [
     "python-dotenv",
     "scipy==1.15.2",
     "setuptools",
-    "agi-env",
-    "agi-node",
 ]
 
 [dependency-groups]

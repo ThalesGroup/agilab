@@ -48,9 +48,13 @@ Tracker = "https://github.com/ThalesGroup/agilab/issue"
 
 [dependency-groups]
 dev = [
-    "black", "pytest", "pytest-asyncio", "licensecheck", "pytest-cov"
+    "black",
+    "pytest",
+    "pytest-asyncio",
+    "licensecheck",
+    "pytest-cov",
+    "agi-env"
 ]
-
 
 [tool.setuptools.data-files]
 agi_env = [
