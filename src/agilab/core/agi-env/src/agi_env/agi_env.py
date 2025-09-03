@@ -300,7 +300,7 @@ class AgiEnv:
                 if src_apps.exists():
                     self.copy_existing_projects(src_apps, active_app.parent)
                 else:
-                    print(f"Warning: {src_apps} does not exist, nothing to copy!")
+                    logger.info(f"Warning: {src_apps} does not exist, nothing to copy!")
             else:
                 self.copy_missing(src_apps, active_app.parent)
 
@@ -530,7 +530,7 @@ class AgiEnv:
                     ),
                 )
             except Exception as e:
-                print(f"Warning: Could not copy {item} → {dst_item}: {e}")
+                logger.error(f"Warning: Could not copy {item} → {dst_item}: {e}")
     def copy_missing(self, src: Path, dst: Path, max_workers=8):
         """
         Copy missing files/directories from src to dst, skipping files/dirs that already exist at dst.
@@ -544,7 +544,7 @@ class AgiEnv:
             src_item = item
             dst_item = dst / item.name
             if not src_item.exists():
-                print(f"[WARN] Source item missing: {src_item}, skipping")
+                logger.info(f"[WARN] Source item missing: {src_item}, skipping")
                 continue
             if src_item.is_dir():
                 dirs.append((src_item, dst_item))
@@ -557,9 +557,9 @@ class AgiEnv:
                 try:
                     shutil.copy2(src_item, dst_item)
                 except Exception as e:
-                    print(f"[WARN] Could not copy {src_item} → {dst_item}: {e}")
+                    logger.error(f"[WARN] Could not copy {src_item} → {dst_item}: {e}")
             else:
-                print(f"[WARN] Source file missing (skipped): {src_item}")
+                logger.info(f"[WARN] Source file missing (skipped): {src_item}")
 
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -569,7 +569,7 @@ class AgiEnv:
             if src_dir.exists():
                 self.copy_missing(src_dir, dst_dir, max_workers=max_workers)
             else:
-                print(f"[WARN] Source dir missing (skipped): {src_dir}")
+                logger.info(f"[WARN] Source dir missing (skipped): {src_dir}")
 
     def _update_env_file(updates: dict):
         env_file = AgiEnv.resources_path / ".env"
@@ -824,12 +824,12 @@ class AgiEnv:
     def _copy_file(src_item, dst_item):
         if not dst_item.exists():
             if not src_item.exists():
-                print(f"[WARN] Source file missing (skipped): {src_item}")
+                logger.info(f"[WARN] Source file missing (skipped): {src_item}")
                 return
             try:
                 shutil.copy2(src_item, dst_item)
             except Exception as e:
-                print(f"[WARN] Could not copy {src_item} → {dst_item}: {e}")
+                logger.error(f"[WARN] Could not copy {src_item} → {dst_item}: {e}")
 
     def copy_missing(self, src: Path, dst: Path, max_workers=8):
         dst.mkdir(parents=True, exist_ok=True)
@@ -1248,9 +1248,9 @@ class AgiEnv:
         try:
             # Using the mklink command to create a junction (/J) which doesn't require admin rights.
             subprocess.check_call(['cmd', '/c', 'mklink', '/J', str(dest), str(source)])
-            print(f"Created junction: {dest} -> {source}")
+            logger.info(f"Created junction: {dest} -> {source}")
         except subprocess.CalledProcessError as e:
-            print(f"Failed to create junction. Error: {e}")
+            logger.info(f"Failed to create junction. Error: {e}")
 
     def create_symlink_windows(source: Path, dest: Path):
         """
@@ -1269,7 +1269,7 @@ class AgiEnv:
 
         # Check if Developer Mode is enabled or if the process has admin rights
         if not has_admin_rights():
-            print(
+            logger.info(
                 "Creating symbolic links on Windows requires administrative privileges or Developer Mode enabled."
             )
             return
@@ -1278,10 +1278,10 @@ class AgiEnv:
 
         success = CreateSymbolicLink(str(dest), str(source), flags)
         if success:
-            print(f"Created symbolic link for .venv: {dest} -> {source}")
+            logger.info(f"Created symbolic link for .venv: {dest} -> {source}")
         else:
             error_code = ctypes.GetLastError()
-            print(
+            logger.info(
                 f"Failed to create symbolic link for .venv. Error code: {error_code}"
             )
 
@@ -1299,9 +1299,9 @@ class AgiEnv:
             else:
                 # For Unix-like systems
                 os.symlink(source_venv, dest_venv, target_is_directory=True)
-                print(f"Created symbolic link for .venv: {dest_venv} -> {source_venv}")
+                lo(f"Created symbolic link for .venv: {dest_venv} -> {source_venv}")
         except OSError as e:
-            print(f"Failed to create symbolic link for .venv: {e}")
+            logger.error(f"Failed to create symbolic link for .venv: {e}")
 
     def create_rename_map(self, target_project: Path, dest_project: Path) -> dict:
         """
@@ -1361,22 +1361,22 @@ class AgiEnv:
         dest_root   = AgiEnv.apps_dir / dest_project
 
         if not source_root.exists():
-            print(f"Source project '{target_project}' does not exist.")
+            logger.info(f"Source project '{target_project}' does not exist.")
             return
         if dest_root.exists():
-            print(f"Destination project '{dest_project}' already exists.")
+            logger.info(f"Destination project '{dest_project}' already exists.")
             return
 
         gitignore = source_root / ".gitignore"
         if not gitignore.exists():
-            print(f"No .gitignore at '{gitignore}'.")
+            logger.info(f"No .gitignore at '{gitignore}'.")
             return
         spec = PathSpec.from_lines(GitWildMatchPattern, gitignore.read_text().splitlines())
 
         try:
             dest_root.mkdir(parents=True, exist_ok=False)
         except Exception as e:
-            print(f"Could not create '{dest_root}': {e}")
+            logger.error(f"Could not create '{dest_root}': {e}")
             return
 
         # 1) Recursive clone
@@ -1524,12 +1524,12 @@ class AgiEnv:
         return self.scheduler_ip
 
     def log_remote_line(self, ip, line):
-        print(f"[{ip}] {line}")  # Replace with your real remote line logger
+        logger.info(f"[{ip}] {line}")  # Replace with your real remote line logger
 
     def unzip_data(self, archive_path: Path, extract_to: Path | str = None):
         archive_path = Path(archive_path)
         if not archive_path.exists():
-            print(f"Warning: Archive '{archive_path}' does not exist. Skipping extraction.")
+            logger.info(f"Warning: Archive '{archive_path}' does not exist. Skipping extraction.")
             return  # Do not exit, just warn
 
         # Normalize extract_to to a Path relative to cwd or absolute
@@ -1540,16 +1540,16 @@ class AgiEnv:
 
         # Clear existing folder if not empty to avoid extraction errors on second call
         if dataset.exists() and any(dataset.iterdir()):
-            print(f"Destination '{dataset}' exists and is not empty. Clearing it before extraction.")
+            logger.info(f"Destination '{dataset}' exists and is not empty. Clearing it before extraction.")
             shutil.rmtree(dataset)
         dest.mkdir(parents=True, exist_ok=True)
 
         try:
             with py7zr.SevenZipFile(archive_path, mode="r") as archive:
                 archive.extractall(path=dest)
-            print(f"Successfully extracted '{archive_path}' to '{dest}'.")
+            logger.info(f"Successfully extracted '{archive_path}' to '{dest}'.")
         except Exception as e:
-            print(f"Failed to extract '{archive_path}': {e}")
+            logger.error(f"Failed to extract '{archive_path}': {e}")
             traceback.print_exc()
             sys.exit(1)
 
@@ -1603,7 +1603,7 @@ class ContentRenamer(ast.NodeTransformer):
             None
         """
         if node.id in self.rename_map:
-            print(f"Renaming Name: {node.id} ➔ {self.rename_map[node.id]}")
+            logger.info(f"Renaming Name: {node.id} ➔ {self.rename_map[node.id]}")
             node.id = self.rename_map[node.id]
         self.generic_visit(node)  # Ensure child nodes are visited
         return node
@@ -1623,7 +1623,7 @@ class ContentRenamer(ast.NodeTransformer):
             None.
         """
         if node.attr in self.rename_map:
-            print(f"Renaming Attribute: {node.attr} ➔ {self.rename_map[node.attr]}")
+            logger.info(f"Renaming Attribute: {node.attr} ➔ {self.rename_map[node.attr]}")
             node.attr = self.rename_map[node.attr]
         self.generic_visit(node)
         return node
@@ -1640,7 +1640,7 @@ class ContentRenamer(ast.NodeTransformer):
             ast.FunctionDef: The function node with potential name change.
         """
         if node.name in self.rename_map:
-            print(f"Renaming Function: {node.name} ➔ {self.rename_map[node.name]}")
+            logger.info(f"Renaming Function: {node.name} ➔ {self.rename_map[node.name]}")
             node.name = self.rename_map[node.name]
         self.generic_visit(node)
         return node
@@ -1657,7 +1657,7 @@ class ContentRenamer(ast.NodeTransformer):
             ast.ClassDef: The potentially modified ClassDef node.
         """
         if node.name in self.rename_map:
-            print(f"Renaming Class: {node.name} ➔ {self.rename_map[node.name]}")
+            logger.info(f"Renaming Class: {node.name} ➔ {self.rename_map[node.name]}")
             node.name = self.rename_map[node.name]
         self.generic_visit(node)
         return node
@@ -1681,7 +1681,7 @@ class ContentRenamer(ast.NodeTransformer):
             None.
         """
         if node.arg in self.rename_map:
-            print(f"Renaming Argument: {node.arg} ➔ {self.rename_map[node.arg]}")
+            logger.info(f"Renaming Argument: {node.arg} ➔ {self.rename_map[node.arg]}")
             node.arg = self.rename_map[node.arg]
         self.generic_visit(node)
         return node
@@ -1701,7 +1701,7 @@ class ContentRenamer(ast.NodeTransformer):
         new_names = []
         for name in node.names:
             if name in self.rename_map:
-                print(f"Renaming Global Variable: {name} ➔ {self.rename_map[name]}")
+                logger.info(f"Renaming Global Variable: {name} ➔ {self.rename_map[name]}")
                 new_names.append(self.rename_map[name])
             else:
                 new_names.append(name)
@@ -1724,7 +1724,7 @@ class ContentRenamer(ast.NodeTransformer):
         new_names = []
         for name in node.names:
             if name in self.rename_map:
-                print(
+                logger.info(
                     f"Renaming Nonlocal Variable: {name} ➔ {self.rename_map[name]}"
                 )
                 new_names.append(self.rename_map[name])
@@ -1779,7 +1779,7 @@ class ContentRenamer(ast.NodeTransformer):
             This function may modify the target variable in the For loop node if it exists in the rename map.
         """
         if isinstance(node.target, ast.Name) and node.target.id in self.rename_map:
-            print(
+            logger.info(
                 f"Renaming For Loop Variable: {node.target.id} ➔ {self.rename_map[node.target.id]}"
             )
             node.target.id = self.rename_map[node.target.id]
@@ -1796,7 +1796,7 @@ class ContentRenamer(ast.NodeTransformer):
         for alias in node.names:
             original_name = alias.name
             if original_name in self.rename_map:
-                print(
+                logger.info(
                     f"Renaming Import Module: {original_name} ➔ {self.rename_map[original_name]}"
                 )
                 alias.name = self.rename_map[original_name]
@@ -1804,7 +1804,7 @@ class ContentRenamer(ast.NodeTransformer):
                 # Handle compound module names if necessary
                 for old, new in self.rename_map.items():
                     if original_name.startswith(old):
-                        print(
+                        logger.info(
                             f"Renaming Import Module: {original_name} ➔ {original_name.replace(old, new, 1)}"
                         )
                         alias.name = original_name.replace(old, new, 1)
@@ -1821,7 +1821,7 @@ class ContentRenamer(ast.NodeTransformer):
         """
         # Rename the module being imported from
         if node.module in self.rename_map:
-            print(
+            logger.info(
                 f"Renaming ImportFrom Module: {node.module} ➔ {self.rename_map[node.module]}"
             )
             node.module = self.rename_map[node.module]
@@ -1829,7 +1829,7 @@ class ContentRenamer(ast.NodeTransformer):
             for old, new in self.rename_map.items():
                 if node.module and node.module.startswith(old):
                     new_module = node.module.replace(old, new, 1)
-                    print(
+                    logger.info(
                         f"Renaming ImportFrom Module: {node.module} ➔ {new_module}"
                     )
                     node.module = new_module
@@ -1838,14 +1838,14 @@ class ContentRenamer(ast.NodeTransformer):
         # Rename the imported names
         for alias in node.names:
             if alias.name in self.rename_map:
-                print(
+                logger.info(
                     f"Renaming Imported Name: {alias.name} ➔ {self.rename_map[alias.name]}"
                 )
                 alias.name = self.rename_map[alias.name]
             else:
                 for old, new in self.rename_map.items():
                     if alias.name.startswith(old):
-                        print(
+                        logger.info(
                             f"Renaming Imported Name: {alias.name} ➔ {alias.name.replace(old, new, 1)}"
                         )
                         alias.name = alias.name.replace(old, new, 1)
