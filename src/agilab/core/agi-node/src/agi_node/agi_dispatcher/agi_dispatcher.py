@@ -642,7 +642,7 @@ class WorkDispatcher:
             sys.path.insert(0, base_worker_dir)
         target_module = await WorkDispatcher._load_module(
             env.target,
-            env.module,
+            env.target,
             path=env.app_src,
         )
         if not target_module:

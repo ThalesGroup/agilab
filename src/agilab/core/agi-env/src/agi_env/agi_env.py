@@ -65,7 +65,7 @@ class AgiEnv:
     install_type = None
     apps_dir = None
     app = None
-    module = None
+    target = None
     GUI_NROW = None
     GUI_SAMPLING = None
     init_done = False
@@ -212,7 +212,6 @@ class AgiEnv:
             # case only worker_env
             self.is_worker_env = True
             active_app = Path(active_app).resolve()
-            module = active_app.name.replace("_project", "").replace("-", "_")
         else:
             if not active_app:
                 venv_home = Path(sys.prefix).parent
@@ -225,7 +224,7 @@ class AgiEnv:
                 raise ValueError(f"{active_app} must end with '_project'")
 
         self.active_app = active_app
-        module = active_app.name.replace("_project", "").replace("_worker","").replace("-", "_")
+        target = active_app.name.replace("_project", "").replace("_worker","").replace("-", "_")
 
         AgiEnv.verbose = verbose
         self.verbose = verbose
@@ -273,16 +272,17 @@ class AgiEnv:
         resources_root = self.env_root
         if install_type==1:
             resources_root = self.env_root / "src/agi_env"
-        self._init_resources(resources_root / self.agi_resources)
+        if install_type != 2:
+            self._init_resources(resources_root / self.agi_resources)
         self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
         self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
 
-        self.module = module
+        self.target = target
         wenv_root = Path("wenv")
-        target_worker = f"{module}_worker"
+        target_worker = f"{target}_worker"
         self.target_worker = target_worker
         wenv_rel = wenv_root / target_worker
-        target_class = "".join(x.title() for x in module.split("_"))
+        target_class = "".join(x.title() for x in target.split("_"))
         self.target_class = target_class
         worker_class = target_class + "Worker"
         self.target_worker_class = worker_class
@@ -299,11 +299,11 @@ class AgiEnv:
             sys.path.append(dist)
         self.dist_abs = dist_abs
         self.wenv_target_worker = self.wenv_abs
-        app_src = active_app / "src"
+        self.app_src = active_app / "src"
         self.app_pyproject = active_app / "pyproject.toml"
-        self.worker_path = app_src / target_worker / f"{target_worker}.py"
+        self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
         self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
-        self.module_path = app_src / module / f"{self.module}.py"
+        self.module_path = self.app_src / target / f"{target}.py"
         worker_module_path = self.worker_path.parent
 
         if install_type == 0:
@@ -313,9 +313,9 @@ class AgiEnv:
         elif install_type == 2:
             self.setup_core = self.wenv_rel / "src"
             active_app = self.agilab_src
-            app_src = self.agilab_src / "src"
+            self.app_src = self.agilab_src / "src"
             self.worker_path = self.wenv_rel / 'src' / target_worker / f"{target_worker}.py"
-            self.module_path = self.wenv_rel / 'src' / module / f"{self.module}.py"
+            self.module_path = self.wenv_rel / 'src' / target / f"{target}.py"
             worker_module_path = self.worker_path.parent
         self.setup_core = self.setup_core / "agi_node/agi_dispatcher/build.py"
 
@@ -324,7 +324,7 @@ class AgiEnv:
         self.pre_install = worker_module_path / "pre_install.py"
         self.post_install_rel = self.wenv_rel / 'src' / target_worker / "post_install.py"
 
-        src_path = normalize_path(app_src)
+        src_path = normalize_path(self.app_src)
         if not src_path in sys.path:
             sys.path.append(src_path)
 
@@ -376,13 +376,6 @@ class AgiEnv:
 
         self.setup_app = active_app / "build.py"
 
-        if isinstance(module, Path):
-            module_path = module.expanduser().resolve()
-        else:
-            module_path = self._determine_module_path(module)
-
-        self.target = module_path.stem
-        self.module_path = module_path
         self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", "data"))
         data_rel = self.AGILAB_SHARE / self.target
         self.dataframe_path = data_rel / "dataframe"
@@ -399,11 +392,10 @@ class AgiEnv:
             self.help_path = "https://thalesgroup.github.io/agilab"
         self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", home_abs / "data"))
 
-        app_src.mkdir(parents=True, exist_ok=True)
-        app_src_str = str(app_src)
+        self.app_src.mkdir(parents=True, exist_ok=True)
+        app_src_str = str(self.app_src)
         if app_src_str not in sys.path:
             sys.path.append(app_src_str)
-        self.app_src = app_src
 
         # type 3: only core install
         if AgiEnv.install_type != 3:
