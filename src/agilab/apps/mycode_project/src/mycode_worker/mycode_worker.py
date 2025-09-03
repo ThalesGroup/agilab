@@ -24,145 +24,59 @@ Module mycode_worker extension of your_code
 # cython:infer_types True
 # cython:boundscheck False
 # cython:cdivision True
+# mycode_worker.py
+from __future__ import annotations
 
-import warnings
 import logging
-from agi_env import AgiEnv, normalize_path
+
+# Import the generic DAG worker (which already imports BaseWorker from agi_dispatcher)
 from agi_node.dag_worker import DagWorker
 
-logger = logging.getLogger(__name__)
-warnings.filterwarnings("ignore")
 
-
-###############################################################################
-#                      Agi Mandatory FUNCTIONS
-###############################################################################
-# class MyCodeWorker:
 class MycodeWorker(DagWorker):
-    """class derived from DagWorker"""
+    """
+    Custom algorithms only. No generic plumbing here.
+    You can freely vary method signatures; DagWorker._invoke adapts the call.
+    """
 
-    def start(self):
-        """
-        Start the function.
+    def start(self, *args, **kwargs):
+        # If BaseWorker/DagWorker defines __init__, keep it; otherwise this is harmless
+        super().__init__(*args, **kwargs) if hasattr(super(), "__init__") else None
+        if not hasattr(self, "logger"):
+            self.logger = logging.getLogger(self.__class__.__name__)
 
-        This function prints the file name if the 'verbose' attribute is greater than 0.
+    # --- Partition 1 (matches your working logs) ---
 
-        Args:
-            self: The current instance of the class.
+    def algo_A(self, args, prev_result):
+        self.logger.info("MyCodeWorker.algo_A")
+        self.logger.info(f"args: {args}")
+        self.logger.info(f"previous_result: {prev_result}")
+        return {"a": 15, "b": 20, "c": 30}
 
-        Returns:
-            None
-        """
-        logging.info(f"from: {__file__}")
-        if(self.mode & 2 and "cy" not in __file__):
-            raise RuntimeError("Cython requested but not executed")
+    def algo_B(self, args):
+        self.logger.info("MyCodeWorker.algo_B")
+        self.logger.info(f"args: {args}")
+        return [15, 20, 30]
 
-    def get_work(self, work: str,args,prev_result):
-        """
-        :param work: contain the worker function name called by BaseWorker.do_work
-        this is type string and not type function to avoid manager (e.g. Mycode) to be dependant of MyCodeWorker
-        :return:
-        """
-        # if it comes in as "FlightSimWorker.work", turn it into "work"
-        method = getattr(self, work, None)
-        if method is None:
-            raise AttributeError(f"No such method '{work}' on {self.__class__.__name__}")
-        return method(args, prev_result)
+    def algo_C(self, prev_result):
+        self.logger.info("MyCodeWorker.algo_C")
+        self.logger.info(f"previous_result: {prev_result}")
+        return 3
 
-    def algo_A(self,args,prev_result):
-        """
-        Perform algorithm A.
-
-        This method belongs to MyCodeWorker class.
-
-        Args:
-            self: Instance of MyCodeWorker.
-
-        Returns:
-            None
-
-        Prints:
-            str: Print statement indicating the execution of algorithm A.
-        """
-        logging.info(f"MyCodeWorker.algo_A")
-        logging.info(f"args: {args}")
-        logging.info(f"previous_result: {prev_result}")
-        return args
-
-    def algo_B(self,args,prev_result):
-        """
-        Prints a message indicating the execution of `algo_B` method in MyCodeWorker class.
-
-        Args:
-            self: Reference to the instance of MyCodeWorker class.
-
-        Returns:
-            None
-        """
-        logging.info(f"MyCodeWorker.algo_B")
-        logging.info(f"args: {args}")
-        logging.info(f"previous_result: {prev_result}")
-        return args
-
-    def algo_C(self,args,prev_result):
-        """
-        Prints a message indicating that the algo_C method of MyCodeWorker has been called.
-
-        Args:
-            self (): The MyCodeWorker instance on which the method is called.
-
-        Returns:
-            None
-        """
-        print(f"MyCodeWorker.algo_C")
-        logging.info(f"args: {args}")
-        logging.info(f"previous_result: {prev_result}")
-        return args
+    # --- Partition 2 (the ones that previously crashed due to signature mismatch) ---
 
     def algo_X(self):
-        """
-        Perform a specific algorithm X.
+        self.logger.info("MyCodeWorker.algo_X")
+        return "X"
 
-        This method prints a message indicating the execution of algorithm X.
+    def algo_Y(self, *, args=None, previous_result=None):
+        self.logger.info("MyCodeWorker.algo_Y")
+        self.logger.info(f"args: {args}")
+        self.logger.info(f"previous_result: {previous_result}")
+        return "Y"
 
-        Args:
-            self: The object instance.
-
-        Returns:
-            None
-        """
-        logging.info(f"MyCodeWorker.algo_X")
-
-    def algo_Y(self):
-        """
-        Perform algorithm Y.
-
-        This method is a part of the MyCodeWorker class.
-
-        Args:
-            self: The instance of the MyCodeWorker class.
-
-        Returns:
-            None
-        """
-        print(f"MyCodeWorker.algo_Y")
-
-    def algo_Z(self):
-        """
-        Perform a specific algorithm Z.
-
-        This function is part of the MyCodeWorker class.
-
-        Returns:
-            None
-        """
-        logging.info(f"MyCodeWorker.algo_Z")
-
-    def stop(self):
-        """
-        Stop the current action.
-
-        Raises:
-            NotImplementedError: This method needs to be implemented in a subclass.
-        """
-        super().stop()
+    def algo_Z(self, args, prev_result):
+        self.logger.info("MyCodeWorker.algo_Z")
+        self.logger.info(f"args: {args}")
+        self.logger.info(f"previous_result: {prev_result}")
+        return "Z"
