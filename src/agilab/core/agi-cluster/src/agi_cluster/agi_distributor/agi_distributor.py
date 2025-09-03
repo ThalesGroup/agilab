@@ -1009,6 +1009,8 @@ class AGI:
             await AgiEnv.run(cmd, app_path)
             cmd = f"{uv} pip install -e {env.cluster_root}"
             await AgiEnv.run(cmd, app_path)
+            cmd = f"{uv} pip install -e ."
+            await AgiEnv.run(cmd, app_path)
 
         #========
         # WORKER install command with and without rapids capable
@@ -1025,15 +1027,9 @@ class AGI:
         logging.info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
 
-        cmd = f"{uv} pip install -e ."
-        await AgiEnv.run(cmd, app_path)
-
         #############
         # install env
         ##############
-
-        cmd = f"{uv_worker} pip install -e ."
-        await AgiEnv.run(cmd, wenv_abs)
 
         if env.install_type == 0:
             cmd = f"{uv_worker} pip install --upgrade agi-env"
@@ -1075,6 +1071,9 @@ class AGI:
 
             cmd = f"{uv_worker} pip install -e {env.node_root}"
             await AgiEnv.run(cmd, wenv_abs)
+
+        cmd = f"{uv_worker} pip install -e {env.active_app}"
+        await AgiEnv.run(cmd, wenv_abs)
 
         # Post-install script
         dest = wenv_abs / "src" / env.target_worker
