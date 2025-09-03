@@ -278,6 +278,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">py7zr</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">urllib.request</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">importlib.util</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
 
 <span class="c1"># Get constructor parameters of FormattedTB</span>
@@ -326,6 +327,8 @@
     <span class="n">verbose</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">pyvers_worker</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">_ip_local_cache</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">({</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> <span class="s2">&quot;::1&quot;</span><span class="p">})</span>
+    <span class="n">INDEX_URL</span><span class="o">=</span><span class="s2">&quot;https://test.pypi.org/simple&quot;</span>
+    <span class="n">EXTRA_INDEX_URL</span><span class="o">=</span><span class="s2">&quot;https://pypi.org/simple&quot;</span>
 
 
 <div class="viewcode-block" id="AgiEnv.init_logging">
@@ -440,31 +443,50 @@
                  <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                  <span class="n">python_variante</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="p">):</span>
 
+        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">is_managed_pc</span> <span class="o">=</span> <span class="n">getpass</span><span class="o">.</span><span class="n">getuser</span><span class="p">()</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;T0&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;resources/.agilab&quot;</span><span class="p">)</span>
+        <span class="n">home_abs</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;MyApp&quot;</span> <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">is_managed_pc</span> <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">=</span> <span class="n">home_abs</span>
+
+        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">resources_path</span> <span class="o">=</span> <span class="n">home_abs</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">env_path</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">resources_path</span> <span class="o">/</span> <span class="s2">&quot;.env&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">benchmark</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">resources_path</span> <span class="o">/</span> <span class="s2">&quot;benchmark.json&quot;</span>
+        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">envars</span> <span class="o">=</span> <span class="n">dotenv_values</span><span class="p">(</span><span class="n">dotenv_path</span><span class="o">=</span><span class="n">env_path</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="n">envars</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">envars</span>
+        <span class="n">agilab_src</span><span class="p">,</span> <span class="n">sep</span><span class="p">,</span> <span class="n">after</span> <span class="o">=</span> <span class="vm">__file__</span><span class="o">.</span><span class="n">rpartition</span><span class="p">(</span><span class="s2">&quot;agilab&quot;</span><span class="p">)</span>
+        <span class="n">agilab_src</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">agilab_src</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+        <span class="n">agilab</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">util</span><span class="o">.</span><span class="n">find_spec</span><span class="p">(</span><span class="s2">&quot;agilab&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">agilab</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">agilab</span><span class="o">.</span><span class="n">origin</span><span class="p">:</span>
+            <span class="c1"># Direct path to the &#39;agilab&#39; package folder</span>
+            <span class="n">agilab_installed</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">agilab</span><span class="o">.</span><span class="n">origin</span><span class="p">)</span><span class="o">.</span><span class="n">parents</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Fallback if not installed</span>
+            <span class="n">agilab_installed</span> <span class="o">=</span> <span class="n">agilab_src</span>
+
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">active_app</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="c1"># case only worker_env</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">is_worker_env</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">active_app</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">active_app</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+            <span class="n">module</span> <span class="o">=</span> <span class="n">active_app</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_project&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">active_app</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;_project&#39;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">active_app</span><span class="p">:</span>
+                <span class="n">venv_home</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
+                <span class="k">if</span> <span class="n">venv_home</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;agilab&quot;</span><span class="p">:</span>
+                    <span class="n">active_app</span> <span class="o">=</span> <span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agilab/apps&quot;</span> <span class="o">/</span> <span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;APP_DEFAULT&quot;</span><span class="p">,</span> <span class="s1">&#39;flight_project&#39;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">active_app</span> <span class="o">=</span> <span class="n">venv_home</span> <span class="o">/</span> <span class="s2">&quot;apps&quot;</span> <span class="o">/</span> <span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;APP_DEFAULT&quot;</span><span class="p">,</span> <span class="s1">&#39;flight_project&#39;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">active_app</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;_project&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">active_app</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;_worker&#39;</span><span class="p">):</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">active_app</span><span class="si">}</span><span class="s2"> must end with &#39;_project&#39;&quot;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span> <span class="o">=</span> <span class="n">active_app</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">active_app</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;_project&#39;</span><span class="p">):</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">active_app</span><span class="si">}</span><span class="s2"> must end with &#39;_project&#39;&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span> <span class="o">=</span> <span class="n">active_app</span>
+        <span class="n">module</span> <span class="o">=</span> <span class="n">active_app</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_project&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_worker&quot;</span><span class="p">,</span><span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
 
         <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
         <span class="n">AgiEnv</span><span class="o">.</span><span class="n">python_variante</span> <span class="o">=</span> <span class="n">python_variante</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">init_logging</span><span class="p">(</span><span class="n">verbose</span><span class="p">)</span>
         <span class="n">AgiEnv</span><span class="o">.</span><span class="n">debug</span> <span class="o">=</span> <span class="n">debug</span>
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">is_managed_pc</span> <span class="o">=</span> <span class="n">getpass</span><span class="o">.</span><span class="n">getuser</span><span class="p">()</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;T0&quot;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;resources/.agilab&quot;</span><span class="p">)</span>
-        <span class="n">home_abs</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;MyApp&quot;</span> <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">is_managed_pc</span> <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">=</span> <span class="n">home_abs</span>
-
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">resource_path</span> <span class="o">=</span> <span class="n">home_abs</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span><span class="o">.</span><span class="n">name</span>
-        <span class="n">env_path</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">resource_path</span> <span class="o">/</span> <span class="s2">&quot;.env&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">benchmark</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">resource_path</span> <span class="o">/</span> <span class="s2">&quot;benchmark.json&quot;</span>
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">envars</span> <span class="o">=</span> <span class="n">dotenv_values</span><span class="p">(</span><span class="n">dotenv_path</span><span class="o">=</span><span class="n">env_path</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
-        <span class="n">envars</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">envars</span>
 
         <span class="k">if</span> <span class="n">install_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">install_type</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="p">(</span><span class="s2">&quot;site-packages&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="vm">__file__</span> <span class="ow">or</span> <span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;agilab/.venv&quot;</span><span class="p">))</span> <span class="k">else</span> <span class="mi">0</span>
@@ -473,56 +495,40 @@
 
         <span class="n">AgiEnv</span><span class="o">.</span><span class="n">install_type</span> <span class="o">=</span> <span class="n">install_type</span>
 
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">active_app</span><span class="p">:</span>
-            <span class="n">active_app</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;APP_DEFAULT&quot;</span><span class="p">,</span> <span class="s1">&#39;flight_project&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">node_root</span> <span class="o">=</span> <span class="n">agilab_installed</span> <span class="o">/</span> <span class="s2">&quot;agi_node&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span> <span class="o">=</span> <span class="n">agilab_installed</span> <span class="o">/</span> <span class="s2">&quot;agi_env&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">core_root</span> <span class="o">=</span> <span class="n">agilab_installed</span> <span class="o">/</span> <span class="s2">&quot;agi_core&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">=</span> <span class="n">agilab_installed</span> <span class="o">/</span> <span class="s2">&quot;agi_cluster&quot;</span>
 
-        <span class="k">if</span> <span class="n">install_type</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="c1"># remote case</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">locate_agilab_installation</span><span class="p">(</span><span class="n">verbose</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agi-env&quot;</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agi-cluster&quot;</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">node_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agi-node&quot;</span>
+        <span class="k">if</span> <span class="n">install_type</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">node_root</span> <span class="o">=</span> <span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agilab/core/agi-node&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span> <span class="o">=</span> <span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agilab/core/agi-env&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">core_root</span> <span class="o">=</span> <span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agilab/core/agi-core&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">=</span> <span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agilab/core/agi-cluster&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">=</span> <span class="n">agilab_src</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">=</span> <span class="n">agilab_installed</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">st_resources</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agilab/resources&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">src_cluster</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agilab/core/agi-cluster/src&quot;</span>
+
+        <span class="k">if</span> <span class="n">install_type</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">active_app</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">src_apps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;apps&quot;</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">active_app</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">src_apps</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">copy_existing_projects</span><span class="p">(</span><span class="n">src_apps</span><span class="p">,</span> <span class="n">active_app</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Warning: </span><span class="si">{</span><span class="n">src_apps</span><span class="si">}</span><span class="s2"> does not exist, nothing to copy!&quot;</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="p">)</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s1">&#39;agi_env&#39;</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span> <span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;agi-cluster&quot;</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">node_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span> <span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;agi-node&quot;</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">copy_missing</span><span class="p">(</span><span class="n">src_apps</span><span class="p">,</span> <span class="n">active_app</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
 
-        <span class="k">elif</span> <span class="n">install_type</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="c1"># dev case for manager</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">read_agilab_path</span><span class="p">(</span><span class="n">verbose</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;core/agi-env&quot;</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;core/agi-cluster&quot;</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">node_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;core/agi-node&quot;</span>
-            <span class="n">resource_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span>
-
-        <span class="k">elif</span> <span class="n">install_type</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-            <span class="c1"># enduser case</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">locate_agilab_installation</span><span class="p">(</span><span class="n">verbose</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;../agi-env&quot;</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">node_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;../agi-node&quot;</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">cluster_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;../agi-cluster&quot;</span>
-            <span class="n">resource_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span> <span class="o">/</span> <span class="s2">&quot;src/agi_env&quot;</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">env_root</span><span class="si">}</span><span class="s2"> do not exist</span><span class="se">\n</span><span class="s2">Your Agilab installation is not valid&quot;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_init_resources</span><span class="p">(</span><span class="n">resource_path</span><span class="p">)</span>
-        <span class="n">apps_dir</span> <span class="o">=</span> <span class="n">active_app</span><span class="o">.</span><span class="n">parent</span>
-
-        <span class="k">try</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">apps_dir</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">=</span> <span class="n">apps_dir</span>
-            <span class="k">elif</span> <span class="n">install_type</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="n">apps_dir</span>
-            <span class="c1">#else:</span>
-            <span class="c1">#    os.makedirs(str(apps_dir), exist_ok=True)</span>
-        <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
-            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;apps_dir not found: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">apps_dir</span><span class="p">)</span>
-            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-
+        <span class="n">resources_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span>
+        <span class="k">if</span> <span class="n">install_type</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">resources_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span> <span class="o">/</span> <span class="s2">&quot;src/agi_env&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_init_resources</span><span class="p">(</span><span class="n">resources_root</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">GUI_NROW</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;GUI_NROW&quot;</span><span class="p">,</span> <span class="mi">1000</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">GUI_SAMPLING</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;GUI_SAMPLING&quot;</span><span class="p">,</span> <span class="mi">20</span><span class="p">))</span>
 
-        <span class="n">module</span> <span class="o">=</span> <span class="n">active_app</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_project&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">module</span> <span class="o">=</span> <span class="n">module</span>
         <span class="n">wenv_root</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;wenv&quot;</span><span class="p">)</span>
         <span class="n">target_worker</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">module</span><span class="si">}</span><span class="s2">_worker&quot;</span>
@@ -545,46 +551,36 @@
             <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dist</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dist_abs</span> <span class="o">=</span> <span class="n">dist_abs</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">wenv_target_worker</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span>
+        <span class="n">app_src</span> <span class="o">=</span> <span class="n">active_app</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_pyproject</span> <span class="o">=</span> <span class="n">active_app</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span> <span class="o">=</span> <span class="n">app_src</span> <span class="o">/</span> <span class="n">target_worker</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">target_worker</span><span class="si">}</span><span class="s2">.py&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">worker_pyproject</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">module_path</span> <span class="o">=</span> <span class="n">app_src</span> <span class="o">/</span> <span class="n">module</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="si">}</span><span class="s2">.py&quot;</span>
+        <span class="n">worker_module_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">parent</span>
 
         <span class="k">if</span> <span class="n">install_type</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="n">app_src</span> <span class="o">=</span> <span class="n">active_app</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">app_pyproject</span> <span class="o">=</span> <span class="n">active_app</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span> <span class="o">=</span> <span class="n">app_src</span> <span class="o">/</span> <span class="n">target_worker</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">target_worker</span><span class="si">}</span><span class="s2">.py&quot;</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">worker_pyproject</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">module_path</span> <span class="o">=</span> <span class="n">app_src</span> <span class="o">/</span> <span class="n">module</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="si">}</span><span class="s2">.py&quot;</span>
-            <span class="n">worker_module_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">parent</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">setup_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;core/agi_node/agi_dispatcher/build.py&quot;</span>
-
+            <span class="bp">self</span><span class="o">.</span><span class="n">setup_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_root</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
         <span class="k">elif</span> <span class="n">install_type</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="n">app_src</span> <span class="o">=</span> <span class="n">active_app</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">app_pyproject</span> <span class="o">=</span> <span class="n">active_app</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span> <span class="o">=</span> <span class="n">app_src</span> <span class="o">/</span> <span class="n">target_worker</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">target_worker</span><span class="si">}</span><span class="s2">.py&quot;</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">worker_pyproject</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">module_path</span> <span class="o">=</span> <span class="n">app_src</span> <span class="o">/</span> <span class="n">module</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="si">}</span><span class="s2">.py&quot;</span>
-            <span class="n">worker_module_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">parent</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">setup_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;core/agi-node/src/agi_node/agi_dispatcher/build.py&quot;</span>
-
+            <span class="bp">self</span><span class="o">.</span><span class="n">setup_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agilab/core/agi-node/src&quot;</span>
         <span class="k">elif</span> <span class="n">install_type</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">setup_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_rel</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
             <span class="n">active_app</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span>
             <span class="n">app_src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_rel</span> <span class="o">/</span> <span class="s1">&#39;src&#39;</span> <span class="o">/</span> <span class="n">target_worker</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">target_worker</span><span class="si">}</span><span class="s2">.py&quot;</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">module_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_rel</span> <span class="o">/</span> <span class="s1">&#39;src&#39;</span> <span class="o">/</span> <span class="n">module</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="si">}</span><span class="s2">.py&quot;</span>
             <span class="n">worker_module_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">parent</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">setup_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_rel</span> <span class="o">/</span> <span class="s2">&quot;src/agi_dispatcher/build.py&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setup_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">setup_core</span> <span class="o">/</span> <span class="s2">&quot;agi_node/agi_dispatcher/build.py&quot;</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">app_abs</span> <span class="o">=</span> <span class="n">active_app</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">uvproject</span> <span class="o">=</span> <span class="n">active_app</span> <span class="o">/</span> <span class="s2">&quot;uv_config.toml&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">post_install</span> <span class="o">=</span> <span class="n">worker_module_path</span> <span class="o">/</span> <span class="s2">&quot;post_install.py&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">pre_install</span> <span class="o">=</span> <span class="n">worker_module_path</span> <span class="o">/</span> <span class="s2">&quot;pre_install.py&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">post_install_rel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_rel</span> <span class="o">/</span> <span class="s1">&#39;src&#39;</span> <span class="o">/</span> <span class="n">target_worker</span> <span class="o">/</span> <span class="s2">&quot;post_install.py&quot;</span>
 
-
         <span class="n">src_path</span> <span class="o">=</span> <span class="n">normalize_path</span><span class="p">(</span><span class="n">app_src</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">src_path</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">src_path</span><span class="p">)</span>
 
-
-        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">=</span> <span class="n">apps_dir</span>
+        <span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">=</span> <span class="n">active_app</span><span class="o">.</span><span class="n">parent</span>
         <span class="n">distribution_tree</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span> <span class="o">/</span> <span class="s2">&quot;distribution_tree.json&quot;</span>
         <span class="k">if</span> <span class="n">distribution_tree</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
             <span class="n">distribution_tree</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
@@ -624,10 +620,9 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">uv_worker</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">uv</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">pyvers_worker</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">python_version</span>
 
-        <span class="k">if</span> <span class="n">install_type</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">update_pyproject</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_pyproject</span><span class="p">()</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">projects</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_projects</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">projects</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_projects</span><span class="p">(</span><span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">projects</span><span class="p">:</span>
             <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not find any target project app in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="s1">&#39;apps&#39;</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
 
@@ -661,7 +656,6 @@
         <span class="k">if</span> <span class="n">app_src_str</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">app_src_str</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">=</span> <span class="n">app_src</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">app_abs</span> <span class="o">=</span> <span class="n">active_app</span>
 
         <span class="c1"># type 3: only core install</span>
         <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">install_type</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
@@ -669,7 +663,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_init_apps</span><span class="p">()</span>
 
         <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;nt&quot;</span><span class="p">:</span>
-            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">export_local_bin</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">export_local_bin</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">AgiEnv</span><span class="o">.</span><span class="n">export_local_bin</span> <span class="o">=</span> <span class="s1">&#39;export PATH=&quot;$HOME/.local/bin:$PATH&quot;;&#39;</span></div>
 
@@ -750,32 +744,39 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">locate_agilab_installation</span><span class="p">(</span><span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path_importer_cache</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;agi_env&quot;</span><span class="p">):</span>
-                <span class="n">base_dir</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;_env&#39;</span><span class="p">,</span> <span class="s1">&#39;lab&#39;</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
-                    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Fallback agilab path found: </span><span class="si">{</span><span class="n">base_dir</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">install_type</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-                    <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="n">base_dir</span><span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">before</span><span class="p">,</span> <span class="n">sep</span><span class="p">,</span> <span class="n">after</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">rpartition</span><span class="p">(</span><span class="s2">&quot;agilab&quot;</span><span class="p">)</span>
-                    <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="n">before</span><span class="p">)</span> <span class="o">/</span> <span class="n">sep</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Falling back to current working directory&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">())</span></div>
+                <span class="n">base_dir</span> <span class="o">=</span> <span class="n">p</span>
+        <span class="n">before</span><span class="p">,</span> <span class="n">sep</span><span class="p">,</span> <span class="n">after</span> <span class="o">=</span> <span class="n">base_dir</span><span class="o">.</span><span class="n">rpartition</span><span class="p">(</span><span class="s2">&quot;agilab&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">install_type</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">base_dir</span><span class="o">.</span><span class="n">parent</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="n">before</span><span class="p">)</span> <span class="o">/</span> <span class="n">sep</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.copy_existing_projects">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.copy_existing_projects">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">copy_existing_projects</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src_apps</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">dst_apps</span><span class="p">:</span> <span class="n">Path</span><span class="p">):</span>
         <span class="n">dst_apps</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">src_apps</span><span class="o">.</span><span class="n">iterdir</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">is_dir</span><span class="p">()</span> <span class="ow">and</span> <span class="n">item</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;project&quot;</span><span class="p">):</span>
-                <span class="n">dst_item</span> <span class="o">=</span> <span class="n">dst_apps</span> <span class="o">/</span> <span class="n">item</span><span class="o">.</span><span class="n">name</span>
-                <span class="k">try</span><span class="p">:</span>
-                    <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">dst_item</span><span class="p">,</span> <span class="n">dirs_exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                <span class="k">except</span> <span class="ne">FileExistsError</span><span class="p">:</span>
-                    <span class="k">pass</span>  <span class="c1"># Already exists, that&#39;s fine</span>
-                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Warning: Could not copy </span><span class="si">{</span><span class="n">item</span><span class="si">}</span><span class="s2"> → </span><span class="si">{</span><span class="n">dst_item</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
 
+        <span class="c1"># match every nested directory ending with &quot;_project&quot;</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">src_apps</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s2">&quot;*_project&quot;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">item</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
+                <span class="k">continue</span>
+
+            <span class="n">rel</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">src_apps</span><span class="p">)</span>  <span class="c1"># keep nested structure</span>
+            <span class="n">dst_item</span> <span class="o">=</span> <span class="n">dst_apps</span> <span class="o">/</span> <span class="n">rel</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span>
+                    <span class="n">item</span><span class="p">,</span>
+                    <span class="n">dst_item</span><span class="p">,</span>
+                    <span class="n">dirs_exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># merge into existing tree</span>
+                    <span class="n">symlinks</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># keep symlinks as symlinks</span>
+                    <span class="n">ignore</span><span class="o">=</span><span class="n">shutil</span><span class="o">.</span><span class="n">ignore_patterns</span><span class="p">(</span>  <span class="c1"># skip bulky/ephemeral stuff</span>
+                        <span class="s2">&quot;.venv&quot;</span><span class="p">,</span> <span class="s2">&quot;build&quot;</span><span class="p">,</span> <span class="s2">&quot;dist&quot;</span><span class="p">,</span> <span class="s2">&quot;__pycache__&quot;</span><span class="p">,</span> <span class="s2">&quot;.pytest_cache&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;.idea&quot;</span><span class="p">,</span> <span class="s2">&quot;.mypy_cache&quot;</span><span class="p">,</span> <span class="s2">&quot;.ruff_cache&quot;</span><span class="p">,</span> <span class="s2">&quot;*.egg-info&quot;</span>
+                    <span class="p">),</span>
+                <span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Warning: Could not copy </span><span class="si">{</span><span class="n">item</span><span class="si">}</span><span class="s2"> → </span><span class="si">{</span><span class="n">dst_item</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">copy_missing</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">dst</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">max_workers</span><span class="o">=</span><span class="mi">8</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -818,15 +819,13 @@
                 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[WARN] Source dir missing (skipped): </span><span class="si">{</span><span class="n">src_dir</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_update_env_file</span><span class="p">(</span><span class="n">updates</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
-        <span class="n">env_file</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">resource_path</span> <span class="o">/</span> <span class="s2">&quot;.env&quot;</span>
-        <span class="c1">#os.makedirs(env_file.parent, exist_ok=True)</span>
-        <span class="c1">#env_file.touch(exist_ok=True)</span>
+        <span class="n">env_file</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">resources_path</span> <span class="o">/</span> <span class="s2">&quot;.env&quot;</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">updates</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">set_key</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">env_file</span><span class="p">),</span> <span class="n">k</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">quote_mode</span><span class="o">=</span><span class="s2">&quot;never&quot;</span><span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_init_resources</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">resources_path</span><span class="p">):</span>
-        <span class="n">src_env_path</span> <span class="o">=</span> <span class="n">resources_path</span> <span class="o">/</span> <span class="s2">&quot;.env&quot;</span>
-        <span class="n">dest_env_file</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">resource_path</span> <span class="o">/</span> <span class="s2">&quot;.env&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_init_resources</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">resources_src</span><span class="p">):</span>
+        <span class="n">src_env_path</span> <span class="o">=</span> <span class="n">resources_src</span> <span class="o">/</span> <span class="s2">&quot;.env&quot;</span>
+        <span class="n">dest_env_file</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">resources_path</span> <span class="o">/</span> <span class="s2">&quot;.env&quot;</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">src_env_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
             <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Installation issue: </span><span class="si">{</span><span class="n">src_env_path</span><span class="si">}</span><span class="s2"> is missing!&quot;</span>
             <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
@@ -834,11 +833,11 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="n">dest_env_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
             <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">dest_env_file</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">src_env_path</span><span class="p">,</span> <span class="n">dest_env_file</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">dirs</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="n">resources_path</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">dirs</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="n">resources_src</span><span class="p">):</span>
             <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
                 <span class="n">src_file</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">root</span><span class="p">)</span> <span class="o">/</span> <span class="n">file</span>
-                <span class="n">relative_path</span> <span class="o">=</span> <span class="n">src_file</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">resources_path</span><span class="p">)</span>
-                <span class="n">dest_file</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">resource_path</span> <span class="o">/</span> <span class="n">relative_path</span>
+                <span class="n">relative_path</span> <span class="o">=</span> <span class="n">src_file</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">resources_src</span><span class="p">)</span>
+                <span class="n">dest_file</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">resources_path</span> <span class="o">/</span> <span class="n">relative_path</span>
                 <span class="n">dest_file</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">dest_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
                     <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">src_file</span><span class="p">,</span> <span class="n">dest_file</span><span class="p">)</span>
@@ -847,7 +846,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">projects</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_projects</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">project</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">projects</span><span class="p">):</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">target</span> <span class="o">==</span> <span class="n">project</span><span class="p">[:</span><span class="o">-</span><span class="mi">8</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">):</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">app_abs</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">project</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">project</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">project_index</span> <span class="o">=</span> <span class="n">idx</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">app</span> <span class="o">=</span> <span class="n">project</span>
                 <span class="k">break</span>
@@ -867,7 +866,7 @@
             <span class="n">project_name</span> <span class="o">=</span> <span class="n">name</span> <span class="o">+</span> <span class="s2">&quot;_project&quot;</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">project_name</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">,</span> <span class="s2">&quot;-&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;_project&quot;</span>
-        <span class="n">module_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">project_name</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span> <span class="o">/</span> <span class="n">module_name</span> <span class="o">/</span> <span class="p">(</span><span class="n">module_name</span> <span class="o">+</span> <span class="s2">&quot;.py&quot;</span><span class="p">)</span>
+        <span class="n">module_path</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">project_name</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span> <span class="o">/</span> <span class="n">module_name</span> <span class="o">/</span> <span class="p">(</span><span class="n">module_name</span> <span class="o">+</span> <span class="s2">&quot;.py&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">module_path</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
 
 <div class="viewcode-block" id="AgiEnv.get_projects">
@@ -1033,13 +1032,13 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">copilot_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agi_copilot.py&quot;</span></div>
 
 
-<div class="viewcode-block" id="AgiEnv.update_pyproject">
-<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.update_pyproject">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">update_pyproject</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="AgiEnv.update_pyproject_enduser">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.update_pyproject_enduser">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_pyproject_enduser</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">agilab_src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span>
         <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_pyproject</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_pyproject</span><span class="p">]:</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-                <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">file</span><span class="si">}</span><span class="s2"> not found in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">app_abs</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">file</span><span class="si">}</span><span class="s2"> not found in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">active_app</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
             <span class="n">text</span> <span class="o">=</span> <span class="n">file</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
             <span class="n">doc</span> <span class="o">=</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
@@ -1047,26 +1046,59 @@
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">uv</span> <span class="o">=</span> <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;tool&quot;</span><span class="p">][</span><span class="s2">&quot;uv&quot;</span><span class="p">]</span>
             <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
-                <span class="k">return</span>
+                <span class="k">continue</span>
 
             <span class="k">if</span> <span class="s2">&quot;sources&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">uv</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">uv</span><span class="p">[</span><span class="s2">&quot;sources&quot;</span><span class="p">],</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">items</span><span class="o">.</span><span class="n">Table</span><span class="p">):</span>
-                <span class="k">return</span>
+                <span class="k">continue</span>
 
             <span class="n">sources</span> <span class="o">=</span> <span class="n">uv</span><span class="p">[</span><span class="s2">&quot;sources&quot;</span><span class="p">]</span>
 
             <span class="k">if</span> <span class="s2">&quot;site-packages&quot;</span> <span class="ow">in</span> <span class="n">agilab_src</span><span class="o">.</span><span class="n">parts</span><span class="p">:</span>
-                <span class="k">if</span> <span class="s2">&quot;agi-node&quot;</span> <span class="ow">in</span> <span class="n">sources</span><span class="p">:</span>
-                    <span class="k">del</span> <span class="n">sources</span><span class="p">[</span><span class="s2">&quot;agi-node&quot;</span><span class="p">]</span>
-                    <span class="k">if</span> <span class="ow">not</span> <span class="n">sources</span><span class="p">:</span>
-                        <span class="k">del</span> <span class="n">uv</span><span class="p">[</span><span class="s2">&quot;sources&quot;</span><span class="p">]</span>
-                    <span class="k">if</span> <span class="ow">not</span> <span class="n">uv</span><span class="p">:</span>
-                        <span class="k">del</span> <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;tool&quot;</span><span class="p">][</span><span class="s2">&quot;uv&quot;</span><span class="p">]</span>
-                    <span class="k">if</span> <span class="ow">not</span> <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;tool&quot;</span><span class="p">]:</span>
-                        <span class="k">del</span> <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;tool&quot;</span><span class="p">]</span>
-                <span class="n">deps</span> <span class="o">=</span> <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;project&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dependencies&quot;</span><span class="p">,</span> <span class="p">[])</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">dep</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;agi-node&quot;</span> <span class="k">for</span> <span class="n">dep</span> <span class="ow">in</span> <span class="n">deps</span><span class="p">):</span>
-                    <span class="n">deps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;agi-node&quot;</span><span class="p">)</span>
-                    <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;project&quot;</span><span class="p">][</span><span class="s2">&quot;dependencies&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">deps</span>
+                <span class="k">for</span> <span class="n">package</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;agi-env&quot;</span><span class="p">,</span> <span class="s2">&quot;agi-node&quot;</span><span class="p">,</span> <span class="s2">&quot;agi-cluster&quot;</span><span class="p">]:</span>
+                    <span class="k">if</span> <span class="n">package</span> <span class="ow">in</span> <span class="n">sources</span><span class="p">:</span>
+                        <span class="n">sources</span><span class="p">[</span><span class="n">package</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                            <span class="s2">&quot;path&quot;</span><span class="p">:</span> <span class="s2">&quot;../../.venv/lib/python3.13/site-packages/&quot;</span> <span class="o">+</span> <span class="n">package</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">),</span>
+                            <span class="s2">&quot;editable&quot;</span><span class="p">:</span> <span class="kc">True</span>
+                        <span class="p">}</span>
+
+            <span class="n">file</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">tomlkit</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">doc</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="AgiEnv.update_pyproject">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.update_pyproject">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_pyproject</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">agilab_src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span>
+        <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_pyproject</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_pyproject</span><span class="p">]:</span> <span class="c1">#, self.core_root / &quot;src/agilab/core/pyproject.toml&quot;]:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">file</span><span class="si">}</span><span class="s2"> not found in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">active_app</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+            <span class="n">text</span> <span class="o">=</span> <span class="n">file</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+            <span class="n">doc</span> <span class="o">=</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">uv</span> <span class="o">=</span> <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;tool&quot;</span><span class="p">][</span><span class="s2">&quot;uv&quot;</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="k">if</span> <span class="s2">&quot;sources&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">uv</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">uv</span><span class="p">[</span><span class="s2">&quot;sources&quot;</span><span class="p">],</span> <span class="n">tomlkit</span><span class="o">.</span><span class="n">items</span><span class="o">.</span><span class="n">Table</span><span class="p">):</span>
+                <span class="k">continue</span>
+
+            <span class="n">sources</span> <span class="o">=</span> <span class="n">uv</span><span class="p">[</span><span class="s2">&quot;sources&quot;</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="s2">&quot;site-packages&quot;</span> <span class="ow">in</span> <span class="n">agilab_src</span><span class="o">.</span><span class="n">parts</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">package</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;agi-env&quot;</span><span class="p">,</span> <span class="s2">&quot;agi-node&quot;</span><span class="p">,</span> <span class="s2">&quot;agi-cluster&quot;</span><span class="p">]:</span>
+                    <span class="k">if</span> <span class="n">package</span> <span class="ow">in</span> <span class="n">sources</span><span class="p">:</span>
+                        <span class="k">del</span> <span class="n">sources</span><span class="p">[</span><span class="n">package</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">sources</span><span class="p">:</span>
+                            <span class="k">del</span> <span class="n">uv</span><span class="p">[</span><span class="s2">&quot;sources&quot;</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">uv</span><span class="p">:</span>
+                            <span class="k">del</span> <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;tool&quot;</span><span class="p">][</span><span class="s2">&quot;uv&quot;</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;tool&quot;</span><span class="p">]:</span>
+                            <span class="k">del</span> <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;tool&quot;</span><span class="p">]</span>
+                    <span class="n">deps</span> <span class="o">=</span> <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;project&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dependencies&quot;</span><span class="p">,</span> <span class="p">[])</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">dep</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">package</span> <span class="k">for</span> <span class="n">dep</span> <span class="ow">in</span> <span class="n">deps</span><span class="p">):</span>
+                        <span class="n">deps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">package</span><span class="p">)</span>
+                        <span class="n">doc</span><span class="p">[</span><span class="s2">&quot;project&quot;</span><span class="p">][</span><span class="s2">&quot;dependencies&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">deps</span>
 
             <span class="n">file</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">tomlkit</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">doc</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span></div>
 
@@ -1116,9 +1148,18 @@
         <span class="n">args_ui_snippet</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">args_ui_snippet</span> <span class="o">=</span> <span class="n">args_ui_snippet</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">gitignore_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_abs</span> <span class="o">/</span> <span class="s2">&quot;.gitignore&quot;</span>
-        <span class="n">dest</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">resource_path</span>
-        <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;resources&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="p">,</span> <span class="n">dirs_exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gitignore_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span> <span class="o">/</span> <span class="s2">&quot;.gitignore&quot;</span>
+        <span class="n">dest</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">resources_path</span>
+        <span class="n">src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;resources&quot;</span>
+        <span class="k">if</span> <span class="n">src</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">src</span><span class="o">.</span><span class="n">iterdir</span><span class="p">():</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">file</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+                    <span class="k">continue</span>
+                <span class="n">dest_file</span> <span class="o">=</span> <span class="n">dest</span> <span class="o">/</span> <span class="n">file</span><span class="o">.</span><span class="n">name</span>
+                <span class="k">if</span> <span class="n">dest_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                    <span class="k">continue</span>
+                <span class="n">shutil</span><span class="o">.</span><span class="n">copy2</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">dest_file</span><span class="p">)</span>
+        <span class="c1"># shutil.copytree(self.agilab_src / &quot;resources&quot;, dest, dirs_exist_ok=True)</span>
 
 
     <span class="nd">@staticmethod</span>
@@ -1315,7 +1356,7 @@
         <span class="n">snippet_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">runenv</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">matches</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">target</span><span class="si">}</span><span class="s2">.py&quot;</span><span class="p">)</span>
         <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">snippet_file</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
             <span class="n">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">code</span><span class="p">)</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv -q run --project </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">venv</span><span class="p">)</span><span class="si">}</span><span class="s2"> python </span><span class="si">{</span><span class="n">snippet_file</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;uv run --no-sync --project </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">venv</span><span class="p">)</span><span class="si">}</span><span class="s2"> python </span><span class="si">{</span><span class="n">snippet_file</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">_run_bg</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">cwd</span><span class="o">=</span><span class="n">venv</span><span class="p">,</span> <span class="n">log_callback</span><span class="o">=</span><span class="n">log_callback</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">log_callback</span><span class="p">:</span>
             <span class="n">log_callback</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Process finished with output: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
@@ -1417,7 +1458,7 @@
 <div class="viewcode-block" id="AgiEnv.change_active_app">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.change_active_app">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">change_active_app</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">app</span><span class="p">,</span> <span class="n">install_type</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">app</span> <span class="o">!=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">active_app</span><span class="o">.</span><span class="n">name</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">app</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">active_app</span><span class="o">.</span><span class="n">name</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">app</span><span class="p">,</span> <span class="n">install_type</span><span class="o">=</span><span class="n">install_type</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span><span class="p">)</span></div>
 
 
@@ -1493,7 +1534,7 @@
 <div class="viewcode-block" id="AgiEnv.set_apps_dir">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.set_apps_dir">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">set_apps_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">apps_dir</span><span class="p">:</span> <span class="n">Path</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">=</span><span class="n">apps_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">=</span> <span class="n">apps_dir</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">set_env_var</span><span class="p">(</span><span class="s2">&quot;APPS_DIR&quot;</span><span class="p">,</span> <span class="n">apps_dir</span><span class="p">)</span></div>
 
 
@@ -1646,8 +1687,8 @@
             <span class="n">dest_project</span> <span class="o">=</span> <span class="n">dest_project</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="n">dest_project</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s2">&quot;_project&quot;</span><span class="p">)</span>
 
         <span class="n">rename_map</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_rename_map</span><span class="p">(</span><span class="n">target_project</span><span class="p">,</span> <span class="n">dest_project</span><span class="p">)</span>
-        <span class="n">source_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">target_project</span>
-        <span class="n">dest_root</span>   <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">dest_project</span>
+        <span class="n">source_root</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">target_project</span>
+        <span class="n">dest_root</span>   <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">dest_project</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">source_root</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Source project &#39;</span><span class="si">{</span><span class="n">target_project</span><span class="si">}</span><span class="s2">&#39; does not exist.&quot;</span><span class="p">)</span>
@@ -1841,8 +1882,8 @@
 
         <span class="c1"># Normalize extract_to to a Path relative to cwd or absolute</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">extract_to</span><span class="p">:</span>
-            <span class="n">extract_to</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">)</span>
-        <span class="n">dest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">/</span> <span class="n">Path</span><span class="p">(</span><span class="n">extract_to</span><span class="p">)</span>
+            <span class="n">extract_to</span> <span class="o">=</span> <span class="s2">&quot;data&quot;</span>
+        <span class="n">dest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">/</span> <span class="n">extract_to</span>
         <span class="n">dataset</span> <span class="o">=</span> <span class="n">dest</span> <span class="o">/</span> <span class="s2">&quot;dataset&quot;</span>
 
         <span class="c1"># Clear existing folder if not empty to avoid extraction errors on second call</span>

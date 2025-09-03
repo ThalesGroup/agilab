@@ -198,14 +198,15 @@ class AgiEnv:
         self.benchmark = AgiEnv.resources_path / "benchmark.json"
         AgiEnv.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
         envars = AgiEnv.envars
-        before, sep, after = __file__.rpartition("agilab")
+        agilab_src, sep, after = __file__.rpartition("agilab")
+        agilab_src = Path(agilab_src).resolve()
         agilab = importlib.util.find_spec("agilab")
         if agilab is not None and agilab.origin:
             # Direct path to the 'agilab' package folder
-            agilab_src = Path(agilab.origin).parents[1]
+            agilab_installed = Path(agilab.origin).parents[1]
         else:
             # Fallback if not installed
-            agilab_src = Path(before).resolve()
+            agilab_installed = agilab_src
 
         if isinstance(active_app, str):
             # case only worker_env
@@ -239,24 +240,22 @@ class AgiEnv:
 
         AgiEnv.install_type = install_type
 
-        agi_node = "agi_node"
-        agi_env = "agi_env"
-        agi_core = "agi_core"
-        agi_cluster = "agi_cluster"
+        self.node_root = agilab_installed / "agi_node"
+        self.env_root = agilab_installed / "agi_env"
+        self.core_root = agilab_installed / "agi_core"
+        self.cluster_root = agilab_installed / "agi_cluster"
 
         if install_type == 1:
-            agi_node = Path("agilab/core/agi-node")
-            agi_env = Path("agilab/core/agi-env")
-            agi_core = Path("agilab/core/agi-core")
-            agi_cluster = Path("agilab/core/agi-cluster")
+            self.node_root = agilab_src / "agilab/core/agi-node"
+            self.env_root = agilab_src / "agilab/core/agi-env"
+            self.core_root = agilab_src / "agilab/core/agi-core"
+            self.cluster_root = agilab_src / "agilab/core/agi-cluster"
+            self.agilab_src = agilab_src
+        else:
+            self.agilab_src = agilab_installed
 
-        self.agilab_src = agilab_src
-        self.node_root = agilab_src / agi_node
-        self.env_root = agilab_src / agi_env
-        self.core_root = agilab_src / agi_core
-        self.cluster_root = agilab_src / agi_cluster
-        self.st_resources = agilab_src / "agilab/resources"
-        self.src_cluster = agilab_src / "agilab/core/agi-cluster/src"
+        self.st_resources = self.agilab_src / "agilab/resources"
+        self.src_cluster = self.agilab_src / "agilab/core/agi-cluster/src"
 
         if install_type == 0 and not active_app.exists():
             src_apps = self.agilab_src / "apps"
@@ -268,10 +267,10 @@ class AgiEnv:
             else:
                 self.copy_missing(src_apps, active_app.parent)
 
-        res = self.env_root
+        resources_root = self.env_root
         if install_type==1:
-            res = res / "src/agi_env"
-        self._init_resources(res / self.agi_resources)
+            resources_root = self.env_root / "src/agi_env"
+        self._init_resources(resources_root / self.agi_resources)
         self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
         self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
 
