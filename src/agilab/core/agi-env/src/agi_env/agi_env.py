@@ -234,7 +234,10 @@ class AgiEnv:
         AgiEnv.debug = debug
 
         if install_type is None:
-            install_type = 1 if ("site-packages" not in __file__ or sys.prefix.endswith("agilab/.venv")) else 0
+            if agilab_src.name == "src":
+                install_type = 1
+            else:
+                install_type = 0
         elif isinstance(install_type, str):
             install_type = int(install_type)
 
