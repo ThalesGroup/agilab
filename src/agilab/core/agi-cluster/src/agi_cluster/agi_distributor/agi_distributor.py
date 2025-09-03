@@ -202,7 +202,7 @@ class AGI:
         if mode is None or isinstance(mode, list):
             mode_range = range(8) if mode is None else sorted(mode)
             return await AGI._run_all_modes(
-                target, env, scheduler, workers, verbose, mode_range, rapids_enabled, **args
+                env, scheduler, workers, verbose, mode_range, rapids_enabled, **args
             )
         else:
             if isinstance(mode, str):
@@ -269,7 +269,6 @@ class AGI:
 
     @staticmethod
     async def _run_all_modes(
-        target: str,
         env: AgiEnv,
         scheduler: Optional[str] = None,
         workers: Optional[Dict[str, int]] = None,
@@ -310,7 +309,6 @@ class AGI:
 
             # Run the target with the current mode.
             run = await AGI.run(
-                target,
                 env,
                 scheduler=scheduler,
                 workers=workers,
@@ -349,7 +347,7 @@ class AGI:
         for m in runs:
             runs[m]["delta"] = runs[m]["seconds"] - best_run_data["seconds"]
 
-        AGI.best_mode[target] = best_run_data
+        AGI.best_mode[env.target] = best_run_data
         AGI._mode_auto = False
 
         # Convert numeric keys to strings for valid JSON output.
