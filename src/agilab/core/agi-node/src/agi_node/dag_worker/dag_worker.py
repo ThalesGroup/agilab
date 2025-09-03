@@ -136,14 +136,14 @@ class DagWorker(BaseWorker):
 
     def exec_multi_process(self, workers_tree, workers_tree_info):
         """
-        Execute tasks in multiple threads, distributing branches to workers in
-        round‑robin, then honoring dependencies per worker.
+        Execute tasks across a thread pool, respecting dependencies,
+        but only for branches assigned to this worker via round-robin.
         """
         # guard against None
-        workers_tree      = workers_tree      or []
+        workers_tree = workers_tree or []
         workers_tree_info = workers_tree_info or []
-        num_workers       = len(workers_tree)
-        worker_id         = self.worker_id
+        num_workers = len(workers_tree)
+        worker_id = self.worker_id
 
         # collect tasks assigned to this worker by round-robin
         assigned = []
@@ -157,35 +157,67 @@ class DagWorker(BaseWorker):
             logging.info(f"No tasks for worker {worker_id}")
             return
 
-        # build combined dependency graph & metadata
-        dependency_graph = {fn: deps for fn, deps, _, _ in assigned}
-        function_info    = {
-            fn: {"partition_name": pname, "weight": weight}
-            for fn, _, pname, weight in assigned
+        # ---- normalize to hashable keys (function names), like mono-process path ----
+        # fn is a dict with keys: "functions name", "args"
+        fargs = {fn_dict["functions name"]: fn_dict.get("args", {})
+                 for (fn_dict, _, _, _) in assigned}
+
+        def _dep_name(d):
+            # deps might already be strings; if dicts slipped in, extract their name
+            return d["functions name"] if isinstance(d, dict) else d
+
+        dependency_graph = {
+            fn_dict["functions name"]: [_dep_name(d) for d in deps]
+            for (fn_dict, deps, _, _) in assigned
         }
+        function_info = {
+            fn_dict["functions name"]: {"partition_name": pname, "weight": weight}
+            for (fn_dict, _, pname, weight) in assigned
+        }
+
+        # debug
+        logging.info(f"Complete dependency graph for worker {worker_id}:")
+        for fn, deps in dependency_graph.items():
+            logging.info(f"  {fn} -> {deps}")
+        logging.info("Function metadata:")
+        for fn, meta in function_info.items():
+            logging.info(f"  {fn}: algo={meta['partition_name']}, sequence={meta['weight']}")
 
         # topological sort
         try:
             topo_order = self.topological_sort(dependency_graph)
+            logging.info(f"Topological order: {topo_order}")
         except ValueError as e:
             logging.error(f"Error in dependency graph: {e}")
             return
 
-        # execute in parallel
-        futures = {}
-        with ThreadPoolExecutor() as executor:
+        from concurrent.futures import ThreadPoolExecutor
+        import os
+
+        results = {}  # fn_name -> return value from get_work
+        futures = {}  # fn_name -> (future, partition_name)
+
+        max_workers = min(max(2, os.cpu_count() or 2), len(topo_order))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             for fn in topo_order:
+                # ensure dependencies finished & collect their outputs
+                pipeline_result = {}
                 for dep in dependency_graph.get(fn, []):
                     if dep in futures:
-                        futures[dep][0].result()
-                future = executor.submit(self.get_work, fn)
+                        dep_result = futures[dep][0].result()
+                        results[dep] = dep_result
+                        pipeline_result[dep] = dep_result
+
+                # schedule this task with args + pipeline_result (matches mono-process)
+                future = executor.submit(self.get_work, fn, fargs.get(fn, {}), pipeline_result)
                 futures[fn] = (future, function_info[fn]["partition_name"])
 
         # collect results
         for fn, (future, pname) in futures.items():
             try:
-                future.result()
+                results[fn] = future.result()
                 logging.info(f"Method {fn} for partition {pname} completed.")
             except Exception as exc:
                 logging.error(f"Method {fn} for partition {pname} generated an exception: {exc}")
+
 
