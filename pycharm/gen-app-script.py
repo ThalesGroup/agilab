@@ -84,6 +84,7 @@ if __name__ == "__main__":
         'pycharm/_template_app_distribute.xml',
         'pycharm/_template_app_test_manager.xml',
         'pycharm/_template_app_test_worker.xml',
+        'pycharm/_template_app_call_worker.xml',
         'pycharm/_template_app_test.xml',
     ]
 
