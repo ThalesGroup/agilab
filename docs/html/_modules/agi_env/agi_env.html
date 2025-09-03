@@ -315,7 +315,7 @@
     <span class="n">install_type</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">apps_dir</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">app</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">module</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">target</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">GUI_NROW</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">GUI_SAMPLING</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">init_done</span> <span class="o">=</span> <span class="kc">False</span>
@@ -467,7 +467,6 @@
             <span class="c1"># case only worker_env</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">is_worker_env</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="n">active_app</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">active_app</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
-            <span class="n">module</span> <span class="o">=</span> <span class="n">active_app</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_project&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">active_app</span><span class="p">:</span>
                 <span class="n">venv_home</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
@@ -480,7 +479,7 @@
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">active_app</span><span class="si">}</span><span class="s2"> must end with &#39;_project&#39;&quot;</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span> <span class="o">=</span> <span class="n">active_app</span>
-        <span class="n">module</span> <span class="o">=</span> <span class="n">active_app</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_project&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_worker&quot;</span><span class="p">,</span><span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="n">active_app</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_project&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_worker&quot;</span><span class="p">,</span><span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
 
         <span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
@@ -489,7 +488,10 @@
         <span class="n">AgiEnv</span><span class="o">.</span><span class="n">debug</span> <span class="o">=</span> <span class="n">debug</span>
 
         <span class="k">if</span> <span class="n">install_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">install_type</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="p">(</span><span class="s2">&quot;site-packages&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="vm">__file__</span> <span class="ow">or</span> <span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;agilab/.venv&quot;</span><span class="p">))</span> <span class="k">else</span> <span class="mi">0</span>
+            <span class="k">if</span> <span class="n">agilab_src</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;src&quot;</span><span class="p">:</span>
+                <span class="n">install_type</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">install_type</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">install_type</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="n">install_type</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">install_type</span><span class="p">)</span>
 
@@ -525,16 +527,17 @@
         <span class="n">resources_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span>
         <span class="k">if</span> <span class="n">install_type</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
             <span class="n">resources_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span> <span class="o">/</span> <span class="s2">&quot;src/agi_env&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_init_resources</span><span class="p">(</span><span class="n">resources_root</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">install_type</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_init_resources</span><span class="p">(</span><span class="n">resources_root</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">agi_resources</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">GUI_NROW</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;GUI_NROW&quot;</span><span class="p">,</span> <span class="mi">1000</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">GUI_SAMPLING</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;GUI_SAMPLING&quot;</span><span class="p">,</span> <span class="mi">20</span><span class="p">))</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">module</span> <span class="o">=</span> <span class="n">module</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">target</span> <span class="o">=</span> <span class="n">target</span>
         <span class="n">wenv_root</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;wenv&quot;</span><span class="p">)</span>
-        <span class="n">target_worker</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">module</span><span class="si">}</span><span class="s2">_worker&quot;</span>
+        <span class="n">target_worker</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">target</span><span class="si">}</span><span class="s2">_worker&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">target_worker</span> <span class="o">=</span> <span class="n">target_worker</span>
         <span class="n">wenv_rel</span> <span class="o">=</span> <span class="n">wenv_root</span> <span class="o">/</span> <span class="n">target_worker</span>
-        <span class="n">target_class</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">title</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">module</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">))</span>
+        <span class="n">target_class</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">title</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">target</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">target_class</span> <span class="o">=</span> <span class="n">target_class</span>
         <span class="n">worker_class</span> <span class="o">=</span> <span class="n">target_class</span> <span class="o">+</span> <span class="s2">&quot;Worker&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">target_worker_class</span> <span class="o">=</span> <span class="n">worker_class</span>
@@ -551,11 +554,11 @@
             <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dist</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dist_abs</span> <span class="o">=</span> <span class="n">dist_abs</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">wenv_target_worker</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_abs</span>
-        <span class="n">app_src</span> <span class="o">=</span> <span class="n">active_app</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">=</span> <span class="n">active_app</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">app_pyproject</span> <span class="o">=</span> <span class="n">active_app</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span> <span class="o">=</span> <span class="n">app_src</span> <span class="o">/</span> <span class="n">target_worker</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">target_worker</span><span class="si">}</span><span class="s2">.py&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">/</span> <span class="n">target_worker</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">target_worker</span><span class="si">}</span><span class="s2">.py&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">worker_pyproject</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">module_path</span> <span class="o">=</span> <span class="n">app_src</span> <span class="o">/</span> <span class="n">module</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="si">}</span><span class="s2">.py&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">module_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">/</span> <span class="n">target</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">target</span><span class="si">}</span><span class="s2">.py&quot;</span>
         <span class="n">worker_module_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">parent</span>
 
         <span class="k">if</span> <span class="n">install_type</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
@@ -565,9 +568,9 @@
         <span class="k">elif</span> <span class="n">install_type</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">setup_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_rel</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
             <span class="n">active_app</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span>
-            <span class="n">app_src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_rel</span> <span class="o">/</span> <span class="s1">&#39;src&#39;</span> <span class="o">/</span> <span class="n">target_worker</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">target_worker</span><span class="si">}</span><span class="s2">.py&quot;</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">module_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_rel</span> <span class="o">/</span> <span class="s1">&#39;src&#39;</span> <span class="o">/</span> <span class="n">module</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="si">}</span><span class="s2">.py&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">module_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_rel</span> <span class="o">/</span> <span class="s1">&#39;src&#39;</span> <span class="o">/</span> <span class="n">target</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">target</span><span class="si">}</span><span class="s2">.py&quot;</span>
             <span class="n">worker_module_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_path</span><span class="o">.</span><span class="n">parent</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">setup_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">setup_core</span> <span class="o">/</span> <span class="s2">&quot;agi_node/agi_dispatcher/build.py&quot;</span>
 
@@ -576,7 +579,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">pre_install</span> <span class="o">=</span> <span class="n">worker_module_path</span> <span class="o">/</span> <span class="s2">&quot;pre_install.py&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">post_install_rel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wenv_rel</span> <span class="o">/</span> <span class="s1">&#39;src&#39;</span> <span class="o">/</span> <span class="n">target_worker</span> <span class="o">/</span> <span class="s2">&quot;post_install.py&quot;</span>
 
-        <span class="n">src_path</span> <span class="o">=</span> <span class="n">normalize_path</span><span class="p">(</span><span class="n">app_src</span><span class="p">)</span>
+        <span class="n">src_path</span> <span class="o">=</span> <span class="n">normalize_path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">app_src</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">src_path</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">src_path</span><span class="p">)</span>
 
@@ -628,13 +631,6 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">setup_app</span> <span class="o">=</span> <span class="n">active_app</span> <span class="o">/</span> <span class="s2">&quot;build.py&quot;</span>
 
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">Path</span><span class="p">):</span>
-            <span class="n">module_path</span> <span class="o">=</span> <span class="n">module</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">module_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_determine_module_path</span><span class="p">(</span><span class="n">module</span><span class="p">)</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">target</span> <span class="o">=</span> <span class="n">module_path</span><span class="o">.</span><span class="n">stem</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">module_path</span> <span class="o">=</span> <span class="n">module_path</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">AGILAB_SHARE</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;AGI_SHARE_DIR&quot;</span><span class="p">,</span> <span class="s2">&quot;data&quot;</span><span class="p">))</span>
         <span class="n">data_rel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">AGILAB_SHARE</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">target</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dataframe_path</span> <span class="o">=</span> <span class="n">data_rel</span> <span class="o">/</span> <span class="s2">&quot;dataframe&quot;</span>
@@ -651,11 +647,10 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">help_path</span> <span class="o">=</span> <span class="s2">&quot;https://thalesgroup.github.io/agilab&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">AGILAB_SHARE</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;AGI_SHARE_DIR&quot;</span><span class="p">,</span> <span class="n">home_abs</span> <span class="o">/</span> <span class="s2">&quot;data&quot;</span><span class="p">))</span>
 
-        <span class="n">app_src</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="n">app_src_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">app_src</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">app_src_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">app_src</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">app_src_str</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">app_src_str</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">=</span> <span class="n">app_src</span>
 
         <span class="c1"># type 3: only core install</span>
         <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">install_type</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
