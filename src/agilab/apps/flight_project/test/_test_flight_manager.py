@@ -2,9 +2,10 @@ import asyncio
 from agi_env import AgiEnv
 from flight import Flight  # assuming your Flight class is here
 from datetime import date
+from pathlib import Path
 
 async def main():
-    env = AgiEnv(active_app=Path(__file_).parents[1], verbose=True)
+    env = AgiEnv(active_app=Path(__file__).parents[1], verbose=True)
 
     # Instantiate Flight with your parameters
     flight = Flight(

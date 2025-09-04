@@ -258,6 +258,9 @@ class AgiEnv:
             if not active_app.name.endswith('_project') and not active_app.name.endswith('_worker'):
                 raise ValueError(f"{active_app} must end with '_project'")
 
+        if not active_app.exists():
+            raise ValueError(f"No app found at {active_app}")
+
         self.active_app = active_app
         target = active_app.name.replace("_project", "").replace("_worker","").replace("-", "_")
 
