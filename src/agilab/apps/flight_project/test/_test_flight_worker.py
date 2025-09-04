@@ -43,7 +43,7 @@ async def main():
         path = str(env.home_abs / "src")
         if path not in sys.path:
             sys.path.insert(0, path)
-        BaseWorker.new("flight_project", mode=i, env=env, verbose=3, args=args)
+        BaseWorker.new(mode=i, env=env, verbose=3, args=args)
         result = await BaseWorker.run(mode=i, args=args)
         print(result)
 

@@ -40,7 +40,7 @@ async def main():
         path = str(agilab_path / "core/env/src")
         if path not in sys.path:
             sys.path.insert(0, path)
-        BaseWorker.new('mycode', mode=i, env=env, verbose=3, args=args)
+        BaseWorker.new(mode=i, env=env, verbose=3, args=args)
         result = await BaseWorker.run(mode=i, args=args)
 
     print(result)
