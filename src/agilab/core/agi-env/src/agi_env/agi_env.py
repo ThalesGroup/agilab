@@ -966,7 +966,7 @@ class AgiEnv:
                 if returncode != 0:
                     # Promote to ERROR with context even if lines were logged as INFO
                     logging.error("Command failed with exit code %s: %s", returncode, cmd)
-                    raise RuntimeError(f"Command failed (exit {returncode})")
+                    sys.exit(returncode)
 
                 return "\n".join(result)
             except asyncio.TimeoutError:
