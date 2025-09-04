@@ -9,3 +9,8 @@ async def main():
     res = await AGI.install(app_env, modes_enabled=4,
                             verbose=True, 
                             scheduler="127.0.0.1", workers={'127.0.0.1': 2})
+    print(res)
+    return res
+
+if __name__ == "__main__":
+    asyncio.run(main())

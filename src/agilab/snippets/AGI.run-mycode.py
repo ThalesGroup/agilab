@@ -9,4 +9,9 @@ async def main():
     res = await AGI.run(app_env, mode=4, 
                         scheduler="127.0.0.1", workers={'127.0.0.1': 2}, 
                         verbose=True, param1=0, param2="some text", param3=3.14, param4=True)
+    print(res)
+    return res
+
+if __name__ == "__main__":
+    asyncio.run(main())
             
