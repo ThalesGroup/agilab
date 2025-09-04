@@ -52,7 +52,7 @@ async def main():
             "--install-type", type=str, help="Install type", required=True
         )
         parser.add_argument(
-            "--verbose", type=int, default=3, help="Verbosity level (default: 3)"
+            "--verbose", type=int, default=1, help="Verbosity level (1-3 default: 1)"
         )
 
         args, unknown = parser.parse_known_args()
