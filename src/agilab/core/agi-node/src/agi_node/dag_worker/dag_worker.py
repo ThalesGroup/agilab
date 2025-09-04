@@ -37,6 +37,12 @@ class DagWorker(BaseWorker):
       - Uses _invoke() at the single call site in exec_multi_process()
     """
 
+    # inside class DagWorker(BaseWorker):
+
+    def get_work(self, fn_name, args, prev_result):
+        """Back-compat: delegate to the signature-aware invoker."""
+        return self._invoke(fn_name, args, prev_result)
+
     # -----------------------------
     # Generic: signature-aware invocation
     # -----------------------------
@@ -103,121 +109,126 @@ class DagWorker(BaseWorker):
         self.exec_multi_process(workers_tree, workers_tree_info)
 
     @staticmethod
-    def topological_sort(graph: Mapping[str, Iterable[str]]) -> List[str]:
+    def topological_sort(graph):
         """
-        Kahn's algorithm for topological sort.
-        Raises ValueError if a cycle exists.
+        Kahn's algorithm.
+        `graph` is { node: [dependencies...] }.
+        Build edges (dep -> node) and count indegree(node) as #prereqs.
         """
-        from collections import defaultdict, deque
+        from collections import deque
 
-        indeg = defaultdict(int)
-        adj: Dict[str, List[str]] = {k: list(v) for k, v in graph.items()}
+        # all nodes = keys + anything appearing only as a dep
+        nodes = set(graph.keys())
+        for deps in graph.values():
+            for d in deps:
+                nodes.add(d)
 
-        # Ensure all nodes appear in the maps
-        for u, deps in list(adj.items()):
-            indeg.setdefault(u, 0)
-            for v in deps:
-                indeg[v] += 1
-                adj.setdefault(v, [])
+        # dep -> [nodes depending on dep], indegree(node)
+        adj = {n: [] for n in nodes}
+        indeg = {n: 0 for n in nodes}
+        for node, deps in graph.items():
+            for dep in deps:
+                adj[dep].append(node)
+                indeg[node] += 1
 
-        q = deque([n for n, d in indeg.items() if d == 0])
-        order: List[str] = []
-
-        while q:
-            u = q.popleft()
+        # deterministic order helps tests
+        zero = deque(sorted(n for n, d in indeg.items() if d == 0))
+        order = []
+        while zero:
+            u = zero.popleft()
             order.append(u)
-            for v in adj[u]:
+            for v in sorted(adj[u]):
                 indeg[v] -= 1
                 if indeg[v] == 0:
-                    q.append(v)
+                    zero.append(v)
 
-        if len(order) != len(adj):
+        if len(order) != len(nodes):
             raise ValueError("Cycle detected in dependency graph")
         return order
 
     def exec_multi_process(self, workers_tree, workers_tree_info):
         """
-        Execute tasks across a thread pool, respecting dependencies,
-        for the partitions assigned to this worker (round-robin by index).
+        Execute tasks in multiple threads, distributing branches to workers by
+        round‑robin, then honoring dependencies per worker.
         """
-        logger = getattr(self, "logger", logging.getLogger(self.__class__.__name__))
+        import logging
+        from concurrent.futures import ThreadPoolExecutor
+        import os
 
         workers_tree = workers_tree or []
         workers_tree_info = workers_tree_info or []
 
         num_partitions = max(1, len(workers_tree))
-        worker_id = getattr(self, "worker_id", 0)
+        worker_id = getattr(self, "worker_id", 0) % num_partitions
 
-        # collect tasks assigned to this worker by round-robin
+        # gather tasks for this worker by round‑robin
         assigned = []
         for idx, (tree, info) in enumerate(zip(workers_tree, workers_tree_info)):
             if idx % num_partitions != worker_id:
                 continue
-            for (fn, deps), (pname, weight) in zip(tree, info):
-                assigned.append((fn, deps, pname, weight))
+            for (fn_dict, deps), (pname, weight) in zip(tree, info):
+                assigned.append((fn_dict, deps, pname, weight))
 
         if not assigned:
-            logger.info(f"No tasks for worker {worker_id}")
-            return
+            logging.info(f"No tasks for worker {worker_id}")
+            return 0.0
 
-        # ---- normalize to hashable keys (function names) ----
-        def _dep_name(d):
-            # deps might already be strings; if dicts slipped in, extract their name
-            return d["functions name"] if isinstance(d, dict) else d
+        def _name(x):
+            return x["functions name"] if isinstance(x, dict) else x
 
-        fargs = {
-            fn_dict["functions name"]: fn_dict.get("args", {})
-            for (fn_dict, _, _, _) in assigned
-        }
+        # normalize: everything keyed by function name (string)
+        fargs = {fn["functions name"]: fn.get("args", ())
+                 for (fn, _, _, _) in assigned}
 
         dependency_graph = {
-            fn_dict["functions name"]: [_dep_name(d) for d in deps]
-            for (fn_dict, deps, _, _) in assigned
+            fn["functions name"]: [_name(d) for d in deps]
+            for (fn, deps, _, _) in assigned
         }
 
         function_info = {
-            fn_dict["functions name"]: {"partition_name": pname, "weight": weight}
-            for (fn_dict, _, pname, weight) in assigned
+            fn["functions name"]: {"partition_name": pname, "weight": weight}
+            for (fn, _, pname, weight) in assigned
         }
 
-        # debug logs (kept identical in spirit to your previous logs)
-        logger.info(f"Complete dependency graph for worker {worker_id}:")
+        # helpful logs (optional)
+        logging.info(f"Complete dependency graph for worker {worker_id}:")
         for fn, deps in dependency_graph.items():
-            logger.info(f"  {fn} -> {deps}")
-        logger.info("Function metadata:")
-        for fn, meta in function_info.items():
-            logger.info(f"  {fn}: algo={meta['partition_name']}, sequence={meta['weight']}")
+            logging.info(f"  {fn} -> {deps}")
 
-        # topological sort
-        try:
-            topo_order = self.topological_sort(dependency_graph)
-            logger.info(f"Topological order: {topo_order}")
-        except ValueError as e:
-            logger.error(f"Error in dependency graph: {e}")
-            return
+        # topo order over string names
+        topo = self.topological_sort(dependency_graph)
 
         results = {}
         futures = {}
 
-        max_workers = min(max(2, os.cpu_count() or 2), len(topo_order))
+        max_workers = min(max(2, os.cpu_count() or 2), len(topo))
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            for fn in topo_order:
-                # ensure dependencies finished & collect their outputs
+            for fn in topo:
+                # wait for deps & collect their outputs
                 pipeline_result = {}
                 for dep in dependency_graph.get(fn, []):
                     if dep in futures:
-                        dep_result = futures[dep][0].result()
-                        results[dep] = dep_result
-                        pipeline_result[dep] = dep_result
+                        dep_val = futures[dep][0].result()
+                        results[dep] = dep_val
+                        pipeline_result[dep] = dep_val
 
-                # *** Minimal change here: call _invoke instead of a fixed get_work ***
-                future = executor.submit(self._invoke, fn, fargs.get(fn, {}), pipeline_result)
+                # forward (fn_name, args, pipeline_result) to get_work
+                future = executor.submit(
+                    self.get_work,
+                    fn,
+                    fargs.get(fn, ()),
+                    pipeline_result,
+                )
                 futures[fn] = (future, function_info[fn]["partition_name"])
 
-        # collect results
+        # finalize (log exceptions)
         for fn, (future, pname) in futures.items():
             try:
                 results[fn] = future.result()
-                logger.info(f"Method {fn} for partition {pname} completed.")
+                logging.info(f"Method {fn} for partition {pname} completed.")
             except Exception as exc:
-                logger.error(f"Method {fn} for partition {pname} generated an exception: {exc}")
+                logging.error(f"Method {fn} for partition {pname} generated an exception: {exc}")
+
+        # exec_multi_process doesn't need to return anything specific
+        return 0.0
+

@@ -41,35 +41,74 @@
   "workers_tree": [
     [
       [
-        "algo_A",
+        {
+          "functions name": "algo_A",
+          "args": {
+            "a": 15,
+            "b": 20,
+            "c": 30
+          }
+        },
         []
       ],
       [
-        "algo_B",
+        {
+          "functions name": "algo_B",
+          "args": [
+            15,
+            20,
+            30
+          ]
+        },
         [
           "algo_A"
         ]
       ],
       [
-        "algo_C",
+        {
+          "functions name": "algo_C",
+          "args": 3
+        },
         [
-          "algo_B"
+          "algo_B",
+          "algo_A"
         ]
       ]
     ],
     [
       [
-        "algo_X",
+        {
+          "functions name": "algo_X",
+          "args": {
+            "a": 15,
+            "b": 20,
+            "c": 30
+          }
+        },
         []
       ],
       [
-        "algo_Y",
+        {
+          "functions name": "algo_Y",
+          "args": {
+            "a": 15,
+            "b": 20,
+            "c": 30
+          }
+        },
         [
           "algo_X"
         ]
       ],
       [
-        "algo_Z",
+        {
+          "functions name": "algo_Z",
+          "args": {
+            "a": 15,
+            "b": 20,
+            "c": 30
+          }
+        },
         [
           "algo_Y"
         ]

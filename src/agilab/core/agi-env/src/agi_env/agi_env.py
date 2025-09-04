@@ -1250,7 +1250,7 @@ class AgiEnv:
             subprocess.check_call(['cmd', '/c', 'mklink', '/J', str(dest), str(source)])
             logger.info(f"Created junction: {dest} -> {source}")
         except subprocess.CalledProcessError as e:
-            logger.info(f"Failed to create junction. Error: {e}")
+            logger.error(f"Failed to create junction. Error: {e}")
 
     def create_symlink_windows(source: Path, dest: Path):
         """
