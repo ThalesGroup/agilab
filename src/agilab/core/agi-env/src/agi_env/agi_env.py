@@ -801,7 +801,8 @@ class AgiEnv:
             line = str(line)
 
         msg = f"{GREEN}{line}{RESET}" if sys.stdout.isatty() else line
-        AgiEnv.logger.info(msg)
+        if AgiEnv.logger:
+            AgiEnv.logger.info(msg)
 
     @staticmethod
     async def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
