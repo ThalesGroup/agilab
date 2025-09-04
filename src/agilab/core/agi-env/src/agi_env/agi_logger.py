@@ -16,7 +16,7 @@ COLORS = {
         "CRITICAL": "\033[41m" # red background
     },
     "classname": "\033[35m",  # magenta
-    "msg": "\033[97m"         # white
+    "msg": "\033[39m"         # white
 }
 ANSI_SGR_RE = re.compile(r'\x1b\[[0-9;]*m')
 
