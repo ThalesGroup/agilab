@@ -29,6 +29,10 @@ dev = [
     "your_agent_project",
 ]
 
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 # do not remove
 [tool.uv.sources.your_agent_project]
 workspace = true

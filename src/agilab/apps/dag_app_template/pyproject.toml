@@ -29,6 +29,10 @@ dev = [
     "your_dag_project",
 ]
 
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [tool.uv.sources.your_dag_project]
 workspace = true
 

@@ -38,6 +38,10 @@ dev = [
     "flight_project",
 ]
 
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [tool.uv.sources.flight_project]
 workspace = true
 
