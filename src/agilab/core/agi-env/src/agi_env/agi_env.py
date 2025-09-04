@@ -437,6 +437,7 @@ class AgiEnv:
 
         # type 3: only core install
         if AgiEnv.install_type != 3:
+            AgiEnv.snippets = self.agilab_src / "agilab/snippets"
             self.init_envars_app(AgiEnv.envars)
             self._init_apps()
 
@@ -742,7 +743,7 @@ class AgiEnv:
         if not AGILAB_LOG_ABS.exists():
             AGILAB_LOG_ABS.mkdir(parents=True)
         self.AGILAB_LOG_ABS = AGILAB_LOG_ABS
-        self.runenv = self.AGILAB_LOG_ABS
+        self.runenv = AgiEnv.snippets
         AGILAB_EXPORT_ABS = Path(envars.get("AGI_EXPORT_DIR", self.home_abs / "export"))
         if not AGILAB_EXPORT_ABS.exists():
             AGILAB_EXPORT_ABS.mkdir(parents=True)

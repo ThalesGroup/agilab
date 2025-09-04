@@ -28,55 +28,93 @@ Module mycode_worker extension of your_code
 from __future__ import annotations
 
 import logging
+import warnings
+
+logger = logging.getLogger(__name__)
+warnings.filterwarnings("ignore")
 
 # Import the generic DAG worker (which already imports BaseWorker from agi_dispatcher)
 from agi_node.dag_worker import DagWorker
 
 
 class MycodeWorker(DagWorker):
-    """
-    Custom algorithms only. No generic plumbing here.
-    You can freely vary method signatures; DagWorker._invoke adapts the call.
-    """
+    """class derived from DagWorker"""
 
-    def start(self, *args, **kwargs):
-        # If BaseWorker/DagWorker defines __init__, keep it; otherwise this is harmless
-        super().__init__(*args, **kwargs) if hasattr(super(), "__init__") else None
-        if not hasattr(self, "logger"):
-            logger = logging.getLogger(self.__class__.__name__)
+    def start(self):
+        """
+        Start the function.
+
+        This function prints the file name if the 'verbose' attribute is greater than 0.
+
+        Args:
+            self: The current instance of the class.
+
+        Returns:
+            None
+        """
+        logging.info(f"from: {__file__}")
+        if(self.mode & 2 and "cy" not in __file__):
+            raise RuntimeError("Cython requested but not executed")
+
+    def get_work(self, work: str,args,previous_result):
+        """
+        :param work: contain the worker function name called by BaseWorker.do_work
+        this is type string and not type function to avoid manager (e.g. Mycode) to be dependant of MyCodeWorker
+        :return:
+        """
+        # if it comes in as "FlightSimWorker.work", turn it into "work"
+        method = getattr(self, work, None)
+        if method is None:
+            raise AttributeError(f"No such method '{work}' on {self.__class__.__name__}")
+        return method(args, previous_result)
 
     # --- Partition 1 (matches your working logs) ---
 
-    def algo_A(self, args, prev_result):
+    def algo_A(self, args=None, previous_result=None):
         logger.info("MyCodeWorker.algo_A")
         logger.info(f"args: {args}")
-        logger.info(f"previous_result: {prev_result}")
+        logger.info(f"previous_result: {previous_result}")
+        # example return
         return {"a": 15, "b": 20, "c": 30}
 
-    def algo_B(self, args):
+    # only needs args
+    def algo_B(self,  args=None, previous_result=None):
         logger.info("MyCodeWorker.algo_B")
         logger.info(f"args: {args}")
         return [15, 20, 30]
 
-    def algo_C(self, prev_result):
+    # only needs previous result
+    def algo_C(self, args=None, previous_result=None):
         logger.info("MyCodeWorker.algo_C")
-        logger.info(f"previous_result: {prev_result}")
+        logger.info(f"previous_result: {previous_result}")
         return 3
 
-    # --- Partition 2 (the ones that previously crashed due to signature mismatch) ---
+    # --- Partition 2 style (the ones that crashed before due to signatures) ---
 
-    def algo_X(self):
+    # needs nothing
+    def algo_X(self, args=None, previous_result=None):
         logger.info("MyCodeWorker.algo_X")
         return "X"
 
-    def algo_Y(self, *, args=None, previous_result=None):
+    # kwargs form (name-aware)
+    def algo_Y(self, args=None, previous_result=None):
         logger.info("MyCodeWorker.algo_Y")
         logger.info(f"args: {args}")
         logger.info(f"previous_result: {previous_result}")
         return "Y"
 
-    def algo_Z(self, args, prev_result):
+    # classic two-arg form still fine
+    def algo_Z(self, args, previous_result):
         logger.info("MyCodeWorker.algo_Z")
         logger.info(f"args: {args}")
-        logger.info(f"previous_result: {prev_result}")
+        logger.info(f"previous_result: {previous_result}")
         return "Z"
+
+    def stop(self):
+        """
+        Stop the current action.
+
+        Raises:
+            NotImplementedError: This method needs to be implemented in a subclass.
+        """
+        super().stop()

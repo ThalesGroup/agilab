@@ -297,7 +297,7 @@ class BaseWorker(abc.ABC):
         return True
 
     @staticmethod
-    async def run(workers={"127.0.0.1": 1}, mode=0, env=None, verbose=None, args=None):
+    async def run(env=None, workers={"127.0.0.1": 1}, mode=0, verbose=None, args=None):
         """
         :param app:
         :param workers:
@@ -368,7 +368,6 @@ class BaseWorker(abc.ABC):
 
     @staticmethod
     def new(
-            app,
             mode=mode,
             install_type=None,
             env=None,
