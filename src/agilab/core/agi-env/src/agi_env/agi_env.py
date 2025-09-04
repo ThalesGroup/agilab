@@ -14,7 +14,6 @@
 from IPython.core.ultratb import FormattedTB
 import ast
 import asyncio
-from collections import deque
 import getpass
 import os
 import re
@@ -36,7 +35,7 @@ import urllib.request
 import inspect
 import importlib.util
 from concurrent.futures import ThreadPoolExecutor
-
+from agi_env.agi_logger import AgiLogger
 # Get constructor parameters of FormattedTB
 _sig = inspect.signature(FormattedTB.__init__).parameters
 
@@ -48,6 +47,7 @@ else:
 
 sys.excepthook = FormattedTB(**_tb_kwargs)
 
+# logger = AgiLogger.get_logger(__name__)
 
 # Compile regex once globally
 LEVEL_RES = [
@@ -63,7 +63,6 @@ TIME_LEVEL_PREFIX = re.compile(
     re.IGNORECASE,
 )
 
-logger = logging.getLogger(__name__)
 
 def normalize_path(path):
     return (
@@ -71,6 +70,7 @@ def normalize_path(path):
         if os.name == "nt"
         else str(PurePosixPath(Path(path)))
     )
+
 
 def parse_level(line, default_level):
     for rx in LEVEL_RES:
@@ -102,119 +102,10 @@ class AgiEnv:
     benchmark = None
     verbose = None
     pyvers_worker = None
+    logger = None
     _ip_local_cache: set = set({"127.0.0.1", "::1"})
     INDEX_URL="https://test.pypi.org/simple"
     EXTRA_INDEX_URL="https://pypi.org/simple"
-
-
-    def init_logging(self, verbosity: int = None):
-        """
-        Initialize logging with a level based on verbosity:
-        0 = WARNING, 1 = INFO, 2 or more = DEBUG
-        INFO and DEBUG levels go to stdout; WARNING and above go to stderr.
-        """
-
-        self.uv = "uv"
-        if verbosity is None:
-            verbosity = 0
-        elif verbosity > 1:
-            self.uv = "uv --quiet"
-
-
-        # Root logger level based on verbosity
-        root_level = logging.DEBUG if verbosity >= 2 else logging.INFO if verbosity == 1 else logging.WARNING
-
-        # Cap distributed logs at CRITICAL (silent)
-        sys_level = logging.ERROR if verbosity < 2 else logging.INFO if verbosity > 3 else logging.DEBUG
-
-        # Use root_level for your app-specific loggers as well
-        app_level = root_level
-
-        root = logging.getLogger()
-        root.setLevel(root_level)
-
-        # Set distributed logger levels explicitly to suppress debug/info noise
-        logging.getLogger("distributed").setLevel(sys_level)
-        logging.getLogger("distributed.worker").setLevel(sys_level)
-        logging.getLogger("distributed.scheduler").setLevel(sys_level)
-        logging.getLogger("distributed.comm").setLevel(sys_level)
-        logging.getLogger("distributed.comm.tcp").setLevel(sys_level)
-        logging.getLogger("distributed.active_memory_manager").setLevel(sys_level)
-
-        # Set asyncssh and other custom loggers to app_level (verbosity controlled)
-        logging.getLogger('asyncssh').setLevel(sys_level)
-
-        # agilab core
-        logging.getLogger("agi_cluster").setLevel(app_level)
-        logging.getLogger("agi_node").setLevel(app_level)
-        logging.getLogger("agi_env").setLevel(app_level)
-
-
-        # Remove existing handlers to avoid duplicate logs
-        for handler in root.handlers[:]:
-            root.removeHandler(handler)
-
-        class ClassNameFilter(logging.Filter):
-            def filter(self, record):
-                # Try to find the class name from the frame where the log call was made
-                try:
-                    # Walk up frames starting from current to find frame matching record
-                    frame = sys._getframe(0)
-                    while frame:
-                        code = frame.f_code
-                        if code.co_filename == record.pathname and code.co_name == record.funcName:
-                            # Found the frame of the caller
-                            # Check if 'self' is in locals to get class name
-                            if 'self' in frame.f_locals:
-                                record.classname = frame.f_locals['self'].__class__.__name__
-                            else:
-                                record.classname = record.module or record.pathname
-                            break
-                        frame = frame.f_back
-                    else:
-                        record.classname = '<no-class>'
-                except Exception:
-                    record.classname = '<no-class>'
-                return True
-
-        class MaxLevelFilter(logging.Filter):
-            def __init__(self, max_level):
-                super().__init__()
-                self.max_level = max_level
-
-            def filter(self, record):
-                return record.levelno <= self.max_level
-
-        fmt_std = logging.Formatter(
-            "%(asctime)s %(levelname)s %(message)s",
-            datefmt="%H:%M:%S"
-        )
-
-        fmt_err = logging.Formatter(
-            "%(asctime)s %(levelname)s %(classname)s %(message)s",
-            datefmt="%H:%M:%S"
-        )
-
-
-        # if verbosity > 1:
-        #     fmt_std = fmt_err
-
-        stdout_handler = logging.StreamHandler(sys.stdout)
-        stdout_handler.setLevel(logging.DEBUG)
-        stdout_handler.setFormatter(fmt_std)
-        stdout_handler.addFilter(ClassNameFilter())
-        stdout_handler.addFilter(MaxLevelFilter(logging.INFO))  # only DEBUG/INFO
-
-        stderr_handler = logging.StreamHandler(sys.stderr)
-        stderr_handler.setLevel(logging.WARNING)
-        stderr_handler.setFormatter(fmt_err)
-        stderr_handler.addFilter(ClassNameFilter())
-        stderr_handler.setLevel(logging.WARNING)  # WARNING, ERROR, CRITICAL
-
-        root.addHandler(stdout_handler)
-        root.addHandler(stderr_handler)
-
-        logging.debug(f"Logging initialized at level {logging.getLevelName(root.level)}")
 
     def __init__(self,
                  active_app: Path | str = None,
@@ -227,6 +118,14 @@ class AgiEnv:
         self.agi_resources = Path("resources/.agilab")
         home_abs = Path.home() / "MyApp" if AgiEnv.is_managed_pc else Path.home()
         self.home_abs = home_abs
+
+        if verbose is None:
+            verbose = 0
+        self.uv = "uv"
+        if verbose < 3:
+            self.uv = "uv --quiet"
+        elif verbose >= 3:
+            self.uv = "uv --verbose"
 
         AgiEnv.resources_path = home_abs / self.agi_resources.name
         env_path = AgiEnv.resources_path / ".env"
@@ -267,7 +166,10 @@ class AgiEnv:
         AgiEnv.verbose = verbose
         self.verbose = verbose
         AgiEnv.python_variante = python_variante
-        self.init_logging(verbose)
+        # self.init_logging(verbose)
+        AgiEnv.logger =  AgiLogger.get_logger("agi_env")
+        AgiEnv.logger =  AgiLogger.configure(verbose=verbose, base_name="agi_env")
+
         AgiEnv.debug = debug
 
         if install_type is None:
@@ -303,7 +205,7 @@ class AgiEnv:
                 if src_apps.exists():
                     self.copy_existing_projects(src_apps, active_app.parent)
                 else:
-                    logger.info(f"Warning: {src_apps} does not exist, nothing to copy!")
+                    AgiEnv.logger.info(f"Warning: {src_apps} does not exist, nothing to copy!")
             else:
                 self.copy_missing(src_apps, active_app.parent)
 
@@ -380,7 +282,7 @@ class AgiEnv:
         )
         self.workers_packages_prefix = "workers."
         if not self.worker_path.exists():
-            logging.info(f"Missing {self.target_worker_class} definition; should be in {self.worker_path} but it does not exist")
+            AgiEnv.logger.info(f"Missing {self.target_worker_class} definition; should be in {self.worker_path} but it does not exist")
             sys.exit(1)
 
         envars = AgiEnv.envars
@@ -410,7 +312,7 @@ class AgiEnv:
 
         self.projects = self.get_projects(AgiEnv.apps_dir)
         if not self.projects:
-            logging.info(f"Could not find any target project app in {self.agilab_src / 'apps'}.")
+            AgiEnv.logger.info(f"Could not find any target project app in {self.agilab_src / 'apps'}.")
 
         self.setup_app = active_app / "build.py"
 
@@ -495,11 +397,11 @@ class AgiEnv:
                     else:
                         raise ValueError("Installation path file is empty or invalid.")
             except FileNotFoundError:
-                logging.error(f"File {where_is_agi} does not exist.")
+                AgiEnv.logger.error(f"File {where_is_agi} does not exist.")
             except PermissionError:
-                logging.error(f"Permission denied when accessing {where_is_agi}.")
+                AgiEnv.logger.error(f"Permission denied when accessing {where_is_agi}.")
             except Exception as e:
-                logging.error(f"An error occurred: {e}")
+                AgiEnv.logger.error(f"An error occurred: {e}")
 
     @staticmethod
     def locate_agilab_installation(verbose=False):
@@ -534,7 +436,7 @@ class AgiEnv:
                     ),
                 )
             except Exception as e:
-                logger.error(f"Warning: Could not copy {item} → {dst_item}: {e}")
+                AgiEnv.logger.error(f"Warning: Could not copy {item} → {dst_item}: {e}")
     def copy_missing(self, src: Path, dst: Path, max_workers=8):
         """
         Copy missing files/directories from src to dst, skipping files/dirs that already exist at dst.
@@ -548,7 +450,7 @@ class AgiEnv:
             src_item = item
             dst_item = dst / item.name
             if not src_item.exists():
-                logger.info(f"[WARN] Source item missing: {src_item}, skipping")
+                AgiEnv.logger.info(f"[WARN] Source item missing: {src_item}, skipping")
                 continue
             if src_item.is_dir():
                 dirs.append((src_item, dst_item))
@@ -561,9 +463,9 @@ class AgiEnv:
                 try:
                     shutil.copy2(src_item, dst_item)
                 except Exception as e:
-                    logger.error(f"[WARN] Could not copy {src_item} → {dst_item}: {e}")
+                    AgiEnv.logger.error(f"[WARN] Could not copy {src_item} → {dst_item}: {e}")
             else:
-                logger.info(f"[WARN] Source file missing (skipped): {src_item}")
+                AgiEnv.logger.info(f"[WARN] Source file missing (skipped): {src_item}")
 
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -573,7 +475,7 @@ class AgiEnv:
             if src_dir.exists():
                 self.copy_missing(src_dir, dst_dir, max_workers=max_workers)
             else:
-                logger.info(f"[WARN] Source dir missing (skipped): {src_dir}")
+                AgiEnv.logger.info(f"[WARN] Source dir missing (skipped): {src_dir}")
 
     def _update_env_file(updates: dict):
         env_file = AgiEnv.resources_path / ".env"
@@ -585,7 +487,7 @@ class AgiEnv:
         dest_env_file = AgiEnv.resources_path / ".env"
         if not src_env_path.exists():
             msg = f"Installation issue: {src_env_path} is missing!"
-            logging.info(msg)
+            AgiEnv.logger.info(msg)
             raise RuntimeError(msg)
         if not dest_env_file.exists():
             os.makedirs(dest_env_file.parent, exist_ok=True)
@@ -650,13 +552,13 @@ class AgiEnv:
             with open(module_path, "r", encoding="utf-8") as file:
                 source = file.read()
         except (IOError, FileNotFoundError) as e:
-            logging.error(f"Error reading module file {module_path}: {e}")
+            AgiEnv.logger.error(f"Error reading module file {module_path}: {e}")
             return []
 
         try:
             tree = ast.parse(source)
         except SyntaxError as e:
-            logging.error(f"Syntax error parsing {module_path}: {e}")
+            AgiEnv.logger.error(f"Syntax error parsing {module_path}: {e}")
             raise RuntimeError(f"Syntax error parsing {module_path}: {e}")
 
         import_mapping = self.get_import_mapping(source)
@@ -675,7 +577,7 @@ class AgiEnv:
         try:
             tree = ast.parse(source)
         except SyntaxError as e:
-            logging.error(f"Syntax error during import mapping: {e}")
+            AgiEnv.logger.error(f"Syntax error during import mapping: {e}")
             raise
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
@@ -828,12 +730,12 @@ class AgiEnv:
     def _copy_file(src_item, dst_item):
         if not dst_item.exists():
             if not src_item.exists():
-                logger.info(f"[WARN] Source file missing (skipped): {src_item}")
+                AgiEnv.logger.info(f"[WARN] Source file missing (skipped): {src_item}")
                 return
             try:
                 shutil.copy2(src_item, dst_item)
             except Exception as e:
-                logger.error(f"[WARN] Could not copy {src_item} → {dst_item}: {e}")
+                AgiEnv.logger.error(f"[WARN] Could not copy {src_item} → {dst_item}: {e}")
 
     def copy_missing(self, src: Path, dst: Path, max_workers=8):
         dst.mkdir(parents=True, exist_ok=True)
@@ -901,7 +803,7 @@ class AgiEnv:
             line = str(line)
 
         msg = f"{GREEN}{line}{RESET}" if sys.stdout.isatty() else line
-        logging.info(msg)
+        AgiEnv.logger.info(msg)
 
     @staticmethod
     async def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
@@ -910,8 +812,8 @@ class AgiEnv:
         Streams stdout/stderr live without blocking (Windows-safe).
         Returns the full stdout string.
         """
-        if AgiEnv.verbose > 1:
-            logging.info(f"Executing in {venv}: {cmd}")
+        if AgiEnv.verbose > 0:
+            AgiEnv.logger.info(f"Executing in {venv}: {cmd}")
 
         if not cwd:
             cwd = venv
@@ -943,9 +845,10 @@ class AgiEnv:
                         if not text:
                             continue
                         safe = text.encode(enc, errors="replace").decode(enc)
-                        lvl = parse_level(safe, default_level)
-                        msg = strip_time_level_prefix(safe)
-                        (callback or (lambda msg: logging.log(lvl, msg)))(msg)
+                        plain = AgiLogger.decolorize(safe)
+                        lvl = parse_level(plain, default_level)
+                        msg = strip_time_level_prefix(plain)
+                        (callback or (lambda msg: AgiEnv.logger.log(lvl, msg, extra={"subprocess": True})))(safe)
                         result.append(safe)
 
                 process = await asyncio.create_subprocess_shell(
@@ -966,7 +869,7 @@ class AgiEnv:
 
                 if returncode != 0:
                     # Promote to ERROR with context even if lines were logged as INFO
-                    logging.error("Command failed with exit code %s: %s", returncode, cmd)
+                    AgiEnv.logger.error("Command failed with exit code %s: %s", returncode, cmd)
                     sys.exit(returncode)
 
                 return "\n".join(result)
@@ -974,7 +877,7 @@ class AgiEnv:
                 process.kill()
                 raise RuntimeError(f"Command timed out after {timeout} seconds: {cmd}")
             except Exception as e:
-                logging.error(traceback.format_exc())
+                AgiEnv.logger.error(traceback.format_exc())
                 raise RuntimeError(f"Command execution error: {e}") from e
 
         else:
@@ -1027,7 +930,7 @@ class AgiEnv:
                 msg = strip_time_level_prefix(safe)
                 capture_lines.append(msg)
                 # If a callback is provided, use it; otherwise log with derived level
-                (callback or (lambda msg: logging.log(lvl, msg)))(msg)
+                (callback or (lambda msg: AgiEnv.logger.log(lvl, msg, extra={"subprocess": True})))(msg)
 
         # Consume both streams and wait for process completion (with timeout)
         try:
@@ -1046,7 +949,7 @@ class AgiEnv:
         returncode = proc.returncode
 
         if returncode != 0:
-            logging.error("Command failed with exit code %s: %s", returncode, cmd)
+            AgiEnv.logger.error("Command failed with exit code %s: %s", returncode, cmd)
             raise RuntimeError(f"Command failed (exit {returncode})")
 
         return "\n".join(stdout_lines), "\n".join(stderr_lines)
@@ -1062,7 +965,7 @@ class AgiEnv:
             if log_callback:
                 log_callback(message)
             else:
-                logging.info(message)
+                AgiEnv.logger.info(message)
             return "", ""
         snippet_file = os.path.join(self.runenv, f"{matches[0]}-{self.target}.py")
         with open(snippet_file, "w") as file:
@@ -1130,17 +1033,17 @@ class AgiEnv:
                     continue
                 safe = text.encode(enc, errors="replace").decode(enc)
                 next_lvl = parse_level(safe, default_level)
-                if lvl == logging.ERROR and next_lvl == logging.INFO:
-                    # Check if we are still in a traceback block
-                    if any(safe.startswith(prefix) for prefix in ("  File ", "    ", "... ", "Traceback ")):
-                        next_lvl = logging.ERROR
-                    if "Error:" in safe or "Exception:" in safe or "exception" in safe:
-                        next_lvl = logging.ERROR
+                # if lvl == logging.ERROR and next_lvl == logging.INFO:
+                #     # Check if we are still in a traceback block
+                #     if any(safe.startswith(prefix) for prefix in ("  File ", "    ", "... ", "Traceback ")):
+                #         next_lvl = logging.ERROR
+                #     if "Error:" in safe or "Exception:" in safe or "exception" in safe:
+                #         next_lvl = logging.ERROR
                 lvl = next_lvl
                 msg = strip_time_level_prefix(safe)
-                sink.append(safe)
+                sink.append(msg)
                 # Use provided callback for this stream if given; else log at derived level
-                (callback or (lambda msg: logging.log(next_lvl, msg)))(msg)
+                (callback or (lambda msg: AgiEnv.logger.log(lvl, msg, extra={"subprocess": True})))(msg)
 
         try:
             await asyncio.wait_for(
@@ -1151,14 +1054,16 @@ class AgiEnv:
                 ),
                 timeout=timeout,
             )
-        except asyncio.TimeoutError as err:
+        except Exception as err:
             proc.kill()
-            raise RuntimeError(f"Timeout expired for command: {cmd}") from err
+            AgiEnv.logger.error(f"Error during: {cmd}")
+            AgiEnv.logger.error(err)
+            sys.exit(1)
 
         rc = proc.returncode
         if rc != 0:
-            logging.error("Command failed with exit code %s: %s", rc, cmd)
-            raise RuntimeError(f"Command failed (exit {rc})")
+            AgiEnv.logger.error("Command failed with exit code %s: %s", rc, cmd)
+            sys.exit(rc)
 
         # Preserve original behavior: return last non-empty line (prefer stderr, else stdout)
         def last_non_empty(lines):
@@ -1175,14 +1080,14 @@ class AgiEnv:
         try:
             if dest.exists() or dest.is_symlink():
                 if dest.is_symlink() and dest.resolve() == src.resolve():
-                    logger.info(f"Symlink already exists and is correct: {dest} -> {src}")
+                    AgiEnv.logger.info(f"Symlink already exists and is correct: {dest} -> {src}")
                     return
-                logger.warning(f"Warning: Destination already exists and is not a symlink: {dest}")
+                AgiEnv.logger.warning(f"Warning: Destination already exists and is not a symlink: {dest}")
                 dest.unlink()
             dest.symlink_to(src, target_is_directory=src.is_dir())
-            logger.info(f"Symlink created: {dest} -> {src}")
+            AgiEnv.logger.info(f"Symlink created: {dest} -> {src}")
         except Exception as e:
-            logger.error(f"Failed to create symlink {dest} -> {src}: {e}")
+            AgiEnv.logger.error(f"Failed to create symlink {dest} -> {src}: {e}")
 
     def change_active_app(self, app, install_type=1):
         if app.name != str(self.active_app.name):
@@ -1252,9 +1157,9 @@ class AgiEnv:
         try:
             # Using the mklink command to create a junction (/J) which doesn't require admin rights.
             subprocess.check_call(['cmd', '/c', 'mklink', '/J', str(dest), str(source)])
-            logger.info(f"Created junction: {dest} -> {source}")
+            AgiEnv.logger.info(f"Created junction: {dest} -> {source}")
         except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to create junction. Error: {e}")
+            AgiEnv.logger.error(f"Failed to create junction. Error: {e}")
 
     def create_symlink_windows(source: Path, dest: Path):
         """
@@ -1273,7 +1178,7 @@ class AgiEnv:
 
         # Check if Developer Mode is enabled or if the process has admin rights
         if not has_admin_rights():
-            logger.info(
+            AgiEnv.logger.info(
                 "Creating symbolic links on Windows requires administrative privileges or Developer Mode enabled."
             )
             return
@@ -1282,10 +1187,10 @@ class AgiEnv:
 
         success = CreateSymbolicLink(str(dest), str(source), flags)
         if success:
-            logger.info(f"Created symbolic link for .venv: {dest} -> {source}")
+            AgiEnv.logger.info(f"Created symbolic link for .venv: {dest} -> {source}")
         else:
             error_code = ctypes.GetLastError()
-            logger.info(
+            AgiEnv.logger.info(
                 f"Failed to create symbolic link for .venv. Error code: {error_code}"
             )
 
@@ -1305,7 +1210,7 @@ class AgiEnv:
                 os.symlink(source_venv, dest_venv, target_is_directory=True)
                 lo(f"Created symbolic link for .venv: {dest_venv} -> {source_venv}")
         except OSError as e:
-            logger.error(f"Failed to create symbolic link for .venv: {e}")
+            AgiEnv.logger.error(f"Failed to create symbolic link for .venv: {e}")
 
     def create_rename_map(self, target_project: Path, dest_project: Path) -> dict:
         """
@@ -1365,22 +1270,22 @@ class AgiEnv:
         dest_root   = AgiEnv.apps_dir / dest_project
 
         if not source_root.exists():
-            logger.info(f"Source project '{target_project}' does not exist.")
+            AgiEnv.logger.info(f"Source project '{target_project}' does not exist.")
             return
         if dest_root.exists():
-            logger.info(f"Destination project '{dest_project}' already exists.")
+            AgiEnv.logger.info(f"Destination project '{dest_project}' already exists.")
             return
 
         gitignore = source_root / ".gitignore"
         if not gitignore.exists():
-            logger.info(f"No .gitignore at '{gitignore}'.")
+            AgiEnv.logger.info(f"No .gitignore at '{gitignore}'.")
             return
         spec = PathSpec.from_lines(GitWildMatchPattern, gitignore.read_text().splitlines())
 
         try:
             dest_root.mkdir(parents=True, exist_ok=False)
         except Exception as e:
-            logger.error(f"Could not create '{dest_root}': {e}")
+            AgiEnv.logger.error(f"Could not create '{dest_root}': {e}")
             return
 
         # 1) Recursive clone
@@ -1528,12 +1433,12 @@ class AgiEnv:
         return self.scheduler_ip
 
     def log_remote_line(self, ip, line):
-        logger.info(f"[{ip}] {line}")  # Replace with your real remote line logger
+        AgiEnv.logger.info(f"[{ip}] {line}")  # Replace with your real remote line AgiEnv.logger
 
     def unzip_data(self, archive_path: Path, extract_to: Path | str = None):
         archive_path = Path(archive_path)
         if not archive_path.exists():
-            logger.info(f"Warning: Archive '{archive_path}' does not exist. Skipping extraction.")
+            AgiEnv.logger.warning(f"Warning: Archive '{archive_path}' does not exist. Skipping extraction.")
             return  # Do not exit, just warn
 
         # Normalize extract_to to a Path relative to cwd or absolute
@@ -1544,31 +1449,33 @@ class AgiEnv:
 
         # Clear existing folder if not empty to avoid extraction errors on second call
         if dataset.exists() and any(dataset.iterdir()):
-            logger.info(f"Destination '{dataset}' exists and is not empty. Clearing it before extraction.")
+            if AgiEnv.verbose > 0:
+                AgiEnv.logger.info("Destination '{dataset}' exists and is not empty. Clearing it before extraction.")
             shutil.rmtree(dataset)
         dest.mkdir(parents=True, exist_ok=True)
 
         try:
             with py7zr.SevenZipFile(archive_path, mode="r") as archive:
                 archive.extractall(path=dest)
-            logger.info(f"Successfully extracted '{archive_path}' to '{dest}'.")
+            if AgiEnv.verbose > 0:
+                AgiEnv.logger.info(f"Successfully extracted '{archive_path}' to '{dest}'.")
         except Exception as e:
-            logger.error(f"Failed to extract '{archive_path}': {e}")
+            AgiEnv.logger.error(f"Failed to extract '{archive_path}': {e}")
             traceback.print_exc()
             sys.exit(1)
 
     @staticmethod
     def check_internet():
-        logging.info(f"Checking internet connectivity...")
+        AgiEnv.logger.info(f"Checking internet connectivity...")
         try:
             # HEAD request to Google
             req = urllib.request.Request("https://www.google.com", method="HEAD")
             with urllib.request.urlopen(req, timeout=3) as resp:
                 pass  # Success if no exception
         except Exception:
-            logging.error(f"No internet connection detected. Aborting.")
+            AgiEnv.logger.error(f"No internet connection detected. Aborting.")
             return False
-        logging.info(f"Internet connection is OK.")
+        AgiEnv.logger.info(f"Internet connection is OK.")
         return True
 
 
@@ -1607,7 +1514,7 @@ class ContentRenamer(ast.NodeTransformer):
             None
         """
         if node.id in self.rename_map:
-            logger.info(f"Renaming Name: {node.id} ➔ {self.rename_map[node.id]}")
+            AgiEnv.logger.info(f"Renaming Name: {node.id} ➔ {self.rename_map[node.id]}")
             node.id = self.rename_map[node.id]
         self.generic_visit(node)  # Ensure child nodes are visited
         return node
@@ -1627,7 +1534,7 @@ class ContentRenamer(ast.NodeTransformer):
             None.
         """
         if node.attr in self.rename_map:
-            logger.info(f"Renaming Attribute: {node.attr} ➔ {self.rename_map[node.attr]}")
+            AgiEnv.logger.info(f"Renaming Attribute: {node.attr} ➔ {self.rename_map[node.attr]}")
             node.attr = self.rename_map[node.attr]
         self.generic_visit(node)
         return node
@@ -1644,7 +1551,7 @@ class ContentRenamer(ast.NodeTransformer):
             ast.FunctionDef: The function node with potential name change.
         """
         if node.name in self.rename_map:
-            logger.info(f"Renaming Function: {node.name} ➔ {self.rename_map[node.name]}")
+            AgiEnv.logger.info(f"Renaming Function: {node.name} ➔ {self.rename_map[node.name]}")
             node.name = self.rename_map[node.name]
         self.generic_visit(node)
         return node
@@ -1661,7 +1568,7 @@ class ContentRenamer(ast.NodeTransformer):
             ast.ClassDef: The potentially modified ClassDef node.
         """
         if node.name in self.rename_map:
-            logger.info(f"Renaming Class: {node.name} ➔ {self.rename_map[node.name]}")
+            AgiEnv.logger.info(f"Renaming Class: {node.name} ➔ {self.rename_map[node.name]}")
             node.name = self.rename_map[node.name]
         self.generic_visit(node)
         return node
@@ -1685,7 +1592,7 @@ class ContentRenamer(ast.NodeTransformer):
             None.
         """
         if node.arg in self.rename_map:
-            logger.info(f"Renaming Argument: {node.arg} ➔ {self.rename_map[node.arg]}")
+            AgiEnv.logger.info(f"Renaming Argument: {node.arg} ➔ {self.rename_map[node.arg]}")
             node.arg = self.rename_map[node.arg]
         self.generic_visit(node)
         return node
@@ -1705,7 +1612,7 @@ class ContentRenamer(ast.NodeTransformer):
         new_names = []
         for name in node.names:
             if name in self.rename_map:
-                logger.info(f"Renaming Global Variable: {name} ➔ {self.rename_map[name]}")
+                AgiEnv.logger.info(f"Renaming Global Variable: {name} ➔ {self.rename_map[name]}")
                 new_names.append(self.rename_map[name])
             else:
                 new_names.append(name)
@@ -1728,7 +1635,7 @@ class ContentRenamer(ast.NodeTransformer):
         new_names = []
         for name in node.names:
             if name in self.rename_map:
-                logger.info(
+                AgiEnv.logger.info(
                     f"Renaming Nonlocal Variable: {name} ➔ {self.rename_map[name]}"
                 )
                 new_names.append(self.rename_map[name])
@@ -1783,7 +1690,7 @@ class ContentRenamer(ast.NodeTransformer):
             This function may modify the target variable in the For loop node if it exists in the rename map.
         """
         if isinstance(node.target, ast.Name) and node.target.id in self.rename_map:
-            logger.info(
+            AgiEnv.logger.info(
                 f"Renaming For Loop Variable: {node.target.id} ➔ {self.rename_map[node.target.id]}"
             )
             node.target.id = self.rename_map[node.target.id]
@@ -1800,7 +1707,7 @@ class ContentRenamer(ast.NodeTransformer):
         for alias in node.names:
             original_name = alias.name
             if original_name in self.rename_map:
-                logger.info(
+                AgiEnv.logger.info(
                     f"Renaming Import Module: {original_name} ➔ {self.rename_map[original_name]}"
                 )
                 alias.name = self.rename_map[original_name]
@@ -1808,7 +1715,7 @@ class ContentRenamer(ast.NodeTransformer):
                 # Handle compound module names if necessary
                 for old, new in self.rename_map.items():
                     if original_name.startswith(old):
-                        logger.info(
+                        AgiEnv.logger.info(
                             f"Renaming Import Module: {original_name} ➔ {original_name.replace(old, new, 1)}"
                         )
                         alias.name = original_name.replace(old, new, 1)
@@ -1825,7 +1732,7 @@ class ContentRenamer(ast.NodeTransformer):
         """
         # Rename the module being imported from
         if node.module in self.rename_map:
-            logger.info(
+            AgiEnv.logger.info(
                 f"Renaming ImportFrom Module: {node.module} ➔ {self.rename_map[node.module]}"
             )
             node.module = self.rename_map[node.module]
@@ -1833,7 +1740,7 @@ class ContentRenamer(ast.NodeTransformer):
             for old, new in self.rename_map.items():
                 if node.module and node.module.startswith(old):
                     new_module = node.module.replace(old, new, 1)
-                    logger.info(
+                    AgiEnv.logger.info(
                         f"Renaming ImportFrom Module: {node.module} ➔ {new_module}"
                     )
                     node.module = new_module
@@ -1842,14 +1749,14 @@ class ContentRenamer(ast.NodeTransformer):
         # Rename the imported names
         for alias in node.names:
             if alias.name in self.rename_map:
-                logger.info(
+                AgiEnv.logger.info(
                     f"Renaming Imported Name: {alias.name} ➔ {self.rename_map[alias.name]}"
                 )
                 alias.name = self.rename_map[alias.name]
             else:
                 for old, new in self.rename_map.items():
                     if alias.name.startswith(old):
-                        logger.info(
+                        AgiEnv.logger.info(
                             f"Renaming Imported Name: {alias.name} ➔ {alias.name.replace(old, new, 1)}"
                         )
                         alias.name = alias.name.replace(old, new, 1)

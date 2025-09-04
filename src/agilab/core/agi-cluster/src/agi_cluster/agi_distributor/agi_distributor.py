@@ -197,7 +197,8 @@ class AGI:
         AGI.target_path = env.module_path
         AGI._target = env.target
         AGI._rapids_enabled = rapids_enabled
-        logging.info(f"AGI instance created for target {env.target} with verbosity {env.verbose}")
+        if env.verbose > 0:
+            logger.info(f"AGI instance created for target {env.target} with verbosity {env.verbose}")
 
         if mode is None or isinstance(mode, list):
             mode_range = range(8) if mode is None else sorted(mode)
@@ -208,13 +209,13 @@ class AGI:
             if isinstance(mode, str):
                 pattern = r"^[dcrp]+$"
                 if not re.fullmatch(pattern, mode.lower()):
-                    logging.info("parameter <mode> must only contain the letters 'd', 'c', 'r', 'p'")
+                    logger.error("parameter <mode> must only contain the letters 'd', 'c', 'r', 'p'")
                     sys.exit(1)
                 AGI._mode = env.mode2int(mode)
             elif isinstance(mode, int):
                 AGI._mode = int(mode)
             else:
-                logging.info("parameter <mode> must be an int, a list of int or a string")
+                logger.error("parameter <mode> must be an int, a list of int or a string")
                 sys.exit(1)
 
             AGI._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
@@ -252,19 +253,19 @@ class AGI:
                 return await AGI.main(scheduler)
 
             except ProcessError as e:
-                logging.error(f"failed to run \n{e}")
+                logger.error(f"failed to run \n{e}")
                 return
 
             except ConnectionError as e:
-                logging.error(f"failed to connect \n{e}")
+                logger.error(f"failed to connect \n{e}")
                 return
 
             except ModuleNotFoundError as e:
-                logging.error(f"failed to load module \n{e}")
+                logger.error(f"failed to load module \n{e}")
                 return
 
             except Exception as err:
-                logging.error(f"Unhandled exception in AGI.run: {err}", exc_info=True)
+                logger.error(f"Unhandled exception in AGI.run: {err}", exc_info=True)
 
 
     @staticmethod
@@ -465,7 +466,7 @@ class AGI:
                 else:
                     decoded = decode_bytes(raw.encode('latin-1', errors='replace'))
                 line = decoded.strip()
-                logging.info(line)
+                logger.info(line)
                 AGI._worker_init_error = line.endswith('[ProjectError]')
             return
 
@@ -481,7 +482,7 @@ class AGI:
                 decoded = decode_bytes(raw)
                 for part in decoded.splitlines():
                     line = part.strip()
-                    logging.info(line)
+                    logger.info(line)
                     AGI._worker_init_error = line.endswith('[ProjectError]')
             elif chan.exit_status_ready():
                 break
@@ -527,10 +528,10 @@ class AGI:
             stdout, stderr = await process.communicate()
 
             if process.returncode != 0:
-                logging.error(f"SCP failed sending {local_path} to {remote}: {stderr.decode().strip()}")
+                logger.error(f"SCP failed sending {local_path} to {remote}: {stderr.decode().strip()}")
                 raise ConnectionError(f"SCP error: {stderr.decode().strip()}")
 
-            logging.info(f"Sent file {local_path} to {remote}")
+            logger.info(f"Sent file {local_path} to {remote}")
 
         except Exception as e:
             try:
@@ -543,10 +544,10 @@ class AGI:
                 stdout, stderr = await process.communicate()
 
                 if process.returncode:
-                    logging.error(f"SCP failed sending {local_path} to {remote}: {stderr.decode().strip()}")
+                    logger.error(f"SCP failed sending {local_path} to {remote}: {stderr.decode().strip()}")
                     raise ConnectionError(f"SCP error: {stderr.decode().strip()}")
 
-                logging.info(f"Sent file {local_path} to {remote}")
+                logger.info(f"Sent file {local_path} to {remote}")
 
             except Exception as e:
                 raise
@@ -558,7 +559,7 @@ class AGI:
             remote_path = remote_dir / f.name
             tasks.append(AGI.send_file(env, ip, f, remote_path, user=user))
         await asyncio.gather(*tasks)
-        # logging.info(f"Sent {len(files)} files to {user if user else self.user}@{ip}:{remote_dir}")
+        # logger.info(f"Sent {len(files)} files to {user if user else self.user}@{ip}:{remote_dir}")
 
     @staticmethod
     def remove_dir_forcefully(path):
@@ -572,17 +573,17 @@ class AGI:
                 os.chmod(path, stat.S_IWUSR)
                 func(path)
             else:
-                logging.info(f"{path} not removed due to {exc_info[1]}")
+                logger.info(f"{path} not removed due to {exc_info[1]}")
 
         try:
             shutil.rmtree(path, onerror=onerror)
         except Exception as e:
-            logging.error(f"Exception while deleting {path}: {e}")
+            logger.error(f"Exception while deleting {path}: {e}")
             time.sleep(1)
             try:
                 shutil.rmtree(path, onerror=onerror)
             except Exception as e2:
-                logging.error(f"Second failure deleting {path}: {e2}")
+                logger.error(f"Second failure deleting {path}: {e2}")
                 raise
 
     @staticmethod
@@ -653,9 +654,9 @@ class AGI:
             if isinstance(last_res, dict):
                 out = last_res.get("stdout", "")
                 err = last_res.get("stderr", "")
-                logging.info(out)
+                logger.info(out)
                 if err:
-                    logging.error(err)
+                    logger.error(err)
 
         return last_res
 
@@ -772,15 +773,18 @@ class AGI:
 
         os.makedirs(wenv_abs, exist_ok=True)
         file = env.worker_pyproject
-        logging.info(f"Copying {file} -> {wenv_abs}")
+        if env.verbose > 0:
+            logger.info(f"Copying {file} -> {wenv_abs}")
         shutil.copy(file, wenv_abs / file.name)
 
         file = env.setup_core
-        logging.info(f"Copying {file} -> {wenv_abs}")
+        if env.verbose > 0:
+            logger.info(f"Copying {file} -> {wenv_abs}")
         shutil.copy2(file, wenv_abs)
 
         file = env.src_cluster / "agi_cluster/agi_distributor/cli.py"
-        logging.info(f"Copying {file} -> {wenv_abs.parent}")
+        if env.verbose > 0:
+            logger.info(f"Copying {file} -> {wenv_abs.parent}")
         shutil.copy(file, wenv_abs.parent)
 
         if has_rapids_hw:
@@ -788,7 +792,8 @@ class AGI:
         else:
             AgiEnv.set_env_var(ip, "no_rapids_hw")
 
-        logging.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
+        if env.verbose > 0:
+            logger.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
         # # Install Python
 
@@ -874,7 +879,7 @@ class AGI:
                     uv_is_installed = True
 
             if not uv_is_installed or not AgiEnv.check_internet():
-                logging.error("Failed to install uv")
+                logger.error("Failed to install uv")
                 raise EnvironmentError("Failed to install uv")
 
             # 3) Install Python
@@ -916,14 +921,16 @@ class AGI:
         node_ips = set(list(AGI.workers) + [AGI._get_scheduler(scheduler_addr)[0]])
         AGI._venv_todo(node_ips)
         start_time = time.time()
-        logging.info(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1")
+        if env.verbose > 0:
+            logger.info(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1")
 
         await AGI._install_app_local(app_path, Path(wenv_rel), options_worker)
-        # logging.info(AGI.run(cmd, wenv_abs))
+        # logger.info(AGI.run(cmd, wenv_abs))
         if AGI._mode & 4:
             tasks = []
             for ip in node_ips:
-                logging.info(f"********   Starting {AGI._run_type} for worker in .venv on {ip}")
+                if env.verbose > 0:
+                    logger.info(f"********   Starting {AGI._run_type} for worker in .venv on {ip}")
                 if not env.is_local(ip):
                     tasks.append(asyncio.create_task(
                         AGI._install_app_remote(ip, env, wenv_rel, options_worker)
@@ -932,7 +939,8 @@ class AGI:
 
         if AGI._verbose:
             duration = AGI._format_duration(time.time() - start_time)
-            logging.info(f"********   Agi {AGI._run_type} completed in {duration}")
+            if env.verbose > 0:
+                logger.info(f"********   Agi {AGI._run_type} completed in {duration}")
 
     @staticmethod
     def _initialize_installation() -> None:
@@ -976,7 +984,8 @@ class AGI:
         pyvers = env.python_version
 
         file = env.setup_core
-        logging.info(f"Copying {file} -> {wenv_abs}")
+        if env.verbose > 0:
+            logger.info(f"Copying {file} -> {wenv_abs}")
 
         shutil.copy2(file, wenv_abs)
 
@@ -985,7 +994,8 @@ class AGI:
         else:
             AgiEnv.set_env_var(ip, "no_rapids_hw")
 
-        logging.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
+        if env.verbose > 0:
+            logger.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
         #=========
         # MANAGER install command with and without rapids capable
@@ -997,7 +1007,8 @@ class AGI:
         else:
             cmd_manager = f"{uv} {run_type} --project {app_path}"
 
-        logging.info(f"Installing manager: {cmd_manager}")
+        if env.verbose > 0:
+            logger.info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
 
         if env.install_type == 1:
@@ -1022,7 +1033,8 @@ class AGI:
         else:
             cmd_worker = f"{uv_worker} {run_type} {options_worker} --python {pyvers_worker} --project {wenv_abs}"
 
-        logging.info(f"Installing workers: {cmd_worker}")
+        if env.verbose > 0:
+            logger.info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
 
         #############
@@ -1118,7 +1130,7 @@ class AGI:
         try:
             egg_file = next(iter(dist_abs.glob(f"{env.app}*.egg")), None)
         except StopIteration:
-            logging.error(f"searching for {wenv_abs / env.app}*.egg")
+            logger.error(f"searching for {wenv_abs / env.app}*.egg")
             raise FileNotFoundError(f"no existing egg file in {wenv_abs / env.app}*")
 
         # build agi_env*.whl
@@ -1146,14 +1158,14 @@ class AGI:
             try:
                 result = await AGI.exec_ssh(ip, check_rapids)
             except Exception as e:
-                logging.error(f"rapids is requested but not supported by node [{ip}]")
+                logger.error(f"rapids is requested but not supported by node [{ip}]")
                 raise
 
             has_rapids_hw = (result != "") and AGI._rapids_enabled
             env.has_rapids_hw = has_rapids_hw
             if has_rapids_hw:
                 AgiEnv.set_env_var(ip, "has_rapids_hw")
-            logging.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
+            logger.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
         # unzip egg to get src/
         cli = env.wenv_rel.parent / "cli.py"
@@ -1188,7 +1200,10 @@ class AGI:
         await AGI.exec_ssh(ip, cmd)
 
         # build target_worker lib from src/
-        cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {wenv_rel / env.setup_app.name} build_ext --install-type 2 -b {wenv_rel}"
+        if env.verbose > 1:
+            cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {wenv_rel / env.setup_app.name} build_ext --install-type 2 -b {wenv_rel}"
+        else:
+            cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {wenv_rel / env.setup_app.name} -q build_ext --install-type 2 -b {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
 
     @staticmethod
@@ -1200,7 +1215,7 @@ class AGI:
         """Uninstall specified modules."""
         for module in AGI._module_to_clean:
             cmd = f"{env.uv} pip uninstall {module} -y"
-            logging.info(f"Executing: {cmd}")
+            logger.info(f"Executing: {cmd}")
             await AgiEnv.run(cmd, AGI.env.env_root)
         AGI._module_to_clean.clear()
 
@@ -1233,7 +1248,8 @@ class AGI:
         for ip in list_ip:
             (AGI._local_ip.append(ip) if AgiEnv.is_local(ip) else AGI._remote_ip.append(ip))
         AGI._install_todo = 2 * len(AGI._remote_ip)
-        logging.info(f"********   {AGI._install_todo} remote .venv to {AGI._run_type}")
+        if AGI.env.verbose > 0:
+            logger.info(f"********   {AGI._install_todo} remote .venv to {AGI._run_type}")
 
     @staticmethod
     async def install(
@@ -1355,7 +1371,7 @@ class AGI:
                     if list(AGI.workers) == ["127.0.0.1"]:
                         scheduler = "127.0.0.1"
                     else:
-                        logging.info("AGI.run(...scheduler='scheduler ip address' is required -> Stop")
+                        logger.info("AGI.run(...scheduler='scheduler ip address' is required -> Stop")
 
                 AGI._scheduler_ip, AGI._scheduler_port = AGI._get_scheduler(scheduler)
 
@@ -1385,10 +1401,10 @@ class AGI:
                     f"{env.uv} run --project {env.wenv_abs} dask scheduler --port {AGI._scheduler_port} "
                     f"--host {AGI._scheduler_ip} --pid-file {wenv_abs.parent / 'dask_scheduler.pid' } "
                 )
-                logging.info(f"Starting dask scheduler locally: {cmd}")
+                logger.info(f"Starting dask scheduler locally: {cmd}")
                 result = AGI._exec_bg(cmd, env.active_app)
                 if result:# assuming _exec_bg is sync
-                    logging.info(result)
+                    logger.info(result)
             else:
                 # Create remote directory
                 cmd = f"{env.uv} run -p {env.python_version} python -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
@@ -1409,11 +1425,11 @@ class AGI:
                 client = await Client(AGI._scheduler,
                                       heartbeat_interval=5000,
                                       timeout=AGI.TIMEOUT)
-                client.forward_logging()
+                client.forward_logger()
                 AGI._dask_client = client
             except Exception as e:
-                logging.error("Dask Client instantiation trouble, run aborted due to:")
-                logging.info(e)
+                logger.error("Dask Client instantiation trouble, run aborted due to:")
+                logger.info(e)
                 sys.exit(1)
 
             AGI._install_done = True
@@ -1457,7 +1473,7 @@ class AGI:
 
             for j in range(n):
                 try:
-                    logging.info(f"Starting worker #{i}.{j} on [{ip}]")
+                    logger.info(f"Starting worker #{i}.{j} on [{ip}]")
                     pid_file = f"dask_worker_{i}_{j}.pid"
 
                     if is_local:
@@ -1473,10 +1489,10 @@ class AGI:
                         wenv_rel = env.wenv_rel
                         cmd = f'{cmd_prefix}{env.uv} --project {wenv_rel} run --no-sync dask worker tcp://{AGI._scheduler} --no-nanny --pid-file {wenv_rel.parent / pid_file}'
                         asyncio.create_task(AGI.exec_ssh_async(ip, cmd))
-                        logging.info(f"Launched remote worker in background on {ip}: {cmd}")
+                        logger.info(f"Launched remote worker in background on {ip}: {cmd}")
 
                 except Exception as e:
-                    logging.error(f"Failed to start worker on {ip}: {e}")
+                    logger.error(f"Failed to start worker on {ip}: {e}")
                     raise
 
                 if AGI._worker_init_error:
@@ -1505,10 +1521,10 @@ class AGI:
                 info = AGI._dask_client.scheduler_info()
                 workers_info = info.get("workers")
                 if workers_info is None:
-                    logging.info("Scheduler info 'workers' not ready yet.")
+                    logger.info("Scheduler info 'workers' not ready yet.")
                     await asyncio.sleep(3)
                     if time.time() - start > timeout:
-                        logging.error(f"Timeout waiting for scheduler workers info.")
+                        logger.error(f"Timeout waiting for scheduler workers info.")
                         sys.exit(1)
                     continue
 
@@ -1517,8 +1533,8 @@ class AGI:
                 remaining = expected_workers - current_count
 
                 if runners:
-                    logging.info(f"Current workers connected: {runners}")
-                logging.info(f"Waiting for number of workers to attach: {remaining} remaining...")
+                    logger.info(f"Current workers connected: {runners}")
+                logger.info(f"Waiting for number of workers to attach: {remaining} remaining...")
 
                 if current_count >= expected_workers:
                     break
@@ -1527,17 +1543,17 @@ class AGI:
                     break
 
                 if time.time() - start > timeout:
-                    logging.error("Timeout waiting for all workers. {remaining} workers missing.")
+                    logger.error("Timeout waiting for all workers. {remaining} workers missing.")
                     sys.exit(1)
                 await asyncio.sleep(3)
 
             except Exception as e:
-                logging.info(f"Exception in _sync: {e}")
+                logger.info(f"Exception in _sync: {e}")
                 await asyncio.sleep(1)
                 if time.time() - start > timeout:
                     raise TimeoutError(f"Timeout waiting for all workers due to exception: {e}")
 
-        logging.info("All workers successfully attached to scheduler")
+        logger.info("All workers successfully attached to scheduler")
 
     @staticmethod
     async def _build_lib_local():
@@ -1574,7 +1590,11 @@ class AGI:
         cmd_prefix = env.envars.get(f"127.0.0.1_CMD_PREFIX", "")
         if env.is_free_threading_available:
             uv = cmd_prefix + " PYTHON_GIL=0 " + env.uv
-        cmd = f"{env.uv} --project {app_path} run --no-sync python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d \"{wenv_abs}\""
+        if env.verbose > 1:
+            cmd = f"{env.uv} --project {app_path} run --no-sync python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d \"{wenv_abs}\""
+        else:
+            cmd = f"{env.uv} --project {app_path} run --no-sync python {env.setup_app} -q bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d \"{wenv_abs}\""
+
         await AgiEnv.run(cmd, app_path)
 
         dask_client = AGI._dask_client
@@ -1587,7 +1607,11 @@ class AGI:
         if is_cy:
             # cython compilation of wenv/src into wenv
             shutil.copy2(env.setup_core, wenv_abs)
-            cmd = f"{env.uv} --project {app_path} run --no-sync python {env.setup_app} build_ext --install-type 1 -b {wenv_abs}"
+            if env.verbose > 1:
+                cmd = f"{env.uv} --project {app_path} run --no-sync python {env.setup_app} build_ext --install-type 1 -b {wenv_abs}"
+            else:
+                cmd = f"{env.uv} --project {app_path} run --no-sync python {env.setup_app} -q build_ext --install-type 1 -b {wenv_abs}"
+
             res = await AgiEnv.run(cmd, app_path)
             try:
                 worker_lib = next(iter((wenv_abs / 'dist').glob("*_cy.*")), None)
@@ -1604,7 +1628,8 @@ class AGI:
             destination_dir = os.path.dirname(destination)
             os.makedirs(destination_dir, exist_ok=True)  # create directory if missing
             shutil.copy2(worker_lib, destination)
-            logging.info(res)
+            if res != "":
+                logger.info(res)
 
         return
 
@@ -1616,7 +1641,7 @@ class AGI:
         # worker
         if (AGI._dask_client.scheduler.pool.open == 0) and AGI._verbose:
             runners = list(AGI._dask_client.scheduler_info()["workers"].keys())
-            logging.info("warning: no scheduler found but requested mode is dask=1 => switch to dask")
+            logger.info("warning: no scheduler found but requested mode is dask=1 => switch to dask")
 
     @staticmethod
     async def _run_local() -> Any:
@@ -1630,7 +1655,7 @@ class AGI:
 
         # check first that install is done
         if not (env.wenv_abs / ".venv").exists():
-            logging.info("Worker installlation not found")
+            logger.info("Worker installlation not found")
             sys.exit(1)
 
         pid_file = "dask_worker_0.pid"
@@ -1657,10 +1682,7 @@ class AGI:
                 f"  res = await BaseWorker.run({AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args})\n"
                 f"  print(res)\n"
                 f"if __name__ == '__main__':\n"
-                f"  try:\n"
-                f"      asyncio.get_running_loop().run_until_complete(main())\n"
-                f"  except RuntimeError:\n"
-                f"      asyncio.run(main())\""
+                f"  asyncio.run(main())\""
             )
 
             res = await AgiEnv.run_async(cmd, env.wenv_abs)
@@ -1687,7 +1709,7 @@ class AGI:
             worker.split("/")[-1]
             for worker in list(AGI._dask_client.scheduler_info()["workers"].keys())
         ]
-        logging.info(f"AGI run mode={AGI._mode} on {list(AGI._dask_workers)} ... ")
+        logger.info(f"AGI run mode={AGI._mode} on {list(AGI._dask_workers)} ... ")
 
         AGI.workers, workers_tree, workers_tree_info = await WorkDispatcher.do_distrib(
             env, AGI.workers, AGI._args
@@ -1735,10 +1757,10 @@ class AGI:
 
         # LOG ONLY, no print:
         for worker, log in worker_logs.items():
-            logging.info(f"\n=== Worker {worker} logs ===\n{log}")
+            logger.info(f"\n=== Worker {worker} logs ===\n{log}")
 
         runtime = time.time() - t
-        logging.info(f"{env.mode2str(AGI._mode)} {runtime}")
+        logger.info(f"{env.mode2str(AGI._mode)} {runtime}")
         return f"{env.mode2str(AGI._mode)} {runtime}"
 
     @staticmethod
@@ -1822,7 +1844,7 @@ class AGI:
                     workers_to_remove.append(dask_worker)
 
             if workers_to_remove:
-                logging.info(f"unused workers: {len(workers_to_remove)}")
+                logger.info(f"unused workers: {len(workers_to_remove)}")
                 for worker in workers_to_remove:
                     AGI._dask_workers.remove(worker)
 
@@ -1830,7 +1852,7 @@ class AGI:
     async def _stop() -> None:
         """Stop the Dask workers and scheduler"""
         env = AGI.env
-        logging.info("stop Agi core")
+        logger.info("stop Agi core")
 
         i = 0
         while len(AGI._dask_client.scheduler_info()["workers"]) and (i < AGI.TIMEOUT):
@@ -1867,7 +1889,7 @@ class AGI:
         for res in res_workers_info:
             for worker, info in res.items():
                 if info:
-                    logging.info(f"{worker}:{info}")
+                    logger.info(f"{worker}:{info}")
                 infos[worker] = info
 
         AGI.workers_info = infos
@@ -1943,7 +1965,7 @@ class AGI:
         )
         AGI._capacity_predictor = RandomForestRegressor().fit(X_train, y_train)
 
-        logging.info(
+        logger.info(
             f"AGI.balancer_train_mode - Accuracy of the prediction of the workers capacity = "
             f"{AGI._capacity_predictor.score(X_test, y_test)}"
         )
@@ -2081,12 +2103,12 @@ class AGI:
 
         except asyncio.TimeoutError:
             err_msg = f"Connection to {ip} timed out after {timeout_sec} seconds."
-            logging.error(err_msg)
+            logger.error(err_msg)
             raise
 
         except asyncssh.PermissionDenied:
             err_msg = f"Authentication failed for SSH user '{self.user}' on host {ip}."
-            logging.error(err_msg)
+            logger.error(err_msg)
             raise
 
         except OSError as e:
@@ -2097,18 +2119,18 @@ class AGI:
                 )
                 raise ConnectionError(err_msg)
             elif e.errno in (errno.EACCES, errno.ECONNREFUSED):
-                logging.error(str(e))
+                logger.error(str(e))
             else:
-                logging.error(str(e))
+                logger.error(str(e))
             raise
 
         except asyncssh.Error as e:
-            logging.error(e.command if hasattr(e, 'command') else "No command attribute")
-            logging.error(e)
+            logger.error(e.command if hasattr(e, 'command') else "No command attribute")
+            logger.error(e)
             raise
 
         except Exception as e:
-            logging.error(f"Unexpected error while connecting to {ip}: {e}")
+            logger.error(f"Unexpected error while connecting to {ip}: {e}")
             raise
 
     @staticmethod
@@ -2116,8 +2138,8 @@ class AGI:
         try:
             async with AGI.get_ssh_connection(ip) as conn:
                 msg = f"[{ip}] {cmd}"
-                if AgiEnv.verbose > 1 or AgiEnv.debug:
-                    logging.info(msg)
+                if AgiEnv.verbose > 0 or AgiEnv.debug:
+                    logger.info(msg)
                 result = await conn.run(cmd, check=True)
                 stdout = result.stdout
                 stderr = result.stderr
@@ -2126,10 +2148,10 @@ class AGI:
                 if isinstance(stderr, bytes):
                     stder = stderr.decode('utf-8', errors='replace')
                 if stderr:
-                    logging.info(f"[{ip}] {stderr.strip()}")
-                if AgiEnv.verbose > 1 or AgiEnv.debug:
+                    logger.info(f"[{ip}] {stderr.strip()}")
+                if AgiEnv.verbose > 0 or AgiEnv.debug:
                     if stdout:
-                        logging.info(f"[{ip}] {stdout.strip()}")
+                        logger.info(f"[{ip}] {stdout.strip()}")
                 return stdout.strip() + "\n" + stderr.strip()
 
         except ConnectionError:
@@ -2142,11 +2164,11 @@ class AGI:
                 stdout = stdout.decode('utf-8', errors='replace')
             if isinstance(stderr, bytes):
                 stderr = stderr.decode('utf-8', errors='replace')
-            logging.error(f"Remote command stderr: {stderr.strip()}")
+            logger.error(f"Remote command stderr: {stderr.strip()}")
             raise
 
         except (asyncssh.Error, OSError) as e:
-            logging.error(e)
+            logger.error(e)
             raise
 
     @staticmethod

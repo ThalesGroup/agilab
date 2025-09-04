@@ -41,7 +41,6 @@ GRACE_TOTAL = float(os.environ.get("CLI_GRACE_TOTAL", "0.30"))
 FREETHREADED_THRESHOLD = float(os.environ.get("CLI_FREETHREADED_THRESHOLD", "0.80"))
 BASELINE_TARGET_S = float(os.environ.get("CLI_BASELINE_TARGET_S", "0.15"))  # target single-thread work
 
-logging.basicConfig(level=os.environ.get("CLI_LOGLEVEL", "INFO").upper())
 logger = logging.getLogger(__name__)
 
 # ---------------- helpers ----------------
