@@ -1347,7 +1347,7 @@ class AGI:
         -------
         """
         AGI._run_type = "simulate"
-        return await AGI.run(app, env, scheduler, workers, verbose, mode=AGI.SIMULATE_MODE, **args)
+        return await AGI.run(env, scheduler, workers, verbose, mode=AGI.SIMULATE_MODE, **args)
 
     @staticmethod
     async def _start_scheduler(scheduler: Optional[str]) -> bool:

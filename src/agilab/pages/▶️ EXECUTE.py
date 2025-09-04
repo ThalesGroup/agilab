@@ -730,11 +730,8 @@ async def main():
     print(res)
     return res
 
-if __name__ == '__main__':
-    try:
-        asyncio.get_running_loop().run_until_complete(main())
-    except RuntimeError:
-        asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
             """
             st.code(cmd, language="python")
         if st.button("INSTALL", key="install_btn", type="primary",
@@ -744,7 +741,7 @@ if __name__ == '__main__':
             with st.spinner("Installing worker..."):
                 venv = env.cluster_root if env.install_type else env.active_app.parents[1]
                 stdout, stderr = await env.run_agi(
-                    cmd,
+                    cmd.replace("asyncio.run(main())", env.snippet_tail)
                     log_callback=lambda message: update_log(live_log_placeholder, message),
                     venv=venv
                 )
@@ -814,11 +811,8 @@ async def main():
     print(res)
     return res
 
-if __name__ == '__main__':
-    try:
-        asyncio.get_running_loop().run_until_complete(main())
-    except RuntimeError:
-        asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
             """
             st.code(cmd, language="python")
         if st.button("TEST DISTRIBUTE", key="preview_btn", type="secondary",
@@ -829,7 +823,7 @@ if __name__ == '__main__':
                 live_log_placeholder = st.empty()
                 with st.spinner("Building distribution..."):
                     stdout, stderr = await env.run_agi(
-                        cmd,
+                        cmd.replace("asyncio.run(main())", env.snippet_tail),
                         log_callback=lambda message: update_log(live_log_placeholder, message),
                         venv=project_path
                     )
@@ -917,11 +911,8 @@ async def main():
     print(res)
     return res
 
-if __name__ == '__main__':
-    try:
-        asyncio.get_running_loop().run_until_complete(main())
-    except RuntimeError:
-        asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
             """
             st.code(cmd, language="python")
         if st.button("RUN", key="run_btn", type="primary", help="Run your snippet with your cluster and app settings"):
@@ -929,7 +920,7 @@ if __name__ == '__main__':
                 live_log_placeholder = st.empty()
                 with st.spinner("Running AGI..."):
                     stdout, stderr = await env.run_agi(
-                        cmd,
+                        cmd.replace("asyncio.run(main())", env.snippet_tail),
                         log_callback=lambda message: update_log(live_log_placeholder, message),
                         venv=project_path
                     )

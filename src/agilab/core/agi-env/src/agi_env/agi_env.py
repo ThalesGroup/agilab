@@ -106,6 +106,7 @@ class AgiEnv:
     _ip_local_cache: set = set({"127.0.0.1", "::1"})
     INDEX_URL="https://test.pypi.org/simple"
     EXTRA_INDEX_URL="https://pypi.org/simple"
+    snippet_tail = "asyncio.get_event_loop().run_until_complete(main())"
 
     def __init__(self,
                  active_app: Path | str = None,
@@ -156,9 +157,6 @@ class AgiEnv:
 
             if not active_app.name.endswith('_project') and not active_app.name.endswith('_worker'):
                 raise ValueError(f"{active_app} must end with '_project'")
-
-        if not active_app.exists():
-            raise ValueError(f"No app found at {active_app}")
 
         self.active_app = active_app
         target = active_app.name.replace("_project", "").replace("_worker","").replace("-", "_")
