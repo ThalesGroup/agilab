@@ -652,7 +652,7 @@ class AgiEnv:
         if not self.export_apps.exists():
             os.makedirs(str(self.export_apps), exist_ok=True)
         self.MLFLOW_TRACKING_DIR = Path(envars.get("MLFLOW_TRACKING_DIR", self.home_abs / ".mlflow"))
-        self.AGILAB_VIEWS_ABS = Path(envars.get("AGI_VIEWS_DIR", self.agilab_src / "views"))
+        self.AGILAB_VIEWS_ABS = Path(envars.get("AGI_VIEWS_DIR", self.agilab_src / "agilab/views"))
         self.AGILAB_VIEWS_REL = Path(envars.get("AGI_VIEWS_DIR", "agilab/_"))
         if AgiEnv.install_type == 0:
             self.copilot_file = self.agilab_src / "agi_copilot.py" # WTF ?
