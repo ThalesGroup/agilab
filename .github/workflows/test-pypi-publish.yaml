@@ -46,17 +46,17 @@ jobs:
 
       - name: Ensure TestPyPI token present
         run: |
-          set -euo pipefail
-          if [ -z "${TWINE_PASSWORD:-}" ]; then
-            echo "ERROR: Missing TEST_PYPI_API_TOKEN or TEST_PYPI_SECRET" >&2
-            exit 2
-          fi
-          echo "Found TestPyPI token."
+        set -euo pipefail
+        if [ -z "${TWINE_PASSWORD:-}" ]; then
+          echo "ERROR: Missing TEST_PYPI_API_TOKEN or TEST_PYPI_SECRET" >&2
+          exit 2
+        fi
+        echo "Found TestPyPI token."
 
       # ---------------------- CORE: build & upload with uv ----------------------
       # Per-package versioning (auto .postN when needed) + HTTP 400 fallback.
       # Also repairs any accidental `project.name = "pkg==X.Y.Z"` before building.
-            - name: Build & upload core packages (uv) with ONE unified version for all
+      - name: Build & upload core packages (uv) with ONE unified version for all
         env:
           BASE_VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
@@ -255,11 +255,11 @@ jobs:
       - name: Remove symlinks (apps/ and views/) before umbrella build
         shell: bash
         run: |
-          set -euxo pipefail
-          find src/agilab/apps src/agilab/views -type l -print -delete || true
+        set -euxo pipefail
+        find src/agilab/apps src/agilab/views -type l -print -delete || true
         # Mirrors your production workflow's symlink cleanup. :contentReference[oaicite:3]{index=3}
 
-            - name: Build & upload umbrella (agilab) with the SAME unified version
+      - name: Build & upload umbrella (agilab) with the SAME unified version
         env:
           BASE_VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
