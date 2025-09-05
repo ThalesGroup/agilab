@@ -9,9 +9,10 @@
 [![docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://thalesgroup.github.io/agilab)
 [![ORCID](https://img.shields.io/badge/ORCID-0009--0003--5375--368X-A6CE39?logo=orcid)](https://orcid.org/0009-0003-5375-368X)
 
-# AGI-NODE Open Source Project
 
-agi-node is a compoment for AGILAB [BSD license](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) project purpose is to explore AI for engineering. It is designed to help engineers quickly experiment with AI-driven methods.
+# AGI-CLUSTER Open Source Project
+
+agi-cluster is one component of agi-core [BSD license](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) project purpose is to explore AI for engineering. It is designed to help engineers quickly experiment with AI-driven methods.
 See [documentation](https://thalesgroup.github.io/agilab).
 
 It is as a pure meta-package containing the subpackages declare in pyproject.toml
@@ -19,5 +20,8 @@ It is as a pure meta-package containing the subpackages declare in pyproject.tom
 ## Install
 
 ```bash
-pip install agi-node
+pip install agi-cluster
 ```
+
+
+
