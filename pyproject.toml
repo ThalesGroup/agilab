@@ -58,6 +58,7 @@ dependencies = [
     "twine",
     "watchdog",
     "wheel",
+    "agi-core"
 ]
 
 [optional-dependencies]

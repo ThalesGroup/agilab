@@ -91,7 +91,7 @@ case "${SOURCE}" in
     INDEX_URL="https://test.pypi.org/simple"
     EXTRA_INDEX_URL="https://pypi.org/simple"
 
-    python -m pip install --quiet packaging
+    uv pip install packaging
 
     resolve_common_latest() {
       python - "$@" <<'PY'
