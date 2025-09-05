@@ -368,9 +368,10 @@ class BaseWorker(abc.ABC):
 
     @staticmethod
     def new(
-            mode=mode,
+            env: AgiEnv=None,
+            active_app: str=None,
+            mode=0,
             install_type=None,
-            env=None,
             verbose=0,
             worker_id=0,
             worker="localhost",
@@ -394,7 +395,10 @@ class BaseWorker(abc.ABC):
             #     install_type = 2 # if install_type or not worker.startswith(("localhost", "127.0.0.1")) else 3
             #     env = AgiEnv(active_app=app, install_type=install_type, verbose=verbose)
 
-            BaseWorker.env = env if env else AgiEnv(install_type=2, verbose=verbose)
+            if env:
+                BaseWorker.env = env
+            else:
+                BaseWorker.env = AgiEnv(active_app=active_app, install_type=2, verbose=verbose)
 
             logging.info(f"venv: {sys.prefix}")
             logging.info(f"BaseWorker.new - worker #{worker_id}: {worker} from: {Path(__file__)}")

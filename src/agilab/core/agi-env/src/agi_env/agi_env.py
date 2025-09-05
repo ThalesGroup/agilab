@@ -146,7 +146,7 @@ class AgiEnv:
         if isinstance(active_app, str):
             # case only worker_env
             self.is_worker_env = True
-            active_app = Path(active_app).resolve()
+            active_app = home_abs / active_app
         else:
             if not active_app:
                 venv_home = Path(sys.prefix).parent

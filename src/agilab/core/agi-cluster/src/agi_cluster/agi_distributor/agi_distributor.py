@@ -1669,16 +1669,16 @@ class AGI:
             cython_lib_path = Path(wenv_abs)
 
         if env.debug:
-            BaseWorker.new(mode=AGI._mode, install_type=env.install_type, verbose=AGI._verbose, args=AGI._args)
-            res = await BaseWorker.run(AGI.workers, mode=AGI._mode, verbose=AGI._verbose, args=AGI._args)
+            BaseWorker.new(env=env, mode=AGI._mode, install_type=env.install_type, verbose=AGI._verbose, args=AGI._args)
+            res = await BaseWorker.run(env=env, mode=AGI._mode, workers=AGI.workers, verbose=AGI._verbose, args=AGI._args)
         else:
             cmd = (
                 f"{env.uv} run --no-sync --project {env.wenv_abs} python -c \""
                 f"from agi_node.agi_dispatcher import  BaseWorker\n"
                 f"import asyncio\n"
                 f"async def main():\n"
-                f"  BaseWorker.new(mode={AGI._mode}, install_type={env.install_type}, verbose={AGI._verbose}, args={AGI._args})\n"
-                f"  res = await BaseWorker.run(env=None, workers={AGI.workers}, mode={AGI._mode}, verbose={AGI._verbose}, args={AGI._args})\n"
+                f"  BaseWorker.new(active_app={env.target_worker}, mode={AGI._mode}, install_type={env.install_type}, verbose={AGI._verbose}, args={AGI._args})\n"
+                f"  res = await BaseWorker.run(mode={AGI._mode},workers={AGI.workers}, verbose={AGI._verbose}, args={AGI._args})\n"
                 f"  print(res)\n"
                 f"if __name__ == '__main__':\n"
                 f"  asyncio.run(main())\""
@@ -1728,8 +1728,8 @@ class AGI:
             [
                 client.submit(
                     BaseWorker.new,
-                    env.app,
                     env=0 if env.debug else None,
+                    active_app=env.target_worker,
                     mode=AGI._mode,
                     install_type=env.install_type,
                     verbose=AGI._verbose,

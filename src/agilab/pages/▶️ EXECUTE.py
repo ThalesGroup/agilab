@@ -724,9 +724,10 @@ from pathlib import Path
 
 async def main():
     app_env = AgiEnv(active_app=Path('{env.active_app}') ,install_type={env.install_type}, verbose={verbose})
-    res = await AGI.install(app_env, modes_enabled={st.session_state.mode},
-                            verbose={verbose}, 
-                            scheduler={scheduler}, workers={workers})
+    res = await AGI.install(app_env, 
+                            modes_enabled={st.session_state.mode},
+                            scheduler={scheduler}, 
+                            workers={workers})
     print(res)
     return res
 
@@ -806,8 +807,10 @@ from pathlib import Path
 
 async def main():
     app_env = AgiEnv(active_app=Path('{env.active_app}'), install_type={env.install_type}, verbose={verbose})
-    res = await AGI.distribute(app_env, verbose={verbose}, 
-                                scheduler={scheduler}, workers={workers}, {st.session_state.args_serialized})
+    res = await AGI.distribute(app_env,
+                               scheduler={scheduler}, 
+                               workers={workers},
+                               {st.session_state.args_serialized})
     print(res)
     return res
 
@@ -905,9 +908,11 @@ from pathlib import Path
 
 async def main():
     app_env = AgiEnv(active_app=Path('{env.active_app}'), install_type={env.install_type}, verbose={verbose}) 
-    res = await AGI.run(app_env, mode={st.session_state["mode"]}, 
-                        scheduler={scheduler}, workers={workers}, 
-                        verbose={verbose}, {st.session_state.args_serialized})
+    res = await AGI.run(app_env, 
+                        mode={st.session_state["mode"]}, 
+                        scheduler={scheduler}, 
+                        workers={workers}, 
+                        {st.session_state.args_serialized})
     print(res)
     return res
 

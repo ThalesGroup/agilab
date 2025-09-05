@@ -7,7 +7,6 @@ from pathlib import Path
 async def main():
     app_env = AgiEnv(active_app=Path('/Users/jpm/agilab/src/agilab/apps/flight_project') ,install_type=1, verbose=True)
     res = await AGI.install(app_env, modes_enabled=0,
-                            verbose=True, 
                             scheduler=None, workers=None)
     print(res)
     return res
