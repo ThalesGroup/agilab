@@ -39,21 +39,26 @@ class ClassNameFilter(logging.Filter):
             record.classname = '<no-class>'
         return True
 
+class MaxLevelFilter(logging.Filter):
+    def __init__(self, max_level):
+        self.max_level = max_level
+    def filter(self, record):
+        return record.levelno <= self.max_level
+
 class LogFormatter(logging.Formatter):
     def __init__(self, *args, verbose=0, **kwargs):
         super().__init__(*args, **kwargs)
         self.verbose = verbose
 
     def format(self, record):
-        # Time
-        # asctime = COLORS["time"] + self.formatTime(record, self.datefmt) + RESET
-        # Level (color depends on level)
         level_color = COLORS["level"].get(record.levelname, "")
         levelname = level_color + record.levelname + RESET
 
         #Virtual Environment (if any)
-        venv = os.environ.get("VIRTUAL_ENV").split("/")[-2]
-        venv_str = COLORS["classname"] + venv + RESET
+        venv = sys.prefix
+        venv_str = COLORS["classname"] + "<unknown>" + RESET
+        if venv:
+            venv_str = COLORS["classname"] + (venv.split("\\")[-2] if os.name == "nt" else venv.split("/")[-2]) + RESET
 
         # Classname / function (collapse to just 'build.py' if the source file is build.py)
         className = getattr(record, "classname", record.name)
@@ -84,7 +89,6 @@ class AgiLogger:
     @classmethod
     def configure(cls, *,
                   verbose: int | None = None,
-                  log_dir: str | Path | None = None,
                   base_name: str | None = None,
                   force: bool = False) -> logging.Logger:
         with cls._lock:
@@ -97,22 +101,22 @@ class AgiLogger:
             if verbose is None:
                 verbose = 0
             cls._verbose = verbose
-            level = logging.DEBUG if verbose > 0 else logging.INFO
 
             # Configure ROOT so direct logging.info(...) calls are captured.
             root = logging.getLogger()
-            root.setLevel(level)
+            root.setLevel(logging.INFO)
 
             for handler in root.handlers[:]:
                 root.removeHandler(handler)
 
             stdout_handler = logging.StreamHandler(sys.stdout)
-            stdout_handler.setLevel(level)
+            stdout_handler.setLevel(logging.INFO)
             stdout_handler.setFormatter(LogFormatter(verbose=verbose, datefmt="%H:%M:%S"))
             stdout_handler.addFilter(ClassNameFilter())
+            stdout_handler.addFilter(MaxLevelFilter(logging.WARNING))
 
             stderr_handler = logging.StreamHandler(sys.stderr)
-            stderr_handler.setLevel(logging.WARNING)
+            stderr_handler.setLevel(logging.ERROR)
             stderr_handler.setFormatter(LogFormatter(verbose=verbose, datefmt="%H:%M:%S"))
             stderr_handler.addFilter(ClassNameFilter())
 
@@ -121,7 +125,7 @@ class AgiLogger:
 
             # Expose a base package logger; child loggers will propagate to ROOT.
             pkg_logger = logging.getLogger(cls._base_name)
-            pkg_logger.setLevel(level)
+            pkg_logger.setLevel(logging.INFO)
             pkg_logger.propagate = True
 
             cls._configured = True

@@ -831,10 +831,7 @@ class AgiEnv:
         if wait:
             try:
                 result = []
-                is_pkg = is_packaging_cmd(cmd)
-                stderr_default = logging.INFO if is_pkg else logging.ERROR
-
-                async def read_stream(stream, default_level, callback=None):
+                async def read_stream(stream, callback=None):
                     enc = sys.stdout.encoding or "utf-8"
                     while True:
                         line = await stream.readline()
@@ -845,10 +842,9 @@ class AgiEnv:
                             continue
                         safe = text.encode(enc, errors="replace").decode(enc)
                         plain = AgiLogger.decolorize(safe)
-                        lvl = parse_level(plain, default_level)
                         msg = strip_time_level_prefix(plain)
-                        (callback or (lambda msg: AgiEnv.logger.log(lvl, msg, extra={"subprocess": True})))(safe)
-                        result.append(safe)
+                        callback(msg, extra={"subprocess": True})
+                        result.append(msg)
 
                 process = await asyncio.create_subprocess_shell(
                     cmd,
@@ -860,8 +856,8 @@ class AgiEnv:
                 )
 
                 await asyncio.wait_for(asyncio.gather(
-                    read_stream(process.stdout, logging.INFO, log_callback),
-                    read_stream(process.stderr, stderr_default,  None),
+                    read_stream(process.stdout, log_callback if log_callback else AgiEnv.logger.info),
+                    read_stream(process.stderr, log_callback if log_callback else AgiEnv.logger.error),
                 ), timeout=timeout)
 
                 returncode = await process.wait()
@@ -903,9 +899,7 @@ class AgiEnv:
         is_pkg = is_packaging_cmd(cmd)
         stderr_default = logging.INFO if is_pkg else logging.ERROR
 
-        # Capture full outputs while we stream
-        stdout_lines: list[str] = []
-        stderr_lines: list[str] = []
+        result = []
 
         proc = await asyncio.create_subprocess_shell(
             cmd,
@@ -915,7 +909,7 @@ class AgiEnv:
             stderr=asyncio.subprocess.PIPE,
         )
 
-        async def read_stream(stream, default_level, capture_lines, callback=None):
+        async def read_stream(stream, callback=None):
             enc = sys.stdout.encoding or "utf-8"
             while True:
                 line = await stream.readline()
@@ -925,18 +919,17 @@ class AgiEnv:
                 if not text:
                     continue
                 safe = text.encode(enc, errors="replace").decode(enc)
-                lvl = parse_level(safe, default_level)
-                msg = strip_time_level_prefix(safe)
-                capture_lines.append(msg)
-                # If a callback is provided, use it; otherwise log with derived level
-                (callback or (lambda msg: AgiEnv.logger.log(lvl, msg, extra={"subprocess": True})))(msg)
+                plain = AgiLogger.decolorize(safe)
+                msg = strip_time_level_prefix(plain)
+                callback(msg, extra={"subprocess": True})
+                result.append(msg)
 
         # Consume both streams and wait for process completion (with timeout)
         try:
             await asyncio.wait_for(
                 asyncio.gather(
-                    read_stream(proc.stdout, logging.INFO, stdout_lines, log_callback if log_callback else None),
-                    read_stream(proc.stderr, stderr_default, stderr_lines, None),
+                    read_stream(proc.stdout, log_callback if log_callback else AgiEnv.logger.info),
+                    read_stream(proc.stderr, log_callback if log_callback else AgiEnv.logger.error),
                     proc.wait(),
                 ),
                 timeout=timeout,
@@ -951,7 +944,7 @@ class AgiEnv:
             AgiEnv.logger.error("Command failed with exit code %s: %s", returncode, cmd)
             raise RuntimeError(f"Command failed (exit {returncode})")
 
-        return "\n".join(stdout_lines), "\n".join(stderr_lines)
+        return "\n".join(result)
 
     async def run_agi(self, code, log_callback=None, venv: Path = None, type=None):
         """
@@ -985,6 +978,9 @@ class AgiEnv:
         Returns the last non-empty line among stderr (preferred) then stdout.
         Raises on non-zero exit (logs stderr tail).
         """
+        if AgiEnv.verbose > 0:
+            AgiEnv.logger.info(f"Executing in {venv}: {cmd}")
+
         if cwd is None:
             cwd = venv
 
@@ -1005,11 +1001,7 @@ class AgiEnv:
         if isinstance(cmd, (list, tuple)):
             cmd = " ".join(cmd)
 
-        # Packaging tools print progress to stderr; default those lines to INFO.
-        pkg = is_packaging_cmd(cmd)
-        stderr_default = logging.INFO if pkg else logging.ERROR
-
-        stdout_lines, stderr_lines = [], []
+        result = []
 
         proc = await asyncio.create_subprocess_shell(
             cmd,
@@ -1020,9 +1012,8 @@ class AgiEnv:
             executable=shell_executable,
         )
 
-        async def read_stream(stream, default_level, sink, callback=None):
+        async def read_stream(stream, callback=None):
             enc = sys.stdout.encoding or "utf-8"
-            lvl = default_level
             while True:
                 line = await stream.readline()
                 if not line:
@@ -1031,24 +1022,16 @@ class AgiEnv:
                 if not text:
                     continue
                 safe = text.encode(enc, errors="replace").decode(enc)
-                next_lvl = parse_level(safe, default_level)
-                # if lvl == logging.ERROR and next_lvl == logging.INFO:
-                #     # Check if we are still in a traceback block
-                #     if any(safe.startswith(prefix) for prefix in ("  File ", "    ", "... ", "Traceback ")):
-                #         next_lvl = logging.ERROR
-                #     if "Error:" in safe or "Exception:" in safe or "exception" in safe:
-                #         next_lvl = logging.ERROR
-                lvl = next_lvl
-                msg = strip_time_level_prefix(safe)
-                sink.append(msg)
-                # Use provided callback for this stream if given; else log at derived level
-                (callback or (lambda msg: AgiEnv.logger.log(lvl, msg, extra={"subprocess": True})))(msg)
+                plain = AgiLogger.decolorize(safe)
+                msg = strip_time_level_prefix(plain)
+                callback(msg, extra={"subprocess": True})
+                result.append(msg)
 
         try:
             await asyncio.wait_for(
                 asyncio.gather(
-                    read_stream(proc.stdout, logging.INFO,  stdout_lines, log_callback),
-                    read_stream(proc.stderr, stderr_default, stderr_lines, None),
+                    read_stream(proc.stdout, log_callback if log_callback else AgiEnv.logger.info),
+                    read_stream(proc.stderr, log_callback if log_callback else AgiEnv.logger.info),
                     proc.wait(),
                 ),
                 timeout=timeout,
@@ -1071,8 +1054,9 @@ class AgiEnv:
                     return l
             return None
 
-        last_line = last_non_empty(stderr_lines) or last_non_empty(stdout_lines) or ""
+        last_line = last_non_empty(result) or ""
         return last_line
+
 
     @staticmethod
     def create_symlink(src: Path, dest: Path):
