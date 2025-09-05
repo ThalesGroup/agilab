@@ -16,6 +16,7 @@ import numbers
 from collections import defaultdict
 from pathlib import Path
 import importlib
+from datetime import datetime
 
 # Third-Party imports
 import networkx as nx
@@ -933,24 +934,7 @@ if __name__ == "__main__":
                     display_log(stdout, stderr)
                     run_log = stdout
 
-                if not st.session_state.get('mode'):
-                    try:
-                        if env.benchmark.exists():
-                            with open(env.benchmark, "r") as f:
-                                data = json.loads(f.read())
-                                if data:
-                                    benchmark_df = pd.DataFrame.from_dict(data, orient='index')
-                                    st.text("Benchmark result:")
-                                    st.dataframe(benchmark_df)
-                        else:
-                            st.error("program abort before all mode have been run")
-                            st.session_state['mode'] = 0
-                            st.session_state['bencchmark'] = False
-
-                    except json.JSONDecodeError as e:
-                        print("Error decoding JSON:", e)
-
-                st.session_state["loaded_df"] = cached_load_df(Path().home() / env.dataframe_path,with_index=False)
+        st.session_state["loaded_df"] = cached_load_df(Path().home() / env.dataframe_path,with_index=False)
 
         if st.sidebar.button("Load Data", key="load_data"):
             st.session_state["loaded_df"] = cached_load_df(Path().home() / env.dataframe_path,with_index=False)
@@ -959,6 +943,45 @@ if __name__ == "__main__":
             st.dataframe(loaded_df)
         else:
             st.info("No data loaded yet. Click 'Load Data' from the sidebar to load it.")
+
+        with st.expander("Benchmark results", expanded=True):
+            if not st.session_state.get('mode'):
+                try:
+                    if env.benchmark.exists():
+                        with open(env.benchmark, "r") as f:
+                            raw = json.load(f) or {}
+
+                        # Pull out a date if present, so it doesn't break the DF shape
+                        date_value = str(raw.pop("date", "") or "").strip()
+
+                        # Keep your original layout
+                        benchmark_df = pd.DataFrame.from_dict(raw, orient='index')
+
+                        # Only display if there's real content (not all-NaN rows/cols)
+                        df_nonempty = benchmark_df.dropna(how='all')
+                        if not df_nonempty.empty:
+                            df_nonempty = df_nonempty.loc[:, df_nonempty.notna().any(axis=0)]
+                        if not df_nonempty.empty and df_nonempty.shape[1] > 0:
+                            # If no date in JSON, try file mtime; otherwise skip date
+                            if not date_value:
+                                try:
+                                    ts = os.path.getmtime(env.benchmark)
+                                    date_value = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+                                except Exception:
+                                    date_value = ""
+
+                            if date_value:
+                                st.caption(f"Benchmark date: {date_value}")
+
+                            st.dataframe(df_nonempty)
+                        # else: don't display anything if table is effectively empty
+                    else:
+                        st.error("program abort before all mode have been run")
+                        st.session_state['mode'] = 0
+                        st.session_state['benchmark'] = False
+
+                except json.JSONDecodeError as e:
+                    st.warning(f"Error decoding JSON: {e}")
 
     # ------------------
     # EXPORT-COLUMNS Section
