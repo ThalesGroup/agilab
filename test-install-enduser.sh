@@ -94,7 +94,7 @@ case "${SOURCE}" in
     uv pip install packaging
 
     resolve_common_latest() {
-      python - "$@" <<'PY'
+      uv run python - "$@" <<'PY'
 import json, sys, urllib.request
 from packaging.version import Version
 

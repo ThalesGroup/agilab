@@ -56,7 +56,7 @@ jobs:
       # ---------------------- CORE: build & upload with uv ----------------------
       # Per-package versioning (auto .postN when needed) + HTTP 400 fallback.
       # Also repairs any accidental `project.name = "pkg==X.Y.Z"` before building.
-      - name: Build & upload core packages (uv) with per-package .postN + 400 fallback
+            - name: Build & upload core packages (uv) with ONE unified version for all
         env:
           BASE_VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
@@ -75,7 +75,6 @@ jobs:
           REPO_URL = os.environ.get("REPOSITORY_URL", "https://test.pypi.org/legacy/")
           REPO_ROOT = Path.cwd().resolve()
 
-          # Build order mirrors your prod workflow (uv, per project).  :contentReference[oaicite:2]{index=2}
           CORE = [
               ("agi-env",     REPO_ROOT / "src/agilab/core/agi-env/pyproject.toml",     REPO_ROOT / "src/agilab/core/agi-env"),
               ("agi-node",    REPO_ROOT / "src/agilab/core/agi-node/pyproject.toml",    REPO_ROOT / "src/agilab/core/agi-node"),
@@ -83,7 +82,6 @@ jobs:
               ("agi-core",    REPO_ROOT / "src/agilab/core/agi-core/pyproject.toml",    REPO_ROOT / "src/agilab/core/agi-core"),
           ]
 
-          # ---- Utilities --------------------------------------------------------
           def run(cmd, cwd=None):
               loc = str(cwd or Path.cwd())
               print(f"+ RUN {' '.join(map(str,cmd))} (cwd={loc})")
@@ -125,22 +123,37 @@ jobs:
               except Exception:
                   return set()
 
-          def next_post_version(base: str, name: str) -> str:
-              # Choose a fresh base.postN, even if historical base was deleted.
-              max_n = 0
-              for v in pypi_releases(name):
-                  m = re.fullmatch(re.escape(base) + r"\.post(\d+)", v)
-                  if m:
-                      try:
-                          max_n = max(max_n, int(m.group(1)))
-                      except Exception:
-                          pass
-              return f"{base}.post{max_n + 1}"
+          def compute_unified_version(base: str, package_names: list[str]) -> str:
+              # Choose a single version for ALL packages.
+              # If any package has base or base.postN, pick next free base.postN across the union.
+              # Otherwise use base.
+              def series_for(name: str) -> set[str]:
+                  keys = pypi_releases(name)
+                  series = set()
+                  if base in keys:
+                      series.add(base)
+                  series.update(v for v in keys if re.fullmatch(re.escape(base)+r"\.post\d+", v))
+                  return series
 
-          def initial_target(base: str, name: str) -> str:
-              # If base currently exists for this package -> start at next .postN; else try base first.
-              keys = pypi_releases(name)
-              return next_post_version(base, name) if base in keys else base
+              union = set()
+              for n in package_names:
+                  union |= series_for(n)
+
+              if not union:
+                  return base
+
+              max_n = 0
+              for v in union:
+                  if v == base:
+                      max_n = max(max_n, 0)
+                  else:
+                      m = re.fullmatch(re.escape(base)+r"\.post(\d+)", v)
+                      if m:
+                          try:
+                              max_n = max(max_n, int(m.group(1)))
+                          except Exception:
+                              pass
+              return f"{base}.post{max_n+1}"
 
           def set_project_version(pyproject: Path, version: str):
               doc = load_doc(pyproject)
@@ -151,13 +164,11 @@ jobs:
               save_doc(pyproject, doc)
 
           def pin_deps(pyproject: Path, pins: dict[str,str]):
-              """Pin only known internal deps to exact resolved versions."""
               if not pyproject.exists():
                   return False
               doc = load_doc(pyproject)
               proj = doc.get("project") or {}
               changed = False
-
               def pin_list(arr):
                   nonlocal changed
                   out = []
@@ -173,20 +184,17 @@ jobs:
                               changed = True
                       out.append(s)
                   return out
-
               if "dependencies" in proj and proj["dependencies"] is not None:
                   proj["dependencies"] = pin_list(proj["dependencies"])
               if "optional-dependencies" in proj and proj["optional-dependencies"] is not None:
                   for group, arr in list(proj["optional-dependencies"].items()):
                       proj["optional-dependencies"][group] = pin_list(arr)
-
               if changed:
                   doc["project"] = proj
                   save_doc(pyproject, doc)
               return changed
 
           def uv_build_project(project_dir: Path, wheel_only=True):
-              # Clean existing dist/build to avoid stale artifacts
               for sub in ("dist","build"):
                   d = project_dir / sub
                   if d.exists():
@@ -216,61 +224,30 @@ jobs:
               rc, out = run(cmd, cwd=str(REPO_ROOT))
               return (rc == 0), out
 
-          def is_reuse_400(out: str) -> bool:
-              out = out or ""
-              return ("HTTPError: 400 Bad Request" in out
-                      or "filename has already been used" in out
-                      or "File already exists" in out)
+          # ---- Unified version selection ---------------------------------------
+          package_names = [n for n,_,__ in CORE]
+          UNIFIED = compute_unified_version(BASE, package_names)
+          print(f"[plan] Unified version for all core packages: {UNIFIED}")
 
-          # ---- Sanitize names up front -----------------------------------------
+          # ---- Sanitize names, set versions, pin internals, build & upload -----
           sanitize_project_names([p for _,p,_ in CORE])
 
-          # ---- Build & upload each core package --------------------------------
-          final = {}
+          final = {name: UNIFIED for name,_,__ in CORE}
           for name, toml, project in CORE:
-              # Set initial target and pin deps to already-finalized internals
-              target = initial_target(BASE, name)
-              set_project_version(toml, target)
-              if final:  # pin only deps whose versions are already known
-                  pin_deps(toml, final)
-
-              # Build (uv) and verify
+              set_project_version(toml, UNIFIED)
+              pin_deps(toml, final)
               uv_build_project(project, wheel_only=True)
               files = dist_files(project)
               ok, out = twine_check(files)
               if not ok:
                   print(out)
                   raise SystemExit(f"twine check failed for {name}")
-
-              # Upload; if 400 (deleted file reuse), bump to next .postN and retry
               ok, out = twine_upload(files)
-              tries = 0
-              while not ok and tries < 5 and is_reuse_400(out):
-                  tries += 1
-                  new_ver = next_post_version(BASE, name)
-                  print(f"[fallback] {name}: bumping to {new_ver} due to 400/file reuse")
-                  set_project_version(toml, new_ver)
-                  # re-pin dependents that are not built yet will be pinned just-in-time;
-                  # nothing to rebuild among already-published packages.
-
-                  uv_build_project(project, wheel_only=True)
-                  files = dist_files(project)
-                  ok, out = twine_check(files)
-                  if not ok:
-                      print(out)
-                      raise SystemExit(f"twine check failed after bump for {name}")
-                  ok, out = twine_upload(files)
-
               if not ok:
                   print(out)
                   raise SystemExit(f"Upload failed for {name}")
 
-              # Record the final version for downstream pins
-              # re-read to ensure we store the actually-written value
-              doc = load_doc(toml)
-              final[name] = str((doc.get("project") or {}).get("version"))
-              Path("versions.json").write_text(json.dumps(final, indent=2), encoding="utf-8")
-
+          Path("versions.json").write_text(json.dumps(final, indent=2), encoding="utf-8")
           print("Core packages uploaded. Final versions:", final)
           PY
 
@@ -282,7 +259,7 @@ jobs:
           find src/agilab/apps src/agilab/views -type l -print -delete || true
         # Mirrors your production workflow's symlink cleanup. :contentReference[oaicite:3]{index=3}
 
-      - name: Build & upload umbrella (agilab) with uv + .postN and 400 fallback
+            - name: Build & upload umbrella (agilab) with the SAME unified version
         env:
           BASE_VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
@@ -319,32 +296,7 @@ jobs:
               m = _name_pat.match(str(name))
               return m.group(0) if m else str(name)
 
-          def pypi_releases(name: str) -> set[str]:
-              url = f"https://test.pypi.org/pypi/{name}/json"
-              try:
-                  with urllib.request.urlopen(url, timeout=10) as r:
-                      data = json.load(r) or {}
-                  return set((data.get("releases") or {}).keys())
-              except Exception:
-                  return set()
-
-          def next_post_version(base: str, name: str) -> str:
-              max_n = 0
-              for v in pypi_releases(name):
-                  m = re.fullmatch(re.escape(base) + r"\.post(\d+)", v)
-                  if m:
-                      try:
-                          max_n = max(max_n, int(m.group(1)))
-                      except Exception:
-                          pass
-              return f"{base}.post{max_n + 1}"
-
-          def initial_target(base: str, name: str) -> str:
-              keys = pypi_releases(name)
-              return next_post_version(base, name) if base in keys else base
-
           def uv_build_repo_root(wheel_only=True):
-              # Clean root dist/build
               for sub in ("dist","build"):
                   d = REPO_ROOT / sub
                   if d.exists():
@@ -374,28 +326,25 @@ jobs:
               rc, out = run(cmd, cwd=str(REPO_ROOT))
               return (rc == 0), out
 
-          def is_reuse_400(out: str) -> bool:
-              out = out or ""
-              return ("HTTPError: 400 Bad Request" in out
-                      or "filename has already been used" in out
-                      or "File already exists" in out)
-
-          # Read final core versions from previous step
-          final_core = {}
+          # Read final core versions from previous step (should be unified)
           vf = REPO_ROOT / "versions.json"
-          if vf.exists():
-              final_core = json.loads(vf.read_text(encoding="utf-8"))
+          if not vf.exists():
+              print("ERROR: versions.json missing", file=sys.stderr); sys.exit(2)
+          final_core = json.loads(vf.read_text(encoding="utf-8")) or {}
           print("Core versions for pinning:", final_core)
+          vals = set(final_core.values())
+          if len(vals) != 1:
+              print("ERROR: Expected a single unified version in versions.json", file=sys.stderr); sys.exit(2)
+          UNIFIED = vals.pop()
+          print(f"[plan] Umbrella will use unified version: {UNIFIED}")
 
           name, toml, _ = UMBRELLA
-          # Set initial target
-          target = initial_target(BASE, name)
 
-          # Write umbrella version and pin core deps to their final resolved versions
+          # Write umbrella version and pin core deps to the unified version
           doc = load_doc(toml)
           proj = doc.get("project") or {}
           proj["name"] = clean_name(proj.get("name",""))
-          proj["version"] = target
+          proj["version"] = UNIFIED
 
           def pin_list(arr):
               out = []
@@ -407,7 +356,7 @@ jobs:
                   if m:
                       pkg, extras = m.group(1), (m.group(2) or "")
                       if pkg in final_core:
-                          s = f"{pkg}{extras}=={final_core[pkg]}{marker}"
+                          s = f"{pkg}{extras}=={UNIFIED}{marker}"
                   out.append(s)
               return out
 
@@ -419,35 +368,14 @@ jobs:
           doc["project"] = proj
           save_doc(toml, doc)
 
-          # Build (uv) and verify
-          uv_build_repo_root(wheel_only=True)  # matches your prod wheel build style. :contentReference[oaicite:4]{index=4}
+          uv_build_repo_root(wheel_only=True)
           files = dist_files_root()
           ok, out = twine_check(files)
           if not ok:
               print(out)
               raise SystemExit("twine check failed for umbrella")
 
-          # Upload; fallback on 400/file reuse
           ok, out = twine_upload(files)
-          tries = 0
-          while not ok and tries < 5 and is_reuse_400(out):
-              tries += 1
-              new_ver = next_post_version(BASE, name)
-              print(f"[fallback] {name}: bumping to {new_ver} due to 400/file reuse")
-              doc = load_doc(toml)
-              proj = doc.get("project") or {}
-              proj["version"] = new_ver
-              doc["project"] = proj
-              save_doc(toml, doc)
-
-              uv_build_repo_root(wheel_only=True)
-              files = dist_files_root()
-              ok, out = twine_check(files)
-              if not ok:
-                  print(out)
-                  raise SystemExit("twine check failed for umbrella after bump")
-              ok, out = twine_upload(files)
-
           if not ok:
               print(out)
               raise SystemExit("Umbrella upload failed")
