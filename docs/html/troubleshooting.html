@@ -135,7 +135,10 @@
 <li class="toctree-l3"><a class="reference internal" href="agi-env.html#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.is_packaging_cmd"><code class="docutils literal notranslate"><span class="pre">is_packaging_cmd()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.normalize_path"><code class="docutils literal notranslate"><span class="pre">normalize_path()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.parse_level"><code class="docutils literal notranslate"><span class="pre">parse_level()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.strip_time_level_prefix"><code class="docutils literal notranslate"><span class="pre">strip_time_level_prefix()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -256,7 +259,19 @@ it will create a file (~/xxx-project_trace.txt) that shows what happened in duri
 <section id="b-pycharm-run-debug-configurations">
 <h2>B - Pycharm Run/Debug configurations:<a class="headerlink" href="#b-pycharm-run-debug-configurations" title="Link to this heading"></a></h2>
 <p>These scripts are provided to debug your app with the PyCharm IDE, which best matches Agilab troubleshooting.</p>
-<div class="code text highlight-default notranslate"><div class="highlight"><pre><span></span>runConfigurations/
+<div class="code text highlight-default notranslate"><div class="highlight"><pre><span></span>runConfigurations
+├── _flight_call_worker.xml
+├── _flight_distribute.xml
+├── _flight_egg_manager.xml
+├── _flight_lib_worker.xml
+├── _flight_postinstall_worker.xml
+├── _flight_preinstall_manager.xml
+├── _flight_run.xml
+├── _flight_test.xml
+├── _flight_test_manager.xml
+├── _flight_test_worker.xml
+├── _flight_trajectory_call_worker.xml
+├── _flight_trajectory_distribute.xml
 ├── _flight_trajectory_egg_manager.xml
 ├── _flight_trajectory_lib_worker.xml
 ├── _flight_trajectory_postinstall_worker.xml
@@ -265,6 +280,8 @@ it will create a file (~/xxx-project_trace.txt) that shows what happened in duri
 ├── _flight_trajectory_test.xml
 ├── _flight_trajectory_test_manager.xml
 ├── _flight_trajectory_test_worker.xml
+├── _link_sim_call_worker.xml
+├── _link_sim_distribute.xml
 ├── _link_sim_egg_manager.xml
 ├── _link_sim_lib_worker.xml
 ├── _link_sim_postinstall_worker.xml
@@ -273,6 +290,18 @@ it will create a file (~/xxx-project_trace.txt) that shows what happened in duri
 ├── _link_sim_test.xml
 ├── _link_sim_test_manager.xml
 ├── _link_sim_test_worker.xml
+├── _mycode_call_worker.xml
+├── _mycode_distribute.xml
+├── _mycode_egg_manager.xml
+├── _mycode_lib_worker.xml
+├── _mycode_postinstall_worker.xml
+├── _mycode_preinstall_manager.xml
+├── _mycode_run.xml
+├── _mycode_test.xml
+├── _mycode_test_manager.xml
+├── _mycode_test_worker.xml
+├── _sat_trajectory_call_worker.xml
+├── _sat_trajectory_distribute.xml
 ├── _sat_trajectory_egg_manager.xml
 ├── _sat_trajectory_lib_worker.xml
 ├── _sat_trajectory_postinstall_worker.xml
@@ -282,11 +311,14 @@ it will create a file (~/xxx-project_trace.txt) that shows what happened in duri
 ├── _sat_trajectory_test_manager.xml
 ├── _sat_trajectory_test_worker.xml
 ├── agilab_run__dev_.xml
+├── agilab_run__enduser_.xml
 ├── app_install.xml
 ├── app_install__local_.xml
 ├── app_script_gen.xml
 ├── core_test.xml
 ├── folders.xml
+├── install_agilab_dev.xml
+├── install_agilab_enduser.xml
 ├── lab_run_test.xml
 ├── run_ssh_cmd.xml
 ├── test_agi_distributor.xml
@@ -299,7 +331,7 @@ it will create a file (~/xxx-project_trace.txt) that shows what happened in duri
 ├── test_mycode_worker.xml
 ├── test_pandas_worker.xml
 ├── test_polars_worker.xml
-├── test_ssh.xml
+├── test_work_dispatcher.xml
 └── zip_all_gen.xml
 </pre></div>
 </div>

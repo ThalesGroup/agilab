@@ -132,7 +132,10 @@
 <li class="toctree-l3"><a class="reference internal" href="agi-env.html#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.is_packaging_cmd"><code class="docutils literal notranslate"><span class="pre">is_packaging_cmd()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.normalize_path"><code class="docutils literal notranslate"><span class="pre">normalize_path()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.parse_level"><code class="docutils literal notranslate"><span class="pre">parse_level()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.strip_time_level_prefix"><code class="docutils literal notranslate"><span class="pre">strip_time_level_prefix()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -411,13 +414,13 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.init_envars_app">init_envars_app() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.init_logging">init_logging() (agi_env.agi_env.AgiEnv method)</a>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.install_type">install_type (agi_env.agi_env.AgiEnv attribute)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.install_type">install_type (agi_env.agi_env.AgiEnv attribute)</a>
-</li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.is_local">is_local() (agi_env.agi_env.AgiEnv static method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.is_packaging_cmd">is_packaging_cmd() (in module agi_env.agi_env)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.is_valid_ip">is_valid_ip() (agi_env.agi_env.AgiEnv method)</a>
 </li>
@@ -431,13 +434,13 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.locate_agilab_installation">locate_agilab_installation() (agi_env.agi_env.AgiEnv static method)</a>
 </li>
-      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.log_error">log_error() (agi_env.agi_env.AgiEnv static method)</a>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.log_info">log_info() (agi_env.agi_env.AgiEnv static method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.log_info">log_info() (agi_env.agi_env.AgiEnv static method)</a>
-</li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.log_remote_line">log_remote_line() (agi_env.agi_env.AgiEnv method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.logger">logger (agi_env.agi_env.AgiEnv attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -471,6 +474,10 @@
 
 <h2 id="P">P</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="agi-env.html#agi_env.agi_env.parse_level">parse_level() (in module agi_env.agi_env)</a>
+</li>
+  </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.pyvers_worker">pyvers_worker (agi_env.agi_env.AgiEnv attribute)</a>
 </li>
@@ -506,13 +513,17 @@
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.set_cluster_credentials">set_cluster_credentials() (agi_env.agi_env.AgiEnv method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.set_env_var">set_env_var() (agi_env.agi_env.AgiEnv method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.set_install_type">set_install_type() (agi_env.agi_env.AgiEnv method)</a>
 </li>
       <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.set_openai_api_key">set_openai_api_key() (agi_env.agi_env.AgiEnv method)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.AgiEnv.snippet_tail">snippet_tail (agi_env.agi_env.AgiEnv attribute)</a>
+</li>
+      <li><a href="agi-env.html#agi_env.agi_env.strip_time_level_prefix">strip_time_level_prefix() (in module agi_env.agi_env)</a>
 </li>
   </ul></td>
 </tr></table>

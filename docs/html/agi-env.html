@@ -135,7 +135,10 @@
 <li class="toctree-l3"><a class="reference internal" href="#reference">Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#agi_env.agi_env.is_packaging_cmd"><code class="docutils literal notranslate"><span class="pre">is_packaging_cmd()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#agi_env.agi_env.normalize_path"><code class="docutils literal notranslate"><span class="pre">normalize_path()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#agi_env.agi_env.parse_level"><code class="docutils literal notranslate"><span class="pre">parse_level()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#agi_env.agi_env.strip_time_level_prefix"><code class="docutils literal notranslate"><span class="pre">strip_time_level_prefix()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -498,14 +501,6 @@ in-file identifiers and class names.</p>
 <span class="sig-name descname"><span class="pre">init_envars_app</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">envars</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.init_envars_app"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.init_envars_app" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
-<dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.init_logging">
-<span class="sig-name descname"><span class="pre">init_logging</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">verbosity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.init_logging"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.init_logging" title="Link to this definition"></a></dt>
-<dd><p>Initialize logging with a level based on verbosity:
-0 = WARNING, 1 = INFO, 2 or more = DEBUG
-INFO and DEBUG levels go to stdout; WARNING and above go to stderr.</p>
-</dd></dl>
-
 <dl class="py attribute">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.install_type">
 <span class="sig-name descname"><span class="pre">install_type</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.install_type" title="Link to this definition"></a></dt>
@@ -543,11 +538,6 @@ INFO and DEBUG levels go to stdout; WARNING and above go to stderr.</p>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.log_error">
-<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">log_error</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">line</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.log_error"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.log_error" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.log_info">
 <em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">log_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">line</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.log_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.log_info" title="Link to this definition"></a></dt>
 <dd></dd></dl>
@@ -555,6 +545,11 @@ INFO and DEBUG levels go to stdout; WARNING and above go to stderr.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.log_remote_line">
 <span class="sig-name descname"><span class="pre">log_remote_line</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ip</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">line</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.log_remote_line"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.log_remote_line" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.logger">
+<span class="sig-name descname"><span class="pre">logger</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.logger" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -615,7 +610,9 @@ Returns the full stdout string.</p>
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.run_async">
 <em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">run_async</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">venv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cwd</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.run_async"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.run_async" title="Link to this definition"></a></dt>
 <dd><p>Run a shell command asynchronously inside a virtual environment.
-Returns the last line of combined stdout and stderr outputs.</p>
+Streams stdout/stderr live with sensible levels (packaging-aware).
+Returns the last non-empty line among stderr (preferred) then stdout.
+Raises on non-zero exit (logs stderr tail).</p>
 </dd></dl>
 
 <dl class="py property">
@@ -649,6 +646,11 @@ Returns the last line of combined stdout and stderr outputs.</p>
 <span class="sig-name descname"><span class="pre">set_openai_api_key</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">api_key</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.set_openai_api_key"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.set_openai_api_key" title="Link to this definition"></a></dt>
 <dd><p>Set the OPENAI_API_KEY environment variable.</p>
 </dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.snippet_tail">
+<span class="sig-name descname"><span class="pre">snippet_tail</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'asyncio.get_event_loop().run_until_complete(main())'</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.snippet_tail" title="Link to this definition"></a></dt>
+<dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.target">
@@ -960,9 +962,34 @@ Returns the last line of combined stdout and stderr outputs.</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="agi_env.agi_env.is_packaging_cmd">
+<span class="sig-prename descclassname"><span class="pre">agi_env.agi_env.</span></span><span class="sig-name descname"><span class="pre">is_packaging_cmd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#is_packaging_cmd"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.is_packaging_cmd" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="agi_env.agi_env.normalize_path">
 <span class="sig-prename descclassname"><span class="pre">agi_env.agi_env.</span></span><span class="sig-name descname"><span class="pre">normalize_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#normalize_path"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.normalize_path" title="Link to this definition"></a></dt>
 <dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="agi_env.agi_env.parse_level">
+<span class="sig-prename descclassname"><span class="pre">agi_env.agi_env.</span></span><span class="sig-name descname"><span class="pre">parse_level</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">line</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_level</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#parse_level"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.parse_level" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="agi_env.agi_env.strip_time_level_prefix">
+<span class="sig-prename descclassname"><span class="pre">agi_env.agi_env.</span></span><span class="sig-name descname"><span class="pre">strip_time_level_prefix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">line</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#strip_time_level_prefix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.strip_time_level_prefix" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></span></p>
+</dd>
+</dl>
+</dd></dl>
 
 <a class="reference internal image-reference" href="_images/classes_agi_env.png"><img alt="Classes diagram for agi_env" class="align-center" src="_images/classes_agi_env.png" style="width: 400px;" />
 </a>
