@@ -51,9 +51,6 @@ class LogFormatter(logging.Formatter):
         self.verbose = verbose
 
     def format(self, record):
-        # Time
-        # asctime = COLORS["time"] + self.formatTime(record, self.datefmt) + RESET
-        # Level (color depends on level)
         level_color = COLORS["level"].get(record.levelname, "")
         levelname = level_color + record.levelname + RESET
 
@@ -92,7 +89,6 @@ class AgiLogger:
     @classmethod
     def configure(cls, *,
                   verbose: int | None = None,
-                  log_dir: str | Path | None = None,
                   base_name: str | None = None,
                   force: bool = False) -> logging.Logger:
         with cls._lock:
