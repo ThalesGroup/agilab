@@ -1678,7 +1678,7 @@ class AGI:
                 f"import asyncio\n"
                 f"async def main():\n"
                 f"  BaseWorker.new(active_app={env.target_worker}, mode={AGI._mode}, install_type={env.install_type}, verbose={AGI._verbose}, args={AGI._args})\n"
-                f"  res = await BaseWorker.run(mode={AGI._mode},workers={AGI.workers}, verbose={AGI._verbose}, args={AGI._args})\n"
+                f"  res = await BaseWorker.run(mode={AGI._mode}, workers={AGI.workers}, verbose={AGI._verbose}, args={AGI._args})\n"
                 f"  print(res)\n"
                 f"if __name__ == '__main__':\n"
                 f"  asyncio.run(main())\""

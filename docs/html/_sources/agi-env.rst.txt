@@ -9,7 +9,7 @@ Usage Example
 Instanciation
 ^^^^^^^^^^^^
 
-.. literalinclude:: log/AgiEnv.instanciation.py
+.. literalinclude:: snippets/AgiEnv.instanciation.py
    :language: python
 
 

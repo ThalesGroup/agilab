@@ -7,28 +7,25 @@ Usage Example
 Installation
 ^^^^^^^^^^^^
 
-.. literalinclude:: log/AGI.install-.py
+.. literalinclude:: snippets/AGI.install-mycode.py
    :language: python
 
 ------
 
-Update
-^^^^^^
-
-.. literalinclude:: log/AGI.update-.py
+.. literalinclude:: snippets/AGI.install-flight.py
    :language: python
 
-----
+------
 
 Distribute
 ^^^^^^^^^^^^
 
-.. literalinclude:: log/AGI.distribute-flight.py
+.. literalinclude:: snippets/AGI.distribute-mycode.py
    :language: python
 
 -----
 
-.. literalinclude:: log/AGI.distribute-.py
+.. literalinclude:: snippets/AGI.distribute-flight.py
    :language: python
 
 ----
@@ -36,12 +33,12 @@ Distribute
 Run
 ^^^
 
-.. literalinclude:: log/AGI.run-.py
+.. literalinclude:: snippets/AGI.run-mycode.py
    :language: python
 
 ----
 
-.. literalinclude:: log/AGI.run-flight.py
+.. literalinclude:: snippets/AGI.run-flight.py
    :language: python
 
 ----
