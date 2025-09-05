@@ -831,10 +831,7 @@ class AgiEnv:
         if wait:
             try:
                 result = []
-                is_pkg = is_packaging_cmd(cmd)
-                stderr_default = logging.INFO if is_pkg else logging.ERROR
-
-                async def read_stream(stream, default_level, callback=None):
+                async def read_stream(stream, callback=None):
                     enc = sys.stdout.encoding or "utf-8"
                     while True:
                         line = await stream.readline()
@@ -845,10 +842,9 @@ class AgiEnv:
                             continue
                         safe = text.encode(enc, errors="replace").decode(enc)
                         plain = AgiLogger.decolorize(safe)
-                        lvl = parse_level(plain, default_level)
                         msg = strip_time_level_prefix(plain)
-                        (callback or (lambda msg: AgiEnv.logger.log(lvl, msg, extra={"subprocess": True})))(safe)
-                        result.append(safe)
+                        callback(msg, extra={"subprocess": True})
+                        result.append(`safe`)
 
                 process = await asyncio.create_subprocess_shell(
                     cmd,
@@ -860,8 +856,8 @@ class AgiEnv:
                 )
 
                 await asyncio.wait_for(asyncio.gather(
-                    read_stream(process.stdout, logging.INFO, log_callback),
-                    read_stream(process.stderr, stderr_default,  None),
+                    read_stream(process.stdout, logging.INFO, log_callback if log_callback else AgiEnv.logger.info),
+                    read_stream(process.stderr, logging.ERROR,  log_callback if log_callback else AgiEnv.logger.error),
                 ), timeout=timeout)
 
                 returncode = await process.wait()
@@ -1039,6 +1035,10 @@ class AgiEnv:
                 #     if "Error:" in safe or "Exception:" in safe or "exception" in safe:
                 #         next_lvl = logging.ERROR
                 lvl = next_lvl
+                if default_level == logging.INFO and is_packaging_cmd(cmd):
+                    if safe.lstrip().startswith(("* Failed", "error:", "ERROR", "Traceback", "Exception")):
+                        lvl = logging.ERROR
+
                 msg = strip_time_level_prefix(safe)
                 sink.append(msg)
                 # Use provided callback for this stream if given; else log at derived level
