@@ -733,8 +733,7 @@ async def main():
     return res
 
 if __name__ == "__main__":
-    asyncio.run(main())
-            """
+    asyncio.run(main())"""
             st.code(cmd, language="python")
         if st.button("INSTALL", key="install_btn", type="primary",
                      help="Run the install snippet to set up your .venv for Manager and Worker"):
@@ -816,8 +815,7 @@ async def main():
     return res
 
 if __name__ == "__main__":
-    asyncio.run(main())
-            """
+    asyncio.run(main())"""
             st.code(cmd, language="python")
         if st.button("TEST DISTRIBUTE", key="preview_btn", type="secondary",
                      help="Run the snippet and display your distribution tree"):
@@ -918,8 +916,7 @@ async def main():
     return res
 
 if __name__ == "__main__":
-    asyncio.run(main())
-            """
+    asyncio.run(main())"""
             st.code(cmd, language="python")
         if st.button("RUN", key="run_btn", type="primary", help="Run your snippet with your cluster and app settings"):
                 clear_log()
