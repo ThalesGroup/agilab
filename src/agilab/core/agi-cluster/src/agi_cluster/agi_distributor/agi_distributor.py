@@ -1425,7 +1425,6 @@ class AGI:
                 client = await Client(AGI._scheduler,
                                       heartbeat_interval=5000,
                                       timeout=AGI.TIMEOUT)
-                client.forward_logger()
                 AGI._dask_client = client
             except Exception as e:
                 logger.error("Dask Client instantiation trouble, run aborted due to:")
