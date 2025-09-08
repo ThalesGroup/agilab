@@ -782,7 +782,7 @@ class AGI:
             logger.info(f"Copying {file} -> {wenv_abs}")
         shutil.copy2(file, wenv_abs)
 
-        file = env.src_cluster / "agi_cluster/agi_distributor/cli.py"
+        file = env.cli
         if env.verbose > 0:
             logger.info(f"Copying {file} -> {wenv_abs.parent}")
         shutil.copy(file, wenv_abs.parent)

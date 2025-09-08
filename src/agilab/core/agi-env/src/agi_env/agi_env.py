@@ -184,18 +184,22 @@ class AgiEnv:
         self.env_root = agilab_installed / "agi_env"
         self.core_root = agilab_installed / "agi_core"
         self.cluster_root = agilab_installed / "agi_cluster"
+        self.cli = self.cluster_root / "agi_distributor/cli.py"
 
         if install_type == 1:
             self.node_root = agilab_src / "agilab/core/agi-node"
             self.env_root = agilab_src / "agilab/core/agi-env"
             self.core_root = agilab_src / "agilab/core/agi-core"
             self.cluster_root = agilab_src / "agilab/core/agi-cluster"
+            self.src_cluster = self.cluster_root / "src"
+            self.cli = self.src_cluster / "agi_distributor/cli.py"
             self.agilab_src = agilab_src
         else:
             self.agilab_src = agilab_installed
 
+
         self.st_resources = self.agilab_src / "agilab/resources"
-        self.src_cluster = self.cluster_root / "src"
+
 
         if install_type == 0 and not active_app.exists():
             src_apps = self.agilab_src / "apps"
