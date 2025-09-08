@@ -281,7 +281,7 @@ $LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
 New-Item -ItemType Directory -Force -Path $LocalDir | Out-Null
 $AgiPathFile = Join-Path $LocalDir ".agilab-path"
 
-$PYTHON_VERSION = "3.12"
+$PYTHON_VERSION = "3.13"
 
 # Define project directories (AGI_PROJECT_SRC is "$AgiDir\src")
 $AgiProject = Join-Path $CurrentPath "src/agilab"
