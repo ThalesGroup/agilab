@@ -70,15 +70,14 @@ case "${SOURCE}" in
   uv build --wheel
   popd >/dev/null
     echo "Installing packages from local source tree..."
-
-    uv pip install "${AGI_INSTALL_PATH}/dist/agilab-"*.whl
-
     for pkg in ${PACKAGES}; do
       if [[ -d "${AGI_INSTALL_PATH}/core/${pkg}" ]]; then
         uv pip install -e "${AGI_INSTALL_PATH}/core/${pkg}"
       fi
     done
+    uv pip install -e "${AGI_INSTALL_ROOT}"
     ;;
+
 
   pypi)
     echo "Installing from PyPI..."
