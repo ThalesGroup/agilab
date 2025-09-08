@@ -1001,11 +1001,15 @@ class AGI:
         # MANAGER install command with and without rapids capable
         #=========
 
+
         app_path = env.active_app
         if has_rapids_hw:
-            cmd_manager = f"{uv} {run_type} --config-file uv_config.toml --project {app_path}"
+            cmd_manager = f"{uv} pip install {app_path.name}  --index https://test.pypi.org/simple \
+            --index https://pypi.org/simple --index-strategy unsafe-best-match --config-file uv_config.toml \
+            --project {app_path}"
         else:
-            cmd_manager = f"{uv} {run_type} --project {app_path}"
+            cmd_manager = f"{uv} pip install {app_path.name}  --index https://test.pypi.org/simple \
+            --index https://pypi.org/simple --index-strategy unsafe-best-match --project {app_path}"
 
         if env.verbose > 0:
             logger.info(f"Installing manager: {cmd_manager}")
