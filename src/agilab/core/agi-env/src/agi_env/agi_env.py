@@ -1012,24 +1012,24 @@ class AgiEnv:
 
         result = []
 
-        if os.name == "nt":
-            cmd_list = shlex.split(cmd)
-            proc = await asyncio.create_subprocess_exec(
-                *cmd_list,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(cwd) if cwd else None,
-                env=process_env,
-            )
-        else:
-            proc = await asyncio.create_subprocess_shell(
-                cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(cwd) if cwd else None,
-                env=process_env,
-                executable=shell_executable,
-            )
+        # if os.name == "nt":
+        cmd_list = shlex.split(cmd)
+        proc = await asyncio.create_subprocess_exec(
+            *cmd_list,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(cwd) if cwd else None,
+            env=process_env,
+        )
+        # else:
+        #     proc = await asyncio.create_subprocess_shell(
+        #         cmd,
+        #         stdout=asyncio.subprocess.PIPE,
+        #         stderr=asyncio.subprocess.PIPE,
+        #         cwd=str(cwd) if cwd else None,
+        #         env=process_env,
+        #         executable=shell_executable,
+        #     )
 
         async def read_stream(stream, callback=None):
             enc = sys.stdout.encoding or "utf-8"
