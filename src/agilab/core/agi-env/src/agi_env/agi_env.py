@@ -184,7 +184,6 @@ class AgiEnv:
         self.env_root = agilab_installed / "agi_env"
         self.core_root = agilab_installed / "agi_core"
         self.cluster_root = agilab_installed / "agi_cluster"
-        self.cli = self.cluster_root / "agi_distributor/cli.py"
 
         if install_type == 1:
             self.node_root = agilab_src / "agilab/core/agi-node"
@@ -196,6 +195,7 @@ class AgiEnv:
             self.agilab_src = agilab_src
         else:
             self.agilab_src = agilab_installed
+            self.cli = self.cluster_root / "agi_distributor/cli.py"
 
 
         self.st_resources = self.agilab_src / "agilab/resources"
