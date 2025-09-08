@@ -65,7 +65,9 @@ dependencies = [
 dev = [
     "agi-core",
     "pytest-cov",
-    "pytest-local-badge"
+    "pytest-local-badge",
+    "pytest-asyncio",
+    "pytest-cov-badge"
 ]
 
 [tool.uv.sources.agi-core]
