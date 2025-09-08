@@ -1,15 +1,16 @@
 {
   "target_args": {
     "data_source": "file",
-    "path": "data/flight/dataset",
-    "files": "csv/*",
-    "nfile": 2,
-    "nskip": 0,
-    "nread": 0,
-    "sampling_rate": 1.0,
     "datemin": "2020-01-01",
     "datemax": "2021-01-01",
-    "output_format": "csv"
+    "files": "csv/*",
+    "nfile": 1,
+    "nread": 0,
+    "nskip": 0,
+    "output_format": "parquet",
+    "path": "/Users/jpm/data/flight/dataset",
+    "sampling_rate": 10.0,
+    "verbose": true
   },
   "workers": {
     "127.0.0.1": 1
@@ -22,7 +23,7 @@
       ],
       [
         60,
-        0.729
+        0.727
       ]
     ]
   ],
@@ -32,8 +33,7 @@
         "data/flight/dataset/csv/61_6101.csv"
       ],
       [
-        "data/flight/dataset/csv/60_6003.csv",
-        "data/flight/dataset/csv/60_6002.csv"
+        "data/flight/dataset/csv/60_6003.csv"
       ]
     ]
   ],

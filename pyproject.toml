@@ -58,15 +58,19 @@ dependencies = [
     "twine",
     "watchdog",
     "wheel",
-    "agi-core"
+    "agi-core",
 ]
 
-[optional-dependencies]
+[project.optional-dependencies]
 dev = [
     "agi-core",
     "pytest-cov",
     "pytest-local-badge"
 ]
+
+[tool.uv.sources.agi-core]
+    path = "./src/agilab/core/agi-core"
+    editable = true
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"

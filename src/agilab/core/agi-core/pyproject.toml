@@ -16,6 +16,8 @@ classifiers = [
   "Operating System :: POSIX :: Linux",
 ]
 
+version = "0.7.4"
+
 # 👇 The whole point of the meta-package:
 dependencies = [
   "agi-env",
@@ -23,11 +25,30 @@ dependencies = [
   "agi-cluster",
 ]
 
-version = "0.7.4"
 [project.urls]
 Homepage = "https://github.com/ThalesGroup/agilab"
 Issues = "https://github.com/ThalesGroup/agilab/issues"
 Documentation = "https://thalesgroup.github.io/agilab"
+
+[project.optional-dependencies]
+dev = [
+    "agi-cluster",
+    "agi-node",
+    "agi-env",
+]
+
+[tool.uv.sources.agi-env]
+    path = "../agi-env"
+    editable = true
+
+[tool.uv.sources.agi-cluster]
+    path = "../agi-cluster"
+    editable = true
+
+[tool.uv.sources.agi-node]
+    path = "../agi-node"
+    editable = true
+
 
 [build-system]
 requires = ["hatchling>=1.25"]
