@@ -895,10 +895,6 @@ class AgiEnv:
         proc_env = AgiEnv._build_env(venv)
         proc_env["PYTHONUNBUFFERED"] = "1"
 
-        # Classify stderr depending on command type (aligns with your final run())
-        is_pkg = is_packaging_cmd(cmd)
-        stderr_default = logging.INFO if is_pkg else logging.ERROR
-
         result = []
 
         proc = await asyncio.create_subprocess_shell(
@@ -921,22 +917,30 @@ class AgiEnv:
                 safe = text.encode(enc, errors="replace").decode(enc)
                 plain = AgiLogger.decolorize(safe)
                 msg = strip_time_level_prefix(plain)
-                callback(msg, extra={"subprocess": True})
+                if callback is AgiEnv.logger.info or callback is AgiEnv.logger.error:
+                    callback(msg, extra={"subprocess": True})
+                else:
+                    callback(msg)
                 result.append(msg)
 
-        # Consume both streams and wait for process completion (with timeout)
+        tasks = []
+        if proc.stdout:
+            tasks.append(asyncio.create_task(
+                read_stream(proc.stdout, log_callback if log_callback else logging.info)
+            ))
+        if proc.stderr:
+            tasks.append(asyncio.create_task(
+                read_stream(proc.stderr, log_callback if log_callback else logging.error)
+            ))
+
         try:
-            await asyncio.wait_for(
-                asyncio.gather(
-                    read_stream(proc.stdout, log_callback if log_callback else AgiEnv.logger.info),
-                    read_stream(proc.stderr, log_callback if log_callback else AgiEnv.logger.error),
-                    proc.wait(),
-                ),
-                timeout=timeout,
-            )
+            await asyncio.wait_for(proc.wait(), timeout=timeout)
         except asyncio.TimeoutError as err:
             proc.kill()
             raise RuntimeError(f"Timeout expired for command: {cmd}") from err
+
+        await asyncio.gather(*tasks)
+        stdout, stderr = await proc.communicate()
 
         returncode = proc.returncode
 
@@ -944,7 +948,7 @@ class AgiEnv:
             AgiEnv.logger.error("Command failed with exit code %s: %s", returncode, cmd)
             raise RuntimeError(f"Command failed (exit {returncode})")
 
-        return "\n".join(result)
+        return stdout.decode(), stderr.decode()
 
     async def run_agi(self, code, log_callback=None, venv: Path = None, type=None):
         """
@@ -965,7 +969,7 @@ class AgiEnv:
         cmd = f"{AgiEnv.export_local_bin}uv run --no-sync --project {str(venv)} python {snippet_file}"
         result = await AgiEnv._run_bg(cmd, cwd=venv, log_callback=log_callback)
         if log_callback:
-            log_callback(f"Process finished with output: {result}")
+            log_callback(f"Process finished")
         else:
             logging.info("Process finished")
         return result
@@ -1024,7 +1028,10 @@ class AgiEnv:
                 safe = text.encode(enc, errors="replace").decode(enc)
                 plain = AgiLogger.decolorize(safe)
                 msg = strip_time_level_prefix(plain)
-                callback(msg, extra={"subprocess": True})
+                if callback is AgiEnv.logger.info or callback is AgiEnv.logger.error:
+                    callback(msg, extra={"subprocess": True})
+                else:
+                    callback(msg)
                 result.append(msg)
 
         try:
