@@ -153,7 +153,7 @@ popd >/dev/null
 # Show results
 # -----------------------------
 echo "===================================="
-echo "Installed packages in venv:"
+echo "Installed packages in agi-space/.venv:"
 if ! "${VENV}/bin/python" -m pip list | grep -E '^(agilab|agi-)' ; then
   echo "(No agi* packages detected.)"
 fi
