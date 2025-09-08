@@ -46,7 +46,6 @@ dependencies = [
     "plotly",
     "polars",
     "py7zr",
-    "pytest-asyncio>=1.1.0",
     "seaborn",
     "setuptools",
     "streamlit",
@@ -61,14 +60,24 @@ dependencies = [
     "agi-core",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "agi-core",
+    "pytest",
     "pytest-cov",
     "pytest-local-badge",
     "pytest-asyncio",
-    "pytest-cov-badge"
+    "genbadge[coverage]"
 ]
+
+
+[tool.pytest.ini_options]
+addopts = [
+  "--cov=agilab.agilab",
+  "--cov-report=term",
+  "--cov-report=xml",
+]
+testpaths = ["test"]  # or "tests" if that’s your folder
 
 [tool.uv.sources.agi-core]
     path = "./src/agilab/core/agi-core"

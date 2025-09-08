@@ -38,7 +38,7 @@ AGI_INSTALL_PATH="$(realpath '.')"
 CURRENT_PATH="$(realpath '.')"
 cluster_credentials=""
 openai_api_key=""
-SOURCE="local"
+SOURCE="testpypi"
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in

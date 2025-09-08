@@ -195,7 +195,7 @@ class AgiEnv:
             self.agilab_src = agilab_installed
 
         self.st_resources = self.agilab_src / "agilab/resources"
-        self.src_cluster = self.agilab_src / "agilab/core/agi-cluster/src"
+        self.src_cluster = self.cluster_root / "src"
 
         if install_type == 0 and not active_app.exists():
             src_apps = self.agilab_src / "apps"
@@ -245,7 +245,7 @@ class AgiEnv:
         worker_module_path = self.worker_path.parent
 
         if install_type == 0:
-            self.setup_core = self.node_root / "src"
+            self.setup_core = self.node_root.parent
         elif install_type == 1:
             self.setup_core = self.agilab_src / "agilab/core/agi-node/src"
         elif install_type == 2:
