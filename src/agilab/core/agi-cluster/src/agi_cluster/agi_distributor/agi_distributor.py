@@ -29,6 +29,43 @@ from datetime import timedelta
 from ipaddress import ip_address as is_ip
 from pathlib import Path
 from tempfile import gettempdir
+
+# --- Added minimal TestPyPI fallback for uv sync ---
+def _agi__version_missing_on_pypi(project_path):
+    """Return True if any pinned 'agi*' or 'agilab' dependency version in pyproject.toml
+    is not available on pypi.org (so we should use TestPyPI fallback)."""
+    try:
+        import json, urllib.request, re
+        pyproj = (project_path / 'pyproject.toml')
+        if not pyproj.exists():
+            return False
+        text = pyproj.read_text(encoding='utf-8', errors='ignore')
+        # naive scan for lines like: agi-core = "==1.2.3" or "1.2.3"
+        deps = re.findall(r'^(?:\s*)(ag(?:i[-_].+|ilab))\s*=\s*["\']([^"\']+)["\']', text, flags=re.MULTILINE)
+        if not deps:
+            return False
+        # extract exact pins
+        pairs = []
+        for name, spec in deps:
+            m = re.match(r'^(?:==\s*)?(\d+(?:\.\d+){1,2})$', spec.strip())
+            if m:
+                version = m.group(1)
+                pairs.append((name.replace('_','-'), version))
+        if not pairs:
+            return False
+        # check first pair only to keep it minimal/fast
+        pkg, ver = pairs[0]
+        try:
+            with urllib.request.urlopen(f'https://pypi.org/pypi/{pkg}/json', timeout=5) as r:
+                data = json.load(r)
+            exists = ver in data.get('releases', {})
+            return not exists
+        except Exception:
+            # If pypi query fails, don't force fallback.
+            return False
+    except Exception:
+        return False
+# --- end added helper ---
 from typing import Any, Dict, List, Optional, Union
 import sysconfig
 from contextlib import redirect_stdout, redirect_stderr
@@ -1001,11 +1038,12 @@ class AGI:
         # MANAGER install command with and without rapids capable
         #=========
 
+
         app_path = env.active_app
         if has_rapids_hw:
-            cmd_manager = f"{uv} {run_type} --config-file uv_config.toml --project {app_path}"
+            cmd_manager = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(app_path)) else '')}{uv} {run_type} --config-file uv_config.toml --project {app_path}"
         else:
-            cmd_manager = f"{uv} {run_type} --project {app_path}"
+            cmd_manager = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(app_path)) else '')}{uv} {run_type} --project {app_path}"
 
         if env.verbose > 0:
             logger.info(f"Installing manager: {cmd_manager}")
@@ -1029,9 +1067,9 @@ class AGI:
         pyvers_worker = env.pyvers_worker
 
         if has_rapids_hw:
-            cmd_worker = f"{uv_worker} {run_type} --python {pyvers_worker} --config-file uv_config.toml --project {wenv_abs}"
+            cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} --python {pyvers_worker} --config-file uv_config.toml --project {wenv_abs}"
         else:
-            cmd_worker = f"{uv_worker} {run_type} {options_worker} --python {pyvers_worker} --project {wenv_abs}"
+            cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} {options_worker} --python {pyvers_worker} --project {wenv_abs}"
 
         if env.verbose > 0:
             logger.info(f"Installing workers: {cmd_worker}")
@@ -1048,10 +1086,10 @@ class AGI:
             cmd = f"{uv_worker} pip install --upgrade agi-node"
             await AgiEnv.run(cmd, wenv_abs)
 
-            cmd = f"{uv_worker} sync --upgrade --project {env.env_root}"
+            cmd = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if _agi__version_missing_on_pypi(env.env_root) else '')}{uv_worker} sync --upgrade --project {env.env_root}"
             await AgiEnv.run(cmd, wenv_abs)
 
-            cmd = f"{uv_worker} sync --upgrade --project {env.node_root}"
+            cmd = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if _agi__version_missing_on_pypi(env.node_root) else '')}{uv_worker} sync --upgrade --project {env.node_root}"
             await AgiEnv.run(cmd, wenv_abs)
         else:
             # build agi_env*.whl
