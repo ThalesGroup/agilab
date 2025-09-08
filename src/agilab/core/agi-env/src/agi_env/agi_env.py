@@ -10,6 +10,7 @@
 # 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or THALES SIX GTS France SAS, may be used to endorse or promote products derived from this software without specific prior written permission.
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+import shlex
 
 from IPython.core.ultratb import FormattedTB
 import ast
@@ -850,21 +851,31 @@ class AgiEnv:
                         callback(msg, extra={"subprocess": True})
                         result.append(msg)
 
-                process = await asyncio.create_subprocess_shell(
-                    cmd,
-                    cwd=str(cwd),
-                    env=process_env,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    executable=shell_executable
-                )
+                try:
+                    cmd_list = shlex.split(cmd)
+                    proc = await asyncio.create_subprocess_exec(
+                        *cmd_list,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        cwd=str(cwd) if cwd else None,
+                        env=process_env,
+                    )
+                except:
+                    proc = await asyncio.create_subprocess_shell(
+                        cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        cwd=str(cwd) if cwd else None,
+                        env=process_env,
+                        executable=shell_executable,
+                    )
 
                 await asyncio.wait_for(asyncio.gather(
-                    read_stream(process.stdout, log_callback if log_callback else AgiEnv.logger.info),
-                    read_stream(process.stderr, log_callback if log_callback else AgiEnv.logger.error),
+                    read_stream(proc.stdout, log_callback if log_callback else AgiEnv.logger.info),
+                    read_stream(proc.stderr, log_callback if log_callback else AgiEnv.logger.error),
                 ), timeout=timeout)
 
-                returncode = await process.wait()
+                returncode = await proc.wait()
 
                 if returncode != 0:
                     # Promote to ERROR with context even if lines were logged as INFO
@@ -873,7 +884,7 @@ class AgiEnv:
 
                 return "\n".join(result)
             except asyncio.TimeoutError:
-                process.kill()
+                proc.kill()
                 raise RuntimeError(f"Command timed out after {timeout} seconds: {cmd}")
             except Exception as e:
                 AgiEnv.logger.error(traceback.format_exc())
@@ -896,18 +907,28 @@ class AgiEnv:
         Run the given command asynchronously, reading stdout and stderr line by line
         and passing them to the log_callback. Returns (stdout, stderr) as strings.
         """
-        proc_env = AgiEnv._build_env(venv)
-        proc_env["PYTHONUNBUFFERED"] = "1"
+        process_env = AgiEnv._build_env(venv)
+        process_env["PYTHONUNBUFFERED"] = "1"
 
         result = []
 
-        proc = await asyncio.create_subprocess_shell(
-            cmd,
-            cwd=os.path.abspath(cwd),
-            env=proc_env,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+        try:
+            cmd_list = shlex.split(cmd)
+            proc = await asyncio.create_subprocess_exec(
+                *cmd_list,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(cwd) if cwd else None,
+                env=process_env,
+            )
+        except:
+            proc = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(cwd) if cwd else None,
+                env=process_env,
+            )
 
         async def read_stream(stream, callback=None):
             enc = sys.stdout.encoding or "utf-8"
@@ -1011,14 +1032,24 @@ class AgiEnv:
 
         result = []
 
-        proc = await asyncio.create_subprocess_shell(
-            cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=str(cwd) if cwd else None,
-            env=process_env,
-            executable=shell_executable,
-        )
+        try:
+            cmd_list = shlex.split(cmd)
+            proc = await asyncio.create_subprocess_exec(
+                *cmd_list,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(cwd) if cwd else None,
+                env=process_env,
+            )
+        except:
+            proc = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(cwd) if cwd else None,
+                env=process_env,
+                executable=shell_executable,
+            )
 
         async def read_stream(stream, callback=None):
             enc = sys.stdout.encoding or "utf-8"
