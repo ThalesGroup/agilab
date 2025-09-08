@@ -42,7 +42,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "${AGI_INSTALL_PATH}" && -d "${AGI_INSTALL_PATH}" ]] || { echo "Error: Missing or invalid install path: ${AGI_INSTALL_PATH}" >&2; exit 1; }
+# Deferred: local-source-only path check was here
 
 echo "===================================="
 echo " MODE:     ${SOURCE}"
@@ -52,8 +52,7 @@ echo "===================================="
 # -----------------------------
 # AGI_SPACE / venv
 # -----------------------------
-uv build --wheel
-
+# moved: uv build --wheel
 pushd "$AGI_SPACE" >/dev/null
 rm -fr .venv uv.lock
 if [ ! -f pyproject.toml ]; then
@@ -66,9 +65,13 @@ uv sync
 # -----------------------------
 case "${SOURCE}" in
   local)
+  [[ -n "${AGI_INSTALL_PATH:-}" && -d "${AGI_INSTALL_PATH}" ]] || { echo "Error: Missing or invalid install path: ${AGI_INSTALL_PATH}" >&2; exit 1; }
+  pushd "${AGI_INSTALL_PATH}" >/dev/null
+  uv build --wheel
+  popd >/dev/null
     echo "Installing packages from local source tree..."
 
-    uv pip install "${AGI_INSTALL_ROOT}/dist/agilab-"*.whl
+    uv pip install "${AGI_INSTALL_PATH}/dist/agilab-"*.whl
 
     for pkg in ${PACKAGES}; do
       if [[ -d "${AGI_INSTALL_PATH}/core/${pkg}" ]]; then
@@ -134,8 +137,8 @@ PY
 
     echo "Installing packages: ${PACKAGES} == ${VERSION}"
     uv pip install \
-      --index-url "${INDEX_URL}" \
-      --extra-index-url "${EXTRA_INDEX_URL}" \
+      --index "${INDEX_URL}" \
+      --index "${EXTRA_INDEX_URL}" \
       --index-strategy unsafe-best-match \
       --upgrade --reinstall --no-cache-dir \
       $(for p in ${PACKAGES}; do printf "%s==%s " "${p}" "${VERSION}"; done)
@@ -152,5 +155,7 @@ popd >/dev/null
 # -----------------------------
 echo "===================================="
 echo "Installed packages in venv:"
-"${VENV}/bin/python" -m pip list | grep -E '^(agilab|agi-)'
+if ! "${VENV}/bin/python" -m pip list | grep -E '^(agilab|agi-)' ; then
+  echo "(No agi* packages detected.)"
+fi
 echo "===================================="

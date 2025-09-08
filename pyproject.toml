@@ -64,6 +64,8 @@ dependencies = [
 [optional-dependencies]
 dev = [
     "agi-core",
+    "pytest-cov",
+    "pytest-local-badge"
 ]
 
 [project.urls]

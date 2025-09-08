@@ -299,9 +299,13 @@ write_env_values() {
 
 
 install_enduser() {
-    chmod +x "test-install-enduser.sh"
+    chmod +x "_test-install-enduser.sh"
     echo -e "${BLUE}Installing Apps...${NC}"
     ./test-install-enduser.sh --source $SOURCE
+    echo -e "${GREEN}Enduser installation complete.${NC}"
+    echo -e "${BLUE}Checking Enduser installation...${NC}"
+    uv run -p "$AGI_PYTHON_VERSION" python run_all_test.py || { echo -e "${RED}Enduser installation test failed.${NC}"; exit 1; }
+    echo -e "${GREEN}Enduser installation OK.${NC}"
 }
 
 
