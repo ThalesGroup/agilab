@@ -851,31 +851,31 @@ class AgiEnv:
                         callback(msg, extra={"subprocess": True})
                         result.append(msg)
 
-                # if os.name == "nt":
-                cmd_list = shlex.split(cmd)
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd_list,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=str(cwd) if cwd else None,
-                    env=process_env,
-                )
-                # else:
-                #     proc = await asyncio.create_subprocess_shell(
-                #         cmd,
-                #         stdout=asyncio.subprocess.PIPE,
-                #         stderr=asyncio.subprocess.PIPE,
-                #         cwd=str(cwd) if cwd else None,
-                #         env=process_env,
-                #         executable=shell_executable,
-                #     )
+                try:
+                    cmd_list = shlex.split(cmd)
+                    proc = await asyncio.create_subprocess_exec(
+                        *cmd_list,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        cwd=str(cwd) if cwd else None,
+                        env=process_env,
+                    )
+                except:
+                    proc = await asyncio.create_subprocess_shell(
+                        cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        cwd=str(cwd) if cwd else None,
+                        env=process_env,
+                        executable=shell_executable,
+                    )
 
                 await asyncio.wait_for(asyncio.gather(
-                    read_stream(process.stdout, log_callback if log_callback else AgiEnv.logger.info),
-                    read_stream(process.stderr, log_callback if log_callback else AgiEnv.logger.error),
+                    read_stream(proc.stdout, log_callback if log_callback else AgiEnv.logger.info),
+                    read_stream(proc.stderr, log_callback if log_callback else AgiEnv.logger.error),
                 ), timeout=timeout)
 
-                returncode = await process.wait()
+                returncode = await proc.wait()
 
                 if returncode != 0:
                     # Promote to ERROR with context even if lines were logged as INFO
@@ -884,7 +884,7 @@ class AgiEnv:
 
                 return "\n".join(result)
             except asyncio.TimeoutError:
-                process.kill()
+                proc.kill()
                 raise RuntimeError(f"Command timed out after {timeout} seconds: {cmd}")
             except Exception as e:
                 AgiEnv.logger.error(traceback.format_exc())
@@ -907,29 +907,28 @@ class AgiEnv:
         Run the given command asynchronously, reading stdout and stderr line by line
         and passing them to the log_callback. Returns (stdout, stderr) as strings.
         """
-        proc_env = AgiEnv._build_env(venv)
-        proc_env["PYTHONUNBUFFERED"] = "1"
+        process_env = AgiEnv._build_env(venv)
+        process_env["PYTHONUNBUFFERED"] = "1"
 
         result = []
 
-        # if os.name == "nt":
-        cmd_list = shlex.split(cmd)
-        proc = await asyncio.create_subprocess_exec(
-            *cmd_list,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=str(cwd) if cwd else None,
-            env=process_env,
-        )
-        # else:
-        #     proc = await asyncio.create_subprocess_shell(
-        #         cmd,
-        #         stdout=asyncio.subprocess.PIPE,
-        #         stderr=asyncio.subprocess.PIPE,
-        #         cwd=str(cwd) if cwd else None,
-        #         env=process_env,
-        #         executable=shell_executable,
-        #     )
+        try:
+            cmd_list = shlex.split(cmd)
+            proc = await asyncio.create_subprocess_exec(
+                *cmd_list,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(cwd) if cwd else None,
+                env=process_env,
+            )
+        except:
+            proc = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(cwd) if cwd else None,
+                env=process_env,
+            )
 
         async def read_stream(stream, callback=None):
             enc = sys.stdout.encoding or "utf-8"
@@ -1033,24 +1032,24 @@ class AgiEnv:
 
         result = []
 
-        # if os.name == "nt":
-        cmd_list = shlex.split(cmd)
-        proc = await asyncio.create_subprocess_exec(
-            *cmd_list,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=str(cwd) if cwd else None,
-            env=process_env,
-        )
-        # else:
-        #     proc = await asyncio.create_subprocess_shell(
-        #         cmd,
-        #         stdout=asyncio.subprocess.PIPE,
-        #         stderr=asyncio.subprocess.PIPE,
-        #         cwd=str(cwd) if cwd else None,
-        #         env=process_env,
-        #         executable=shell_executable,
-        #     )
+        try:
+            cmd_list = shlex.split(cmd)
+            proc = await asyncio.create_subprocess_exec(
+                *cmd_list,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(cwd) if cwd else None,
+                env=process_env,
+            )
+        except:
+            proc = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(cwd) if cwd else None,
+                env=process_env,
+                executable=shell_executable,
+            )
 
         async def read_stream(stream, callback=None):
             enc = sys.stdout.encoding or "utf-8"
