@@ -21,7 +21,7 @@ dependencies = [
     "ipython",
     "polars",
     "psutil",
-    "scipy==1.15.2",
+    "scipy",
 ]
 
 [project.license]
