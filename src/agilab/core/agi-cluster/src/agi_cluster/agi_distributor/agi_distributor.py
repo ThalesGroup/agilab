@@ -329,7 +329,6 @@ class AGI:
         rapids_mode_mask = AGI.RAPIDS_SET if rapids_enabled else AGI.RAPIDS_RESET
         if not BaseWorker.is_cython_installed(env):
             await AGI.install(
-                target,
                 env,
                 scheduler=scheduler,
                 workers=workers,
