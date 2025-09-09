@@ -58,6 +58,7 @@ dependencies = [
     "wheel",
     "agi-core",
     "legacy-cgi; python_version >= '3.13'",
+    "standard-imghdr; python_version >= '3.13'",
 ]
 
 [project.urls]
@@ -67,8 +68,6 @@ Issues = "https://github.com/ThalesGroup/agilab/issues"
 
 [project.scripts]
 agilab = "agilab.lab_run:main"
-
-
 
 
 [dependency-groups]
@@ -84,6 +83,7 @@ dev = [
 
 [tool.uv.extra-build-dependencies]
 htmlmin = ["legacy-cgi"]
+ydata-profiling = ["standard-imghdr"]
 
 [tool.pytest.ini_options]
 addopts = [
