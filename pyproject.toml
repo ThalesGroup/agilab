@@ -46,7 +46,7 @@ dependencies = [
     "py7zr",
     "seaborn",
     "setuptools",
-    "",
+    "scipy==1.15.2",
     "streamlit",
     "streamlit-modal",
     "streamlit_code_editor",
