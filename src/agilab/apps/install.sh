@@ -22,6 +22,8 @@ AGILAB_PRIVATE="${AGILAB_PRIVATE:-}"
 
 TARGET_BASE="$AGILAB_PRIVATE/src/agilab/apps"
 [[ -d "$TARGET_BASE" ]] || { echo -e "${RED}Error:${NC} Missing directory: $TARGET_BASE"; exit 1; }
+VIEW_BASE="$AGILAB_PRIVATE/src/agilab/views"
+[[ -d "$VIEW_BASE" ]] || { echo -e "${RED}Error:${NC} Missing directory: $VIEW_BASE"; exit 1; }
 
 INSTALL_TYPE="${INSTALL_TYPE:-1}"
 
@@ -31,11 +33,12 @@ export PYTHONPATH="$PWD:${PYTHONPATH-}"
 # --- App lists (merge private + public) --------------------------------------
 
 # Destination base for creating local app symlinks (defaults to current dir)
-: "${DEST_BASE:=$(pwd)}"
-mkdir -p -- "$DEST_BASE"
-echo -e "${YELLOW}Destination base:${NC} $(cd -- "$DEST_BASE" && pwd -P)"
+: "${APPS_DEST_BASE:=$(pwd)}"
+mkdir -p -- "$APPS_DEST_BASE"
+echo -e "${YELLOW}Destination base:${NC} $(cd -- "$APPS_DEST_BASE" && pwd -P)"
 echo -e "${YELLOW}Using AGILAB_PRIVATE:${NC} $AGILAB_PRIVATE"
 echo -e "${YELLOW}Link target base:${NC} $TARGET_BASE\n"
+echo -e "${YELLOW}Link view base:${NC} $VIEW_BASE\n"
 
 declare -a PRIVATE_APPS=(
    flight_trajectory_project
@@ -44,12 +47,20 @@ declare -a PRIVATE_APPS=(
    sb3_trainer_project
 )
 
+: "${VIEWS_DEST_BASE:=$(pwd)/../views}"
+mkdir -p -- "$VIEWS_DEST_BASE"
+
+declare -a PRIVATE_VIEWS=(
+    maps-network-graph
+)
+
 # --- Build the list of apps present locally (only *_project) -----------------
 declare -a PUBLIC_APPS=()
-while IFS= read -r -d '' dir; do
+for dir in "$APPS_DEST_BASE"/*_project/; do
+  [[ -d "$dir" ]] || continue
   dir_name="$(basename -- "$dir")"
   PUBLIC_APPS+=("$dir_name")
-done < <(find "$DEST_BASE" -mindepth 1 -maxdepth 1 -type d -name '*_project' -print0)
+done
 
 if [[ -z "$AGILAB_PRIVATE" ]]; then
   declare -a INCLUDED_APPS=("${PUBLIC_APPS[@]}")
@@ -59,7 +70,7 @@ fi
 
 echo -e "${BLUE}Apps to install:${NC} ${INCLUDED_APPS[*]:-<none>}\n"
 
-# --- Ensure local symlinks exist/refresh in DEST_BASE ------------------------
+# --- Ensure local symlinks exist/refresh in APPS_DEST_BASE ------------------------
 if [[ ! -z "$AGILAB_PRIVATE" ]]; then
   pushd "$AGILAB_PRIVATE/src/agilab" > /dev/null
   rm -f core
@@ -84,7 +95,7 @@ fi
 status=0
 for app in "${PRIVATE_APPS[@]}"; do
   app_target="$TARGET_BASE/$app"
-  app_dest="$DEST_BASE/$app"
+  app_dest="$APPS_DEST_BASE/$app"
 
   if [[ ! -e "$app_target" ]]; then
     echo -e "${RED}Target for '${app}' not found:${NC} $app_target — skipping."
@@ -99,6 +110,27 @@ for app in "${PRIVATE_APPS[@]}"; do
     ln -s -- "$app_target" "$app_dest"
   else
     echo -e "${GREEN}App '$app_dest' exists and is not a symlink. Leaving untouched.${NC}"
+  fi
+done
+
+status=0
+for view in "${PRIVATE_VIEWS[@]}"; do
+  view_target="$VIEW_BASE/$view"
+  view_dest="$VIEWS_DEST_BASE/$view"
+
+  if [[ ! -e "$view_target" ]]; then
+    echo -e "${RED}Target for '${view}' not found:${NC} $view_target — skipping."
+    status=1; continue
+  fi
+
+  if [[ -L "$view_dest" ]]; then
+    echo -e "${BLUE}View '$view_dest' is a symlink. Recreating -> '$view_target'...${NC}"
+    rm -f -- "$view_dest"; ln -s -- "$view_target" "$view_dest"
+  elif [[ ! -e "$view_dest" ]]; then
+    echo -e "${BLUE}View '$view_dest' does not exist. Creating symlink -> '$view_target'...${NC}"
+    ln -s -- "$view_target" "$view_dest"
+  else
+    echo -e "${GREEN}View '$view_dest' exists and is not a symlink. Leaving untouched.${NC}"
   fi
 done
 

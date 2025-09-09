@@ -161,6 +161,13 @@ def cleanup_links(links: list[Path]) -> None:
         except Exception as e:
             AgiEnv.logger.warning(f"Failed to remove {link}: {e}")
 
+# Also scrub any hardcoded -L flags that point to nowhere
+def _keep_lflag(arg: str) -> bool:
+    if not arg.startswith("-L"):
+        return True
+    cand = arg[2:]
+    return Path(cand).exists()
+
 def main() -> None:
     active_app = Path(__file__).parent.resolve()
     os.chdir(active_app)
@@ -220,12 +227,34 @@ def main() -> None:
         AgiEnv.logger.info(f"build_dir: {opts.build_dir}")
         src_rel = Path("src") / worker_module / f"{worker_module}.pyx"
         prefix = Path(find_sys_prefix("~/MyApp"))
+
+        # Seed from existing values if any; otherwise start empty
+        library_dirs = list(library_dirs) if 'library_dirs' in locals() else []
+        extra_link_args = list(extra_link_args) if 'extra_link_args' in locals() else []
+
+        # Filter out non-existent directories and bogus -L flags
+        library_dirs = [d for d in library_dirs if Path(d).exists()]
+
+        def _keep_lflag(arg: str) -> bool:
+            return not arg.startswith("-L") or Path(arg[2:]).exists()
+
+        extra_link_args = [arg for arg in extra_link_args if _keep_lflag(arg)]
+
+        # Compile flags: only add the Clang-specific one on macOS
+        extra_compile_args = []
+        if sys.platform == "darwin":
+            extra_compile_args += ["-Wno-unknown-warning-option", "-Wno-unreachable-code-fallthrough"]
+
         mod = Extension(
-            name=worker_module + '_cy',
+            name=f"{worker_module}_cy",
             sources=[str(src_rel)],
             include_dirs=[str(prefix / "include")],
-            library_dirs=[str(prefix / sys.platlibdir)],
+            extra_compile_args=extra_compile_args,
+            define_macros=[("CYTHON_FALLTHROUGH", "")],
+            library_dirs=library_dirs,
+            extra_link_args=extra_link_args,
         )
+
         if opts.remaining and "-q" in opts.remaining or "--quiet" in opts.remaining:
             ext_modules = cythonize([mod], language_level=3, quiet=True)
         else:
