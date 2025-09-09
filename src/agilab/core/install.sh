@@ -45,7 +45,7 @@ uv pip install -e .
 popd > /dev/null
 echo -e "${BLUE}Installing agilab...${NC}"
 pushd ../../.. > /dev/null
-uv sync -p "$AGI_PYTHON_VERSION"
+uv sync -p "$AGI_PYTHON_VERSION" --preview-features extra-build-dependencies
 uv pip install -e src/agilab/core/agi-env
 uv pip install -e src/agilab/core/agi-node
 uv pip install -e src/agilab/core/agi-cluster
