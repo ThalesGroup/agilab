@@ -1,5 +1,5 @@
 [project]
-version = "0.7.4"
+version = "0.1.0.post1"
 name = "agilab"
 description = "AGILAB a datascience IDE for engineering to explore AI"
 requires-python = ">=3.11"
@@ -7,7 +7,6 @@ readme = "README.md"
 authors = [
     { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
 ]
-
 classifiers = [
     "Intended Audience :: Developers",
     "Development Status :: 3 - Alpha",
@@ -19,14 +18,12 @@ classifiers = [
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
 ]
-
 keywords = [
     "jupyter", "mlflow", "asyncio", "dask", "rapids",
     "streamlit", "distributed", "cython", "cluster", "dataframe",
     "dataset", "load balancing", "gen ai", "copilot", "agi",
     "pycharm", "datascience"
 ]
-
 dependencies = [
     "astor",
     "asyncssh",
@@ -40,6 +37,7 @@ dependencies = [
     "mlflow",
     "networkx",
     "numba",
+    "numpy>=1.14.1",
     "openai",
     "pathspec",
     "pip",
@@ -48,6 +46,7 @@ dependencies = [
     "py7zr",
     "seaborn",
     "setuptools",
+    "",
     "streamlit",
     "streamlit-modal",
     "streamlit_code_editor",
@@ -58,7 +57,19 @@ dependencies = [
     "watchdog",
     "wheel",
     "agi-core",
+    "legacy-cgi; python_version >= '3.13'",
 ]
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+
+[project.scripts]
+agilab = "agilab.lab_run:main"
+
+
+
 
 [dependency-groups]
 dev = [
@@ -67,9 +78,12 @@ dev = [
     "pytest-cov",
     "pytest-local-badge",
     "pytest-asyncio",
+    "ydata-profiling",
     "genbadge[coverage]"
 ]
 
+[tool.uv.extra-build-dependencies]
+htmlmin = ["legacy-cgi"]
 
 [tool.pytest.ini_options]
 addopts = [
@@ -82,11 +96,6 @@ testpaths = ["test"]  # or "tests" if that’s your folder
 [tool.uv.sources.agi-core]
     path = "./src/agilab/core/agi-core"
     editable = true
-
-[project.urls]
-Documentation = "https://thalesgroup.github.io/agilab"
-Source = "https://github.com/ThalesGroup/agilab"
-Issues = "https://github.com/ThalesGroup/agilab/issues"
 
 [build-system]
 requires = ["setuptools"]
@@ -114,9 +123,6 @@ agilab = [
     "*.toml",
     "*.ipynb",
 ]
-
-[project.scripts]
-agilab = "agilab.lab_run:main"
 
 [tool.mypy]
 mypy_path = [
