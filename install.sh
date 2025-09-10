@@ -261,24 +261,11 @@ install_core() {
     popd  > /dev/null
 }
 
-install_apps() {
-    apps_dir="$AGI_INSTALL_PATH/src/agilab/apps"
-    chmod +x "$apps_dir/install.sh"
-
-    echo -e "${BLUE}Installing Apps...${NC}"
-    pushd "$apps_dir" > /dev/null
-    ./install.sh
-    popd  > /dev/null
-}
-
-install_views() {
-    views_dir="$AGI_INSTALL_PATH/src/agilab/views"
-    chmod +x "$views_dir/install.sh"
-
-    echo -e "${BLUE}Installing Views ...${NC}"
-    pushd "$views_dir" > /dev/null
-    ./install.sh
-    popd  > /dev/null
+install_apps_views() {
+  dir="$AGI_INSTALL_PATH/src/agilab"
+  pushd $dir > /dev/null
+  ./install_apps_views.sh
+  popd > /dev/null
 }
 
 write_env_values() {
@@ -337,8 +324,7 @@ copy_project_files
 update_environment
 install_core
 write_env_values
-install_apps
-install_views
+install_apps_views
 install_enduser
 install_pycharm_script
 
