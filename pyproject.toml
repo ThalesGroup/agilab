@@ -1,5 +1,5 @@
 [project]
-version = "0.1.0.post8"
+version = "0.1.0.post9"
 name = "agilab"
 description = "AGILAB a datascience IDE for engineering to explore AI"
 requires-python = ">=3.11"
@@ -74,6 +74,7 @@ agilab = "agilab.lab_run:main"
 
 
 
+
 [dependency-groups]
 dev = [
     "agi-core",
@@ -82,7 +83,8 @@ dev = [
     "pytest-local-badge",
     "pytest-asyncio",
     "ydata-profiling",
-    "genbadge[coverage]"
+    "genbadge[coverage]",
+    "pypi-cleanup",
 ]
 
 [tool.uv.extra-build-dependencies]

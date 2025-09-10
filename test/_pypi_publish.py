@@ -323,6 +323,29 @@ def create_and_push_tag(version: str):
     run(["git", "push", "origin", tag], cwd=REPO_ROOT)
     print(f"[git] created and pushed {tag}")
 
+TESTPYPI_HOST = "https://test.pypi.org/"
+
+def wipe_testpypi_project(package: str):
+    """
+    Destructively delete *all* versions of `package` on TestPyPI using pypi-cleanup.
+    Requires: pip install pypi-cleanup
+    """
+    # Safety: never run against real PyPI
+    host = TESTPYPI_HOST
+
+    cmd = [
+        "uv",
+        "run",
+        "pypi-cleanup",
+        "-p", package,
+        "-t", host,
+        "--delete-project",   # remove ALL releases for the project
+        "-y",                 # confirm destructive action
+        "--do-it",            # actually perform deletion
+    ]
+    print(f"[wipe] Deleting ALL versions of {package} on {host}")
+    subprocess.run(cmd, check=True)
+
 # ------------------------- Main -------------------------
 def main():
     # Basic hygiene on names
@@ -338,6 +361,14 @@ def main():
             hits = collisions[n]
             print(f"  - {n}: {', '.join(hits) if hits else '(none)'}")
         return  # exit without building/uploading
+
+    if TARGET == "testpypi":
+        # wipe each package you’re about to publish
+        for pkg, _, _ in CORE + [UMBRELLA]:
+            try:
+                wipe_testpypi_project(pkg)
+            except subprocess.CalledProcessError as e:
+                print(f"[warn] Failed to wipe {pkg} on TestPyPI: {e}. Continuing…")
 
     # Pin internal deps to the chosen version and build/upload each core
     pins = {n: chosen for n, _, __ in CORE}

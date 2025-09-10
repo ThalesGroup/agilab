@@ -200,25 +200,25 @@ class AgiEnv:
         self.st_resources = self.agilab_src / "agilab/resources"
 
         if install_type == 0:
-            src_apps = self.agilab_src / "agilab/apps"
+            apps_root = self.agilab_src / "agilab/apps"
             os.makedirs(active_app.parent, exist_ok=True)
-            if src_apps.exists():
-                path = self.read_agilab_path()
-                if path:
-                    src_apps = path / "apps"
-                    for app in src_apps.glob("*"):
+            if apps_root.exists():
+                agilab_path = self.read_agilab_path()
+                if agilab_path:
+                    apps_root = agilab_path / "apps"
+                    for src_app in apps_root.glob("*"):
                         # If it's a directory and already exists at destination -> remove it first
-                        dest_app = active_app.parent / app.name
+                        dest_app = active_app.parent / src_app.name
                         if dest_app.exists():
                             shutil.rmtree(dest_app)
                         if os.name == "nt":
-                            create_symlink_windows(Path(app), active_app.parent)
+                            create_symlink_windows(Path(src_app), dest_app)
                         else:
                             # For Unix-like systems
-                            os.symlink(app, active_app.parent, target_is_directory=True)
-                            lo(f"Created symbolic link for app: {active_app.parent} -> {app}")
+                            os.symlink(src_app, dest_app, target_is_directory=True)
+                            lo(f"Created symbolic link for app: {src_app} -> {dest_app}")
                 else:
-                    self.copy_existing_projects(src_apps, active_app.parent)
+                    self.copy_existing_projects(apps_root, active_app.name)
             else:
                 AgiEnv.logger.info(f"Warning: {src_apps} does not exist, nothing to copy!")
 
