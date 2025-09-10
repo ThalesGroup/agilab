@@ -52,7 +52,38 @@ def parse_args():
                     help="Show chosen version & collisions; do not build or upload.")
     ap.add_argument("--no-pypirc-check", dest="pypirc_check", action="store_false",
                     help="Disable ~/.pypirc preflight (enabled by default).")
+    ap.add_argument("--clean", action="store_true",
+                    help="Before publishing to testpypi, interactively delete existing versions using pypi-cleanup.")
+    ap.add_argument("--user", default=None,
+                    help="Username to authenticate for deletion (e.g., your TestPyPI username). If omitted, pypi-cleanup may prompt.")
+    ap.add_argument("--regex", default=r'^\d+\.\d+\.\d+\.post\d+$',
+                    help="Regex of versions to delete (default matches x.y.z.postN). Use '^.*$' to delete all versions.")
+    ap.add_argument("--delete-project", action="store_true",
+                    help="Also pass --delete-project to pypi-cleanup (destructive: deletes ALL releases).")
     return ap.parse_args()
+
+
+TESTPYPI_HOST = "https://test.pypi.org/"
+
+def _which(cmd):
+    from shutil import which
+    return which(cmd) or cmd
+
+def clean_testpypi_versions(package: str, user: str | None, regex: str | None, delete_project: bool):
+    """Interactively delete versions on TestPyPI using pypi-cleanup.
+    Inherits stdin/stdout so the user can enter password and TOTP."""
+    import subprocess
+    host = TESTPYPI_HOST
+    exe = _which("pypi-cleanup")
+    cmd = [exe, "-p", package, "-t", host, "-y", "--do-it", "--leave-most-recent-only", "--days", "1"]
+    if user:
+        cmd += ["-u", user]
+    if delete_project:
+        cmd += ["--delete-project"]
+    if regex:
+        cmd += ["-r", regex]
+    print(f"[clean] Running: {" ".join(cmd)}")
+    subprocess.run(cmd, check=True)
 
 args = parse_args()
 TARGET: str = args.repo
@@ -325,27 +356,6 @@ def create_and_push_tag(version: str):
 
 TESTPYPI_HOST = "https://test.pypi.org/"
 
-def wipe_testpypi_project(package: str):
-    """
-    Destructively delete *all* versions of `package` on TestPyPI using pypi-cleanup.
-    Requires: pip install pypi-cleanup
-    """
-    # Safety: never run against real PyPI
-    host = TESTPYPI_HOST
-
-    cmd = [
-        "uv",
-        "run",
-        "pypi-cleanup",
-        "-p", package,
-        "-t", host,
-        "--delete-project",   # remove ALL releases for the project
-        "-y",                 # confirm destructive action
-        "--do-it",            # actually perform deletion
-    ]
-    print(f"[wipe] Deleting ALL versions of {package} on {host}")
-    subprocess.run(cmd, check=True)
-
 # ------------------------- Main -------------------------
 def main():
     # Basic hygiene on names
@@ -361,14 +371,22 @@ def main():
             hits = collisions[n]
             print(f"  - {n}: {', '.join(hits) if hits else '(none)'}")
         return  # exit without building/uploading
-
-    if TARGET == "testpypi":
-        # wipe each package you’re about to publish
-        for pkg, _, _ in CORE + [UMBRELLA]:
+    if TARGET == "testpypi" and args.clean:
+        # Interactive cleanup before build/upload using pypi-cleanup (prompts for password and TOTP)
+        try:
             try:
-                wipe_testpypi_project(pkg)
-            except subprocess.CalledProcessError as e:
-                print(f"[warn] Failed to wipe {pkg} on TestPyPI: {e}. Continuing…")
+                pkg_iter = CORE + [UMBRELLA]
+            except NameError:
+                pkg_iter = CORE
+            for pkg, _, __ in pkg_iter:
+                clean_testpypi_versions(
+                    package=pkg,
+                    user=args.user,
+                    regex=args.regex,
+                    delete_project=args.delete_project,
+                )
+        except subprocess.CalledProcessError as e:
+            print(f"[clean:warn] cleanup failed: {e}")
 
     # Pin internal deps to the chosen version and build/upload each core
     pins = {n: chosen for n, _, __ in CORE}
@@ -384,12 +402,22 @@ def main():
     # Umbrella package
     remove_symlinks_for_umbrella()
     _, umbrella_toml, _ = UMBRELLA
-    doc = load_doc(umbrella_toml)
-    proj = doc.get("project") or {}
-    proj["name"] = clean_name(proj.get("name", ""))
-    proj["version"] = chosen
-    doc["project"] = proj
-    save_doc(umbrella_toml, doc)
+    if TARGET == "testpypi" and args.clean:
+        # Interactive cleanup before build/upload using pypi-cleanup (prompts for password and TOTP)
+        try:
+            try:
+                pkg_iter = CORE + [UMBRELLA]
+            except NameError:
+                pkg_iter = CORE
+            for pkg, _, __ in pkg_iter:
+                clean_testpypi_versions(
+                    package=pkg,
+                    user=args.user,
+                    regex=args.regex,
+                    delete_project=args.delete_project,
+                )
+        except subprocess.CalledProcessError as e:
+            print(f"[clean:warn] cleanup failed: {e}")
 
     uv_build_repo_root()
     files = dist_files_root()

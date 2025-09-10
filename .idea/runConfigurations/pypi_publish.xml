@@ -15,7 +15,7 @@
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="$ProjectFileDir$/test/_pypi_publish.py" />
-    <option name="PARAMETERS" value="--repo testpypi" />
+    <option name="PARAMETERS" value="--repo testpypi --user agilab --clean --user agilab --regex ^\d+\.\d+\.\d+\.post\d+$" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />
