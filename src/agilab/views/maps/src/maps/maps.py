@@ -16,9 +16,22 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 from pathlib import Path
+from agi_env import AgiEnv
+
 
 st.title(":world_map: Cartography Visualisation")
-env = st.session_state['env']
+if 'env' not in st.session_state:
+    env = AgiEnv(verbose=0)
+    env.init_done = True
+    st.session_state['env'] = env
+else:
+    env = st.session_state['env']
+
+if "GUI_NROW" not in st.session_state:
+    st.session_state["GUI_NROW"] = env.GUI_NROW
+if "GUI_SAMPLING" not in st.session_state:
+    st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
+
 # Initialize session state
 if "datadir" not in st.session_state:
     st.session_state["datadir"] = env.AGILAB_EXPORT_ABS

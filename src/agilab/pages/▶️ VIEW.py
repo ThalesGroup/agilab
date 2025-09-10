@@ -24,9 +24,11 @@ import time
 import hashlib
 from pathlib import Path
 from typing import List, Union
-
+import asyncio
 import streamlit as st
 import streamlit.components.v1 as components
+from IPython.lib import backgroundjobs as bg
+import logging
 
 # Use modern TOML libraries
 import tomli         # For reading TOML files (read as binary)
@@ -36,6 +38,7 @@ import tomli_w       # For writing TOML files (write as binary)
 from agilab.pagelib import activate_mlflow, get_about_content, render_logo, select_project
 from agi_env import AgiEnv, normalize_path
 
+logger = logging.getLogger(__name__)
 
 # =============== Streamlit page config ==================
 st.set_page_config(
@@ -85,45 +88,109 @@ def _port_for(key: str) -> int:
     h = int(hashlib.sha1(key.encode("utf-8")).hexdigest(), 16)
     return base + (h % span)
 
+jobs = bg.BackgroundJobManager()
+
 @st.cache_resource(show_spinner=False)
-async def _ensure_sidecar(view_key: str, script: Path, port: int):
+async def _ensure_sidecar(view_key: str, view_page: Path, port: int):
     """Start the view's Streamlit in a separate process (one per session)."""
     if _is_port_open(port):
         return  # already running
-
-    env = AGI.env
-    run_type = AGI._run_type
+    env = st.session_state['env']
     ip = "127.0.0.1"
-    has_rapids_hw = AGI._hardware_supports_rapids() and AGI._rapids_enabled
-    env.has_rapids_hw = has_rapids_hw
     cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
     uv = cmd_prefix + env.uv
     pyvers = env.python_version
+    page_home = str(view_page.parents[2])
 
-
-    cmd = (f"{uv} run python -m streamlit run {script} --server.port {port} --server.headless true"
-           f"--browser.gatherUsageStats false")
-    await AgiEnv.run(cmd, venv)
+    cmd = (f"uv run python -m streamlit run {view_page} --server.port {port} --server.headless true"
+           f" --browser.gatherUsageStats false")
+    result = exec_bg(cmd, cwd=page_home)
+    logger.info(f"{cmd} result\n{result}")
 
     env = os.environ.copy()
     # Avoid leaking the main app's sys.path into the child
     env.pop("PYTHONPATH", None)
-
-    # Launch detached
-    kwargs = dict(env=env, cwd=str(script.parent),
-                  stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-    if os.name == "nt":
-        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS  # type: ignore[attr-defined]
-    else:
-        kwargs["start_new_session"] = True
-
-    subprocess.Popen(cmd, **kwargs)
 
     # Wait a bit for the port to come up
     for _ in range(80):
         if _is_port_open(port):
             break
         time.sleep(0.1)
+
+@staticmethod
+def exec_bg(cmd: str, cwd: str) -> None:
+    """
+    Execute background command
+    Args:
+        cmd: the command to be run
+        cwd: the current working directory
+
+    Returns:
+        """
+    global jobs
+
+    jobs.new("subprocess.Popen(cmd, shell=True)", cwd=cwd)
+
+    if not jobs.result(0):
+        raise RuntimeError(f"running {cmd} at {cwd}")
+
+@st.cache_resource(show_spinner=False)
+async def _ensure_sidecar2(view_key: str, view_page, port: int):
+    """Launch or reuse a sidecar Streamlit for `script` on `port`."""
+    # 0) bail if already up
+    if _is_port_open(port):
+        return
+
+    # 1) pick host to bind to (and to iframe to)
+    host = os.getenv("AGILAB_VIEWS_HOST", "127.0.0.1")  # set to LAN IP if you open parent via Network URL
+
+    # 2) build argv (no shell) — first try uv, then plain python
+    base_argv = ["-m", "streamlit", "run", view_page,
+                 "--server.port", str(port),
+                 "--server.address", host,
+                 "--server.headless", "true",
+                 "--browser.gatherUsageStats", "false"]
+
+    candidates: list[list[str]] = []
+    uv = os.getenv("UV_BIN", "uv")  # override if needed
+    candidates.append([uv, "run", "python", *base_argv])      # uv run python -m streamlit ...
+    candidates.append([sys.executable, *base_argv])           # fallback: main interpreter
+
+    # 3) optional: capture logs to help when it fails before binding
+    logs_dir = Path(os.getenv("AGILAB_VIEWS_LOGDIR", "~/.agilab/sidecars")).expanduser()
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_path = logs_dir / f"{view_page.stem}.log"
+
+    # 4) try candidates until the port is up
+    for argv in candidates:
+        try:
+            # IMPORTANT: run from the view folder (relative imports in the view will work)
+            view_page = str(view_page.parents[2])
+            result =  exec_bg(argv, cwd=view_page)
+
+        except TypeError:
+            # if your AgiEnv.run_async doesn’t accept stdout/stderr params
+            result = exec_bg(argv, cwd=view_page)
+        except Exception as e:
+            # try the next launcher
+            continue
+
+        # wait up to ~12s for the port to bind
+        for _ in range(120):
+            if _is_port_open(port):
+                break
+            time.sleep(0.1)
+        if _is_port_open(port):
+            break
+    else:
+        st.error(f"Sidecar failed to bind on {host}:{port}. See log: {log_path}")
+        try:
+            with open(log_path, "r", encoding="utf-8", errors="ignore") as fh:
+                tail = fh.read()[-2000:]
+            with st.expander("Last log lines"):
+                st.code(tail)
+        except Exception:
+            pass
 
 def discover_views(views_dir: Union[str, Path]) -> list[Path]:
     """
@@ -159,18 +226,6 @@ def discover_views(views_dir: Union[str, Path]) -> list[Path]:
 
 # =============== Page logic ==================
 
-def _init_env() -> AgiEnv:
-    if "env" not in st.session_state or not getattr(st.session_state["env"], "init_done", False):
-        env = AgiEnv()
-        env.init_done = True
-        st.session_state["env"] = env
-    return st.session_state["env"]
-
-def _ensure_servers(env: AgiEnv):
-    if not st.session_state.get("server_started"):
-        activate_mlflow(env)
-        st.session_state["server_started"] = True
-
 def _read_config(path: Path) -> dict:
     try:
         if path.exists():
@@ -188,13 +243,18 @@ def _write_config(path: Path, cfg: dict):
     except Exception as e:
         st.error(f"Error updating configuration: {e}")
 
-def main():
+async def main():
     # Navigation by query param
     qp = st.query_params
     current_page = qp.get("current_page")
 
-    env = _init_env()
-    _ensure_servers(env)
+    if 'env' not in st.session_state:
+        env = AgiEnv(verbose=0)
+        env.init_done = True
+        st.session_state['env'] = env
+    else:
+        env = st.session_state['env']
+
     page_title = "Views"
     # Sidebar header/logo
     render_logo(page_title)
@@ -202,8 +262,7 @@ def main():
     # Sidebar: project selection
     projects = env.projects
     current_project = env.app if env.app in projects else (projects[0] if projects else None)
-    select_project(projects, current_project)
-    env = st.session_state["env"]  # may be updated by select_project
+    select_project(projects, current_project) # may be updated by select_project
 
     # Where to store selected views per project
     project = env.app
@@ -215,7 +274,7 @@ def main():
     # Route: if a concrete page path is in the URL, show that view
     if current_page:
         try:
-            render_view_page(Path(current_page))
+            await render_view_page(Path(current_page))
         except Exception as e:
             st.error(f"Failed to render view: {e}")
         return
@@ -270,7 +329,7 @@ def main():
     else:
         st.write("No views selected. Pick some above.")
 
-def render_view_page(view_path: Path):
+async def render_view_page(view_path: Path):
     """Render a specific view by launching it as a sidecar app in its own venv and iframing it."""
     back_col, title_col, _ = st.columns([1, 6, 1])
     with back_col:
@@ -285,10 +344,13 @@ def render_view_page(view_path: Path):
     # Unique key for port hashing (works even if two views share the same filename)
     view_key = f"{view_path.stem}|{view_path.parent.as_posix()}"
     port = _port_for(view_key)
-    _ensure_sidecar(view_key, view_path, port)
-    components.iframe(f"http://localhost:{port}", height=900)
+    await _ensure_sidecar(view_key, view_path, port)
+
+    # Prefer an explicit host if provided, else fall back to 127.0.0.1 to avoid IPv6 ::1 gotchas
+    components.iframe(f"http://127.0.0.1:{port}/?embed=true", height=900)
+
     # --- end sidecar embed ---
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
