@@ -13,7 +13,6 @@ output_format = "csv"
 [views]
 view_module = [
     "maps",
-    "maps_3d",
 ]
 
 [cluster]

@@ -86,24 +86,24 @@ def _port_for(key: str) -> int:
     return base + (h % span)
 
 @st.cache_resource(show_spinner=False)
-def _ensure_sidecar(view_key: str, venv: Path | None, script: Path, port: int):
+async def _ensure_sidecar(view_key: str, script: Path, port: int):
     """Start the view's Streamlit in a separate process (one per session)."""
     if _is_port_open(port):
         return  # already running
 
-    # Choose interpreter: prefer view venv, else current python (warn)
-    if venv:
-        python = str(_python_in_venv(venv))
-    else:
-        python = sys.executable
-        st.warning(f"No venv found for '{script.name}'. Falling back to app interpreter.")
+    env = AGI.env
+    run_type = AGI._run_type
+    ip = "127.0.0.1"
+    has_rapids_hw = AGI._hardware_supports_rapids() and AGI._rapids_enabled
+    env.has_rapids_hw = has_rapids_hw
+    cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
+    uv = cmd_prefix + env.uv
+    pyvers = env.python_version
 
-    cmd = [
-        python, "-m", "streamlit", "run", str(script),
-        "--server.port", str(port),
-        "--server.headless", "true",
-        "--browser.gatherUsageStats", "false",
-    ]
+
+    cmd = (f"{uv} run python -m streamlit run {script} --server.port {port} --server.headless true"
+           f"--browser.gatherUsageStats false")
+    await AgiEnv.run(cmd, venv)
 
     env = os.environ.copy()
     # Avoid leaking the main app's sys.path into the child
@@ -256,6 +256,8 @@ def main():
     if selected_views:
         for i, view_name in enumerate(selected_views):
             view_path = next((p for p in all_views if p.stem == view_name), None)
+            module = view_name.replace('-','_')
+            view_path = view_path / "src" / module / module + ".py"
             if not view_path:
                 st.error(f"View '{view_name}' not found.")
                 continue
@@ -282,9 +284,7 @@ def render_view_page(view_path: Path):
     # Unique key for port hashing (works even if two views share the same filename)
     view_key = f"{view_path.stem}|{view_path.parent.as_posix()}"
     port = _port_for(view_key)
-    venv = view_path / ".venv"
-
-    _ensure_sidecar(view_key, venv, view_path, port)
+    _ensure_sidecar(view_key, view_path, port)
     components.iframe(f"http://localhost:{port}", height=900)
     # --- end sidecar embed ---
 
