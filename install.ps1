@@ -73,7 +73,16 @@ function Install-Dependencies {
 }
 
 function Select-PythonVersion {
-    Write-Blue "Selecting Python version..."
+    # Choosing Python version...
+    Write-Host "Choosing Python version..." -ForegroundColor Blue
+
+    $PYTHON_VERSION = Read-Host -Prompt "Enter Python major version [3.13]"
+    if ([string]::IsNullOrWhiteSpace($PYTHON_VERSION)) {
+        $PYTHON_VERSION = "3.13"
+    }
+
+    Write-Host "You selected Python version $PYTHON_VERSION"
+
 
     $availablePythonVersions = uv python list | Where-Object { $_ -match $PYTHON_VERSION }
     if (-not $availablePythonVersions) {
@@ -219,13 +228,12 @@ function Install-Core {
     Pop-Location
 }
 
-function Install-Apps {
-    $appsDir = Join-Path $install_path "src\agilab\apps"
+function Install-Apps-Views {
+    $dir = Join-Path $install_path "src\agilab"
 
-    Write-Blue "Installing Apps..."
-    Write-Blue "$appsDir"
-    Push-Location $appsDir
-    & "./install.ps1" $appsDir "1"
+    Write-Blue "Installing Apps and Views..."
+    Push-Location $dir
+    & "./install.ps1"
     Pop-Location
 }
 
@@ -332,5 +340,5 @@ Copy-ProjectFiles
 Update-Environment
 Install-Core
 Write-EnvValues
-Install-Apps
+Install-Apps-Views
 Install-PyCharmScript

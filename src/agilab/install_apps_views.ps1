@@ -158,7 +158,7 @@ if (-not [string]::IsNullOrEmpty($AGILAB_PRIVATE)) {
   if (Test-Path -LiteralPath "core") { Remove-Item -LiteralPath "core" -Force -Recurse -ErrorAction SilentlyContinue }
   $target = if (Test-Path (Join-Path $AGILAB_PUBLIC "core"))) {
     Join-Path $AGILAB_PUBLIC "core"
-  } elseif (Test-Path (Join-Path $AGILAB_PUBLIC "src/agilab/core"))) {
+  } else if (Test-Path (Join-Path $AGILAB_PUBLIC "src/agilab/core"))) {
     Join-Path $AGILAB_PUBLIC "src/agilab/core"
   } else {
     Write-Color RED "ERROR: can't find 'core' under `$AGILAB_PUBLIC ($AGILAB_PUBLIC).`nTried: `$AGILAB_PUBLIC/core and `$AGILAB_PUBLIC/src/agilab/core"
