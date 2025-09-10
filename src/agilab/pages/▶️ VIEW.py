@@ -23,7 +23,7 @@ import subprocess
 import time
 import hashlib
 from pathlib import Path
-from typing import List
+from typing import List, Union
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -125,39 +125,36 @@ def _ensure_sidecar(view_key: str, venv: Path | None, script: Path, port: int):
             break
         time.sleep(0.1)
 
-def discover_views(root: str | Path) -> list[Path]:
+def discover_views(views_dir: Union[str, Path]) -> list[Path]:
     """
     Dynamic discovery under env.AGILAB_VIEWS_ABS with common layouts:
       - <root>/views/*.py
       - <root>/views/*/(main.py|app.py|<name>.py)
       - convenience: <root>/*.py
+    Follows symlinks too.
     Returns a list of concrete script Paths.
     """
-    root = Path(root)
     out: set[Path] = set()
+    views_dir = Path(views_dir).resolve()  # follow symlinks
 
-    # 1) <root>/views/*.py
-    views_dir = root / "views"
     if views_dir.exists():
+        # Example: find all pyproject.toml files (as in your code)
+        for p in views_dir.rglob("pyproject.toml"):
+            out.add(p.parent.resolve())  # resolve symlinks for consistency
+
+        # add optional convenience discovery of scripts in root or views
         for p in views_dir.glob("*.py"):
-            if not p.name.startswith("_"):
-                out.add(p)
+            out.add(p.resolve())
 
-        # 2) <root>/views/*/(main.py|app.py|<name>.py)
-        for d in views_dir.glob("*/"):
-            d = Path(d)
-            for fname in ("main.py", "app.py", f"{d.name}.py"):
-                p = d / fname
-                if p.exists():
-                    out.add(p)
-                    break
+        for p in views_dir.glob("views/*.py"):
+            out.add(p.resolve())
 
-    # 3) optional: <root>/*.py
-    for p in root.glob("*.py"):
-        if not p.name.startswith("_"):
-            out.add(p)
+        for p in views_dir.glob("views/*/*.py"):
+            if p.name in {"main.py", "app.py"} or p.stem == p.parent.name:
+                out.add(p.resolve())
 
-    return sorted(out, key=lambda p: (p.parent.as_posix(), p.name))
+    return sorted(out, key=lambda p: (p.as_posix(), p.name))
+
 
 
 # =============== Page logic ==================
@@ -198,9 +195,9 @@ def main():
 
     env = _init_env()
     _ensure_servers(env)
-
+    page_title = "Views"
     # Sidebar header/logo
-    render_logo()
+    render_logo(page_title)
 
     # Sidebar: project selection
     projects = env.projects
@@ -213,7 +210,7 @@ def main():
     app_settings = Path(env.apps_dir) / project / "src" / "app_settings.toml"
 
     # Discover views dynamically under AGILAB_VIEWS_ABS
-    all_views = discover_views(env.AGILAB_VIEWS_ABS)
+    all_views = discover_views(Path(env.AGILAB_VIEWS_ABS))
 
     # Route: if a concrete page path is in the URL, show that view
     if current_page:
@@ -224,7 +221,7 @@ def main():
         return
 
     # ---------- Main "Views" page ----------
-    st.title("Views")
+    st.title(page_title)
 
     if not all_views:
         st.info("No views found under AGILAB_VIEWS_ABS.")
@@ -285,7 +282,7 @@ def render_view_page(view_path: Path):
     # Unique key for port hashing (works even if two views share the same filename)
     view_key = f"{view_path.stem}|{view_path.parent.as_posix()}"
     port = _port_for(view_key)
-    venv = _find_venv_for(view_path)
+    venv = view_path / ".venv"
 
     _ensure_sidecar(view_key, venv, view_path, port)
     components.iframe(f"http://localhost:{port}", height=900)
