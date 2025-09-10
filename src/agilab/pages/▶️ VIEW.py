@@ -263,8 +263,9 @@ def main():
                 continue
             with cols[i % len(cols)]:
                 if st.button(view_name, use_container_width=True):
-                    st.session_state["current_page"] = str(view_path.resolve())
-                    st.query_params["current_page"] = str(view_path.resolve())
+                    view_str = str(view_path.resolve())
+                    st.session_state["current_page"] = view_str
+                    st.query_params["current_page"] = view_str
                     st.rerun()
     else:
         st.write("No views selected. Pick some above.")
