@@ -209,8 +209,13 @@ class AgiEnv:
                     for src_app in apps_root.glob("*"):
                         # If it's a directory and already exists at destination -> remove it first
                         dest_app = active_app.parent / src_app.name
-                        if dest_app.exists():
-                            shutil.rmtree(dest_app)
+                        try:
+                            if dest_app.is_symlink():
+                                dest_app.unlink()  # remove the link itself
+                            elif dest_app.exists():
+                                shutil.rmtree(p)  # remove a real directory tree
+                        except FileNotFoundError:
+                            pass
                         if os.name == "nt":
                             create_symlink_windows(Path(src_app), dest_app)
                         else:
