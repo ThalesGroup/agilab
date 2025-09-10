@@ -197,19 +197,31 @@ class AgiEnv:
             self.agilab_src = agilab_installed
             self.cli = self.cluster_root / "agi_distributor/cli.py"
 
-
         self.st_resources = self.agilab_src / "agilab/resources"
 
-
-        if install_type == 0 and not active_app.exists():
-            src_apps = self.agilab_src / "apps"
-            if not active_app.exists():
-                if src_apps.exists():
-                    self.copy_existing_projects(src_apps, active_app.parent)
+        if install_type == 0:
+            src_apps = self.agilab_src / "agilab/apps"
+            os.makedirs(active_app.parent, exist_ok=True)
+            if src_apps.exists():
+                path = self.read_agilab_path()
+                if path:
+                    src_apps = path / "apps"
+                    for app in src_apps.glob("*"):
+                        # If it's a directory and already exists at destination -> remove it first
+                        dest_app = active_app.parent / app.name
+                        if dest_app.exists():
+                            shutil.rmtree(dest_app)
+                        if os.name == "nt":
+                            create_symlink_windows(Path(app), active_app.parent)
+                        else:
+                            # For Unix-like systems
+                            os.symlink(app, active_app.parent, target_is_directory=True)
+                            lo(f"Created symbolic link for app: {active_app.parent} -> {app}")
                 else:
-                    AgiEnv.logger.info(f"Warning: {src_apps} does not exist, nothing to copy!")
+                    self.copy_existing_projects(src_apps, active_app.parent)
             else:
-                self.copy_missing(src_apps, active_app.parent)
+                AgiEnv.logger.info(f"Warning: {src_apps} does not exist, nothing to copy!")
+
 
         resources_root = self.env_root
         if install_type==1:
@@ -404,6 +416,8 @@ class AgiEnv:
                 AgiEnv.logger.error(f"Permission denied when accessing {where_is_agi}.")
             except Exception as e:
                 AgiEnv.logger.error(f"An error occurred: {e}")
+        else:
+            return False
 
     @staticmethod
     def locate_agilab_installation(verbose=False):
@@ -439,6 +453,33 @@ class AgiEnv:
                 )
             except Exception as e:
                 AgiEnv.logger.error(f"Warning: Could not copy {item} → {dst_item}: {e}")
+
+    def copy_and_replace(self, src: Path, dst: Path, max_workers=8):
+        """
+        Remove any existing subdirectory in dst that matches src's subdirectory,
+        then copy everything from src into dst.
+        Robust: skips missing items, logs a warning, never crashes.
+        """
+        dst.mkdir(parents=True, exist_ok=True)
+
+        for item in src.iterdir():
+            src_item = item
+            dst_item = dst / item.name
+
+            if not src_item.exists():
+                AgiEnv.logger.info(f"[WARN] Source item missing: {src_item}, skipping")
+                continue
+
+            # If it's a directory and already exists at destination -> remove it first
+            if src_item.is_dir():
+                if dst_item.exists():
+                    shutil.rmtree(dst_item)
+                shutil.copytree(src_item, dst_item)
+            else:
+                # Ensure parent exists
+                dst_item.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src_item, dst_item)
+
     def copy_missing(self, src: Path, dst: Path, max_workers=8):
         """
         Copy missing files/directories from src to dst, skipping files/dirs that already exist at dst.
