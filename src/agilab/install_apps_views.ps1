@@ -1,0 +1,261 @@
+<#
+  Script: install_apps_views.ps1
+  Purpose: Mirror the behavior of install_apps_views.sh for Windows/PowerShell
+  Notes:
+    - Uses junctions for directory links (works without admin). Falls back to copying if linking fails.
+    - Respects the same env vars as the bash script: AGI_PYTHON_VERSION, AGILAB_PRIVATE, INSTALL_TYPE, APPS_DEST_BASE, VIEWS_DEST_BASE.
+#>
+
+#----- Strict mode / setup -----------------------------------------------------
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+# Colors
+$C = @{
+  RED    = "`e[1;31m"
+  GREEN  = "`e[1;32m"
+  BLUE   = "`e[1;34m"
+  YELLOW = "`e[1;33m"
+  NC     = "`e[0m"
+}
+function Write-Color([string]$Color, [string]$Msg) {
+  Write-Host ($C[$Color] + $Msg + $C.NC)
+}
+
+#----- Helpers ----------------------------------------------------------------
+function Import-DotEnv([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path)) { return }
+  Get-Content -LiteralPath $Path | ForEach-Object {
+    $line = $_.Trim()
+    if ($line -eq '' -or $line.StartsWith('#')) { return }
+    $kv = $line -split '=', 2
+    if ($kv.Count -eq 2) {
+      $k = $kv[0].Trim()
+      $v = $kv[1].Trim().Trim('"')
+      # Set in process env so child processes (uv/python) see it
+      [Environment]::SetEnvironmentVariable($k, $v, 'Process')
+    }
+  }
+}
+
+function Is-Link([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path)) { return $false }
+  try {
+    $itm = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+    return ($itm.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
+  } catch { return $false }
+}
+
+function Ensure-Dir([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path)) {
+    New-Item -ItemType Directory -Path $Path | Out-Null
+  }
+}
+
+function New-DirLink([string]$LinkPath, [string]$TargetPath) {
+  # Prefer junction (works without admin). If it exists as link, recreate; if non-link dir, leave.
+  if (Is-Link $LinkPath) { Remove-Item -LiteralPath $LinkPath -Force }
+  elseif (Test-Path -LiteralPath $LinkPath) {
+    # Exists and is not a link -> leave untouched (parity with bash)
+    return
+  }
+  try {
+    New-Item -ItemType Junction -Path $LinkPath -Target $TargetPath | Out-Null
+  } catch {
+    # Fallback: try symbolic link (may require admin / developer mode)
+    try {
+      New-Item -ItemType SymbolicLink -Path $LinkPath -Target $TargetPath | Out-Null
+    } catch {
+      # Last resort: copy (best effort)
+      Copy-Item -Recurse -Force -LiteralPath $TargetPath -Destination $LinkPath
+    }
+  }
+}
+
+#----- Load env + normalize Python version ------------------------------------
+$HomeDir = $HOME
+$envPath = Join-Path $HomeDir ".local/share/agilab/.env"
+Import-DotEnv -Path $envPath
+
+# Normalize AGI_PYTHON_VERSION to e.g. 3.11.9 or 3.13.0+freethreaded
+$AGI_PYTHON_VERSION = $env:AGI_PYTHON_VERSION
+if ($AGI_PYTHON_VERSION) {
+  $AGI_PYTHON_VERSION = $AGI_PYTHON_VERSION -replace '^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*$', '$1'
+}
+
+$agilabPathFile = Join-Path $HomeDir ".local/share/agilab/.agilab-path"
+if (-not (Test-Path -LiteralPath $agilabPathFile)) {
+  Write-Color YELLOW "Warning: $agilabPathFile not found. Some paths may be unresolved."
+  $AGILAB_PUBLIC = ""
+} else {
+  $AGILAB_PUBLIC = (Get-Content -LiteralPath $agilabPathFile -Raw).Trim()
+}
+
+$AGILAB_PRIVATE = $env:AGILAB_PRIVATE
+
+$VIEWS_TARGET_BASE = if ($AGILAB_PRIVATE) { Join-Path $AGILAB_PRIVATE "src/agilab/views" } else { "" }
+$APPS_TARGET_BASE  = if ($AGILAB_PRIVATE) { Join-Path $AGILAB_PRIVATE "src/agilab/apps" } else { "" }
+
+if ($AGILAB_PRIVATE) {
+  if (-not (Test-Path -LiteralPath $VIEWS_TARGET_BASE)) { Write-Color RED "Error: Missing directory: $VIEWS_TARGET_BASE"; exit 1 }
+  if (-not (Test-Path -LiteralPath $APPS_TARGET_BASE))  { Write-Color RED "Error: Missing directory: $APPS_TARGET_BASE";  exit 1 }
+}
+
+$INSTALL_TYPE = if ($env:INSTALL_TYPE) { $env:INSTALL_TYPE } else { "1" }
+
+# Destination base (defaults to current dir)
+$APPS_DEST_BASE  = if ($env:APPS_DEST_BASE)  { $env:APPS_DEST_BASE }  else { Join-Path (Get-Location) "apps" }
+$VIEWS_DEST_BASE = if ($env:VIEWS_DEST_BASE) { $env:VIEWS_DEST_BASE } else { Join-Path (Get-Location) "views" }
+
+Ensure-Dir $APPS_DEST_BASE
+Ensure-Dir $VIEWS_DEST_BASE
+
+Write-Color BLUE "Using AGILAB_PRIVATE: $AGILAB_PRIVATE"
+Write-Color BLUE "(Apps) Destination base: $APPS_DEST_BASE"
+Write-Color BLUE "(Apps) Link target base: $APPS_TARGET_BASE"
+Write-Color BLUE "(Views) Destination base: $VIEWS_DEST_BASE"
+Write-Color BLUE "(Views) Link target base: $VIEWS_TARGET_BASE`n"
+
+# --- App/View lists (merge private + public) ---------------------------------
+$PRIVATE_VIEWS = @(
+  "maps-network-graph"
+)
+
+$PRIVATE_APPS = @(
+  "flight_trajectory_project",
+  "sat_trajectory_project",
+  "link_sim_project",
+  "sb3_trainer_project"
+)
+
+$PUBLIC_VIEWS = @()
+if (Test-Path -LiteralPath $VIEWS_DEST_BASE) {
+  $PUBLIC_VIEWS = Get-ChildItem -LiteralPath $VIEWS_DEST_BASE -Directory |
+    Where-Object { $_.Name -ne ".venv" } | ForEach-Object { $_.Name }
+}
+
+$PUBLIC_APPS = @()
+if (Test-Path -LiteralPath $APPS_DEST_BASE) {
+  $PUBLIC_APPS = Get-ChildItem -LiteralPath $APPS_DEST_BASE -Directory -Filter "*_project" |
+    ForEach-Object { $_.Name }
+}
+
+if ([string]::IsNullOrEmpty($AGILAB_PRIVATE)) {
+  $INCLUDED_VIEWS = @($PUBLIC_VIEWS)
+  $INCLUDED_APPS  = @($PUBLIC_APPS)
+} else {
+  $INCLUDED_VIEWS = @($PRIVATE_VIEWS + $PUBLIC_VIEWS)
+  $INCLUDED_APPS  = @($PRIVATE_APPS + $PUBLIC_APPS)
+}
+
+Write-Color BLUE ("Apps to install: " + ($(if ($INCLUDED_APPS.Count) { $INCLUDED_APPS -join ' ' } else { "<none>" })))
+Write-Color BLUE ("Views to install: " + ($(if ($INCLUDED_VIEWS.Count) { $INCLUDED_VIEWS -join ' ' } else { "<none>" })) + "`n")
+
+# --- Ensure local links in DEST_BASE -----------------------------------------
+if (-not [string]::IsNullOrEmpty($AGILAB_PRIVATE)) {
+  Push-Location (Join-Path $AGILAB_PRIVATE "src/agilab")
+  if (Test-Path -LiteralPath "core") { Remove-Item -LiteralPath "core" -Force -Recurse -ErrorAction SilentlyContinue }
+  $target = if (Test-Path (Join-Path $AGILAB_PUBLIC "core"))) {
+    Join-Path $AGILAB_PUBLIC "core"
+  } elseif (Test-Path (Join-Path $AGILAB_PUBLIC "src/agilab/core"))) {
+    Join-Path $AGILAB_PUBLIC "src/agilab/core"
+  } else {
+    Write-Color RED "ERROR: can't find 'core' under `$AGILAB_PUBLIC ($AGILAB_PUBLIC).`nTried: `$AGILAB_PUBLIC/core and `$AGILAB_PUBLIC/src/agilab/core"
+    exit 1
+  }
+  New-DirLink -LinkPath "core" -TargetPath $target
+  & uv run python -c "import pathlib; p=pathlib.Path('core').resolve(); print(f'Private core -> {p}')" | Out-Host
+  Pop-Location
+}
+
+$global:status = 0
+
+foreach ($view in $PRIVATE_VIEWS) {
+  $view_target = Join-Path $VIEWS_TARGET_BASE $view
+  $view_dest   = Join-Path $VIEWS_DEST_BASE $view
+  if (-not (Test-Path -LiteralPath $view_target)) {
+    Write-Color RED "Target for '$view' not found: $view_target — skipping."
+    $global:status = 1; continue
+  }
+  if (Is-Link $view_dest) {
+    Write-Color BLUE "View '$view_dest' is a link. Recreating -> '$view_target'..."
+    Remove-Item -LiteralPath $view_dest -Force
+    New-DirLink -LinkPath $view_dest -TargetPath $view_target
+  } elseif (-not (Test-Path -LiteralPath $view_dest)) {
+    Write-Color BLUE "View '$view_dest' does not exist. Creating link -> '$view_target'..."
+    New-DirLink -LinkPath $view_dest -TargetPath $view_target
+  } else {
+    Write-Color GREEN "View '$view_dest' exists and is not a link. Leaving untouched."
+  }
+}
+
+foreach ($app in $PRIVATE_APPS) {
+  $app_target = Join-Path $APPS_TARGET_BASE $app
+  $app_dest   = Join-Path $APPS_DEST_BASE $app
+  if (-not (Test-Path -LiteralPath $app_target)) {
+    Write-Color RED "Target for '$app' not found: $app_target — skipping."
+    $global:status = 1; continue
+  }
+  if (Is-Link $app_dest) {
+    Write-Color BLUE "App '$app_dest' is a link. Recreating -> '$app_target'..."
+    Remove-Item -LiteralPath $app_dest -Force
+    New-DirLink -LinkPath $app_dest -TargetPath $app_target
+  } elseif (-not (Test-Path -LiteralPath $app_dest)) {
+    Write-Color BLUE "App '$app_dest' does not exist. Creating link -> '$app_target'..."
+    New-DirLink -LinkPath $app_dest -TargetPath $app_target
+  } else {
+    Write-Color GREEN "App '$app_dest' exists and is not a link. Leaving untouched."
+  }
+}
+
+# --- Install views ------------------------------------------------------------
+if (-not [string]::IsNullOrEmpty($AGILAB_PUBLIC)) {
+  Push-Location (Join-Path $AGILAB_PUBLIC "views")
+  foreach ($view in $INCLUDED_VIEWS) {
+    Write-Color BLUE "Installing $view..."
+    Push-Location $view
+    & uv sync --project . --preview-features extra-build-dependencies | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+      Write-Color RED "Error during 'uv sync' for view '$view'."
+      $global:status = 1
+    }
+    Pop-Location
+  }
+  Pop-Location
+
+  # --- Install apps -----------------------------------------------------------
+  Push-Location (Join-Path $AGILAB_PUBLIC "apps")
+  foreach ($app in $INCLUDED_APPS) {
+    Write-Color BLUE "Installing $app..."
+    & uv -q run -p $AGI_PYTHON_VERSION --project ../core/cluster python install.py (Join-Path $AGILAB_PUBLIC "apps/$app") --install-type $INSTALL_TYPE | Out-Host
+    if ($LASTEXITCODE -eq 0) {
+      Write-Color GREEN "✓ '$app' successfully installed."
+      Write-Color GREEN "Checking installation..."
+      if (Test-Path -LiteralPath $app) {
+        Push-Location $app
+        if (Test-Path -LiteralPath "run-all-test.py") {
+          & uv run -p $AGI_PYTHON_VERSION python run-all-test.py | Out-Host
+          if ($LASTEXITCODE -ne 0) { $global:status = 1 }
+        } else {
+          Write-Color BLUE "No run-all-test.py in $app, skipping tests."
+        }
+        Pop-Location
+      } else {
+        Write-Color YELLOW "Warning: could not enter '$app' to run tests."
+      }
+    } else {
+      Write-Color RED "✗ '$app' installation failed."
+      $global:status = 1
+    }
+  }
+  Pop-Location
+}
+
+# --- Final message ------------------------------------------------------------
+if ($global:status -eq 0) {
+  Write-Color GREEN "Installation of apps complete!"
+} else {
+  Write-Color YELLOW "Installation finished with some errors (status=$global:status)."
+}
+exit $global:status
