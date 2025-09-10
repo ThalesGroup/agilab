@@ -216,7 +216,7 @@ class AgiEnv:
                         else:
                             # For Unix-like systems
                             os.symlink(src_app, dest_app, target_is_directory=True)
-                            lo(f"Created symbolic link for app: {src_app} -> {dest_app}")
+                        AgiEnv.logger.info(f"Created symbolic link for app: {src_app} -> {dest_app}")
                 else:
                     self.copy_existing_projects(apps_root, active_app.name)
             else:
