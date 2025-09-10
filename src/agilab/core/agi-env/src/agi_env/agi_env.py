@@ -206,7 +206,7 @@ class AgiEnv:
                 agilab_path = self.read_agilab_path()
                 if agilab_path:
                     apps_root = agilab_path / "apps"
-                    for src_app in apps_root.glob("*"):
+                    for src_app in apps_root.glob("*_prject"):
                         # If it's a directory and already exists at destination -> remove it first
                         dest_app = active_app.parent / src_app.name
                         try:
