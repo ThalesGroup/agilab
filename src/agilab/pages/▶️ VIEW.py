@@ -257,7 +257,7 @@ def main():
         for i, view_name in enumerate(selected_views):
             view_path = next((p for p in all_views if p.stem == view_name), None)
             module = view_name.replace('-','_')
-            view_path = view_path / "src" / module / module + ".py"
+            view_path = view_path / "src" / module / (module + ".py")
             if not view_path:
                 st.error(f"View '{view_name}' not found.")
                 continue
