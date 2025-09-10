@@ -13,14 +13,13 @@ $ErrorActionPreference = 'Stop'
 
 # Colors
 $C = @{
-  RED    = "`e[1;31m"
-  GREEN  = "`e[1;32m"
-  BLUE   = "`e[1;34m"
-  YELLOW = "`e[1;33m"
-  NC     = "`e[0m"
+  RED    = "RED"
+  GREEN  = "`GREEN"
+  BLUE   = "`BLUE"
+  YELLOW = "`YELLOW"
 }
 function Write-Color([string]$Color, [string]$Msg) {
-  Write-Host ($C[$Color] + $Msg + $C.NC)
+  Write-Host $Msg -ForegroundColor  $C[$Color]
 }
 
 #----- Helpers ----------------------------------------------------------------
@@ -74,8 +73,8 @@ function New-DirLink([string]$LinkPath, [string]$TargetPath) {
 }
 
 #----- Load env + normalize Python version ------------------------------------
-$HomeDir = $HOME
-$envPath = Join-Path $HomeDir ".local/share/agilab/.env"
+$APPDATA = $env:LOCALAPPDATA
+$envPath = Join-Path $APPDATA "agilab/.env"
 Import-DotEnv -Path $envPath
 
 # Normalize AGI_PYTHON_VERSION to e.g. 3.11.9 or 3.13.0+freethreaded
@@ -84,7 +83,7 @@ if ($AGI_PYTHON_VERSION) {
   $AGI_PYTHON_VERSION = $AGI_PYTHON_VERSION -replace '^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*$', '$1'
 }
 
-$agilabPathFile = Join-Path $HomeDir ".local/share/agilab/.agilab-path"
+$agilabPathFile = Join-Path $APPDATA "agilab/.agilab-path"
 if (-not (Test-Path -LiteralPath $agilabPathFile)) {
   Write-Color YELLOW "Warning: $agilabPathFile not found. Some paths may be unresolved."
   $AGILAB_PUBLIC = ""
@@ -112,6 +111,8 @@ Ensure-Dir $APPS_DEST_BASE
 Ensure-Dir $VIEWS_DEST_BASE
 
 Write-Color BLUE "Using AGILAB_PRIVATE: $AGILAB_PRIVATE"
+Write-Color BLUE "Using AGILAB_PUBLIC: $AGILAB_PUBLIC"
+
 Write-Color BLUE "(Apps) Destination base: $APPS_DEST_BASE"
 Write-Color BLUE "(Apps) Link target base: $APPS_TARGET_BASE"
 Write-Color BLUE "(Views) Destination base: $VIEWS_DEST_BASE"
@@ -156,9 +157,9 @@ Write-Color BLUE ("Views to install: " + ($(if ($INCLUDED_VIEWS.Count) { $INCLUD
 if (-not [string]::IsNullOrEmpty($AGILAB_PRIVATE)) {
   Push-Location (Join-Path $AGILAB_PRIVATE "src/agilab")
   if (Test-Path -LiteralPath "core") { Remove-Item -LiteralPath "core" -Force -Recurse -ErrorAction SilentlyContinue }
-  $target = if (Test-Path (Join-Path $AGILAB_PUBLIC "core"))) {
+  $target = if (Test-Path (Join-Path $AGILAB_PUBLIC "core")) {
     Join-Path $AGILAB_PUBLIC "core"
-  } else if (Test-Path (Join-Path $AGILAB_PUBLIC "src/agilab/core"))) {
+  } elseif (Test-Path (Join-Path $AGILAB_PUBLIC "src/agilab/core")) {
     Join-Path $AGILAB_PUBLIC "src/agilab/core"
   } else {
     Write-Color RED "ERROR: can't find 'core' under `$AGILAB_PUBLIC ($AGILAB_PUBLIC).`nTried: `$AGILAB_PUBLIC/core and `$AGILAB_PUBLIC/src/agilab/core"
@@ -169,43 +170,44 @@ if (-not [string]::IsNullOrEmpty($AGILAB_PRIVATE)) {
   Pop-Location
 }
 
-$global:status = 0
+$status = 0
+if (-not [string]::IsNullOrEmpty($AGILAB_PRIVATE)){
+  foreach ($view in $PRIVATE_VIEWS) {
+    $view_target = Join-Path $VIEWS_TARGET_BASE $view
+    $view_dest   = Join-Path $VIEWS_DEST_BASE $view
+    if (-not (Test-Path -LiteralPath $view_target)) {
+      Write-Color RED "Target for '$view' not found: $view_target — skipping."
+      $global:status = 1; continue
+    }
+    if (Is-Link $view_dest) {
+      Write-Color BLUE "View '$view_dest' is a link. Recreating -> '$view_target'..."
+      Remove-Item -LiteralPath $view_dest -Force
+      New-DirLink -LinkPath $view_dest -TargetPath $view_target
+    } elseif (-not (Test-Path -LiteralPath $view_dest)) {
+      Write-Color BLUE "View '$view_dest' does not exist. Creating link -> '$view_target'..."
+      New-DirLink -LinkPath $view_dest -TargetPath $view_target
+    } else {
+      Write-Color GREEN "View '$view_dest' exists and is not a link. Leaving untouched."
+    }
+  }
 
-foreach ($view in $PRIVATE_VIEWS) {
-  $view_target = Join-Path $VIEWS_TARGET_BASE $view
-  $view_dest   = Join-Path $VIEWS_DEST_BASE $view
-  if (-not (Test-Path -LiteralPath $view_target)) {
-    Write-Color RED "Target for '$view' not found: $view_target — skipping."
-    $global:status = 1; continue
-  }
-  if (Is-Link $view_dest) {
-    Write-Color BLUE "View '$view_dest' is a link. Recreating -> '$view_target'..."
-    Remove-Item -LiteralPath $view_dest -Force
-    New-DirLink -LinkPath $view_dest -TargetPath $view_target
-  } elseif (-not (Test-Path -LiteralPath $view_dest)) {
-    Write-Color BLUE "View '$view_dest' does not exist. Creating link -> '$view_target'..."
-    New-DirLink -LinkPath $view_dest -TargetPath $view_target
-  } else {
-    Write-Color GREEN "View '$view_dest' exists and is not a link. Leaving untouched."
-  }
-}
-
-foreach ($app in $PRIVATE_APPS) {
-  $app_target = Join-Path $APPS_TARGET_BASE $app
-  $app_dest   = Join-Path $APPS_DEST_BASE $app
-  if (-not (Test-Path -LiteralPath $app_target)) {
-    Write-Color RED "Target for '$app' not found: $app_target — skipping."
-    $global:status = 1; continue
-  }
-  if (Is-Link $app_dest) {
-    Write-Color BLUE "App '$app_dest' is a link. Recreating -> '$app_target'..."
-    Remove-Item -LiteralPath $app_dest -Force
-    New-DirLink -LinkPath $app_dest -TargetPath $app_target
-  } elseif (-not (Test-Path -LiteralPath $app_dest)) {
-    Write-Color BLUE "App '$app_dest' does not exist. Creating link -> '$app_target'..."
-    New-DirLink -LinkPath $app_dest -TargetPath $app_target
-  } else {
-    Write-Color GREEN "App '$app_dest' exists and is not a link. Leaving untouched."
+  foreach ($app in $PRIVATE_APPS) {
+    $app_target = Join-Path $APPS_TARGET_BASE $app
+    $app_dest   = Join-Path $APPS_DEST_BASE $app
+    if (-not (Test-Path -LiteralPath $app_target)) {
+      Write-Color RED "Target for '$app' not found: $app_target — skipping."
+      $global:status = 1; continue
+    }
+    if (Is-Link $app_dest) {
+      Write-Color BLUE "App '$app_dest' is a link. Recreating -> '$app_target'..."
+      Remove-Item -LiteralPath $app_dest -Force
+      New-DirLink -LinkPath $app_dest -TargetPath $app_target
+    } elseif (-not (Test-Path -LiteralPath $app_dest)) {
+      Write-Color BLUE "App '$app_dest' does not exist. Creating link -> '$app_target'..."
+      New-DirLink -LinkPath $app_dest -TargetPath $app_target
+    } else {
+      Write-Color GREEN "App '$app_dest' exists and is not a link. Leaving untouched."
+    }
   }
 }
 
@@ -218,7 +220,7 @@ if (-not [string]::IsNullOrEmpty($AGILAB_PUBLIC)) {
     & uv sync --project . --preview-features extra-build-dependencies | Out-Host
     if ($LASTEXITCODE -ne 0) {
       Write-Color RED "Error during 'uv sync' for view '$view'."
-      $global:status = 1
+      $status = 1
     }
     Pop-Location
   }
@@ -230,13 +232,15 @@ if (-not [string]::IsNullOrEmpty($AGILAB_PUBLIC)) {
     Write-Color BLUE "Installing $app..."
     & uv -q run -p $AGI_PYTHON_VERSION --project ../core/cluster python install.py (Join-Path $AGILAB_PUBLIC "apps/$app") --install-type $INSTALL_TYPE | Out-Host
     if ($LASTEXITCODE -eq 0) {
-      Write-Color GREEN "✓ '$app' successfully installed."
+      Write-Color GREEN "$app successfully installed."
       Write-Color GREEN "Checking installation..."
       if (Test-Path -LiteralPath $app) {
         Push-Location $app
         if (Test-Path -LiteralPath "run-all-test.py") {
           & uv run -p $AGI_PYTHON_VERSION python run-all-test.py | Out-Host
-          if ($LASTEXITCODE -ne 0) { $global:status = 1 }
+          if ($LASTEXITCODE -ne 0) { 
+            $status = 1
+          }
         } else {
           Write-Color BLUE "No run-all-test.py in $app, skipping tests."
         }
@@ -245,17 +249,17 @@ if (-not [string]::IsNullOrEmpty($AGILAB_PUBLIC)) {
         Write-Color YELLOW "Warning: could not enter '$app' to run tests."
       }
     } else {
-      Write-Color RED "✗ '$app' installation failed."
-      $global:status = 1
+      Write-Color RED "$app installation failed."
+      $status = 1
     }
   }
   Pop-Location
 }
 
 # --- Final message ------------------------------------------------------------
-if ($global:status -eq 0) {
+if ($status -eq 0) {
   Write-Color GREEN "Installation of apps complete!"
 } else {
-  Write-Color YELLOW "Installation finished with some errors (status=$global:status)."
+  Write-Color YELLOW "Installation finished with some errors (status=$status)."
 }
-exit $global:status
+exit $status

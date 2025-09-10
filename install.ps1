@@ -233,7 +233,8 @@ function Install-Apps-Views {
 
     Write-Blue "Installing Apps and Views..."
     Push-Location $dir
-    & "./install.ps1"
+    Write-Host $PWD
+    & "./install_apps_views.ps1"
     Pop-Location
 }
 
