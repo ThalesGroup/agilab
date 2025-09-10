@@ -58,7 +58,7 @@ def parse_args():
     ap.add_argument("--user", "--clean-user", dest="clean_user", default=None,
                     help="Username for deletion (e.g., TestPyPI account name for interactive login).")
     ap.add_argument("--regex", "--clean-regex", dest="clean_regex", default=None,
-                    help="Regex of versions to delete. Example: ^0\.1\.0\.post\d+$")
+                    help="Regex of versions to delete. Example: ^0\\.1\\.0\\.post\\d+$")
     ap.add_argument("--days", "--clean-days", dest="clean_days", type=int, default=None,
                     help="Only delete releases uploaded in the last N days (omit to consider all).")
     ap.add_argument("--delete-project", "--clean-delete-project", dest="clean_delete_project",
