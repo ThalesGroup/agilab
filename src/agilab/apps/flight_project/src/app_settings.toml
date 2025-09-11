@@ -12,8 +12,8 @@ output_format = "csv"
 
 [views]
 view_module = [
-        "maps",
-        "maps-3d",
+    "maps",
+    "maps-3d",
 ]
 
 [cluster]

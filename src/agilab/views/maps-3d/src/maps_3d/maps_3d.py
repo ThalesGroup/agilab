@@ -20,6 +20,7 @@ from pathlib import Path
 import plotly.express as px
 import geojson
 import random
+from agi_env import AgiEnv
 
 # List of available color palettes
 discreteseqs = ["Plotly", "D3", "G10", "T10", "Alphabet", "Dark24", "Light24"]
@@ -40,6 +41,18 @@ ELEVATION_DECODER = {
 possible_latitude_names = ["latitude", "lat", "beam_lat"]
 possible_longitude_names = ["longitude", "long", "lng", "beam_long"]
 
+st.title(":world_map: Cartography-3D Visualisation")
+if 'env' not in st.session_state:
+    env = AgiEnv(verbose=0)
+    env.init_done = True
+    st.session_state['env'] = env
+else:
+    env = st.session_state['env']
+
+if "GUI_NROW" not in st.session_state:
+    st.session_state["GUI_NROW"] = env.GUI_NROW
+if "GUI_SAMPLING" not in st.session_state:
+    st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
 
 @st.cache_data
 def generate_random_colors(num_colors):
