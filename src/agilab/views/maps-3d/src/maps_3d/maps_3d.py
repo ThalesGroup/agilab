@@ -580,7 +580,7 @@ def page():
 
             # Loop through numeric columns and classify them based on the unique value count.
             for col in numeric_cols:
-                if loaded_df[col].nunique() < unique_threshold:
+                if st.session_state.loaded_df[col].nunique() < unique_threshold:
                     discrete_cols.append(col)
                 else:
                     continious_cols.append(col)
