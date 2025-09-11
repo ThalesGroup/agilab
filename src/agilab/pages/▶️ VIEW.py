@@ -96,11 +96,9 @@ def exec_bg(agi_env: AgiEnv, cmd: str, cwd: str) -> None:
 
     Returns:
         """
-    env = os.environ.copy()
-    env.pop("PYTHONPATH", None)
     stdout = open(agi_env.out_log, "ab", buffering=0)
     stderr = open(agi_env.err_log, "ab", buffering=0)
-    return subprocess.Popen(cmd, shell=isinstance(cmd, str), cwd=cwd, env=env, stdout=stdout, stderr=stderr)
+    return subprocess.Popen(cmd, shell=isinstance(cmd, str), cwd=cwd, stdout=stdout, stderr=stderr)
 
 @st.cache_resource(show_spinner=False)
 def _ensure_sidecar(view_key: str, view_page: Path, port: int):

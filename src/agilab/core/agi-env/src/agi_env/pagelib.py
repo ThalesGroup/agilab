@@ -1093,7 +1093,7 @@ def sidebar_views():
     index_page_str = str(index_page)
     key_df = index_page_str + "df"
     index = next(
-        (i for i, f in enumerate(df_files_rel) if f.name == default_df),
+        (i for i, f in enumerate(df_files_rel) if f.name == "default_df"),
         0,
     )
     module_path = lab_dir.relative_to(Agi_export_abs)
