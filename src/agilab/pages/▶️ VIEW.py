@@ -194,7 +194,7 @@ def discover_views(views_dir: Union[str, Path]) -> list[Path]:
     if views_dir.exists():
         # Example: find all pyproject.toml files (as in your code)
         out = set()
-        for subdir in views_dir.glob("*"):  # only depth 2 dirs
+        for subdir in views_dir.glob("[!_.]*"):  # only depth 2 dirs
             pyproject = subdir / "pyproject.toml"
             if pyproject.is_file() and "__init__" not in subdir.name:
                 out.add(subdir.resolve())# resolve symlinks for consistency
