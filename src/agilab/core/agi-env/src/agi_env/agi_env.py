@@ -103,6 +103,8 @@ class AgiEnv:
     verbose = None
     pyvers_worker = None
     logger = None
+    out_log = None
+    err_log = None
     _ip_local_cache: set = set({"127.0.0.1", "::1"})
     INDEX_URL="https://test.pypi.org/simple"
     EXTRA_INDEX_URL="https://pypi.org/simple"

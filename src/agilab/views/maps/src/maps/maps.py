@@ -72,7 +72,7 @@ def downsample_df_deterministic(df: pd.DataFrame, ratio: int) -> pd.DataFrame:
     # Reset index for the result
     return sampled.reset_index(drop=True)
 
-def page():
+def page(env):
     """
     Page function for displaying and interacting with data in a Streamlit app.
 
@@ -93,11 +93,6 @@ def page():
     Raises:
         None
     """
-    if 'env' not in st.session_state:
-        st.error("The application environment is not initialized. Please click on  AGILAB.")
-        st.stop()
-    else:
-        env = st.session_state['env']
 
     if "project" not in st.session_state:
         st.session_state["project"] = env.target
@@ -303,7 +298,7 @@ def page():
             if discreteseq:
                 # Get the color sequence
                 color_sequence = getattr(px.colors.qualitative, discreteseq)
-                fig = px.scatter_mapbox(
+                fig = px.scatter_map(
                     st.session_state.loaded_df,
                     lat=st.session_state.lat,
                     lon=st.session_state.long,
@@ -312,7 +307,7 @@ def page():
                     color=st.session_state[st.session_state.coltype],
                 )
             elif colorscale:
-                fig = px.scatter_mapbox(
+                fig = px.scatter_map(
                     st.session_state.loaded_df,
                     lat=st.session_state.lat,
                     lon=st.session_state.long,
@@ -321,7 +316,7 @@ def page():
                     color=st.session_state[st.session_state.coltype],
                 )
             else:
-                fig = px.scatter_mapbox(
+                fig = px.scatter_map(
                     st.session_state.loaded_df,
                     lat=st.session_state.lat,
                     lon=st.session_state.long,
@@ -348,18 +343,18 @@ def main():
         parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
         parser.add_argument("--install-type", type=str, help="0:enduser(default)\n1:dev", default="0")
         parser.add_argument("--active-app", type=str, help="Where you store your apps (default is ./)",
-                            default="apps")
+                            default=None)
         args, _ = parser.parse_known_args()
 
         if args.active_app is None:
-            with open(Path("~/").expanduser() / ".local/share/agilab/.agi-path", "r") as f:
+            with open(Path("~/").expanduser() / ".local/share/agilab/.agilab-path", "r") as f:
                 agilab_path = f.read()
                 before, sep, after = agilab_path.rpartition(".venv")
-                args.active_app = Path(before) / "apps/flight"
+                active_app = Path(before) / "apps/flight"
         else:
             active_app = Path(args.active_app)
 
-        if args.active_app is None:
+        if active_app is None:
             st.error("Error: Missing mandatory parameter: --active-app")
             sys.exit(1)
 
@@ -369,6 +364,7 @@ def main():
         st.session_state["apps_dir"] = active_app.parent
 
         st.session_state["INSTALL_TYPE"] = args.install_type
+        st.info(f"active_app: {active_app}")
         env = AgiEnv(active_app=active_app, install_type=int(args.install_type), verbose=1)
         env.init_done = True
         st.session_state['env'] = env
@@ -382,7 +378,7 @@ def main():
         if "datadir" not in st.session_state:
             st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
 
-        page()
+        page(env)
 
     except Exception as e:
         st.error(f"An error occurred: {e}")

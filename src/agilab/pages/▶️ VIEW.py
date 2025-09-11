@@ -24,13 +24,14 @@ import streamlit as st
 import streamlit.components.v1 as components
 from IPython.lib import backgroundjobs as bg
 import logging
+import subprocess
 
 # Use modern TOML libraries
 import tomli         # For reading TOML files (read as binary)
 import tomli_w       # For writing TOML files (write as binary)
 
 # Project utilities (unchanged)
-from agi_env.pagelib import activate_mlflow, get_about_content, render_logo, select_project
+from agi_env.pagelib import get_about_content, render_logo, select_project
 from agi_env import AgiEnv, normalize_path
 
 logger = logging.getLogger(__name__)
@@ -86,7 +87,7 @@ def _port_for(key: str) -> int:
 jobs = bg.BackgroundJobManager()
 
 @staticmethod
-def exec_bg(cmd: str, cwd: str) -> None:
+def exec_bg(agi_env: AgiEnv, cmd: str, cwd: str) -> None:
     """
     Execute background command
     Args:
@@ -95,12 +96,11 @@ def exec_bg(cmd: str, cwd: str) -> None:
 
     Returns:
         """
-    global jobs
-
-    jobs.new("subprocess.Popen(cmd, shell=True)", cwd=cwd)
-
-    if not jobs.result(0):
-        raise RuntimeError(f"running {cmd} at {cwd}")
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    stdout = open(agi_env.out_log, "ab", buffering=0)
+    stderr = open(agi_env.err_log, "ab", buffering=0)
+    return subprocess.Popen(cmd, shell=isinstance(cmd, str), cwd=cwd, env=env, stdout=stdout, stderr=stderr)
 
 @st.cache_resource(show_spinner=False)
 def _ensure_sidecar(view_key: str, view_page: Path, port: int):
@@ -113,11 +113,16 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int):
     uv = cmd_prefix + env.uv
     pyvers = env.python_version
     page_home = str(view_page.parents[2])
+    env.out_log = f"{env.AGILAB_LOG_ABS / view_page.stem}.log"
+    env.err_log = f"{env.AGILAB_LOG_ABS / view_page.stem}.err"
 
     cmd = (f"uv run --project {page_home} python -m streamlit run {view_page} --server.port {port} --server.headless true"
-           f" --browser.gatherUsageStats false")
-    result = exec_bg(cmd, cwd=page_home)
-    logger.info(f"{cmd} result\n{result}")
+           f" --browser.gatherUsageStats false -- --active-app {env.active_app} --install-type {env.install_type}")
+    result = exec_bg(env, cmd, cwd=page_home)
+    logger.info(f"{view_page.name} cmd: {cmd}")
+    logger.info(f"{view_page.name} from: {page_home}")
+    logger.info(f"{view_page.name} result: {result}")
+
 
     env = os.environ.copy()
     # Avoid leaking the main app's sys.path into the child
@@ -129,54 +134,6 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int):
             break
         time.sleep(0.1)
 
-@st.cache_resource(show_spinner=False)
-async def _ensure_sidecar2(view_key: str, view_page, port: int):
-    """Launch or reuse a sidecar Streamlit for `script` on `port`."""
-    # 0) bail if already up
-    if _is_port_open(port):
-        return
-
-    # 1) pick host to bind to (and to iframe to)
-    host = os.getenv("AGILAB_VIEWS_HOST", "127.0.0.1")  # set to LAN IP if you open parent via Network URL
-
-    # 2) build argv (no shell) — first try uv, then plain python
-    base_argv = ["-m", "streamlit", "run", view_page,
-                 "--server.port", str(port),
-                 "--server.address", host,
-                 "--server.headless", "true",
-                 "--browser.gatherUsageStats", "false"]
-
-    candidates: list[list[str]] = []
-    uv = os.getenv("UV_BIN", "uv")  # override if needed
-    candidates.append([uv, "run", "python", *base_argv])      # uv run python -m streamlit ...
-    candidates.append([sys.executable, *base_argv])           # fallback: main interpreter
-
-    # 3) optional: capture logs to help when it fails before binding
-    logs_dir = Path(os.getenv("AGILAB_VIEWS_LOGDIR", "~/.agilab/sidecars")).expanduser()
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    log_path = logs_dir / f"{view_page.stem}.log"
-
-    # 4) try candidates until the port is up
-    for argv in candidates:
-        view_page = str(view_page.parents[2])
-        result =  exec_bg(argv, cwd=view_page)
-
-        # wait up to ~12s for the port to bind
-        for _ in range(120):
-            if _is_port_open(port):
-                break
-            time.sleep(0.1)
-        if _is_port_open(port):
-            break
-    else:
-        st.error(f"Sidecar failed to bind on {host}:{port}. See log: {log_path}")
-        try:
-            with open(log_path, "r", encoding="utf-8", errors="ignore") as fh:
-                tail = fh.read()[-2000:]
-            with st.expander("Last log lines"):
-                st.code(tail)
-        except Exception:
-            pass
 
 def discover_views(views_dir: Union[str, Path]) -> list[Path]:
     """

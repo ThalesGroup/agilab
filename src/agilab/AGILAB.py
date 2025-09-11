@@ -135,7 +135,7 @@ def main():
             args, _ = parser.parse_known_args()
 
             if args.apps_dir is None:
-                with open(Path("~/").expanduser() / ".local/share/agilab/.agi-path", "r") as f:
+                with open(Path("~/").expanduser() / ".local/share/agilab/.agilab-path", "r") as f:
                     agilab_path = f.read()
                     before, sep, after = agilab_path.rpartition(".venv")
                     args.apps_dir = Path(before) / "apps"
