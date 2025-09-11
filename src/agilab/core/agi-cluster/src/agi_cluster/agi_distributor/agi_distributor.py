@@ -665,11 +665,11 @@ class AGI:
             if not (cli_abs).exists():
                 shutil.copy(env.cluster_root / "src/agi_cluster/agi_distributor/cli.py", cli_abs)
             if force:
-                cmd = f"{kill_prefix} {cli_abs} kill"
+                cmd = f"{kill_prefix} '{cli_abs}' kill"
                 cmds.append(cmd)
         else:
             if force:
-                cmd = f"{kill_prefix} {cli_rel} kill"
+                cmd = f"{kill_prefix} '{cli_rel}' kill"
                 cmds.append(cmd)
 
         last_res = None
