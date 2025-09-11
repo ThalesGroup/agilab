@@ -11,7 +11,7 @@ import argparse
 # ----------------- Fast-Loading Banner UI -----------------
 def quick_logo(resources_path: Path):
     try:
-        from agilab.pagelib import get_base64_of_image
+        from agi_env.pagelib import get_base64_of_image
         img_data = get_base64_of_image(resources_path / "agilab_logo.png")
         img_src = f"data:image/png;base64,{img_data}"
         st.markdown(
@@ -31,7 +31,7 @@ def quick_logo(resources_path: Path):
 
 
 def display_landing_page(resources_path: Path):
-    from agilab.pagelib import get_base64_of_image
+    from agi_env.pagelib import get_base64_of_image
     # You can optionally show a small logo here if wanted.
     md_content = f"""
     <div class="uvp-highlight">
@@ -76,7 +76,7 @@ def show_banner_and_intro(resources_path: Path):
 def page(env):
     cols = st.columns(2)
     help_file = Path(env.help_path) / "index.html"
-    from agilab.pagelib import open_docs
+    from agi_env.pagelib import open_docs
     if cols[0].button("Read Documentation", type="tertiary", use_container_width=True):
         open_docs(env, help_file, "project-editor")
     if cols[1].button("Get Started", type="tertiary", use_container_width=True):
@@ -122,7 +122,7 @@ def main():
     if st.session_state.get("first_run", True) or "env" not in st.session_state:
         show_banner_and_intro(resources_path)
         with st.spinner("Initializing environment..."):
-            from agilab.pagelib import activate_mlflow
+            from agi_env.pagelib import activate_mlflow
             from agi_env import AgiEnv
             parser = argparse.ArgumentParser(description="Run the AGI Streamlit App with optional parameters.")
             parser.add_argument("--cluster-ssh-credentials", type=str, help="Cluster credentials (username:password)",
