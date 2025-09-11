@@ -141,7 +141,7 @@ class AgiEnv:
             agilab_installed = Path(agilab.origin).parents[1]
         else:
             # Fallback if not installed
-            agilab_installed = agilab_src.replace("`/views/maps", "")
+            agilab_installed = agilab_src.replace("/views/maps", "")
 
         if isinstance(active_app, str):
             # case only worker_env
