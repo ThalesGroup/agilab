@@ -90,8 +90,25 @@ def _port_for(key: str) -> int:
 
 jobs = bg.BackgroundJobManager()
 
+@staticmethod
+def exec_bg(cmd: str, cwd: str) -> None:
+    """
+    Execute background command
+    Args:
+        cmd: the command to be run
+        cwd: the current working directory
+
+    Returns:
+        """
+    global jobs
+
+    jobs.new("subprocess.Popen(cmd, shell=True)", cwd=cwd)
+
+    if not jobs.result(0):
+        raise RuntimeError(f"running {cmd} at {cwd}")
+
 @st.cache_resource(show_spinner=False)
-async def _ensure_sidecar(view_key: str, view_page: Path, port: int):
+def _ensure_sidecar(view_key: str, view_page: Path, port: int):
     """Start the view's Streamlit in a separate process (one per session)."""
     if _is_port_open(port):
         return  # already running
@@ -116,23 +133,6 @@ async def _ensure_sidecar(view_key: str, view_page: Path, port: int):
         if _is_port_open(port):
             break
         time.sleep(0.1)
-
-@staticmethod
-def exec_bg(cmd: str, cwd: str) -> None:
-    """
-    Execute background command
-    Args:
-        cmd: the command to be run
-        cwd: the current working directory
-
-    Returns:
-        """
-    global jobs
-
-    jobs.new("subprocess.Popen(cmd, shell=True)", cwd=cwd)
-
-    if not jobs.result(0):
-        raise RuntimeError(f"running {cmd} at {cwd}")
 
 @st.cache_resource(show_spinner=False)
 async def _ensure_sidecar2(view_key: str, view_page, port: int):
@@ -163,17 +163,8 @@ async def _ensure_sidecar2(view_key: str, view_page, port: int):
 
     # 4) try candidates until the port is up
     for argv in candidates:
-        try:
-            # IMPORTANT: run from the view folder (relative imports in the view will work)
-            view_page = str(view_page.parents[2])
-            result =  exec_bg(argv, cwd=view_page)
-
-        except TypeError:
-            # if your AgiEnv.run_async doesn’t accept stdout/stderr params
-            result = exec_bg(argv, cwd=view_page)
-        except Exception as e:
-            # try the next launcher
-            continue
+        view_page = str(view_page.parents[2])
+        result =  exec_bg(argv, cwd=view_page)
 
         # wait up to ~12s for the port to bind
         for _ in range(120):
@@ -271,12 +262,14 @@ async def main():
     # Discover views dynamically under AGILAB_VIEWS_ABS
     all_views = discover_views(Path(env.AGILAB_VIEWS_ABS))
 
+    # ---------- FIX: only route if it's an actual file path, not "main"/empty ----------
     if current_page and current_page not in ("", "main"):
         try:
             await render_view_page(Path(current_page))
         except Exception as e:
             st.error(f"Failed to render view: {e}")
         return
+    # -----------------------------------------------------------------------------------
 
     # ---------- Main "Views" page ----------
     st.title(page_title)
@@ -343,7 +336,7 @@ async def render_view_page(view_path: Path):
     # Unique key for port hashing (works even if two views share the same filename)
     view_key = f"{view_path.stem}|{view_path.parent.as_posix()}"
     port = _port_for(view_key)
-    await _ensure_sidecar(view_key, view_path, port)
+    _ensure_sidecar(view_key, view_path, port)
 
     # Prefer an explicit host if provided, else fall back to 127.0.0.1 to avoid IPv6 ::1 gotchas
     components.iframe(f"http://127.0.0.1:{port}/?embed=true", height=900)
