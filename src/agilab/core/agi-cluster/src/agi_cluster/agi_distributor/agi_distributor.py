@@ -1040,20 +1040,20 @@ class AGI:
 
         app_path = env.active_app
         if has_rapids_hw:
-            cmd_manager = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(app_path)) else '')}{uv} {run_type} --config-file uv_config.toml --project {app_path}"
+            cmd_manager = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(app_path)) else '')}{uv} {run_type} --config-file uv_config.toml --project '{app_path}'"
         else:
-            cmd_manager = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(app_path)) else '')}{uv} {run_type} --project {app_path}"
+            cmd_manager = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(app_path)) else '')}{uv} {run_type} --project '{app_path}'"
 
         if env.verbose > 0:
             logger.info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
 
         if env.install_type == 1:
-            cmd = f"{uv} pip install -e {env.env_root}"
+            cmd = f"{uv} pip install -e '{env.env_root}'"
             await AgiEnv.run(cmd, app_path)
-            cmd = f"{uv} pip install -e {env.node_root}"
+            cmd = f"{uv} pip install -e '{env.node_root}'"
             await AgiEnv.run(cmd, app_path)
-            cmd = f"{uv} pip install -e {env.cluster_root}"
+            cmd = f"{uv} pip install -e '{env.cluster_root}'"
             await AgiEnv.run(cmd, app_path)
             cmd = f"{uv} pip install -e ."
             await AgiEnv.run(cmd, app_path)
@@ -1066,10 +1066,10 @@ class AGI:
         pyvers_worker = env.pyvers_worker
 
         if has_rapids_hw:
-            cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} --python {pyvers_worker} --config-file uv_config.toml --project {wenv_abs}"
-            cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} --python {pyvers_worker} --config-file uv_config.toml --project {wenv_abs}"
+            cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} --python {pyvers_worker} --config-file uv_config.toml --project '{wenv_abs}'"
+            cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} --python {pyvers_worker} --config-file uv_config.toml --project '{wenv_abs}'"
         else:
-            cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} {options_worker} --python {pyvers_worker} --project {wenv_abs}"
+            cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} {options_worker} --python {pyvers_worker} --project '{wenv_abs}'"
 
         if env.verbose > 0:
             logger.info(f"Installing workers: {cmd_worker}")
@@ -1086,15 +1086,15 @@ class AGI:
             cmd = f"{uv_worker} pip install --upgrade agi-node"
             await AgiEnv.run(cmd, wenv_abs)
 
-            cmd = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if _agi__version_missing_on_pypi(env.env_root) else '')}{uv_worker} sync --upgrade --project {env.env_root}"
+            cmd = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if _agi__version_missing_on_pypi(env.env_root) else '')}{uv_worker} sync --upgrade --project '{env.env_root}'"
             await AgiEnv.run(cmd, wenv_abs)
 
-            cmd = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if _agi__version_missing_on_pypi(env.node_root) else '')}{uv_worker} sync --upgrade --project {env.node_root}"
+            cmd = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if _agi__version_missing_on_pypi(env.node_root) else '')}{uv_worker} sync --upgrade --project '{env.node_root}'"
             await AgiEnv.run(cmd, wenv_abs)
         else:
             # build agi_env*.whl
             menv = env.env_root
-            cmd = f"{uv} --project {menv} build --wheel"
+            cmd = f"{uv} --project '{menv}' build --wheel"
             await AgiEnv.run(cmd, menv)
             src = menv / "dist"
             try:
@@ -1103,12 +1103,12 @@ class AGI:
             except StopIteration:
                 raise RuntimeError(cmd)
 
-            cmd = f"{uv_worker} pip install -e {env.env_root}"
+            cmd = f"{uv_worker} pip install -e '{env.env_root}'"
             await AgiEnv.run(cmd, wenv_abs)
 
             # build agi_node*.whl
             menv = env.node_root
-            cmd = f"{uv} --project {menv} build --wheel"
+            cmd = f"{uv} --project '{menv}' build --wheel"
             await AgiEnv.run(cmd, menv)
             src = menv / "dist"
             try:
@@ -1117,10 +1117,10 @@ class AGI:
             except StopIteration:
                 raise RuntimeError(cmd)
 
-            cmd = f"{uv_worker} pip install -e {env.node_root}"
+            cmd = f"{uv_worker} pip install -e '{env.node_root}'"
             await AgiEnv.run(cmd, wenv_abs)
 
-        cmd = f"{uv_worker} pip install -e {env.active_app}"
+        cmd = f"{uv_worker} pip install -e '{env.active_app}'"
         await AgiEnv.run(cmd, wenv_abs)
 
         # Post-install script
@@ -1131,10 +1131,10 @@ class AGI:
         if src.exists():
             os.makedirs(env.home_abs / env.data_rel / "dataset", exist_ok=True)
             shutil.copy2(src, dest)
-        cmd = (f"{uv_worker} run --no-sync --project {wenv_abs} python {env.home_abs / env.post_install_rel} "
-               f"{env.active_app} "
+        cmd = (f"{uv_worker} run --no-sync --project '{wenv_abs}' python '{env.home_abs / env.post_install_rel}' "
+               f"'{env.active_app}' "
                f"1 "
-               f"{env.data_rel}")
+               f"'{env.data_rel}'")
         await AgiEnv.run(cmd, wenv_abs)
 
         # Build target_worker lib local
@@ -1145,7 +1145,7 @@ class AGI:
         AGI._install_done_local = True
 
         cli = wenv_abs.parent / "cli.py"
-        cmd = f"{uv_worker} run --no-sync --project {wenv_abs} python {cli} threaded"
+        cmd = f"{uv_worker} run --no-sync --project '{wenv_abs}' python '{cli}' threaded"
         await AgiEnv.run(cmd, wenv_abs)
 
     @staticmethod
@@ -1628,9 +1628,9 @@ class AGI:
         if env.is_free_threading_available:
             uv = cmd_prefix + " PYTHON_GIL=0 " + env.uv
         if env.verbose > 1:
-            cmd = f"{env.uv} --project {app_path} run --no-sync python {env.setup_app} bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d \"{wenv_abs}\""
+            cmd = f"{env.uv} --project '{app_path}' run --no-sync python '{env.setup_app}' bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d \"{wenv_abs}\""
         else:
-            cmd = f"{env.uv} --project {app_path} run --no-sync python {env.setup_app} -q bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d \"{wenv_abs}\""
+            cmd = f"{env.uv} --project '{app_path}' run --no-sync python '{env.setup_app}' -q bdist_egg --packages \"{packages}\" --install_type '{env.install_type}' -d \"{wenv_abs}\""
 
         await AgiEnv.run(cmd, app_path)
 
@@ -1645,9 +1645,9 @@ class AGI:
             # cython compilation of wenv/src into wenv
             shutil.copy2(env.setup_core, wenv_abs)
             if env.verbose > 1:
-                cmd = f"{env.uv} --project {app_path} run --no-sync python {env.setup_app} build_ext --install-type 1 -b {wenv_abs}"
+                cmd = f"{env.uv} --project '{app_path}' run --no-sync python '{env.setup_app}' build_ext --install-type 1 -b '{wenv_abs}'"
             else:
-                cmd = f"{env.uv} --project {app_path} run --no-sync python {env.setup_app} -q build_ext --install-type 1 -b {wenv_abs}"
+                cmd = f"{env.uv} --project '{app_path}' run --no-sync python '{env.setup_app}' -q build_ext --install-type 1 -b '{wenv_abs}'"
 
             res = await AgiEnv.run(cmd, app_path)
             try:
