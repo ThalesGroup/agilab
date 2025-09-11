@@ -22,6 +22,9 @@ from agi_env.pagelib import find_files, load_df, update_datadir, initialize_csv_
 var = ["discrete", "continuous", "lat", "long"]
 var_default = [0, None]
 
+st.title(":world_map: Cartography Visualisation")
+
+
 def continuous():
     """Set coltype to 'continuous'."""
     st.session_state["coltype"] = "continuous"
@@ -340,46 +343,45 @@ def main():
     """
     Main function to run the application.
     """
-    st.title(":world_map: Cartography Visualisation")
-
-    if "coltype" not in st.session_state:
-        st.session_state["coltype"] = var[0]
-
-    parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
-    parser.add_argument("--install-type", type=str, help="0:enduser(default)\n1:dev", default="0")
-    parser.add_argument("--active-app", type=str, help="Where you store your apps (default is ./)",
-                        default="apps")
-    args, _ = parser.parse_known_args()
-
-    if args.active_app is None:
-        with open(Path("~/").expanduser() / ".local/share/agilab/.agi-path", "r") as f:
-            agilab_path = f.read()
-            before, sep, after = agilab_path.rpartition(".venv")
-            args.active_app = Path(before) / "apps/flight"
-    else:
-        active_app = Path(args.active_app)
-
-    if args.active_app is None:
-        st.error("Error: Missing mandatory parameter: --active-app")
-        sys.exit(1)
-
-    st.session_state["apps_dir"] = active_app.parent
-
-    st.session_state["INSTALL_TYPE"] = args.install_type
-    env = AgiEnv(active_app=active_app , install_type=int(args.install_type), verbose=1)
-    env.init_done = True
-    st.session_state['env'] = env
-
-    if "GUI_NROW" not in st.session_state:
-        st.session_state["GUI_NROW"] = env.GUI_NROW
-    if "GUI_SAMPLING" not in st.session_state:
-        st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
-
-    # Initialize session state
-    if "datadir" not in st.session_state:
-        st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
 
     try:
+        parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
+        parser.add_argument("--install-type", type=str, help="0:enduser(default)\n1:dev", default="0")
+        parser.add_argument("--active-app", type=str, help="Where you store your apps (default is ./)",
+                            default="apps")
+        args, _ = parser.parse_known_args()
+
+        if args.active_app is None:
+            with open(Path("~/").expanduser() / ".local/share/agilab/.agi-path", "r") as f:
+                agilab_path = f.read()
+                before, sep, after = agilab_path.rpartition(".venv")
+                args.active_app = Path(before) / "apps/flight"
+        else:
+            active_app = Path(args.active_app)
+
+        if args.active_app is None:
+            st.error("Error: Missing mandatory parameter: --active-app")
+            sys.exit(1)
+
+        if "coltype" not in st.session_state:
+            st.session_state["coltype"] = var[0]
+
+        st.session_state["apps_dir"] = active_app.parent
+
+        st.session_state["INSTALL_TYPE"] = args.install_type
+        env = AgiEnv(active_app=active_app, install_type=int(args.install_type), verbose=1)
+        env.init_done = True
+        st.session_state['env'] = env
+
+        if "GUI_NROW" not in st.session_state:
+            st.session_state["GUI_NROW"] = env.GUI_NROW
+        if "GUI_SAMPLING" not in st.session_state:
+            st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
+
+        # Initialize session state
+        if "datadir" not in st.session_state:
+            st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
+
         page()
 
     except Exception as e:

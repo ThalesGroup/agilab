@@ -18,6 +18,7 @@ from pathlib import Path
 import plotly.express as px
 import geojson
 import random
+import argparse
 from agi_env import AgiEnv
 from agi_env.pagelib import find_files, load_df, render_logo, cached_load_df
 
@@ -42,17 +43,7 @@ possible_latitude_names = ["latitude", "lat", "beam_lat"]
 possible_longitude_names = ["longitude", "long", "lng", "beam_long"]
 
 st.title(":world_map: Cartography-3D Visualisation")
-if 'env' not in st.session_state:
-    env = AgiEnv(verbose=0)
-    env.init_done = True
-    st.session_state['env'] = env
-else:
-    env = st.session_state['env']
 
-if "GUI_NROW" not in st.session_state:
-    st.session_state["GUI_NROW"] = env.GUI_NROW
-if "GUI_SAMPLING" not in st.session_state:
-    st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
 
 @st.cache_data
 def generate_random_colors(num_colors):
@@ -845,6 +836,40 @@ def main():
     Main function to run the application.
     """
     try:
+        parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
+        parser.add_argument("--install-type", type=str, help="0:enduser(default)\n1:dev", default="0")
+        parser.add_argument("--active-app", type=str, help="Where you store your apps (default is ./)",
+                            default="apps")
+        args, _ = parser.parse_known_args()
+
+        if args.active_app is None:
+            with open(Path("~/").expanduser() / ".local/share/agilab/.agi-path", "r") as f:
+                agilab_path = f.read()
+                before, sep, after = agilab_path.rpartition(".venv")
+                args.active_app = Path(before) / "apps/flight"
+        else:
+            active_app = Path(args.active_app)
+
+        if args.active_app is None:
+            st.error("Error: Missing mandatory parameter: --active-app")
+            sys.exit(1)
+
+        st.session_state["apps_dir"] = active_app.parent
+
+        st.session_state["INSTALL_TYPE"] = args.install_type
+        env = AgiEnv(active_app=active_app, install_type=int(args.install_type), verbose=1)
+        env.init_done = True
+        st.session_state['env'] = env
+
+        if "GUI_NROW" not in st.session_state:
+            st.session_state["GUI_NROW"] = env.GUI_NROW
+        if "GUI_SAMPLING" not in st.session_state:
+            st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
+
+        # Initialize session state
+        if "datadir" not in st.session_state:
+            st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
+
         page()
 
     except Exception as e:
