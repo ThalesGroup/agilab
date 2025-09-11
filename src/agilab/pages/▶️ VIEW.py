@@ -30,7 +30,7 @@ import tomli         # For reading TOML files (read as binary)
 import tomli_w       # For writing TOML files (write as binary)
 
 # Project utilities (unchanged)
-from agilab.pagelib import activate_mlflow, get_about_content, render_logo, select_project
+from agi_env.pagelib import activate_mlflow, get_about_content, render_logo, select_project
 from agi_env import AgiEnv, normalize_path
 
 logger = logging.getLogger(__name__)

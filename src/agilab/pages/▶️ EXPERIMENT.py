@@ -12,7 +12,7 @@ import tomli        # For reading TOML files
 import tomli_w      # For writing TOML files
 
 from code_editor import code_editor
-from agilab.pagelib import (
+from agi_env.pagelib import (
     activate_mlflow,
     find_files,
     run_lab,

@@ -22,8 +22,8 @@ import re
 import importlib
 
 import streamlit as st
-from agilab.pagelib import get_about_content, render_logo
-from agilab.pagelib import (
+from agi_env.pagelib import get_about_content, render_logo
+from agi_env.pagelib import (
     get_classes_name,
     get_fcts_and_attrs_name,
     get_templates,
