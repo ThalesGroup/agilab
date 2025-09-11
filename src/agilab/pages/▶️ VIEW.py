@@ -196,19 +196,8 @@ def discover_views(views_dir: Union[str, Path]) -> list[Path]:
         out = set()
         for subdir in views_dir.glob("[!_.]*"):  # only depth 2 dirs
             pyproject = subdir / "pyproject.toml"
-            if pyproject.is_file() and "__init__" not in subdir.name:
+            if pyproject.is_file():
                 out.add(subdir.resolve())# resolve symlinks for consistency
-
-        # add optional convenience discovery of scripts in root or views
-        for p in views_dir.glob("*.py"):
-            out.add(p.resolve())
-
-        for p in views_dir.glob("views/*.py"):
-            out.add(p.resolve())
-
-        for p in views_dir.glob("views/*/*.py"):
-            if p.name in {"main.py", "app.py"} or p.stem == p.parent.name:
-                out.add(p.resolve())
 
     return sorted(out, key=lambda p: (p.as_posix(), p.name))
 
