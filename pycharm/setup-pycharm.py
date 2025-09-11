@@ -21,6 +21,7 @@ class Config:
         self.PROJECT_SDK = f"uv ({self.PROJECT_NAME})"
         self.PROJECT_SDK_TYPE = sdk_type
         self.APPS_DIR = self.ROOT / "src" / self.PROJECT_NAME / "apps"
+        self.VIEWS_DIR = self.ROOT / "src" / self.PROJECT_NAME / "views"
         self.CORE_DIR = self.ROOT / "src" / self.PROJECT_NAME / "core"
 
         self.FILE_TEMPLATE = {
@@ -34,6 +35,7 @@ class Config:
 
         self.eligible_apps = self.__eligible_apps()
         self.eligible_core = self.__eligible_core()
+        self.eligible_views = self.__eligible_views()
 
     def create_directories(self):
         self.IDEA_DIR.mkdir(exist_ok=True)
@@ -48,6 +50,20 @@ class Config:
             if not p.is_dir():
                 continue
             if not p.name.endswith("_project"):  # rule requested
+                continue
+            if venv_python_for(p) is None:
+                continue
+            out.append(p)
+        return out
+
+    def __eligible_views(self) -> List[Path]:
+        out: List[Path] = []
+        if not self.VIEWS_DIR.exists():
+            return out
+        for p in sorted(self.VIEWS_DIR.iterdir()):
+            if not p.is_dir():
+                continue
+            if p.name.startswith((".", "__")):
                 continue
             if venv_python_for(p) is None:
                 continue
@@ -307,11 +323,11 @@ class JdkTable:
                 changed_any = True
                 logging.info(f"Updated {jdk_table} with sdk {name} at {home}")
             if not changed_any:
-                logging.info("No JetBrains jdk.table.xml found yet (open PyCharm once).")
+                logging.info("No changed applied to JetBrains jdk.table.xml.")
                 changed_any = True
 
         if not changed_any:
-            logging.info("No JetBrains jdk.table.xml found yet (open PyCharm once).")
+            logging.info("No changed applied to JetBrains jdk.table.xml.")
 
     def prune_uv_names(self, keep_names: Iterable[str]) -> None:
         keep = set(keep_names)
@@ -467,7 +483,7 @@ class Project:
             write_xml(tree, self.cfg.MODULES)
             logging.info(f"Module entry for {module_name} added to modules.xml")
 
-    def add_core_module_entry(self, core_iml: Path) -> Path | None:
+    def add_module_entry(self, core_iml: Path) -> Path | None:
         tree = read_xml(self.cfg.MODULES)
         root = tree.getroot()
         comp = root.find("./component[@name='ProjectModuleManager']")
@@ -488,12 +504,12 @@ class Project:
         fp = self.cfg.as_project_macro(core_iml)
 
         if (fu, fp) in entries:
-            logging.warning(f"Core module entry for {core_iml.name} already exists in modules.xml, skipping.")
+            logging.warning(f"Module entry for {core_iml.name} already exists in modules.xml, skipping.")
             return None
 
         ET.SubElement(modules, "module", {"fileurl": fu, "filepath": fp})
         write_xml(tree, self.cfg.MODULES)
-        logging.info(f"Core module entry for {core_iml.name} added to modules.xml")
+        logging.info(f"Module entry for {core_iml.name} added to modules.xml")
         return core_iml
 
     def generate_run_configs_for_apps(self, app_names: List[str]) -> None:
@@ -547,7 +563,7 @@ def main():
 
     root_iml = model.ensure_root_module_iml()
     model.set_module_sdk(root_iml, cfg.PROJECT_SDK)
-    model.add_core_module_entry(root_iml)
+    model.add_module_entry(root_iml)
 
     realized_apps = []
     for app in cfg.eligible_apps:
@@ -588,6 +604,20 @@ def main():
         jdk_table.add_jdk(sdk_worker, worker_py)
 
         realized_apps.append(app.name)
+    
+    realized_views = []
+    for view in cfg.eligible_views:
+        view_py = venv_python_for(view)
+        if not view_py:
+            logging.warning(f"No virtual environment found for {view.name}, skipping.")
+            continue
+
+        iml = model.write_module_minimal(view.name, view)
+        sdk_name = f"uv ({view.name})"
+        jdk_table.add_jdk(sdk_name, view_py)
+        model.set_module_sdk(iml, sdk_name)
+        model.add_module_entry(iml)
+        realized_views.append(view.name)
 
     realized_core = []
     for core in cfg.eligible_core:
@@ -601,7 +631,7 @@ def main():
         jdk_table.add_jdk(sdk_name, core_py)
         model.set_module_sdk(iml, sdk_name)
 
-        model.add_core_module_entry(iml)
+        model.add_module_entry(iml)
 
         realized_core.append(core.name)
 
@@ -612,6 +642,7 @@ def main():
     logging.info("Project setup completed successfully.")
     logging.info(f"Realized apps: {', '.join([app for app in realized_apps])}")
     logging.info(f"Realized core: {', '.join([core for core in realized_core])}")
+    logging.info(f"Realized views: {', '.join([view for view in realized_views])}")
 
     if cfg.AGISPACE.exists():
         logging.info("Realizing agi-space as a module.")
@@ -621,7 +652,7 @@ def main():
             sdk_name = "uv (agi-space)"
             jdk_table.add_jdk(sdk_name, agi_py)
             model.set_module_sdk(agi_iml, sdk_name)
-            model.add_core_module_entry(agi_iml)
+            model.add_module_entry(agi_iml)
         else:
             logging.warning("No virtual environment found for agi-space, skipping SDK assignment.")
     else:
