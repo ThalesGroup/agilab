@@ -102,7 +102,7 @@ def page(env):
 # ------------------------- Main Entrypoint -------------------------
 
 def main():
-    from agilab.pagelib import get_about_content
+    from agi_env.pagelib import get_about_content
     st.set_page_config(
         menu_items=get_about_content(),
         layout="wide"
