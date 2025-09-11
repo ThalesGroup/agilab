@@ -182,7 +182,7 @@ def main():
         page_module = importlib.import_module("pages.▶️ EDIT")
         page_module.main()
     else:
-        page(env, show_banner=False)
+        page(env)
 
 
 # ----------------- Run App -----------------
