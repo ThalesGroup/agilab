@@ -15,11 +15,10 @@ from __future__ import annotations
 import os
 import sys
 import socket
-import subprocess
 import time
 import hashlib
 from pathlib import Path
-from typing import List, Union
+from typing import Union
 import asyncio
 import streamlit as st
 import streamlit.components.v1 as components
@@ -115,7 +114,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int):
     pyvers = env.python_version
     page_home = str(view_page.parents[2])
 
-    cmd = (f"uv run python -m streamlit run {view_page} --server.port {port} --server.headless true"
+    cmd = (f"uv run --project {page_home} python -m streamlit run {view_page} --server.port {port} --server.headless true"
            f" --browser.gatherUsageStats false")
     result = exec_bg(cmd, cwd=page_home)
     logger.info(f"{cmd} result\n{result}")

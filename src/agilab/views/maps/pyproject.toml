@@ -6,4 +6,9 @@ dependencies = [
     "ipython>=9.5.0",
     "streamlit>=1.49.1",
     "watchdog>=6.0.0",
+    "agi-env",
 ]
+
+[tool.uv.sources.agi-env]
+path = "../../core/agi-env"
+editable = true

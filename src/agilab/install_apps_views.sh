@@ -49,6 +49,8 @@ echo -e "${BLUE}(Views) Link target base:${NC} $VIEWS_TARGET_BASE\n"
 
 declare -a PRIVATE_VIEWS=(
     maps-network-graph
+    autoencoder-latentspace
+    barycentric-graph
 )
 
 declare -a PRIVATE_APPS=(

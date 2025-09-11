@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 import streamlit as st
-import mlflow
 import tomli        # For reading TOML files
 import tomli_w      # For writing TOML files
 

@@ -26,8 +26,6 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Issues = "https://github.com/ThalesGroup/agilab/issues"
 Documentation = "https://thalesgroup.github.io/agilab"
 
-[project.optional-dependencies]
-dev = ["agi-cluster==0.1.0.post10", "agi-node==0.1.0.post10", "agi-env==0.1.0.post10"]
 
 
 
