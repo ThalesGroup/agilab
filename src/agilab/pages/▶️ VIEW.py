@@ -1,19 +1,15 @@
 # BSD 3-Clause License
 #
-# Copyright (c) 2025, Jean-Pierre Morard
+# Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
 # All rights reserved.
 #
-# Streamlit page: dynamic view discovery under env.AGILAB_VIEWS_ABS.
-# Each view runs in its own virtual environment (if found) via a sidecar
-# Streamlit process and is embedded back into this app using an <iframe>.
+# Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 #
-# Minimal changes vs your previous version:
-# - Replaces list_views(...) with discover_views(...)
-# - Replaces importlib.run of the selected view with a sidecar + iframe
-# - Adds small helper block for venv discovery and sidecar lifecycle
+# 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+# 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or THALES SIX GTS France SAS, may be used to endorse or promote products derived from this software without specific prior written permission.
 #
-# ----------------------------
-
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 from __future__ import annotations
 
 import os
@@ -213,7 +209,22 @@ def discover_views(views_dir: Union[str, Path]) -> list[Path]:
 
     return sorted(out, key=lambda p: (p.as_posix(), p.name))
 
-
+# --- helper: hide the parent (this page's) Streamlit sidebar when embedding a child ---
+def _hide_parent_sidebar():
+    st.markdown(
+        """
+        <style>
+        /* Hide the sidebar and its toggle button */
+        [data-testid="stSidebar"] { display: none !important; }
+        [data-testid="stSidebarNav"] { display: none !important; }
+        [data-testid="collapsedControl"] { display: none !important; }
+        /* Pull content to the left since sidebar is gone */
+        [data-testid="stAppViewContainer"] { margin-left: 0 !important; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+# --- end helper ---
 
 # =============== Page logic ==================
 
@@ -253,7 +264,7 @@ async def main():
     # Sidebar: project selection
     projects = env.projects
     current_project = env.app if env.app in projects else (projects[0] if projects else None)
-    select_project(projects, current_project) # may be updated by select_project
+    select_project(projects, current_project)  # may be updated by select_project
 
     # Where to store selected views per project
     project = env.app
@@ -262,14 +273,13 @@ async def main():
     # Discover views dynamically under AGILAB_VIEWS_ABS
     all_views = discover_views(Path(env.AGILAB_VIEWS_ABS))
 
-    # ---------- FIX: only route if it's an actual file path, not "main"/empty ----------
+    # Route: only render a view when the param is a concrete path, not "main"/empty
     if current_page and current_page not in ("", "main"):
         try:
             await render_view_page(Path(current_page))
         except Exception as e:
             st.error(f"Failed to render view: {e}")
         return
-    # -----------------------------------------------------------------------------------
 
     # ---------- Main "Views" page ----------
     st.title(page_title)
@@ -307,7 +317,7 @@ async def main():
     if selected_views:
         for i, view_name in enumerate(selected_views):
             view_path = next((p for p in all_views if p.stem == view_name), None)
-            module = view_name.replace('-','_')
+            module = view_name.replace('-', '_')
             view_path = view_path / "src" / module / (module + ".py")
             if not view_path:
                 st.error(f"View '{view_name}' not found.")
@@ -323,6 +333,9 @@ async def main():
 
 async def render_view_page(view_path: Path):
     """Render a specific view by launching it as a sidecar app in its own venv and iframing it."""
+    # Hide THIS page's sidebar while a child view is displayed
+    _hide_parent_sidebar()
+
     back_col, title_col, _ = st.columns([1, 6, 1])
     with back_col:
         if st.button("← Back to Views"):
@@ -338,11 +351,10 @@ async def render_view_page(view_path: Path):
     port = _port_for(view_key)
     _ensure_sidecar(view_key, view_path, port)
 
-    # Prefer an explicit host if provided, else fall back to 127.0.0.1 to avoid IPv6 ::1 gotchas
+    # Regular iframe (child keeps its own sidebar if it has one)
     components.iframe(f"http://127.0.0.1:{port}/?embed=true", height=900)
 
     # --- end sidecar embed ---
-
 
 if __name__ == "__main__":
     asyncio.run(main())
