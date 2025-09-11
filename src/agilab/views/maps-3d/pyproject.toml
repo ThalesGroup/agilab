@@ -8,3 +8,7 @@ dependencies = [
     "watchdog>=6.0.0",
     "agi-env",
 ]
+
+[tool.uv.sources.agi-env]
+path = "../../core/agi-env"
+editable = true
