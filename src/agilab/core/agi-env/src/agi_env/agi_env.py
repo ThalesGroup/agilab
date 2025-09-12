@@ -277,6 +277,7 @@ class AgiEnv:
             active_app = self.agilab_src
             self.app_src = self.agilab_src / "src"
             self.worker_path = self.wenv_rel / 'src' / target_worker / f"{target_worker}.py"
+            self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
             self.module_path = self.wenv_rel / 'src' / target / f"{target}.py"
             worker_module_path = self.worker_path.parent
         self.setup_core = self.setup_core / "agi_node/agi_dispatcher/build.py"
@@ -296,6 +297,24 @@ class AgiEnv:
             distribution_tree.unlink()
         self.distribution_tree = distribution_tree
 
+        self.python_version = envars.get("AGI_PYTHON_VERSION", "3.13")
+
+        self.pyvers_worker = self.python_version
+        self.is_free_threading_available = envars.get("AGI_PYTHON_FREE_THREADED", 0)
+        print(os.getcwd(), flush=True)
+        with open(self.worker_pyproject, "r") as f:
+            data = tomlkit.parse(f.read())
+        try:
+            use_freethread = data["tool"]["freethread_info"]["is_app_freethreaded"]
+            if use_freethread and self.is_free_threading_available:
+                self.uv_worker = "PYTHON_GIL=0 " + self.uv
+                self.pyvers_worker = self.pyvers_worker + "t"
+            else:
+                self.uv_worker = self.uv
+        except KeyError as e:
+            use_freethread = False
+            self.uv_worker = self.uv
+
         if install_type == 2:
             return
 
@@ -312,23 +331,6 @@ class AgiEnv:
         credantials = self.credantials.split(":")
         self.user = credantials[0]
         self.password = credantials[1] if len(credantials) > 1 else None
-        self.python_version = envars.get("AGI_PYTHON_VERSION", "3.13")
-
-        self.is_free_threading_available = envars.get("AGI_PYTHON_FREE_THREADED", 0)
-        with open(self.worker_pyproject, "r") as f:
-            data = tomlkit.parse(f.read())
-        try:
-            use_freethread = data["tool"]["freethread_info"]["is_app_freethreaded"]
-            if use_freethread and self.is_free_threading_available:
-                self.uv_worker = "PYTHON_GIL=0 " + self.uv
-                self.pyvers_worker = self.python_version + "t"
-            else:
-                self.uv_worker = self.uv
-                self.pyvers_worker = self.python_version
-        except KeyError as e:
-            use_freethread = False
-            self.uv_worker = self.uv
-            self.pyvers_worker = self.python_version
 
         # TDO: check if OK
         #self.update_pyproject()

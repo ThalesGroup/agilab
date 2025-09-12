@@ -659,7 +659,7 @@ class AGI:
         cli_rel = env.wenv_rel.parent / "cli.py"
         cli_abs = env.wenv_abs.parent / cli_rel.name
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-        kill_prefix = f'{cmd_prefix}{uv} run -p {env.python_version} python'
+        kill_prefix = f'{cmd_prefix}{uv} run --no-sync python'
 
         if env.is_local(ip):
             if not (cli_abs).exists():
@@ -1225,16 +1225,16 @@ class AGI:
         await AGI.exec_ssh(ip, cmd)
 
         # install node
-        cmd = f"{uv} --project {wenv_rel} add --upgrade {wenv_rel / node_whl.name}"
+        cmd = f"{uv} --project {wenv_rel} add -p {pyvers} --upgrade {wenv_rel / node_whl.name}"
         await AGI.exec_ssh(ip, cmd)
 
         # unzip egg to get src/
         cli = env.wenv_rel.parent / "cli.py"
-        cmd = f"{uv} run -p {pyvers} python {cli} unzip {wenv_rel}"
+        cmd = f"{uv} run --no-sync -p {pyvers} python {cli} unzip {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
 
         # Post-install script
-        cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {env.post_install_rel} --install-type 2 {env.data_rel}"
+        cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {env.post_install_rel} {wenv_rel.stem} 2 {env.data_rel}"
         await AGI.exec_ssh(ip, cmd)
 
         # build target_worker lib from src/
@@ -1436,7 +1436,7 @@ class AGI:
             if env.is_local(AGI._scheduler_ip):
                 await asyncio.sleep(1)  # non-blocking sleep
                 cmd = (
-                    f"{env.uv} run --project {env.wenv_abs} dask scheduler --port {AGI._scheduler_port} "
+                    f"{env.uv} run --no-sync --project {env.wenv_abs} dask scheduler --port {AGI._scheduler_port} "
                     f"--host {AGI._scheduler_ip} --pid-file {wenv_abs.parent / 'dask_scheduler.pid' } "
                 )
                 logger.info(f"Starting dask scheduler locally: {cmd}")
@@ -1445,14 +1445,14 @@ class AGI:
                     logger.info(result)
             else:
                 # Create remote directory
-                cmd = f"{env.uv} run -p {env.python_version} python -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
+                cmd = f"{env.uv} run --no-sync python -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
                 await AGI.exec_ssh(AGI._scheduler_ip, cmd)
 
                 toml_wenv = wenv_rel / "pyproject.toml"
                 await AGI.send_file(AGI._scheduler_ip, toml_local, toml_wenv)
 
                 cmd = (
-                    f"{env.uv} --project {wenv_rel} run dask scheduler --port {AGI._scheduler_port} "
+                    f"{env.uv} --project {wenv_rel} run --no-sync dask scheduler --port {AGI._scheduler_port} "
                     f"--host {AGI._scheduler_ip} --pid-file dask_scheduler.pid"
                 )
                 # Run scheduler asynchronously over SSH without awaiting completion (fire and forget)
@@ -1645,9 +1645,9 @@ class AGI:
             # cython compilation of wenv/src into wenv
             shutil.copy2(env.setup_core, wenv_abs)
             if env.verbose > 1:
-                cmd = f"{env.uv} --project '{app_path}' run --no-sync python '{env.setup_app}' build_ext --install-type 1 -b '{wenv_abs}'"
+                cmd = f"{env.uv} --project '{wenv_abs}' run --no-sync python '{env.setup_app}' build_ext --install-type 1 -b '{wenv_abs}'"
             else:
-                cmd = f"{env.uv} --project '{app_path}' run --no-sync python '{env.setup_app}' -q build_ext --install-type 1 -b '{wenv_abs}'"
+                cmd = f"{env.uv} --project '{wenv_abs}' run --no-sync python '{env.setup_app}' -q build_ext --install-type 1 -b '{wenv_abs}'"
 
             res = await AgiEnv.run(cmd, app_path)
             try:
@@ -1655,11 +1655,19 @@ class AGI:
             except StopIteration:
                 raise RuntimeError(cmd)
 
-            platlib = sysconfig.get_path("platlib")
-            platlib_idx = platlib.index('.venv')
-            wenv_platlib = platlib[platlib_idx:]
-            target_platlib = wenv_abs / wenv_platlib
-            destination = os.path.join(target_platlib, os.path.basename(worker_lib))
+            # platlib = sysconfig.get_path("platlib")
+            # platlib_idx = platlib.index('.venv')
+            # wenv_platlib = platlib[platlib_idx:]
+            # target_platlib = wenv_abs / wenv_platlib
+            # destination = os.path.join(target_platlib, os.path.basename(worker_lib))
+
+            python_dirs = env.pyvers_worker.split(".")
+            if python_dirs[-1][-1] == "t":
+                python_version = python_dirs[0] + "." + python_dirs[1] + "t"
+            else:
+                python_version = python_dirs[0] + "." + python_dirs[1]
+            destination = wenv_abs / f".venv/lib/python{python_version}/site-packages/"
+
 
             # Copy the file while preserving metadata.
             destination_dir = os.path.dirname(destination)

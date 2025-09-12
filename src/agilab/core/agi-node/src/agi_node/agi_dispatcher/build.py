@@ -245,20 +245,29 @@ def main() -> None:
         if sys.platform == "darwin":
             extra_compile_args += ["-Wno-unknown-warning-option", "-Wno-unreachable-code-fallthrough"]
 
+        define_macros = [("CYTHON_FALLTHROUGH", "")]
+        if sys.platform.startswith("win") and env.pyvers_worker[-1] == "t":
+            define_macros.append(("Py_GIL_DISABLED", "1"))
+
         mod = Extension(
             name=f"{worker_module}_cy",
             sources=[str(src_rel)],
             include_dirs=[str(prefix / "include")],
             extra_compile_args=extra_compile_args,
-            define_macros=[("CYTHON_FALLTHROUGH", "")],
+            define_macros=define_macros,
             library_dirs=library_dirs,
             extra_link_args=extra_link_args,
         )
 
-        if opts.remaining and "-q" in opts.remaining or "--quiet" in opts.remaining:
-            ext_modules = cythonize([mod], language_level=3, quiet=True)
+        compil_directives =  {}
+        if env.pyvers_worker[-1] == "t":
+            # free-threaded CPython compatibility
+            compil_directives = {"freethreading_compatible": True}
+
+        if (opts.remaining and ("-q" in opts.remaining or "--quiet" in opts.remaining)):
+            ext_modules = cythonize([mod], language_level=3, quiet=True, compiler_directives=compil_directives)
         else:
-            ext_modules = cythonize([mod], language_level=3)
+            ext_modules = cythonize([mod], language_level=3, compiler_directives=compil_directives)
         AgiEnv.logger.info(f"Cython extension configured: {worker_module}_cy")
 
     elif install_type != 2:
