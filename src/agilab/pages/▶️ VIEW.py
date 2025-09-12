@@ -117,10 +117,6 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int):
     cmd = (f"uv run --project {page_home} python -m streamlit run {view_page} --server.port {port} --server.headless true"
            f" --browser.gatherUsageStats false -- --active-app {env.active_app} --install-type {env.install_type}")
     result = exec_bg(env, cmd, cwd=page_home)
-    logger.info(f"{view_page.name} cmd: {cmd}")
-    logger.info(f"{view_page.name} from: {page_home}")
-    logger.info(f"{view_page.name} result: {result}")
-
 
     env = os.environ.copy()
     # Avoid leaking the main app's sys.path into the child
