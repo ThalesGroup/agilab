@@ -37,16 +37,6 @@ def discrete():
   # Default to 'discrete'
 
 
-# def update_var(var_key, widget_key):
-#     """
-#     Update a variable in session state.
-#
-#     Args:
-#       var_key: The key of the variable to update.
-#       widget_key: The key of the widget whose value will be used.
-#     """
-#     st.session_state[var_key] = st.session_state[widget_key]
-
 def downsample_df_deterministic(df: pd.DataFrame, ratio: int) -> pd.DataFrame:
     """
     Return a new DataFrame containing every `ratio`-th row from the original df.
