@@ -263,29 +263,29 @@ class AgiEnv:
         self.wenv_target_worker = self.wenv_abs
         self.app_src = active_app / "src"
         self.manager_pyproject = active_app / "pyproject.toml"
-        self.worker_path = self.app_src / target_worker
+        self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
         self.manager_path = self.app_src / target / f"{target}.py"
         is_local_worker = self.has_agilab_anywhere_under_home(self.agilab_src)
         self.setup_core = self.agilab_src / "agilab/core/agi-node/src"
         self.worker_pyproject = self.worker_path / "pyproject.toml"
+        worker_src = self.wenv_rel / 'src'
 
         if install_type == 0:
             self.setup_core = self.node_root.parent
         elif install_type == 2 and not is_local_worker:
             active_app = self.agilab_src
             self.app_src = self.agilab_src / "src"
-            self.setup_core = self.wenv_rel / "src"
-            worker_src = self.wenv_rel / 'src'
-            self.worker_path = worker_src / target_worker
+            self.setup_core = worker_src
+            self.worker_path = worker_src / target_worker / f"{target_worker}.py"
             self.manager_path = worker_src / target / f"{target}.py"
         else:
             self.worker_pyproject = active_app / "pyproject.toml"
 
         self.setup_core = self.setup_core / "agi_node/agi_dispatcher/build.py"
         self.uvproject = active_app / "uv_config.toml"
-        self.post_install = self.manager_path / "post_install.py"
-        self.pre_install = self.manager_path / "pre_install.py"
-        self.post_install_rel = self.wenv_rel / 'src' / target_worker / "post_install.py"
+        self.post_install = self.worker_path.parent / "post_install.py"
+        self.pre_install = self.worker_path.parent / "pre_install.py"
+        self.post_install_rel = worker_src / target_worker / "post_install.py"
 
         src_path = normalize_path(self.app_src)
         if not src_path in sys.path:
@@ -319,7 +319,7 @@ class AgiEnv:
             return
 
         self.base_worker_cls, self.base_worker_module = self.get_base_worker_cls(
-            self.worker_path / (self.worker_path.name + ".py"), worker_class
+            self.worker_path, worker_class
         )
         self.workers_packages_prefix = "workers."
         if not self.worker_path.exists():

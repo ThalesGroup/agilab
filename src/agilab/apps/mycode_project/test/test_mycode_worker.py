@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 import pytest
+import pytest_asyncio
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mode", [0, 1, 3])

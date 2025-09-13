@@ -46,16 +46,16 @@ async def env():
     return env
 
 @pytest.fixture(scope="session", autouse=True)
-def build_worker_libs(env):
+async def build_worker_libs(env):
     # Build eggs and Cython (only once per session)
     wenv = env.wenv_abs
     build = wenv / "build.py"
     # Build egg
     cmd = f"uv run --project {wenv} python {build} bdist_egg --packages base_worker,polars_worker -d {wenv}"
-    env.run(cmd, wenv)
+    await env.run(cmd, wenv)
     # Build cython
     cmd = f"uv run --project {wenv} python {build} build_ext --packages base_worker,polars_worker -b {wenv}"
-    env.run(cmd, wenv)
+    await env.run(cmd, wenv)
     # Add src to sys.path
     src_path = str(env.home_abs / "src")
     if src_path not in sys.path:
