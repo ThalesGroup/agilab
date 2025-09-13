@@ -149,7 +149,7 @@ class AgiEnv:
         if isinstance(active_app, str):
             # case only worker_env
             self.is_worker_env = True
-            active_app = home_abs / active_app
+            active_app = home_abs / "wenv" / active_app
         else:
             if not active_app:
                 venv_home = Path(sys.prefix).parent
@@ -262,29 +262,29 @@ class AgiEnv:
         self.dist_abs = dist_abs
         self.wenv_target_worker = self.wenv_abs
         self.app_src = active_app / "src"
-        self.app_pyproject = active_app / "pyproject.toml"
-        self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
-        self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
-        self.module_path = self.app_src / target / f"{target}.py"
-        worker_module_path = self.worker_path.parent
+        self.manager_pyproject = active_app / "pyproject.toml"
+        self.worker_path = self.app_src / target_worker
+        self.manager_path = self.app_src / target / f"{target}.py"
+        is_local_worker = self.has_agilab_anywhere_under_home(self.agilab_src)
+        self.setup_core = self.agilab_src / "agilab/core/agi-node/src"
+        self.worker_pyproject = self.worker_path / "pyproject.toml"
 
         if install_type == 0:
             self.setup_core = self.node_root.parent
-        elif install_type == 1:
-            self.setup_core = self.agilab_src / "agilab/core/agi-node/src"
-        elif install_type == 2:
-            self.setup_core = self.wenv_rel / "src"
+        elif install_type == 2 and not is_local_worker:
             active_app = self.agilab_src
             self.app_src = self.agilab_src / "src"
-            self.worker_path = self.wenv_rel / 'src' / target_worker / f"{target_worker}.py"
-            self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
-            self.module_path = self.wenv_rel / 'src' / target / f"{target}.py"
-            worker_module_path = self.worker_path.parent
-        self.setup_core = self.setup_core / "agi_node/agi_dispatcher/build.py"
+            self.setup_core = self.wenv_rel / "src"
+            worker_src = self.wenv_rel / 'src'
+            self.worker_path = worker_src / target_worker
+            self.manager_path = worker_src / target / f"{target}.py"
+        else:
+            self.worker_pyproject = active_app / "pyproject.toml"
 
+        self.setup_core = self.setup_core / "agi_node/agi_dispatcher/build.py"
         self.uvproject = active_app / "uv_config.toml"
-        self.post_install = worker_module_path / "post_install.py"
-        self.pre_install = worker_module_path / "pre_install.py"
+        self.post_install = self.manager_path / "post_install.py"
+        self.pre_install = self.manager_path / "pre_install.py"
         self.post_install_rel = self.wenv_rel / 'src' / target_worker / "post_install.py"
 
         src_path = normalize_path(self.app_src)
@@ -319,7 +319,7 @@ class AgiEnv:
             return
 
         self.base_worker_cls, self.base_worker_module = self.get_base_worker_cls(
-            self.worker_path, worker_class
+            self.worker_path / (self.worker_path.name + ".py"), worker_class
         )
         self.workers_packages_prefix = "workers."
         if not self.worker_path.exists():
@@ -372,6 +372,13 @@ class AgiEnv:
             AgiEnv.export_local_bin = ""
         else:
             AgiEnv.export_local_bin = 'export PATH="$HOME/.local/bin:$PATH";'
+
+    def has_agilab_anywhere_under_home(self, path: Path) -> bool:
+        try:
+            rel = path.resolve().relative_to(Path.home())
+        except ValueError:
+            return False  # pas sous $HOME
+        return "agilab" in rel.parts
 
     def active(self, target, install_type):
         if str(self.active_app) != target:
@@ -717,7 +724,7 @@ class AgiEnv:
 
     # def update_pyproject_enduser(self):
     #     agilab_src = self.agilab_src
-    #     for file in [self.worker_pyproject, self.app_pyproject]:
+    #     for file in [self.worker_pyproject, self.manager_pyproject]:
     #         if not file.exists():
     #             raise FileNotFoundError(f"{file} not found in {self.active_app}")
     #
@@ -746,7 +753,7 @@ class AgiEnv:
 
     def update_pyproject(self):
         agilab_src = self.agilab_src
-        for file in [self.worker_pyproject, self.app_pyproject]: #, self.core_root / "src/agilab/core/pyproject.toml"]:
+        for file in [self.worker_pyproject, self.manager_pyproject]: #, self.core_root / "src/agilab/core/pyproject.toml"]:
             if not file.exists():
                 raise FileNotFoundError(f"{file} not found in {self.active_app}")
 

@@ -231,7 +231,7 @@ class AGI:
         elif not isinstance(workers, dict):
             raise ValueError("workers must be a dict. {'ip-address':nb-worker}")
 
-        AGI.target_path = env.module_path
+        AGI.target_path = env.manager_path
         AGI._target = env.target
         AGI._rapids_enabled = rapids_enabled
         if env.verbose > 0:
