@@ -64,3 +64,12 @@ ignore_missing_imports = true
 
 [project.optional-dependencies]
 polars-worker = []
+
+[tool.pytest.ini_options]
+filterwarnings = [
+  "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+

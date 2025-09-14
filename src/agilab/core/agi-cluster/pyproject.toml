@@ -70,14 +70,6 @@ Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/agilab/core/agi-cluster"
 Tracker = "https://github.com/ThalesGroup/agilab/issue"
 
-
-
-
-
-
-
-
-
 [dependency-groups]
 dev = [
     "black",
@@ -118,3 +110,15 @@ ignore_missing_imports = true
 [tool.pyment]
 source_dir = "src"
 format = "google"
+
+[tool.pytest.ini_options]
+# Where your tests live for this project
+testpaths = ["test"]
+
+# Prefer auto so async tests don't need @pytest.mark.asyncio
+asyncio_mode = "auto"
+
+# Quiet known third-party deprecations
+filterwarnings = [
+  "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
+]

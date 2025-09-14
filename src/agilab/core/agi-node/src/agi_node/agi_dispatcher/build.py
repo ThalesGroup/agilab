@@ -20,6 +20,20 @@ from agi_env import AgiLogger
 import warnings
 warnings.filterwarnings("ignore", category=SetuptoolsDeprecationWarning)
 
+from setuptools.command.build_ext import build_ext as _build_ext
+
+class build_ext(_build_ext):
+    def build_extensions(self):
+        # Remove bogus -LModules/_hacl from env that gets forwarded to the linker
+        for var in ("LDFLAGS", "LDSHARED", "CFLAGS", "CPPFLAGS"):
+            if var in os.environ and "-LModules/_hacl" in os.environ[var]:
+                os.environ[var] = os.environ[var].replace("-LModules/_hacl", "")
+        # Drop non-existent library_dirs to avoid ld warnings
+        for ext in self.extensions:
+            if getattr(ext, "library_dirs", None):
+                ext.library_dirs = [p for p in ext.library_dirs if os.path.isdir(p)]
+        super().build_extensions()
+
 def parse_custom_args(raw_args: list[str], cwd) -> argparse.Namespace:
     """
     Parse custom CLI arguments and return an argparse Namespace.
@@ -296,6 +310,7 @@ def main() -> None:
         package_data={'': ['*.7z']},
         ext_modules=ext_modules,
         zip_safe=False,
+        cmdclass={"build_ext": build_ext}
     )
 
     # Post bdist_egg steps: unpack, decorator stripping, cleanup

@@ -26,23 +26,6 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Issues = "https://github.com/ThalesGroup/agilab/issues"
 Documentation = "https://thalesgroup.github.io/agilab"
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 [tool.uv.sources.agi-env]
     path = "../agi-env"
     editable = true
@@ -71,4 +54,16 @@ include = [
   "/pyproject.toml",
   "/README.md",
   "/LICENSE*",
+]
+
+[tool.pytest.ini_options]
+# Where your tests live for this project
+testpaths = ["test"]
+
+# Prefer auto so async tests don't need @pytest.mark.asyncio
+asyncio_mode = "auto"
+
+# Quiet known third-party deprecations
+filterwarnings = [
+  "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
 ]

@@ -63,7 +63,7 @@ def build_pytest_cmd(
     cov_args = [f"--cov={pkg}" for pkg in cov_pkgs] if cov_enabled else []
 
     if use_uv:
-        base = ["uv", "run"]
+        base = ["uv", "run", "--preview-features", "python-upgrade"]
         if project:
             base += ["--project", project]
         base += ["-m", "pytest"]

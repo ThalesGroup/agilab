@@ -69,12 +69,6 @@ Issues = "https://github.com/ThalesGroup/agilab/issues"
 [project.scripts]
 agilab = "agilab.lab_run:main"
 
-
-
-
-
-
-
 [dependency-groups]
 dev = [
     "agi-core",
@@ -90,14 +84,6 @@ dev = [
 [tool.uv.extra-build-dependencies]
 htmlmin = ["legacy-cgi"]
 ydata-profiling = ["standard-imghdr"]
-
-[tool.pytest.ini_options]
-addopts = [
-  "--cov=agilab.agilab",
-  "--cov-report=term",
-  "--cov-report=xml",
-]
-testpaths = ["test"]  # or "tests" if that’s your folder
 
 [tool.uv.sources.agi-core]
     path = "./src/agilab/core/agi-core"
@@ -140,3 +126,21 @@ ignore_missing_imports = true
 [tool.pyment]
 source_dir = "src"
 format = "google"
+
+
+[tool.pytest.ini_options]
+# Let pytest discover tests from repo root
+testpaths = [
+  "test",
+  "src/agilab/core/test",
+  "src/agilab/core/agi-env/test",
+]
+# (merge everything you had inline here)
+asyncio_mode = "auto"
+# addopts = "--import-mode=importlib"   # if you had it
+filterwarnings = [
+  "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
+  "ignore:Theme names and color schemes are lowercase.*:DeprecationWarning:IPython\\.core\\.ultratb",
+]
+
+

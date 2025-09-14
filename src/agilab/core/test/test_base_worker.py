@@ -1,8 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch, Mock
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
-import asyncio
-pytestmark = pytest.mark.asyncio
 
 class DummyWorker(BaseWorker):
     def __init__(self, *args, **kwargs):

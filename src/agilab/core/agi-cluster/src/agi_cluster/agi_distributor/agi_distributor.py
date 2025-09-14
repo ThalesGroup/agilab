@@ -1723,7 +1723,7 @@ class AGI:
             res = await BaseWorker.run(env=env, mode=AGI._mode, workers=AGI.workers, verbose=env.verbose, args=AGI._args)
         else:
             cmd = (
-                f"{env.uv} run --no-sync --project {env.wenv_abs} python -c \""
+                f"{env.uv} run --preview-features python-upgrade --no-sync --project {env.wenv_abs} python -c \""
                 f"from agi_node.agi_dispatcher import  BaseWorker\n"
                 f"import asyncio\n"
                 f"async def main():\n"

@@ -63,7 +63,7 @@ def build_pytest_cmd(
     cov_args = [f"--cov={pkg}" for pkg in cov_pkgs] if cov_enabled else []
 
     if use_uv:
-        base = ["uv", "run"]
+        base = ["uv", "run", "--preview-features", "python-upgrade"]
         if project:
             base += ["--project", project]
         base += ["-m", "pytest"]
@@ -214,8 +214,6 @@ def main() -> None:
         combine_and_emit_xml(use_uv=use_uv, cwd=repo_root)
         if not args.no_badges:
             try_make_badge(use_uv=use_uv, badges_root=badges_root, cwd=repo_root)
-    else:
-        print("Coverage disabled; skipping combine/xml/badge.")
 
     print("✅ All done.")
     sys.exit(0)
