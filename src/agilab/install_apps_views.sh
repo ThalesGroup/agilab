@@ -159,7 +159,7 @@ pushd -- "$AGILAB_PUBLIC/views" >/dev/null
 for view in "${INCLUDED_VIEWS[@]}"; do
   echo -e "${BLUE}Installing $view...${NC}"
   pushd "$view" >/dev/null
-  uv sync --project . --preview-features extra-build-dependencies
+  uv sync --project . --preview-features python-upgrade
   status=$(echo $?)
   if (( status != 0 )); then
     echo -e "${RED}Error during 'uv sync' for view '$view'.${NC}"

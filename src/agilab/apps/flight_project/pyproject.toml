@@ -69,7 +69,5 @@ polars-worker = []
 filterwarnings = [
   "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
 ]
-
-[tool.pytest.ini_options]
 asyncio_mode = "auto"
 

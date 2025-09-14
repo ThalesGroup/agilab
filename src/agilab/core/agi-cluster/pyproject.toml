@@ -95,10 +95,6 @@ editable = true
 path = "../agi-node"
 editable = true
 
-[tool.uv.sources.agi-cluster]
-path = "../agi-cluster"
-editable = true
-
 [tool.mypy]
 mypy_path = [
     "stubs",

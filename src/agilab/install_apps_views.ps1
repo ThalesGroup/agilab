@@ -217,7 +217,7 @@ if (-not [string]::IsNullOrEmpty($AGILAB_PUBLIC)) {
   foreach ($view in $INCLUDED_VIEWS) {
     Write-Color BLUE "Installing $view..."
     Push-Location $view
-    & uv sync --project . --preview-features extra-build-dependencies | Out-Host
+    & uv sync --project . --preview-features python-upgrade | Out-Host
     if ($LASTEXITCODE -ne 0) {
       Write-Color RED "Error during 'uv sync' for view '$view'."
       $status = 1

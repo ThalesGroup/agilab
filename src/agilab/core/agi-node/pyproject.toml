@@ -48,7 +48,6 @@ dependencies = [
     "python-dotenv",
     "tomli",
     "dask[distributed]",
-    "cython",
     "wheel",
     "scipy==1.15.2",
     "psutil",
