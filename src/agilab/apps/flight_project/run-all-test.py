@@ -15,17 +15,17 @@ def which(exe: str) -> str | None:
     return shutil.which(exe)
 
 
-def discover_tests(manager_root: Path, worker_root: Path) -> tuple[list[str], list[str]]:
+def discover_tests(root: Path) -> tuple[list[str], list[str]]:
     """
     Look for tests named like test*manager.py in manager_root,
     and test*worker.py in worker_root (skip any .venv paths).
     """
     managers = sorted(
-        str(p) for p in manager_root.rglob("test*manager.py")
+        str(p) for p in root.rglob("test*manager.py")
         if p.is_file() and ".venv" not in p.parts
     )
     workers = sorted(
-        str(p) for p in worker_root.rglob("test*worker.py")
+        str(p) for p in root.rglob("test*worker.py")
         if p.is_file() and ".venv" not in p.parts
     )
     return workers, managers
@@ -133,8 +133,7 @@ def main() -> None:
         # If it doesn't exist, just point at repo_root so rglob() is harmless
         worker_root = repo_root
 
-    workers, managers = discover_tests(repo_root, worker_root)
-
+    workers, managers = discover_tests(repo_root)
     default_cov_pkg = "agilab.apps." + repo_root.name  # e.g., agilab.apps.sat_trajectory_project
 
     parser = argparse.ArgumentParser(description="Run manager/worker tests. Coverage is disabled by default.")
