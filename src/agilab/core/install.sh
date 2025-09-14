@@ -19,37 +19,37 @@ echo -e "${BLUE}Installing framework from $(pwd)...${NC}"
 echo -e "${BLUE}Python Version: $AGI_PYTHON_VERSION${NC}"
 echo -e "${BLUE}Installing agi-cluster...${NC}"
 pushd agi-cluster > /dev/null
-echo "uv sync -p $AGI_PYTHON_VERSION --dev"
-uv sync -p "$AGI_PYTHON_VERSION" --dev
-uv run python -m ensurepip
-uv pip install --preview-features extra-build-dependencie -e .
-uv pip install --preview-features extra-build-dependencie -e ../agi-node
-uv pip install --preview-features extra-build-dependencie -e ../agi-env
+echo "uv sync --preview-features extra-build-dependencies -p $AGI_PYTHON_VERSION --dev"
+uv sync --preview-features extra-build-dependencies -p "$AGI_PYTHON_VERSION" --dev
+uv run --preview-features extra-build-dependencies python -m ensurepip
+uv pip install --preview-features extra-build-dependencies -e .
+uv pip install --preview-features extra-build-dependencies -e ../agi-node
+uv pip install --preview-features extra-build-dependencies -e ../agi-env
 
 popd > /dev/null
 echo -e "${BLUE}Installing agi-node...${NC}"
 pushd agi-node > /dev/null
-echo "uv sync -p $AGI_PYTHON_VERSION --dev"
-uv sync -p "$AGI_PYTHON_VERSION" --dev
-uv run python -m ensurepip
-uv pip install --preview-features extra-build-dependencie -e .
-uv pip install --preview-features extra-build-dependencie -e ../agi-env
+echo "uv sync --preview-features extra-build-dependencies -p $AGI_PYTHON_VERSION --dev"
+uv sync --preview-features extra-build-dependencies -p "$AGI_PYTHON_VERSION" --dev
+uv run --preview-features extra-build-dependencies python -m ensurepip
+uv pip install --preview-features extra-build-dependencies -e .
+uv pip install --preview-features extra-build-dependencies -e ../agi-env
 popd > /dev/null
 
 echo -e "${BLUE}Installing agi-env...${NC}"
 pushd agi-env > /dev/null
-echo "uv sync -p $AGI_PYTHON_VERSION --dev"
-uv sync -p "$AGI_PYTHON_VERSION" --dev
-uv run python -m ensurepip
-uv pip install --preview-features extra-build-dependencie -e .
+echo "uv sync --preview-features extra-build-dependencies -p $AGI_PYTHON_VERSION --dev"
+uv sync --preview-features extra-build-dependencies -p "$AGI_PYTHON_VERSION" --dev
+uv run --preview-features extra-build-dependencies python -m ensurepip
+uv pip install --preview-features extra-build-dependencies -e .
 popd > /dev/null
 echo -e "${BLUE}Installing agilab...${NC}"
 pushd ../../.. > /dev/null
-uv sync -p "$AGI_PYTHON_VERSION" --preview-features python-upgrade
-uv pip install --preview-features extra-build-dependencie -e src/agilab/core/agi-env
-uv pip install --preview-features extra-build-dependencie -e src/agilab/core/agi-node
-uv pip install --preview-features extra-build-dependencie -e src/agilab/core/agi-cluster
-uv pip install --preview-features extra-build-dependencie -e src/agilab/core/agi-core
+uv sync --preview-features extra-build-dependencies -p "$AGI_PYTHON_VERSION" --preview-features python-upgrade
+uv pip install --preview-features extra-build-dependencies -e src/agilab/core/agi-env
+uv pip install --preview-features extra-build-dependencies -e src/agilab/core/agi-node
+uv pip install --preview-features extra-build-dependencies -e src/agilab/core/agi-cluster
+uv pip install --preview-features extra-build-dependencies -e src/agilab/core/agi-core
 popd > /dev/null
 
 echo -e "${GREEN}Checking installation...${NC}"

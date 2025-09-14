@@ -1051,13 +1051,13 @@ class AGI:
         await AgiEnv.run(cmd_manager, app_path)
 
         if env.install_type == 1:
-            cmd = f"{uv} pip install --preview-features extra-build-dependencie -e '{env.env_root}'"
+            cmd = f"{uv} pip install --preview-features extra-build-dependencies -e '{env.env_root}'"
             await AgiEnv.run(cmd, app_path)
-            cmd = f"{uv} pip install --preview-features extra-build-dependencie -e '{env.node_root}'"
+            cmd = f"{uv} pip install --preview-features extra-build-dependencies -e '{env.node_root}'"
             await AgiEnv.run(cmd, app_path)
-            cmd = f"{uv} pip install --preview-features extra-build-dependencie -e '{env.cluster_root}'"
+            cmd = f"{uv} pip install --preview-features extra-build-dependencies -e '{env.cluster_root}'"
             await AgiEnv.run(cmd, app_path)
-            cmd = f"{uv} pip install --preview-features extra-build-dependencie -e ."
+            cmd = f"{uv} pip install --preview-features extra-build-dependencies -e ."
             await AgiEnv.run(cmd, app_path)
 
         #========
@@ -1082,10 +1082,10 @@ class AGI:
         ##############
 
         if env.install_type == 0:
-            cmd = f"{uv_worker} pip install --preview-features extra-build-dependencie --upgrade agi-env"
+            cmd = f"{uv_worker} pip install --preview-features extra-build-dependencies --upgrade agi-env"
             await AgiEnv.run(cmd, wenv_abs)
 
-            cmd = f"{uv_worker} pip install --preview-features extra-build-dependencie --upgrade agi-node"
+            cmd = f"{uv_worker} pip install --preview-features extra-build-dependencies --upgrade agi-node"
             await AgiEnv.run(cmd, wenv_abs)
 
             cmd = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if _agi__version_missing_on_pypi(env.env_root) else '')}{uv_worker} sync --upgrade --project '{env.env_root}'"
@@ -1105,7 +1105,7 @@ class AGI:
             except StopIteration:
                 raise RuntimeError(cmd)
 
-            cmd = f"{uv_worker} pip install --preview-features extra-build-dependencie -e '{env.env_root}'"
+            cmd = f"{uv_worker} pip install --preview-features extra-build-dependencies -e '{env.env_root}'"
             await AgiEnv.run(cmd, wenv_abs)
 
             # build agi_node*.whl
@@ -1119,10 +1119,10 @@ class AGI:
             except StopIteration:
                 raise RuntimeError(cmd)
 
-            cmd = f"{uv_worker} pip install --preview-features extra-build-dependencie -e '{env.node_root}'"
+            cmd = f"{uv_worker} pip install --preview-features extra-build-dependencies -e '{env.node_root}'"
             await AgiEnv.run(cmd, wenv_abs)
 
-        cmd = f"{uv_worker} pip install --preview-features extra-build-dependencie -e '{env.active_app}'"
+        cmd = f"{uv_worker} pip install --preview-features extra-build-dependencies -e '{env.active_app}'"
         await AgiEnv.run(cmd, wenv_abs)
 
         # Post-install script
@@ -1219,7 +1219,7 @@ class AGI:
         cmd = f"{uv} --project {wenv_rel} run -p {pyvers} python -m ensurepip"
         await AGI.exec_ssh(ip, cmd)
 
-        cmd = f"{uv} --project {wenv_rel} run -p {pyvers} python -m pip install --preview-features extra-build-dependencie -e {wenv_rel}"
+        cmd = f"{uv} --project {wenv_rel} run -p {pyvers} python -m pip install --preview-features extra-build-dependencies -e {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
 
         # install env

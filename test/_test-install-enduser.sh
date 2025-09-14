@@ -72,20 +72,20 @@ case "${SOURCE}" in
     echo "Installing packages from local source tree..."
     for pkg in ${PACKAGES}; do
       if [[ -d "${AGI_INSTALL_PATH}/core/${pkg}" ]]; then
-        uv pip install --preview-features extra-build-dependencie -e "${AGI_INSTALL_PATH}/core/${pkg}"
+        uv pip install --preview-features extra-build-dependencies -e "${AGI_INSTALL_PATH}/core/${pkg}"
       fi
     done
-    uv pip install --preview-features extra-build-dependencie -e "${AGI_INSTALL_ROOT}"
+    uv pip install --preview-features extra-build-dependencies -e "${AGI_INSTALL_ROOT}"
     ;;
 
 
   pypi)
     echo "Installing from PyPI..."
     if [[ -z "${VERSION}" ]]; then
-      uv pip install --preview-features extra-build-dependencie --upgrade ${PACKAGES}
+      uv pip install --preview-features extra-build-dependencies --upgrade ${PACKAGES}
     else
       # shellcheck disable=SC2046
-      uv pip install --preview-features extra-build-dependencie --upgrade $(for p in ${PACKAGES}; do printf "%s==%s " "${p}" "${VERSION}"; done)
+      uv pip install --preview-features extra-build-dependencies --upgrade $(for p in ${PACKAGES}; do printf "%s==%s " "${p}" "${VERSION}"; done)
     fi
     ;;
 
@@ -93,7 +93,7 @@ case "${SOURCE}" in
     INDEX_URL="https://test.pypi.org/simple"
     EXTRA_INDEX_URL="https://pypi.org/simple"
 
-    uv pip install --preview-features extra-build-dependencie packaging
+    uv pip install --preview-features extra-build-dependencies packaging
 
     resolve_common_latest() {
       uv run python - "$@" <<'PY'
