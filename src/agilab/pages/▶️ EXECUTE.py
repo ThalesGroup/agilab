@@ -690,7 +690,7 @@ async def page():
     # Sidebar toggles for each page section
     show_install = st.sidebar.checkbox("INSTALL", value=True)
     show_distribute = st.sidebar.checkbox("SET ARGS", value=False)
-    if (st.session_state.get("args_serialized") or show_distribute) and _is_app_installed(env):
+    if _is_app_installed(env):
         show_run = st.sidebar.checkbox("RUN", value=False)
     else:
         show_run = False
@@ -743,10 +743,13 @@ if __name__ == "__main__":
                 )
 
                 live_log_placeholder.empty()
-                # Use display_log to show warnings or errors appropriately
                 display_log(stdout, stderr)
                 if not stderr:
                     st.success("Cluster installation completed.")
+                    # 👇 Auto-enable the RUN section after install
+                    st.session_state["SET ARGS"] = True  # reveals the "SET ARGS" checkbox (uses its label as the key)
+                    st.session_state["RUN"] = True  # pre-checks the "RUN" checkbox (its label is the key)
+                    st.rerun()
 
     # ------------------
     # DISTRIBUTE Section
