@@ -12,8 +12,8 @@ async def main():
         'param4': True
     }
     base_path = Path(__file__).resolve().parents[3]
-    sys.path.insert(0, base_path/ 'apps/mycode_project/src')
-    sys.path.insert(0,'~/wenv/mycode_worker/dist')
+    sys.path.insert(0, str(base_path / 'apps/mycode_project/src'))
+    sys.path.insert(0,str(Path('~/wenv/mycode_worker/dist').expanduser())
 
     active_app = Path(__file__).resolve().parents[1]
     env = AgiEnv(active_app=active_app, verbose=True)

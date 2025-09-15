@@ -13,7 +13,7 @@
 
 import csv
 
-input_csv = '~/.agilab/balancer_df.csv'
+input_csv = str(Path('~/.agilab/balancer_df.csv').expanduser())
 cleaned_csv = '../src/env/.agilab/balancer_df.csv'
 
 with open(input_csv, 'r', newline='') as infile, open(cleaned_csv, 'w', newline='') as outfile:
