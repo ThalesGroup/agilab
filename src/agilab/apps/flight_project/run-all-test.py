@@ -51,7 +51,6 @@ def run(cmd: list[str], cwd: Path, env: dict | None = None) -> None:
 
 
 def build_pytest_cmd(
-    use_uv: bool,
     project: str | None,
     repo_root: Path,
     cov_pkgs: list[str],
@@ -62,13 +61,11 @@ def build_pytest_cmd(
     cov_enabled = bool(cov_pkgs)
     cov_args = [f"--cov={pkg}" for pkg in cov_pkgs] if cov_enabled else []
 
-    if use_uv:
-        base = ["uv", "run", "--preview-features", "python-upgrade"]
-        if project:
-            base += ["--project", project]
-        base += ["-m", "pytest"]
-    else:
-        base = [sys.executable, "-m", "pytest"]
+    base = ["uv", "run", "--preview-features", "python-upgrade"]
+    if project:
+        base += ["--project", project]
+    base += ["-m", "pytest"]
+
 
     cmd = [
         *base,
@@ -90,18 +87,18 @@ def build_pytest_cmd(
     return cmd
 
 
-def combine_and_emit_xml(use_uv: bool, cwd: Path) -> None:
-    base = ["uv", "run", "-m"] if use_uv else [sys.executable, "-m"]
+def combine_and_emit_xml(cwd: Path) -> None:
+    base = ["uv", "run", "--no-sync", "-m"] if use_uv else [sys.executable, "-m"]
     run([*base, "coverage", "combine"], cwd=cwd)
     run([*base, "coverage", "xml", "-o", "coverage.xml"], cwd=cwd)
 
 
-def try_make_badge(use_uv: bool, badges_root: Path, cwd: Path) -> None:
+def try_make_badge(badges_root: Path, cwd: Path) -> None:
     """
     Prefer genbadge (nice SVG), fall back to coverage-badge.
     If neither is installed, skip quietly.
     """
-    base = ["uv", "run"] if use_uv else []
+    base = ["uv", "run", "--no-sync"] if use_uv else []
 
     # genbadge
     genbadge_cmd = [*base, "genbadge", "coverage", "-i", "coverage.xml", "-o", str(badges_root / "coverage.svg")]
@@ -137,9 +134,6 @@ def main() -> None:
     default_cov_pkg = "agilab.apps." + repo_root.name  # e.g., agilab.apps.sat_trajectory_project
 
     parser = argparse.ArgumentParser(description="Run manager/worker tests. Coverage is disabled by default.")
-    parser.add_argument("--managers-project", default=None, help="uv --project path for manager tests")
-    parser.add_argument("--workers-project", default=None, help="uv --project path for worker tests")
-
     parser.add_argument("--with-cov", action="store_true", help="Enable coverage (disabled by default)")
     parser.add_argument(
         "--cov",
@@ -161,8 +155,6 @@ def main() -> None:
     if not workers and not managers:
         print("No test files found.")
         sys.exit(1)
-    # prefer uv options
-    uv_cmd = "uv --no-sync"
 
     # Coverage mode
     cov_enabled = args.with_cov
@@ -177,17 +169,17 @@ def main() -> None:
         env_wrk["COVERAGE_FILE"] = str(repo_root / ".coverage.workers")
 
     # Run manager tests
+    project = Path(__file__).parent
     if managers:
         pytest_cmd_mgr = build_pytest_cmd(
-            use_uv=uv_cmd,
-            project=args.managers_project,
+            project=str(project),
             repo_root=repo_root,
             cov_pkgs=args.cov,
             local_badge_dir=None if (args.no_badges or not cov_enabled) else badges_root,
             extra_pytest_args=args.pytest_args,
             tests=managers,
         )
-        print(pytest_cmd_mgr)
+        print(" ".join(pytest_cmd_mgr))
         run(pytest_cmd_mgr, repo_root, env=env_mgr if cov_enabled else None)
     else:
         print("No manager tests discovered; skipping manager phase.")
@@ -195,8 +187,7 @@ def main() -> None:
     # Run worker tests
     if workers:
         pytest_cmd_wrk = build_pytest_cmd(
-            use_uv=uv_cmd,
-            project=args.workers_project,
+            project=str(project.parent / project.name.replace("project","worker")),
             repo_root=worker_root,  # rootdir should match worker tree
             cov_pkgs=args.worker_cov,
             local_badge_dir=None if (args.no_badges or not cov_enabled) else badges_root,
@@ -210,9 +201,9 @@ def main() -> None:
 
     # Combine + emit XML + badge only when coverage is enabled
     if cov_enabled:
-        combine_and_emit_xml(use_uv=use_uv, cwd=repo_root)
+        combine_and_emit_xml( cwd=repo_root)
         if not args.no_badges:
-            try_make_badge(use_uv=use_uv, badges_root=badges_root, cwd=repo_root)
+            try_make_badge(badges_root=badges_root, cwd=repo_root)
 
     print("✅ All done.")
     sys.exit(0)
