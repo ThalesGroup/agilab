@@ -267,7 +267,7 @@ class AgiEnv:
         self.manager_path = self.app_src / target / f"{target}.py"
         is_local_worker = self.has_agilab_anywhere_under_home(self.agilab_src)
         self.setup_core = self.agilab_src / "agilab/core/agi-node/src"
-        self.worker_pyproject = self.worker_path / "pyproject.toml"
+        self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
         worker_src = self.wenv_rel / 'src'
 
         if install_type == 0:
@@ -278,8 +278,6 @@ class AgiEnv:
             self.setup_core = worker_src
             self.worker_path = worker_src / target_worker / f"{target_worker}.py"
             self.manager_path = worker_src / target / f"{target}.py"
-        else:
-            self.worker_pyproject = active_app / "pyproject.toml"
 
         self.setup_core = self.setup_core / "agi_node/agi_dispatcher/build.py"
         self.uvproject = active_app / "uv_config.toml"
