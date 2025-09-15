@@ -768,7 +768,7 @@ if __name__ == "__main__":
 
             # Always use the current value in session_state
             st.checkbox("Custom UI", key="toggle_custom",
-                        value=st.session_state["toggle_custom"],
+                        #value=st.session_state["toggle_custom"],
                         on_change=init_custom_ui, args=[args_ui_snippet])
 
             if st.session_state["toggle_custom"] and snippet_exists and snippet_not_empty:
