@@ -298,7 +298,7 @@ class AgiEnv:
 
         self.pyvers_worker = self.python_version
         self.is_free_threading_available = envars.get("AGI_PYTHON_FREE_THREADED", 0)
-        print(os.getcwd(), flush=True)
+        # Avoid stray stdout; rely on logger when needed
         with open(self.worker_pyproject, "r") as f:
             data = tomlkit.parse(f.read())
         try:
