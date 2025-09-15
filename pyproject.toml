@@ -135,6 +135,7 @@ testpaths = [
   "src/agilab/core/test",
   "src/agilab/core/agi-env/test",
 ]
+
 # (merge everything you had inline here)
 asyncio_mode = "auto"
 # addopts = "--import-mode=importlib"   # if you had it
@@ -142,5 +143,14 @@ filterwarnings = [
   "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
   "ignore:Theme names and color schemes are lowercase.*:DeprecationWarning:IPython\\.core\\.ultratb",
 ]
+
+addopts = [
+  "--cov=agilab", "--cov=agi_core", "--cov=agi_env", "--cov=agi_cluster", "--cov=agi_node",
+  "--cov-report=term-missing:skip-covered"
+]
+
+[tool.coverage.run]
+branch = true
+source = ["agilab", "agi_core", "agi_env", "agi_cluster", "agi_node"]
 
 
