@@ -161,9 +161,8 @@ def main() -> None:
     if not workers and not managers:
         print("No test files found.")
         sys.exit(1)
-
-    uv_available = which("uv") is not None
-    use_uv = uv_available  # prefer uv if present
+    # prefer uv options
+    uv_cmd = "uv --no-sync"
 
     # Coverage mode
     cov_enabled = args.with_cov
@@ -172,8 +171,7 @@ def main() -> None:
         args.worker_cov = []
 
     # Separate envs to separate coverage outputs if enabled
-    env_mgr = os.environ.copy()
-    env_wrk = os.environ.copy()
+
     if cov_enabled:
         env_mgr["COVERAGE_FILE"] = str(repo_root / ".coverage.managers")
         env_wrk["COVERAGE_FILE"] = str(repo_root / ".coverage.workers")
@@ -181,7 +179,7 @@ def main() -> None:
     # Run manager tests
     if managers:
         pytest_cmd_mgr = build_pytest_cmd(
-            use_uv=use_uv,
+            use_uv=uv_cmd,
             project=args.managers_project,
             repo_root=repo_root,
             cov_pkgs=args.cov,
@@ -189,6 +187,7 @@ def main() -> None:
             extra_pytest_args=args.pytest_args,
             tests=managers,
         )
+        print(pytest_cmd_mgr)
         run(pytest_cmd_mgr, repo_root, env=env_mgr if cov_enabled else None)
     else:
         print("No manager tests discovered; skipping manager phase.")
@@ -196,7 +195,7 @@ def main() -> None:
     # Run worker tests
     if workers:
         pytest_cmd_wrk = build_pytest_cmd(
-            use_uv=use_uv,
+            use_uv=uv_cmd,
             project=args.workers_project,
             repo_root=worker_root,  # rootdir should match worker tree
             cov_pkgs=args.worker_cov,
@@ -204,6 +203,7 @@ def main() -> None:
             extra_pytest_args=args.pytest_args,
             tests=workers,
         )
+        print(" ".join(pytest_cmd_wrk))
         run(pytest_cmd_wrk, worker_root, env=env_wrk if cov_enabled else None)
     else:
         print("No worker tests discovered; skipping worker phase.")
@@ -220,4 +220,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

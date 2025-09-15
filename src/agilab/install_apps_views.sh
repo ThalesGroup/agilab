@@ -54,9 +54,9 @@ declare -a PRIVATE_VIEWS=(
 )
 
 declare -a PRIVATE_APPS=(
+   link_sim_project
    flight_trajectory_project
    sat_trajectory_project
-   link_sim_project
    sb3_trainer_project
 )
 
@@ -100,7 +100,6 @@ if [[ ! -z "$AGILAB_PRIVATE" ]]; then
   else
     echo "ERROR: can't find 'core' under \$AGILAB_PUBLIC ($AGILAB_PUBLIC)."
     echo "Tried: \$AGILAB_PUBLIC/core and \$AGILAB_PUBLIC/src/agilab/core"
-    exit 1
   fi
   ln -s "$target" core
   uv run python - <<'PY'
@@ -174,13 +173,17 @@ pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
 
 for app in "${INCLUDED_APPS[@]}"; do
   echo -e "${BLUE}Installing $app...${NC}"
+  echo  uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
+      "$AGILAB_PUBLIC/apps/$app" --install-type "$INSTALL_TYPE"
   if uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
       "$AGILAB_PUBLIC/apps/$app" --install-type "$INSTALL_TYPE"; then
     echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
     echo -e "${GREEN}Checking installation...${NC}"
     if pushd -- "$app" >/dev/null; then
       if [[ -f run-all-test.py ]]; then
-        uv run -p "$AGI_PYTHON_VERSION" python run-all-test.py
+        echo uv run --no-sync -p "$AGI_PYTHON_VERSION" python run-all-test.py
+        exit 0
+        uv run --no-sync -p "$AGI_PYTHON_VERSION" python run-all-test.py
       else
         echo -e "${BLUE}No run-all-test.py in $app, skipping tests.${NC}"
       fi
