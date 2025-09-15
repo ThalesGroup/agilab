@@ -74,15 +74,11 @@ def show_banner_and_intro(resources_path: Path):
 
 
 def page(env):
-    cols = st.columns(2)
+    cols = st.columns(4)
     help_file = Path(env.help_path) / "index.html"
     from agi_env.pagelib import open_docs
-    if cols[0].button("Read Documentation", type="tertiary", use_container_width=True):
+    if cols[0].button("Read Documentation", use_container_width=True):
         open_docs(env, help_file, "project-editor")
-    if cols[1].button("Get Started", type="tertiary", use_container_width=True):
-        st.write("Redirecting to the main application...")
-        st.session_state.current_page = "▶️ EDIT"
-        st.rerun()
 
     current_year = datetime.now().year
     st.markdown(
@@ -120,7 +116,6 @@ def main():
 
     # ---- Initialize if needed (on cold start, or if 'env' key lost) ----
     if st.session_state.get("first_run", True) or "env" not in st.session_state:
-        show_banner_and_intro(resources_path)
         with st.spinner("Initializing environment..."):
             from agi_env.pagelib import activate_mlflow
             from agi_env import AgiEnv
@@ -171,18 +166,9 @@ def main():
         return  # Don't continue
 
     # ---- After init, always show banner+intro and then main UI ----
-    show_banner_and_intro(resources_path)
     env = st.session_state['env']
-    if "current_page" not in st.session_state:
-        st.session_state.current_page = "AGILAB"
-    if st.session_state.current_page == "AGILAB":
-        page(env)
-    elif st.session_state.current_page == "▶️ EDIT":
-        import importlib
-        page_module = importlib.import_module("pages.▶️ EDIT")
-        page_module.main()
-    else:
-        page(env)
+    show_banner_and_intro(resources_path)
+    page(env)
 
 
 # ----------------- Run App -----------------
