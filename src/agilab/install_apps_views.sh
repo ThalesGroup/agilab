@@ -100,6 +100,7 @@ if [[ ! -z "$AGILAB_PRIVATE" ]]; then
   else
     echo "ERROR: can't find 'core' under \$AGILAB_PUBLIC ($AGILAB_PUBLIC)."
     echo "Tried: \$AGILAB_PUBLIC/core and \$AGILAB_PUBLIC/src/agilab/core"
+    exit 1
   fi
   ln -s "$target" core
   uv run python - <<'PY'
@@ -182,7 +183,6 @@ for app in "${INCLUDED_APPS[@]}"; do
     if pushd -- "$app" >/dev/null; then
       if [[ -f run-all-test.py ]]; then
         echo uv run --no-sync -p "$AGI_PYTHON_VERSION" python run-all-test.py
-        exit 0
         uv run --no-sync -p "$AGI_PYTHON_VERSION" python run-all-test.py
       else
         echo -e "${BLUE}No run-all-test.py in $app, skipping tests.${NC}"
