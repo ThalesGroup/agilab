@@ -33,6 +33,8 @@ from pathspec.patterns import GitWildMatchPattern
 import py7zr
 import urllib.request
 import inspect
+import ctypes
+from ctypes import wintypes
 import importlib.util
 from concurrent.futures import ThreadPoolExecutor
 from agi_env.agi_logger import AgiLogger
@@ -206,18 +208,18 @@ class AgiEnv:
                 agilab_path = self.read_agilab_path()
                 if agilab_path:
                     apps_root = agilab_path / "apps"
-                    for src_app in apps_root.glob("*_prject"):
+                    for src_app in apps_root.glob("*_project"):
                         # If it's a directory and already exists at destination -> remove it first
                         dest_app = active_app.parent / src_app.name
                         try:
                             if dest_app.is_symlink():
                                 dest_app.unlink()  # remove the link itself
                             elif dest_app.exists():
-                                shutil.rmtree(p)  # remove a real directory tree
+                                shutil.rmtree(dest_app)  # remove a real directory tree
                         except FileNotFoundError:
                             pass
                         if os.name == "nt":
-                            create_symlink_windows(Path(src_app), dest_app)
+                            AgiEnv.create_symlink_windows(Path(src_app), dest_app)
                         else:
                             # For Unix-like systems
                             os.symlink(src_app, dest_app, target_is_directory=True)
@@ -225,7 +227,7 @@ class AgiEnv:
                 else:
                     self.copy_existing_projects(apps_root, active_app.name)
             else:
-                AgiEnv.logger.info(f"Warning: {src_apps} does not exist, nothing to copy!")
+                AgiEnv.logger.info(f"Warning: {apps_root} does not exist, nothing to copy!")
 
 
         resources_root = self.env_root
@@ -399,6 +401,7 @@ class AgiEnv:
             formatted_errors.append(user_message)
         return formatted_errors
 
+    @staticmethod
     def set_env_var(key: str, value: str):
         AgiEnv.envars[key] = value
         os.environ[key] = str(value)
@@ -490,45 +493,7 @@ class AgiEnv:
                 dst_item.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src_item, dst_item)
 
-    def copy_missing(self, src: Path, dst: Path, max_workers=8):
-        """
-        Copy missing files/directories from src to dst, skipping files/dirs that already exist at dst.
-        Robust: skips any missing src_item, logs a warning, never crashes.
-        """
-        dst.mkdir(parents=True, exist_ok=True)
-        to_copy = []
-        dirs = []
-
-        for item in src.iterdir():
-            src_item = item
-            dst_item = dst / item.name
-            if not src_item.exists():
-                AgiEnv.logger.info(f"[WARN] Source item missing: {src_item}, skipping")
-                continue
-            if src_item.is_dir():
-                dirs.append((src_item, dst_item))
-            else:
-                to_copy.append((src_item, dst_item))
-
-        def safe_copy(args):
-            src_item, dst_item = args
-            if src_item.exists():
-                try:
-                    shutil.copy2(src_item, dst_item)
-                except Exception as e:
-                    AgiEnv.logger.error(f"[WARN] Could not copy {src_item} → {dst_item}: {e}")
-            else:
-                AgiEnv.logger.info(f"[WARN] Source file missing (skipped): {src_item}")
-
-        from concurrent.futures import ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            list(executor.map(safe_copy, to_copy))
-
-        for src_dir, dst_dir in dirs:
-            if src_dir.exists():
-                self.copy_missing(src_dir, dst_dir, max_workers=max_workers)
-            else:
-                AgiEnv.logger.info(f"[WARN] Source dir missing (skipped): {src_dir}")
+    # Simplified: keep single copy_missing implementation defined later using _copy_file
 
     def _update_env_file(updates: dict):
         env_file = AgiEnv.resources_path / ".env"
@@ -762,26 +727,26 @@ class AgiEnv:
             except Exception as e:
                 AgiEnv.logger.error(f"[WARN] Could not copy {src_item} → {dst_item}: {e}")
 
-    def copy_missing(self, src: Path, dst: Path, max_workers=8):
-        dst.mkdir(parents=True, exist_ok=True)
-        to_copy = []
-        dirs = []
-
-        for item in src.iterdir():
-            src_item = item
-            dst_item = dst / item.name
-            if src_item.is_dir():
-                dirs.append((src_item, dst_item))
-            else:
-                to_copy.append((src_item, dst_item))
-
-        # Parallel file copy
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            list(executor.map(lambda args: AgiEnv._copy_file(*args), to_copy))
-
-        # Recurse into directories
-        for src_dir, dst_dir in dirs:
-            self.copy_missing(src_dir, dst_dir, max_workers=max_workers)
+    # def copy_missing(self, src: Path, dst: Path, max_workers=8):
+    #     dst.mkdir(parents=True, exist_ok=True)
+    #     to_copy = []
+    #     dirs = []
+    #
+    #     for item in src.iterdir():
+    #         src_item = item
+    #         dst_item = dst / item.name
+    #         if src_item.is_dir():
+    #             dirs.append((src_item, dst_item))
+    #         else:
+    #             to_copy.append((src_item, dst_item))
+    #
+    #     # Parallel file copy
+    #     with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    #         list(executor.map(lambda args: AgiEnv._copy_file(*args), to_copy))
+    #
+    #     # Recurse into directories
+    #     for src_dir, dst_dir in dirs:
+    #         self.copy_missing(src_dir, dst_dir, max_workers=max_workers)
 
 
     def _init_apps(self):
@@ -1173,6 +1138,7 @@ class AgiEnv:
         self.OPENAI_API_KEY = api_key
         self.set_env_var("OPENAI_API_KEY", api_key)
 
+    @staticmethod
     def set_install_type(install_type: int):
         AgiEnv.install_type = install_type
         AgiEnv.set_env_var("INSTALL_TYPE", str(install_type))
@@ -1181,6 +1147,7 @@ class AgiEnv:
         self.apps_dir = apps_dir
         self.set_env_var("APPS_DIR", apps_dir)
 
+    @staticmethod
     def has_admin_rights():
         """
         Check if the current process has administrative rights on Windows.
@@ -1193,6 +1160,7 @@ class AgiEnv:
         except:
             return False
 
+    @staticmethod
     def create_junction_windows(source: Path, dest: Path):
         """
         Create a directory junction on Windows.
@@ -1208,6 +1176,7 @@ class AgiEnv:
         except subprocess.CalledProcessError as e:
             AgiEnv.logger.error(f"Failed to create junction. Error: {e}")
 
+    @staticmethod
     def create_symlink_windows(source: Path, dest: Path):
         """
         Create a symbolic link on Windows, handling permissions and types.
@@ -1224,7 +1193,7 @@ class AgiEnv:
         SYMBOLIC_LINK_FLAG_DIRECTORY = 0x1
 
         # Check if Developer Mode is enabled or if the process has admin rights
-        if not has_admin_rights():
+        if not AgiEnv.has_admin_rights():
             AgiEnv.logger.info(
                 "Creating symbolic links on Windows requires administrative privileges or Developer Mode enabled."
             )
@@ -1251,11 +1220,11 @@ class AgiEnv:
         """
         try:
             if os.name == "nt":
-                create_symlink_windows(source_venv, dest_venv)
+                AgiEnv.create_symlink_windows(source_venv, dest_venv)
             else:
                 # For Unix-like systems
                 os.symlink(source_venv, dest_venv, target_is_directory=True)
-                lo(f"Created symbolic link for .venv: {dest_venv} -> {source_venv}")
+                AgiEnv.logger.info(f"Created symbolic link for .venv: {dest_venv} -> {source_venv}")
         except OSError as e:
             AgiEnv.logger.error(f"Failed to create symbolic link for .venv: {e}")
 
