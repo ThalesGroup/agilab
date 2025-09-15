@@ -167,10 +167,8 @@ class AgiEnv:
         AgiEnv.verbose = verbose
         self.verbose = verbose
         AgiEnv.python_variante = python_variante
-        # self.init_logging(verbose)
         AgiEnv.logger =  AgiLogger.get_logger("agi_env")
         AgiEnv.logger =  AgiLogger.configure(verbose=verbose, base_name="agi_env")
-
         AgiEnv.debug = debug
 
         if install_type is None:
@@ -182,7 +180,6 @@ class AgiEnv:
             install_type = int(install_type)
 
         AgiEnv.install_type = install_type
-
         self.node_root = agilab_installed / "agi_node"
         self.env_root = agilab_installed / "agi_env"
         self.core_root = agilab_installed / "agi_core"

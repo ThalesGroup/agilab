@@ -119,7 +119,7 @@ def open_docs(env, html_file="index.html", anchor=""):
     _DOCS_ALREADY_OPENED = True
 
     # Build the path to the local file, e.g. gui.html
-    docs_path = env.agi_root / "docs" / "build" / html_file
+    docs_path = env.agilab_src.parent / "docs" / "build" / html_file
 
     # Check if the local documentation file exists
     if not docs_path.exists():
