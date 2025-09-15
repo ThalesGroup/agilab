@@ -774,7 +774,7 @@ if __name__ == "__main__":
             if st.session_state["toggle_custom"] and snippet_exists and snippet_not_empty:
                 try:
                     runpy.run_path(args_ui_snippet, init_globals=globals())
-                except ValueError as e:
+                except Exception as e:
                     st.warning(e)
             else:
                 render_generic_ui()
