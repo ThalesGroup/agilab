@@ -460,7 +460,7 @@ def sidebar_controls() -> None:
     index = next((i for i, f in enumerate(df_files_rel) if f.name == DEFAULT_DF), 0)
 
     module_path = lab_dir.relative_to(Agi_export_abs)
-    st.session_state["module_path"] = env.module_path
+    st.session_state["module_path"] = module_path
 
     st.sidebar.selectbox(
         "DataFrame",
