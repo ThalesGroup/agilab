@@ -24,7 +24,7 @@ async def main():
     }
     active_app = base_path.parents[1]
     sys.path.insert(0, active_app / 'src')
-    sys.path.insert(0,'~/wenv/flight_worker/dist')
+    sys.path.insert(0, str(Path.home() / 'wenv/flight_worker/dist'))
 
     active_app = Path(__file__).resolve().parents[1]
     env = AgiEnv(active_app=active_app, verbose=True)
