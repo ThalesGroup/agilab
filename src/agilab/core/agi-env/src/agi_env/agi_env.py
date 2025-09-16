@@ -111,6 +111,7 @@ class AgiEnv:
     INDEX_URL="https://test.pypi.org/simple"
     EXTRA_INDEX_URL="https://pypi.org/simple"
     snippet_tail = "asyncio.get_event_loop().run_until_complete(main())"
+    _pythonpath_entries: list[str] = []
 
     def __init__(self,
                  active_app: Path | str = None,
@@ -198,6 +199,11 @@ class AgiEnv:
         else:
             self.agilab_src = agilab_installed
             self.cli = self.cluster_root / "agi_distributor/cli.py"
+
+        self.env_src = self._resolve_package_root(self.env_root)
+        self.node_src = self._resolve_package_root(self.node_root)
+        self.core_src = self._resolve_package_root(self.core_root)
+        self.cluster_src = self._resolve_package_root(self.cluster_root)
 
         self.st_resources = self.agilab_src / "agilab/resources"
 
@@ -294,6 +300,9 @@ class AgiEnv:
             distribution_tree.unlink()
         self.distribution_tree = distribution_tree
 
+        pythonpath_entries = self._collect_pythonpath_entries()
+        self._configure_pythonpath(pythonpath_entries)
+
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.13")
 
         self.pyvers_worker = self.python_version
@@ -366,6 +375,57 @@ class AgiEnv:
             AgiEnv.export_local_bin = ""
         else:
             AgiEnv.export_local_bin = 'export PATH="$HOME/.local/bin:$PATH";'
+
+    @staticmethod
+    def _resolve_package_root(root: Path) -> Path:
+        src_dir = root / "src"
+        return src_dir if src_dir.exists() else root
+
+    def _collect_pythonpath_entries(self) -> list[str]:
+        candidates = [
+            self.env_src,
+            self.node_src,
+            self.core_src,
+            self.cluster_src,
+            self.dist_abs,
+            self.app_src,
+            self.wenv_abs / "src",
+            self.agilab_src / "agilab",
+        ]
+        return self._dedupe_paths(candidates)
+
+    def _configure_pythonpath(self, entries: list[str]) -> None:
+        AgiEnv._pythonpath_entries = entries
+        if not entries:
+            return
+        for entry in entries:
+            if entry not in sys.path:
+                sys.path.append(entry)
+        current = os.environ.get("PYTHONPATH", "")
+        combined = entries.copy()
+        if current:
+            for part in current.split(os.pathsep):
+                if part and part not in combined:
+                    combined.append(part)
+        os.environ["PYTHONPATH"] = os.pathsep.join(combined)
+
+    @staticmethod
+    def _dedupe_paths(paths) -> list[str]:
+        seen: set[str] = set()
+        result: list[str] = []
+        for path in paths:
+            if not path:
+                continue
+            path_str = str(path)
+            if not path_str:
+                continue
+            if not Path(path_str).exists():
+                continue
+            if path_str in seen:
+                continue
+            seen.add(path_str)
+            result.append(path_str)
+        return result
 
     def has_agilab_anywhere_under_home(self, path: Path) -> bool:
         try:
@@ -776,12 +836,24 @@ class AgiEnv:
     def _build_env(venv=None):
         """Build environment dict for subprocesses, with activated virtualenv paths."""
         proc_env = os.environ.copy()
+        venv_path = None
         if venv is not None:
-            venv_path = Path(venv) / ".venv"
+            venv_path = Path(venv)
+            if not (venv_path / "bin").exists() and venv_path.name != ".venv":
+                venv_path = venv_path / ".venv"
             proc_env["VIRTUAL_ENV"] = str(venv_path)
             bin_path = "Scripts" if os.name == "nt" else "bin"
             venv_bin = venv_path / bin_path
             proc_env["PATH"] = str(venv_bin) + os.pathsep + proc_env.get("PATH", "")
+
+        extra_paths = list(AgiEnv._pythonpath_entries)
+        if extra_paths:
+            current = proc_env.get("PYTHONPATH", "")
+            if current:
+                for part in current.split(os.pathsep):
+                    if part and part not in extra_paths:
+                        extra_paths.append(part)
+            proc_env["PYTHONPATH"] = os.pathsep.join(extra_paths)
         return proc_env
 
     @staticmethod
@@ -808,15 +880,7 @@ class AgiEnv:
 
         if not cwd:
             cwd = venv
-        process_env = os.environ.copy()
-        venv_path = Path(venv)
-        if not (venv_path / "bin").exists() and venv_path.name != ".venv":
-            venv_path = venv_path / ".venv"
-
-        process_env["VIRTUAL_ENV"] = str(venv_path)
-        bin_dir = "Scripts" if sys.platform == "win32" else "bin"
-        venv_bin = venv_path / bin_dir
-        process_env["PATH"] = str(venv_bin) + os.pathsep + process_env.get("PATH", "")
+        process_env = AgiEnv._build_env(venv)
 
         shell_executable = None if sys.platform == "win32" else "/bin/bash"
 
