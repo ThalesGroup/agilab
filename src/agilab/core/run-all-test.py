@@ -47,7 +47,7 @@ def main():
     ]
 
     cmd = [
-        sys.executable, "-m", "pytest",
+        "uv", "run", "--no-sync", "-m", "pytest",
         "--rootdir", str(repo_root),
         *(f"--cov={mod}" for mod in cov_modules),
         "--cov-report=term",
