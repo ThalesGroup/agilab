@@ -33,7 +33,7 @@ class FlightArgs(BaseModel):
     """FlightArgs contains Arguments for Flight"""
 
     data_source: Literal["file", "hawk"]
-    path: Path
+    dataset_uri: Path
     files: str
     nfile: int = conint
     nskip: int = conint
@@ -124,7 +124,7 @@ class Flight(BaseWorker):
                 Possible arguments include:
                     - data_source (str): Source of the data, either 'file' or 'hawk'.
                     - files (str): Path pattern or file name.
-                    - path (str): Path to store data files.
+                    - dataset_uri (str): Path to store data files.
                       remark: There is also src/flight_worker/dataset.7z for dataset replication per worker
                     - nfile (int): Maximum number of files to process.
                     - datemin (str): Minimum date for data processing.
@@ -138,21 +138,21 @@ class Flight(BaseWorker):
         self.data_source = args["data_source"]
         if self.data_source == "file":
             args["files"] = args.get("files", "*")
-            path = args.get("path", "data/flight")
+            dataset_uri = args.get("dataset_uri", "data/flight")
             if AgiEnv.is_managed_pc:
                 home = Path.home()
-                path = path.replace(str(home), str(home) + "\\MyApp")
+                dataset_uri = dataset_uri.replace(str(home), str(home) + "\\MyApp")
             args["nfile"] = args.get("nfile", 999_999_999_999)
             if args["nfile"] == 0:
                 args["nfile"] = 999_999_999_999
-            args["path"] = path
+            args["dataset_uri"] = dataset_uri
 
         elif self.data_source == "hawk":
             # implement another logic
             pass
 
-        base_path = env.home_abs / path
-        self.path = normalize_path(base_path)
+        base_path = env.home_abs / dataset_uri
+        self.dataset_uri = normalize_path(base_path)
         self.files = args["files"]
         self.nfile = args["nfile"]
         WorkDispatcher.args = args
@@ -239,19 +239,19 @@ class Flight(BaseWorker):
     def get_data_from_files(self):
         """get output-data slices from files or from ELK/HAWK"""
         if self.data_source == "file":
-            path = normalize_path(self.path)
+            dataset_uri = normalize_path(self.dataset_uri)
             home_dir = Path.home()
 
-            # Assuming 'self.path' is the base directory and 'self.files' is the pattern for the files you're interested in
+            # Assuming 'self.dataset_uri' is the base directory and 'self.files' is the pattern for the files you're interested in
             self.logs_ivq = {
                 str(f.relative_to(home_dir)): os.path.getsize(f) // 1000
-                for f in Path(self.path).rglob(self.files)
+                for f in Path(self.dataset_uri).rglob(self.files)
                 if f.is_file()
             }
 
             if not self.logs_ivq:
                 raise FileNotFoundError(
-                    f"Error in make_chunk: no files found with Path('{self.path}').rglob('{self.files}')"
+                    f"Error in make_chunk: no files found with Path('{self.dataset_uri}').rglob('{self.files}')"
                 )
 
             # Convert dict_items to a list of tuples before creating a Polars DataFrame

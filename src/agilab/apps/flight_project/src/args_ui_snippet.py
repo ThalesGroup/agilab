@@ -11,9 +11,9 @@ from flight import FlightArgs
 
 def change_data_source():
     """
-    Change the data source by deleting 'path' and 'files' keys from the session state if they exist.
+    Change the data source by deleting 'dataset_uri' and 'files' keys from the session state if they exist.
     """
-    st.session_state.pop("path", None)
+    st.session_state.pop("dataset_uri", None)
     st.session_state.pop("files", None)
 
 def initialize_defaults(app_settings):
@@ -30,7 +30,7 @@ def initialize_defaults(app_settings):
 
     defaults = {
         "data_source": "file",
-        "path": (
+        "dataset_uri": (
             "data/flight"
             if args_default.get("data_source", "file") == "file"
             else f"https://admin:admin@{socket.gethostbyname(socket.gethostname())}:9200/"
@@ -86,9 +86,9 @@ with c1:
 
 with c2:
     if st.session_state.data_source == "file":
-        st.text_input(label="Data directory", value=args_default["path"], key="path")
+        st.text_input(label="Data directory", value=args_default["dataset_uri"], key="dataset_uri")
     else:
-        st.text_input(label="Hawk cluster path", value=args_default["path"], key="path")
+        st.text_input(label="Hawk cluster dataset_uri", value=args_default["path_uri"], key="path_uri")
 
 with c3:
     if st.session_state.data_source == "file":
@@ -156,7 +156,7 @@ with c10:
         key="output_format",
     )
 
-# Collect UI inputs into a dictionary and validate the path
+# Collect UI inputs into a dictionary and validate the path_uri
 if st.session_state.data_source == "file":
     # Expand the user path
     directory = st.session_state.env.home_abs / st.session_state.path

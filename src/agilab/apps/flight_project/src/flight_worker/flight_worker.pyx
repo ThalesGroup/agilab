@@ -83,12 +83,12 @@ class FlightWorker(PolarsWorker):
         logging.info(f"from: {__file__}")
 
         if os.name == "nt" and not getpass.getuser().startswith("T0"):
-            path = Path(self.args["path"])
-            parts = path.parts
+            dataset_uri = Path(self.args["dataset_uri"])
+            parts = dataset_uri.parts
             if "Users" in parts:
                 index = parts.index("Users") + 2
-                path = Path(*parts[index:])
-            net_path = normalize_path("\\\\127.0.0.1\\" + str(path))
+                dataset_uri = Path(*parts[index:])
+            net_path = normalize_path("\\\\127.0.0.1\\" + str(dataset_uri))
             try:
                 # Your NFS account in order to mount it as net drive on Windows
                 cmd = f'net use Z: "{net_path}" /user:your-credentials'
@@ -98,8 +98,8 @@ class FlightWorker(PolarsWorker):
                 logging.info(f"Failed to map network drive: {e}")
 
         # Path to database on symlink Path.home()/data(symlink)
-        self.home_rel = (Path("~/") / self.args["path"]).expanduser()
-        path = normalize_path(self.home_rel)
+        self.home_rel = (Path("~/") / self.args["dataset_uri"]).expanduser()
+        dataset_uri = normalize_path(self.home_rel)
         self.data_out = normalize_path(self.home_rel.parent / "dataframe")
         if os.name != "nt":
             self.data_out = self.data_out.replace("\\", "/")
@@ -111,7 +111,7 @@ class FlightWorker(PolarsWorker):
         except Exception as e:
             logging.info(f"Error removing directory: {e}")
 
-        self.args["path"] = path
+        self.args["dataset_uri"] = dataset_uri
 
         if self.verbose > 1:
             logging.info(f"Worker #{self.worker_id} dataframe root path = {self.data_out}")

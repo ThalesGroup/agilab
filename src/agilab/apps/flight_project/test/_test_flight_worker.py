@@ -12,7 +12,7 @@ import asyncio
 async def main():
     args = {
         'data_source': "file",
-        'path': "data/flight/dataset",
+        'dataset_uri': "data/flight/dataset",
         'files': "csv/*",
         'nfile': 1,
         'nskip': 0,
