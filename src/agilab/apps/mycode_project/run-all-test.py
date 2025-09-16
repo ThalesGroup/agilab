@@ -61,7 +61,7 @@ def build_pytest_cmd(
     cov_enabled = bool(cov_pkgs)
     cov_args = [f"--cov={pkg}" for pkg in cov_pkgs] if cov_enabled else []
 
-    base = ["uv", "run", "--preview-features", "python-upgrade"]
+    base = ["uv", "run", "--no-sync", "--preview-features", "python-upgrade"]
     if project:
         base += ["--project", project]
     base += ["-m", "pytest"]
@@ -187,7 +187,7 @@ def main() -> None:
     # Run worker tests
     if workers:
         pytest_cmd_wrk = build_pytest_cmd(
-            project=str(project.parent / project.name.replace("project","worker")),
+            project=str(Path.home() / "wenv" / project.name.replace("project","worker")),
             repo_root=worker_root,  # rootdir should match worker tree
             cov_pkgs=args.worker_cov,
             local_badge_dir=None if (args.no_badges or not cov_enabled) else badges_root,
