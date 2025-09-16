@@ -19,6 +19,9 @@ def which(exe: str) -> str | None:
     return shutil.which(exe)
 
 
+use_uv = which("uv") is not None
+
+
 def discover_tests(root: Path) -> tuple[list[str], list[str]]:
     """
     Look for tests named like test*manager.py in manager_root,
@@ -56,19 +59,27 @@ def run(cmd: list[str], cwd: Path, env: dict | None = None) -> None:
 
 def build_pytest_cmd(
     project: str | None,
-    repo_root: Path,
+    repo_root: Path | str,
     cov_pkgs: list[str],
     local_badge_dir: Path | None,
     extra_pytest_args: list[str],
     tests: list[str],
+    *,
+    prefer_uv: bool = True,
+    python_executable: str | None = None,
 ) -> list[str]:
     cov_enabled = bool(cov_pkgs)
     cov_args = [f"--cov={pkg}" for pkg in cov_pkgs] if cov_enabled else []
 
-    base = ["uv", "run", "--no-sync", "--preview-features", "python-upgrade"]
-    if project:
-        base += ["--project", project]
-    base += ["-m", "pytest"]
+    use_uv_runner = prefer_uv and use_uv
+    if use_uv_runner:
+        base = ["uv", "run", "--no-sync", "--preview-features", "python-upgrade"]
+        if project:
+            base += ["--project", project]
+        base += ["-m", "pytest"]
+    else:
+        python_bin = python_executable or sys.executable
+        base = [python_bin, "-m", "pytest"]
 
 
     cmd = [
@@ -92,7 +103,7 @@ def build_pytest_cmd(
 
 
 def combine_and_emit_xml(cwd: Path) -> None:
-    base = ["uv", "run", "--no-sync", "-m"]
+    base = ["uv", "run", "--no-sync", "-m"] if use_uv else [sys.executable, "-m"]
     run([*base, "coverage", "combine"], cwd=cwd)
     run([*base, "coverage", "xml", "-o", "coverage.xml"], cwd=cwd)
 
@@ -102,7 +113,7 @@ def try_make_badge(badges_root: Path, cwd: Path) -> None:
     Prefer genbadge (nice SVG), fall back to coverage-badge.
     If neither is installed, skip quietly.
     """
-    base = ["uv", "run", "--no-sync"]
+    base = ["uv", "run", "--no-sync"] if use_uv else []
 
     # genbadge
     genbadge_cmd = [*base, "genbadge", "coverage", "-i", "coverage.xml", "-o", str(badges_root / "coverage.svg")]
@@ -166,9 +177,14 @@ def main() -> None:
         args.cov = []
         args.worker_cov = []
 
-    # Separate envs to separate coverage outputs if enabled
+    base_env = os.environ.copy()
+    env_mgr: dict[str, str] | None = None
+    env_wrk: dict[str, str] = base_env.copy()
+    env_wrk.pop("VIRTUAL_ENV", None)
+    env_wrk.pop("PYTHONHOME", None)
 
     if cov_enabled:
+        env_mgr = base_env.copy()
         env_mgr["COVERAGE_FILE"] = str(repo_root / ".coverage.managers")
         env_wrk["COVERAGE_FILE"] = str(repo_root / ".coverage.workers")
 
@@ -182,6 +198,7 @@ def main() -> None:
             local_badge_dir=None if (args.no_badges or not cov_enabled) else badges_root,
             extra_pytest_args=args.pytest_args,
             tests=managers,
+            prefer_uv=True,
         )
         run(pytest_cmd_mgr, repo_root, env=env_mgr if cov_enabled else None)
     else:
@@ -190,6 +207,21 @@ def main() -> None:
     # Run worker tests
     if workers:
         worker_root_str = str(worker_root)
+        worker_python: str | None = None
+        venv_dir = worker_root / ".venv"
+        bin_dir = venv_dir / ("Scripts" if os.name == "nt" else "bin")
+        for candidate in (bin_dir / "python", bin_dir / "python.exe", bin_dir / "python3"):
+            if candidate.exists():
+                worker_python = str(candidate)
+                break
+
+        if worker_python:
+            env_wrk["VIRTUAL_ENV"] = str(venv_dir)
+            bin_dir_str = str(bin_dir)
+            env_wrk["PATH"] = f"{bin_dir_str}{os.pathsep}" + env_wrk.get("PATH", "")
+        else:
+            print("[WARN] Worker virtualenv Python not found; using current interpreter.")
+
         pytest_cmd_wrk = build_pytest_cmd(
             project=worker_root_str,
             repo_root=worker_root_str,  # rootdir should match worker tree
@@ -197,8 +229,10 @@ def main() -> None:
             local_badge_dir=None if (args.no_badges or not cov_enabled) else badges_root,
             extra_pytest_args=args.pytest_args,
             tests=workers,
+            prefer_uv=False,
+            python_executable=worker_python,
         )
-        run(pytest_cmd_wrk, worker_root, env=env_wrk if cov_enabled else None)
+        run(pytest_cmd_wrk, worker_root, env=env_wrk)
     else:
         print("No worker tests discovered; skipping worker phase.")
 
