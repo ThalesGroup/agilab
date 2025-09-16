@@ -42,7 +42,7 @@ def pick_badge_dir(repo_root: Path) -> Path:
 
 
 def run(cmd: list[str], cwd: Path, env: dict | None = None) -> None:
-    print("Running:", " ".join(cmd))
+    print(" ".join(cmd))
     try:
         subprocess.run(cmd, cwd=str(cwd), check=True, env=env)
     except subprocess.CalledProcessError as e:
@@ -88,7 +88,7 @@ def build_pytest_cmd(
 
 
 def combine_and_emit_xml(cwd: Path) -> None:
-    base = ["uv", "run", "--no-sync", "-m"] if use_uv else [sys.executable, "-m"]
+    base = ["uv", "run", "--no-sync", "-m"]
     run([*base, "coverage", "combine"], cwd=cwd)
     run([*base, "coverage", "xml", "-o", "coverage.xml"], cwd=cwd)
 
@@ -179,22 +179,21 @@ def main() -> None:
             extra_pytest_args=args.pytest_args,
             tests=managers,
         )
-        print(" ".join(pytest_cmd_mgr))
         run(pytest_cmd_mgr, repo_root, env=env_mgr if cov_enabled else None)
     else:
         print("No manager tests discovered; skipping manager phase.")
 
     # Run worker tests
     if workers:
+        worker_root_str = str(worker_root)
         pytest_cmd_wrk = build_pytest_cmd(
-            project=str(Path.home() / "wenv" / project.name.replace("project","worker")),
-            repo_root=worker_root,  # rootdir should match worker tree
+            project=worker_root_str,
+            repo_root=worker_root_str,  # rootdir should match worker tree
             cov_pkgs=args.worker_cov,
             local_badge_dir=None if (args.no_badges or not cov_enabled) else badges_root,
             extra_pytest_args=args.pytest_args,
             tests=workers,
         )
-        print(" ".join(pytest_cmd_wrk))
         run(pytest_cmd_wrk, worker_root, env=env_wrk if cov_enabled else None)
     else:
         print("No worker tests discovered; skipping worker phase.")
