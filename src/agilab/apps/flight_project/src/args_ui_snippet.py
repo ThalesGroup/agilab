@@ -30,7 +30,7 @@ def initialize_defaults(app_settings):
 
     defaults = {
         "data_source": "file",
-        "dataset_uri": (
+        "data_uri": (
             "data/flight"
             if args_default.get("data_source", "file") == "file"
             else f"https://admin:admin@{socket.gethostbyname(socket.gethostname())}:9200/"
@@ -167,7 +167,7 @@ validated_path = st.session_state.path
 
 args_from_ui = {
     "data_source": st.session_state.data_source,
-    "path": validated_path,
+    "data_uri": validated_path,
     "files": st.session_state.files,
     "nfile": st.session_state.nfile,
     "nskip": st.session_state.nskip,
