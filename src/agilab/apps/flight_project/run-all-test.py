@@ -98,7 +98,7 @@ def try_make_badge(badges_root: Path, cwd: Path) -> None:
     Prefer genbadge (nice SVG), fall back to coverage-badge.
     If neither is installed, skip quietly.
     """
-    base = ["uv", "run", "--no-sync"] if use_uv else []
+    base = ["uv", "run", "--no-sync"]
 
     # genbadge
     genbadge_cmd = [*base, "genbadge", "coverage", "-i", "coverage.xml", "-o", str(badges_root / "coverage.svg")]
