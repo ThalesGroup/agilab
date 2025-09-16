@@ -16,7 +16,7 @@ def flight():
         env=env,
         verbose=True,
         data_source="file",
-        dataset_uri="data/flight/dataset",
+        data_uri="data/flight/dataset",
         files="csv/*",
         nfile=1,
         nskip=0,

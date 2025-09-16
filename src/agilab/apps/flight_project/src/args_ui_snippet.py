@@ -11,9 +11,9 @@ from flight import FlightArgs
 
 def change_data_source():
     """
-    Change the data source by deleting 'dataset_uri' and 'files' keys from the session state if they exist.
+    Change the data source by deleting 'data_uri' and 'files' keys from the session state if they exist.
     """
-    st.session_state.pop("dataset_uri", None)
+    st.session_state.pop("data_uri", None)
     st.session_state.pop("files", None)
 
 def initialize_defaults(app_settings):
@@ -86,9 +86,9 @@ with c1:
 
 with c2:
     if st.session_state.data_source == "file":
-        st.text_input(label="Data directory", value=args_default["dataset_uri"], key="dataset_uri")
+        st.text_input(label="Data directory", value=args_default["data_uri"], key="data_uri")
     else:
-        st.text_input(label="Hawk cluster dataset_uri", value=args_default["path_uri"], key="path_uri")
+        st.text_input(label="Hawk cluster data_uri", value=args_default["data_uri"], key="data_uri")
 
 with c3:
     if st.session_state.data_source == "file":

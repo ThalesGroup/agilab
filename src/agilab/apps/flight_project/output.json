@@ -1,7 +1,7 @@
 {
   "target_args": {
     "data_source": "file",
-    "dataset_uri": "data/flight/dataset",
+    "data_uri": "data/flight/dataset",
     "files": "csv/*",
     "nfile": 10,
     "nskip": 0,
