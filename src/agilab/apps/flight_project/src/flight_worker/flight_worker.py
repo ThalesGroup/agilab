@@ -117,7 +117,7 @@ class FlightWorker(PolarsWorker):
             logging.info(f"Worker #{self.worker_id} dataframe root path = {self.data_out}")
 
         if self.verbose > 0:
-            logging.info(f"FlightWorker.start on flight_worker {self.worker_id}\n")
+            logging.info(f"start worker_id {self.worker_id}\n")
         args = self.args
 
         if args["data_source"] == "file":
@@ -157,8 +157,6 @@ class FlightWorker(PolarsWorker):
         """
         global global_vars
 
-        args = global_vars["args"]
-        verbose = global_vars["verbose"]
         data_source = global_vars["args"]["data_source"]
 
         prefix = "~/"
@@ -171,7 +169,7 @@ class FlightWorker(PolarsWorker):
                 file = normalize_path(os.path.expanduser(prefix + file))
 
             if not Path(file).is_file():
-                raise FileNotFoundError(f"FlightWorker.work_pool({file})\n")
+                raise FileNotFoundError(file)
 
         # Read the CSV file using Polars.
         df = pl.read_csv(file)
@@ -237,7 +235,7 @@ class FlightWorker(PolarsWorker):
             df_files = [f for f in files if re.search(r"\.(csv|parquet)$", f)]
             n_df = len(df_files)
             if self.verbose > 0:
-                logging.info(f"FlightWorker.worker_end - {n_df} dataframes:")
+                logging.info(f"{n_df} dataframes")
                 for f in df_files:
                     logging.info('\t' + str(Path(f)))
                 if not n_df:
