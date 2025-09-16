@@ -11,6 +11,10 @@ import sys
 from pathlib import Path
 
 
+# Keep uv from mutating environments while running tests
+os.environ.setdefault("UV_NO_SYNC", "1")
+
+
 def which(exe: str) -> str | None:
     return shutil.which(exe)
 
