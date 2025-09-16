@@ -52,8 +52,9 @@ uv pip install --preview-features extra-build-dependencies -e src/agilab/core/ag
 uv pip install --preview-features extra-build-dependencies -e src/agilab/core/agi-node
 uv pip install --preview-features extra-build-dependencies -e src/agilab/core/agi-cluster
 uv pip install --preview-features extra-build-dependencies -e src/agilab/core/agi-core
-popd > /dev/null
 
 echo -e "${GREEN}Checking installation...${NC}"
-uv run -p "$AGI_PYTHON_VERSION" --project agi-cluster python run-all-test.py
+uv run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade -m pytest
+popd > /dev/null
+
 
