@@ -18,7 +18,6 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}Installing framework from $(pwd)...${NC}"
 echo -e "${BLUE}Python Version: $AGI_PYTHON_VERSION${NC}"
 
-
 echo -e "${BLUE}Installing agi-env...${NC}"
 pushd agi-env > /dev/null
 echo "uv sync --preview-features extra-build-dependencies -p $AGI_PYTHON_VERSION --dev"
@@ -26,8 +25,6 @@ uv sync --preview-features extra-build-dependencies -p "$AGI_PYTHON_VERSION" --d
 uv run --preview-features extra-build-dependencies python -m ensurepip
 uv pip install --preview-features extra-build-dependencies -e .
 popd > /dev/null
-echo -e "${BLUE}Installing agilab...${NC}"
-pushd ../../.. > /dev/null
 
 echo -e "${BLUE}Installing agi-node...${NC}"
 pushd agi-node > /dev/null
@@ -48,6 +45,8 @@ uv pip install --preview-features extra-build-dependencies -e ../agi-node
 uv pip install --preview-features extra-build-dependencies -e ../agi-env
 popd > /dev/null
 
+echo -e "${BLUE}Installing agilab...${NC}"
+pushd ../../.. > /dev/null
 uv sync --preview-features extra-build-dependencies -p "$AGI_PYTHON_VERSION" --preview-features python-upgrade
 uv pip install --preview-features extra-build-dependencies -e src/agilab/core/agi-env
 uv pip install --preview-features extra-build-dependencies -e src/agilab/core/agi-node
