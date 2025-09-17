@@ -31,7 +31,7 @@ def initialize_defaults(app_settings):
     defaults = {
         "data_source": "file",
         "data_uri": (
-            "data/flight"
+            "data/flight/dataset"
             if args_default.get("data_source", "file") == "file"
             else f"https://admin:admin@{socket.gethostbyname(socket.gethostname())}:9200/"
         ),
@@ -65,7 +65,6 @@ if "is_args_from_ui" not in st.session_state:
     st.session_state.app_settings = app_settings
 else:
     app_settings = st.session_state.app_settings
-    args_default = app_settings.get("args", {})
     args_default = initialize_defaults(app_settings)
 
 result = st.session_state.env.check_args(FlightArgs, args_default)
