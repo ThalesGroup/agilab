@@ -1,0 +1,36 @@
+Example6: Sb3-Trainer-Project
+==============
+
+manager: sb3_trainer
+------
+.. image:: diagrams/packages_sb3_trainer.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+.. automodule:: sb3_trainer.sb3_trainer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_sb3_trainer.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+worker: sb3_trainer_worker
+-------------
+.. image:: diagrams/packages_sb3_trainer_worker.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+.. automodule:: sb3_trainer_worker.sb3_trainer_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_sb3_trainer_worker.png
+   :width: 400
+   :alt: Alternative text
+   :align: center
