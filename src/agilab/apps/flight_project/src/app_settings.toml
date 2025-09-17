@@ -1,6 +1,6 @@
 [args]
 data_source = "file"
-data_uri = "data/flight"
+data_uri = "data/flight/dataset"
 files = "csv/*"
 nfile = 10
 nskip = 0
