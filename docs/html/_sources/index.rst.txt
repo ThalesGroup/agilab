@@ -36,6 +36,7 @@ You’ll find everything from quickstarts to API references, as well as example 
    flight-trajectory-project
    link-sim-project
    sat-trajectory-project
+   sb3-trainer-project
 
 .. toctree::
    :maxdepth: 1

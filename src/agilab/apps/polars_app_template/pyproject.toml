@@ -52,3 +52,9 @@ mypy_path = [
 ]
 disallow_untyped_defs = false
 ignore_missing_imports = true
+
+# Quiet known third-party deprecations
+filterwarnings = [
+    "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
+    "ignore:.*Theme names and color schemes are lowercase in IPython 9.0.*:DeprecationWarning:IPython\\.core\\.ultratb",
+]

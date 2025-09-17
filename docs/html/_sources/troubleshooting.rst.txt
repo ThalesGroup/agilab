@@ -87,6 +87,13 @@ D - agilab_run vs gui_run:
 Known Bugs
 ==========
 
+<UV> VIRTUAL_ENV Warning
+------------------------
+
+while running uv into a project from another one:
+warning: `VIRTUAL_ENV=.venv` does not match the project environment path `/Users/jpm/agilab/src/agilab/apps/mycode_project/.venv` and will be ignored; use `--active` to target the active environment instead
+This is not a problem this because we dynamically change the venv. Just ignore it.
+
 <UV> Sync Failed
 ----------------
 

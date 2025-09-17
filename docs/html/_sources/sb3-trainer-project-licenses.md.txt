@@ -40,7 +40,7 @@
 | moviepy | MIT LICENSE |
 | mpmath | BSD LICENSE |
 | msgpack | APACHE 2.0 |
-| mujoco | APACHE SOFTWARE LICENSE |
+| mujoco | APACHE-2.0 |
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | nest-asyncio | BSD LICENSE |
 | networkx | BSD LICENSE |
