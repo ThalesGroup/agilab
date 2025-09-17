@@ -10,7 +10,7 @@ async def main():
                         mode=0, 
                         scheduler=None, 
                         workers=None, 
-                        path="data/sat", data_out="data/link_sim/dataframes", data_dir="data/link_sim/dataset", data_flight="flights", data_sat="sat", plane_conf_path="antenna_conf.json", output_format="parquet", cloud_heatmap_IVDL="CloudMapIvdl.npz", cloud_heatmap_sat="CloudMapSat.npz", services_conf_path="service.json")
+                        path="data/sat", data_out="data/link_sim/dataframe", data_dir="data/link_sim/dataset", data_flight="flights", data_sat="sat", plane_conf_path="antenna_conf.json", output_format="parquet", cloud_heatmap_IVDL="CloudMapIvdl.npz", cloud_heatmap_sat="CloudMapSat.npz", services_conf_path="service.json")
     print(res)
     return res
 

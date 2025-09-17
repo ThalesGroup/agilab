@@ -62,7 +62,10 @@ def display_landing_page(resources_path: Path):
       With AGILAB, there’s no need for additional integration—our all-in-one framework is ready to deploy, enabling you to focus on innovation rather than setup.
     </p>
     <div class="uvp-highlight">
-      <strong>Tips:</strong> To benefit from AGI cluster automation functionality, all you need is <strong>agi-core</strong> and <strong>agi-env</strong>. This means you can remove the lab and view directories. Historically, AGILAB was developed as a playground for agi-core.
+      <strong>Tips:</strong>
+       <ul>
+         To benefit from AGI cluster automation functionality, all you need is <strong>agi-core</strong>. This means you can remove the lab and view directories. Historically, AGILAB was developed as a playground for agi-core.
+       </ul>
     </div>
     """
     st.markdown(md_content, unsafe_allow_html=True)
@@ -83,8 +86,8 @@ def page(env):
     current_year = datetime.now().year
     st.markdown(
         f"""
-    <div class='footer'>
-        &copy; 2020-{current_year} Thales SIX GTS. All rights reserved.
+    <div class='footer' style="display: flex; justify-content: flex-end;">
+        <span>&copy; 2020-{current_year} Thales SIX GTS. All rights reserved.</span>
     </div>
     """,
         unsafe_allow_html=True,
