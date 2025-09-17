@@ -158,11 +158,11 @@ with c10:
 # Collect UI inputs into a dictionary and validate the path_uri
 if st.session_state.data_source == "file":
     # Expand the user path
-    directory = st.session_state.env.home_abs / st.session_state.path
+    directory = st.session_state.env.home_abs / st.session_state.data_uri
     if not directory.is_dir():
-        st.error(f"The provided path '{directory}' is not a valid directory.")
+        st.error(f"The provided data_uri '{directory}' is not a valid directory.")
         st.stop()
-validated_path = st.session_state.path
+validated_path = st.session_state.data_uri
 
 args_from_ui = {
     "data_source": st.session_state.data_source,
