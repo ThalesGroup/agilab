@@ -1,7 +1,7 @@
 import asyncio
 from agi_env import AgiEnv
 from mycode import Mycode  # assuming your Mycode class is here
-from datetime import date
+from pathlib import Path
 
 async def main():
     active_app = Path(__file__).resolve().parents[1]

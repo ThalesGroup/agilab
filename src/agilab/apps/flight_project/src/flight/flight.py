@@ -138,7 +138,7 @@ class Flight(BaseWorker):
         self.data_source = args["data_source"]
         if self.data_source == "file":
             args["files"] = args.get("files", "*")
-            data_uri = args.get("data_uri", "data/flight")
+            data_uri = args.get("data_uri", "data/flight/dataset")
             if AgiEnv.is_managed_pc:
                 home = Path.home()
                 data_uri = data_uri.replace(str(home), str(home) + "\\MyApp")

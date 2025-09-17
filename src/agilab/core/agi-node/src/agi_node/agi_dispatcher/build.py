@@ -20,67 +20,12 @@ from agi_env import AgiLogger
 import warnings
 warnings.filterwarnings("ignore", category=SetuptoolsDeprecationWarning)
 
-from setuptools.command.build_ext import build_ext as _build_ext
-
-# --- BEGIN: sanitize bad CPython build flags (fixes -LModules/_hacl) ---
-def sanitize_sysconfig_flags():
-    # Remove spurious -LModules/_hacl from Python's build config that leaks into extension linking.
-    # Works for both sysconfig and (setuptools.)_distutils.sysconfig.
-    import sysconfig as _sc
-    try:
-        cfg = _sc.get_config_vars()
-        for k, v in list(cfg.items()):
-            if isinstance(v, str) and "-LModules/_hacl" in v:
-                cfg[k] = v.replace("-LModules/_hacl", "")
-    except Exception:
-        pass
-    # Also try the distutils variant used by setuptools in some versions
-    try:
-        import setuptools._distutils.sysconfig as _dsc  # type: ignore
-    except Exception:
-        try:
-            import distutils.sysconfig as _dsc  # type: ignore
-        except Exception:
-            _dsc = None
-    if _dsc is not None:
-        try:
-            dcfg = _dsc.get_config_vars()
-            for k, v in list(dcfg.items()):
-                if isinstance(v, str) and "-LModules/_hacl" in v:
-                    dcfg[k] = v.replace("-LModules/_hacl", "")
-        except Exception:
-            pass
-
-# Run the sanitizer as early as possible
-sanitize_sysconfig_flags()
-# --- END: sanitize bad CPython build flags ---
-
-class build_ext(_build_ext):
-    def build_extensions(self):
-
-        # Strip '-LModules/_hacl' from any pre-initialized compiler toolchain pieces
-        try:
-            comp = self.compiler
-            def _strip(items):
-                if isinstance(items, (list, tuple)):
-                    return [x for x in items if "-LModules/_hacl" not in x]
-                if isinstance(items, str):
-                    return items.replace("-LModules/_hacl", "")
-                return items
-            for _attr in ("linker_so", "compiler_so", "compiler", "linker_exe", "library_dirs"):
-                if hasattr(comp, _attr):
-                    setattr(comp, _attr, _strip(getattr(comp, _attr)))
-        except Exception:
-            pass
-# Remove bogus -LModules/_hacl from env that gets forwarded to the linker
-        for var in ("LDFLAGS", "LDSHARED", "CFLAGS", "CPPFLAGS"):
-            if var in os.environ and "-LModules/_hacl" in os.environ[var]:
-                os.environ[var] = os.environ[var].replace("-LModules/_hacl", "")
-        # Drop non-existent library_dirs to avoid ld warnings
-        for ext in self.extensions:
-            if getattr(ext, "library_dirs", None):
-                ext.library_dirs = [p for p in ext.library_dirs if os.path.isdir(p)]
-        super().build_extensions()
+try:
+    from pathlib import Path as _Path
+    _Path('Modules/_hacl').mkdir(parents=True, exist_ok=True)
+except Exception:
+    # Non-fatal if directory can't be created (e.g., read-only env)
+    pass
 
 def parse_custom_args(raw_args: list[str], cwd) -> argparse.Namespace:
     """

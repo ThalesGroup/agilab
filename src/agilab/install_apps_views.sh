@@ -179,7 +179,7 @@ for app in "${INCLUDED_APPS[@]}"; do
     echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
     echo -e "${GREEN}Checking installation...${NC}"
     if pushd -- "$app" >/dev/null; then
-      if [[ -f run-all-test.py ]]; then
+      if [[ -f app-test.py ]]; then
         echo uv run --no-sync -p "$AGI_PYTHON_VERSION" python run-all-test.py
         uv run --no-sync -p "$AGI_PYTHON_VERSION" python run-all-test.py
       else
