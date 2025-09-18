@@ -375,7 +375,7 @@ class BaseWorker(abc.ABC):
             verbose: int=0,
             worker_id: int=0,
             worker: str="localhost",
-            args: dic=None,
+            args: dict=None,
     ):
         """new worker instance
         Args:
@@ -406,7 +406,7 @@ class BaseWorker(abc.ABC):
             # Instantiate the class with arguments
             worker_inst = worker_class()
             worker_inst.mode = mode
-            worker_inst.args = SimpleNamespace(**self.args)
+            worker_inst.args = SimpleNamespace(**args)
             worker_inst.verbose = verbose
 
             # Instantiate the base class

@@ -112,9 +112,7 @@ class Flight(BaseWorker):
 
     ivq_logs = None
 
-    def __init__(self, env, **args: Unpack[FlightArgs]):
-
-        self.args = args
+    def __init__(self, env, **args):
         # Handling defaults and specific behaviors
         """
         Initialize a Flight object with provided arguments.
@@ -134,30 +132,31 @@ class Flight(BaseWorker):
         Raises:
             ValueError: If an invalid input mode is provided for data_source.
         """
-        args.data_source = args.get("data_source", "file")
-        self.data_source = args.data_source
-        if self.data_source == "file":
-            args.files = args.get("files", "*")
-            data_uri = args.get("data_uri", "data/flight/dataset")
-            if AgiEnv.is_managed_pc:
-                home = Path.home()
-                data_uri = data_uri.replace(str(home), str(home) + "\\MyApp")
-            args.nfile = args.get("nfile", 999_999_999_999)
-            if args.nfile == 0:
-                args.nfile = 999_999_999_999
-            args.data_uri = data_uri
+        args = FlightArgs(
+            data_source=args.get("data_source", "file"),
+            data_uri=args.get("data_uri", "data/flight/dataset"),
+            files=args.get("files", "*"),
+            nfile=args.get("nfile", 999_999_999_999),
+            nskip=nskip,
+            nread=nread,
+            sampling_rate=sampling_rate,
+            datemin=datemin,
+            datemax=datemax,
+            output_format=output_format,
+            **extra,  # optional: let pydantic validate extras
+        )
+        self.args = args
 
-        elif self.data_source == "hawk":
-            # implement another logic
-            pass
+        if AgiEnv.is_managed_pc:
+            home = Path.home()
+            args.data_uri = data_uri.replace(str(home), str(home) + "\\MyApp")
+        if args.nfile == 0:
+            args.nfile = 999_999_999_999
 
-        base_path = env.home_abs / data_uri
-        self.data_uri = normalize_path(base_path)
-        self.files = args.files
-        self.nfile = args.nfile
+        base_path = env.home_abs / args.data_uri
+        args.data_uri = normalize_path(base_path)
         WorkDispatcher.args = args
-        self.data_out = normalize_path(base_path / "dataframe")
-
+        args.data_out = normalize_path(base_path / "dataframe")
 
         """
           remove dataframe files from previous run

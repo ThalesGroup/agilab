@@ -16,7 +16,6 @@ from datetime import datetime as dt
 from pathlib import Path
 import logging
 
-from numpy.linalg import norm  # Imported norm
 from agi_env import normalize_path
 from agi_node.polars_worker import PolarsWorker
 from agi_node.agi_dispatcher import BaseWorker
@@ -83,7 +82,7 @@ class FlightWorker(PolarsWorker):
         logging.info(f"from: {__file__}")
 
         if os.name == "nt" and not getpass.getuser().startswith("T0"):
-            data_uri = Path(self.args["data_uri"])
+            data_uri = Path(self.args.data_uri)
             parts = data_uri.parts
             if "Users" in parts:
                 index = parts.index("Users") + 2
@@ -98,7 +97,7 @@ class FlightWorker(PolarsWorker):
                 logging.info(f"Failed to map network drive: {e}")
 
         # Path to database on symlink Path.home()/data(symlink)
-        self.home_rel = (Path("~/") / self.args["data_uri"]).expanduser()
+        self.home_rel = (Path("~/") / self.args.data_uri).expanduser()
         data_uri = normalize_path(self.home_rel)
         self.data_out = normalize_path(self.home_rel.parent / "dataframe")
         if os.name != "nt":

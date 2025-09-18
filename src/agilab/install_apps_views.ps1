@@ -236,13 +236,13 @@ if (-not [string]::IsNullOrEmpty($AGILAB_PUBLIC)) {
       Write-Color GREEN "Checking installation..."
       if (Test-Path -LiteralPath $app) {
         Push-Location $app
-        if (Test-Path -LiteralPath "run-all-test.py") {
-          & uv run -p $AGI_PYTHON_VERSION python run-all-test.py | Out-Host
+        if (Test-Path -LiteralPath "app-test.py") {
+          & uv run -p $AGI_PYTHON_VERSION python app-test.py | Out-Host
           if ($LASTEXITCODE -ne 0) { 
             $status = 1
           }
         } else {
-          Write-Color BLUE "No run-all-test.py in $app, skipping tests."
+          Write-Color BLUE "No app-test.py in $app, skipping tests."
         }
         Pop-Location
       } else {

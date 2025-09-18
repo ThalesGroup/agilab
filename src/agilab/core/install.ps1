@@ -64,4 +64,4 @@ uv pip install --preview-features extra-build-dependencies -e src/agilab/core/ag
 Pop-Location
 
 Write-Host "Checking installation..." -ForegroundColor Green
-uv run -p $env:AGI_PYTHON_VERSION --project agi-cluster python run-all-test.py
+uv run -p $env:AGI_PYTHON_VERSION --project agi-cluster python app-test.py

@@ -10,7 +10,6 @@ async def main():
     # Instantiate Flight with your parameters
     flight = Flight(
         env=env,
-        verbose=True,
         data_source="file",
         data_uri="data/flight/dataset",
         files="csv/*",

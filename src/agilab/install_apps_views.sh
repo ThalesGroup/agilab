@@ -48,6 +48,7 @@ echo -e "${BLUE}(Views) Link target base:${NC} $VIEWS_TARGET_BASE\n"
 
 
 declare -a PRIVATE_VIEWS=(
+    maps-network-graph
 )
 
 declare -a PRIVATE_APPS=(
@@ -68,7 +69,7 @@ done < <(find "$VIEWS_DEST_BASE" -mindepth 1 -maxdepth 1 -type d ! -name ".venv"
 if [[ -z "$AGILAB_PRIVATE" ]]; then
   declare -a INCLUDED_VIEWS=("${PUBLIC_VIEWS[@]}")
 else
-  declare -a INCLUDED_VIEWS=("${PRIVATE_VIEWS[@]}" "${PUBLIC_VIEWS[@]}")
+  declare -a INCLUDED_VIEWS=("${PUBLIC_VIEWS[@]}" "${PRIVATE_VIEWS[@]}")
 fi
 
 declare -a PUBLIC_APPS=()
@@ -80,7 +81,7 @@ done < <(find "$APPS_DEST_BASE" -mindepth 1 -maxdepth 1 -type d -name '*_project
 if [[ -z "$AGILAB_PRIVATE" ]]; then
   declare -a INCLUDED_APPS=("${PUBLIC_APPS[@]}")
 else
-  declare -a INCLUDED_APPS=("${PRIVATE_APPS[@]}" "${PUBLIC_APPS[@]}")
+  declare -a INCLUDED_APPS=("${PUBLIC_APPS[@]}" "${PRIVATE_APPS[@]}")
 fi
 
 echo -e "${BLUE}Apps to install:${NC} ${INCLUDED_APPS[*]:-<none>}\n"
@@ -108,54 +109,6 @@ PY
   popd >/dev/null
 fi
 
-# --- Run installer for each public views  -----
-pushd -- "$AGILAB_PUBLIC/views" >/dev/null
-
-for view in "${INCLUDED_VIEWS[@]}"; do
-  echo -e "${BLUE}Installing $view...${NC}"
-  pushd "$view" >/dev/null
-  uv sync --project . --preview-features python-upgrade
-  status=$(echo $?)
-  if (( status != 0 )); then
-    echo -e "${RED}Error during 'uv sync' for view '$view'.${NC}"
-  fi
-  popd >/dev/null
-done
-
-popd >/dev/null
-
-# --- Run installer for each public app  -----
-pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
-
-for app in "${INCLUDED_APPS[@]}"; do
-  echo -e "${BLUE}Installing $app...${NC}"
-  echo  uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
-      "$AGILAB_PUBLIC/apps/$app" --install-type "$INSTALL_TYPE"
-  if uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
-      "$AGILAB_PUBLIC/apps/$app" --install-type "$INSTALL_TYPE"; then
-    echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
-    echo -e "${GREEN}Checking installation...${NC}"
-    if pushd -- "$app" >/dev/null; then
-      if [[ -f app-test.py ]]; then
-        echo uv run --no-sync -p "$AGI_PYTHON_VERSION" python run-all-test.py
-        uv run --no-sync -p "$AGI_PYTHON_VERSION" python run-all-test.py
-      else
-        echo -e "${BLUE}No run-all-test.py in $app, skipping tests.${NC}"
-      fi
-      popd >/dev/null
-    else
-      echo -e "${YELLOW}Warning:${NC} could not enter '$app' to run tests."
-    fi
-  else
-    echo -e "${RED}✗ '$app' installation failed.${NC}"
-    status=1
-  fi
-done
-
-popd >/dev/null
-
-
-# --- Run installer for each private view  -----
 status=0
 for view in "${PRIVATE_VIEWS[@]}"; do
   view_target="$VIEWS_TARGET_BASE/$view"
@@ -177,7 +130,6 @@ for view in "${PRIVATE_VIEWS[@]}"; do
   fi
 done
 
-# --- Run installer for each private app  -----
 for app in "${PRIVATE_APPS[@]}"; do
   app_target="$APPS_TARGET_BASE/$app"
   app_dest="$APPS_DEST_BASE/$app"
@@ -197,6 +149,53 @@ for app in "${PRIVATE_APPS[@]}"; do
     echo -e "${GREEN}App '$app_dest' exists and is not a symlink. Leaving untouched.${NC}"
   fi
 done
+
+
+# --- Run installer for each views (stable CWD so ../core/cluster resolves) -----
+pushd -- "$AGILAB_PUBLIC/views" >/dev/null
+
+for view in "${INCLUDED_VIEWS[@]}"; do
+  echo -e "${BLUE}Installing $view...${NC}"
+  pushd "$view" >/dev/null
+  uv sync --project . --preview-features python-upgrade
+  status=$(echo $?)
+  if (( status != 0 )); then
+    echo -e "${RED}Error during 'uv sync' for view '$view'.${NC}"
+  fi
+  popd >/dev/null
+done
+
+popd >/dev/null
+
+# --- Run installer for each app (stable CWD so ../core/cluster resolves) -----
+pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
+
+for app in "${INCLUDED_APPS[@]}"; do
+  echo -e "${BLUE}Installing $app...${NC}"
+  echo  uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
+      "$AGILAB_PUBLIC/apps/$app" --install-type "$INSTALL_TYPE"
+  if uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
+      "$AGILAB_PUBLIC/apps/$app" --install-type "$INSTALL_TYPE"; then
+    echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
+    echo -e "${GREEN}Checking installation...${NC}"
+    if pushd -- "$app" >/dev/null; then
+      if [[ -f app-test.py ]]; then
+        echo uv run --no-sync -p "$AGI_PYTHON_VERSION" python app-test.py
+        uv run --no-sync -p "$AGI_PYTHON_VERSION" python app-test.py
+      else
+        echo -e "${BLUE}No app-test.py in $app, skipping tests.${NC}"
+      fi
+      popd >/dev/null
+    else
+      echo -e "${YELLOW}Warning:${NC} could not enter '$app' to run tests."
+    fi
+  else
+    echo -e "${RED}✗ '$app' installation failed.${NC}"
+    status=1
+  fi
+done
+
+popd >/dev/null
 
 # --- Final Message -----------------------------------------------------------
 if (( status == 0 )); then
