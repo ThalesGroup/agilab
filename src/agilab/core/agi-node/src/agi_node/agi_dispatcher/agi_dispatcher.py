@@ -38,6 +38,7 @@ import traceback
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+from types import SimpleNamespace
 
 # External Libraries:
 import numpy as np
@@ -92,14 +93,14 @@ class BaseWorker(abc.ABC):
         """
         """ """
         logging.info(
-            f"BaseWorker.start - worker #{BaseWorker.worker_id}: {BaseWorker.worker} - mode: {self.mode}")
+            f"worker #{BaseWorker.worker_id}: {BaseWorker.worker} - mode: {self.mode}")
         self.start()
 
     def stop(self):
         """
         Returns:
         """
-        logging.info(f"stop - worker #{self.worker_id}: {self.worker} - mode: {self.mode}"
+        logging.info(f"worker #{self.worker_id}: {self.worker} - mode: {self.mode}"
                         )
 
     @staticmethod
@@ -370,12 +371,11 @@ class BaseWorker(abc.ABC):
     def new(
             env: AgiEnv=None,
             active_app: str=None,
-            mode=0,
-            install_type=None,
-            verbose=0,
-            worker_id=0,
-            worker="localhost",
-            args=None,
+            mode: int=0,
+            verbose: int=0,
+            worker_id: int=0,
+            worker: str="localhost",
+            args: dic=None,
     ):
         """new worker instance
         Args:
@@ -391,12 +391,9 @@ class BaseWorker(abc.ABC):
         Returns:
         """
         try:
-            # if env is None:
-            #     install_type = 2 # if install_type or not worker.startswith(("localhost", "127.0.0.1")) else 3
-            #     env = AgiEnv(active_app=app, install_type=install_type, verbose=verbose)
 
             logging.info(f"venv: {sys.prefix}")
-            logging.info(f"BaseWorker.new - worker #{worker_id}: {worker} from: {Path(__file__)}")
+            logging.info(f"worker #{worker_id}: {worker} from: {Path(__file__)}")
 
             if env:
                 BaseWorker.env = env
@@ -409,7 +406,7 @@ class BaseWorker(abc.ABC):
             # Instantiate the class with arguments
             worker_inst = worker_class()
             worker_inst.mode = mode
-            worker_inst.args = args
+            worker_inst.args = SimpleNamespace(**self.args)
             worker_inst.verbose = verbose
 
             # Instantiate the base class
@@ -508,7 +505,7 @@ class BaseWorker(abc.ABC):
         BaseWorker.worker = worker
 
         logging.info(
-            f"build - worker #{BaseWorker.worker_id}: {worker} from: {Path(__file__)}"
+            f"worker #{BaseWorker.worker_id}: {worker} from: {Path(__file__)}"
         )
 
         try:
@@ -518,7 +515,7 @@ class BaseWorker(abc.ABC):
                 logging.info("starting worker_build ...")
                 logging.info(f"home_dir: {BaseWorker.home_dir}")
                 logging.info(
-                    f"worker_build(target_worker={target_worker}, dask_home={dask_home}, mode={mode}, verbose={verbose}, worker={worker})"
+                    f"target_worker={target_worker}, dask_home={dask_home}, mode={mode}, verbose={verbose}, worker={worker})"
                 )
                 for x in Path(dask_home).glob("*"):
                     logging.info(f"{x}")
@@ -573,8 +570,8 @@ class BaseWorker(abc.ABC):
         try:
             worker_id = BaseWorker.worker_id
             if worker_id is not None:
-                logging.info(f"do_works - worker #{worker_id}: {BaseWorker.worker} from {Path(__file__)}")
-                logging.info(f"BaseWorker.work - #{worker_id + 1} / {len(workers_tree)}")
+                logging.info(f"worker #{worker_id}: {BaseWorker.worker} from {Path(__file__)}")
+                logging.info(f"work #{worker_id + 1} / {len(workers_tree)}")
                 BaseWorker._insts[worker_id].works(workers_tree, workers_tree_info)
             else:
                 logging.error(f"this worker is not initialized")
@@ -772,10 +769,10 @@ class WorkDispatcher:
 
         if len(weights) > 1:
             if nchunk2 < threshold:
-                logging.info(f"chunk_algo_optimal - workers capacities {capacities} - {nchunk2} works to be done")
+                logging.info(f"optimal - workers capacities {capacities} - {nchunk2} works to be done")
                 chunks = WorkDispatcher._make_chunks_optimal(weights, capacities)
             else:
-                logging.info(f"load_algo_fastest - workers capacities {capacities} - {nchunk2} works to be done")
+                logging.info(f"fastest - workers capacities {capacities} - {nchunk2} works to be done")
                 chunks = WorkDispatcher._make_chunks_fastest(weights, capacities)
 
             return chunks

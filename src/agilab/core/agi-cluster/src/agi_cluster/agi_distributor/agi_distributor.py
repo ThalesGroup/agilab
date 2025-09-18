@@ -351,7 +351,6 @@ class AGI:
                 env,
                 scheduler=scheduler,
                 workers=workers,
-                verbose=verbose,
                 mode=run_mode,
                 **args,
             )
@@ -1363,8 +1362,7 @@ class AGI:
         AGI._run_type = "upgrade"
         await AGI.run(env=env, scheduler=scheduler, workers=workers,
                       mode=(AGI.UPDATE_MODE | modes_enabled) & AGI.DASK_RESET,
-                      rapids_enabled=AGI.UPDATE_MODE & modes_enabled,
-                      verbose=verbose, **args)
+                      rapids_enabled=AGI.UPDATE_MODE & modes_enabled, **args)
 
     @staticmethod
     async def distribute(
@@ -1387,7 +1385,7 @@ class AGI:
         -------
         """
         AGI._run_type = "simulate"
-        return await AGI.run(env, scheduler, workers, verbose, mode=AGI.SIMULATE_MODE, **args)
+        return await AGI.run(env, scheduler, workers, mode=AGI.SIMULATE_MODE, **args)
 
     @staticmethod
     async def _start_scheduler(scheduler: Optional[str]) -> bool:

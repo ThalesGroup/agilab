@@ -134,18 +134,18 @@ class Flight(BaseWorker):
         Raises:
             ValueError: If an invalid input mode is provided for data_source.
         """
-        args["data_source"] = args.get("data_source", "file")
-        self.data_source = args["data_source"]
+        args.data_source = args.get("data_source", "file")
+        self.data_source = args.data_source
         if self.data_source == "file":
-            args["files"] = args.get("files", "*")
+            args.files = args.get("files", "*")
             data_uri = args.get("data_uri", "data/flight/dataset")
             if AgiEnv.is_managed_pc:
                 home = Path.home()
                 data_uri = data_uri.replace(str(home), str(home) + "\\MyApp")
-            args["nfile"] = args.get("nfile", 999_999_999_999)
-            if args["nfile"] == 0:
-                args["nfile"] = 999_999_999_999
-            args["data_uri"] = data_uri
+            args.nfile = args.get("nfile", 999_999_999_999)
+            if args.nfile == 0:
+                args.nfile = 999_999_999_999
+            args.data_uri = data_uri
 
         elif self.data_source == "hawk":
             # implement another logic
@@ -153,8 +153,8 @@ class Flight(BaseWorker):
 
         base_path = env.home_abs / data_uri
         self.data_uri = normalize_path(base_path)
-        self.files = args["files"]
-        self.nfile = args["nfile"]
+        self.files = args.files
+        self.nfile = args.nfile
         WorkDispatcher.args = args
         self.data_out = normalize_path(base_path / "dataframe")
 
