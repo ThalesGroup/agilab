@@ -160,6 +160,8 @@ class AgiEnv:
                     active_app = agilab_src / "agilab/apps" / envars.get("APP_DEFAULT", 'flight_project')
                 else:
                     active_app = venv_home / "apps" / envars.get("APP_DEFAULT", 'flight_project')
+            else:
+                active_app = active_app.expanduser()
 
             if not active_app.name.endswith('_project') and not active_app.name.endswith('_worker'):
                 raise ValueError(f"{active_app} must end with '_project'")

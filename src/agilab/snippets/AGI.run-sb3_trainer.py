@@ -5,7 +5,7 @@ from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
 async def main():
-    app_env = AgiEnv(active_app=Path('/Users/jpm/agilab/src/agilab/apps/sb3_trainer_project'), install_type=1, verbose=False) 
+    app_env = AgiEnv(active_app=Path('~/agilab/src/agilab/apps/sb3_trainer_project'), install_type=1, verbose=False) 
     res = await AGI.run(app_env, 
                         mode=0, 
                         scheduler=None, 

@@ -1,151 +1,119 @@
-import os
-import warnings
 import logging
+import warnings
 from pathlib import Path
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
-from pydantic import BaseModel
-
-# Removed unused imports: validator, conint, confloat, Literal
-
-import py7zr  # Added import for py7zr
-from agi_env import AgiEnv, normalize_path   # Added import for Agienv
+import py7zr
 
 from agi_cluster.agi_distributor import AGI
-from agi_node.agi_dispatcher import BaseWorker
-from agi_env import AgiEnv, normalize_path
+from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
+
+from .app_args import (
+    ArgsOverrides,
+    PolarsAppArgs,
+    dump_args,
+    ensure_defaults,
+    load_args,
+    merge_args,
+)
+
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
 
-class PolarsAppArgs(BaseModel):
-    """
-    A class representing PolarsAppArgs.
-
-    This class can be extended with configuration attributes as needed.
-    """
-
-    data_dir: str = "~/data/PolarsApp"  # Added a default attribute
-
-
 class Polars(BaseWorker):
-    """
-    A class representing a data application.
+    """Minimal worker wiring for the Polars app template."""
 
-    Attributes:
-        path_rel (str): The relative path to the data directory.
-    """
+    worker_vars: dict[str, Any] = {}
 
-    def __init__(self, **args: dict):
-        """
-        Initialize the PolarsApp object.
+    def __init__(
+        self,
+        env,
+        args: PolarsAppArgs | None = None,
+        **kwargs: ArgsOverrides,
+    ) -> None:
+        super().__init__()
+        self.env = env
 
-        Args:
-            **args (dict): Keyword arguments to configure the PolarsApp object.
-                - data_dir (str): Relative path to the data directory. Defaults to '~/data/PolarsApp'.
+        if args is None:
+            args = PolarsAppArgs(**kwargs)
 
-        Returns:
-            None
+        args = ensure_defaults(args, env=env)
+        self.args = args
 
-        Notes:
-            This constructor initializes the PolarsApp object with the given arguments, sets the home directory for data storage,
-            and extracts data files if necessary. If running on a Thales-managed computer, the home directory is adjusted accordingly.
-        """
-        super().__init__()  # Ensure the parent class is properly initialized
-
-        # Retrieve 'data_dir' from args or use default
-        home_rel = args.get("data_dir", os.path.join("~", "data", "PolarsApp"))
-
+        data_dir = Path(args.data_dir).expanduser()
         if env.is_managed_pc:
             home = Path.home()
-            home_rel = home_rel.replace(str(home), str(home) + "\\MyApp")
+            data_dir = Path(str(data_dir).replace(str(home), str(home / "MyApp")))
 
-        path_abs = Path(os.path.expanduser(home_rel))
-        self.path_rel = home_rel
+        self.path_rel = str(data_dir)
+        self.dir_path = data_dir
 
+        self._ensure_dataset(data_dir)
+
+        payload = args.model_dump(mode="json")
+        payload["dir_path"] = str(data_dir)
+        WorkDispatcher.args = payload
+
+    @classmethod
+    def from_toml(
+        cls,
+        env,
+        settings_path: str | Path = "app_settings.toml",
+        section: str = "args",
+        **overrides: ArgsOverrides,
+    ) -> "Polars":
+        base = load_args(settings_path, section=section)
+        merged = ensure_defaults(merge_args(base, overrides or None), env=env)
+        return cls(env, args=merged)
+
+    def to_toml(
+        self,
+        settings_path: str | Path = "app_settings.toml",
+        section: str = "args",
+        create_missing: bool = True,
+    ) -> None:
+        dump_args(self.args, settings_path, section=section, create_missing=create_missing)
+
+    def as_dict(self) -> dict[str, Any]:
+        payload = self.args.model_dump(mode="json")
+        payload["dir_path"] = str(self.dir_path)
+        return payload
+
+    def _ensure_dataset(self, data_dir: Path) -> None:
         try:
-            if not path_abs.exists():
-                logging.info(f"Creating data directory at {path_abs}")
-                path_abs.mkdir(parents=True, exist_ok=True)
+            if not data_dir.exists():
+                logger.info("Creating data directory at %s", data_dir)
+                data_dir.mkdir(parents=True, exist_ok=True)
 
                 data_src = Path(AGI.env.app_abs) / "data.7z"
                 if not data_src.is_file():
-                    logging.error(f"Data archive not found at {data_src}")
                     raise FileNotFoundError(f"Data archive not found at {data_src}")
 
-                logging.info(f"Extracting data archive from {data_src} to {path_abs}")
+                logger.info("Extracting data archive from %s to %s", data_src, data_dir)
                 with py7zr.SevenZipFile(data_src, mode="r") as archive:
-                    archive.extractall(path=path_abs)
-        except Exception as e:
-            logging.error(f"Failed to initialize data directory: {e}")
-            raise e  # Re-raise the exception after logging
-
-        # Update args with the absolute directory path
-        args["dir_path"] = str(path_abs)
+                    archive.extractall(path=data_dir)
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.error("Failed to initialize data directory: %s", exc)
+            raise
 
     @staticmethod
-    def pool_init(vars: dict) -> None:
-        """
-        Initialize the work pool process.
+    def pool_init(vars: dict[str, Any]) -> None:
+        Polars.worker_vars = vars
 
-        Args:
-            vars (dict): Variables required for initializing the pool.
-
-        Returns:
-            None
-        """
-        # It's recommended to avoid using global variables.
-        # Instead, manage state within the class or pass it explicitly where needed.
-        PolarsApp.worker_vars = vars  # Changed to a class attribute
-
-    def work_pool(self, x: any = None) -> None:
-        """
-        Process a work pool task.
-
-        Args:
-            x (optional): Input data for processing.
-
-        Returns:
-            None
-        """
-        # Implement the actual work processing logic here
+    def work_pool(self, x: Any = None) -> None:  # pragma: no cover - template hook
         pass
 
-    def work_done(self, worker_df: any) -> None:
-        """
-        Handle the completion of work.
-
-        Args:
-            worker_df (any): DataFrame containing work results.
-
-        Returns:
-            None
-        """
-        # Implement the logic to handle completed work here
+    def work_done(self, worker_df: Any) -> None:  # pragma: no cover - template hook
         pass
 
     def stop(self) -> None:
-        """
-        Stop the PolarsAppWorker and perform cleanup.
-
-        Args:
-            None
-
-        Returns:
-            None
-        """
         if self.verbose > 0:
             print("PolarsAppWorker All done!\n", end="")
         super().stop()
 
     def build_distribution(
         self,
-    ) -> Tuple[List[List], List[List[Tuple[int, int]]], str, str, str]:
-        """
-        Build the distribution of work among workers.
+    ) -> Tuple[List[List], List[List[Tuple[int, int]]], str, str, str]:  # pragma: no cover - template hook
+        return [], [], "id", "nb_fct", ""
 
-        Args:
-            None
-        """
-
-        Return

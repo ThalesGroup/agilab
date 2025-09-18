@@ -37,8 +37,12 @@ INSTALL_TYPE="${INSTALL_TYPE:-1}"
 # This prevents errors like: ${PRIVATE_VIEWS[@]}: unbound variable
 declare -a PUBLIC_VIEWS=()
 declare -a PRIVATE_VIEWS=()
-declare -a PUBLIC_APPS=()
-declare -a PRIVATE_APPS=()
+declare -a PUBLIC_APPS=(
+  flight
+)
+declare -a PRIVATE_APPS=(
+  link_sim
+)
 
 # (macOS-safe helpers remain below)
 

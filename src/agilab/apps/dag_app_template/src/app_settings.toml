@@ -1,7 +1,6 @@
 
 [args]
-param1 = 1234
-param2 = "some text"
+data_dir = "~/data/DagApp"
 
 [cluster]
 workers_enable = true

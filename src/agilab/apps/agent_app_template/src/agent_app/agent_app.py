@@ -1,167 +1,93 @@
-import os
-import sys
-import warnings
 import logging
+import warnings
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
-from pydantic import BaseModel
+from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
-# Removed unused imports: validator, conint, confloat, Literal, Unpack
+from .app_args import (
+    AgentAppArgs,
+    ArgsOverrides,
+    dump_args,
+    ensure_defaults,
+    load_args,
+    merge_args,
+)
+
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
-from agi_node.agi_dispatcher import BaseWorker
-
-class AgentAppArgs(BaseModel):
-    """
-    A class representing the arguments for an Agent App.
-
-    Attributes:
-        data_dir (str): Relative path to the data directory. Defaults to '~/data/AgentApp'.
-    """
-
-    data_dir: str = "~/data/AgentApp"  # Added a default attribute
-
 
 class Main(BaseWorker):
-    """
-    A class representing the main application.
+    """Minimal agent app wiring with centralised argument handling."""
 
-    Inherits from BaseWorker.
+    worker_vars: dict[str, Any] = {}
 
-    Attributes:
-        worker_vars (Dict[str, Any]): Variables required for initializing the work pool.
-    """
+    def __init__(
+        self,
+        env,
+        args: AgentAppArgs | None = None,
+        **kwargs: ArgsOverrides,
+    ) -> None:
+        super().__init__()
+        self.env = env
 
-    worker_vars: Dict[str, Any] = {}  # Changed from global variables to class attribute
+        if args is None:
+            args = AgentAppArgs(**kwargs)
 
-    def __init__(self, **args: Dict[str, Any]):
-        """
-        Initialize the Main application with the provided arguments.
+        args = ensure_defaults(args, env=env)
+        self.args = args
 
-        Args:
-            **args (dict): Keyword arguments to initialize the application.
-                - data_dir (str): Relative path to the data directory. Defaults to '~/data/AgentApp'.
-
-        Returns:
-            None
-
-        Notes:
-            This constructor initializes the Main application with the given arguments, sets the home directory for data storage,
-            and performs any necessary setup. Adjusts the home directory if running on a Thales-managed computer.
-        """
-        super().__init__()  # Initialize the parent class
-
-        # Retrieve 'data_dir' from args or use default
-        home_rel = args.get("data_dir", "~/data/AgentApp")
-
-        # Example of adjusting path if running on a Thales-managed computer
-        if (
-            hasattr(self, "env")
-            and hasattr(self.env, "is_managed_pc")
-            and self.env.is_managed_pc
-        ):
+        data_dir = Path(args.data_dir).expanduser()
+        if env.is_managed_pc:
             home = Path.home()
-            home_rel = home_rel.replace(str(home), str(home) + "\\MyApp")
+            data_dir = Path(str(data_dir).replace(str(home), str(home / "MyApp")))
 
-        path_abs = Path(home_rel).expanduser()
-        self.path_rel = str(path_abs)
+        self.path_rel = str(data_dir)
+        self.dir_path = data_dir
 
-        try:
-            if not path_abs.exists():
-                logging.info(f"Creating data directory at {path_abs}")
-                path_abs.mkdir(parents=True, exist_ok=True)
+        data_dir.mkdir(parents=True, exist_ok=True)
 
-                # Example of additional setup: copying default config or data files
-                # Replace the following lines with actual setup logic as needed
-                # config_src = Path(self.env.app_abs) / "default_config.yaml"
-                # config_dst = path_abs / "config.yaml"
-                # config_src.copy(config_dst)
-        except Exception as e:
-            logging.error(f"Failed to initialize data directory: {e}")
-            raise e  # Re-raise the exception after logging
+        payload = args.model_dump(mode="json")
+        payload["dir_path"] = str(data_dir)
+        WorkDispatcher.args = payload
+        logger.info("Application initialized with data directory: %s", data_dir)
 
-        # Update args with the absolute directory path
-        args["dir_path"] = self.path_rel
-        logging.info(f"Application initialized with data directory: {self.path_rel}")
+    @classmethod
+    def from_toml(
+        cls,
+        env,
+        settings_path: str | Path = "app_settings.toml",
+        section: str = "args",
+        **overrides: ArgsOverrides,
+    ) -> "Main":
+        base = load_args(settings_path, section=section)
+        merged = ensure_defaults(merge_args(base, overrides or None), env=env)
+        return cls(env, args=merged)
+
+    def to_toml(
+        self,
+        settings_path: str | Path = "app_settings.toml",
+        section: str = "args",
+        create_missing: bool = True,
+    ) -> None:
+        dump_args(self.args, settings_path, section=section, create_missing=create_missing)
+
+    def as_dict(self) -> dict[str, Any]:
+        payload = self.args.model_dump(mode="json")
+        payload["dir_path"] = str(self.dir_path)
+        return payload
 
     @staticmethod
-    def pool_init(vars: Dict[str, Any]) -> None:
-        """
-        Initialize the work pool process.
-
-        Args:
-            vars (dict): Variables required for initializing the pool.
-
-        Returns:
-            None
-
-        Notes:
-            Sets the class attribute 'worker_vars' with the provided variables.
-        """
+    def pool_init(vars: dict[str, Any]) -> None:
         Main.worker_vars = vars
-        logging.info("Work pool initialized with provided variables.")
 
-    def perform_work(self) -> None:
-        """
-        Perform the main work of the application.
-
-        Args:
-            None
-
-        Returns:
-            None
-
-        Notes:
-            Executes the core functionality of the Main application.
-        """
-        logging.info("Starting main work...")
-        # Implement the actual work logic here
-        try:
-            # Example work process
-            result = self.work()
-            logging.info(f"Work completed with result: {result}")
-        except Exception as e:
-            logging.error(f"An error occurred during work: {e}")
-            raise e
+    def perform_work(self) -> None:  # pragma: no cover - template hook
+        logger.info("Starting main work...")
 
     def stop(self) -> None:
-        """
-        Stop the Main application and perform cleanup.
-
-        Args:
-            None
-
-        Returns:
-            None
-
-        Notes:
-            Performs necessary cleanup operations before shutting down the application.
-        """
-        if hasattr(self, "verbose") and self.verbose > 0:
+        if getattr(self, "verbose", 0) > 0:
             print("Main Application All done!\n", end="")
-            logging.info("Main application stopped successfully.")
+            logger.info("Main application stopped successfully.")
         super().stop()
 
-    def build_distribution(self) -> Any:
-        """
-        Builds a distribution for workers.
-
-        Returns:
-            Any: The distribution structure required for workers.
-
-        Note:
-            This function is a method of a class and uses class attributes or methods within its implementation.
-        """
-        # Implement the distribution logic as required
-        # Example placeholder return value
-        distribution = {
-            "workers_tree": [],
-            "workers_tree_info": [],
-            "worker_id": "id",
-            "number_of_functions": "nb_fct",
-            "additional_info": "",
-        }
-        logging.info("Built distribution for workers.")
-        return distribution
