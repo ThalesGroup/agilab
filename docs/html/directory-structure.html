@@ -256,6 +256,18 @@
 <h1>Project Files Structure<a class="headerlink" href="#project-files-structure" title="Link to this heading"></a></h1>
 <p>This is the Agilab project files tree:</p>
 <div class="code text highlight-default notranslate"><div class="highlight"><pre><span></span>agilab/
+.idea/
+    inspectionProfiles/
+        profiles_settings.xml
+        Project_Default.xml
+    .gitignore
+    agilab.iml
+    copilot.data.migration.agent.xml
+    copilot.data.migration.edit.xml
+    misc.xml
+    modules.xml
+    prettier.xml
+    vcs.xml
 __pycache__/ [excluded]
 apps/
     __pycache__/ [excluded]
@@ -336,7 +348,6 @@ apps/
         app-test.py
         build.py
         coverage.xml
-        dask_worker_0.pid
         MANIFEST.in
         output.json
         pyproject.toml
@@ -378,7 +389,6 @@ apps/
         app-test.py
         build.py
         coverage.xml
-        dask_worker_0.pid
         install.py
         MANIFEST.in
         output.json
@@ -638,11 +648,16 @@ views/
                 __init__.py
                 maps_3d.py
         pyproject.toml
+    maps-network-graph/
+        .venv/ [excluded]
+        src/
+            maps_network_graph/
+                maps_network_graph.py
+        pyproject.toml
     .git_archival.txt
     .gitattributes
     .gitignore
     __init__.py
-    maps-network-graph
     README.md
 .gitignore
 __init__.py
