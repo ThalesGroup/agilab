@@ -245,9 +245,9 @@ pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
 for app in "${INCLUDED_APPS[@]}"; do
   echo -e "${BLUE}Installing $app...${NC}"
   echo  uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
-      "$AGILAB_PUBLIC/apps/$app" --install-type "$INSTALL_TYPE"
+      --app "$AGILAB_PUBLIC/apps/$app" --install-type "$INSTALL_TYPE"
   if uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
-      "$AGILAB_PUBLIC/apps/$app" --install-type "$INSTALL_TYPE"; then
+      --app "$AGILAB_PUBLIC/apps/$app" --install-type "$INSTALL_TYPE"; then
     echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
     echo -e "${GREEN}Checking installation...${NC}"
     if pushd -- "$app" >/dev/null; then
