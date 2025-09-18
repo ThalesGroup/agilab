@@ -12,163 +12,116 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-import re
 import traceback
 import logging
-from pydantic import BaseModel, validator, conint, confloat
 import shutil
 import warnings
 from pathlib import Path
-from typing import Unpack, Literal
+from typing import Any
+
 import py7zr
 import polars as pl
-from datetime import date
+from pydantic import ValidationError
+
 from agi_env import AgiEnv, normalize_path
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
+from .flight_args import (
+    FlightArgs,
+    FlightArgsTD,
+    dump_args_to_toml,
+    load_args_from_toml,
+    merge_args,
+)
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
 
-class FlightArgs(BaseModel):
-    """FlightArgs contains Arguments for Flight"""
-
-    data_source: Literal["file", "hawk"]
-    data_uri: Path
-    files: str
-    nfile: int = conint
-    nskip: int = conint
-    nread: int = conint(ge=0)
-    sampling_rate: float = confloat(ge=0)
-    datemin: date
-    datemax: date
-    output_format: Literal["parquet", "csv"]
-
-    @validator("datemax")
-    def check_date_order(cls, v, values):
-        """
-        Check the order of dates and validate the 'datemax' value.
-
-        Args:
-            cls: The class itself.
-            v: The 'datemax' value to be validated.
-            values (dict): A dictionary containing the input values.
-
-        Returns:
-            Any: The validated 'datemax' value.
-
-        Raises:
-            ValueError: If 'datemax' is not after 'datemin' or after "2021/06/01".
-        """
-        datemin = values.get("datemin")
-        if datemin and date(2021, 6, 1) >= v < datemin:
-            raise ValueError('datemax must be after datemin and before "2021/06/01"')
-        return v
-
-    @validator("datemin")
-    def check_date(cls, v, values):
-        """
-        Check if the given date is greater than a specified minimum date.
-
-        Args:
-            v (datetime.date): The date to be validated.
-            values (dict): A dictionary containing the values of all fields.
-
-        Returns:
-            datetime.date: The validated date.
-
-        Raises:
-            ValueError: If the input date is not greater than "2020/01/01".
-        """
-        if v < date(2020, 1, 1):
-            raise ValueError('datemin must be greater than "2020/01/01"')
-        return v
-
-    @validator("files")
-    def check_valid_regex(cls, value):
-        """
-        Check if the input string is a valid regular expression.
-
-        Args:
-            value (str): The string to be validated as a regex.
-
-        Returns:
-            str: The input string if it is a valid regex.
-
-        Raises:
-            ValueError: If the input string is not a valid regex.
-        """
-        try:
-            if value.startswith("*"):
-                value = '.' + value
-            re.compile(value)
-
-        except re.error:
-            raise ValueError(f"The provided string '{value}' is not a valid regex.")
-        return value
-
-
 class Flight(BaseWorker):
-    """Flight class provides methods to orchester the run"""
+    """Flight class provides methods to orchestrate the run."""
 
     ivq_logs = None
 
-    def __init__(self, env, **args):
-        # Handling defaults and specific behaviors
-        """
-        Initialize a Flight object with provided arguments.
-
-        Args:
-            **args (Unpack[FlightArgs]): Keyword arguments to configure the Flight object.
-                Possible arguments include:
-                    - data_source (str): Source of the data, either 'file' or 'hawk'.
-                    - files (str): Path pattern or file name.
-                    - data_uri (str): Path to store data files.
-                      remark: There is also src/flight_worker/dataset.7z for dataset replication per worker
-                    - nfile (int): Maximum number of files to process.
-                    - datemin (str): Minimum date for data processing.
-                    - datemax (str): Maximum date for data processing.
-                    - output_format (str): Output format for processed data, either 'parquet' or 'csv'.
-
-        Raises:
-            ValueError: If an invalid input mode is provided for data_source.
-        """
-        args = FlightArgs(
-            data_source=args.get("data_source", "file"),
-            data_uri=args.get("data_uri", "data/flight/dataset"),
-            files=args.get("files", "*"),
-            nfile=args.get("nfile", 999_999_999_999),
-            nskip=nskip,
-            nread=nread,
-            sampling_rate=sampling_rate,
-            datemin=datemin,
-            datemax=datemax,
-            output_format=output_format,
-            **extra,  # optional: let pydantic validate extras
-        )
+    def __init__(
+        self,
+        env,
+        args: FlightArgs | None = None,
+        **kwargs: FlightArgsTD,
+    ) -> None:
+        self.env = env
+        if args is None:
+            try:
+                args = FlightArgs(**kwargs)
+            except ValidationError as exc:
+                raise ValueError(f"Invalid Flight arguments: {exc}") from exc
         self.args = args
 
         if AgiEnv.is_managed_pc:
             home = Path.home()
-            args.data_uri = data_uri.replace(str(home), str(home) + "\\MyApp")
-        if args.nfile == 0:
-            args.nfile = 999_999_999_999
+            myapp_home = home / "MyApp"
+            try:
+                self.args.data_uri = Path(
+                    str(self.args.data_uri).replace(str(home), str(myapp_home))
+                )
+            except Exception:
+                logger.debug(
+                    "Failed to remap data_uri for managed PC", exc_info=True
+                )
 
-        base_path = env.home_abs / args.data_uri
-        args.data_uri = normalize_path(base_path)
-        WorkDispatcher.args = args
-        args.data_out = normalize_path(base_path / "dataframe")
+        if self.args.nfile == 0:
+            self.args.nfile = 999_999_999_999
 
-        """
-          remove dataframe files from previous run
-          """
+        base_path = Path(env.home_abs) / self.args.data_uri
+        normalized_base = Path(normalize_path(base_path))
+        self.args.data_uri = normalized_base
+
+        WorkDispatcher.args = self.args.model_dump(mode="json")
+
+        self.data_out = Path(normalize_path(normalized_base / "dataframe"))
+
         try:
-            if os.path.exists(self.data_out):
-                shutil.rmtree(self.data_out, ignore_errors=True, onerror=WorkDispatcher.onerror)
-            os.makedirs(self.data_out, exist_ok=True)
-        except Exception as e:
-            print(f"warning issue while trying to remove directory: {e}")
+            if self.data_out.exists():
+                shutil.rmtree(
+                    self.data_out,
+                    ignore_errors=True,
+                    onerror=WorkDispatcher.onerror,
+                )
+            self.data_out.mkdir(parents=True, exist_ok=True)
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.warning(
+                "Issue while trying to reset dataframe directory %s: %s",
+                self.data_out,
+                exc,
+            )
 
-        return
+    @classmethod
+    def from_toml(
+        cls,
+        env,
+        settings_path: str | Path = "app_settings.toml",
+        section: str = "args",
+        **overrides: FlightArgsTD,
+    ) -> "Flight":
+        base_args = load_args_from_toml(settings_path, section)
+        merged = merge_args(base_args, overrides or None)
+        return cls(env, args=merged)
+
+    def to_toml(
+        self,
+        settings_path: str | Path = "app_settings.toml",
+        section: str = "args",
+        create_missing: bool = True,
+    ) -> None:
+        dump_args_to_toml(
+            self.args,
+            settings_path=settings_path,
+            section=section,
+            create_missing=create_missing,
+        )
+
+    def as_dict(self, mode: str = "json") -> dict[str, Any]:
+        """Return current arguments as a serialisable dictionary."""
+
+        return self.args.model_dump(mode=mode)
 
     def build_distribution(self, workers):
         """build_distrib: to provide the list of files per planes (level1) and per workers (level2)
@@ -202,7 +155,7 @@ class Flight(BaseWorker):
                     workers_planes_dist.append(
                         [
                             df.filter(pl.col("id_plane") == plane_id)["files"]
-                            .head(self.nfile)
+                            .head(self.args.nfile)
                             .to_list()
                             for plane_id, _ in planes
                         ]
@@ -238,26 +191,25 @@ class Flight(BaseWorker):
 
     def get_data_from_files(self):
         """get output-data slices from files or from ELK/HAWK"""
-        if self.data_source == "file":
-            data_uri = normalize_path(self.data_uri)
+        if self.args.data_source == "file":
+            data_uri = Path(self.args.data_uri)
             home_dir = Path.home()
 
-            # Assuming 'self.data_uri' is the base directory and 'self.files' is the pattern for the files you're interested in
             self.logs_ivq = {
                 str(f.relative_to(home_dir)): os.path.getsize(f) // 1000
-                for f in Path(self.data_uri).rglob(self.files)
+                for f in data_uri.rglob(self.args.files)
                 if f.is_file()
             }
 
             if not self.logs_ivq:
                 raise FileNotFoundError(
-                    f"Error in make_chunk: no files found with Path('{self.data_uri}').rglob('{self.files}')"
+                    "Error in make_chunk: no files found with"
+                    f" Path('{data_uri}').rglob('{self.args.files}')"
                 )
 
-            # Convert dict_items to a list of tuples before creating a Polars DataFrame
             df = pl.DataFrame(list(self.logs_ivq.items()), schema=["files", "size"])
 
-        elif self.data_source == "hawk":
+        elif self.args.data_source == "hawk":
             # implement your HAWK logic
             pass
 
@@ -282,7 +234,7 @@ class Flight(BaseWorker):
         )
 
         # Get the first 'nfile' rows per 'id_plane' group
-        df = df.group_by("id_plane").head(self.nfile)
+        df = df.group_by("id_plane").head(self.args.nfile)
 
         # Sort the DataFrame by 'id_plane'
         df = df.sort("id_plane")

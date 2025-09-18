@@ -1,76 +1,54 @@
-import os
-import sys
-import streamlit as st
-import tomli
-import tomli_w
-from pydantic import ValidationError
-import socket
-import datetime
 from pathlib import Path
-from flight import FlightArgs
+from typing import Any
 
-def change_data_source():
-    """
-    Change the data source by deleting 'data_uri' and 'files' keys from the session state if they exist.
-    """
+import streamlit as st
+import tomllib
+from pydantic import ValidationError
+
+from flight import (
+    FlightArgs,
+    apply_source_defaults,
+    dump_args_to_toml,
+)
+
+
+def change_data_source() -> None:
+    """Reset dependent fields when the data source toggles."""
+
     st.session_state.pop("data_uri", None)
     st.session_state.pop("files", None)
 
-def initialize_defaults(app_settings):
-    """
-    Initialize default parameters for the application settings.
 
-    Args:
-        app_settings (dict): A dictionary containing the application settings.
+def load_app_settings(path: Path) -> dict[str, Any]:
+    """Load the full Streamlit app settings TOML into a dictionary."""
 
-    Returns:
-        dict: A dictionary containing the updated default parameters.
-    """
-    args_default = app_settings.get("args", {})
-
-    defaults = {
-        "data_source": "file",
-        "data_uri": (
-            "data/flight/dataset"
-            if args_default.get("data_source", "file") == "file"
-            else f"https://admin:admin@{socket.gethostbyname(socket.gethostname())}:9200/"
-        ),
-        "files": (
-            "*" if args_default.get("data_source", "file") == "file" else "hawk.user-admin.1"
-        ),
-        "nfile": 1,
-        "nskip": 0,
-        "nread": 0,
-        "sampling_rate": 1.0,
-        "datemin": "2020-01-01",
-        "datemax": "2021-01-01",
-        "output_format": "parquet",
-    }
-
-    for key, value in defaults.items():
-        args_default.setdefault(key, value)
-
-    app_settings["args"] = args_default
-    return args_default
+    if path.exists():
+        with path.open("rb") as handle:
+            return tomllib.load(handle)
+    return {}
 
 
-# Get the app settings file from the environment stored in session state
-app_settings_file = st.session_state.env.app_settings_file
+env = st.session_state.env
+settings_path = Path(env.app_settings_file)
 
-# Load settings using tomli (reading in binary mode)
-if "is_args_from_ui" not in st.session_state:
-    with open(app_settings_file, "rb") as f:
-        app_settings = tomli.load(f)
-    args_default = initialize_defaults(app_settings)
+# Ensure app_settings is available in session state
+app_settings = st.session_state.get("app_settings")
+if not app_settings or not st.session_state.get("is_args_from_ui"):
+    app_settings = load_app_settings(settings_path)
     st.session_state.app_settings = app_settings
-else:
-    app_settings = st.session_state.app_settings
-    args_default = initialize_defaults(app_settings)
 
-result = st.session_state.env.check_args(FlightArgs, args_default)
-if result:
-    st.warning("\n".join(result) + f"\nplease check {app_settings_file}")
+stored_payload = dict(app_settings.get("args", {}))
+try:
+    stored_args = FlightArgs(**stored_payload)
+except ValidationError as exc:
+    messages = env.humanize_validation_errors(exc)
+    st.warning("\n".join(messages) + f"\nplease check {settings_path}")
     st.session_state.pop("is_args_from_ui", None)
+    stored_args = FlightArgs()
+
+defaults_model = apply_source_defaults(stored_args)
+defaults_payload = defaults_model.to_toml_payload()
+st.session_state.app_settings["args"] = defaults_payload
 
 # Streamlit User Interface
 c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1.0, 1])
@@ -79,26 +57,43 @@ with c1:
     st.selectbox(
         label="Data source",
         options=["file", "hawk"],
+        index=["file", "hawk"].index(defaults_model.data_source),
         key="data_source",
         on_change=change_data_source,
     )
 
 with c2:
     if st.session_state.data_source == "file":
-        st.text_input(label="Data directory", value=args_default["data_uri"], key="data_uri")
+        st.text_input(
+            label="Data directory",
+            value=str(defaults_model.data_uri),
+            key="data_uri",
+        )
     else:
-        st.text_input(label="Hawk cluster data_uri", value=args_default["data_uri"], key="data_uri")
+        st.text_input(
+            label="Hawk cluster data_uri",
+            value=str(defaults_model.data_uri),
+            key="data_uri",
+        )
 
 with c3:
     if st.session_state.data_source == "file":
-        st.text_input(label="Files filter", value=args_default["files"], key="files")
+        st.text_input(
+            label="Files filter",
+            value=defaults_model.files,
+            key="files",
+        )
     else:
-        st.text_input(label="Select the pipeline", value=args_default["files"], key="files")
+        st.text_input(
+            label="Select the pipeline",
+            value=defaults_model.files,
+            key="files",
+        )
 
 with c4:
     st.number_input(
         label="Number of files to read",
-        value=args_default.get("nfile", 1),
+        value=defaults_model.nfile,
         key="nfile",
         step=1,
         min_value=0,
@@ -107,7 +102,7 @@ with c4:
 with c5:
     st.number_input(
         label="Number of line to skip",
-        value=args_default.get("nskip", 0),
+        value=defaults_model.nskip,
         key="nskip",
         step=1,
         min_value=0,
@@ -118,7 +113,7 @@ c6, c7, c8, c9, c10 = st.columns([1, 1, 1, 1, 1])
 with c6:
     st.number_input(
         label="Number of lines to read",
-        value=args_default.get("nread", 0),
+        value=defaults_model.nread,
         key="nread",
         step=1,
         min_value=0,
@@ -127,7 +122,7 @@ with c6:
 with c7:
     st.number_input(
         label="Sampling rate",
-        value=args_default.get("sampling_rate", 1.0),
+        value=defaults_model.sampling_rate,
         key="sampling_rate",
         step=0.1,
         min_value=0.0,
@@ -136,14 +131,14 @@ with c7:
 with c8:
     st.date_input(
         label="from Date",
-        value=datetime.date.fromisoformat(args_default.get("datemin", "2020-01-01")),
+        value=defaults_model.datemin,
         key="datemin",
     )
 
 with c9:
     st.date_input(
         label="to Date",
-        value=datetime.date.fromisoformat(args_default.get("datemax", "2021-01-01")),
+        value=defaults_model.datemax,
         key="datemax",
     )
 
@@ -151,20 +146,19 @@ with c10:
     st.selectbox(
         label="Dataset output format",
         options=["parquet", "csv"],
-        index=["parquet", "csv"].index(args_default.get("output_format", "parquet")),
+        index=["parquet", "csv"].index(defaults_model.output_format),
         key="output_format",
     )
 
 # Collect UI inputs into a dictionary and validate the path_uri
 if st.session_state.data_source == "file":
-    # Expand the user path
-    directory = st.session_state.env.home_abs / st.session_state.data_uri
+    directory = env.home_abs / st.session_state.data_uri
     if not directory.is_dir():
         st.error(f"The provided data_uri '{directory}' is not a valid directory.")
         st.stop()
 validated_path = st.session_state.data_uri
 
-args_from_ui = {
+candidate_args: dict[str, Any] = {
     "data_source": st.session_state.data_source,
     "data_uri": validated_path,
     "files": st.session_state.files,
@@ -172,20 +166,22 @@ args_from_ui = {
     "nskip": st.session_state.nskip,
     "nread": st.session_state.nread,
     "sampling_rate": st.session_state.sampling_rate,
-    "datemin": st.session_state.datemin.isoformat(),
-    "datemax": st.session_state.datemax.isoformat(),
+    "datemin": st.session_state.datemin,
+    "datemax": st.session_state.datemax,
     "output_format": st.session_state.output_format,
 }
 
-result = st.session_state.env.check_args(FlightArgs, args_from_ui)
-if result:
-    st.warning("\n".join(result))
+try:
+    parsed_args = FlightArgs(**candidate_args)
+except ValidationError as exc:
+    messages = env.humanize_validation_errors(exc)
+    st.warning("\n".join(messages))
+    st.session_state.pop("is_args_from_ui", None)
 else:
     st.success("All params are valid !")
 
-    # Update settings if UI inputs differ from defaults
-    if args_from_ui != args_default:
+    payload = parsed_args.to_toml_payload()
+    if payload != defaults_payload:
+        dump_args_to_toml(parsed_args, settings_path)
+        st.session_state.app_settings["args"] = payload
         st.session_state.is_args_from_ui = True
-        with open(app_settings_file, "wb") as file:
-            st.session_state.app_settings["args"] = args_from_ui
-            tomli_w.dump(st.session_state.app_settings, file)

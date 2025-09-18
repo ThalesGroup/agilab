@@ -194,12 +194,22 @@ def parse_and_validate_workers(workers_input):
 
 def initialize_app_settings():
     env = st.session_state["env"]
-    if "app_settings" not in st.session_state:
-        st.session_state.app_settings = load_toml_file(env.app_settings_file)
-    if "args" not in st.session_state.app_settings:
-        st.session_state.app_settings.setdefault("args", {})
-    if "cluster" not in st.session_state.app_settings:
-        st.session_state.app_settings.setdefault("cluster", {})
+    app_settings = st.session_state.get("app_settings") or load_toml_file(env.app_settings_file)
+
+    if env.app == "flight_project":
+        try:
+            from flight import apply_source_defaults, load_args_from_toml
+
+            args_model = apply_source_defaults(load_args_from_toml(env.app_settings_file))
+            app_settings["args"] = args_model.to_toml_payload()
+        except Exception as exc:
+            st.warning(f"Unable to load Flight args: {exc}")
+            app_settings.setdefault("args", {})
+    else:
+        app_settings.setdefault("args", {})
+
+    app_settings.setdefault("cluster", {})
+    st.session_state.app_settings = app_settings
 
 def filter_warning_messages(log: str) -> str:
     """
@@ -295,13 +305,27 @@ def render_generic_ui():
     if is_args_reload_required:
         st.session_state["args_input"] = args_input
         app_settings_file = env.app_settings_file
-        existing_app_settings = load_toml_file(app_settings_file)
-        existing_app_settings.setdefault("args", {})
-        existing_app_settings.setdefault("cluster", {})
-        existing_app_settings["args"] = args_input
-        st.session_state.app_settings = existing_app_settings
-        with open(app_settings_file, "wb") as file:
-            tomli_w.dump(existing_app_settings, file)
+        if env.app == "flight_project":
+            try:
+                from flight import apply_source_defaults, dump_args_to_toml, FlightArgs
+                from pydantic import ValidationError
+
+                parsed_args = FlightArgs(**args_input)
+            except ValidationError as exc:
+                messages = env.humanize_validation_errors(exc)
+                st.warning("\n".join(messages))
+            else:
+                parsed_args = apply_source_defaults(parsed_args)
+                dump_args_to_toml(parsed_args, app_settings_file)
+                st.session_state.app_settings["args"] = parsed_args.to_toml_payload()
+        else:
+            existing_app_settings = load_toml_file(app_settings_file)
+            existing_app_settings.setdefault("args", {})
+            existing_app_settings.setdefault("cluster", {})
+            existing_app_settings["args"] = args_input
+            st.session_state.app_settings = existing_app_settings
+            with open(app_settings_file, "wb") as file:
+                tomli_w.dump(existing_app_settings, file)
 
     if st.session_state.get("args_remove_arg"):
         st.session_state["args_remove_arg"] = False

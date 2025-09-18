@@ -1,6 +1,7 @@
 #!/bin/bash
 # Script: install_Agi_apps.sh
 # Purpose: Install the apps (apps-only; no positional args required)
+# macOS-friendly: avoid `mapfile`, keep POSIX-ish constructs for Bash 3.2
 
 set -euo pipefail
 
@@ -31,6 +32,44 @@ APPS_TARGET_BASE="$AGILAB_PRIVATE/src/agilab/apps"
 INSTALL_TYPE="${INSTALL_TYPE:-1}"
 
 
+# --- Ensure arrays exist (avoids 'unbound variable' with set -u) -------------
+# We declare them empty up front; later code can append or overwrite freely.
+# This prevents errors like: ${PRIVATE_VIEWS[@]}: unbound variable
+declare -a PUBLIC_VIEWS=()
+declare -a PRIVATE_VIEWS=()
+declare -a PUBLIC_APPS=()
+declare -a PRIVATE_APPS=()
+
+# (macOS-safe helpers remain below)
+
+# --- Helpers -----------------------------------------------------------------
+# parse_list_to_array <array_var_name> <raw_string>
+# Accepts comma/semicolon/whitespace/newline-delimited strings and fills array.
+# Avoids `mapfile` for macOS' older Bash (3.2). No GNU-only flags required.
+parse_list_to_array() {
+  local __out="$1"; shift || true
+  local raw="${1-}"
+  local -a __items=()
+  local line q qitems=""
+  # Normalize delimiters to one-per-line, drop empties
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && __items+=("$line")
+  done < <(
+    printf '%s\n' "$raw" \
+      | tr ',;' '\n' \
+      | tr -s '[:space:]' '\n' \
+      | sed '/^$/d'
+  )
+  # Safely assign to the named array (portable to Bash 3.2)
+  for line in "${__items[@]}"; do
+    printf -v q '%q' "$line"
+    qitems+=" $q"
+  done
+  # shellcheck disable=SC2086
+  eval "$__out=($qitems)"
+}
+
+
 # --- App lists (merge private + public) --------------------------------------
 
 # Destination base for creating local app symlinks (defaults to current dir)
@@ -47,41 +86,68 @@ echo -e "${BLUE}(Views) Destination base:${NC} $VIEWS_DEST_BASE)"
 echo -e "${BLUE}(Views) Link target base:${NC} $VIEWS_TARGET_BASE\n"
 
 
+declare -a PUBLIC_VIEWS=(
+)
+
+declare -a PUBLIC_APPS=(
+   flight_project
+)
+
 declare -a PRIVATE_VIEWS=(
-    maps-network-graph
 )
 
 declare -a PRIVATE_APPS=(
-   link_sim_project
-   flight_trajectory_project
-   sat_trajectory_project
-   sb3_trainer_project
+   #link_sim_project
+   #flight_trajectory_project
+   #sat_trajectory_project
+   #sb3_trainer_project
 )
 
 
-declare -a PUBLIC_VIEWS=()
-
-while IFS= read -r -d '' dir; do
-  dir_name="$(basename -- "$dir")"
-  PUBLIC_VIEWS+=("$dir_name")
-done < <(find "$VIEWS_DEST_BASE" -mindepth 1 -maxdepth 1 -type d ! -name ".venv" -print0)
-
-if [[ -z "$AGILAB_PRIVATE" ]]; then
-  declare -a INCLUDED_VIEWS=("${PUBLIC_VIEWS[@]}")
+# --- PUBLIC_VIEWS: allow manual override via env ------------------------------
+# You can set PUBLIC_VIEWS or PUBLIC_VIEWS_OVERRIDE to a comma/space/newline
+# separated list (e.g. "home dashboard,foo-view\nbar-view").
+if [[ -n "${PUBLIC_VIEWS_OVERRIDE:-${PUBLIC_VIEWS:-}}" ]]; then
+  raw="${PUBLIC_VIEWS_OVERRIDE:-${PUBLIC_VIEWS:-}}"
+  # macOS-safe parsing (no `mapfile`)
+  parse_list_to_array PUBLIC_VIEWS "$raw"
+  echo -e "${BLUE}(Views) Override enabled. Using PUBLIC_VIEWS:${NC} ${PUBLIC_VIEWS[*]}"
 else
-  declare -a INCLUDED_VIEWS=("${PUBLIC_VIEWS[@]}" "${PRIVATE_VIEWS[@]}")
+  while IFS= read -r -d '' dir; do
+    dir_name="$(basename -- "$dir")"
+    PUBLIC_VIEWS+=("$dir_name")
+  done < <(find "$VIEWS_DEST_BASE" -mindepth 1 -maxdepth 1 -type d ! -name ".venv" -print0)
 fi
 
-declare -a PUBLIC_APPS=()
-while IFS= read -r -d '' dir; do
-  dir_name="$(basename -- "$dir")"
-  PUBLIC_APPS+=("$dir_name")
-done < <(find "$APPS_DEST_BASE" -mindepth 1 -maxdepth 1 -type d -name '*_project' -print0)
-
+declare -a INCLUDED_VIEWS=()
 if [[ -z "$AGILAB_PRIVATE" ]]; then
-  declare -a INCLUDED_APPS=("${PUBLIC_APPS[@]}")
+  INCLUDED_VIEWS=("${PUBLIC_VIEWS[@]}")
 else
-  declare -a INCLUDED_APPS=("${PUBLIC_APPS[@]}" "${PRIVATE_APPS[@]}")
+  # Safe even if PRIVATE_VIEWS is unset under `set -u`
+  INCLUDED_VIEWS=("${PUBLIC_VIEWS[@]}" ${PRIVATE_VIEWS+"${PRIVATE_VIEWS[@]}"})
+fi
+
+# --- PUBLIC_APPS: allow manual override via env ------------------------------
+# You can set PUBLIC_APPS or PUBLIC_APPS_OVERRIDE to a comma/space/newline
+# separated list (e.g. "foo_project,bar_project baz_project").
+if [[ -n "${PUBLIC_APPS_OVERRIDE:-${PUBLIC_APPS:-}}" ]]; then
+  raw="${PUBLIC_APPS_OVERRIDE:-${PUBLIC_APPS:-}}"
+  # macOS-safe parsing (no `mapfile`)
+  parse_list_to_array PUBLIC_APPS "$raw"
+  echo -e "${BLUE}(Apps) Override enabled. Using PUBLIC_APPS:${NC} ${PUBLIC_APPS[*]}"
+else
+  while IFS= read -r -d '' dir; do
+    dir_name="$(basename -- "$dir")"
+    PUBLIC_APPS+=("$dir_name")
+  done < <(find "$APPS_DEST_BASE" -mindepth 1 -maxdepth 1 -type d -name '*_project' -print0)
+fi
+
+declare -a INCLUDED_APPS=()
+if [[ -z "$AGILAB_PRIVATE" ]]; then
+  INCLUDED_APPS=("${PUBLIC_APPS[@]}")
+else
+  # Safe even if PRIVATE_APPS is unset under `set -u`
+  INCLUDED_APPS=("${PUBLIC_APPS[@]}" ${PRIVATE_APPS+"${PRIVATE_APPS[@]}"})
 fi
 
 echo -e "${BLUE}Apps to install:${NC} ${INCLUDED_APPS[*]:-<none>}\n"
@@ -110,7 +176,8 @@ PY
 fi
 
 status=0
-for view in "${PRIVATE_VIEWS[@]}"; do
+# Safe loop if PRIVATE_VIEWS is unset/empty with `set -u`
+for view in ${PRIVATE_VIEWS+"${PRIVATE_VIEWS[@]}"}; do
   view_target="$VIEWS_TARGET_BASE/$view"
   view_dest="$VIEWS_DEST_BASE/$view"
 
@@ -130,7 +197,8 @@ for view in "${PRIVATE_VIEWS[@]}"; do
   fi
 done
 
-for app in "${PRIVATE_APPS[@]}"; do
+# Safe loop if PRIVATE_APPS is unset/empty with `set -u`
+for app in ${PRIVATE_APPS+"${PRIVATE_APPS[@]}"}; do
   app_target="$APPS_TARGET_BASE/$app"
   app_dest="$APPS_DEST_BASE/$app"
 

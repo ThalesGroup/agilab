@@ -5,7 +5,7 @@
     "files": "csv/*",
     "nfile": 10,
     "nskip": 0,
-    "nread": 0,
+    "nread": 10,
     "sampling_rate": 1.0,
     "datemin": "2020-01-01",
     "datemax": "2021-01-01",

@@ -7,9 +7,9 @@ from pathlib import Path
 async def main():
     app_env = AgiEnv(active_app=Path('/Users/jpm/agilab/src/agilab/apps/flight_project'), install_type=1, verbose=True)
     res = await AGI.distribute(app_env,
-                               scheduler=None, 
-                               workers=None,
-                               data_source="file", path="data/flight/dataset", files="csv/*", nfile=2, nskip=0, nread=0, sampling_rate=1.0, datemin="2020-01-01", datemax="2021-01-01", output_format="csv")
+                               scheduler="127.0.0.1", 
+                               workers={'127.0.0.1': 2},
+                               data_source="file", data_uri="data/flight/dataset", files="csv/*", nfile=10, nskip=0, nread=10, sampling_rate=1.0, datemin="2020-01-01", datemax="2021-01-01", output_format="csv")
     print(res)
     return res
 

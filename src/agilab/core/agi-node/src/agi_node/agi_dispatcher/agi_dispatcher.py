@@ -685,7 +685,7 @@ class WorkDispatcher:
                     return obj.isoformat()
                 raise TypeError(f"Type {type(obj)} not serializable")
 
-            with open("output.json", "w") as f:
+            with open("distribution.json", "w") as f:
                 json.dump(data, f, default=convert_dates, indent=2)
 
         loaded_workers = {}

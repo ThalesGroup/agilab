@@ -46,7 +46,7 @@ async def main():
             description="Run AGILAB application with custom options."
         )
 
-        parser.add_argument("app", type=str, help="Module name")
+        parser.add_argument("--app", type=str, help="Module path")
 
         parser.add_argument(
             "--install-type", type=str, help="Install type", required=True
@@ -57,7 +57,7 @@ async def main():
 
         args, unknown = parser.parse_known_args()
         # print(args.apps_dir)
-        app_env = AgiEnv(Path(args.app), install_type=int(args.install_type),
+        app_env = AgiEnv(Path(args.app).expanduser(), install_type=int(args.install_type),
                      verbose=args.verbose)
 
     except Exception as e:
