@@ -1743,7 +1743,7 @@ class AGI:
                     return res.split('\n')[-2]
 
     @staticmethod
-    async def _run_by_mode() -> str:
+    async def _run_distributed() -> str:
         """
         workers run calibration and targets job
         """
@@ -1839,7 +1839,7 @@ class AGI:
 
             await AGI._start(scheduler)
 
-            res = await AGI._run_by_mode()
+            res = await AGI._run_distributed()
             AGI._update_model()
 
             # stop the cluster
