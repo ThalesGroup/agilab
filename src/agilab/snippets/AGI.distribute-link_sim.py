@@ -7,7 +7,7 @@ from pathlib import Path
 async def main():
     app_env = AgiEnv(active_app=Path('~/agilab/src/agilab/apps/link_sim_project'), install_type=1, verbose=True)
     res = await AGI.distribute(app_env,
-                               scheduler=None, workers=None, path="data/sat", data_out="data/link_sim/dataframe", data_dir="data/link_sim/dataset", data_flight="flights", data_sat="sat", plane_conf_path="antenna_conf.json", output_format="parquet", cloud_heatmap_IVDL="CloudMapIvdl.npz", cloud_heatmap_sat="CloudMapSat.npz", services_conf_path="service.json")
+                               scheduler=None, workers=None, path="data/sat", data_out="data/link_sim/dataframe", data_dir="data/link_sim/dataset", data_flight="flights", data_sat="sat", plane_conf="antenna_conf.json", output_format="parquet", cloud_heatmap_IVDL="CloudMapIvdl.npz", cloud_heatmap_sat="CloudMapSat.npz", services_conf="service.json")
     print(res)
     return res
 
