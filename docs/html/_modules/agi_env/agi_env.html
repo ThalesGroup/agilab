@@ -213,6 +213,11 @@
 <li class="toctree-l2"><a class="reference internal" href="../../sat-trajectory-project.html#worker-sat-trajectory-worker">worker: sat_trajectory_worker</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../../sb3-trainer-project.html">Example6: Sb3-Trainer-Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../sb3-trainer-project.html#manager-sb3-trainer">manager: sb3_trainer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../sb3-trainer-project.html#worker-sb3-trainer-worker">worker: sb3_trainer_worker</a></li>
+</ul>
+</li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Hosting Sites</span></p>
 <ul>
@@ -423,6 +428,8 @@
                     <span class="n">active_app</span> <span class="o">=</span> <span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agilab/apps&quot;</span> <span class="o">/</span> <span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;APP_DEFAULT&quot;</span><span class="p">,</span> <span class="s1">&#39;flight_project&#39;</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">active_app</span> <span class="o">=</span> <span class="n">venv_home</span> <span class="o">/</span> <span class="s2">&quot;apps&quot;</span> <span class="o">/</span> <span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;APP_DEFAULT&quot;</span><span class="p">,</span> <span class="s1">&#39;flight_project&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">active_app</span> <span class="o">=</span> <span class="n">active_app</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
 
             <span class="k">if</span> <span class="ow">not</span> <span class="n">active_app</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;_project&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">active_app</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;_worker&#39;</span><span class="p">):</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">active_app</span><span class="si">}</span><span class="s2"> must end with &#39;_project&#39;&quot;</span><span class="p">)</span>

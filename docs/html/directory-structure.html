@@ -273,10 +273,14 @@ apps/
     __pycache__/ [excluded]
     agent_app_template/
         src/
+            __pycache__/ [excluded]
             agent_app/
+                __pycache__/ [excluded]
                 __init__.py
                 agent_app.py
+                app_args.py
             agent_app_worker/
+                __pycache__/ [excluded]
                 __init__.py
                 agent_app_worker.py
                 post_install.py
@@ -293,10 +297,14 @@ apps/
         uv_config.toml
     dag_app_template/
         src/
+            __pycache__/ [excluded]
             dag_app/
+                __pycache__/ [excluded]
                 __init__.py
+                app_args.py
                 dag_app.py
             dag_app_worker/
+                __pycache__/ [excluded]
                 __init__.py
                 dag_app_worker.py
                 post_install.py
@@ -314,10 +322,13 @@ apps/
         .pytest_cache/ [excluded]
         Modules/ [excluded]
         src/
+            __pycache__/ [excluded]
             flight/
                 __pycache__/ [excluded]
                 __init__.py
+                app_args.py
                 flight.py
+                flight_args.py
             flight_worker/
                 __pycache__/ [excluded]
                 __init__.py
@@ -348,6 +359,7 @@ apps/
         app-test.py
         build.py
         coverage.xml
+        dask_worker_0.pid
         MANIFEST.in
         output.json
         pyproject.toml
@@ -356,11 +368,14 @@ apps/
         uv_config.toml
     mycode_project/
         .pytest_cache/ [excluded]
+        .venv/ [excluded]
         Modules/ [excluded]
         src/
+            __pycache__/ [excluded]
             mycode/
                 __pycache__/ [excluded]
                 __init__.py
+                app_args.py
                 mycode.py
             mycode_worker/
                 __pycache__/ [excluded]
@@ -397,10 +412,14 @@ apps/
         uv_config.toml
     pandas_app_template/
         src/
+            __pycache__/ [excluded]
             pandas_app/
+                __pycache__/ [excluded]
                 __init__.py
+                app_args.py
                 pandas_app.py
             pandas_app_worker/
+                __pycache__/ [excluded]
                 __init__.py
                 pandas_app_worker.py
                 post_install.py
@@ -416,10 +435,14 @@ apps/
         uv_config.toml
     polars_app_template/
         src/
+            __pycache__/ [excluded]
             polars_app/
+                __pycache__/ [excluded]
                 __init__.py
+                app_args.py
                 polars_app.py
             polars_app_worker/
+                __pycache__/ [excluded]
                 __init__.py
                 polars_app_worker.py
                 post_install.py
@@ -486,7 +509,9 @@ core/
                 __init__.py
                 agi_env.py
                 agi_logger.py
+                app_args.py
                 pagelib.py
+                streamlit_args.py
             __init__.py
             pyproject.toml
         test/
