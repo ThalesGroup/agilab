@@ -5,7 +5,7 @@ from datetime import date
 from pathlib import Path
 
 async def main():
-    env = AgiEnv(active_app=Path(__file__).parents[1], verbose=True)
+    env = AgiEnv(active_app=Path(__file__).expanduser().parents[1], verbose=True)
 
     # Instantiate Flight with your parameters
     flight = Flight(

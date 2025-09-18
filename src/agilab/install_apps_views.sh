@@ -38,10 +38,14 @@ INSTALL_TYPE="${INSTALL_TYPE:-1}"
 declare -a PUBLIC_VIEWS=()
 declare -a PRIVATE_VIEWS=()
 declare -a PUBLIC_APPS=(
-  flight
+  mycode_project
+  flight_project
 )
 declare -a PRIVATE_APPS=(
-  link_sim
+  link_sim_project
+  sat_trajectory_project
+  flight_trajectory_project
+  sb3_trainer_project
 )
 
 # (macOS-safe helpers remain below)
@@ -88,24 +92,6 @@ echo -e "${BLUE}(Apps) Destination base:${NC} $APPS_DEST_BASE)"
 echo -e "${BLUE}(Apps) Link target base:${NC} $APPS_TARGET_BASE\n"
 echo -e "${BLUE}(Views) Destination base:${NC} $VIEWS_DEST_BASE)"
 echo -e "${BLUE}(Views) Link target base:${NC} $VIEWS_TARGET_BASE\n"
-
-
-declare -a PUBLIC_VIEWS=(
-)
-
-declare -a PUBLIC_APPS=(
-   flight_project
-)
-
-declare -a PRIVATE_VIEWS=(
-)
-
-declare -a PRIVATE_APPS=(
-   link_sim_project
-   #flight_trajectory_project
-   #sat_trajectory_project
-   #sb3_trainer_project
-)
 
 
 # --- PUBLIC_VIEWS: allow manual override via env ------------------------------

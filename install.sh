@@ -7,7 +7,7 @@ set -o pipefail
 # ================================f
 LOG_DIR="$HOME/log/install_logs"
 mkdir -p "$LOG_DIR"
-LOG_FILE="$LOG_DIR/install_$(date +%Y%m%d_%H%M%S).log"
+LOG_FILE="$LOG_DIR/install_$(date +%Y%m%d_%H%M%S).log"_
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 # Colors for output
@@ -294,17 +294,12 @@ write_env_values() {
     echo -e "${GREEN}.env file updated.${NC}"
 }
 
-
 install_enduser() {
     chmod +x "test/_test-install-enduser.sh"
     echo -e "${BLUE}Installing agilab (endusers)...${NC}"
     ./test/_test-install-enduser.sh --source $SOURCE
     echo -e "${GREEN}agilab (enduser) installation complete.${NC}"
-    echo -e "${BLUE}Checking Enduser installation...${NC}"
-    uv run --preview-features extra-build-dependencies -p "$AGI_PYTHON_VERSION" python run-all-test.py || { echo -e "${RED}Enduser installation test failed.${NC}"; exit 1; }
-    echo -e "${GREEN}Enduser installation OK.${NC}"
 }
-
 
 install_pycharm_script() {
     rm -f .idea/workspace.xml

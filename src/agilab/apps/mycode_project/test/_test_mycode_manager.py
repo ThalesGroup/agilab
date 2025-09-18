@@ -4,8 +4,7 @@ from mycode import Mycode  # assuming your Mycode class is here
 from pathlib import Path
 
 async def main():
-    active_app = Path(__file__).resolve().parents[1]
-    env = AgiEnv(active_app=active_app, verbose=True)
+    env = AgiEnv(active_app=Path(__file__).expanduser().parents[1], verbose=True)
 
     # Instantiate Mycode with your parameters
     mycode = Mycode(

@@ -4,7 +4,7 @@ import pytest
 import pytest_asyncio
 
 # Ajouter core/node/src au sys.path pour agi_dispatcher
-active_app = Path(__file__).resolve().parents[1]
+active_app = Path(__file__).expanduser().parents[1]
 node_src = active_app.parents[1] / 'core/node/src'
 if str(node_src) not in sys.path:
     sys.path.insert(0, str(node_src))

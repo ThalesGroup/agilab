@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from datetime import date
 from agi_env import AgiEnv
-active_app = Path(__file__).resolve().parents[1]
+active_app = Path(__file__).expanduser().parents[1]
 path = str(active_app  / "src")
 if path not in sys.path:
     sys.path.append(path)
