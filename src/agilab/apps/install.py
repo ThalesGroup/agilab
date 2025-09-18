@@ -46,7 +46,7 @@ async def main():
             description="Run AGILAB application with custom options."
         )
 
-        parser.add_argument("--app", type=str, help="Module path")
+        parser.add_argument("app", type=str, help="Module path")
 
         parser.add_argument(
             "--install-type", type=str, help="Install type", required=True

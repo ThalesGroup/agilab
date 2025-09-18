@@ -101,7 +101,7 @@ declare -a PRIVATE_VIEWS=(
 )
 
 declare -a PRIVATE_APPS=(
-   #link_sim_project
+   link_sim_project
    #flight_trajectory_project
    #sat_trajectory_project
    #sb3_trainer_project
@@ -245,9 +245,9 @@ pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
 for app in "${INCLUDED_APPS[@]}"; do
   echo -e "${BLUE}Installing $app...${NC}"
   echo  uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
-      --app "$AGILAB_PUBLIC/apps/$app" --install-type "$INSTALL_TYPE"
+      "$AGILAB_PUBLIC/apps/$app" --install-type "$INSTALL_TYPE"
   if uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
-      --app "$AGILAB_PUBLIC/apps/$app" --install-type "$INSTALL_TYPE"; then
+      "$AGILAB_PUBLIC/apps/$app" --install-type "$INSTALL_TYPE"; then
     echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
     echo -e "${GREEN}Checking installation...${NC}"
     if pushd -- "$app" >/dev/null; then
