@@ -51,3 +51,6 @@ your_agent_project = [
 mypy_path = ["stubs"]
 disallow_untyped_defs = false
 ignore_missing_imports = true
+
+[tool.uv]
+preview-features = ["extra-build-dependencies"]

@@ -22,3 +22,6 @@ dev = [
 [tool.uv.sources.agi-env]
 path = "../../core/agi-env"
 editable = true
+
+[tool.uv]
+preview-features = ["extra-build-dependencies"]

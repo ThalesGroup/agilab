@@ -154,3 +154,6 @@ addopts = [
 branch = true
 source = ["agilab", "agi_core", "agi_env", "agi_cluster", "agi_node"]
 
+
+[tool.uv]
+preview-features = ["extra-build-dependencies"]
