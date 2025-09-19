@@ -22,10 +22,10 @@ class DagArgs(BaseModel):
     A class representing DagArgs.
 
     Attributes:
-        data_dir (str): Relative path to the data directory. Defaults to '~/data/DagApp'.
+        data_uri (str): Relative path to the data directory. Defaults to '~/data/DagApp'.
     """
 
-    data_dir: str = "~/data/DagApp"  # Added a default attribute
+    data_uri: str = "~/data/DagApp"  # Added a default attribute
 
 
 class DagAppWorker(DagWorker):
@@ -46,7 +46,7 @@ class DagAppWorker(DagWorker):
 
         Args:
             **args (dict): Keyword arguments to initialize the object.
-                - data_dir (str): Relative path to the data directory. Defaults to '~/data/DagApp'.
+                - data_uri (str): Relative path to the data directory. Defaults to '~/data/DagApp'.
 
         Returns:
             None
@@ -57,8 +57,8 @@ class DagAppWorker(DagWorker):
         """
         super().__init__()  # Initialize the parent class
 
-        # Retrieve 'data_dir' from args or use default
-        home_rel = args.get("data_dir", "~/data/DagApp")
+        # Retrieve 'data_uri' from args or use default
+        home_rel = args.get("data_uri", "~/data/DagApp")
 
         if env.is_managed_pc:
             home_rel = home_rel.replace("~", "~/MyApp")

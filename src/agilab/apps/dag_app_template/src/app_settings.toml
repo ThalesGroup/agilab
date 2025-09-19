@@ -1,6 +1,6 @@
 
 [args]
-data_dir = "~/data/DagApp"
+data_uri = "~/data/DagApp"
 
 [cluster]
 workers_enable = true

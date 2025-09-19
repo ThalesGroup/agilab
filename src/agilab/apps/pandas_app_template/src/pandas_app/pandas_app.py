@@ -41,18 +41,18 @@ class PandasApp(BaseWorker):
         args = ensure_defaults(args, env=env)
         self.args = args
 
-        data_dir = Path(args.data_dir).expanduser()
+        data_uri = Path(args.data_uri).expanduser()
         if env.is_managed_pc:
             home = Path.home()
-            data_dir = Path(str(data_dir).replace(str(home), str(home / "MyApp")))
+            data_uri = Path(str(data_uri).replace(str(home), str(home / "MyApp")))
 
-        self.path_rel = str(data_dir)
-        self.dir_path = data_dir
+        self.path_rel = str(data_uri)
+        self.dir_path = data_uri
 
-        self._ensure_dataset(data_dir)
+        self._ensure_dataset(data_uri)
 
         payload = args.model_dump(mode="json")
-        payload["dir_path"] = str(data_dir)
+        payload["dir_path"] = str(data_uri)
         WorkDispatcher.args = payload
 
     @classmethod
@@ -80,19 +80,19 @@ class PandasApp(BaseWorker):
         payload["dir_path"] = str(self.dir_path)
         return payload
 
-    def _ensure_dataset(self, data_dir: Path) -> None:
+    def _ensure_dataset(self, data_uri: Path) -> None:
         try:
-            if not data_dir.exists():
-                logger.info("Creating data directory at %s", data_dir)
-                data_dir.mkdir(parents=True, exist_ok=True)
+            if not data_uri.exists():
+                logger.info("Creating data directory at %s", data_uri)
+                data_uri.mkdir(parents=True, exist_ok=True)
 
                 data_src = Path(AGI.env.app_abs) / "data.7z"
                 if not data_src.is_file():
                     raise FileNotFoundError(f"Data archive not found at {data_src}")
 
-                logger.info("Extracting data archive from %s to %s", data_src, data_dir)
+                logger.info("Extracting data archive from %s to %s", data_src, data_uri)
                 with py7zr.SevenZipFile(data_src, mode="r") as archive:
-                    archive.extractall(path=data_dir)
+                    archive.extractall(path=data_uri)
         except Exception as exc:  # pragma: no cover - defensive guard
             logger.error("Failed to initialize data directory: %s", exc)
             raise

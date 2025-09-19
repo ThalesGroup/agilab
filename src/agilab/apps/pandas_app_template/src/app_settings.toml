@@ -1,5 +1,5 @@
 [args]
-data_dir = "~/data/PandasApp"
+data_uri = "~/data/PandasApp"
 
 [cluster]
 verbose = true

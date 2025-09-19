@@ -21,10 +21,10 @@ class AgentAppArgs(BaseModel):
     A class representing the arguments for an Agent App.
 
     Attributes:
-        data_dir (str): Relative path to the data directory. Defaults to '~/data/AgentApp'.
+        data_uri (str): Relative path to the data directory. Defaults to '~/data/AgentApp'.
     """
 
-    data_dir: str = "~/data/AgentApp"  # Added a default attribute
+    data_uri: str = "~/data/AgentApp"  # Added a default attribute
 
 
 class AgentAppWorker(AgiAgentWorker):
@@ -36,7 +36,7 @@ class AgentAppWorker(AgiAgentWorker):
 
         Args:
             **args (dict): Keyword arguments to initialize the object.
-                - data_dir (str): Relative path to the data directory. Defaults to '~/data/AgentApp'.
+                - data_uri (str): Relative path to the data directory. Defaults to '~/data/AgentApp'.
 
         Returns:
             None
@@ -47,8 +47,8 @@ class AgentAppWorker(AgiAgentWorker):
         """
         super().__init__()  # Initialize the parent class
 
-        # Retrieve 'data_dir' from args or use default
-        home_rel = args.get("data_dir", "~/data/AgentApp")
+        # Retrieve 'data_uri' from args or use default
+        home_rel = args.get("data_uri", "~/data/AgentApp")
 
         if env.is_managed_pc:
             home_rel = home_rel.replace("~", "~/MyApp")

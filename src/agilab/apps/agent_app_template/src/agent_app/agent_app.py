@@ -38,20 +38,20 @@ class Main(BaseWorker):
         args = ensure_defaults(args, env=env)
         self.args = args
 
-        data_dir = Path(args.data_dir).expanduser()
+        data_uri = Path(args.data_uri).expanduser()
         if env.is_managed_pc:
             home = Path.home()
-            data_dir = Path(str(data_dir).replace(str(home), str(home / "MyApp")))
+            data_uri = Path(str(data_uri).replace(str(home), str(home / "MyApp")))
 
-        self.path_rel = str(data_dir)
-        self.dir_path = data_dir
+        self.path_rel = str(data_uri)
+        self.dir_path = data_uri
 
-        data_dir.mkdir(parents=True, exist_ok=True)
+        data_uri.mkdir(parents=True, exist_ok=True)
 
         payload = args.model_dump(mode="json")
-        payload["dir_path"] = str(data_dir)
+        payload["dir_path"] = str(data_uri)
         WorkDispatcher.args = payload
-        logger.info("Application initialized with data directory: %s", data_dir)
+        logger.info("Application initialized with data directory: %s", data_uri)
 
     @classmethod
     def from_toml(

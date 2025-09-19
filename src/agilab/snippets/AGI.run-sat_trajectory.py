@@ -10,7 +10,7 @@ async def main():
                         mode=0, 
                         scheduler=None, 
                         workers=None, 
-                        path="~/data/sat", data_out="data/sat_trajectory/dataframe", data_dir="data/sat_trajectory/dataset", input_TLE="TLE", duration_s=86400, step_s=1, number_of_sat=25, input_antenna="antenna_conf.json", input_sat="sat.json")
+                        path="~/data/sat", data_out="data/sat_trajectory/dataframe", data_uri="data/sat_trajectory/dataset", input_TLE="TLE", duration_s=86400, step_s=1, number_of_sat=25, input_antenna="antenna_conf.json", input_sat="sat.json")
     print(res)
     return res
 

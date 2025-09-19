@@ -1,5 +1,5 @@
 [args]
-data_dir = "~/data/PolarsApp"
+data_uri = "~/data/PolarsApp"
 
 [cluster]
 verbose = true

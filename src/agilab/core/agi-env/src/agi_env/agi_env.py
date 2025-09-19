@@ -376,7 +376,7 @@ class AgiEnv:
         if os.name == "nt":
             AgiEnv.export_local_bin = ""
         else:
-            AgiEnv.export_local_bin = 'export PATH="$HOME/.local/bin:$PATH";'
+            AgiEnv.export_local_bin = 'export PATH="~/.local/bin:$PATH";'
 
     @staticmethod
     def _resolve_package_root(root: Path) -> Path:
@@ -433,7 +433,7 @@ class AgiEnv:
         try:
             rel = path.resolve().relative_to(Path.home())
         except ValueError:
-            return False  # pas sous $HOME
+            return False  # pas sous ~
         return "agilab" in rel.parts
 
     def active(self, target, install_type):
@@ -878,7 +878,7 @@ class AgiEnv:
         Returns the full stdout string.
         """
         if AgiEnv.verbose > 0:
-            AgiEnv.logger.info(f"Executing in {venv}: {cmd}")
+            AgiEnv.logger.info(f"@{venv.name}: {cmd}")
 
         if not cwd:
             cwd = venv
@@ -1163,9 +1163,9 @@ class AgiEnv:
                 AgiEnv.logger.warning(f"Warning: Destination already exists and is not a symlink: {dest}")
                 dest.unlink()
             dest.symlink_to(src, target_is_directory=src.is_dir())
-            AgiEnv.logger.info(f"Symlink created: {dest} -> {src}")
+            AgiEnv.logger.info(f"Symlink created: @{dest.name} -> {src}")
         except Exception as e:
-            AgiEnv.logger.error(f"Failed to create symlink {dest} -> {src}: {e}")
+            AgiEnv.logger.error(f"Failed to create symlink @{dest} -> {src}: {e}")
 
     def change_active_app(self, app, install_type=1):
         if app.name != str(self.active_app.name):
@@ -1290,7 +1290,7 @@ class AgiEnv:
             else:
                 # For Unix-like systems
                 os.symlink(source_venv, dest_venv, target_is_directory=True)
-                AgiEnv.logger.info(f"Created symbolic link for .venv: {dest_venv} -> {source_venv}")
+                AgiEnv.logger.info(f"Created symbolic link for .venv: {dest_venv.name} -> ~/{source_venv}")
         except OSError as e:
             AgiEnv.logger.error(f"Failed to create symbolic link for .venv: {e}")
 

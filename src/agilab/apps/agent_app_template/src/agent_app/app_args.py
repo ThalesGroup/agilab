@@ -13,11 +13,11 @@ from agi_env.app_args import dump_model_to_toml, load_model_from_toml, merge_mod
 class AgentAppArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    data_dir: Path = Field(default_factory=lambda: Path("~/data/AgentApp"))
+    data_uri: Path = Field(default_factory=lambda: Path("~/data/AgentApp"))
 
 
 class AgentAppArgsTD(TypedDict, total=False):
-    data_dir: str
+    data_uri: str
 
 
 ArgsModel = AgentAppArgs

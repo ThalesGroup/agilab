@@ -52,13 +52,13 @@ class LogFormatter(logging.Formatter):
 
     def format(self, record):
         level_color = COLORS["level"].get(record.levelname, "")
-        levelname = level_color + record.levelname + RESET
+        levelname = level_color
 
         #Virtual Environment (if any)
         venv = sys.prefix
         venv_str = COLORS["classname"] + "<unknown>" + RESET
         if venv:
-            venv_str = COLORS["classname"] + (venv.split("\\")[-2] if os.name == "nt" else venv.split("/")[-2]) + RESET
+            venv_str = (venv.split("\\")[-2] if os.name == "nt" else venv.split("/")[-2])
 
         # Classname / function (collapse to just 'build.py' if the source file is build.py)
         className = getattr(record, "classname", record.name)
@@ -71,14 +71,14 @@ class LogFormatter(logging.Formatter):
                 or "distutils" in getattr(record, "pathname", "")):
             if self.verbose < 2:
                 return ""
-            functionName_str = COLORS["classname"] + "build.py" + RESET
+            functionName_str =  "build.py" + RESET
         else:
-            functionName_str = COLORS["classname"] + className + "." + functionName + RESET
+            functionName_str = className + "." + functionName + RESET
 
         # Message
         message = COLORS["msg"] + record.getMessage() + RESET
         if not hasattr(record, "subprocess"):
-            return f"{venv_str} | {levelname} | {functionName_str} | {message}"
+            return levelname + venv_str + '.' + functionName_str + ' ' + message
         return f"{message}"
 
 class AgiLogger:

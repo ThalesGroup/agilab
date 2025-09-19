@@ -912,7 +912,7 @@ class AGI:
                     uv_is_installed = False
                     # Fallback to Unix installer
                     await AGI.exec_ssh(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
-                    await AGI.exec_ssh(ip, 'source $HOME/.local/bin/env')
+                    await AGI.exec_ssh(ip, 'source ~/.local/bin/env')
                     uv_is_installed = True
 
             if not uv_is_installed or not AgiEnv.check_internet():
@@ -959,7 +959,7 @@ class AGI:
         AGI._venv_todo(node_ips)
         start_time = time.time()
         if env.verbose > 0:
-            logger.info(f"********   Starting {AGI._run_type} for {app_path} in .env on 127.0.0.1")
+            logger.info(f"Installing {app_path} on 127.0.0.1")
 
         await AGI._install_app_local(app_path, Path(wenv_rel), options_worker)
         # logger.info(AGI.run(cmd, wenv_abs))
@@ -967,7 +967,7 @@ class AGI:
             tasks = []
             for ip in node_ips:
                 if env.verbose > 0:
-                    logger.info(f"********   Starting {AGI._run_type} for worker in .venv on {ip}")
+                    logger.info(f"Installing worker on {ip}")
                 if not env.is_local(ip):
                     tasks.append(asyncio.create_task(
                         AGI._install_app_remote(ip, env, wenv_rel, options_worker)
@@ -977,7 +977,7 @@ class AGI:
         if AGI._verbose:
             duration = AGI._format_duration(time.time() - start_time)
             if env.verbose > 0:
-                logger.info(f"********   Agi {AGI._run_type} completed in {duration}")
+                logger.info(f"uv {AGI._run_type} completed in {duration}")
 
     @staticmethod
     def _initialize_installation() -> None:
@@ -1022,7 +1022,7 @@ class AGI:
 
         file = env.setup_core
         if env.verbose > 0:
-            logger.info(f"Copying {file} -> {wenv_abs}")
+            logger.info(f"Copying {file.name} -> {wenv_abs}")
 
         shutil.copy2(file, wenv_abs)
 
@@ -1049,13 +1049,13 @@ class AGI:
         await AgiEnv.run(cmd_manager, app_path)
 
         if env.install_type == 1:
-            cmd = f"{uv} pip install --preview-features extra-build-dependencies -e '{env.env_root}'"
+            cmd = f"{uv} pip install -e '{env.env_root}'"
             await AgiEnv.run(cmd, app_path)
-            cmd = f"{uv} pip install --preview-features extra-build-dependencies -e '{env.node_root}'"
+            cmd = f"{uv} pip install -e '{env.node_root}'"
             await AgiEnv.run(cmd, app_path)
-            cmd = f"{uv} pip install --preview-features extra-build-dependencies -e '{env.cluster_root}'"
+            cmd = f"{uv} pip install -e '{env.cluster_root}'"
             await AgiEnv.run(cmd, app_path)
-            cmd = f"{uv} pip install --preview-features extra-build-dependencies -e ."
+            cmd = f"{uv} pip install -e ."
             await AgiEnv.run(cmd, app_path)
 
         # ========
@@ -1080,10 +1080,10 @@ class AGI:
         ##############
 
         if env.install_type == 0:
-            cmd = f"{uv_worker} pip install --preview-features extra-build-dependencies --upgrade agi-env"
+            cmd = f"{uv_worker} pip install --upgrade agi-env"
             await AgiEnv.run(cmd, wenv_abs)
 
-            cmd = f"{uv_worker} pip install --preview-features extra-build-dependencies --upgrade agi-node"
+            cmd = f"{uv_worker} pip install --upgrade agi-node"
             await AgiEnv.run(cmd, wenv_abs)
 
             cmd = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if _agi__version_missing_on_pypi(env.env_root) else '')}{uv_worker} sync --upgrade --project '{env.env_root}'"
@@ -1103,7 +1103,7 @@ class AGI:
             except StopIteration:
                 raise RuntimeError(cmd)
 
-            cmd = f"{uv_worker} pip install --preview-features extra-build-dependencies -e '{env.env_root}'"
+            cmd = f"{uv_worker} pip install -e '{env.env_root}'"
             await AgiEnv.run(cmd, wenv_abs)
 
             # build agi_node*.whl
@@ -1117,10 +1117,10 @@ class AGI:
             except StopIteration:
                 raise RuntimeError(cmd)
 
-            cmd = f"{uv_worker} pip install --preview-features extra-build-dependencies -e '{env.node_root}'"
+            cmd = f"{uv_worker} pip install -e '{env.node_root}'"
             await AgiEnv.run(cmd, wenv_abs)
 
-        cmd = f"{uv_worker} pip install --preview-features extra-build-dependencies -e '{env.active_app}'"
+        cmd = f"{uv_worker} pip install -e '{env.active_app}'"
         await AgiEnv.run(cmd, wenv_abs)
 
         # Post-install script
@@ -1217,7 +1217,7 @@ class AGI:
         cmd = f"{uv} --project {wenv_rel} run -p {pyvers} python -m ensurepip"
         await AGI.exec_ssh(ip, cmd)
 
-        cmd = f"{uv} --project {wenv_rel} run -p {pyvers} python -m pip install --preview-features extra-build-dependencies -e {wenv_rel}"
+        cmd = f"{uv} --project {wenv_rel} run -p {pyvers} python -m pip install -e {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
 
         # install env
@@ -1287,7 +1287,7 @@ class AGI:
             (AGI._local_ip.append(ip) if AgiEnv.is_local(ip) else AGI._remote_ip.append(ip))
         AGI._install_todo = 2 * len(AGI._remote_ip)
         if AGI.env.verbose > 0:
-            logger.info(f"********   {AGI._install_todo} remote .venv to {AGI._run_type}")
+            logger.info(f"remote worker to install: {AGI._install_todo} ")
 
     @staticmethod
     async def install(
@@ -1487,7 +1487,7 @@ class AGI:
             os_id = ''
 
         if any(x in os_id for x in ('Linux', 'Darwin', 'BSD')):
-            return 'export PATH="$HOME/.local/bin:$PATH";'
+            return 'export PATH="~/.local/bin:$PATH";'
         else:
             return ""  # 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
 

@@ -35,9 +35,9 @@ function Install-ModulePath {
     Write-Host "uv sync -p $env:AGI_PYTHON_VERSION --dev" -ForegroundColor Blue
     uv sync -p $env:AGI_PYTHON_VERSION --dev
     uv run python -m ensurepip
-    uv pip install --preview-features extra-build-dependencies -e .
+    uv pip install -e .
     foreach ($pkg in $ExtraInstalls) {
-        uv pip install --preview-features extra-build-dependencies -e $pkg
+        uv pip install -e $pkg
     }
     Pop-Location
 }
@@ -57,10 +57,10 @@ Install-ModulePath "agi-env"
 Write-Host "Installing agilab..." -ForegroundColor Blue
 Push-Location (Resolve-Path "..\..\..")
 uv sync -p $env:AGI_PYTHON_VERSION
-uv pip install --preview-features extra-build-dependencies -e src/agilab/core/agi-env
-uv pip install --preview-features extra-build-dependencies -e src/agilab/core/agi-node
-uv pip install --preview-features extra-build-dependencies -e src/agilab/core/agi-cluster
-uv pip install --preview-features extra-build-dependencies -e src/agilab/core/agi-core
+uv pip install -e src/agilab/core/agi-env
+uv pip install -e src/agilab/core/agi-node
+uv pip install -e src/agilab/core/agi-cluster
+uv pip install -e src/agilab/core/agi-core
 Pop-Location
 
 Write-Host "Checking installation..." -ForegroundColor Green

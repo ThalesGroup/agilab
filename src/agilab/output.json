@@ -2,7 +2,7 @@
   "target_args": {
     "path": "~/data/sat_trajectory",
     "data_out": "~/data/sat_trajectory/dataframe",
-    "data_dir": "~/data/sat_trajectory/dataset",
+    "data_uri": "~/data/sat_trajectory/dataset",
     "duration_s": 86400,
     "step_s": 1,
     "number_of_sat": 25,
