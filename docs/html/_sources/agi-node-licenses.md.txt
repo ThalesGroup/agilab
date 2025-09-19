@@ -4,6 +4,7 @@
 | brotli | MIT LICENSE |
 | click | BSD-3-CLAUSE |
 | cloudpickle | BSD LICENSE |
+| cmake | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | cython | APACHE SOFTWARE LICENSE |
 | dask | BSD LICENSE |
 | distributed | BSD LICENSE |

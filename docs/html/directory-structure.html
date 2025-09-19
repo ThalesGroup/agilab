@@ -287,7 +287,7 @@ apps/
                 pre_install.py
                 pyproject.toml
             app_settings.toml
-            args_ui_snippet.py
+            custom_ui.py
             pre_prompt.json
         .gitignore
         MANIFEST.in
@@ -320,6 +320,7 @@ apps/
         uv_config.toml
     flight_project/
         .pytest_cache/ [excluded]
+        .venv/ [excluded]
         Modules/ [excluded]
         src/
             __pycache__/ [excluded]
@@ -341,6 +342,7 @@ apps/
                 pyproject.toml
             app_settings.toml
             args_ui_snippet.py
+            custom_ui.py
             lab_steps.ipynb
             lab_steps.toml
             pre_prompt.json
@@ -360,12 +362,14 @@ apps/
         build.py
         coverage.xml
         dask_worker_0.pid
+        distribution.json
         MANIFEST.in
         output.json
         pyproject.toml
         README.md
         run_test.sh
         uv_config.toml
+        wenv
     mycode_project/
         .pytest_cache/ [excluded]
         .venv/ [excluded]
@@ -389,6 +393,7 @@ apps/
                 run-all-test.py
             app_settings.toml
             args_ui_snippet.py
+            custom_ui.py
             pre_prompt.json
         test/
             __pycache__/ [excluded]

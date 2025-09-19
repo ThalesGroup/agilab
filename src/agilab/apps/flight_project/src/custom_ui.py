@@ -5,6 +5,7 @@ import streamlit as st
 import tomli
 from pydantic import ValidationError
 
+from agi_env.streamlit_args import render_form
 from flight import (
     FlightArgs,
     apply_source_defaults,
@@ -50,126 +51,129 @@ defaults_model = apply_source_defaults(stored_args)
 defaults_payload = defaults_model.to_toml_payload()
 st.session_state.app_settings["args"] = defaults_payload
 
-# Streamlit User Interface
-c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1.0, 1])
+if st.session_state.get("toggle_custom", True):
+    # Streamlit User Interface
+    c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1.0, 1])
 
-with c1:
-    st.selectbox(
-        label="Data source",
-        options=["file", "hawk"],
-        index=["file", "hawk"].index(defaults_model.data_source),
-        key="data_source",
-        on_change=change_data_source,
-    )
+    with c1:
+        st.selectbox(
+            label="Data source",
+            options=["file", "hawk"],
+            index=["file", "hawk"].index(defaults_model.data_source),
+            key="data_source",
+            on_change=change_data_source,
+        )
 
-with c2:
+    with c2:
+        if st.session_state.data_source == "file":
+            st.text_input(
+                label="Data directory",
+                value=str(defaults_model.data_uri),
+                key="data_uri",
+            )
+        else:
+            st.text_input(
+                label="Hawk cluster data_uri",
+                value=str(defaults_model.data_uri),
+                key="data_uri",
+            )
+
+    with c3:
+        if st.session_state.data_source == "file":
+            st.text_input(
+                label="Files filter",
+                value=defaults_model.files,
+                key="files",
+            )
+        else:
+            st.text_input(
+                label="Select the pipeline",
+                value=defaults_model.files,
+                key="files",
+            )
+
+    with c4:
+        st.number_input(
+            label="Number of files to read",
+            value=defaults_model.nfile,
+            key="nfile",
+            step=1,
+            min_value=0,
+        )
+
+    with c5:
+        st.number_input(
+            label="Number of line to skip",
+            value=defaults_model.nskip,
+            key="nskip",
+            step=1,
+            min_value=0,
+        )
+
+    c6, c7, c8, c9, c10 = st.columns([1, 1, 1, 1, 1])
+
+    with c6:
+        st.number_input(
+            label="Number of lines to read",
+            value=defaults_model.nread,
+            key="nread",
+            step=1,
+            min_value=0,
+        )
+
+    with c7:
+        st.number_input(
+            label="Sampling rate",
+            value=defaults_model.sampling_rate,
+            key="sampling_rate",
+            step=0.1,
+            min_value=0.0,
+        )
+
+    with c8:
+        st.date_input(
+            label="from Date",
+            value=defaults_model.datemin,
+            key="datemin",
+        )
+
+    with c9:
+        st.date_input(
+            label="to Date",
+            value=defaults_model.datemax,
+            key="datemax",
+        )
+
+    with c10:
+        st.selectbox(
+            label="Dataset output format",
+            options=["parquet", "csv"],
+            index=["parquet", "csv"].index(defaults_model.output_format),
+            key="output_format",
+        )
+
     if st.session_state.data_source == "file":
-        st.text_input(
-            label="Data directory",
-            value=str(defaults_model.data_uri),
-            key="data_uri",
-        )
-    else:
-        st.text_input(
-            label="Hawk cluster data_uri",
-            value=str(defaults_model.data_uri),
-            key="data_uri",
-        )
+        directory = env.home_abs / st.session_state.data_uri
+        if not directory.is_dir():
+            st.error(f"The provided data_uri '{directory}' is not a valid directory.")
+            st.stop()
+    validated_path = st.session_state.data_uri
 
-with c3:
-    if st.session_state.data_source == "file":
-        st.text_input(
-            label="Files filter",
-            value=defaults_model.files,
-            key="files",
-        )
-    else:
-        st.text_input(
-            label="Select the pipeline",
-            value=defaults_model.files,
-            key="files",
-        )
-
-with c4:
-    st.number_input(
-        label="Number of files to read",
-        value=defaults_model.nfile,
-        key="nfile",
-        step=1,
-        min_value=0,
-    )
-
-with c5:
-    st.number_input(
-        label="Number of line to skip",
-        value=defaults_model.nskip,
-        key="nskip",
-        step=1,
-        min_value=0,
-    )
-
-c6, c7, c8, c9, c10 = st.columns([1, 1, 1, 1, 1])
-
-with c6:
-    st.number_input(
-        label="Number of lines to read",
-        value=defaults_model.nread,
-        key="nread",
-        step=1,
-        min_value=0,
-    )
-
-with c7:
-    st.number_input(
-        label="Sampling rate",
-        value=defaults_model.sampling_rate,
-        key="sampling_rate",
-        step=0.1,
-        min_value=0.0,
-    )
-
-with c8:
-    st.date_input(
-        label="from Date",
-        value=defaults_model.datemin,
-        key="datemin",
-    )
-
-with c9:
-    st.date_input(
-        label="to Date",
-        value=defaults_model.datemax,
-        key="datemax",
-    )
-
-with c10:
-    st.selectbox(
-        label="Dataset output format",
-        options=["parquet", "csv"],
-        index=["parquet", "csv"].index(defaults_model.output_format),
-        key="output_format",
-    )
-
-# Collect UI inputs into a dictionary and validate the path_uri
-if st.session_state.data_source == "file":
-    directory = env.home_abs / st.session_state.data_uri
-    if not directory.is_dir():
-        st.error(f"The provided data_uri '{directory}' is not a valid directory.")
-        st.stop()
-validated_path = st.session_state.data_uri
-
-candidate_args: dict[str, Any] = {
-    "data_source": st.session_state.data_source,
-    "data_uri": validated_path,
-    "files": st.session_state.files,
-    "nfile": st.session_state.nfile,
-    "nskip": st.session_state.nskip,
-    "nread": st.session_state.nread,
-    "sampling_rate": st.session_state.sampling_rate,
-    "datemin": st.session_state.datemin,
-    "datemax": st.session_state.datemax,
-    "output_format": st.session_state.output_format,
-}
+    candidate_args: dict[str, Any] = {
+        "data_source": st.session_state.data_source,
+        "data_uri": validated_path,
+        "files": st.session_state.files,
+        "nfile": st.session_state.nfile,
+        "nskip": st.session_state.nskip,
+        "nread": st.session_state.nread,
+        "sampling_rate": st.session_state.sampling_rate,
+        "datemin": st.session_state.datemin,
+        "datemax": st.session_state.datemax,
+        "output_format": st.session_state.output_format,
+    }
+else:
+    form_values = render_form(defaults_model)
+    candidate_args = form_values
 
 try:
     parsed_args = FlightArgs(**candidate_args)

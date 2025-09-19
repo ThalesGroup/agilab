@@ -5,6 +5,7 @@
 | astor | BSD LICENSE |
 | asttokens | APACHE 2.0 |
 | brotli | MIT LICENSE |
+| cmake | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | decorator | BSD LICENSE |
 | executing | MIT LICENSE |
 | humanize | MIT License |

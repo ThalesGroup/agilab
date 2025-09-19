@@ -10,7 +10,25 @@ env = st.session_state.env
 
 defaults_model, defaults_payload, settings_path = load_args_state(env, args_module=args_module)
 
-form_values = render_form(defaults_model)
+if st.session_state.get("toggle_custom", True):
+    col1, col2 = st.columns(2)
+
+    with col1:
+        param1 = st.number_input("Parameter 1", value=int(defaults_model.param1))
+        param2 = st.text_input("Parameter 2", value=defaults_model.param2)
+
+    with col2:
+        param3 = st.number_input("Parameter 3", value=float(defaults_model.param3))
+        param4 = st.checkbox("Parameter 4", value=bool(defaults_model.param4))
+
+    form_values = {
+        "param1": int(param1),
+        "param2": param2,
+        "param3": float(param3),
+        "param4": bool(param4),
+    }
+else:
+    form_values = render_form(defaults_model)
 
 try:
     parsed = ArgsModel(**form_values)

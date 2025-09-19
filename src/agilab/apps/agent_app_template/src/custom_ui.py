@@ -10,7 +10,18 @@ env = st.session_state.env
 
 defaults_model, defaults_payload, settings_path = load_args_state(env, args_module=args_module)
 
-form_values = render_form(defaults_model)
+if st.session_state.get("toggle_custom", True):
+    data_dir = st.text_input(
+        "Data directory",
+        value=str(defaults_model.data_dir),
+        help="Base folder used by the agent application.",
+    )
+
+    form_values = {
+        "data_dir": data_dir,
+    }
+else:
+    form_values = render_form(defaults_model)
 
 try:
     parsed = ArgsModel(**form_values)

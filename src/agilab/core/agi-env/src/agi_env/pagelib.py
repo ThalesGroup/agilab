@@ -292,7 +292,7 @@ def init_custom_ui(render_generic_ui):
     Initialize a custom user interface based on an input UI snippet.
 
     Args:
-        args_ui_snippet (str): A snippet of UI content to customize the interface.
+        custom_ui (str): A snippet of UI content to customize the interface.
 
     Returns:
         None
@@ -302,7 +302,7 @@ def init_custom_ui(render_generic_ui):
     """
     env = st.session_state["env"]
     if "toggle_custom" not in st.session_state:
-        st.session_state["toggle_custom"] = env.args_ui_snippet.stat().st_size > 0
+        st.session_state["toggle_custom"] = env.custom_ui.stat().st_size > 0
     return
 
 

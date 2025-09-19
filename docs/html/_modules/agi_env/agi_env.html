@@ -1145,9 +1145,9 @@
         <span class="n">app_settings_file</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">app_settings_file</span> <span class="o">=</span> <span class="n">app_settings_file</span>
 
-        <span class="n">args_ui_snippet</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">/</span> <span class="s2">&quot;args_ui_snippet.py&quot;</span>
-        <span class="n">args_ui_snippet</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">args_ui_snippet</span> <span class="o">=</span> <span class="n">args_ui_snippet</span>
+        <span class="n">custom_ui</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">/</span> <span class="s2">&quot;custom_ui.py&quot;</span>
+        <span class="n">custom_ui</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">custom_ui</span> <span class="o">=</span> <span class="n">custom_ui</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">gitignore_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span> <span class="o">/</span> <span class="s2">&quot;.gitignore&quot;</span>
         <span class="n">dest</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">resources_path</span>

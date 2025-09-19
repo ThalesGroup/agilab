@@ -816,9 +816,9 @@ class AgiEnv:
         app_settings_file.touch(exist_ok=True)
         self.app_settings_file = app_settings_file
 
-        args_ui_snippet = self.app_src / "args_ui_snippet.py"
-        args_ui_snippet.touch(exist_ok=True)
-        self.args_ui_snippet = args_ui_snippet
+        custom_ui = self.app_src / "custom_ui.py"
+        custom_ui.touch(exist_ok=True)
+        self.custom_ui = custom_ui
 
         self.gitignore_file = self.active_app / ".gitignore"
         dest = AgiEnv.resources_path

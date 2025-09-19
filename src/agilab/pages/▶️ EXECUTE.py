@@ -497,6 +497,46 @@ def _draw_distribution(graph, partition_key, show_leaf_list, title):
     plt.axis("off")
     st.pyplot(plt, use_container_width=True)
 
+def _extract_chunk_info(chunk, partition_key, weights_key):
+    """Return (partition, size) for a chunk entry with flexible shapes."""
+
+    if isinstance(chunk, dict):
+        partition = (
+            chunk.get(partition_key)
+            or chunk.get(partition_key.replace(" ", "_"))
+            or chunk.get("partition")
+            or str(chunk)
+        )
+        size = chunk.get(weights_key)
+        if size is None:
+            size = chunk.get(weights_key.replace(" ", "_"))
+        if size is None:
+            size = chunk.get("size", 1)
+        return partition, size
+
+    if isinstance(chunk, (tuple, list)):
+        if not chunk:
+            return "unknown", 1
+        # Handle cases like [(partition, size)]
+        if len(chunk) == 1 and isinstance(chunk[0], (tuple, list)):
+            chunk = chunk[0]
+        if chunk and isinstance(chunk[0], dict):
+            data = chunk[0]
+            partition = (
+                data.get(partition_key)
+                or data.get(partition_key.replace(" ", "_"))
+                or data.get("partition")
+                or str(data)
+            )
+            size = chunk[1] if len(chunk) > 1 else data.get(weights_key, 1)
+            return partition, size
+        partition = chunk[0]
+        size = chunk[1] if len(chunk) > 1 else 1
+        return partition, size
+
+    return chunk, 1
+
+
 def show_tree(workers, workers_chunks, workers_tree, partition_key, weights_key, show_leaf_list=False):
     """
     Display the distribution tree of the workload, optionally including the leaf list.
@@ -508,13 +548,19 @@ def show_tree(workers, workers_chunks, workers_tree, partition_key, weights_key,
     # Build workload mapping
     for worker, chunks, files_list in zip(workers, workers_chunks, workers_tree):
         ip = worker.split("-")[0]
-        for (partition, size), files in zip(chunks, files_list):
+        for chunk, files in zip(chunks, files_list):
+            partition, size = _extract_chunk_info(chunk, partition_key, weights_key)
             # Normalize size
             if isinstance(size, numbers.Number):
                 size_processed = size
             else:
-                size_processed = 1
-                st.warning(f"Non-numeric size '{size}' for partition '{partition}' treated as 1.")
+                try:
+                    size_processed = float(size)
+                except (TypeError, ValueError):
+                    size_processed = 1
+                    st.warning(
+                        f"Non-numeric size '{size}' for partition '{partition}' treated as 1.".replace("\n", " ")
+                    )
             total += size_processed
             total_per_host[ip] += size_processed
             workers_works[worker].append((partition, size_processed, len(files), files))
@@ -567,7 +613,8 @@ def show_graph(workers, workers_chunks, workers_tree, partition_key, weights_key
 
     for worker, chunks, tree in zip(workers, workers_chunks, workers_tree):
         ip = worker.split("-")[0]
-        for (partition, size), item in zip(chunks, tree):
+        for chunk, item in zip(chunks, tree):
+            partition, size = _extract_chunk_info(chunk, partition_key, weights_key)
             node, deps = (item[0], item[1]) if len(item) == 2 else (item[0], [])
             size_processed = size if isinstance(size, numbers.Number) else 1
             total += size_processed
@@ -614,7 +661,8 @@ def workload_barchart(workers, workers_chunks, partition_key, weights_key, weigh
     import plotly.graph_objects as go
     data = []
     for worker, chunks in zip(workers, workers_chunks):
-        for partition, size in chunks:
+        for chunk in chunks:
+            partition, size = _extract_chunk_info(chunk, partition_key, weights_key)
             data.append({"worker": worker, "partition": partition, "size": size})
     df = pd.DataFrame(data)
     if df.empty:
@@ -791,9 +839,7 @@ if __name__ == "__main__":
                 st.session_state["toggle_custom"] = snippet_not_empty
 
             # Always use the current value in session_state
-            st.checkbox("Custom UI", key="toggle_custom",
-                        #value=st.session_state["toggle_custom"],
-                        on_change=init_custom_ui, args=[custom_ui])
+            st.toggle("Custom UI", key="toggle_custom", on_change=init_custom_ui, args=[custom_ui])
 
             if st.session_state["toggle_custom"] and snippet_exists and snippet_not_empty:
                 try:
