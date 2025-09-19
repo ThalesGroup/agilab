@@ -319,8 +319,12 @@ copy_project_files
 update_environment
 install_core
 write_env_values
-install_apps_views
-install_enduser
-install_pycharm_script
+if ! install_apps_views; then
+  echo -e "${YELLOW}install_apps_views failed; continuing with PyCharm setup.${NC}"
+  install_pycharm_script # needed to investigate with pycharm why previous script has failed
+else
+  install_pycharm_script
+  install_enduser
+  echo -e "${GREEN}Installation complete!${NC}"
+fi
 
-echo -e "${GREEN}Installation complete!${NC}"
