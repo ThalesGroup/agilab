@@ -54,6 +54,7 @@ dependencies = [
     "typing-inspection>=0.4.1",
     "polars",
     "pandas",
+    "cmake>=3.29",
 ]
 
 version = "0.1.0.post10"

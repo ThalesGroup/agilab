@@ -31,6 +31,7 @@ from ipaddress import ip_address as is_ip
 from pathlib import Path
 from tempfile import gettempdir
 
+
 # --- Added minimal TestPyPI fallback for uv sync ---
 def _agi__version_missing_on_pypi(project_path):
     """Return True if any pinned 'agi*' or 'agilab' dependency version in pyproject.toml
@@ -51,7 +52,7 @@ def _agi__version_missing_on_pypi(project_path):
             m = re.match(r'^(?:==\s*)?(\d+(?:\.\d+){1,2})$', spec.strip())
             if m:
                 version = m.group(1)
-                pairs.append((name.replace('_','-'), version))
+                pairs.append((name.replace('_', '-'), version))
         if not pairs:
             return False
         # check first pair only to keep it minimal/fast
@@ -66,6 +67,8 @@ def _agi__version_missing_on_pypi(project_path):
             return False
     except Exception:
         return False
+
+
 # --- end added helper ---
 from typing import Any, Dict, List, Optional, Union
 import sysconfig
@@ -90,6 +93,7 @@ import runpy
 
 # Project Libraries:
 from agi_env import AgiEnv, normalize_path
+
 node_src = str(Path(sys.prefix).parents[1] / "agi-node/src")
 if node_src not in sys.path:
     sys.path.append(node_src)
@@ -168,7 +172,7 @@ class AGI:
     best_mode: Dict[str, Any] = {}
     workers_tree: Optional[Any] = None
     workers_tree_info: Optional[Any] = None
-    debug: Optional[bool] = None # Cache with default local IPs
+    debug: Optional[bool] = None  # Cache with default local IPs
     env: Optional[AgiEnv] = None
 
     def __init__(self, target: str, verbose: int = 1):
@@ -306,16 +310,15 @@ class AGI:
                 logger.error(f"Unhandled exception in AGI.run: {err}", exc_info=True)
                 logger.info(traceback.format_exc())
 
-
     @staticmethod
     async def _run_all_modes(
-        env: AgiEnv,
-        scheduler: Optional[str] = None,
-        workers: Optional[Dict[str, int]] = None,
-        verbose: int = 0,
-        mode_range: Optional[Union[List[int], range]] = None,
-        rapids_enabled: Optional[bool] = None,
-        **args: Any,
+            env: AgiEnv,
+            scheduler: Optional[str] = None,
+            workers: Optional[Dict[str, int]] = None,
+            verbose: int = 0,
+            mode_range: Optional[Union[List[int], range]] = None,
+            rapids_enabled: Optional[bool] = None,
+            **args: Any,
     ) -> str:
         """
         Run all modes to find the fastest one.
@@ -752,7 +755,6 @@ class AGI:
         cmd = (f"{cmd_prefix}{uv} run --no-sync -p {env.python_version} python {cli} clean {wenv}")
         await AGI.exec_ssh(ip, cmd)
 
-
     @staticmethod
     async def _clean_nodes(scheduler_addr: Optional[str], force: bool = True) -> Set[str]:
         # Compose list of IPs: workers plus scheduler's IP
@@ -760,7 +762,6 @@ class AGI:
         localhost_ip = socket.gethostbyname("localhost")
         if not list_ip:
             list_ip.add(localhost_ip)
-
 
         for ip in list_ip:
             if AgiEnv.is_local(ip):
@@ -834,7 +835,7 @@ class AGI:
 
         # # Install Python
 
-        #TODO: Check install freethreaded for workers only
+        # TODO: Check install freethreaded for workers only
 
         cmd_prefix = await AGI._detect_export_cmd(ip)
         AgiEnv.set_env_var(f"{ip}_CMD_PREFIX", cmd_prefix)
@@ -857,7 +858,6 @@ class AGI:
 
         # cmd = f"{uv} run -p {pyvers} --project {wenv_abs} python {cli} threaded"
         # await AgiEnv.run(cmd, wenv_abs)
-
 
     @staticmethod
     async def _install_venv_cluster(scheduler_addr: Optional[str]) -> None:
@@ -927,7 +927,8 @@ class AGI:
             await AGI.exec_ssh(ip, cmd)
 
             await AGI.exec_ssh(ip, f"{uv} python install {pyvers_worker}")
-            await AGI.send_files(env, ip, [env.cluster_root / "src/agi_cluster/agi_distributor/cli.py"], wenv_rel.parent)
+            await AGI.send_files(env, ip, [env.cluster_root / "src/agi_cluster/agi_distributor/cli.py"],
+                                 wenv_rel.parent)
 
             # cmd = f"{uv} run --no-sync python {cli} platform"
             # res =  await AGI.exec_ssh(ip, cmd)
@@ -944,7 +945,6 @@ class AGI:
             # cmd = f"{uv} run --no-sync -p {pyvers} python {env.wenv_rel.parent / "cli.py"} platform"
             # await AGI.exec_ssh(ip, cmd)
 
-
     @staticmethod
     async def _install_app(scheduler_addr: Optional[str]) -> None:
         AGI._initialize_installation()
@@ -952,9 +952,9 @@ class AGI:
         app_path = env.active_app
         wenv_rel = env.wenv_rel
         if isinstance(env.base_worker_cls, str):
-            options_worker = " --extra "  + " --extra ".join(AGI.install_worker_group)
+            options_worker = " --extra " + " --extra ".join(AGI.install_worker_group)
 
-        #node_ips = await AGI._clean_nodes(scheduler)
+        # node_ips = await AGI._clean_nodes(scheduler)
         node_ips = set(list(AGI.workers) + [AGI._get_scheduler(scheduler_addr)[0]])
         AGI._venv_todo(node_ips)
         start_time = time.time()
@@ -1034,10 +1034,9 @@ class AGI:
         if env.verbose > 0:
             logger.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
 
-        #=========
+        # =========
         # MANAGER install command with and without rapids capable
-        #=========
-
+        # =========
 
         app_path = env.active_app
         if has_rapids_hw:
@@ -1059,9 +1058,9 @@ class AGI:
             cmd = f"{uv} pip install --preview-features extra-build-dependencies -e ."
             await AgiEnv.run(cmd, app_path)
 
-        #========
+        # ========
         # WORKER install command with and without rapids capable
-        #========
+        # ========
 
         uv_worker = cmd_prefix + env.uv_worker
         pyvers_worker = env.pyvers_worker
@@ -1157,10 +1156,9 @@ class AGI:
         wenv_rel = env.wenv_rel
         dist_rel = env.dist_rel
         dist_abs = env.dist_abs
-        pyvers  = env.pyvers_worker
+        pyvers = env.pyvers_worker
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         uv = cmd_prefix + env.uv_worker
-
 
         cmd = f"{uv} run -p {pyvers} python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
         await AGI.exec_ssh(ip, cmd)
@@ -1179,7 +1177,6 @@ class AGI:
         except StopIteration:
             raise FileNotFoundError(f"no existing whl file in {wenv / "agi_env*"}")
 
-
         # # build agi_env*.whl
         wenv = env.node_root / 'dist'
         try:
@@ -1187,7 +1184,9 @@ class AGI:
         except StopIteration:
             raise FileNotFoundError(f"no existing whl file in {wenv / "agi_node*"}")
 
-        await AGI.send_files(env, ip, [egg_file, node_whl, env_whl, env.setup_core, env.worker_pyproject, env.uvproject], wenv_rel)
+        await AGI.send_files(env, ip,
+                             [egg_file, node_whl, env_whl, env.setup_core, env.worker_pyproject, env.uvproject],
+                             wenv_rel)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
         has_rapids_hw = False
@@ -1292,13 +1291,13 @@ class AGI:
 
     @staticmethod
     async def install(
-    env: AgiEnv,
-    scheduler: Optional[str] = None,
-    workers: Optional[Dict[str, int]] = None,
-    modes_enabled: int = RUN_MASK,
-    verbose: Optional[int] = None,
-    **args: Any,
-) -> None:
+            env: AgiEnv,
+            scheduler: Optional[str] = None,
+            workers: Optional[Dict[str, int]] = None,
+            modes_enabled: int = RUN_MASK,
+            verbose: Optional[int] = None,
+            **args: Any,
+    ) -> None:
         """
         Update the cluster's virtual environment.
 
@@ -1338,12 +1337,12 @@ class AGI:
 
     @staticmethod
     async def update(
-        env: Optional[AgiEnv] = None,
-        scheduler: Optional[str] = None,
-        workers: Optional[Dict[str, int]] = None,
-        modes_enabled: int = RUN_MASK,
-        verbose: Optional[int] = None,
-        **args: Any,
+            env: Optional[AgiEnv] = None,
+            scheduler: Optional[str] = None,
+            workers: Optional[Dict[str, int]] = None,
+            modes_enabled: int = RUN_MASK,
+            verbose: Optional[int] = None,
+            **args: Any,
     ) -> None:
         """
         install cluster virtual environment
@@ -1366,11 +1365,11 @@ class AGI:
 
     @staticmethod
     async def distribute(
-        env: AgiEnv,
-        scheduler: Optional[str] = None,
-        workers: Optional[Dict[str, int]] = None,
-        verbose: int = 0,
-        **args: Any,
+            env: AgiEnv,
+            scheduler: Optional[str] = None,
+            workers: Optional[Dict[str, int]] = None,
+            verbose: int = 0,
+            **args: Any,
     ) -> Any:
         """
         check the distribution with a dry run
@@ -1415,7 +1414,8 @@ class AGI:
 
             # Clean worker
             for ip in list(AGI.workers):
-                await AGI.send_file(env, ip, env.cluster_root / "src/agi_cluster/agi_distributor/cli.py", cli_rel.parent)
+                await AGI.send_file(env, ip, env.cluster_root / "src/agi_cluster/agi_distributor/cli.py",
+                                    cli_rel.parent)
                 has_rapids_hw = env.envars.get(ip, None)
                 if not has_rapids_hw or has_rapids_hw == "no_rapids_hw":
                     env.has_rapids_hw = False
@@ -1437,11 +1437,11 @@ class AGI:
                 await asyncio.sleep(1)  # non-blocking sleep
                 cmd = (
                     f"{env.uv} run --no-sync --project {env.wenv_abs} dask scheduler --port {AGI._scheduler_port} "
-                    f"--host {AGI._scheduler_ip} --pid-file {wenv_abs.parent / 'dask_scheduler.pid' } "
+                    f"--host {AGI._scheduler_ip} --pid-file {wenv_abs.parent / 'dask_scheduler.pid'} "
                 )
                 logger.info(f"Starting dask scheduler locally: {cmd}")
                 result = AGI._exec_bg(cmd, env.active_app)
-                if result:# assuming _exec_bg is sync
+                if result:  # assuming _exec_bg is sync
                     logger.info(result)
             else:
                 # Create remote directory
@@ -1664,7 +1664,6 @@ class AGI:
                 python_version = python_dirs[0] + "." + python_dirs[1]
             destination = wenv_abs / f".venv/lib/python{python_version}/site-packages/"
 
-
             # Copy the file while preserving metadata.
             destination_dir = os.path.dirname(destination)
             os.makedirs(destination_dir, exist_ok=True)  # create directory if missing
@@ -1714,7 +1713,8 @@ class AGI:
 
         if env.debug:
             BaseWorker.new(env=env, mode=AGI._mode, verbose=env.verbose, args=AGI._args)
-            res = await BaseWorker.run(env=env, mode=AGI._mode, workers=AGI.workers, verbose=env.verbose, args=AGI._args)
+            res = await BaseWorker.run(env=env, mode=AGI._mode, workers=AGI.workers, verbose=env.verbose,
+                                       args=AGI._args)
         else:
             cmd = (
                 f"{env.uv} run --preview-features python-upgrade --no-sync --project {env.wenv_abs} python -c \""
@@ -1908,7 +1908,6 @@ class AGI:
             AGI._dask_client.shutdown()
 
         await AGI.close_all_connections()
-
 
     @staticmethod
     async def _calibration() -> None:
@@ -2226,7 +2225,7 @@ class AGI:
             await process.wait()
 
             # Decode output safely
-            #stdout_str = stdout.decode('utf-8', errors='replace')
+            # stdout_str = stdout.decode('utf-8', errors='replace')
 
             # Split output into lines and get the last non-empty line
             lines = [line.strip() for line in stdout.splitlines() if line.strip()]

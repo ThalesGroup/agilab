@@ -37,6 +37,7 @@ dependencies = [
     "pathspec",
     "ipython",
     "py7zr",
+    "cmake>=3.29",
     "numba"
 ]
 

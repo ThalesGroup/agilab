@@ -61,7 +61,8 @@ dependencies = [
     "tomli",
     "tomlkit",
     "typing-inspection>=0.4.1",
-    "wheel"
+    "wheel",
+    "cmake>=3.29",
 ]
 
 version = "0.1.0.post9"

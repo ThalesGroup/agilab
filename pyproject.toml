@@ -28,6 +28,7 @@ dependencies = [
     "astor",
     "asyncssh",
     "build",
+    "cmake>=3.29",
     "fastparquet",
     "geojson",
     "humanize",
@@ -152,5 +153,4 @@ addopts = [
 [tool.coverage.run]
 branch = true
 source = ["agilab", "agi_core", "agi_env", "agi_cluster", "agi_node"]
-
 
