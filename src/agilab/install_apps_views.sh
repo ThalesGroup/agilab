@@ -8,6 +8,10 @@ set -euo pipefail
 export AGI_PYTHON_VERSION
 export PYTHONPATH="$PWD:${PYTHONPATH-}"
 
+# Capture potential overrides before arrays are declared (preserves set -u semantics)
+PUBLIC_VIEWS_FROM_ENV="${PUBLIC_VIEWS-}"
+PUBLIC_APPS_FROM_ENV="${PUBLIC_APPS-}"
+
 # Colors for output
 RED='\033[1;31m'
 GREEN='\033[1;32m'
@@ -97,47 +101,51 @@ echo -e "${BLUE}(Views) Link target base:${NC} $VIEWS_TARGET_BASE\n"
 # --- PUBLIC_VIEWS: allow manual override via env ------------------------------
 # You can set PUBLIC_VIEWS or PUBLIC_VIEWS_OVERRIDE to a comma/space/newline
 # separated list (e.g. "home dashboard,foo-view\nbar-view").
-if [[ -n "${PUBLIC_VIEWS_OVERRIDE:-${PUBLIC_VIEWS:-}}" ]]; then
-  raw="${PUBLIC_VIEWS_OVERRIDE:-${PUBLIC_VIEWS:-}}"
-  # macOS-safe parsing (no `mapfile`)
-  parse_list_to_array PUBLIC_VIEWS "$raw"
-  echo -e "${BLUE}(Views) Override enabled. Using PUBLIC_VIEWS:${NC} ${PUBLIC_VIEWS[*]}"
+if [[ -n "${PUBLIC_VIEWS_OVERRIDE-}" && -n "${PUBLIC_VIEWS_OVERRIDE//[[:space:]]/}" ]]; then
+  parse_list_to_array PUBLIC_VIEWS "$PUBLIC_VIEWS_OVERRIDE"
+  echo -e "${BLUE}(Views) Override enabled via PUBLIC_VIEWS_OVERRIDE:${NC} ${PUBLIC_VIEWS[*]}"
+elif [[ -n "${PUBLIC_VIEWS_FROM_ENV}" && -n "${PUBLIC_VIEWS_FROM_ENV//[[:space:]]/}" ]]; then
+  parse_list_to_array PUBLIC_VIEWS "$PUBLIC_VIEWS_FROM_ENV"
+  echo -e "${BLUE}(Views) Override enabled via PUBLIC_VIEWS:${NC} ${PUBLIC_VIEWS[*]}"
 else
   while IFS= read -r -d '' dir; do
     dir_name="$(basename -- "$dir")"
-    PUBLIC_VIEWS+=("$dir_name")
+    if [[ " ${PUBLIC_VIEWS[@]-} " != *" ${dir_name} "* ]]; then
+      PUBLIC_VIEWS+=("$dir_name")
+    fi
   done < <(find "$VIEWS_DEST_BASE" -mindepth 1 -maxdepth 1 -type d ! -name ".venv" -print0)
 fi
 
 declare -a INCLUDED_VIEWS=()
 if [[ -z "$AGILAB_PRIVATE" ]]; then
-  INCLUDED_VIEWS=("${PUBLIC_VIEWS[@]}")
+  INCLUDED_VIEWS=(${PUBLIC_VIEWS+"${PUBLIC_VIEWS[@]}"})
 else
-  # Safe even if PRIVATE_VIEWS is unset under `set -u`
-  INCLUDED_VIEWS=("${PUBLIC_VIEWS[@]}" ${PRIVATE_VIEWS+"${PRIVATE_VIEWS[@]}"})
+  INCLUDED_VIEWS=(${PUBLIC_VIEWS+"${PUBLIC_VIEWS[@]}"} ${PRIVATE_VIEWS+"${PRIVATE_VIEWS[@]}"})
 fi
 
 # --- PUBLIC_APPS: allow manual override via env ------------------------------
 # You can set PUBLIC_APPS or PUBLIC_APPS_OVERRIDE to a comma/space/newline
 # separated list (e.g. "foo_project,bar_project baz_project").
-if [[ -n "${PUBLIC_APPS_OVERRIDE:-${PUBLIC_APPS:-}}" ]]; then
-  raw="${PUBLIC_APPS_OVERRIDE:-${PUBLIC_APPS:-}}"
-  # macOS-safe parsing (no `mapfile`)
-  parse_list_to_array PUBLIC_APPS "$raw"
-  echo -e "${BLUE}(Apps) Override enabled. Using PUBLIC_APPS:${NC} ${PUBLIC_APPS[*]}"
+if [[ -n "${PUBLIC_APPS_OVERRIDE-}" && -n "${PUBLIC_APPS_OVERRIDE//[[:space:]]/}" ]]; then
+  parse_list_to_array PUBLIC_APPS "$PUBLIC_APPS_OVERRIDE"
+  echo -e "${BLUE}(Apps) Override enabled via PUBLIC_APPS_OVERRIDE:${NC} ${PUBLIC_APPS[*]}"
+elif [[ -n "${PUBLIC_APPS_FROM_ENV}" && -n "${PUBLIC_APPS_FROM_ENV//[[:space:]]/}" ]]; then
+  parse_list_to_array PUBLIC_APPS "$PUBLIC_APPS_FROM_ENV"
+  echo -e "${BLUE}(Apps) Override enabled via PUBLIC_APPS:${NC} ${PUBLIC_APPS[*]}"
 else
   while IFS= read -r -d '' dir; do
     dir_name="$(basename -- "$dir")"
-    PUBLIC_APPS+=("$dir_name")
+    if [[ " ${PUBLIC_APPS[@]-} " != *" ${dir_name} "* ]]; then
+      PUBLIC_APPS+=("$dir_name")
+    fi
   done < <(find "$APPS_DEST_BASE" -mindepth 1 -maxdepth 1 -type d -name '*_project' -print0)
 fi
 
 declare -a INCLUDED_APPS=()
 if [[ -z "$AGILAB_PRIVATE" ]]; then
-  INCLUDED_APPS=("${PUBLIC_APPS[@]}")
+  INCLUDED_APPS=(${PUBLIC_APPS+"${PUBLIC_APPS[@]}"})
 else
-  # Safe even if PRIVATE_APPS is unset under `set -u`
-  INCLUDED_APPS=("${PUBLIC_APPS[@]}" ${PRIVATE_APPS+"${PRIVATE_APPS[@]}"})
+  INCLUDED_APPS=(${PUBLIC_APPS+"${PUBLIC_APPS[@]}"} ${PRIVATE_APPS+"${PRIVATE_APPS[@]}"})
 fi
 
 echo -e "${BLUE}Apps to install:${NC} ${INCLUDED_APPS[*]:-<none>}\n"
@@ -212,7 +220,7 @@ done
 # --- Run installer for each views (stable CWD so ../core/cluster resolves) -----
 pushd -- "$AGILAB_PUBLIC/views" >/dev/null
 
-for view in "${INCLUDED_VIEWS[@]}"; do
+for view in ${INCLUDED_VIEWS+"${INCLUDED_VIEWS[@]}"}; do
   echo -e "${BLUE}Installing $view...${NC}"
   pushd "$view" >/dev/null
   uv sync --project . --preview-features python-upgrade
@@ -228,7 +236,7 @@ popd >/dev/null
 # --- Run installer for each app (stable CWD so ../core/cluster resolves) -----
 pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
 
-for app in "${INCLUDED_APPS[@]}"; do
+for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   echo -e "${BLUE}Installing $app...${NC}"
   echo  uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
       "$AGILAB_PUBLIC/apps/$app" --install-type "$INSTALL_TYPE"
