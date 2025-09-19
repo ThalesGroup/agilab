@@ -382,7 +382,7 @@ def render_cluster_settings_ui():
         cluster_params.pop("workers", None)
 
     boolean_params = ["verbose", "cython", "pool"]
-    if AgiEnv.is_managed_pc:
+    if env.is_managed_pc:
         cluster_params["rapids"] = False
     else:
         boolean_params.append("rapids")
@@ -780,11 +780,11 @@ if __name__ == "__main__":
     # ------------------
     if show_distribute:
         with st.expander(f"{module} settings:", expanded=True):
-            args_ui_snippet = env.args_ui_snippet
+            custom_ui = env.custom_ui
 
             # ---- PATCH: Set default unchecked if snippet is empty ----
-            snippet_exists = args_ui_snippet.exists()
-            snippet_not_empty = snippet_exists and args_ui_snippet.stat().st_size > 1
+            snippet_exists = custom_ui.exists()
+            snippet_not_empty = snippet_exists and custom_ui.stat().st_size > 1
 
             # Only set default value if toggle_custom is not in session_state
             if "toggle_custom" not in st.session_state:
@@ -793,17 +793,17 @@ if __name__ == "__main__":
             # Always use the current value in session_state
             st.checkbox("Custom UI", key="toggle_custom",
                         #value=st.session_state["toggle_custom"],
-                        on_change=init_custom_ui, args=[args_ui_snippet])
+                        on_change=init_custom_ui, args=[custom_ui])
 
             if st.session_state["toggle_custom"] and snippet_exists and snippet_not_empty:
                 try:
-                    runpy.run_path(args_ui_snippet, init_globals=globals())
+                    runpy.run_path(custom_ui, init_globals=globals())
                 except Exception as e:
                     st.warning(e)
             else:
                 render_generic_ui()
                 if not snippet_exists:
-                    with open(args_ui_snippet, "w") as st_src:
+                    with open(custom_ui, "w") as st_src:
                         st_src.write("")
 
             args_serialized = ", ".join(

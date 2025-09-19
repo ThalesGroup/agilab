@@ -7,6 +7,7 @@ from typing import Any, Callable, Literal, get_args, get_origin
 
 import streamlit as st
 from pydantic import BaseModel, ValidationError
+from annotated_types import Ge, Le, MultipleOf
 
 
 def load_args_state(
@@ -43,6 +44,13 @@ def load_args_state(
     st.session_state.app_settings[section] = payload
 
     return defaults_model, payload, settings_path
+
+
+def _constraint_value(field, constraint_type, attr: str) -> Any | None:
+    for meta in getattr(field, "metadata", ()):  # Pydantic v2 stores constraints here
+        if isinstance(meta, constraint_type):
+            return getattr(meta, attr)
+    return None
 
 
 def render_form(model: BaseModel) -> dict[str, Any]:
@@ -85,22 +93,27 @@ def render_form(model: BaseModel) -> dict[str, Any]:
                     "value": int(current),
                     "step": 1,
                 }
-                if field.ge is not None:
-                    kwargs["min_value"] = int(field.ge)
-                if field.le is not None:
-                    kwargs["max_value"] = int(field.le)
+                ge_value = _constraint_value(field, Ge, "ge")
+                le_value = _constraint_value(field, Le, "le")
+                if ge_value is not None:
+                    kwargs["min_value"] = int(ge_value)
+                if le_value is not None:
+                    kwargs["max_value"] = int(le_value)
                 values[name] = st.number_input(label, **kwargs)
                 continue
 
             if annotation in (float,):
+                step = _constraint_value(field, MultipleOf, "multiple_of") or 0.1
                 kwargs = {
                     "value": float(current),
-                    "step": field.multiple_of or 0.1,
+                    "step": float(step),
                 }
-                if field.ge is not None:
-                    kwargs["min_value"] = float(field.ge)
-                if field.le is not None:
-                    kwargs["max_value"] = float(field.le)
+                ge_value = _constraint_value(field, Ge, "ge")
+                le_value = _constraint_value(field, Le, "le")
+                if ge_value is not None:
+                    kwargs["min_value"] = float(ge_value)
+                if le_value is not None:
+                    kwargs["max_value"] = float(le_value)
                 values[name] = st.number_input(label, **kwargs)
                 continue
 
