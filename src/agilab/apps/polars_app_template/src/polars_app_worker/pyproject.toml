@@ -39,5 +39,4 @@ agent-worker = []
 dag-worker = []
 polars-worker = [ "polars",]
 
-[tool.uv]
-preview-features = ["extra-build-dependencies"]
+

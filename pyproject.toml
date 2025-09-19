@@ -128,7 +128,6 @@ ignore_missing_imports = true
 source_dir = "src"
 format = "google"
 
-
 [tool.pytest.ini_options]
 # Let pytest discover tests from repo root
 testpaths = [
@@ -153,7 +152,3 @@ addopts = [
 [tool.coverage.run]
 branch = true
 source = ["agilab", "agi_core", "agi_env", "agi_cluster", "agi_node"]
-
-
-[tool.uv]
-preview-features = ["extra-build-dependencies"]

@@ -120,5 +120,4 @@ filterwarnings = [
   "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
 ]
 
-[tool.uv]
-preview-features = ["extra-build-dependencies"]
+

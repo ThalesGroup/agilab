@@ -38,7 +38,6 @@ Documentation = "https://thalesgroup.github.io/agilab"
     path = "../agi-node"
     editable = true
 
-
 [build-system]
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
@@ -68,5 +67,4 @@ filterwarnings = [
   "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
 ]
 
-[tool.uv]
-preview-features = ["extra-build-dependencies"]
+

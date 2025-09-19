@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 set -o pipefail
+UV="uv --preview-features extra-build-dependencies"
 
 # ================================
 # Initial Setup
@@ -145,7 +146,7 @@ choose_python_version() {
     read -p "Enter Python major version [3.13]: " PYTHON_VERSION
     PYTHON_VERSION=${PYTHON_VERSION:-3.13}
     echo "You selected Python version $PYTHON_VERSION"
-    available_python_versions=$(uv python list | grep -F -- "$PYTHON_VERSION" | grep -v "freethreaded")
+    available_python_versions=$($UV python list | grep -F -- "$PYTHON_VERSION" | grep -v "freethreaded")
     python_array=()
     while IFS= read -r line; do
         python_array+=("$line")
@@ -170,22 +171,22 @@ choose_python_version() {
         fi
     done
 
-    installed_pythons=$(uv python list --only-installed | cut -d' ' -f1)
+    installed_pythons=$($UV python list --only-installed | cut -d' ' -f1)
     if ! echo "$installed_pythons" | grep -q "$chosen_python"; then
         echo -e "${YELLOW}Installing $chosen_python...${NC}"
-        uv python install "$chosen_python"
+        $UV python install "$chosen_python"
         echo -e "${GREEN}Python version ($chosen_python) is now installed.${NC}"
     else
         echo -e "${GREEN}Python version ($chosen_python) is already installed.${NC}"
     fi
 
     chosen_python=$(echo "$chosen_python" | cut -d '-' -f2)
-    if uv python list | grep "$chosen_python" | grep -q "freethreaded"; then
+    if $UV python list | grep "$chosen_python" | grep -q "freethreaded"; then
         echo -e "${YELLOW}Freethreaded version available.${NC}"
         chosen_python_free="${chosen_python}+freethreaded"
         if ! echo "$installed_pythons" | grep -q "$chosen_python_free"; then
             echo -e "${YELLOW}Installing $chosen_python_free...${NC}"
-            uv python install "$chosen_python_free"
+            $UV python install "$chosen_python_free"
             echo -e "${GREEN}Python version ($chosen_python_free) is now installed.${NC}"
         else
             echo -e "${GREEN}Python version ($chosen_python_free) is already installed.${NC}"
@@ -204,7 +205,7 @@ backup_existing_project() {
         echo -e "${YELLOW}Existing project found at $AGI_INSTALL_PATH with zip-agi.py present.${NC}"
         backup_file="${AGI_INSTALL_PATH}_backup_$(date +%Y%m%d-%H%M%S).zip"
         echo -e "${YELLOW}Creating backup: $backup_file${NC}"
-        if uv run --project "$AGI_INSTALL_PATH/agilab/node" python "$AGI_INSTALL_PATH/zip-agi.py" --dir2zip "$AGI_INSTALL_PATH" --zipfile "$backup_file"; then
+        if $UV run --project "$AGI_INSTALL_PATH/agilab/node" python "$AGI_INSTALL_PATH/zip-agi.py" --dir2zip "$AGI_INSTALL_PATH" --zipfile "$backup_file"; then
             echo -e "${GREEN}Backup created successfully at $backup_file.${NC}"
             echo -e "${YELLOW}Removing existing project directory...${NC}"
             rm -ri "$AGI_INSTALL_PATH"
@@ -304,7 +305,7 @@ install_enduser() {
 install_pycharm_script() {
     rm -f .idea/workspace.xml
     echo -e "${BLUE}Patching PyCharm workspace.xml interpreter settings...${NC}"
-    uv run --preview-features extra-build-dependencies -p "$AGI_PYTHON_VERSION" python pycharm/setup-pycharm.py || echo -e "${YELLOW}pycharm/install-apps-script.py failed or not found; continuing.${NC}"
+    $UV run -p "$AGI_PYTHON_VERSION" python pycharm/setup-pycharm.py || echo -e "${YELLOW}pycharm/install-apps-script.py failed or not found; continuing.${NC}"
 }
 
 # ================================

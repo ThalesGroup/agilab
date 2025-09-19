@@ -53,5 +53,4 @@ mypy_path = [
 disallow_untyped_defs = false
 ignore_missing_imports = true
 
-[tool.uv]
-preview-features = ["extra-build-dependencies"]
+

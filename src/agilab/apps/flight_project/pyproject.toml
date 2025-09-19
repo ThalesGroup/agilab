@@ -79,5 +79,3 @@ filterwarnings = [
 ]
 
 
-[tool.uv]
-preview-features = ["extra-build-dependencies"]

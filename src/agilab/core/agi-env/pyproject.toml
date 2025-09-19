@@ -52,9 +52,6 @@ Tracker = "https://github.com/ThalesGroup/agilab/issue"
 
 
 
-
-
-
 [dependency-groups]
 dev = [
     "black",
@@ -98,5 +95,4 @@ filterwarnings = [
   "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
 ]
 
-[tool.uv]
-preview-features = ["extra-build-dependencies"]
+

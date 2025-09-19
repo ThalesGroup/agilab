@@ -22,5 +22,4 @@ dev = [
 path = "../../core/agi-env"
 editable = true
 
-[tool.uv]
-preview-features = ["extra-build-dependencies"]
+
