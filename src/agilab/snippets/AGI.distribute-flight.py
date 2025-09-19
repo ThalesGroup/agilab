@@ -9,7 +9,7 @@ async def main():
     res = await AGI.distribute(app_env,
                                scheduler="127.0.0.1", 
                                workers={'127.0.0.1': 2},
-                               data_source="file", data_uri="data/flight/dataset", files="csv/*", nfile=10, nskip=0, nread=10, sampling_rate=1.0, datemin="2020-01-01", datemax="2021-01-01", output_format="csv")
+                               data_source="file", data_uri="data/flight/dataset", files="csv/*", nfile=10, nskip=0, nread=10, sampling_rate=1.0, datemin="2020-01-01", datemax="2021-01-01", output_format="parquet")
     print(res)
     return res
 

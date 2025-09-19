@@ -8,7 +8,7 @@ nread = 10
 sampling_rate = 1.0
 datemin = "2020-01-01"
 datemax = "2021-01-01"
-output_format = "csv"
+output_format = "parquet"
 
 [views]
 view_module = [

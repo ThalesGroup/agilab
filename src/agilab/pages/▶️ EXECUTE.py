@@ -236,7 +236,7 @@ def load_toml_file(file_path):
     return {}
 
 @st.cache_data(show_spinner=False)
-def load_distribution_tree(file_path):
+def load_distribution(file_path):
     with open(file_path, "r") as f:
         data = json.load(f)
     workers = [f"{ip}-{i}" for ip, count in data.get("workers", {}).items() for i in range(1, count + 1)]
@@ -857,9 +857,9 @@ if __name__ == "__main__":
                     st.success("Distribution built successfully.")
         with st.expander("Orchestration view:", expanded=False):
             if st.session_state.get("preview_tree"):
-                dist_tree_path = env.wenv_abs / "distribution_tree.json"
+                dist_tree_path = env.wenv_abs / "distribution.json"
                 if dist_tree_path.exists():
-                    workers, workers_chunks, workers_tree = load_distribution_tree(dist_tree_path)
+                    workers, workers_chunks, workers_tree = load_distribution(dist_tree_path)
                     partition_key = "Partition"
                     weights_key = "Units"
                     weights_unit = "Unit"
@@ -876,7 +876,7 @@ if __name__ == "__main__":
                     unused_workers = [worker for worker, chunks in zip(workers, workers_chunks) if not chunks]
                     if unused_workers:
                         st.warning(f"**{len(unused_workers)} Unused workers:** " + ", ".join(unused_workers))
-                    st.markdown("**Modify Distribution Tree:**")
+                    st.markdown("**Modify Distribution:**")
                     ncols = 2
                     cols = st.columns([10, 1, 10])
                     count = 0
@@ -900,7 +900,7 @@ if __name__ == "__main__":
                                     idx = workers.index(selected_worker)
                                     new_workers_chunks[idx].append(chunk)
                                     new_workers_tree[idx].append(files)
-                        data = load_distribution_tree(dist_tree_path)[0]
+                        data = load_distribution(dist_tree_path)[0]
                         data["target_args"] = st.session_state.app_settings["args"]
                         data["workers_chunks"] = new_workers_chunks
                         data["workers_tree"] = new_workers_tree
