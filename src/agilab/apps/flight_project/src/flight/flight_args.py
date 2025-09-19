@@ -154,7 +154,7 @@ def dump_args_to_toml(
     doc: dict[str, Any] = {}
     if settings_path.exists():
         with settings_path.open("rb") as handle:
-            doc = tomllib.load(handle)
+            doc = tomli.load(handle)
     elif not create_missing:
         raise FileNotFoundError(f"Settings file not found: {settings_path}")
 

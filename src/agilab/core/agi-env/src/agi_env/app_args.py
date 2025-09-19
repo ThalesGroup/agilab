@@ -78,4 +78,3 @@ def dump_model_to_toml(
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     with settings_path.open("wb") as handle:
         tomli_w.dump(doc, handle)
-

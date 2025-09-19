@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Any
 
 import streamlit as st
-import tomllib
+import tomli
 from pydantic import ValidationError
 
 from flight import (
@@ -24,7 +24,7 @@ def load_app_settings(path: Path) -> dict[str, Any]:
 
     if path.exists():
         with path.open("rb") as handle:
-            return tomllib.load(handle)
+            return tomli.load(handle)
     return {}
 
 
