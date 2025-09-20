@@ -24,7 +24,7 @@
 | pexpect | ISC LICENSE _ISCL_ |
 | polars | MIT LICENSE |
 | prompt-toolkit | BSD LICENSE |
-| psutil | BSD-3-CLAUSE |
+| psutil | BSD LICENSE |
 | ptyprocess | ISC LICENSE _ISCL_ |
 | pure-eval | MIT LICENSE |
 | py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |

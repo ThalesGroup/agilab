@@ -1157,7 +1157,7 @@ def _render_uv_env(env):
 
 def _render_manager(env):
     st.header("Edit Manager Module")
-    handle_editing(env.module_path, "edit_tab_manager", comp_props, ace_props)
+    handle_editing(env.manager_path, "edit_tab_manager", comp_props, ace_props)
 
 def _render_worker(env):
     st.header("Edit Worker Module")

@@ -875,7 +875,7 @@ from pathlib import Path
 
 async def main():
     app_env = AgiEnv(active_app=Path('{env.active_app}'), install_type={env.install_type}, verbose={verbose})
-    res = await AGI.distribute(app_env,
+    res = await AGI.get_distrib(app_env,
                                scheduler={scheduler}, 
                                workers={workers},
                                {st.session_state.args_serialized})

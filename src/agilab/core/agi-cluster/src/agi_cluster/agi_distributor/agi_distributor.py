@@ -94,15 +94,15 @@ import runpy
 # Project Libraries:
 from agi_env import AgiEnv, normalize_path
 
-node_src = str(Path(sys.prefix).parents[1] / "agi-node/src")
-if node_src not in sys.path:
-    sys.path.append(node_src)
+_node_src = str(Path(sys.prefix).parents[1] / "agi-node/src")
+if _node_src not in sys.path:
+    sys.path.append(_node_src)
 from agi_node.agi_dispatcher import WorkDispatcher, BaseWorker
 
 # os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
-workers_default = {socket.gethostbyname("localhost"): 1}
+_workers_default = {socket.gethostbyname("localhost"): 1}
 
 
 class AGI:
@@ -126,20 +126,20 @@ class AGI:
     """
 
     # Constants as class attributes
-    TIMEOUT = 10
-    PYTHON_MODE = 1
-    CYTHON_MODE = 2
-    DASK_MODE = 4
-    RAPIDS_MODE = 16
-    INSTALL_MASK = 0b11 << DASK_MODE
-    INSTALL_MODE = 0b01 << DASK_MODE
-    UPDATE_MODE = 0b10 << DASK_MODE
-    SIMULATE_MODE = 0b11 << DASK_MODE
-    DEPLOYEMENT_MASK = 0b110000
-    RUN_MASK = 0b001111
-    RAPIDS_SET = 0b111111
-    RAPIDS_RESET = 0b110111
-    DASK_RESET = 0b111011
+    _TIMEOUT = 10
+    _PYTHON_MODE = 1
+    _CYTHON_MODE = 2
+    _DASK_MODE = 4
+    _RAPIDS_MODE = 16
+    _INSTALL_MASK = 0b11 << _DASK_MODE
+    _INSTALL_MODE = 0b01 << _DASK_MODE
+    _UPDATE_MODE = 0b10 << _DASK_MODE
+    _SIMULATE_MODE = 0b11 << _DASK_MODE
+    _DEPLOYEMENT_MASK = 0b110000
+    _RUN_MASK = 0b001111
+    _RAPIDS_SET = 0b111111
+    _RAPIDS_RESET = 0b110111
+    _DASK_RESET = 0b111011
     _args: Optional[Dict[str, Any]] = None
     _dask_client: Optional[Client] = None
     _dask_scheduler: Optional[Any] = None
@@ -157,21 +157,21 @@ class AGI:
     _target: Optional[str] = None
     _verbose: Optional[int] = None
     _worker_init_error: bool = False
-    workers: Optional[Dict[str, int]] = None
+    _workers: Optional[Dict[str, int]] = None
     _capacity: Optional[Dict[str, float]] = None
     _capacity_data_file: Optional[Path] = None
     _capacity_model_file: Optional[Path] = None
     _capacity_predictor: Optional[RandomForestRegressor] = None
-    _worker_default: Dict[str, int] = workers_default
+    _worker_default: Dict[str, int] = _workers_default
     _run_time: Dict[str, Any] = {}
     _run_type: Optional[str] = None
     _run_types: List[str] = []
     _target_built: Optional[Any] = None
     _module_to_clean: List[str] = []
     _ssh_connections = {}
-    best_mode: Dict[str, Any] = {}
-    work_plan: Optional[Any] = None
-    work_plan_metadata: Optional[Any] = None
+    _best_mode: Dict[str, Any] = {}
+    _work_plan: Optional[Any] = None
+    _work_plan_metadata: Optional[Any] = None
     debug: Optional[bool] = None  # Cache with default local IPs
     env: Optional[AgiEnv] = None
 
@@ -232,15 +232,15 @@ class AGI:
         AGI.env = env
 
         if not workers:
-            workers = workers_default
+            workers = _workers_default
         elif not isinstance(workers, dict):
             raise ValueError("workers must be a dict. {'ip-address':nb-worker}")
 
         AGI.target_path = env.manager_path
         AGI._target = env.target
         AGI._rapids_enabled = rapids_enabled
-        if env.verbose > 0:
-            logger.info(f"AGI instance created for target {env.target} with verbosity {env.verbose}")
+        if env._verbose > 0:
+            logger.info(f"AGI instance created for target {env.target} with verbosity {env._verbose}")
 
         if mode is None or isinstance(mode, list):
             mode_range = range(8) if mode is None else sorted(mode)
@@ -262,14 +262,14 @@ class AGI:
 
             AGI._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
             if AGI._mode:
-                if AGI._mode & AGI.RUN_MASK not in range(0, AGI.RAPIDS_MODE):
+                if AGI._mode & AGI._RUN_MASK not in range(0, AGI._RAPIDS_MODE):
                     raise ValueError(f"mode {AGI._mode} not implemented")
             else:
                 # 16 first modes are "run" type, then there 16, 17 and 18
-                AGI._run_type = AGI._run_types[(AGI._mode & AGI.DEPLOYEMENT_MASK) >> AGI.DASK_MODE]
+                AGI._run_type = AGI._run_types[(AGI._mode & AGI._DEPLOYEMENT_MASK) >> AGI._DASK_MODE]
             AGI._args = args
             AGI._verbose = verbose
-            AGI.workers = workers
+            AGI._workers = workers
             AGI._run_time = {}
 
             AGI._capacity_data_file = env.resources_path / "balancer_df.csv"
@@ -287,12 +287,11 @@ class AGI:
                 "PolarsWorker": "polars-worker",
                 "PandasWorker": "pandas-worker",
                 "DagWorker": "dag-worker",
-                "AgentWorker": "agent-worker",
             }
             AGI.install_worker_group = [AGI.agi_workers[env.base_worker_cls]]
 
             try:
-                return await AGI.main(scheduler)
+                return await AGI._main(scheduler)
 
             except ProcessError as e:
                 logger.error(f"failed to run \n{e}")
@@ -331,14 +330,14 @@ class AGI:
                     - "time": the runtime in seconds (as a float),
                     - "order": the rank order (an integer, 1 for fastest, etc.).
         """
-        rapids_mode_mask = AGI.RAPIDS_SET if rapids_enabled else AGI.RAPIDS_RESET
-        if not BaseWorker.is_cython_installed(env):
+        rapids_mode_mask = AGI._RAPIDS_SET if rapids_enabled else AGI._RAPIDS_RESET
+        if not BaseWorker._is_cython_installed(env):
             await AGI.install(
                 env,
                 scheduler=scheduler,
                 workers=workers,
                 verbose=verbose,
-                modes_enabled=AGI.CYTHON_MODE,
+                modes_enabled=AGI._CYTHON_MODE,
                 **args,
             )
         AGI._mode_auto = True
@@ -388,7 +387,7 @@ class AGI:
         for m in runs:
             runs[m]["delta"] = runs[m]["seconds"] - best_run_data["seconds"]
 
-        AGI.best_mode[env.target] = best_run_data
+        AGI._best_mode[env.target] = best_run_data
         AGI._mode_auto = False
 
         # Convert numeric keys to strings for valid JSON output.
@@ -450,8 +449,8 @@ class AGI:
         """
         port = AGI.find_free_port()
         if not ip_sched:
-            if AGI.workers:
-                ip = list(AGI.workers)[0]
+            if AGI._workers:
+                ip = list(AGI._workers)[0]
             else:
                 ip = socket.gethostbyname("localhost")
         elif isinstance(ip_sched, dict):
@@ -602,7 +601,7 @@ class AGI:
         # logger.info(f"Sent {len(files)} files to {user if user else self.user}@{ip}:{remote_dir}")
 
     @staticmethod
-    def remove_dir_forcefully(path):
+    def _remove_dir_forcefully(path):
         import shutil
         import os
         import time
@@ -747,7 +746,7 @@ class AGI:
         uv = env.uv
         wenv_abs = env.wenv_abs
         if wenv_abs.exists():
-            AGI.remove_dir_forcefully(str(wenv_abs))
+            AGI._remove_dir_forcefully(str(wenv_abs))
         os.makedirs(wenv_abs / "src", exist_ok=True)
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         wenv = env.wenv_rel
@@ -758,7 +757,7 @@ class AGI:
     @staticmethod
     async def _clean_nodes(scheduler_addr: Optional[str], force: bool = True) -> Set[str]:
         # Compose list of IPs: workers plus scheduler's IP
-        list_ip = set(list(AGI.workers) + [AGI._get_scheduler(scheduler_addr)[0]])
+        list_ip = set(list(AGI._workers) + [AGI._get_scheduler(scheduler_addr)[0]])
         localhost_ip = socket.gethostbyname("localhost")
         if not list_ip:
             list_ip.add(localhost_ip)
@@ -811,17 +810,17 @@ class AGI:
 
         os.makedirs(wenv_abs, exist_ok=True)
         file = env.worker_pyproject
-        if env.verbose > 0:
+        if env._verbose > 0:
             logger.info(f"Copying {file} -> {wenv_abs}")
         shutil.copy(file, wenv_abs / file.name)
 
         file = env.setup_core
-        if env.verbose > 0:
+        if env._verbose > 0:
             logger.info(f"Copying {file} -> {wenv_abs}")
         shutil.copy2(file, wenv_abs)
 
         file = env.cli
-        if env.verbose > 0:
+        if env._verbose > 0:
             logger.info(f"Copying {file} -> {wenv_abs.parent}")
         shutil.copy(file, wenv_abs.parent)
 
@@ -830,7 +829,7 @@ class AGI:
         else:
             AgiEnv.set_env_var(ip, "no_rapids_hw")
 
-        if env.verbose > 0:
+        if env._verbose > 0:
             logger.info(f"Rapids-capable GPU[{ip}]: {hw_rapids_capable}")
 
         # # Install Python
@@ -869,7 +868,7 @@ class AGI:
         - Use 'uv' to install the specified Pytho
         n version, create necessary directories, and install packages.
         """
-        list_ip = set(list(AGI.workers) + [AGI._get_scheduler(scheduler_addr)[0]])
+        list_ip = set(list(AGI._workers) + [AGI._get_scheduler(scheduler_addr)[0]])
         localhost_ip = socket.gethostbyname("localhost")
         env = AGI.env
         dist_rel = env.dist_rel
@@ -955,10 +954,10 @@ class AGI:
             options_worker = " --extra " + " --extra ".join(AGI.install_worker_group)
 
         # node_ips = await AGI._clean_nodes(scheduler)
-        node_ips = set(list(AGI.workers) + [AGI._get_scheduler(scheduler_addr)[0]])
+        node_ips = set(list(AGI._workers) + [AGI._get_scheduler(scheduler_addr)[0]])
         AGI._venv_todo(node_ips)
         start_time = time.time()
-        if env.verbose > 0:
+        if env._verbose > 0:
             logger.info(f"Installing {app_path} on 127.0.0.1")
 
         await AGI._deploy_local_worker(app_path, Path(wenv_rel), options_worker)
@@ -966,7 +965,7 @@ class AGI:
         if AGI._mode & 4:
             tasks = []
             for ip in node_ips:
-                if env.verbose > 0:
+                if env._verbose > 0:
                     logger.info(f"Installing worker on {ip}")
                 if not env.is_local(ip):
                     tasks.append(asyncio.create_task(
@@ -976,13 +975,13 @@ class AGI:
 
         if AGI._verbose:
             duration = AGI._format_elapsed(time.time() - start_time)
-            if env.verbose > 0:
+            if env._verbose > 0:
                 logger.info(f"uv {AGI._run_type} completed in {duration}")
 
     @staticmethod
     def _reset_deploy_state() -> None:
         """Initialize installation flags and run type."""
-        AGI._run_type = AGI._run_types[(AGI._mode & AGI.DEPLOYEMENT_MASK) >> 4]
+        AGI._run_type = AGI._run_types[(AGI._mode & AGI._DEPLOYEMENT_MASK) >> 4]
         AGI._install_done_local = False
         AGI._install_done = False
         AGI._worker_init_error = False
@@ -1021,7 +1020,7 @@ class AGI:
         pyvers = env.python_version
 
         file = env.setup_core
-        if env.verbose > 0:
+        if env._verbose > 0:
             logger.info(f"Copying {file.name} -> {wenv_abs}")
 
         shutil.copy2(file, wenv_abs)
@@ -1031,7 +1030,7 @@ class AGI:
         else:
             AgiEnv.set_env_var(ip, "no_rapids_hw")
 
-        if env.verbose > 0:
+        if env._verbose > 0:
             logger.info(f"Rapids-capable GPU[{ip}]: {hw_rapids_capable}")
 
         # =========
@@ -1044,7 +1043,7 @@ class AGI:
         else:
             cmd_manager = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(app_path)) else '')}{uv} {run_type} --project '{app_path}'"
 
-        if env.verbose > 0:
+        if env._verbose > 0:
             logger.info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
 
@@ -1071,7 +1070,7 @@ class AGI:
         else:
             cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} {options_worker} --python {pyvers_worker} --project '{wenv_abs}'"
 
-        if env.verbose > 0:
+        if env._verbose > 0:
             logger.info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
 
@@ -1238,7 +1237,7 @@ class AGI:
         await AGI.exec_ssh(ip, cmd)
 
         # build target_worker lib from src/
-        if env.verbose > 1:
+        if env._verbose > 1:
             cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {wenv_rel / env.setup_app.name} build_ext --install-type 2 -b {wenv_rel}"
         else:
             cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {wenv_rel / env.setup_app.name} -q build_ext --install-type 2 -b {wenv_rel}"
@@ -1286,7 +1285,7 @@ class AGI:
         for ip in list_ip:
             (AGI._local_ip.append(ip) if AgiEnv.is_local(ip) else AGI._remote_ip.append(ip))
         AGI._install_todo = 2 * len(AGI._remote_ip)
-        if AGI.env.verbose > 0:
+        if AGI.env._verbose > 0:
             logger.info(f"remote worker to install: {AGI._install_todo} ")
 
     @staticmethod
@@ -1294,7 +1293,7 @@ class AGI:
             env: AgiEnv,
             scheduler: Optional[str] = None,
             workers: Optional[Dict[str, int]] = None,
-            modes_enabled: int = RUN_MASK,
+            modes_enabled: int = _RUN_MASK,
             verbose: Optional[int] = None,
             **args: Any,
     ) -> None:
@@ -1325,13 +1324,13 @@ class AGI:
             ConnectionError:
         """
         AGI._run_type = "sync"
-        mode = (AGI.INSTALL_MODE | modes_enabled)
+        mode = (AGI._INSTALL_MODE | modes_enabled)
         await AGI.run(
             env=env,
             scheduler=scheduler,
             workers=workers,
             mode=mode,
-            rapids_enabled=AGI.INSTALL_MODE & modes_enabled,
+            rapids_enabled=AGI._INSTALL_MODE & modes_enabled,
             verbose=verbose, **args
         )
 
@@ -1340,7 +1339,7 @@ class AGI:
             env: Optional[AgiEnv] = None,
             scheduler: Optional[str] = None,
             workers: Optional[Dict[str, int]] = None,
-            modes_enabled: int = RUN_MASK,
+            modes_enabled: int = _RUN_MASK,
             verbose: Optional[int] = None,
             **args: Any,
     ) -> None:
@@ -1360,11 +1359,11 @@ class AGI:
         """
         AGI._run_type = "upgrade"
         await AGI.run(env=env, scheduler=scheduler, workers=workers,
-                      mode=(AGI.UPDATE_MODE | modes_enabled) & AGI.DASK_RESET,
-                      rapids_enabled=AGI.UPDATE_MODE & modes_enabled, **args)
+                      mode=(AGI._UPDATE_MODE | modes_enabled) & AGI._DASK_RESET,
+                      rapids_enabled=AGI._UPDATE_MODE & modes_enabled, **args)
 
     @staticmethod
-    async def distribute(
+    async def get_distrib(
             env: AgiEnv,
             scheduler: Optional[str] = None,
             workers: Optional[Dict[str, int]] = None,
@@ -1384,7 +1383,18 @@ class AGI:
         -------
         """
         AGI._run_type = "simulate"
-        return await AGI.run(env, scheduler, workers, mode=AGI.SIMULATE_MODE, **args)
+        return await AGI.run(env, scheduler, workers, mode=AGI._SIMULATE_MODE, **args)
+
+    # Backward compatibility alias
+    @staticmethod
+    async def distribute(
+            env: AgiEnv,
+            scheduler: Optional[str] = None,
+            workers: Optional[Dict[str, int]] = None,
+            verbose: int = 0,
+            **args: Any,
+    ) -> Any:
+        return await AGI.get_distrib(env, scheduler, workers, verbose=verbose, **args)
 
     @staticmethod
     async def _start_scheduler(scheduler: Optional[str]) -> bool:
@@ -1401,11 +1411,11 @@ class AGI:
         env = AGI.env
         cli_rel = env.wenv_rel.parent / "cli.py"
 
-        if (AGI._mode_auto and AGI._mode == AGI.DASK_MODE) or not AGI._mode_auto:
+        if (AGI._mode_auto and AGI._mode == AGI._DASK_MODE) or not AGI._mode_auto:
             env.hw_rapids_capable = True
-            if AGI._mode & AGI.DASK_MODE:
+            if AGI._mode & AGI._DASK_MODE:
                 if scheduler is None:
-                    if list(AGI.workers) == ["127.0.0.1"]:
+                    if list(AGI._workers) == ["127.0.0.1"]:
                         scheduler = "127.0.0.1"
                     else:
                         logger.info("AGI.run(...scheduler='scheduler ip address' is required -> Stop")
@@ -1413,7 +1423,7 @@ class AGI:
                 AGI._scheduler_ip, AGI._scheduler_port = AGI._get_scheduler(scheduler)
 
             # Clean worker
-            for ip in list(AGI.workers):
+            for ip in list(AGI._workers):
                 await AGI.send_file(env, ip, env.cluster_root / "src/agi_cluster/agi_distributor/cli.py",
                                     cli_rel.parent)
                 hw_rapids_capable = env.envars.get(ip, None)
@@ -1462,7 +1472,7 @@ class AGI:
                 await asyncio.sleep(1)  # Give scheduler a moment to start
                 client = await Client(AGI._scheduler,
                                       heartbeat_interval=5000,
-                                      timeout=AGI.TIMEOUT)
+                                      timeout=AGI._TIMEOUT)
                 AGI._dask_client = client
             except Exception as e:
                 logger.error("Dask Client instantiation trouble, run aborted due to:")
@@ -1504,7 +1514,7 @@ class AGI:
         if not await AGI._start_scheduler(scheduler):
             return False
 
-        for i, (ip, n) in enumerate(AGI.workers.items()):
+        for i, (ip, n) in enumerate(AGI._workers.items()):
             is_local = env.is_local(ip)
             cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
 
@@ -1535,13 +1545,13 @@ class AGI:
                 if AGI._worker_init_error:
                     raise FileNotFoundError(f"Please run AGI.install([{ip}])")
 
-        await AGI._sync(timeout=AGI.TIMEOUT)
+        await AGI._sync(timeout=AGI._TIMEOUT)
 
         if not AGI._mode_auto or (AGI._mode_auto and AGI._mode == 0):
             # in case of core src has changed
             AGI._build_lib_local()
             await AGI._build_lib_remote()
-            if AGI._mode & AGI.DASK_MODE:
+            if AGI._mode & AGI._DASK_MODE:
                 # load lib
                 for egg_file in (AGI.env.wenv_abs / "dist").glob("*.egg"):
                     AGI._dask_client.upload_file(str(egg_file))
@@ -1551,7 +1561,7 @@ class AGI:
         if not isinstance(AGI._dask_client, Client):
             return
         start = time.time()
-        expected_workers = sum(AGI.workers.values())
+        expected_workers = sum(AGI._workers.values())
 
         while True:
             try:
@@ -1601,7 +1611,7 @@ class AGI:
         """
         env = AGI.env
         wenv = normalize_path(str(env.wenv_abs))
-        is_cy = AGI._mode & AGI.CYTHON_MODE
+        is_cy = AGI._mode & AGI._CYTHON_MODE
         packages = "agi_dispatcher, "
 
         baseworker = env.base_worker_cls
@@ -1623,7 +1633,7 @@ class AGI:
         cmd_prefix = env.envars.get(f"127.0.0.1_CMD_PREFIX", "")
         if env.is_free_threading_available:
             uv = cmd_prefix + " PYTHON_GIL=0 " + env.uv
-        if env.verbose > 1:
+        if env._verbose > 1:
             cmd = f"{env.uv} --project '{app_path}' run --no-sync python '{env.setup_app}' bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d \"{wenv_abs}\""
         else:
             cmd = f"{env.uv} --project '{app_path}' run --no-sync python '{env.setup_app}' -q bdist_egg --packages \"{packages}\" --install_type '{env.install_type}' -d \"{wenv_abs}\""
@@ -1640,7 +1650,7 @@ class AGI:
         if is_cy:
             # cython compilation of wenv/src into wenv
             shutil.copy2(env.setup_core, wenv_abs)
-            if env.verbose > 1:
+            if env._verbose > 1:
                 cmd = f"{env.uv} --project '{wenv_abs}' run --no-sync python '{env.setup_app}' build_ext --install-type 1 -b '{wenv_abs}'"
             else:
                 cmd = f"{env.uv} --project '{wenv_abs}' run --no-sync python '{env.setup_app}' -q build_ext --install-type 1 -b '{wenv_abs}'"
@@ -1705,15 +1715,15 @@ class AGI:
 
         await AGI._kill(current_pid=current_pid, force=True)
 
-        if AGI._mode & AGI.CYTHON_MODE:
+        if AGI._mode & AGI._CYTHON_MODE:
             wenv_abs = env.wenv_abs
             cython_lib_path = Path(wenv_abs)
 
         logging.info(f"debug={env.debug}")
 
         if env.debug:
-            BaseWorker.new(env=env, mode=AGI._mode, verbose=env.verbose, args=AGI._args)
-            res = await BaseWorker.run(env=env, mode=AGI._mode, workers=AGI.workers, verbose=env.verbose,
+            BaseWorker._new(env=env, mode=AGI._mode, verbose=env._verbose, args=AGI._args)
+            res = await BaseWorker.run(env=env, mode=AGI._mode, workers=AGI._workers, verbose=env._verbose,
                                        args=AGI._args)
         else:
             cmd = (
@@ -1721,8 +1731,8 @@ class AGI:
                 f"from agi_node.agi_dispatcher import  BaseWorker\n"
                 f"import asyncio\n"
                 f"async def main():\n"
-                f"  BaseWorker.new(active_app='{env.target_worker}', mode={AGI._mode}, verbose={env.verbose}, args={AGI._args})\n"
-                f"  res = await BaseWorker.run(mode={AGI._mode}, workers={AGI.workers}, args={AGI._args})\n"
+                f"  BaseWorker.new(active_app='{env.target_worker}', mode={AGI._mode}, verbose={env._verbose}, args={AGI._args})\n"
+                f"  res = await BaseWorker.run(mode={AGI._mode}, workers={AGI._workers}, args={AGI._args})\n"
                 f"  print(res)\n"
                 f"if __name__ == '__main__':\n"
                 f"  asyncio.run(main())\""
@@ -1754,15 +1764,15 @@ class AGI:
         ]
         logger.info(f"AGI run mode={AGI._mode} on {list(AGI._dask_workers)} ... ")
 
-        AGI.workers, workers_tree, workers_tree_info = await WorkDispatcher.do_distrib(
-            env, AGI.workers, AGI._args
+        AGI._workers, workers_tree, workers_tree_info = await WorkDispatcher._do_distrib(
+            env, AGI._workers, AGI._args
         )
-        AGI.work_plan = workers_tree
-        AGI.work_plan_metadata = workers_tree_info
+        AGI._work_plan = workers_tree
+        AGI._work_plan_metadata = workers_tree_info
 
         AGI._scale_cluster()
 
-        if AGI._mode == AGI.INSTALL_MODE:
+        if AGI._mode == AGI._INSTALL_MODE:
             workers_tree
 
         dask_workers = list(AGI._dask_workers)
@@ -1771,7 +1781,7 @@ class AGI:
         AGI._dask_client.gather(
             [
                 client.submit(
-                    BaseWorker.new,
+                    BaseWorker._new,
                     env=0 if env.debug else None,
                     active_app=env.target_worker,
                     mode=AGI._mode,
@@ -1791,7 +1801,7 @@ class AGI:
 
         # --- Capture logs from each worker! ---
         worker_logs = client.run(
-            BaseWorker.do_works,
+            BaseWorker._do_works,
             workers_tree,
             workers_tree_info,
             workers=dask_workers,
@@ -1806,20 +1816,20 @@ class AGI:
         return f"{env.mode2str(AGI._mode)} {runtime}"
 
     @staticmethod
-    async def main(scheduler: Optional[str]) -> Any:
+    async def _main(scheduler: Optional[str]) -> Any:
         cond_clean = True
 
         AGI._jobs = bg.BackgroundJobManager()
 
-        if (AGI._mode & AGI.DEPLOYEMENT_MASK) == AGI.SIMULATE_MODE:
+        if (AGI._mode & AGI._DEPLOYEMENT_MASK) == AGI._SIMULATE_MODE:
             # case simulate mode #0b11xxxx
             res = await AGI._run()
 
-        elif AGI._mode >= AGI.INSTALL_MODE:
+        elif AGI._mode >= AGI._INSTALL_MODE:
             # case install modes
             t = time.time()
 
-            if AGI._mode & AGI.DASK_MODE:
+            if AGI._mode & AGI._DASK_MODE:
                 await AGI._prepare_cluster_env(scheduler)
             AGI._clean_dirs_local()
             await AGI._prepare_local_env()
@@ -1828,11 +1838,11 @@ class AGI:
 
             res = time.time() - t
 
-        elif (AGI._mode & AGI.DEPLOYEMENT_MASK) == AGI.SIMULATE_MODE:
+        elif (AGI._mode & AGI._DEPLOYEMENT_MASK) == AGI._SIMULATE_MODE:
             # case simulate mode #0b11xxxx
             res = await AGI._run()
 
-        elif AGI._mode & AGI.DASK_MODE:
+        elif AGI._mode & AGI._DASK_MODE:
 
             await AGI._start(scheduler)
 
@@ -1875,10 +1885,10 @@ class AGI:
             workers_to_remove = []
             for dask_worker in AGI._dask_workers:
                 ip = dask_worker.split(":")[0]
-                if ip in AGI.workers:
+                if ip in AGI._workers:
                     if ip not in nb_kept_workers:
                         nb_kept_workers[ip] = 0
-                    if nb_kept_workers[ip] >= AGI.workers[ip]:
+                    if nb_kept_workers[ip] >= AGI._workers[ip]:
                         workers_to_remove.append(dask_worker)
                     else:
                         nb_kept_workers[ip] += 1
@@ -1897,7 +1907,7 @@ class AGI:
         logger.info("stop Agi core")
 
         i = 0
-        while len(AGI._dask_client.scheduler_info()["workers"]) and (i < AGI.TIMEOUT):
+        while len(AGI._dask_client.scheduler_info()["workers"]) and (i < AGI._TIMEOUT):
             i += 1
             AGI._dask_client.retire_workers()
             await asyncio.sleep(1)
@@ -1907,7 +1917,7 @@ class AGI:
         ) or not AGI._mode_auto:
             AGI._dask_client.shutdown()
 
-        await AGI.close_all_connections()
+        await AGI._close_all_connections()
 
     @staticmethod
     async def _calibration() -> None:
@@ -1918,8 +1928,8 @@ class AGI:
             [
                 AGI._dask_client.run(
                     # BaseWorker.get_logs_and_result,
-                    BaseWorker.get_worker_info,
-                    BaseWorker.worker_id,
+                    BaseWorker._get_worker_info,
+                    BaseWorker._worker_id,
                     workers=AGI._dask_workers,
                 )
             ]
@@ -1940,7 +1950,7 @@ class AGI:
         for worker, info in AGI.workers_info.items():
             ipport = worker.split("/")[-1]
             infos = list(AGI.workers_info[worker].values())
-            infos.insert(0, [AGI.workers[ipport.split(":")[0]]])
+            infos.insert(0, [AGI._workers[ipport.split(":")[0]]])
             data = np.array(infos).reshape(1, 6)
             AGI._capacity[ipport] = AGI._capacity_predictor.predict(data)[0]
             info["label"] = AGI._capacity[ipport]
@@ -2058,7 +2068,7 @@ class AGI:
                     )
                 else:
                     workers_rt[worker]["nb_workers"] = int(
-                        AGI.workers[worker.split(":")[0]]
+                        AGI._workers[worker.split(":")[0]]
                     )
 
         for w, data in workers_rt.items():
@@ -2179,7 +2189,7 @@ class AGI:
         try:
             async with AGI.get_ssh_connection(ip) as conn:
                 msg = f"[{ip}] {cmd}"
-                if AgiEnv.verbose > 0 or AgiEnv.debug:
+                if AgiEnv._verbose > 0 or AgiEnv.debug:
                     logger.info(msg)
                 result = await conn.run(cmd, check=True)
                 stdout = result.stdout
@@ -2190,7 +2200,7 @@ class AGI:
                     stder = stderr.decode('utf-8', errors='replace')
                 if stderr:
                     logger.info(f"[{ip}] {stderr.strip()}")
-                if AgiEnv.verbose > 0 or AgiEnv.debug:
+                if AgiEnv._verbose > 0 or AgiEnv.debug:
                     if stdout:
                         logger.info(f"[{ip}] {stdout.strip()}")
                 return stdout.strip() + "\n" + stderr.strip()
@@ -2235,7 +2245,7 @@ class AGI:
                 return ""  # or None if no output
 
     @staticmethod
-    async def close_all_connections():
+    async def _close_all_connections():
         """
         Ferme proprement toutes les connexions SSH ouvertes.
         À appeler à la fin de ton programme ou avant arrêt.

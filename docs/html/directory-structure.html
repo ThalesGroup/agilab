@@ -320,7 +320,6 @@ apps/
         uv_config.toml
     flight_project/
         .pytest_cache/ [excluded]
-        .venv/ [excluded]
         Modules/ [excluded]
         src/
             __pycache__/ [excluded]
@@ -370,7 +369,6 @@ apps/
         uv_config.toml
     mycode_project/
         .pytest_cache/ [excluded]
-        .venv/ [excluded]
         Modules/ [excluded]
         src/
             __pycache__/ [excluded]
@@ -472,7 +470,6 @@ core/
     __pycache__/ [excluded]
     agi-cluster/
         .pytest_cache/ [excluded]
-        .venv/ [excluded]
         src/
             agi_cluster/
                 agi_distributor/
@@ -498,7 +495,6 @@ core/
         README.md
     agi-env/
         .pytest_cache/ [excluded]
-        .venv/ [excluded]
         __pycache__/ [excluded]
         src/
             agi_env/
@@ -535,14 +531,9 @@ core/
         README.md
         uv_config.toml
     agi-node/
-        .venv/ [excluded]
         src/
             agi_node/
                 __pycache__/ [excluded]
-                agent_worker/
-                    __pycache__/ [excluded]
-                    __init__.py
-                    agent_worker.py
                 agi_dispatcher/
                     __pycache__/ [excluded]
                     __init__.py
@@ -573,8 +564,6 @@ core/
     test/
         __pycache__/ [excluded]
         __init__.py
-        _test_dask.py
-        _test_kill.py
         test_agent_worker.py
         test_agi_distributor.py
         test_base_worker.py
@@ -582,6 +571,10 @@ core/
         test_pandas_worker.py
         test_polars_worker.py
         test_work_dispatcher.py
+    tools/
+        __init__.py
+        test_dask.py
+        test_kill.py
     .coverage
     .gitignore
     __init__.py
@@ -593,9 +586,64 @@ core/
 pages/
     __pycache__/ [excluded]
     ▶️ EDIT.py
+    ▶️ EDIT.py.touch
     ▶️ EXECUTE.py
     ▶️ EXPERIMENT.py
-    ▶️ VIEW.py
+    ▶️ EXPLORE.py
+pages_with_venv/
+    view_autoencoder-latenspace/
+        src/
+            view_autoencoder_latentspace/
+                __init__.py
+                autoencoder_latentspace.py
+                view_autoencoder_latentspace.py
+        pyproject.toml
+    view_barycentric/
+        src/
+            view_barycentric/
+                __init__.py
+                barycentric_graph.py
+                view_barycentric.py
+        __init__.py
+        pyproject.toml
+    view_maps/
+        .idea/
+            inspectionProfiles/
+                profiles_settings.xml
+                Project_Default.xml
+            maps.iml
+            modules.xml
+        apps/
+        src/
+            view_maps/
+                __init__.py
+                maps.py
+                view_maps.py
+        pyproject.toml
+    view_maps-3d/
+        .idea/
+            inspectionProfiles/
+                profiles_settings.xml
+                Project_Default.xml
+            maps-3d.iml
+            modules.xml
+        src/
+            view_maps_3d/
+                __init__.py
+                maps_3d.py
+                view_maps_3d.py
+        pyproject.toml
+    view_maps-network/
+        src/
+            view_maps_network/
+                maps_network_graph.py
+                view_maps_network.py
+        pyproject.toml
+    .git_archival.txt
+    .gitattributes
+    .gitignore
+    __init__.py
+    README.md
 resources/
     help/
         __init__.py
@@ -611,12 +659,12 @@ resources/
     custom_buttons.json
     info_bar.json
 snippets/
-    AGI.distribute-flight.py
-    AGI.distribute-flight_trajectory.py
-    AGI.distribute-link_sim.py
-    AGI.distribute-mycode.py
-    AGI.distribute-sat_trajectory.py
-    AGI.distribute-sb3_trainer.py
+    AGI.get_distrib-flight.py
+    AGI.get_distrib-flight_trajectory.py
+    AGI.get_distrib-link_sim.py
+    AGI.get_distrib-mycode.py
+    AGI.get_distrib-sat_trajectory.py
+    AGI.get_distrib-sb3_trainer.py
     AGI.install-flight.py
     AGI.install-flight_trajectory.py
     AGI.install-link_sim.py
@@ -633,63 +681,9 @@ snippets/
 test/
     __init__.py
     test-streamlit.sh
-views/
-    autoencoder-latentspace/
-        .venv/ [excluded]
-        src/
-            autoencoder_latentspace/
-                __init__.py
-                autoencoder_latentspace.py
-        pyproject.toml
-    barycentric-graph/
-        .venv/ [excluded]
-        src/
-            barycentric_graph/
-                __init__.py
-                barycentric_graph.py
-        __init__.py
-        pyproject.toml
-    maps/
-        .idea/
-            inspectionProfiles/
-                profiles_settings.xml
-                Project_Default.xml
-            maps.iml
-            modules.xml
-        .venv/ [excluded]
-        apps/
-        src/
-            maps/
-                __init__.py
-                maps.py
-        pyproject.toml
-    maps-3d/
-        .idea/
-            inspectionProfiles/
-                profiles_settings.xml
-                Project_Default.xml
-            maps-3d.iml
-            modules.xml
-        .venv/ [excluded]
-        src/
-            maps_3d/
-                __init__.py
-                maps_3d.py
-        pyproject.toml
-    maps-network-graph/
-        .venv/ [excluded]
-        src/
-            maps_network_graph/
-                maps_network_graph.py
-        pyproject.toml
-    .git_archival.txt
-    .gitattributes
-    .gitignore
-    __init__.py
-    README.md
 .gitignore
 __init__.py
-agi_copilot.py
+agi_codex.py
 AGILAB.py
 install_apps_views.ps1
 install_apps_views.sh

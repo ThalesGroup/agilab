@@ -65,19 +65,19 @@ class BaseWorker(abc.ABC):
     _built = None
     _pool_init = None
     _work_pool = None
-    share_path = None
-    verbose = 1
-    mode = None
-    env = None
-    worker_id = None
-    worker = None
-    home_dir = None
-    logs = None
-    dask_home = None
-    worker = None
-    t0 = None
-    is_managed_pc = getpass.getuser().startswith("T0")
-    cython_decorators = ["njit"]
+    _share_path = None
+    _verbose = 1
+    _mode = None
+    _env = None
+    _worker_id = None
+    _worker = None
+    _home_dir = None
+    _logs = None
+    _dask_home = None
+    _worker = None
+    _t0 = None
+    _is_managed_pc = getpass.getuser().startswith("T0")
+    _cython_decorators = ["njit"]
 
     def start(self):
         """
@@ -91,14 +91,14 @@ class BaseWorker(abc.ABC):
         """
         """ """
         logging.info(
-            f"worker #{BaseWorker.worker_id}: {BaseWorker.worker} - mode: {self.mode}")
+            f"worker #{BaseWorker._worker_id}: {BaseWorker._worker} - mode: {self._mode}")
         self.start()
 
     def stop(self):
         """
         Returns:
         """
-        logging.info(f"worker #{self.worker_id}: {self.worker} - mode: {self.mode}"
+        logging.info(f"worker #{self._worker_id}: {self._worker} - mode: {self._mode}"
                         )
 
     @staticmethod
@@ -113,7 +113,7 @@ class BaseWorker(abc.ABC):
         Returns:
             str: The joined path.
         """
-        if os.name == "nt" and not BaseWorker.is_managed_pc:
+        if os.name == "nt" and not BaseWorker._is_managed_pc:
             path = Path(path1)
             parts = path.parts
             if "Users" in parts:
@@ -127,7 +127,7 @@ class BaseWorker(abc.ABC):
                 subprocess.run(cmd, shell=True, check=True)
             except Exception as e:
                 logging.error(f"Mount failed: {e}")
-        return BaseWorker.join(BaseWorker.expand(path1), path2)
+        return BaseWorker._join(BaseWorker.expand(path1), path2)
 
     @staticmethod
     def expand(path, base_directory=None):
@@ -167,7 +167,7 @@ class BaseWorker(abc.ABC):
             return normalize_path(expanded_path)
 
     @staticmethod
-    def join(path1, path2):
+    def _join(path1, path2):
         # path to data base on symlink Path.home()/data(symlink)
         """
         Join two file paths.
@@ -189,7 +189,7 @@ class BaseWorker(abc.ABC):
         return path
 
        # dans node.py (en dehors de la classe BaseWorker)
-    def get_logs_and_result(func, *args, verbosity=logging.CRITICAL, **kwargs):
+    def _get_logs_and_result(func, *args, verbosity=logging.CRITICAL, **kwargs):
         import io
         import logging
 
@@ -216,7 +216,7 @@ class BaseWorker(abc.ABC):
 
 
     @staticmethod
-    def exec(cmd, path, worker):
+    def _exec(cmd, path, worker):
         """execute a command within a subprocess
 
         Args:
@@ -260,7 +260,7 @@ class BaseWorker(abc.ABC):
 
     @staticmethod
     def _load_manager():
-        env = BaseWorker.env
+        env = BaseWorker._env
         module_name = env.module
         module_class = env.target_class
         module_name += '.' + module_name
@@ -270,7 +270,7 @@ class BaseWorker(abc.ABC):
 
     @staticmethod
     def _load_worker(mode):
-        env = BaseWorker.env
+        env = BaseWorker._env
         module_name = env.target_worker
         module_class = env.target_worker_class
         if module_name in sys.modules:
@@ -283,7 +283,7 @@ class BaseWorker(abc.ABC):
         return BaseWorker._load_module(module_name, module_class)
 
     @staticmethod
-    def is_cython_installed(env):
+    def _is_cython_installed(env):
         module_class = env.target_worker_class
         module_name = env.target_worker + "_cy"
 
@@ -306,9 +306,9 @@ class BaseWorker(abc.ABC):
         :return:
         """
         if not env:
-            env = BaseWorker.env
+            env = BaseWorker._env
         else:
-            BaseWorker.env = env
+            BaseWorker._env = env
 
         if mode & 2:
             wenv_abs = env.wenv_abs
@@ -332,7 +332,7 @@ class BaseWorker(abc.ABC):
         try:
             from .agi_dispatcher import WorkDispatcher  # Local import to avoid circular dependency
 
-            workers, workers_tree, workers_tree_info = await WorkDispatcher.do_distrib(env, workers, args)
+            workers, workers_tree, workers_tree_info = await WorkDispatcher._do_distrib(env, workers, args)
         except Exception as err:
             logging.error(traceback.format_exc())
             sys.exit(1)
@@ -341,14 +341,14 @@ class BaseWorker(abc.ABC):
             return workers_tree
 
         t = time.time()
-        BaseWorker.do_works(workers_tree, workers_tree_info)
+        BaseWorker._do_works(workers_tree, workers_tree_info)
         runtime = time.time() - t
         env._run_time = runtime
 
         return f"{env.mode2str(mode)} {humanize.precisedelta(datetime.timedelta(seconds=runtime))}"
 
     @staticmethod
-    def onerror(func, path, exc_info):
+    def _onerror(func, path, exc_info):
         """
         Error handler for `shutil.rmtree`.
         If it’s a permission error, make it writable and retry.
@@ -368,7 +368,7 @@ class BaseWorker(abc.ABC):
             raise exc_value
 
     @staticmethod
-    def new(
+    def _new(
             env: AgiEnv=None,
             active_app: str=None,
             mode: int=0,
@@ -396,28 +396,28 @@ class BaseWorker(abc.ABC):
             logging.info(f"worker #{worker_id}: {worker} from: {Path(__file__)}")
 
             if env:
-                BaseWorker.env = env
+                BaseWorker._env = env
             else:
-                BaseWorker.env = AgiEnv(active_app=active_app, install_type=2, verbose=verbose)
+                BaseWorker._env = AgiEnv(active_app=active_app, install_type=2, verbose=verbose)
 
             # import of derived Class of WorkDispatcher, name target_inst which is typically an instance of MyCode
             worker_class = BaseWorker._load_worker(mode)
 
             # Instantiate the class with arguments
             worker_inst = worker_class()
-            worker_inst.mode = mode
+            worker_inst._mode = mode
             worker_inst.args = SimpleNamespace(**args)
-            worker_inst.verbose = verbose
+            worker_inst._verbose = verbose
 
             # Instantiate the base class
-            BaseWorker.verbose = verbose
+            BaseWorker._verbose = verbose
             # BaseWorker._pool_init = worker_inst.pool_init
             # BaseWorker._work_pool = worker_inst.work_pool
             BaseWorker._insts[worker_id] = worker_inst
             BaseWorker._built = False
-            BaseWorker.worker = Path(worker).name
-            BaseWorker.worker_id = worker_id
-            BaseWorker.t0 = time.time()
+            BaseWorker._worker = Path(worker).name
+            BaseWorker._worker_id = worker_id
+            BaseWorker._t0 = time.time()
             logging.info(f"worker #{worker_id}: {worker} starting...")
             BaseWorker.start(worker_inst)
 
@@ -426,7 +426,7 @@ class BaseWorker(abc.ABC):
             raise
 
     @staticmethod
-    def get_worker_info(worker_id):
+    def _get_worker_info(worker_id):
         """def get_worker_info():
 
         Args:
@@ -434,7 +434,7 @@ class BaseWorker(abc.ABC):
         Returns:
         """
 
-        worker = BaseWorker.worker
+        worker = BaseWorker._worker
 
         # Informations sur la RAM
         ram = psutil.virtual_memory()
@@ -448,10 +448,10 @@ class BaseWorker(abc.ABC):
         cpu_frequency = [psutil.cpu_freq().current / 10 ** 3]
 
         # path = BaseWorker.share_path
-        if not BaseWorker.share_path:
+        if not BaseWorker._share_path:
             path = tempfile.gettempdir()
         else:
-            path = normalize_path(BaseWorker.share_path)
+            path = normalize_path(BaseWorker._share_path)
         if not os.path.exists(path):
             os.makedirs(path, exist_ok=True)
 
@@ -482,7 +482,7 @@ class BaseWorker(abc.ABC):
         return system_info
 
     @staticmethod
-    def build(target_worker, dask_home, worker, mode=0, verbose=0):
+    def _build(target_worker, dask_home, worker, mode=0, verbose=0):
         """
         Function to build target code on a target Worker.
 
@@ -499,13 +499,13 @@ class BaseWorker(abc.ABC):
             prefix = "~/MyApp/"
         else:
             prefix = "~/"
-        BaseWorker.home_dir = Path(prefix).expanduser().absolute()
-        BaseWorker.logs = BaseWorker.home_dir / f"{target_worker}_trace.txt"
-        BaseWorker.dask_home = dask_home
-        BaseWorker.worker = worker
+        BaseWorker._home_dir = Path(prefix).expanduser().absolute()
+        BaseWorker._logs = BaseWorker._home_dir / f"{target_worker}_trace.txt"
+        BaseWorker._dask_home = dask_home
+        BaseWorker._worker = worker
 
         logging.info(
-            f"worker #{BaseWorker.worker_id}: {worker} from: {Path(__file__)}"
+            f"worker #{BaseWorker._worker_id}: {worker} from: {Path(__file__)}"
         )
 
         try:
@@ -513,7 +513,7 @@ class BaseWorker(abc.ABC):
 
             if verbose > 2:
                 logging.info("starting worker_build ...")
-                logging.info(f"home_dir: {BaseWorker.home_dir}")
+                logging.info(f"home_dir: {BaseWorker._home_dir}")
                 logging.info(
                     f"target_worker={target_worker}, dask_home={dask_home}, mode={mode}, verbose={verbose}, worker={worker})"
                 )
@@ -523,7 +523,7 @@ class BaseWorker(abc.ABC):
             # Exemple supposé : définir egg_src (non défini dans ton code)
             egg_src = dask_home + "/some_egg_file"  # adapte selon contexte réel
 
-            extract_path = BaseWorker.home_dir / "wenv" / target_worker
+            extract_path = BaseWorker._home_dir / "wenv" / target_worker
             extract_src = extract_path / "src"
 
             if not mode & 2:
@@ -544,12 +544,12 @@ class BaseWorker(abc.ABC):
 
         except Exception as err:
             logging.error(
-                f"worker<{worker}> - fail to build {target_worker} from {dask_home}, see {BaseWorker.logs} for details"
+                f"worker<{worker}> - fail to build {target_worker} from {dask_home}, see {BaseWorker._logs} for details"
             )
             raise err
 
     @staticmethod
-    def do_works(workers_tree, workers_tree_info):
+    def _do_works(workers_tree, workers_tree_info):
         """run of workers
 
         Args:
@@ -568,9 +568,9 @@ class BaseWorker(abc.ABC):
             logger.addHandler(handler)
 
         try:
-            worker_id = BaseWorker.worker_id
+            worker_id = BaseWorker._worker_id
             if worker_id is not None:
-                logging.info(f"worker #{worker_id}: {BaseWorker.worker} from {Path(__file__)}")
+                logging.info(f"worker #{worker_id}: {BaseWorker._worker} from {Path(__file__)}")
                 logging.info(f"work #{worker_id + 1} / {len(workers_tree)}")
                 BaseWorker._insts[worker_id].works(workers_tree, workers_tree_info)
             else:

@@ -178,7 +178,7 @@ def chat_online(
     try:
         client = openai.OpenAI(api_key=envars.get("OPENAI_API_KEY", ""))
         response = client.chat.completions.create(
-            model="gpt-5-nano", messages=prompt, max_tokens=500, temperature=0.0
+            model="gpt-5", messages=prompt, max_tokens=500, temperature=0.0
         )
         prompt.pop()
         return response.choices[0].message.content.strip()

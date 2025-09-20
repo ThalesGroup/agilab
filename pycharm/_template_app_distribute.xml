@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="{APP} AGI.distribute" type="PythonConfigurationType" factoryName="Python" folderName="{APP}_project">
+  <configuration default="false" name="{APP} AGI.get_distrib" type="PythonConfigurationType" factoryName="Python" folderName="{APP}_project">
     <module name="{APP}_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
@@ -16,7 +16,7 @@
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="$ProjectFileDir$/src/agilab/snippets/AGI.distribute-{APP}.py" />
+    <option name="SCRIPT_NAME" value="$ProjectFileDir$/src/agilab/snippets/AGI.get_distrib-{APP}.py" />
     <option name="PARAMETERS" value="" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />

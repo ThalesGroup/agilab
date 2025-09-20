@@ -33,7 +33,7 @@ def test_do_distrib_calls_expected_methods(dispatcher):
 def test_onerror_handles_exception(dispatcher):
     with patch('os.access', return_value=False), patch('os.chmod') as mock_chmod:
         try:
-            dispatcher.onerror(func=lambda path: None, path='dummy_path', exc_info=('exc_type', 'exc_value', 'traceback'))
+            dispatcher._onerror(func=lambda path: None, path='dummy_path', exc_info=('exc_type', 'exc_value', 'traceback'))
         except Exception:
             pytest.fail("onerror raised Exception unexpectedly!")
 

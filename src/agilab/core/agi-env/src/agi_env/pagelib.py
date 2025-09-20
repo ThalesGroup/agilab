@@ -944,7 +944,7 @@ def update_views(project, views):
         bool: True if an update was required, False otherwise.
     """
     update_required = False
-    env = st.session_state.env
+    env = st.session_state._env
     env.change_active_app(project, env.install_type),
     st.session_state.preview_tree = False
 

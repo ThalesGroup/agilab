@@ -24,7 +24,7 @@ async def main():
     # Kill dask process on worker
     cmd_prefix = await AGI._detect_export_cmd(ip_worker1)
     AgiEnv.set_env_var(f"{ip_worker1}_CMD_PREFIX", cmd_prefix)
-    AGI.env = env
+    AGI._env = env
     env.user = "nsbl"
     await AGI._kill(ip_worker1, current_pid=os.getpid(), force=True)
 
@@ -46,7 +46,7 @@ async def main():
     try:
         client = await Client(f"tcp://{scheduler_addr}:8786",
                               heartbeat_interval="5s",
-                              timeout=AGI.TIMEOUT,
+                              timeout=AGI._TIMEOUT,
                               asynchronous=True)
         client.forward_logging()
         AGI._dask_client = client

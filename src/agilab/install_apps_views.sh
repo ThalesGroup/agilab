@@ -28,7 +28,7 @@ AGI_PYTHON_VERSION=$(echo "${AGI_PYTHON_VERSION:-}" | sed -E 's/^([0-9]+\.[0-9]+
 AGILAB_PUBLIC="$(cat "$HOME/.local/share/agilab/.agilab-path")"
 AGILAB_PRIVATE="${AGILAB_PRIVATE:-}"
 
-VIEWS_TARGET_BASE="$AGILAB_PRIVATE/src/agilab/views"
+VIEWS_TARGET_BASE="$AGILAB_PRIVATE/src/agilab/pages_with_venv"
 APPS_TARGET_BASE="$AGILAB_PRIVATE/src/agilab/apps"
 [[ -d "$VIEWS_TARGET_BASE" ]] || { echo -e "${RED}Error:${NC} Missing directory: $VIEWS_TARGET_BASE"; exit 1; }
 [[ -d "$APPS_TARGET_BASE" ]] || { echo -e "${RED}Error:${NC} Missing directory: $APPS_TARGET_BASE"; exit 1; }

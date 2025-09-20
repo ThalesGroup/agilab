@@ -21,7 +21,7 @@ class Config:
         self.PROJECT_SDK = f"uv ({self.PROJECT_NAME})"
         self.PROJECT_SDK_TYPE = sdk_type
         self.APPS_DIR = self.ROOT / "src" / self.PROJECT_NAME / "apps"
-        self.VIEWS_DIR = self.ROOT / "src" / self.PROJECT_NAME / "views"
+        self.VIEWS_DIR = self.ROOT / "src" / self.PROJECT_NAME / "pages_with_venv"
         self.CORE_DIR = self.ROOT / "src" / self.PROJECT_NAME / "core"
 
         self.FILE_TEMPLATE = {

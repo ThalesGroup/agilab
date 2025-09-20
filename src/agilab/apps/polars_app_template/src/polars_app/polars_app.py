@@ -42,7 +42,7 @@ class Polars(BaseWorker):
         self.args = args
 
         data_uri = Path(args.data_uri).expanduser()
-        if env.is_managed_pc:
+        if env._is_managed_pc:
             home = Path.home()
             data_uri = Path(str(data_uri).replace(str(home), str(home / "MyApp")))
 
@@ -86,7 +86,7 @@ class Polars(BaseWorker):
                 logger.info("Creating data directory at %s", data_uri)
                 data_uri.mkdir(parents=True, exist_ok=True)
 
-                data_src = Path(AGI.env.app_abs) / "data.7z"
+                data_src = Path(AGI._env.app_abs) / "data.7z"
                 if not data_src.is_file():
                     raise FileNotFoundError(f"Data archive not found at {data_src}")
 

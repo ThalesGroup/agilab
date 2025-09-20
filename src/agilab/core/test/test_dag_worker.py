@@ -17,9 +17,9 @@ def _cfg(w, mode, verbose, worker_id):
 # Ensure BaseWorker.t0 is set when tests call works() directly (not via run())
 @pytest.fixture(autouse=True)
 def _init_baseworker_t0():
-    BaseWorker.t0 = time.time()
+    BaseWorker._t0 = time.time()
     yield
-    BaseWorker.t0 = None
+    BaseWorker._t0 = None
 
 
 # --- Helpers to build DAG payloads expected by DagWorker.exec_* ---
@@ -148,7 +148,7 @@ def test_topological_sort_cycle_raises():
     # Directly test topological_sort for a simple cycle a->b->a
     g = {"a": ["b"], "b": ["a"]}
     with pytest.raises(ValueError):
-        _cfg(DagWorker(), 0, 0, 0).topological_sort(g)
+        _cfg(DagWorker(), 0, 0, 0)._topological_sort(g)
 
 
 # -------------------- Round-robin branch assignment --------------------

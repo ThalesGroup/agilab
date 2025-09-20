@@ -106,10 +106,10 @@ class DagWorker(BaseWorker):
         Your existing entry point; keep as-is, just call multiprocess path for mode 4, etc.
         """
         # If you had mode checks, keep them. Here we directly call the multi-process variant.
-        self.exec_multi_process(workers_tree, workers_tree_info)
+        self._exec_multi_process(workers_tree, workers_tree_info)
 
     @staticmethod
-    def topological_sort(graph):
+    def _topological_sort(graph):
         """
         Kahn's algorithm.
         `graph` is { node: [dependencies...] }.
@@ -146,7 +146,7 @@ class DagWorker(BaseWorker):
             raise ValueError("Cycle detected in dependency graph")
         return order
 
-    def exec_multi_process(self, workers_tree, workers_tree_info):
+    def _exec_multi_process(self, workers_tree, workers_tree_info):
         """
         Execute tasks in multiple threads, distributing branches to workers by
         round‑robin, then honoring dependencies per worker.
@@ -196,7 +196,7 @@ class DagWorker(BaseWorker):
             logging.info(f"  {fn} -> {deps}")
 
         # topo order over string names
-        topo = self.topological_sort(dependency_graph)
+        topo = self._topological_sort(dependency_graph)
 
         results = {}
         futures = {}

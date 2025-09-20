@@ -29,7 +29,7 @@ def load_app_settings(path: Path) -> dict[str, Any]:
     return {}
 
 
-env = st.session_state.env
+env = st.session_state._env
 settings_path = Path(env.app_settings_file)
 
 # Ensure app_settings is available in session state

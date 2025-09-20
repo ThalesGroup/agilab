@@ -55,7 +55,7 @@ class Flight(BaseWorker):
                 raise ValueError(f"Invalid Flight arguments: {exc}") from exc
         self.args = args
 
-        if AgiEnv.is_managed_pc:
+        if AgiEnv._is_managed_pc:
             home = Path.home()
             myapp_home = home / "MyApp"
             try:
@@ -83,7 +83,7 @@ class Flight(BaseWorker):
                 shutil.rmtree(
                     self.data_out,
                     ignore_errors=True,
-                    onerror=WorkDispatcher.onerror,
+                    onerror=WorkDispatcher._onerror,
                 )
             self.data_out.mkdir(parents=True, exist_ok=True)
         except Exception as exc:  # pragma: no cover - defensive guard

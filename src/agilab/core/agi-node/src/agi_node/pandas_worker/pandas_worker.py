@@ -114,17 +114,17 @@ class PandasWorker(BaseWorker):
         """
         if workers_tree:
             if self.mode & 4:
-                self.exec_multi_process(workers_tree, workers_tree_info)
+                self._exec_multi_process(workers_tree, workers_tree_info)
             else:
-                self.exec_mono_process(workers_tree, workers_tree_info)
+                self._exec_mono_process(workers_tree, workers_tree_info)
 
         self.stop()
 
-        if BaseWorker.t0 is None:
-            BaseWorker.t0 = time.time()
-        return time.time() - BaseWorker.t0
+        if BaseWorker._t0 is None:
+            BaseWorker._t0 = time.time()
+        return time.time() - BaseWorker._t0
 
-    def exec_multi_process(self, workers_tree: any, workers_tree_info: any) -> None:
+    def _exec_multi_process(self, workers_tree: any, workers_tree_info: any) -> None:
         """
         Executes tasks in multiprocessing mode.
 
@@ -181,7 +181,7 @@ class PandasWorker(BaseWorker):
 
             self.work_done(df if not df.empty else pd.DataFrame())
 
-    def exec_mono_process(self, workers_tree: any, workers_tree_info: any) -> None:
+    def _exec_mono_process(self, workers_tree: any, workers_tree_info: any) -> None:
         """
         Executes tasks in single-threaded mode.
 

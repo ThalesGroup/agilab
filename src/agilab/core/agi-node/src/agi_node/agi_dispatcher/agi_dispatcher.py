@@ -63,7 +63,7 @@ class WorkDispatcher:
     """
 
     args = {}
-    verbose = None
+    _verbose = None
 
     def __init__(self, args=None):
         """
@@ -78,7 +78,7 @@ class WorkDispatcher:
         WorkDispatcher.args = args
 
     @staticmethod
-    def convert_functions_to_names(workers_tree):
+    def _convert_functions_to_names(workers_tree):
         """
         Converts functions in a nested structure to their names.
         """
@@ -97,7 +97,7 @@ class WorkDispatcher:
         return _convert(workers_tree)
 
     @staticmethod
-    async def do_distrib(env, workers, args):
+    async def _do_distrib(env, workers, args):
         """
         Build the distribution tree.
 
@@ -145,7 +145,7 @@ class WorkDispatcher:
                 "target_args": args,
                 "workers": workers,
                 "work_plan_metadata": workers_tree_info,
-                "work_plan": WorkDispatcher.convert_functions_to_names(workers_tree),
+                "work_plan": WorkDispatcher._convert_functions_to_names(workers_tree),
                 "partition_key": part,
                 "nb_unit": nb_unit,
                 "weights_unit": weight_unit,
@@ -173,7 +173,7 @@ class WorkDispatcher:
         return loaded_workers.copy(), workers_tree, workers_tree_info
 
     @staticmethod
-    def onerror(func, path, exc_info):
+    def _onerror(func, path, exc_info):
         """
         Error handler for `shutil.rmtree`.
 
@@ -387,8 +387,8 @@ class WorkDispatcher:
 
         except ModuleNotFoundError as e:
             module_to_install = (str(e).replace("No module named ", "").lower().replace("'", ""))
-            app_path = AGI.env.active_app
-            cmd = f"{AGI.env.uv} add --upgrade {module_to_install}"
+            app_path = AGI._env.active_app
+            cmd = f"{AGI._env.uv} add --upgrade {module_to_install}"
             logging.info(f"{cmd} from {app_path}")
             await AgiEnv.run(cmd, app_path)
             return await WorkDispatcher._load_module(module, package, path)

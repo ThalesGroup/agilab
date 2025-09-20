@@ -38,7 +38,7 @@ async def test_baseworker_mycode_project(mode):
     if env_src not in sys.path:
         sys.path.insert(0, env_src)
 
-    BaseWorker.new(mode=mode, env=env, verbose=3, args=args)
+    BaseWorker._new(mode=mode, env=env, verbose=3, args=args)
     result = await BaseWorker.run(mode=mode, args=args)
     print(result)
     assert result is not None

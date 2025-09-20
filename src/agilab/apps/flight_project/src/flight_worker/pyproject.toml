@@ -36,7 +36,6 @@ email = "focus@thalesgroup.com"
 text = "Thales SIX GTS France SAS"
 
 [project.optional-dependencies]
-agent-worker = []
 dag-worker = []
 polars-worker = []
 

@@ -17,8 +17,8 @@ if not app:
 print(f"Replacement name: {app}")
 
 template_paths = [
-    'pycharm/_template_app_lib.xml',
-    'pycharm/_template_app_egg.xml',
+    'pycharm/_template_app_lib_worker.xml',
+    'pycharm/_template_app_egg_manager.xml',
     'pycharm/_template_app_run.xml',
     'pycharm/_template_app_test_manager.xml'
 ]
