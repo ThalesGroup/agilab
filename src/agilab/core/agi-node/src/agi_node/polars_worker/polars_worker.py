@@ -94,7 +94,7 @@ class PolarsWorker(BaseWorker):
         # Example post-processing logic using Polars.
         # For instance, saving the DataFrame to disk.
         output_format = self.args.get("output_format")
-        output_filename = f"{self.worker_id}_output"
+        output_filename = f"{self._worker_id}_output"
 
         if output_format == "parquet":
             output_path = Path(self.data_out) / f"{output_filename}.parquet"
@@ -140,16 +140,16 @@ class PolarsWorker(BaseWorker):
         ncore = 1
         works = []
         if isinstance(workers_tree, list):
-            for i in workers_tree[self.worker_id]:
+            for i in workers_tree[self._worker_id]:
                 works += i
             ncore = max(min(len(works), int(os.cpu_count())), 1)
 
         logging.info(
-            f"PolarsWorker.work - ncore {ncore} - worker_id #{self.worker_id}"
+            f"PolarsWorker.work - ncore {ncore} - worker_id #{self._worker_id}"
             f" - work_pool x {len(works)}",
         )
         self.work_init()
-        for work_id, work in enumerate(workers_tree[self.worker_id]):
+        for work_id, work in enumerate(workers_tree[self._worker_id]):
             list_df = []
             df = pl.DataFrame()
             ncore = max(min(len(work), int(os.cpu_count())), 1)
@@ -180,7 +180,7 @@ class PolarsWorker(BaseWorker):
                 # Add a 'worker_id' to each DataFrame.
                 for idx, df_result in enumerate(list_df):
                     list_df[idx] = df_result.with_columns(
-                        pl.lit(str((self.worker_id, idx))).alias("worker_id")
+                        pl.lit(str((self._worker_id, idx))).alias("worker_id")
                     )
 
                 # Concatenate all DataFrames into a single DataFrame.
@@ -198,7 +198,7 @@ class PolarsWorker(BaseWorker):
             workers_tree_info (any): Additional information about the workers.
         """
         self.work_init()
-        for work_id, work in enumerate(workers_tree[self.worker_id]):
+        for work_id, work in enumerate(workers_tree[self._worker_id]):
             list_df = []
             df = pl.DataFrame()
             logging.info(
@@ -219,7 +219,7 @@ class PolarsWorker(BaseWorker):
                         # Add a 'worker_id' to each DataFrame.
                         for idx, df_result in enumerate(list_df):
                             list_df[idx] = df_result.with_columns(
-                                pl.lit(str((self.worker_id, 0))).alias("worker_id")
+                                pl.lit(str((self._worker_id, 0))).alias("worker_id")
                             )
 
                         # Concatenate all DataFrames into a single DataFrame.

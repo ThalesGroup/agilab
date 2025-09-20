@@ -26,7 +26,7 @@ class DummyWorker(BaseWorker):
 
 class DummyPandasWorker(PandasWorker):
     def __init__(self, worker_id=0, output_format="csv", verbose=0):
-        self.worker_id = worker_id
+        self._worker_id = worker_id
         self.verbose = verbose
         self.args = {"output_format": output_format}
         self.data_out = None

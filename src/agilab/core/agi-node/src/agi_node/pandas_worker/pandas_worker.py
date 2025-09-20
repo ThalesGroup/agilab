@@ -91,7 +91,7 @@ class PandasWorker(BaseWorker):
             return
 
         output_format = self.args.get("output_format")
-        output_filename = f"{self.worker_id}_output"
+        output_filename = f"{self._worker_id}_output"
         output_path = Path(self.data_out) / f"{output_filename}"
 
         if output_format == "parquet":
@@ -134,19 +134,19 @@ class PandasWorker(BaseWorker):
         """
         works = []
         if isinstance(workers_tree, list):
-            for i in workers_tree[self.worker_id]:
+            for i in workers_tree[self._worker_id]:
                 works += i
             ncore = max(min(len(works), int(os.cpu_count())), 1)
         else:
             ncore = 1
 
         logging.info(
-            f"PandasWorker.work - ncore {ncore} - mycode_worker #{self.worker_id}"
+            f"PandasWorker.work - ncore {ncore} - mycode_worker #{self._worker_id}"
             f" - work_pool x {len(works)}",
         )
 
         self.work_init()
-        for work_id, work in enumerate(workers_tree[self.worker_id]):
+        for work_id, work in enumerate(workers_tree[self._worker_id]):
             list_df = []
             df = pd.DataFrame()
             ncore = max(min(len(work), int(os.cpu_count())), 1)
@@ -174,7 +174,7 @@ class PandasWorker(BaseWorker):
             if list_df:
                 for idx, df_result in enumerate(list_df):
                     df_result = df_result.copy()
-                    df_result["worker_id"] = str((self.worker_id, idx))
+                    df_result["worker_id"] = str((self._worker_id, idx))
                     list_df[idx] = df_result
 
                 df = pd.concat(list_df, axis=0, ignore_index=True)
@@ -190,7 +190,7 @@ class PandasWorker(BaseWorker):
             workers_tree_info (any): Additional information about the workers.
         """
         self.work_init()
-        for work_id, work in enumerate(workers_tree[self.worker_id]):
+        for work_id, work in enumerate(workers_tree[self._worker_id]):
             list_df = []
             df = pd.DataFrame()
             logging.info(
@@ -208,7 +208,7 @@ class PandasWorker(BaseWorker):
                     if list_df:
                         for idx, df_result in enumerate(list_df):
                             df_result = df_result.copy()
-                            df_result["worker_id"] = str((self.worker_id, 0))
+                            df_result["worker_id"] = str((self._worker_id, 0))
                             list_df[idx] = df_result
 
                         df = pd.concat(list_df, axis=0, ignore_index=True)

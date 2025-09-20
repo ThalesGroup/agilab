@@ -15,7 +15,7 @@ from agi_node.polars_worker import PolarsWorker
 # Dummy subclass for testing PolarsWorker.
 class DummyPolarsWorker(PolarsWorker):
     def __init__(self, worker_id=0, output_format="csv", verbose=0):
-        self.worker_id = worker_id
+        self._worker_id = worker_id
         self.verbose = verbose
         self.args = {"output_format": output_format}
         self.data_out = None
