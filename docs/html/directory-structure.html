@@ -155,7 +155,6 @@
 </li>
 <li class="toctree-l2"><a class="reference internal" href="workers.html">workers API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="workers.html#workers-reference">Workers Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#agent-worker">agent_worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="workers.html#dag-worker">dag_worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="workers.html#pandas-worker">pandas_worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="workers.html#polars-worker">polars_worker</a></li>
@@ -271,30 +270,6 @@
 __pycache__/ [excluded]
 apps/
     __pycache__/ [excluded]
-    agent_app_template/
-        src/
-            __pycache__/ [excluded]
-            agent_app/
-                __pycache__/ [excluded]
-                __init__.py
-                agent_app.py
-                app_args.py
-            agent_app_worker/
-                __pycache__/ [excluded]
-                __init__.py
-                agent_app_worker.py
-                post_install.py
-                pre_install.py
-                pyproject.toml
-            app_settings.toml
-            custom_ui.py
-            pre_prompt.json
-        .gitignore
-        MANIFEST.in
-        MANIFEST.in.in
-        pyproject.toml
-        README.md
-        uv_config.toml
     dag_app_template/
         src/
             __pycache__/ [excluded]
@@ -470,6 +445,7 @@ core/
     __pycache__/ [excluded]
     agi-cluster/
         .pytest_cache/ [excluded]
+        .venv/ [excluded]
         src/
             agi_cluster/
                 agi_distributor/
@@ -495,6 +471,7 @@ core/
         README.md
     agi-env/
         .pytest_cache/ [excluded]
+        .venv/ [excluded]
         __pycache__/ [excluded]
         src/
             agi_env/
@@ -531,6 +508,7 @@ core/
         README.md
         uv_config.toml
     agi-node/
+        .venv/ [excluded]
         src/
             agi_node/
                 __pycache__/ [excluded]
@@ -564,7 +542,6 @@ core/
     test/
         __pycache__/ [excluded]
         __init__.py
-        test_agent_worker.py
         test_agi_distributor.py
         test_base_worker.py
         test_dag_worker.py
