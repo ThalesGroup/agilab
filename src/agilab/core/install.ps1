@@ -26,6 +26,12 @@ if (Test-Path $envFile) {
 # Clean up AGI_PYTHON_VERSION
 $env:AGI_PYTHON_VERSION = $env:AGI_PYTHON_VERSION -replace '^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*','$1'
 
+$UvPreviewArgs = @("--preview-features", "extra-build-dependencies")
+function Invoke-UvPreview {
+    param([string[]]$Args)
+    & uv @UvPreviewArgs @Args
+}
+
 function Install-ModulePath {
     param(
         [string]$Path,
@@ -35,9 +41,9 @@ function Install-ModulePath {
     Write-Host "uv sync -p $env:AGI_PYTHON_VERSION --dev" -ForegroundColor Blue
     uv sync -p $env:AGI_PYTHON_VERSION --dev
     uv run python -m ensurepip
-    uv pip install -e .
+    Invoke-UvPreview @("pip", "install", "-e", ".")
     foreach ($pkg in $ExtraInstalls) {
-        uv pip install -e $pkg
+        Invoke-UvPreview @("pip", "install", "-e", $pkg)
     }
     Pop-Location
 }
@@ -57,10 +63,10 @@ Install-ModulePath "agi-env"
 Write-Host "Installing agilab..." -ForegroundColor Blue
 Push-Location (Resolve-Path "..\..\..")
 uv sync -p $env:AGI_PYTHON_VERSION
-uv pip install -e src/agilab/core/agi-env
-uv pip install -e src/agilab/core/agi-node
-uv pip install -e src/agilab/core/agi-cluster
-uv pip install -e src/agilab/core/agi-core
+Invoke-UvPreview @("pip", "install", "-e", "src/agilab/core/agi-env")
+Invoke-UvPreview @("pip", "install", "-e", "src/agilab/core/agi-node")
+Invoke-UvPreview @("pip", "install", "-e", "src/agilab/core/agi-cluster")
+Invoke-UvPreview @("pip", "install", "-e", "src/agilab/core/agi-core")
 Pop-Location
 
 Write-Host "Checking installation..." -ForegroundColor Green

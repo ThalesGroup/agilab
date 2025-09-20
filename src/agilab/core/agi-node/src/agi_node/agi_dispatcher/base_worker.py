@@ -78,6 +78,7 @@ class BaseWorker(abc.ABC):
     _t0 = None
     _is_managed_pc = getpass.getuser().startswith("T0")
     _cython_decorators = ["njit"]
+    _env: Optional[AgiEnv] = None
 
     def start(self):
         """
@@ -308,7 +309,7 @@ class BaseWorker(abc.ABC):
         if not env:
             env = BaseWorker._env
         else:
-            BaseWorker._env = env
+            BaseWorker._env
 
         if mode & 2:
             wenv_abs = env.wenv_abs
@@ -480,6 +481,26 @@ class BaseWorker(abc.ABC):
         }
 
         return system_info
+
+    def build(self, target_worker, dask_home, worker, mode: Optional[int]=None, verbose: Optional[int]=None):
+        """Public wrapper that orchestrates loading and delegates to the legacy builder."""
+        effective_mode = mode if mode is not None else getattr(self, "_mode", 0) or 0
+        effective_verbose = verbose if verbose is not None else getattr(self, "_verbose", 0) or 0
+
+        # Ensure manager/worker modules are loaded (patched in tests for isolation)
+        self._load_manager()
+        self._load_worker(effective_mode)
+
+        BaseWorker._build(
+            target_worker=target_worker,
+            dask_home=dask_home,
+            worker=worker,
+            mode=effective_mode,
+            verbose=effective_verbose,
+        )
+        BaseWorker._built = True
+
+        return True
 
     @staticmethod
     def _build(target_worker, dask_home, worker, mode=0, verbose=0):

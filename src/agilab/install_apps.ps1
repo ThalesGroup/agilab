@@ -93,7 +93,7 @@ if (-not (Test-Path -LiteralPath $agilabPathFile)) {
 
 $AGILAB_PRIVATE = $env:AGILAB_PRIVATE
 
-$VIEWS_TARGET_BASE = if ($AGILAB_PRIVATE) { Join-Path $AGILAB_PRIVATE "src/agilab/pages_with_venv" } else { "" }
+$VIEWS_TARGET_BASE = if ($AGILAB_PRIVATE) { Join-Path $AGILAB_PRIVATE "src/agilab/apps-pages" } else { "" }
 $APPS_TARGET_BASE  = if ($AGILAB_PRIVATE) { Join-Path $AGILAB_PRIVATE "src/agilab/apps" } else { "" }
 
 if ($AGILAB_PRIVATE) {

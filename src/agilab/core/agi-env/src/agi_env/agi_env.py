@@ -369,7 +369,7 @@ class AgiEnv:
 
         # type 3: only core install
         if AgiEnv.install_type != 3:
-            AgiEnv.snippets = self.agilab_src / "agilab/snippets"
+            AgiEnv.examples = self.agilab_src / "agilab/examples"
             self.init_envars_app(AgiEnv.envars)
             self._init_apps()
 
@@ -725,7 +725,7 @@ class AgiEnv:
         if not AGILAB_LOG_ABS.exists():
             AGILAB_LOG_ABS.mkdir(parents=True)
         self.AGILAB_LOG_ABS = AGILAB_LOG_ABS
-        self.runenv = AgiEnv.snippets
+        self.runenv = AgiEnv.examples
         AGILAB_EXPORT_ABS = Path(envars.get("AGI_EXPORT_DIR", self.home_abs / "export"))
         if not AGILAB_EXPORT_ABS.exists():
             AGILAB_EXPORT_ABS.mkdir(parents=True)
@@ -734,7 +734,7 @@ class AgiEnv:
         if not self.export_apps.exists():
             os.makedirs(str(self.export_apps), exist_ok=True)
         self.MLFLOW_TRACKING_DIR = Path(envars.get("MLFLOW_TRACKING_DIR", self.home_abs / ".mlflow"))
-        self.AGILAB_PAGES_ABS = Path(envars.get("AGI_PAGES_DIR", self.agilab_src / "agilab/pages_with_venv"))
+        self.AGILAB_PAGES_ABS = Path(envars.get("AGI_PAGES_DIR", self.agilab_src / "agilab/apps-pages"))
         if AgiEnv.install_type == 0:
             self.copilot_file = self.agilab_src / "agi_codex.py" # WTF ?
         else:

@@ -11,12 +11,12 @@
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="SDK_NAME" value="uv ({APP}_project)" />
-    <option name="WORKING_DIRECTORY" value="$ProjectFileDir$/src/agilab/snippets" />
+    <option name="WORKING_DIRECTORY" value="$ProjectFileDir$/src/agilab/examples" />
     <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="$ProjectFileDir$/src/agilab/snippets/AGI.get_distrib-{APP}.py" />
+    <option name="SCRIPT_NAME" value="$ProjectFileDir$/src/agilab/examples/AGI.get_distrib-{APP}.py" />
     <option name="PARAMETERS" value="" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />

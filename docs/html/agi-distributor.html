@@ -24,7 +24,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="workers API" href="workers.html" />
+    <link rel="next" title="agi-node API" href="workers.html" />
     <link rel="prev" title="agi_env API" href="agi-env.html" /> 
 </head>
 
@@ -118,12 +118,6 @@
 <li class="toctree-l3"><a class="reference internal" href="experiment_help.html#main-content-area">Main Content Area</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="views_help.html">▶️ VIEW</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="views_help.html#introduction">Introduction</a></li>
-<li class="toctree-l3"><a class="reference internal" href="views_help.html#sidebar">Sidebar</a></li>
-<li class="toctree-l3"><a class="reference internal" href="views_help.html#main-content-area">Main Content Area</a></li>
-</ul>
-</li>
 </ul>
 </li>
 <li class="toctree-l1 current"><a class="reference internal" href="framework-api.html">Framework API</a><ul class="current">
@@ -153,8 +147,8 @@
 <li class="toctree-l3"><a class="reference internal" href="#reference">Reference</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="workers.html">workers API</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="workers.html#workers-reference">Workers Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="workers.html">agi-node API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="workers.html#agi-node-reference">agi-node Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="workers.html#dag-worker">dag_worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="workers.html#pandas-worker">pandas_worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="workers.html#polars-worker">polars_worker</a></li>
@@ -265,14 +259,16 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-    <span class="n">app_env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;/Users/jpm/agilab/src/agilab/apps/mycode_project&#39;</span><span class="p">)</span> <span class="p">,</span><span class="n">install_type</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">install</span><span class="p">(</span><span class="n">app_env</span><span class="p">,</span> <span class="n">modes_enabled</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
-                            <span class="n">scheduler</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">})</span>
+    <span class="n">app_env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;~/agilab/src/agilab/apps/mycode_project&#39;</span><span class="p">)</span> <span class="p">,</span><span class="n">install_type</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">install</span><span class="p">(</span><span class="n">app_env</span><span class="p">,</span> 
+                            <span class="n">modes_enabled</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+                            <span class="n">scheduler</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> 
+                            <span class="n">workers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">})</span>
     <span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">res</span>
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-    <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+    <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
 </pre></div>
 </div>
 <hr class="docutils" />
@@ -283,56 +279,23 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-    <span class="n">app_env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;/Users/jpm/agilab/src/agilab/apps/flight_project&#39;</span><span class="p">)</span> <span class="p">,</span><span class="n">install_type</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">install</span><span class="p">(</span><span class="n">app_env</span><span class="p">,</span> <span class="n">modes_enabled</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-                            <span class="n">scheduler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="n">app_env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;~/agilab/src/agilab/apps/flight_project&#39;</span><span class="p">)</span> <span class="p">,</span><span class="n">install_type</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">install</span><span class="p">(</span><span class="n">app_env</span><span class="p">,</span> 
+                            <span class="n">modes_enabled</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+                            <span class="n">scheduler</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> 
+                            <span class="n">workers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">})</span>
     <span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">res</span>
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-    <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
-            
+    <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
 </pre></div>
 </div>
 </section>
 <hr class="docutils" />
 <section id="distribute">
 <h3>Distribute<a class="headerlink" href="#distribute" title="Link to this heading"></a></h3>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">agi_cluster.agi_distributor</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGI</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span><span class="p">,</span> <span class="n">normalize_path</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
-
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-    <span class="n">app_env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;/Users/jpm/agilab/src/agilab/apps/mycode_project&#39;</span><span class="p">),</span> <span class="n">install_type</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">distribute</span><span class="p">(</span><span class="n">app_env</span><span class="p">,</span>
-                               <span class="n">cheduler</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">},</span> <span class="n">param1</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">param2</span><span class="o">=</span><span class="s2">&quot;some text&quot;</span><span class="p">,</span> <span class="n">param3</span><span class="o">=</span><span class="mf">3.14</span><span class="p">,</span> <span class="n">param4</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">res</span>
-
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-    <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
-</pre></div>
-</div>
 <hr class="docutils" />
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">agi_cluster.agi_distributor</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGI</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgiEnv</span><span class="p">,</span> <span class="n">normalize_path</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
-
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-    <span class="n">app_env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;/Users/jpm/agilab/src/agilab/apps/flight_project&#39;</span><span class="p">),</span> <span class="n">install_type</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">distribute</span><span class="p">(</span><span class="n">app_env</span><span class="p">,</span>
-                               <span class="n">scheduler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_source</span><span class="o">=</span><span class="s2">&quot;file&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;data/flight/dataset&quot;</span><span class="p">,</span> <span class="n">files</span><span class="o">=</span><span class="s2">&quot;csv/*&quot;</span><span class="p">,</span> <span class="n">nfile</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">nskip</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">nread</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sampling_rate</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">datemin</span><span class="o">=</span><span class="s2">&quot;2020-01-01&quot;</span><span class="p">,</span> <span class="n">datemax</span><span class="o">=</span><span class="s2">&quot;2021-01-01&quot;</span><span class="p">,</span> <span class="n">output_format</span><span class="o">=</span><span class="s2">&quot;csv&quot;</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">res</span>
-
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-    <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
-</pre></div>
-</div>
 </section>
 <hr class="docutils" />
 <section id="run">
@@ -344,16 +307,17 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-    <span class="n">app_env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;/Users/jpm/agilab/src/agilab/apps/mycode_project&#39;</span><span class="p">),</span> <span class="n">install_type</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> 
-    <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">app_env</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
-                        <span class="n">scheduler</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">},</span> 
+    <span class="n">app_env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;~/agilab/src/agilab/apps/mycode_project&#39;</span><span class="p">),</span> <span class="n">install_type</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> 
+    <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">app_env</span><span class="p">,</span> 
+                        <span class="n">mode</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+                        <span class="n">scheduler</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> 
+                        <span class="n">workers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">},</span> 
                         <span class="n">param1</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">param2</span><span class="o">=</span><span class="s2">&quot;some text&quot;</span><span class="p">,</span> <span class="n">param3</span><span class="o">=</span><span class="mf">3.14</span><span class="p">,</span> <span class="n">param4</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">res</span>
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
     <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
-            
 </pre></div>
 </div>
 <hr class="docutils" />
@@ -366,16 +330,15 @@
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
     <span class="n">app_env</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;/Users/jpm/agilab/src/agilab/apps/flight_project&#39;</span><span class="p">),</span> <span class="n">install_type</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> 
     <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">app_env</span><span class="p">,</span> 
-                        <span class="n">mode</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> 
-                        <span class="n">scheduler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
-                        <span class="n">workers</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
-                        <span class="n">data_source</span><span class="o">=</span><span class="s2">&quot;file&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;data/flight/dataset&quot;</span><span class="p">,</span> <span class="n">files</span><span class="o">=</span><span class="s2">&quot;csv/*&quot;</span><span class="p">,</span> <span class="n">nfile</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">nskip</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">nread</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sampling_rate</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">datemin</span><span class="o">=</span><span class="s2">&quot;2020-01-01&quot;</span><span class="p">,</span> <span class="n">datemax</span><span class="o">=</span><span class="s2">&quot;2021-01-01&quot;</span><span class="p">,</span> <span class="n">output_format</span><span class="o">=</span><span class="s2">&quot;csv&quot;</span><span class="p">)</span>
+                        <span class="n">mode</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+                        <span class="n">scheduler</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> 
+                        <span class="n">workers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">},</span> 
+                        <span class="n">data_source</span><span class="o">=</span><span class="s2">&quot;file&quot;</span><span class="p">,</span> <span class="n">data_uri</span><span class="o">=</span><span class="s2">&quot;data/flight/dataset&quot;</span><span class="p">,</span> <span class="n">files</span><span class="o">=</span><span class="s2">&quot;csv/*&quot;</span><span class="p">,</span> <span class="n">nfile</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">nskip</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">nread</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">sampling_rate</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">datemin</span><span class="o">=</span><span class="s2">&quot;2020-01-01&quot;</span><span class="p">,</span> <span class="n">datemax</span><span class="o">=</span><span class="s2">&quot;2021-01-01&quot;</span><span class="p">,</span> <span class="n">output_format</span><span class="o">=</span><span class="s2">&quot;parquet&quot;</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">res</span>
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
     <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
-            
 </pre></div>
 </div>
 </section>
@@ -398,7 +361,7 @@
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="agi-env.html" class="btn btn-neutral float-left" title="agi_env API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="workers.html" class="btn btn-neutral float-right" title="workers API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="workers.html" class="btn btn-neutral float-right" title="agi-node API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

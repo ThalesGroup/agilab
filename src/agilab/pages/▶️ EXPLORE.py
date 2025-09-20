@@ -54,7 +54,7 @@ def _python_in_venv(venv: Path) -> Path:
 
 def _find_venv_for(script_path: Path) -> Path | None:
     """
-    Look for a venv close to the pages_with_venv:
+    Look for a venv close to the apps-pages:
       - <view_dir>/.venv or venv
       - ${AGILAB_VENVS_ABS}/<view_name> or <view_name>.venv (optional)
       - ${AGILAB_PAGES_VENVS_ABS}/<view_name> or <view_name>.venv (optional)
@@ -132,8 +132,8 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int):
 def discover_pages(pages_dir: Union[str, Path]) -> list[Path]:
     """
     Dynamic discovery under env.AGILAB_PAGES_ABS with common layouts:
-      - <root>/pages_with_venv/*.py
-      - <root>/pages_with_venv/*/(main.py|app.py|<name>.py)
+      - <root>/apps-pages/*.py
+      - <root>/apps-pages/*/(main.py|app.py|<name>.py)
       - convenience: <root>/*.py
     Follows symlinks too.
     Returns a list of concrete script Paths.

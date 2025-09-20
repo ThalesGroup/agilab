@@ -1,9 +1,9 @@
-workers API
-=====================
+agi-node API
+============
 
 
-Workers Reference
--------
+agi-node Reference
+--------
 
 dag_worker
 ~~~~~~~~~~

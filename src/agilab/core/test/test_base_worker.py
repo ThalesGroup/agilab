@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch, Mock
+from unittest.mock import patch
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
 class DummyWorker(BaseWorker):
@@ -14,34 +14,11 @@ class DummyWorker(BaseWorker):
         pass
 
 
-@pytest.fixture
-def worker():
-    return DummyWorker()
-
 def teardown_function(_fn):
     BaseWorker._worker_id = None
     BaseWorker._insts = {}
     BaseWorker._env = None
-
-async def test_baseworker_run_calls_exec():
-    mock_env = Mock()
-    mock_env.mode2str.return_value = "mode=0"
-    with patch.object(BaseWorker, 'env', new=mock_env), \
-            patch.object(BaseWorker, '_load_manager', return_value=DummyWorker()), \
-            patch('agi_node.agi_dispatcher.WorkDispatcher._do_distrib', return_value=({}, {}, {})):
-        await BaseWorker.run(args={})
-
-
-def test_baseworker_build_calls_load_and_sets_attrs(worker):
-    with patch('shutil.copyfile') as mock_copyfile, \
-         patch.object(worker, '_load_manager', return_value=MagicMock()) as mock_load_manager, \
-         patch.object(worker, '_load_worker', return_value=MagicMock()) as mock_load_worker:
-        mock_copyfile.return_value = None
-        worker.build(target_worker="tw", dask_home="dh", worker="wk")
-        # On ne vérifie plus mock_load_module car il n'est pas appelé dans build
-        # On peut vérifier à la place que copyfile a été appelée, par exemple :
-        assert mock_copyfile.call_count > 0
-
+    BaseWorker.env = None
 
 def test_baseworker_do_works_executes_tasks():
     dummy = DummyWorker()

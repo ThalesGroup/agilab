@@ -26,7 +26,7 @@ Prefer **`uv`** (or the project-standard virtual env) to ensure consistent depen
   ```bash
   uv venv
   source .venv/bin/activate
-  uv pip install -e .
+  uv --preview-features extra-build-dependencies pip install -e .
   ```
 
 - Alternative: **pyenv** or **conda** (ensure consistent interpreter in IDE and run configs)
@@ -40,6 +40,7 @@ Prefer **`uv`** (or the project-standard virtual env) to ensure consistent depen
     - `cd /path/to/private-repo && uv sync --dev --extra sphinx`
     - Then run the docs generator script from that same private repo:
       - `uv run <private-apps>/docs/gen-docs.py`
+- For this project the canonical private apps repo lives at `~/PycharmProjects/thales_agilab`; obtain approval before accessing it and reference that path when configuring `--private-apps` locally.
 
 ### Docs Generation
 
@@ -51,7 +52,7 @@ Prefer **`uv`** (or the project-standard virtual env) to ensure consistent depen
 ### Install (editable)
 
 ```bash
-uv pip install -e .
+uv --preview-features extra-build-dependencies pip install -e .
 ```
 
 ### Format & Lint
@@ -396,7 +397,7 @@ A: Create `agi-<name>/` under the repo root with its own README and tests; wire 
 uv venv && source .venv/bin/activate
 
 # Install editable
-uv pip install -e .
+uv --preview-features extra-build-dependencies pip install -e .
 
 # Run Streamlit
 uv run streamlit run src/agilab/AGILAB.py

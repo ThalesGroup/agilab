@@ -4,8 +4,8 @@ param2 = "some text"
 param3 = 3.14
 param4 = true
 
-[views]
-view_module = []
+[pages]
+app_pages = []
 
 [cluster]
 verbose = true

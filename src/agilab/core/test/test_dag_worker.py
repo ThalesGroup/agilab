@@ -185,7 +185,7 @@ def test_works_dispatches_to_mono_when_mode_0(monkeypatch):
         called.append("multi"); return 0.0
 
     # New design always dispatches to multi; just patch that
-    monkeypatch.setattr(DagWorker, "exec_multi_process", fake_multi, raising=True)
+    monkeypatch.setattr(DagWorker, "_exec_multi_process", fake_multi, raising=True)
 
     w = _cfg(DagWorker(), 0, 0, 0)
     w.works([[]], [[]])  # non-empty triggers dispatch
@@ -201,7 +201,7 @@ def test_works_dispatches_to_multi_when_mode_flag_set(monkeypatch):
     def fake_multi(self, workers_tree, workers_tree_info):
         called.append("multi"); return 0.0
 
-    monkeypatch.setattr(DagWorker, "exec_multi_process", fake_multi, raising=True)
+    monkeypatch.setattr(DagWorker, "_exec_multi_process", fake_multi, raising=True)
 
     # Mode bit 0b100 (4) triggers multi-process path in works()
     w = _cfg(DagWorker(), 4, 0, 0)

@@ -7,6 +7,8 @@
 set -e
 set -o pipefail
 
+UV_PREVIEW=(uv --preview-features extra-build-dependencies)
+
 #source "$HOME/.local/bin/env"
 source "$HOME/.local/share/agilab/.env"
 AGI_PYTHON_VERSION=$(echo "$AGI_PYTHON_VERSION" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*/\1/')
@@ -23,7 +25,7 @@ pushd agi-env > /dev/null
 echo "uv sync -p $AGI_PYTHON_VERSION --dev"
 uv sync -p "$AGI_PYTHON_VERSION" --dev
 uv run python -m ensurepip
-uv pip install -e .
+${UV_PREVIEW[@]} pip install -e .
 popd > /dev/null
 
 echo -e "${BLUE}Installing agi-node...${NC}"
@@ -31,8 +33,8 @@ pushd agi-node > /dev/null
 echo "uv sync -p $AGI_PYTHON_VERSION --dev"
 uv sync -p "$AGI_PYTHON_VERSION" --dev
 uv run python -m ensurepip
-uv pip install -e .
-uv pip install -e ../agi-env
+${UV_PREVIEW[@]} pip install -e .
+${UV_PREVIEW[@]} pip install -e ../agi-env
 popd > /dev/null
 
 echo -e "${BLUE}Installing agi-cluster...${NC}"
@@ -40,21 +42,20 @@ pushd agi-cluster > /dev/null
 echo "uv sync -p $AGI_PYTHON_VERSION --dev"
 uv sync -p "$AGI_PYTHON_VERSION" --dev
 uv run python -m ensurepip
-uv pip install -e .
-uv pip install -e ../agi-node
-uv pip install -e ../agi-env
+${UV_PREVIEW[@]} pip install -e .
+${UV_PREVIEW[@]} pip install -e ../agi-node
+${UV_PREVIEW[@]} pip install -e ../agi-env
 popd > /dev/null
 
 echo -e "${BLUE}Installing agilab...${NC}"
 pushd ../../.. > /dev/null
 uv sync -p "$AGI_PYTHON_VERSION" --preview-features python-upgrade
-uv pip install -e src/agilab/core/agi-env
-uv pip install -e src/agilab/core/agi-node
-uv pip install -e src/agilab/core/agi-cluster
-uv pip install -e src/agilab/core/agi-core
+${UV_PREVIEW[@]} pip install -e src/agilab/core/agi-env
+${UV_PREVIEW[@]} pip install -e src/agilab/core/agi-node
+${UV_PREVIEW[@]} pip install -e src/agilab/core/agi-cluster
+${UV_PREVIEW[@]} pip install -e src/agilab/core/agi-core
 
 echo -e "${GREEN}Checking installation...${NC}"
 uv run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade -m pytest
 popd > /dev/null
-
 

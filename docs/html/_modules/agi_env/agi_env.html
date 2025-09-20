@@ -115,12 +115,6 @@
 <li class="toctree-l3"><a class="reference internal" href="../../experiment_help.html#main-content-area">Main Content Area</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../../views_help.html">▶️ VIEW</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../views_help.html#introduction">Introduction</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../views_help.html#sidebar">Sidebar</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../views_help.html#main-content-area">Main Content Area</a></li>
-</ul>
-</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../framework-api.html">Framework API</a><ul>
@@ -150,9 +144,8 @@
 <li class="toctree-l3"><a class="reference internal" href="../../agi-distributor.html#reference">Reference</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../../workers.html">workers API</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../workers.html#workers-reference">Workers Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../workers.html#agent-worker">agent_worker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workers.html">agi-node API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../workers.html#agi-node-reference">agi-node Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../workers.html#dag-worker">dag_worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../workers.html#pandas-worker">pandas_worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../workers.html#polars-worker">polars_worker</a></li>
@@ -637,7 +630,7 @@
 
         <span class="c1"># type 3: only core install</span>
         <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">install_type</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
-            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">snippets</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agilab/snippets&quot;</span>
+            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">examples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agilab/examples&quot;</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">init_envars_app</span><span class="p">(</span><span class="n">AgiEnv</span><span class="o">.</span><span class="n">envars</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_init_apps</span><span class="p">()</span>
 
@@ -1050,7 +1043,7 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="n">AGILAB_LOG_ABS</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
             <span class="n">AGILAB_LOG_ABS</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">AGILAB_LOG_ABS</span> <span class="o">=</span> <span class="n">AGILAB_LOG_ABS</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">runenv</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">snippets</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">runenv</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">examples</span>
         <span class="n">AGILAB_EXPORT_ABS</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;AGI_EXPORT_DIR&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">/</span> <span class="s2">&quot;export&quot;</span><span class="p">))</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">AGILAB_EXPORT_ABS</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
             <span class="n">AGILAB_EXPORT_ABS</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -1059,7 +1052,7 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">export_apps</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
             <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">export_apps</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">MLFLOW_TRACKING_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;MLFLOW_TRACKING_DIR&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">/</span> <span class="s2">&quot;.mlflow&quot;</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">AGILAB_PAGES_ABS</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;AGI_PAGES_DIR&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agilab/pages_with_venv&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">AGILAB_PAGES_ABS</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;AGI_PAGES_DIR&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agilab/apps-pages&quot;</span><span class="p">))</span>
         <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">install_type</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">copilot_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agilab_src</span> <span class="o">/</span> <span class="s2">&quot;agi_codex.py&quot;</span> <span class="c1"># WTF ?</span>
         <span class="k">else</span><span class="p">:</span>

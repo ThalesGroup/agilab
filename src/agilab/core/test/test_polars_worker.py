@@ -90,9 +90,9 @@ def test_exec_mono_process(worker_csv):
     workers_tree = {0: [[10, 20]]}
     workers_tree_info = None
     worker_csv.last_df = None
-    worker_csv.exec_mono_process(workers_tree, workers_tree_info)
+    worker_csv._exec_mono_process(workers_tree, workers_tree_info)
     result_df = worker_csv.last_df
-    assert result_df is not None, "Expected a DataFrame from exec_mono_process."
+    assert result_df is not None, "Expected a DataFrame from ._exec_mono_process."
     assert result_df.height == 2, f"Expected DataFrame height 2, got {result_df.height}."
     part_values = result_df["worker_id"].to_list()
     assert part_values == [str((0, 0)), str((0, 0))], f"Unexpected worker_id values: {part_values}"
@@ -102,9 +102,9 @@ def test_exec_multi_process(worker_csv):
     workers_tree = {0: [[100, 200]]}
     workers_tree_info = None
     worker_csv.last_df = None
-    worker_csv.exec_multi_process(workers_tree, workers_tree_info)
+    worker_csv._exec_multi_process(workers_tree, workers_tree_info)
     result_df = worker_csv.last_df
-    assert result_df is not None, "Expected a DataFrame from exec_multi_process."
+    assert result_df is not None, "Expected a DataFrame from ._exec_multi_process."
     assert result_df.height == 2, f"Expected DataFrame height 2, got {result_df.height}."
     assert result_df["col"].to_list() == [100, 200], "Column 'col' does not match expected values."
     assert "worker_id" in result_df.columns, "Expected 'worker_id' in the DataFrame columns."

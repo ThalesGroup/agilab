@@ -25,7 +25,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Installation Overview" href="install-usecase.html" />
-    <link rel="prev" title="workers API" href="workers.html" /> 
+    <link rel="prev" title="agi-node API" href="workers.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -118,12 +118,6 @@
 <li class="toctree-l3"><a class="reference internal" href="experiment_help.html#main-content-area">Main Content Area</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="views_help.html">▶️ VIEW</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="views_help.html#introduction">Introduction</a></li>
-<li class="toctree-l3"><a class="reference internal" href="views_help.html#sidebar">Sidebar</a></li>
-<li class="toctree-l3"><a class="reference internal" href="views_help.html#main-content-area">Main Content Area</a></li>
-</ul>
-</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="framework-api.html">Framework API</a><ul>
@@ -153,8 +147,8 @@
 <li class="toctree-l3"><a class="reference internal" href="agi-distributor.html#reference">Reference</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="workers.html">workers API</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="workers.html#workers-reference">Workers Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="workers.html">agi-node API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="workers.html#agi-node-reference">agi-node Reference</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="workers.html#dag-worker">dag_worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="workers.html#pandas-worker">pandas_worker</a></li>
 <li class="toctree-l4"><a class="reference internal" href="workers.html#polars-worker">polars_worker</a></li>
@@ -440,6 +434,60 @@ apps/
     README.md
     sat_trajectory_project
     sb3_trainer_project
+apps-pages/
+    view_autoencoder_latenspace/
+        src/
+            view_autoencoder_latentspace/
+                __init__.py
+                autoencoder_latentspace.py
+                view_autoencoder_latentspace.py
+        pyproject.toml
+    view_barycentric/
+        src/
+            view_barycentric/
+                __init__.py
+                barycentric_graph.py
+                view_barycentric.py
+        __init__.py
+        pyproject.toml
+    view_maps/
+        .idea/
+            inspectionProfiles/
+                profiles_settings.xml
+                Project_Default.xml
+            maps.iml
+            modules.xml
+        apps/
+        src/
+            view_maps/
+                __init__.py
+                maps.py
+                view_maps.py
+        pyproject.toml
+    view_maps-3d/
+        .idea/
+            inspectionProfiles/
+                profiles_settings.xml
+                Project_Default.xml
+            maps-3d.iml
+            modules.xml
+        src/
+            view_maps_3d/
+                __init__.py
+                maps_3d.py
+                view_maps_3d.py
+        pyproject.toml
+    view_maps_network/
+        src/
+            view_maps_network/
+                maps_network_graph.py
+                view_maps_network.py
+        pyproject.toml
+    .git_archival.txt
+    .gitattributes
+    .gitignore
+    __init__.py
+    README.md
 core/
     .pytest_cache/ [excluded]
     __pycache__/ [excluded]
@@ -541,6 +589,7 @@ core/
         uv_config.toml
     test/
         __pycache__/ [excluded]
+        .coverage
         __init__.py
         test_agi_distributor.py
         test_base_worker.py
@@ -560,82 +609,7 @@ core/
     get_supported_python_versions.py
     install.ps1
     install.sh
-pages/
-    __pycache__/ [excluded]
-    ▶️ EDIT.py
-    ▶️ EDIT.py.touch
-    ▶️ EXECUTE.py
-    ▶️ EXPERIMENT.py
-    ▶️ EXPLORE.py
-pages_with_venv/
-    view_autoencoder-latenspace/
-        src/
-            view_autoencoder_latentspace/
-                __init__.py
-                autoencoder_latentspace.py
-                view_autoencoder_latentspace.py
-        pyproject.toml
-    view_barycentric/
-        src/
-            view_barycentric/
-                __init__.py
-                barycentric_graph.py
-                view_barycentric.py
-        __init__.py
-        pyproject.toml
-    view_maps/
-        .idea/
-            inspectionProfiles/
-                profiles_settings.xml
-                Project_Default.xml
-            maps.iml
-            modules.xml
-        apps/
-        src/
-            view_maps/
-                __init__.py
-                maps.py
-                view_maps.py
-        pyproject.toml
-    view_maps-3d/
-        .idea/
-            inspectionProfiles/
-                profiles_settings.xml
-                Project_Default.xml
-            maps-3d.iml
-            modules.xml
-        src/
-            view_maps_3d/
-                __init__.py
-                maps_3d.py
-                view_maps_3d.py
-        pyproject.toml
-    view_maps-network/
-        src/
-            view_maps_network/
-                maps_network_graph.py
-                view_maps_network.py
-        pyproject.toml
-    .git_archival.txt
-    .gitattributes
-    .gitignore
-    __init__.py
-    README.md
-resources/
-    help/
-        __init__.py
-        cluster-help.html
-        edit_help.html
-        execute_help.html
-        experiment_help.html
-        views_help.html
-    __init__.py
-    agi_logo.png
-    agilab_logo.png
-    code_editor.scss
-    custom_buttons.json
-    info_bar.json
-snippets/
+examples/
     AGI.get_distrib-flight.py
     AGI.get_distrib-flight_trajectory.py
     AGI.get_distrib-link_sim.py
@@ -655,6 +629,26 @@ snippets/
     AGI.run-sat_trajectory.py
     AGI.run-sb3_trainer.py
     dask_worker_0.pid
+pages/
+    __pycache__/ [excluded]
+    ▶️ EDIT.py
+    ▶️ EXECUTE.py
+    ▶️ EXPERIMENT.py
+    ▶️ EXPLORE.py
+resources/
+    help/
+        __init__.py
+        cluster-help.html
+        edit_help.html
+        execute_help.html
+        experiment_help.html
+        views_help.html
+    __init__.py
+    agi_logo.png
+    agilab_logo.png
+    code_editor.scss
+    custom_buttons.json
+    info_bar.json
 test/
     __init__.py
     test-streamlit.sh
@@ -662,8 +656,8 @@ test/
 __init__.py
 agi_codex.py
 AGILAB.py
-install_apps_views.ps1
-install_apps_views.sh
+install_apps.ps1
+install_apps.sh
 lab_run.py
 LICENSE
 MANIFEST.in
@@ -678,7 +672,7 @@ uv_config.toml
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="workers.html" class="btn btn-neutral float-left" title="workers API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="workers.html" class="btn btn-neutral float-left" title="agi-node API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="install-usecase.html" class="btn btn-neutral float-right" title="Installation Overview" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+UV_PREVIEW=(uv --preview-features extra-build-dependencies)
+
 # -----------------------------
 # Config
 # -----------------------------
@@ -72,20 +74,20 @@ case "${SOURCE}" in
     echo "Installing packages from local source tree..."
     for pkg in ${PACKAGES}; do
       if [[ -d "${AGI_INSTALL_PATH}/core/${pkg}" ]]; then
-        uv pip install -e "${AGI_INSTALL_PATH}/core/${pkg}"
+        ${UV_PREVIEW[@]} pip install -e "${AGI_INSTALL_PATH}/core/${pkg}"
       fi
     done
-    uv pip install -e "${AGI_INSTALL_ROOT}"
+    ${UV_PREVIEW[@]} pip install -e "${AGI_INSTALL_ROOT}"
     ;;
 
 
   pypi)
     echo "Installing from PyPI..."
     if [[ -z "${VERSION}" ]]; then
-      uv pip install --upgrade ${PACKAGES}
+      ${UV_PREVIEW[@]} pip install --upgrade ${PACKAGES}
     else
       # shellcheck disable=SC2046
-      uv pip install --upgrade $(for p in ${PACKAGES}; do printf "%s==%s " "${p}" "${VERSION}"; done)
+      ${UV_PREVIEW[@]} pip install --upgrade $(for p in ${PACKAGES}; do printf "%s==%s " "${p}" "${VERSION}"; done)
     fi
     ;;
 
@@ -93,7 +95,7 @@ case "${SOURCE}" in
     INDEX_URL="https://test.pypi.org/simple"
     EXTRA_INDEX_URL="https://pypi.org/simple"
 
-    uv pip install packaging
+    ${UV_PREVIEW[@]} pip install packaging
 
     resolve_common_latest() {
       uv run python - "$@" <<'PY'
@@ -135,7 +137,7 @@ PY
     fi
 
     echo "Installing packages: ${PACKAGES} == ${VERSION}"
-    uv pip install --preview-features extra-build-dependencie\
+    ${UV_PREVIEW[@]} pip install \
       --index "${INDEX_URL}" \
       --index "${EXTRA_INDEX_URL}" \
       --index-strategy unsafe-best-match \

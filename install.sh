@@ -265,7 +265,7 @@ install_core() {
 install_apps_views() {
   dir="$AGI_INSTALL_PATH/src/agilab"
   pushd $dir > /dev/null
-  ./install_apps_views.sh
+  ./install_apps.sh
   popd > /dev/null
 }
 
@@ -296,9 +296,9 @@ write_env_values() {
 }
 
 install_enduser() {
-    chmod +x "test/_test-install-enduser.sh"
+    chmod +x "tools/install_enduser.sh"
     echo -e "${BLUE}Installing agilab (endusers)...${NC}"
-    ./test/_test-install-enduser.sh --source $SOURCE
+    ./tools/install_enduser.sh --source $SOURCE
     echo -e "${GREEN}agilab (enduser) installation complete.${NC}"
 }
 
@@ -320,8 +320,8 @@ copy_project_files
 update_environment
 install_core
 write_env_values
-if ! install_apps_views; then
-  echo -e "${YELLOW}install_apps_views failed; continuing with PyCharm setup.${NC}"
+if ! install_apps; then
+  echo -e "${YELLOW}install_apps failed; continuing with PyCharm setup.${NC}"
   install_pycharm_script # needed to investigate with pycharm why previous script has failed
 else
   install_pycharm_script

@@ -62,8 +62,8 @@ Main Content Area
          path = "/home/pcm/data/flight"
          output_format = "parquet"
 
-         [views]
-         The list of views available for your app:
+         [pages]
+         The list of pages available for your app:
          Example:
          view_module = [ "barycentric_graph", "maps", "autoencoder_latentspace",]
 

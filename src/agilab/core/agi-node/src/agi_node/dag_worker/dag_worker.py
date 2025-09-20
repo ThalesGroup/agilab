@@ -34,7 +34,7 @@ class DagWorker(BaseWorker):
     Minimal-change DAG worker:
       - Keeps your existing structure
       - Adds a tiny signature-aware _invoke() so custom methods can vary in signature
-      - Uses _invoke() at the single call site in exec_multi_process()
+      - Uses _invoke() at the single call site in ._exec_multi_process()
     """
 
     # inside class DagWorker(BaseWorker):
@@ -107,6 +107,10 @@ class DagWorker(BaseWorker):
         """
         # If you had mode checks, keep them. Here we directly call the multi-process variant.
         self._exec_multi_process(workers_tree, workers_tree_info)
+
+    def _exec_mono_process(self, workers_tree, workers_tree_info):
+        """Sequential fallback kept for compatibility; reuses the multi-process pipeline."""
+        return self._exec_multi_process(workers_tree, workers_tree_info)
 
     @staticmethod
     def _topological_sort(graph):
@@ -229,6 +233,5 @@ class DagWorker(BaseWorker):
             except Exception as exc:
                 logging.error(f"Method {fn} for partition {pname} generated an exception: {exc}")
 
-        # exec_multi_process doesn't need to return anything specific
+        # ._exec_multi_process doesn't need to return anything specific
         return 0.0
-
