@@ -159,8 +159,15 @@ def open_docs(env, html_file="index.html", anchor=""):
     if _DOCS_ALREADY_OPENED and _LAST_DOCS_URL == target_url:
         if _focus_existing_docs_tab(target_url):
             return
-        # Fallback: attempt to reuse the existing tab via the default browser API.
-        webbrowser.open(target_url, new=0, autoraise=True)
+        message = (
+            "Documentation already open. Unable to focus the existing tab automatically. "
+            "Please bring your browser window to the foreground or enable automation permissions "
+            "for this application."
+        )
+        try:
+            st.info(message)
+        except Exception:
+            print(message)
         return
 
     # Either first open, or navigating to different doc target -> open in new tab.
