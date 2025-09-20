@@ -7,7 +7,7 @@ from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv, normalize_path
 
 # Set AGI verbosity low to avoid extra prints during test.
-AGI._verbose = 0
+AGI.verbose = 0
 
 
 def test_normalize_path():
@@ -32,6 +32,13 @@ def test_find_free_port():
             s.bind(("localhost", port))
         except Exception as e:
             pytest.fail(f"find_free_port returned a port that is not free: {e}")
+
+
+def test_mode_constants_exposed():
+    assert AGI.PYTHON_MODE == 1
+    assert AGI.CYTHON_MODE == 2
+    assert AGI.DASK_MODE == 4
+    assert AGI.RAPIDS_MODE == 16
 
 
 def test_get_default_local_ip():

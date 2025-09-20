@@ -10,6 +10,13 @@
 # 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or THALES SIX GTS France SAS, may be used to endorse or promote products derived from this software without specific prior written permission.
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""AGILab environment bootstrapper and utility helpers.
+
+The module exposes the :class:`AgiEnv` class which orchestrates project discovery,
+virtual-environment management, packaging helpers, and convenience utilities used
+by installers as well as runtime workers.  Supporting free functions provide small
+parsing and path utilities leveraged during setup.
+"""
 import shlex
 from IPython.core.ultratb import FormattedTB
 import ast
@@ -67,6 +74,13 @@ TIME_LEVEL_PREFIX = re.compile(
 
 
 def normalize_path(path):
+    """Return ``path`` coerced to a normalised string representation.
+
+    ``Path`` objects are converted to a string that matches the current platform
+    conventions so the value can safely be stored in configuration files or
+    environment variables.
+    """
+
     return (
         str(PureWindowsPath(Path(path)))
         if os.name == "nt"
@@ -75,6 +89,21 @@ def normalize_path(path):
 
 
 def parse_level(line, default_level):
+    """Resolve a logging level token found in ``line``.
+
+    Parameters
+    ----------
+    line:
+        The text that might contain a logging level marker.
+    default_level:
+        The integer level returned when no explicit marker is present.
+
+    Returns
+    -------
+    int
+        The numeric logging level understood by :mod:`logging`.
+    """
+
     for rx in LEVEL_RES:
         m = rx.search(line)
         if m:
@@ -82,14 +111,18 @@ def parse_level(line, default_level):
     return default_level
 
 def strip_time_level_prefix(line: str) -> str:
-    # Remove an existing "HH:MM:SS LEVEL" (or "HH:MM:SS,123 LEVEL") prefix
+    """Remove a ``HH:MM:SS LEVEL`` prefix commonly emitted by log handlers."""
+
     return TIME_LEVEL_PREFIX.sub('', line, count=1)
 
 def is_packaging_cmd(cmd: str) -> bool:
+    """Return ``True`` when ``cmd`` appears to invoke ``uv`` or ``pip``."""
+
     s = cmd.strip()
     return s.startswith("uv ") or s.startswith("pip ") or "uv" in s or "pip" in s
 
 class AgiEnv:
+    """Encapsulates filesystem and configuration state for AGILab deployments."""
     install_type = None
     apps_dir = None
     app = None
@@ -99,9 +132,11 @@ class AgiEnv:
     init_done = False
     hw_rapids_capable = None
     is_worker_env = False
+    _is_managed_pc = None
     debug = False
     uv = None
     benchmark = None
+    verbose = None
     verbose = None
     pyvers_worker = None
     logger = None
@@ -121,6 +156,7 @@ class AgiEnv:
                  python_variante: str = ''):
 
         AgiEnv.is_managed_pc = getpass.getuser().startswith("T0")
+        AgiEnv._is_managed_pc = AgiEnv.is_managed_pc
         self.agi_resources = Path("resources/.agilab")
         home_abs = Path.home() / "MyApp" if AgiEnv.is_managed_pc else Path.home()
         self.home_abs = home_abs
@@ -170,7 +206,10 @@ class AgiEnv:
         target = active_app.name.replace("_project", "").replace("_worker","").replace("-", "_")
 
         AgiEnv.verbose = verbose
+        AgiEnv.verbose = verbose
         self.verbose = verbose
+        self.verbose = verbose
+        self._is_managed_pc = AgiEnv.is_managed_pc
         AgiEnv.python_variante = python_variante
         AgiEnv.logger =  AgiLogger.get_logger("agi_env")
         AgiEnv.logger =  AgiLogger.configure(verbose=verbose, base_name="agi_env")
@@ -380,10 +419,18 @@ class AgiEnv:
 
     @staticmethod
     def _resolve_package_root(root: Path) -> Path:
+        """Return the ``src`` directory for a package when present.
+
+        Many AGILab components follow the ``src/`` layout; when that folder is
+        missing the package root itself is returned.
+        """
+
         src_dir = root / "src"
         return src_dir if src_dir.exists() else root
 
     def _collect_pythonpath_entries(self) -> list[str]:
+        """Build an ordered list of paths that must live on ``PYTHONPATH``."""
+
         candidates = [
             self.env_src,
             self.node_src,
@@ -397,6 +444,8 @@ class AgiEnv:
         return self._dedupe_paths(candidates)
 
     def _configure_pythonpath(self, entries: list[str]) -> None:
+        """Inject ``entries`` into both ``sys.path`` and the ``PYTHONPATH`` env var."""
+
         AgiEnv._pythonpath_entries = entries
         if not entries:
             return
@@ -413,6 +462,8 @@ class AgiEnv:
 
     @staticmethod
     def _dedupe_paths(paths) -> list[str]:
+        """Collapse ``paths`` into a list of unique, existing filesystem entries."""
+
         seen: set[str] = set()
         result: list[str] = []
         for path in paths:
@@ -430,6 +481,8 @@ class AgiEnv:
         return result
 
     def has_agilab_anywhere_under_home(self, path: Path) -> bool:
+        """Return ``True`` when ``path`` sits under the user's home ``agilab`` tree."""
+
         try:
             rel = path.resolve().relative_to(Path.home())
         except ValueError:
@@ -437,10 +490,14 @@ class AgiEnv:
         return "agilab" in rel.parts
 
     def active(self, target, install_type):
+        """Switch :attr:`active_app` to ``target`` if it differs from the current one."""
+
         if str(self.active_app) != target:
             self.change_active_app(target, install_type)
 
     def check_args(self, target_args_class, target_args):
+        """Validate ``target_args`` using ``target_args_class`` and return any errors."""
+
         try:
             validated_args = target_args_class.parse_obj(target_args)
             validation_errors = None
@@ -450,6 +507,8 @@ class AgiEnv:
         return validation_errors
 
     def humanize_validation_errors(self, error):
+        """Format pydantic-style validation ``error`` messages for human consumption."""
+
         formatted_errors = []
         for err in error.errors():
             field = ".".join(str(loc) for loc in err["loc"])
@@ -465,12 +524,16 @@ class AgiEnv:
 
     @staticmethod
     def set_env_var(key: str, value: str):
+        """Persist ``key``/``value`` in :attr:`envars`, ``os.environ`` and the ``.env`` file."""
+
         AgiEnv.envars[key] = value
         os.environ[key] = str(value)
         AgiEnv._update_env_file({key: value})
 
     @staticmethod
     def read_agilab_path(verbose=False):
+        """Return the persisted AGILab installation path if previously recorded."""
+
         if os.name == "nt":
             where_is_agi = Path(os.getenv("LOCALAPPDATA", "")) / "agilab/.agilab-path"
         else:
@@ -496,6 +559,8 @@ class AgiEnv:
 
     @staticmethod
     def locate_agilab_installation(verbose=False):
+        """Attempt to locate the installed AGILab package path on disk."""
+
         for p in sys.path_importer_cache:
             if p.endswith("agi_env"):
                 base_dir = p
@@ -506,6 +571,8 @@ class AgiEnv:
             return Path(before) / sep
 
     def copy_existing_projects(self, src_apps: Path, dst_apps: Path):
+        """Copy ``*_project`` trees from ``src_apps`` into ``dst_apps`` if missing."""
+
         dst_apps.mkdir(parents=True, exist_ok=True)
 
         # match every nested directory ending with "_project"
@@ -530,11 +597,7 @@ class AgiEnv:
                 AgiEnv.logger.error(f"Warning: Could not copy {item} → {dst_item}: {e}")
 
     def copy_and_replace(self, src: Path, dst: Path, max_workers=8):
-        """
-        Remove any existing subdirectory in dst that matches src's subdirectory,
-        then copy everything from src into dst.
-        Robust: skips missing items, logs a warning, never crashes.
-        """
+        """Copy ``src`` into ``dst`` after removing existing conflicting entries."""
         dst.mkdir(parents=True, exist_ok=True)
 
         for item in src.iterdir():
@@ -563,6 +626,8 @@ class AgiEnv:
             set_key(str(env_file), k, str(v), quote_mode="never")
 
     def _init_resources(self, resources_src):
+        """Replicate ``resources_src`` into the managed ``.agilab`` tree."""
+
         src_env_path = resources_src / ".env"
         dest_env_file = AgiEnv.resources_path / ".env"
         if not src_env_path.exists():
@@ -582,6 +647,8 @@ class AgiEnv:
                     shutil.copy(src_file, dest_file)
 
     def _init_projects(self):
+        """Identify available projects and align state with the selected target."""
+
         self.projects = self.get_projects(self.apps_dir)
         for idx, project in enumerate(self.projects):
             if self.target == project[:-8].replace("-", "_"):
@@ -591,11 +658,15 @@ class AgiEnv:
                 break
 
     def _determine_apps_dir(self, module_path):
+        """Return the apps directory that owns ``module_path``."""
+
         path_str = str(module_path)
         index = path_str.index("_project")
         return Path(path_str[:index]).parent
 
     def _determine_module_path(self, project_or_module_name):
+        """Construct the module path from a project or module identifier."""
+
         parts = project_or_module_name.rsplit("-", 1)
         suffix = parts[-1]
         name = parts[0].split(os.sep)[-1]
@@ -609,9 +680,13 @@ class AgiEnv:
         return module_path.resolve()
 
     def get_projects(self, path: Path):
+        """Return the names of ``*_project`` directories beneath ``path``."""
+
         return [p.name for p in path.glob("*project")]
 
     def get_modules(self, target=None):
+        """Return canonical module names derived from discovered projects."""
+
         pattern = "_project"
         modules = [
             re.sub(f"^{pattern}|{pattern}$", "", project).replace("-", "_")
@@ -620,6 +695,8 @@ class AgiEnv:
         return modules
 
     def get_base_worker_cls(self, module_path, class_name):
+        """Return the base worker class name and module for ``class_name``."""
+
         base_info_list = self.get_base_classes(module_path, class_name)
         try:
             base_class, module_name = next((base, mod) for base, mod in base_info_list if base.endswith("Worker"))
@@ -628,6 +705,8 @@ class AgiEnv:
             return None, None
 
     def get_base_classes(self, module_path, class_name):
+        """Inspect ``module_path`` AST to retrieve base classes of ``class_name``."""
+
         try:
             with open(module_path, "r", encoding="utf-8") as file:
                 source = file.read()
@@ -653,6 +732,8 @@ class AgiEnv:
         return base_classes
 
     def get_import_mapping(self, source):
+        """Build a mapping of names to modules from ``import`` statements in ``source``."""
+
         mapping = {}
         try:
             tree = ast.parse(source)
@@ -670,6 +751,8 @@ class AgiEnv:
         return mapping
 
     def extract_base_info(self, base, import_mapping):
+        """Return the base-class name and originating module for ``base`` nodes."""
+
         if isinstance(base, ast.Name):
             module_name = import_mapping.get(base.id)
             return base.id, module_name
@@ -684,6 +767,8 @@ class AgiEnv:
         return None
 
     def get_full_attribute_name(self, node):
+        """Reconstruct the dotted attribute path represented by ``node``."""
+
         if isinstance(node, ast.Name):
             return node.id
         elif isinstance(node, ast.Attribute):
@@ -691,6 +776,7 @@ class AgiEnv:
         return ""
 
     def mode2str(self, mode):
+        """Encode a bitmask ``mode`` into readable ``pcdr`` flag form."""
 
         chars = ["p", "c", "d", "r"]
         reversed_chars = reversed(list(enumerate(chars)))
@@ -704,6 +790,8 @@ class AgiEnv:
 
     @staticmethod
     def mode2int(mode):
+        """Convert an iterable of mode flags (``p``, ``c``, ``d``) to the bitmask int."""
+
         mode_int = 0
         set_rm = set(mode)
         for i, v in enumerate(["p", "c", "d"]):
@@ -712,6 +800,8 @@ class AgiEnv:
         return mode_int
 
     def is_valid_ip(self, ip: str) -> bool:
+        """Return ``True`` when ``ip`` is a syntactically valid IPv4 address."""
+
         pattern = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
         if pattern.match(ip):
             parts = ip.split(".")
@@ -719,6 +809,8 @@ class AgiEnv:
         return False
 
     def init_envars_app(self, envars):
+        """Cache frequently used environment variables and ensure directories exist."""
+
         self.CLUSTER_CREDENTIALS = envars.get("CLUSTER_CREDENTIALS", None)
         self.OPENAI_API_KEY = envars.get("OPENAI_API_KEY", None)
         AGILAB_LOG_ABS = Path(envars.get("AGI_LOG_DIR", self.home_abs / "log"))
@@ -742,6 +834,8 @@ class AgiEnv:
 
 
     def update_pyproject(self):
+        """Synchronise ``pyproject.toml`` dependencies with editable installs."""
+
         agilab_src = self.agilab_src
         for file in [self.worker_pyproject, self.manager_pyproject]: #, self.core_root / "src/agilab/core/pyproject.toml"]:
             if not file.exists():
@@ -779,6 +873,8 @@ class AgiEnv:
 
     @staticmethod
     def _copy_file(src_item, dst_item):
+        """Copy ``src_item`` to ``dst_item`` if the destination does not exist."""
+
         if not dst_item.exists():
             if not src_item.exists():
                 AgiEnv.logger.info(f"[WARN] Source file missing (skipped): {src_item}")

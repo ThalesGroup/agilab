@@ -10,6 +10,7 @@
 # 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or THALES SIX GTS France SAS, may be used to endorse or promote products derived from this software without specific prior written permission.
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""Cluster orchestration utilities for distributing AGILab workloads."""
 import traceback
 from typing import Tuple, Set  # Ajoute Tuple et Set
 from IPython.lib import backgroundjobs as bg
@@ -106,35 +107,18 @@ _workers_default = {socket.gethostbyname("localhost"): 1}
 
 
 class AGI:
-    """
-    Agi Class.
-
-    Agi (Speedy-Python-Dask) is a scalable core based on Cython, Dask, and a pool of processes that supports High-Performance Computing (HPC) with or without out¬put data.
-    It offers a command-line interface in Python and an optional LAB with Streamlit, featuring advanced capabilities like embedded ChatGPT and visualizations.
-
-    Agi stands for Speedy-Python-Dask.
-
-    **To run on a cluster:**
-        1. Create a Agi account on each host with SSH access.
-        2. Copy your project's `pyproject.toml` to each host.
-        3. Run `uv sync` before using AGI.
-        4. To run with output data, provide a shared directory accessible from all hosts. Use this directory in your Python target code as both input and output.
-
-    **Remarks:**
-        - Interactive Matplotlib graphics are not supported by Jupyter Lab. Use Jupyter Notebook instead.
-        - While debugging in a Jupyter cell, it's better to comment out `#%%time` to allow line numbers to display correctly.
-    """
+    """Coordinate installation, scheduling, and execution of AGILab workloads."""
 
     # Constants as class attributes
     _TIMEOUT = 10
-    _PYTHON_MODE = 1
-    _CYTHON_MODE = 2
-    _DASK_MODE = 4
-    _RAPIDS_MODE = 16
-    _INSTALL_MASK = 0b11 << _DASK_MODE
-    _INSTALL_MODE = 0b01 << _DASK_MODE
-    _UPDATE_MODE = 0b10 << _DASK_MODE
-    _SIMULATE_MODE = 0b11 << _DASK_MODE
+    PYTHON_MODE = 1
+    CYTHON_MODE = 2
+    DASK_MODE = 4
+    RAPIDS_MODE = 16
+    _INSTALL_MASK = 0b11 << DASK_MODE
+    _INSTALL_MODE = 0b01 << DASK_MODE
+    _UPDATE_MODE = 0b10 << DASK_MODE
+    _SIMULATE_MODE = 0b11 << DASK_MODE
     _DEPLOYEMENT_MASK = 0b110000
     _RUN_MASK = 0b001111
     _RAPIDS_SET = 0b111111
@@ -155,7 +139,7 @@ class AGI:
     _scheduler: Optional[str] = None
     _scheduler_ip: Optional[str] = None
     _target: Optional[str] = None
-    _verbose: Optional[int] = None
+    verbose: Optional[int] = None
     _worker_init_error: bool = False
     _workers: Optional[Dict[str, int]] = None
     _capacity: Optional[Dict[str, float]] = None
@@ -239,8 +223,8 @@ class AGI:
         AGI.target_path = env.manager_path
         AGI._target = env.target
         AGI._rapids_enabled = rapids_enabled
-        if env._verbose > 0:
-            logger.info(f"AGI instance created for target {env.target} with verbosity {env._verbose}")
+        if env.verbose > 0:
+            logger.info(f"AGI instance created for target {env.target} with verbosity {env.verbose}")
 
         if mode is None or isinstance(mode, list):
             mode_range = range(8) if mode is None else sorted(mode)
@@ -262,13 +246,13 @@ class AGI:
 
             AGI._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
             if AGI._mode:
-                if AGI._mode & AGI._RUN_MASK not in range(0, AGI._RAPIDS_MODE):
+                if AGI._mode & AGI._RUN_MASK not in range(0, AGI.RAPIDS_MODE):
                     raise ValueError(f"mode {AGI._mode} not implemented")
             else:
                 # 16 first modes are "run" type, then there 16, 17 and 18
-                AGI._run_type = AGI._run_types[(AGI._mode & AGI._DEPLOYEMENT_MASK) >> AGI._DASK_MODE]
+                AGI._run_type = AGI._run_types[(AGI._mode & AGI._DEPLOYEMENT_MASK) >> AGI.DASK_MODE]
             AGI._args = args
-            AGI._verbose = verbose
+            AGI.verbose = verbose
             AGI._workers = workers
             AGI._run_time = {}
 
@@ -337,7 +321,7 @@ class AGI:
                 scheduler=scheduler,
                 workers=workers,
                 verbose=verbose,
-                modes_enabled=AGI._CYTHON_MODE,
+                modes_enabled=AGI.CYTHON_MODE,
                 **args,
             )
         AGI._mode_auto = True
@@ -810,17 +794,17 @@ class AGI:
 
         os.makedirs(wenv_abs, exist_ok=True)
         file = env.worker_pyproject
-        if env._verbose > 0:
+        if env.verbose > 0:
             logger.info(f"Copying {file} -> {wenv_abs}")
         shutil.copy(file, wenv_abs / file.name)
 
         file = env.setup_core
-        if env._verbose > 0:
+        if env.verbose > 0:
             logger.info(f"Copying {file} -> {wenv_abs}")
         shutil.copy2(file, wenv_abs)
 
         file = env.cli
-        if env._verbose > 0:
+        if env.verbose > 0:
             logger.info(f"Copying {file} -> {wenv_abs.parent}")
         shutil.copy(file, wenv_abs.parent)
 
@@ -829,7 +813,7 @@ class AGI:
         else:
             AgiEnv.set_env_var(ip, "no_rapids_hw")
 
-        if env._verbose > 0:
+        if env.verbose > 0:
             logger.info(f"Rapids-capable GPU[{ip}]: {hw_rapids_capable}")
 
         # # Install Python
@@ -957,7 +941,7 @@ class AGI:
         node_ips = set(list(AGI._workers) + [AGI._get_scheduler(scheduler_addr)[0]])
         AGI._venv_todo(node_ips)
         start_time = time.time()
-        if env._verbose > 0:
+        if env.verbose > 0:
             logger.info(f"Installing {app_path} on 127.0.0.1")
 
         await AGI._deploy_local_worker(app_path, Path(wenv_rel), options_worker)
@@ -965,7 +949,7 @@ class AGI:
         if AGI._mode & 4:
             tasks = []
             for ip in node_ips:
-                if env._verbose > 0:
+                if env.verbose > 0:
                     logger.info(f"Installing worker on {ip}")
                 if not env.is_local(ip):
                     tasks.append(asyncio.create_task(
@@ -973,9 +957,9 @@ class AGI:
                     ))
             await asyncio.gather(*tasks)
 
-        if AGI._verbose:
+        if AGI.verbose:
             duration = AGI._format_elapsed(time.time() - start_time)
-            if env._verbose > 0:
+            if env.verbose > 0:
                 logger.info(f"uv {AGI._run_type} completed in {duration}")
 
     @staticmethod
@@ -1020,7 +1004,7 @@ class AGI:
         pyvers = env.python_version
 
         file = env.setup_core
-        if env._verbose > 0:
+        if env.verbose > 0:
             logger.info(f"Copying {file.name} -> {wenv_abs}")
 
         shutil.copy2(file, wenv_abs)
@@ -1030,7 +1014,7 @@ class AGI:
         else:
             AgiEnv.set_env_var(ip, "no_rapids_hw")
 
-        if env._verbose > 0:
+        if env.verbose > 0:
             logger.info(f"Rapids-capable GPU[{ip}]: {hw_rapids_capable}")
 
         # =========
@@ -1043,7 +1027,7 @@ class AGI:
         else:
             cmd_manager = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(app_path)) else '')}{uv} {run_type} --project '{app_path}'"
 
-        if env._verbose > 0:
+        if env.verbose > 0:
             logger.info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
 
@@ -1070,7 +1054,7 @@ class AGI:
         else:
             cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} {options_worker} --python {pyvers_worker} --project '{wenv_abs}'"
 
-        if env._verbose > 0:
+        if env.verbose > 0:
             logger.info(f"Installing workers: {cmd_worker}")
         await AgiEnv.run(cmd_worker, wenv_abs)
 
@@ -1237,7 +1221,7 @@ class AGI:
         await AGI.exec_ssh(ip, cmd)
 
         # build target_worker lib from src/
-        if env._verbose > 1:
+        if env.verbose > 1:
             cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {wenv_rel / env.setup_app.name} build_ext --install-type 2 -b {wenv_rel}"
         else:
             cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {wenv_rel / env.setup_app.name} -q build_ext --install-type 2 -b {wenv_rel}"
@@ -1285,7 +1269,7 @@ class AGI:
         for ip in list_ip:
             (AGI._local_ip.append(ip) if AgiEnv.is_local(ip) else AGI._remote_ip.append(ip))
         AGI._install_todo = 2 * len(AGI._remote_ip)
-        if AGI.env._verbose > 0:
+        if AGI.env.verbose > 0:
             logger.info(f"remote worker to install: {AGI._install_todo} ")
 
     @staticmethod
@@ -1411,9 +1395,9 @@ class AGI:
         env = AGI.env
         cli_rel = env.wenv_rel.parent / "cli.py"
 
-        if (AGI._mode_auto and AGI._mode == AGI._DASK_MODE) or not AGI._mode_auto:
+        if (AGI._mode_auto and AGI._mode == AGI.DASK_MODE) or not AGI._mode_auto:
             env.hw_rapids_capable = True
-            if AGI._mode & AGI._DASK_MODE:
+            if AGI._mode & AGI.DASK_MODE:
                 if scheduler is None:
                     if list(AGI._workers) == ["127.0.0.1"]:
                         scheduler = "127.0.0.1"
@@ -1551,7 +1535,7 @@ class AGI:
             # in case of core src has changed
             AGI._build_lib_local()
             await AGI._build_lib_remote()
-            if AGI._mode & AGI._DASK_MODE:
+            if AGI._mode & AGI.DASK_MODE:
                 # load lib
                 for egg_file in (AGI.env.wenv_abs / "dist").glob("*.egg"):
                     AGI._dask_client.upload_file(str(egg_file))
@@ -1611,7 +1595,7 @@ class AGI:
         """
         env = AGI.env
         wenv = normalize_path(str(env.wenv_abs))
-        is_cy = AGI._mode & AGI._CYTHON_MODE
+        is_cy = AGI._mode & AGI.CYTHON_MODE
         packages = "agi_dispatcher, "
 
         baseworker = env.base_worker_cls
@@ -1633,7 +1617,7 @@ class AGI:
         cmd_prefix = env.envars.get(f"127.0.0.1_CMD_PREFIX", "")
         if env.is_free_threading_available:
             uv = cmd_prefix + " PYTHON_GIL=0 " + env.uv
-        if env._verbose > 1:
+        if env.verbose > 1:
             cmd = f"{env.uv} --project '{app_path}' run --no-sync python '{env.setup_app}' bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d \"{wenv_abs}\""
         else:
             cmd = f"{env.uv} --project '{app_path}' run --no-sync python '{env.setup_app}' -q bdist_egg --packages \"{packages}\" --install_type '{env.install_type}' -d \"{wenv_abs}\""
@@ -1650,7 +1634,7 @@ class AGI:
         if is_cy:
             # cython compilation of wenv/src into wenv
             shutil.copy2(env.setup_core, wenv_abs)
-            if env._verbose > 1:
+            if env.verbose > 1:
                 cmd = f"{env.uv} --project '{wenv_abs}' run --no-sync python '{env.setup_app}' build_ext --install-type 1 -b '{wenv_abs}'"
             else:
                 cmd = f"{env.uv} --project '{wenv_abs}' run --no-sync python '{env.setup_app}' -q build_ext --install-type 1 -b '{wenv_abs}'"
@@ -1689,7 +1673,7 @@ class AGI:
         workers init
         """
         # worker
-        if (AGI._dask_client.scheduler.pool.open == 0) and AGI._verbose:
+        if (AGI._dask_client.scheduler.pool.open == 0) and AGI.verbose:
             runners = list(AGI._dask_client.scheduler_info()["workers"].keys())
             logger.info("warning: no scheduler found but requested mode is dask=1 => switch to dask")
 
@@ -1715,15 +1699,15 @@ class AGI:
 
         await AGI._kill(current_pid=current_pid, force=True)
 
-        if AGI._mode & AGI._CYTHON_MODE:
+        if AGI._mode & AGI.CYTHON_MODE:
             wenv_abs = env.wenv_abs
             cython_lib_path = Path(wenv_abs)
 
         logging.info(f"debug={env.debug}")
 
         if env.debug:
-            BaseWorker._new(env=env, mode=AGI._mode, verbose=env._verbose, args=AGI._args)
-            res = await BaseWorker.run(env=env, mode=AGI._mode, workers=AGI._workers, verbose=env._verbose,
+            BaseWorker._new(env=env, mode=AGI._mode, verbose=env.verbose, args=AGI._args)
+            res = await BaseWorker.run(env=env, mode=AGI._mode, workers=AGI._workers, verbose=env.verbose,
                                        args=AGI._args)
         else:
             cmd = (
@@ -1731,7 +1715,7 @@ class AGI:
                 f"from agi_node.agi_dispatcher import  BaseWorker\n"
                 f"import asyncio\n"
                 f"async def main():\n"
-                f"  BaseWorker.new(active_app='{env.target_worker}', mode={AGI._mode}, verbose={env._verbose}, args={AGI._args})\n"
+                f"  BaseWorker.new(active_app='{env.target_worker}', mode={AGI._mode}, verbose={env.verbose}, args={AGI._args})\n"
                 f"  res = await BaseWorker.run(mode={AGI._mode}, workers={AGI._workers}, args={AGI._args})\n"
                 f"  print(res)\n"
                 f"if __name__ == '__main__':\n"
@@ -1785,7 +1769,7 @@ class AGI:
                     env=0 if env.debug else None,
                     active_app=env.target_worker,
                     mode=AGI._mode,
-                    verbose=AGI._verbose,
+                    verbose=AGI.verbose,
                     worker_id=dask_workers.index(worker),
                     worker=worker,
                     args=AGI._args,
@@ -1829,7 +1813,7 @@ class AGI:
             # case install modes
             t = time.time()
 
-            if AGI._mode & AGI._DASK_MODE:
+            if AGI._mode & AGI.DASK_MODE:
                 await AGI._prepare_cluster_env(scheduler)
             AGI._clean_dirs_local()
             await AGI._prepare_local_env()
@@ -1842,7 +1826,7 @@ class AGI:
             # case simulate mode #0b11xxxx
             res = await AGI._run()
 
-        elif AGI._mode & AGI._DASK_MODE:
+        elif AGI._mode & AGI.DASK_MODE:
 
             await AGI._start(scheduler)
 
@@ -1871,7 +1855,7 @@ class AGI:
         """
         # clean background job
         if AGI._jobs and cond_clean:
-            if AGI._verbose:
+            if AGI.verbose:
                 AGI._jobs.flush()
             else:
                 with open(os.devnull, "w") as f, redirect_stdout(f), redirect_stderr(f):
@@ -2189,7 +2173,7 @@ class AGI:
         try:
             async with AGI.get_ssh_connection(ip) as conn:
                 msg = f"[{ip}] {cmd}"
-                if AgiEnv._verbose > 0 or AgiEnv.debug:
+                if AgiEnv.verbose > 0 or AgiEnv.debug:
                     logger.info(msg)
                 result = await conn.run(cmd, check=True)
                 stdout = result.stdout
@@ -2200,7 +2184,7 @@ class AGI:
                     stder = stderr.decode('utf-8', errors='replace')
                 if stderr:
                     logger.info(f"[{ip}] {stderr.strip()}")
-                if AgiEnv._verbose > 0 or AgiEnv.debug:
+                if AgiEnv.verbose > 0 or AgiEnv.debug:
                     if stdout:
                         logger.info(f"[{ip}] {stdout.strip()}")
                 return stdout.strip() + "\n" + stderr.strip()

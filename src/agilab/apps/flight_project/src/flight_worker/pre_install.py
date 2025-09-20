@@ -97,7 +97,7 @@ def prepare_for_cython(args):
     with open(cython_src, "r") as file:
         source = file.read()
 
-    modified_source = remove_decorators(source, verbose=args._verbose)
+    modified_source = remove_decorators(source, verbose=args.verbose)
 
     # Write the modified code to a new .pyx file
     cython_out = worker_path.with_suffix('.pyx')

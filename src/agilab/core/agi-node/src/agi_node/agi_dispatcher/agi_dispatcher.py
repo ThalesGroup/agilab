@@ -11,12 +11,7 @@
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-"""
-node module
-
-    Auteur: Jean-Pierre Morard
-
-"""
+"""Dispatch helpers for coordinating AGILab worker execution."""
 
 ######################################################
 # Agi Framework call back functions
@@ -58,30 +53,18 @@ workers_default = {socket.gethostbyname("localhost"): 1}
 
 
 class WorkDispatcher:
-    """
-    Class WorkDispatcher for orchestration of jobs by the target.
-    """
+    """Builds and runs distribution plans for target applications."""
 
     args = {}
-    _verbose = None
+    verbose = None
 
     def __init__(self, args=None):
-        """
-        Initialize the WorkDispatcher with input arguments.
-
-        Args:
-            args: The input arguments for initializing the WorkDispatcher.
-
-        Returns:
-            None
-        """
+        """Store ``args`` for later use when evaluating distribution plans."""
         WorkDispatcher.args = args
 
     @staticmethod
     def _convert_functions_to_names(workers_tree):
-        """
-        Converts functions in a nested structure to their names.
-        """
+        """Recursively replace callables in ``workers_tree`` by their ``__name__``."""
         def _convert(val):
             if isinstance(val, list):
                 return [_convert(item) for item in val]
@@ -98,15 +81,7 @@ class WorkDispatcher:
 
     @staticmethod
     async def _do_distrib(env, workers, args):
-        """
-        Build the distribution tree.
-
-        Args:
-            inst: The instance for building the distribution tree.
-
-        Returns:
-            None
-        """
+        """Build the distribution plan for ``env`` given worker layout and args."""
         base_worker_dir = str(env.cluster_root / "src")
         if base_worker_dir not in sys.path:
             sys.path.insert(0, base_worker_dir)
@@ -387,8 +362,8 @@ class WorkDispatcher:
 
         except ModuleNotFoundError as e:
             module_to_install = (str(e).replace("No module named ", "").lower().replace("'", ""))
-            app_path = AGI._env.active_app
-            cmd = f"{AGI._env.uv} add --upgrade {module_to_install}"
+            app_path = AGI.env.active_app
+            cmd = f"{AGI.env.uv} add --upgrade {module_to_install}"
             logging.info(f"{cmd} from {app_path}")
             await AgiEnv.run(cmd, app_path)
             return await WorkDispatcher._load_module(module, package, path)

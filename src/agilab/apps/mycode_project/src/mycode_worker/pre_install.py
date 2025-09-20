@@ -98,13 +98,13 @@ def prepare_for_cython(args):
     with open(cython_src, "r") as file:
         source = file.read()
 
-    modified_source = remove_decorators(source, verbose=args._verbose)
+    modified_source = remove_decorators(source, verbose=args.verbose)
 
     # Write the modified code to a new .pyx file
     with open(worker_path.with_suffix('.pyx'), "w") as file:
         file.write(modified_source)
 
-    if args._verbose:
+    if args.verbose:
         logging.info(f"Processed {worker_path} and generated {cython_src}")
 
 

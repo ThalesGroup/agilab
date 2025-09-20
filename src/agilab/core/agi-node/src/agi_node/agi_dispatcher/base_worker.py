@@ -66,9 +66,9 @@ class BaseWorker(abc.ABC):
     _pool_init = None
     _work_pool = None
     _share_path = None
-    _verbose = 1
+    verbose = 1
     _mode = None
-    _env = None
+    env = None
     _worker_id = None
     _worker = None
     _home_dir = None
@@ -78,7 +78,7 @@ class BaseWorker(abc.ABC):
     _t0 = None
     _is_managed_pc = getpass.getuser().startswith("T0")
     _cython_decorators = ["njit"]
-    _env: Optional[AgiEnv] = None
+    env: Optional[AgiEnv] = None
 
     def start(self):
         """
@@ -92,14 +92,14 @@ class BaseWorker(abc.ABC):
         """
         """ """
         logging.info(
-            f"worker #{BaseWorker._worker_id}: {BaseWorker._worker} - mode: {self._mode}")
+            f"worker #{BaseWorker._worker_id}: {BaseWorker._worker} - mode: {self.mode}")
         self.start()
 
     def stop(self):
         """
         Returns:
         """
-        logging.info(f"worker #{self._worker_id}: {self._worker} - mode: {self._mode}"
+        logging.info(f"worker #{self._worker_id}: {self._worker} - mode: {self.mode}"
                         )
 
     @staticmethod
@@ -261,7 +261,7 @@ class BaseWorker(abc.ABC):
 
     @staticmethod
     def _load_manager():
-        env = BaseWorker._env
+        env = BaseWorker.env
         module_name = env.module
         module_class = env.target_class
         module_name += '.' + module_name
@@ -271,7 +271,7 @@ class BaseWorker(abc.ABC):
 
     @staticmethod
     def _load_worker(mode):
-        env = BaseWorker._env
+        env = BaseWorker.env
         module_name = env.target_worker
         module_class = env.target_worker_class
         if module_name in sys.modules:
@@ -307,9 +307,9 @@ class BaseWorker(abc.ABC):
         :return:
         """
         if not env:
-            env = BaseWorker._env
+            env = BaseWorker.env
         else:
-            BaseWorker._env
+            BaseWorker.env
 
         if mode & 2:
             wenv_abs = env.wenv_abs
@@ -397,21 +397,21 @@ class BaseWorker(abc.ABC):
             logging.info(f"worker #{worker_id}: {worker} from: {Path(__file__)}")
 
             if env:
-                BaseWorker._env = env
+                BaseWorker.env = env
             else:
-                BaseWorker._env = AgiEnv(active_app=active_app, install_type=2, verbose=verbose)
+                BaseWorker.env = AgiEnv(active_app=active_app, install_type=2, verbose=verbose)
 
             # import of derived Class of WorkDispatcher, name target_inst which is typically an instance of MyCode
             worker_class = BaseWorker._load_worker(mode)
 
             # Instantiate the class with arguments
             worker_inst = worker_class()
-            worker_inst._mode = mode
+            worker_inst.mode = mode
             worker_inst.args = SimpleNamespace(**args)
-            worker_inst._verbose = verbose
+            worker_inst.verbose = verbose
 
             # Instantiate the base class
-            BaseWorker._verbose = verbose
+            BaseWorker.verbose = verbose
             # BaseWorker._pool_init = worker_inst.pool_init
             # BaseWorker._work_pool = worker_inst.work_pool
             BaseWorker._insts[worker_id] = worker_inst
@@ -485,7 +485,7 @@ class BaseWorker(abc.ABC):
     def build(self, target_worker, dask_home, worker, mode: Optional[int]=None, verbose: Optional[int]=None):
         """Public wrapper that orchestrates loading and delegates to the legacy builder."""
         effective_mode = mode if mode is not None else getattr(self, "_mode", 0) or 0
-        effective_verbose = verbose if verbose is not None else getattr(self, "_verbose", 0) or 0
+        effective_verbose = verbose if verbose is not None else getattr(self, "verbose", 0) or 0
 
         # Ensure manager/worker modules are loaded (patched in tests for isolation)
         self._load_manager()

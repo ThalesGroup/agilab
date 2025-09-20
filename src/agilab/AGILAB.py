@@ -1,6 +1,7 @@
 # BSD 3-Clause License
 # Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
 # All rights reserved.
+"""Streamlit entry point for the AGILab interactive lab."""
 from pathlib import Path
 from datetime import datetime
 import streamlit as st
@@ -10,6 +11,7 @@ import argparse
 
 # ----------------- Fast-Loading Banner UI -----------------
 def quick_logo(resources_path: Path):
+    """Render a lightweight banner with the AGILab logo."""
     try:
         from agi_env.pagelib import get_base64_of_image
         img_data = get_base64_of_image(resources_path / "agilab_logo.png")
@@ -31,6 +33,7 @@ def quick_logo(resources_path: Path):
 
 
 def display_landing_page(resources_path: Path):
+    """Display the introductory copy describing AGILab's value proposition."""
     from agi_env.pagelib import get_base64_of_image
     # You can optionally show a small logo here if wanted.
     md_content = f"""
@@ -72,11 +75,13 @@ def display_landing_page(resources_path: Path):
 
 
 def show_banner_and_intro(resources_path: Path):
+    """Render the branding banner followed by the descriptive landing copy."""
     quick_logo(resources_path)
     display_landing_page(resources_path)
 
 
 def page(env):
+    """Render the main landing page controls and footer for the lab."""
     cols = st.columns(4)
     help_file = Path(env.help_path) / "index.html"
     from agi_env.pagelib import open_docs
@@ -101,6 +106,7 @@ def page(env):
 # ------------------------- Main Entrypoint -------------------------
 
 def main():
+    """Initialise the Streamlit app, bootstrap the environment and display the UI."""
     from agi_env.pagelib import get_about_content
     st.set_page_config(
         menu_items=get_about_content(),
