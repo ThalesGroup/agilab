@@ -128,8 +128,9 @@ class WorkDispatcher:
         if file.exists():
             with open(file, "r") as f:
                 data = json.load(f)
-            workers_tree = data["workers_tree"]
-            if (
+            workers_tree = data.get("work_plan")
+            workers_tree_info = data.get("work_plan_metadata", [])
+            if workers_tree is None or (
                 data["workers"] != workers
                 or data["target_args"] != args
             ):
@@ -143,8 +144,8 @@ class WorkDispatcher:
             data = {
                 "target_args": args,
                 "workers": workers,
-                "workers_chunks": workers_tree_info,
-                "workers_tree": WorkDispatcher.convert_functions_to_names(workers_tree),
+                "work_plan_metadata": workers_tree_info,
+                "work_plan": WorkDispatcher.convert_functions_to_names(workers_tree),
                 "partition_key": part,
                 "nb_unit": nb_unit,
                 "weights_unit": weight_unit,

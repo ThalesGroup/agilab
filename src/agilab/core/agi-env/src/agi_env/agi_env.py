@@ -97,7 +97,7 @@ class AgiEnv:
     GUI_NROW = None
     GUI_SAMPLING = None
     init_done = False
-    has_rapids_hw = None
+    hw_rapids_capable = None
     is_worker_env = False
     debug = False
     uv = None
@@ -695,7 +695,7 @@ class AgiEnv:
         chars = ["p", "c", "d", "r"]
         reversed_chars = reversed(list(enumerate(chars)))
 
-        if self.has_rapids_hw:
+        if self.hw_rapids_capable:
             mode += 8
         mode_str = "".join(
             "_" if (mode & (1 << i)) == 0 else v for i, v in reversed_chars

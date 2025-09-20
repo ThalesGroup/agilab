@@ -170,8 +170,8 @@ class AGI:
     _module_to_clean: List[str] = []
     _ssh_connections = {}
     best_mode: Dict[str, Any] = {}
-    workers_tree: Optional[Any] = None
-    workers_tree_info: Optional[Any] = None
+    work_plan: Optional[Any] = None
+    work_plan_metadata: Optional[Any] = None
     debug: Optional[bool] = None  # Cache with default local IPs
     env: Optional[AgiEnv] = None
 
@@ -244,7 +244,7 @@ class AGI:
 
         if mode is None or isinstance(mode, list):
             mode_range = range(8) if mode is None else sorted(mode)
-            return await AGI._run_all_modes(
+            return await AGI._benchmark(
                 env, scheduler, workers, verbose, mode_range, rapids_enabled, **args
             )
         else:
@@ -280,7 +280,7 @@ class AGI:
                 with open(path, "rb") as f:
                     AGI._capacity_predictor = pickle.load(f)
             else:
-                AGI._train_model(env.home_abs)
+                AGI._train_capacity(env.home_abs)
 
             # import of derived Class of WorkDispatcher, name target_inst which is typically instance of Flight or MyCode
             AGI.agi_workers = {
@@ -311,7 +311,7 @@ class AGI:
                 logger.info(traceback.format_exc())
 
     @staticmethod
-    async def _run_all_modes(
+    async def _benchmark(
             env: AgiEnv,
             scheduler: Optional[str] = None,
             workers: Optional[Dict[str, int]] = None,
@@ -792,7 +792,7 @@ class AGI:
             await asyncio.gather(*tasks)
 
     @staticmethod
-    async def _install_venv_local() -> None:
+    async def _prepare_local_env() -> None:
         """
         Validate and prepare each remote node in the cluster:
         - Verify each IP is valid and reachable.
@@ -806,8 +806,8 @@ class AGI:
         pyvers = env.python_version
         env = AGI.env
         ip = "127.0.0.1"
-        has_rapids_hw = AGI._hardware_supports_rapids() and AGI._rapids_enabled
-        env.has_rapids_hw = has_rapids_hw
+        hw_rapids_capable = AGI._hardware_supports_rapids() and AGI._rapids_enabled
+        env.hw_rapids_capable = hw_rapids_capable
 
         os.makedirs(wenv_abs, exist_ok=True)
         file = env.worker_pyproject
@@ -825,13 +825,13 @@ class AGI:
             logger.info(f"Copying {file} -> {wenv_abs.parent}")
         shutil.copy(file, wenv_abs.parent)
 
-        if has_rapids_hw:
-            AgiEnv.set_env_var(ip, "has_rapids_hw")
+        if hw_rapids_capable:
+            AgiEnv.set_env_var(ip, "hw_rapids_capable")
         else:
             AgiEnv.set_env_var(ip, "no_rapids_hw")
 
         if env.verbose > 0:
-            logger.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
+            logger.info(f"Rapids-capable GPU[{ip}]: {hw_rapids_capable}")
 
         # # Install Python
 
@@ -860,7 +860,7 @@ class AGI:
         # await AgiEnv.run(cmd, wenv_abs)
 
     @staticmethod
-    async def _install_venv_cluster(scheduler_addr: Optional[str]) -> None:
+    async def _prepare_cluster_env(scheduler_addr: Optional[str]) -> None:
         """
         Validate and prepare each remote node in the cluster:
         - Verify each IP is valid and reachable.
@@ -946,8 +946,8 @@ class AGI:
             # await AGI.exec_ssh(ip, cmd)
 
     @staticmethod
-    async def _install_app(scheduler_addr: Optional[str]) -> None:
-        AGI._initialize_installation()
+    async def _deploy_application(scheduler_addr: Optional[str]) -> None:
+        AGI._reset_deploy_state()
         env = AGI.env
         app_path = env.active_app
         wenv_rel = env.wenv_rel
@@ -961,7 +961,7 @@ class AGI:
         if env.verbose > 0:
             logger.info(f"Installing {app_path} on 127.0.0.1")
 
-        await AGI._install_app_local(app_path, Path(wenv_rel), options_worker)
+        await AGI._deploy_local_worker(app_path, Path(wenv_rel), options_worker)
         # logger.info(AGI.run(cmd, wenv_abs))
         if AGI._mode & 4:
             tasks = []
@@ -970,17 +970,17 @@ class AGI:
                     logger.info(f"Installing worker on {ip}")
                 if not env.is_local(ip):
                     tasks.append(asyncio.create_task(
-                        AGI._install_app_remote(ip, env, wenv_rel, options_worker)
+                        AGI._deploy_remote_worker(ip, env, wenv_rel, options_worker)
                     ))
             await asyncio.gather(*tasks)
 
         if AGI._verbose:
-            duration = AGI._format_duration(time.time() - start_time)
+            duration = AGI._format_elapsed(time.time() - start_time)
             if env.verbose > 0:
                 logger.info(f"uv {AGI._run_type} completed in {duration}")
 
     @staticmethod
-    def _initialize_installation() -> None:
+    def _reset_deploy_state() -> None:
         """Initialize installation flags and run type."""
         AGI._run_type = AGI._run_types[(AGI._mode & AGI.DEPLOYEMENT_MASK) >> 4]
         AGI._install_done_local = False
@@ -1001,7 +1001,7 @@ class AGI:
             return False
 
     @staticmethod
-    async def _install_app_local(src: Path, wenv_rel: Path, options_worker: str) -> None:
+    async def _deploy_local_worker(src: Path, wenv_rel: Path, options_worker: str) -> None:
         """
         Installe l’environnement localement.
 
@@ -1013,8 +1013,8 @@ class AGI:
         env = AGI.env
         run_type = AGI._run_type
         ip = "127.0.0.1"
-        has_rapids_hw = AGI._hardware_supports_rapids() and AGI._rapids_enabled
-        env.has_rapids_hw = has_rapids_hw
+        hw_rapids_capable = AGI._hardware_supports_rapids() and AGI._rapids_enabled
+        env.hw_rapids_capable = hw_rapids_capable
         wenv_abs = env.wenv_abs
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         uv = cmd_prefix + env.uv
@@ -1026,20 +1026,20 @@ class AGI:
 
         shutil.copy2(file, wenv_abs)
 
-        if has_rapids_hw:
-            AgiEnv.set_env_var(ip, "has_rapids_hw")
+        if hw_rapids_capable:
+            AgiEnv.set_env_var(ip, "hw_rapids_capable")
         else:
             AgiEnv.set_env_var(ip, "no_rapids_hw")
 
         if env.verbose > 0:
-            logger.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
+            logger.info(f"Rapids-capable GPU[{ip}]: {hw_rapids_capable}")
 
         # =========
         # MANAGER install command with and without rapids capable
         # =========
 
         app_path = env.active_app
-        if has_rapids_hw:
+        if hw_rapids_capable:
             cmd_manager = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(app_path)) else '')}{uv} {run_type} --config-file uv_config.toml --project '{app_path}'"
         else:
             cmd_manager = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(app_path)) else '')}{uv} {run_type} --project '{app_path}'"
@@ -1065,7 +1065,7 @@ class AGI:
         uv_worker = cmd_prefix + env.uv_worker
         pyvers_worker = env.pyvers_worker
 
-        if has_rapids_hw:
+        if hw_rapids_capable:
             cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} --python {pyvers_worker} --config-file uv_config.toml --project '{wenv_abs}'"
             cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} --python {pyvers_worker} --config-file uv_config.toml --project '{wenv_abs}'"
         else:
@@ -1149,7 +1149,7 @@ class AGI:
         await AgiEnv.run(cmd, wenv_abs)
 
     @staticmethod
-    async def _install_app_remote(ip: str, env: AgiEnv, wenv_rel: Path, option: str) -> None:
+    async def _deploy_remote_worker(ip: str, env: AgiEnv, wenv_rel: Path, option: str) -> None:
         """Install packages and set up the environment on a remote node."""
 
         wenv_abs = env.wenv_abs
@@ -1189,7 +1189,7 @@ class AGI:
                              wenv_rel)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
-        has_rapids_hw = False
+        hw_rapids_capable = False
         if AGI._rapids_enabled:
             check_rapids = 'nvidia-smi'
 
@@ -1199,11 +1199,11 @@ class AGI:
                 logger.error(f"rapids is requested but not supported by node [{ip}]")
                 raise
 
-            has_rapids_hw = (result != "") and AGI._rapids_enabled
-            env.has_rapids_hw = has_rapids_hw
-            if has_rapids_hw:
-                AgiEnv.set_env_var(ip, "has_rapids_hw")
-            logger.info(f"Rapids-capable GPU[{ip}]: {has_rapids_hw}")
+            hw_rapids_capable = (result != "") and AGI._rapids_enabled
+            env.hw_rapids_capable = hw_rapids_capable
+            if hw_rapids_capable:
+                AgiEnv.set_env_var(ip, "hw_rapids_capable")
+            logger.info(f"Rapids-capable GPU[{ip}]: {hw_rapids_capable}")
 
         # unzip egg to get src/
         cli = env.wenv_rel.parent / "cli.py"
@@ -1258,7 +1258,7 @@ class AGI:
         AGI._module_to_clean.clear()
 
     @staticmethod
-    def _format_duration(seconds: float) -> str:
+    def _format_elapsed(seconds: float) -> str:
         """Format the duration from seconds to a human-readable format.
 
         Args:
@@ -1402,7 +1402,7 @@ class AGI:
         cli_rel = env.wenv_rel.parent / "cli.py"
 
         if (AGI._mode_auto and AGI._mode == AGI.DASK_MODE) or not AGI._mode_auto:
-            env.has_rapids_hw = True
+            env.hw_rapids_capable = True
             if AGI._mode & AGI.DASK_MODE:
                 if scheduler is None:
                     if list(AGI.workers) == ["127.0.0.1"]:
@@ -1416,9 +1416,9 @@ class AGI:
             for ip in list(AGI.workers):
                 await AGI.send_file(env, ip, env.cluster_root / "src/agi_cluster/agi_distributor/cli.py",
                                     cli_rel.parent)
-                has_rapids_hw = env.envars.get(ip, None)
-                if not has_rapids_hw or has_rapids_hw == "no_rapids_hw":
-                    env.has_rapids_hw = False
+                hw_rapids_capable = env.envars.get(ip, None)
+                if not hw_rapids_capable or hw_rapids_capable == "no_rapids_hw":
+                    env.hw_rapids_capable = False
                 try:
                     await AGI._kill(ip, os.getpid(), force=True)
                 except Exception as e:
@@ -1684,14 +1684,14 @@ class AGI:
             logger.info("warning: no scheduler found but requested mode is dask=1 => switch to dask")
 
     @staticmethod
-    async def _run_local() -> Any:
+    async def _run() -> Any:
         """
 
         Returns:
 
         """
         env = AGI.env
-        env.has_rapids_hw = env.envars.get("127.0.0.1", "HAS_RAPIDS_HW")
+        env.hw_rapids_capable = env.envars.get("127.0.0.1", "hw_rapids_capable")
 
         # check first that install is done
         if not (env.wenv_abs / ".venv").exists():
@@ -1741,7 +1741,7 @@ class AGI:
                     return res.split('\n')[-2]
 
     @staticmethod
-    async def _run_distributed() -> str:
+    async def _distribute() -> str:
         """
         workers run calibration and targets job
         """
@@ -1757,8 +1757,8 @@ class AGI:
         AGI.workers, workers_tree, workers_tree_info = await WorkDispatcher.do_distrib(
             env, AGI.workers, AGI._args
         )
-        AGI.workers_tree = workers_tree
-        AGI.workers_tree_info = workers_tree_info
+        AGI.work_plan = workers_tree
+        AGI.work_plan_metadata = workers_tree_info
 
         AGI._scale_cluster()
 
@@ -1813,37 +1813,37 @@ class AGI:
 
         if (AGI._mode & AGI.DEPLOYEMENT_MASK) == AGI.SIMULATE_MODE:
             # case simulate mode #0b11xxxx
-            res = await AGI._run_local()
+            res = await AGI._run()
 
         elif AGI._mode >= AGI.INSTALL_MODE:
             # case install modes
             t = time.time()
 
             if AGI._mode & AGI.DASK_MODE:
-                await AGI._install_venv_cluster(scheduler)
+                await AGI._prepare_cluster_env(scheduler)
             AGI._clean_dirs_local()
-            await AGI._install_venv_local()
+            await AGI._prepare_local_env()
 
-            await AGI._install_app(scheduler)
+            await AGI._deploy_application(scheduler)
 
             res = time.time() - t
 
         elif (AGI._mode & AGI.DEPLOYEMENT_MASK) == AGI.SIMULATE_MODE:
             # case simulate mode #0b11xxxx
-            res = await AGI._run_local()
+            res = await AGI._run()
 
         elif AGI._mode & AGI.DASK_MODE:
 
             await AGI._start(scheduler)
 
-            res = await AGI._run_distributed()
-            AGI._update_model()
+            res = await AGI._distribute()
+            AGI._update_capacity()
 
             # stop the cluster
             await AGI._stop()
         else:
             # case local run
-            res = await AGI._run_local()
+            res = await AGI._run()
 
         AGI._clean_job(cond_clean)
 
@@ -1958,7 +1958,7 @@ class AGI:
         )
 
     @staticmethod
-    def _train_model(train_home: Path) -> None:
+    def _train_capacity(train_home: Path) -> None:
         """train the balancer model
 
         Args:
@@ -2016,7 +2016,7 @@ class AGI:
             pickle.dump(AGI._capacity_predictor, f)
 
     @staticmethod
-    def _update_model() -> None:
+    def _update_capacity() -> None:
         """update the balancer model"""
         workers_rt = {}
         balancer_cols = [
@@ -2076,7 +2076,7 @@ class AGI:
             else:
                 raise RuntimeError(f"{w} workers BaseWorker.do_works failed")
 
-        AGI._train_model(AGI.env.home_abs)
+        AGI._train_capacity(AGI.env.home_abs)
 
     @staticmethod
     def _exec_bg(cmd: str, cwd: str) -> None:

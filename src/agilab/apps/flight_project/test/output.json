@@ -15,7 +15,10 @@
   "workers": {
     "127.0.0.1": 1
   },
-  "workers_chunks": [
+  "partition_key": "plane",
+  "nb_unit": "files",
+  "weights_unit": "ko",
+  "work_plan_metadata": [
     [
       [
         61,
@@ -27,7 +30,7 @@
       ]
     ]
   ],
-  "workers_tree": [
+  "work_plan": [
     [
       [
         "data/flight/dataset/csv/61_6101.csv"
@@ -36,8 +39,5 @@
         "data/flight/dataset/csv/60_6003.csv"
       ]
     ]
-  ],
-  "partition_key": "plane",
-  "nb_unit": "files",
-  "weights_unit": "ko"
+  ]
 }

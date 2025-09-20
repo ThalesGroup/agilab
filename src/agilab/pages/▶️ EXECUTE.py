@@ -240,7 +240,7 @@ def load_distribution(file_path):
     with open(file_path, "r") as f:
         data = json.load(f)
     workers = [f"{ip}-{i}" for ip, count in data.get("workers", {}).items() for i in range(1, count + 1)]
-    return workers, data.get("workers_chunks", []), data.get("workers_tree", [])
+    return workers, data.get("work_plan_metadata", []), data.get("work_plan", [])
 
 @st.cache_data(show_spinner=False)
 def generate_profile_report(df):
@@ -537,7 +537,7 @@ def _extract_chunk_info(chunk, partition_key, weights_key):
     return chunk, 1
 
 
-def show_tree(workers, workers_chunks, workers_tree, partition_key, weights_key, show_leaf_list=False):
+def show_tree(workers, work_plan_metadata, work_plan, partition_key, weights_key, show_leaf_list=False):
     """
     Display the distribution tree of the workload, optionally including the leaf list.
     """
@@ -546,7 +546,7 @@ def show_tree(workers, workers_chunks, workers_tree, partition_key, weights_key,
     workers_works = defaultdict(list)
 
     # Build workload mapping
-    for worker, chunks, files_list in zip(workers, workers_chunks, workers_tree):
+    for worker, chunks, files_list in zip(workers, work_plan_metadata, work_plan):
         ip = worker.split("-")[0]
         for chunk, files in zip(chunks, files_list):
             partition, size = _extract_chunk_info(chunk, partition_key, weights_key)
@@ -603,7 +603,7 @@ def show_tree(workers, workers_chunks, workers_tree, partition_key, weights_key,
     _draw_distribution(graph, partition_key, show_leaf_list, title="Distribution Tree")
 
 
-def show_graph(workers, workers_chunks, workers_tree, partition_key, weights_key, show_leaf_list=False):
+def show_graph(workers, work_plan_metadata, work_plan, partition_key, weights_key, show_leaf_list=False):
     """
     Display a directed acyclic graph (DAG) based on distribution tree data.
     """
@@ -611,7 +611,7 @@ def show_graph(workers, workers_chunks, workers_tree, partition_key, weights_key
     total_per_host = defaultdict(int)
     workers_works = defaultdict(list)
 
-    for worker, chunks, tree in zip(workers, workers_chunks, workers_tree):
+    for worker, chunks, tree in zip(workers, work_plan_metadata, work_plan):
         ip = worker.split("-")[0]
         for chunk, item in zip(chunks, tree):
             partition, size = _extract_chunk_info(chunk, partition_key, weights_key)
@@ -656,11 +656,11 @@ def show_graph(workers, workers_chunks, workers_tree, partition_key, weights_key
 
     _draw_distribution(graph, partition_key, show_leaf_list, title="Orchestration View")
 
-def workload_barchart(workers, workers_chunks, partition_key, weights_key, weights_unit):
+def workload_barchart(workers, work_plan_metadata, partition_key, weights_key, weights_unit):
     """Display a workload bar chart using Plotly."""
     import plotly.graph_objects as go
     data = []
-    for worker, chunks in zip(workers, workers_chunks):
+    for worker, chunks in zip(workers, work_plan_metadata):
         for chunk in chunks:
             partition, size = _extract_chunk_info(chunk, partition_key, weights_key)
             data.append({"worker": worker, "partition": partition, "size": size})
@@ -905,28 +905,28 @@ if __name__ == "__main__":
             if st.session_state.get("preview_tree"):
                 dist_tree_path = env.wenv_abs / "distribution.json"
                 if dist_tree_path.exists():
-                    workers, workers_chunks, workers_tree = load_distribution(dist_tree_path)
+                    workers, work_plan_metadata, work_plan = load_distribution(dist_tree_path)
                     partition_key = "Partition"
                     weights_key = "Units"
                     weights_unit = "Unit"
                     tabs = st.tabs(["Tree", "Workload"])
                     with tabs[0]:
                         if env.base_worker_cls.endswith('dag-worker'):
-                            show_graph(workers, workers_chunks, workers_tree, partition_key, weights_key,
+                            show_graph(workers, work_plan_metadata, work_plan, partition_key, weights_key,
                                    show_leaf_list=st.checkbox("Show leaf nodes", value=False))
                         else:
-                            show_tree(workers, workers_chunks, workers_tree, partition_key, weights_key,
+                            show_tree(workers, work_plan_metadata, work_plan, partition_key, weights_key,
                                    show_leaf_list=st.checkbox("Show leaf nodes", value=False))
                     with tabs[1]:
-                        workload_barchart(workers, workers_chunks, partition_key, weights_key, weights_unit)
-                    unused_workers = [worker for worker, chunks in zip(workers, workers_chunks) if not chunks]
+                        workload_barchart(workers, work_plan_metadata, partition_key, weights_key, weights_unit)
+                    unused_workers = [worker for worker, chunks in zip(workers, work_plan_metadata) if not chunks]
                     if unused_workers:
                         st.warning(f"**{len(unused_workers)} Unused workers:** " + ", ".join(unused_workers))
                     st.markdown("**Modify Distribution:**")
                     ncols = 2
                     cols = st.columns([10, 1, 10])
                     count = 0
-                    for i, chunks in enumerate(workers_chunks):
+                    for i, chunks in enumerate(work_plan_metadata):
                         for j, chunk in enumerate(chunks):
                             partition, size = chunk
                             with cols[0 if count % ncols == 0 else 2]:
@@ -936,20 +936,20 @@ if __name__ == "__main__":
                                 b2.selectbox("Worker", options=workers, key=key, index=i if i < len(workers) else 0)
                             count += 1
                     if st.button("Apply", key="apply_btn", type="primary"):
-                        new_workers_chunks = [[] for _ in workers]
-                        new_workers_tree = [[] for _ in workers]
-                        for i, (chunks, files_tree) in enumerate(zip(workers_chunks, workers_tree)):
+                        new_work_plan_metadata = [[] for _ in workers]
+                        new_work_plan = [[] for _ in workers]
+                        for i, (chunks, files_tree) in enumerate(zip(work_plan_metadata, work_plan)):
                             for j, (chunk, files) in enumerate(zip(chunks, files_tree)):
                                 key = f"worker_partition{chunk[0]}"
                                 selected_worker = st.session_state.get(key)
                                 if selected_worker and selected_worker in workers:
                                     idx = workers.index(selected_worker)
-                                    new_workers_chunks[idx].append(chunk)
-                                    new_workers_tree[idx].append(files)
+                                    new_work_plan_metadata[idx].append(chunk)
+                                    new_work_plan[idx].append(files)
                         data = load_distribution(dist_tree_path)[0]
                         data["target_args"] = st.session_state.app_settings["args"]
-                        data["workers_chunks"] = new_workers_chunks
-                        data["workers_tree"] = new_workers_tree
+                        data["work_plan_metadata"] = new_work_plan_metadata
+                        data["work_plan"] = new_work_plan
                         with open(dist_tree_path, "w") as f:
                             json.dump(data, f)
                         st.rerun()

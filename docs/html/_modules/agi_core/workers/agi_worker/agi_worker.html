@@ -721,7 +721,7 @@
         <span class="n">target_inst</span> <span class="o">=</span> <span class="n">target_class</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span>
 
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">workers</span><span class="p">,</span> <span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span> <span class="o">=</span> <span class="n">AgiManager</span><span class="o">.</span><span class="n">do_distrib</span><span class="p">(</span>
+            <span class="n">workers</span><span class="p">,</span> <span class="n">work_plan</span><span class="p">,</span> <span class="n">work_plan_metadata</span> <span class="o">=</span> <span class="n">AgiManager</span><span class="o">.</span><span class="n">do_distrib</span><span class="p">(</span>
                 <span class="n">target_inst</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">workers</span>
             <span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
@@ -729,10 +729,10 @@
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="mi">48</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">workers_tree</span>
+            <span class="k">return</span> <span class="n">work_plan</span>
 
         <span class="n">t</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
-        <span class="n">AgiWorker</span><span class="o">.</span><span class="n">do_works</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">)</span>
+        <span class="n">AgiWorker</span><span class="o">.</span><span class="n">do_works</span><span class="p">(</span><span class="n">work_plan</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">)</span>
         <span class="n">runtime</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">t</span>
         <span class="n">env</span><span class="o">.</span><span class="n">_run_time</span> <span class="o">=</span> <span class="n">runtime</span>
 
@@ -959,7 +959,7 @@
 <div class="viewcode-block" id="AgiWorker.do_works">
 <a class="viewcode-back" href="../../../../agi-workers.html#agi-core.workers.agi_worker.agi_worker.AgiWorker.do_works">[docs]</a>
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">do_works</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">do_works</span><span class="p">(</span><span class="n">work_plan</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;run of workers</span>
 
 <span class="sd">        Args:</span>
@@ -971,8 +971,8 @@
             <span class="n">worker_id</span> <span class="o">=</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">worker_id</span>
             <span class="k">if</span> <span class="n">worker_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;do_works - worker #</span><span class="si">{</span><span class="n">worker_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">AgiWorker</span><span class="o">.</span><span class="n">worker</span><span class="si">}</span><span class="s2"> from </span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;AgiWorker.work - #</span><span class="si">{</span><span class="n">worker_id</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> / </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                <span class="n">AgiWorker</span><span class="o">.</span><span class="n">_insts</span><span class="p">[</span><span class="n">worker_id</span><span class="p">]</span><span class="o">.</span><span class="n">works</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;AgiWorker.work - #</span><span class="si">{</span><span class="n">worker_id</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> / </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">work_plan</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">AgiWorker</span><span class="o">.</span><span class="n">_insts</span><span class="p">[</span><span class="n">worker_id</span><span class="p">]</span><span class="o">.</span><span class="n">works</span><span class="p">(</span><span class="n">work_plan</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;this worker is not initialized&quot;</span><span class="p">)</span>
                 <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;failed to do_works&quot;</span><span class="p">)</span>

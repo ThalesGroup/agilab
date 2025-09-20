@@ -8,7 +8,10 @@
   "workers": {
     "127.0.0.1": 1
   },
-  "workers_chunks": [
+  "partition_key": "id",
+  "nb_unit": "main",
+  "weights_unit": "unit",
+  "work_plan_metadata": [
     [
       [
         "algo A",
@@ -38,7 +41,7 @@
       ]
     ]
   ],
-  "workers_tree": [
+  "work_plan": [
     [
       [
         {
@@ -114,8 +117,5 @@
         ]
       ]
     ]
-  ],
-  "partition_key": "id",
-  "nb_unit": "main",
-  "weights_unit": "unit"
+  ]
 }

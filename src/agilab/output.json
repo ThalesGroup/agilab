@@ -13,27 +13,27 @@
   "workers": {
     "127.0.0.1": 1
   },
-  "workers_chunks": [
-    [
-      [
-        [
-          0,
-          1
-        ]
-      ]
-    ]
-  ],
-  "workers_tree": [
-    [
-      [
-        [
-          0,
-          1
-        ]
-      ]
-    ]
-  ],
   "partition_key": "plane",
   "nb_unit": "files",
-  "weights_unit": "ko"
+  "weights_unit": "ko",
+  "work_plan_metadata": [
+    [
+      [
+        [
+          0,
+          1
+        ]
+      ]
+    ]
+  ],
+  "work_plan": [
+    [
+      [
+        [
+          0,
+          1
+        ]
+      ]
+    ]
+  ]
 }

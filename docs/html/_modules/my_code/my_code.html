@@ -498,7 +498,7 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">build_distribution</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Build distribution as a calling graph.&quot;&quot;&quot;</span>
 
-        <span class="n">workers_tree</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">work_plan</span> <span class="o">=</span> <span class="p">[</span>
             <span class="p">[</span>  <span class="c1"># worker 0</span>
                 <span class="p">(</span><span class="s2">&quot;algo_A&quot;</span><span class="p">,</span> <span class="p">[]),</span>
                 <span class="p">(</span><span class="s2">&quot;algo_B&quot;</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;algo_A&quot;</span><span class="p">]),</span>
@@ -511,7 +511,7 @@
             <span class="p">],</span>
         <span class="p">]</span>
 
-        <span class="n">workers_tree_info</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">work_plan_metadata</span> <span class="o">=</span> <span class="p">[</span>
             <span class="p">[</span>  <span class="c1"># worker 0</span>
                 <span class="p">(</span><span class="s2">&quot;algo A&quot;</span><span class="p">,</span> <span class="mf">1.1</span><span class="p">),</span>
                 <span class="p">(</span><span class="s2">&quot;algo B&quot;</span><span class="p">,</span> <span class="mf">1.2</span><span class="p">),</span>
@@ -524,7 +524,7 @@
             <span class="p">],</span>
         <span class="p">]</span>
 
-        <span class="k">return</span> <span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">,</span> <span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="s2">&quot;main&quot;</span><span class="p">,</span> <span class="s2">&quot;unit&quot;</span></div>
+        <span class="k">return</span> <span class="n">work_plan</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">,</span> <span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="s2">&quot;main&quot;</span><span class="p">,</span> <span class="s2">&quot;unit&quot;</span></div>
 </div>
 
 </pre></div>

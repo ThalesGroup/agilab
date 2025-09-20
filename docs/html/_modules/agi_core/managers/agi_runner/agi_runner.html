@@ -510,8 +510,8 @@
     <span class="n">_module_to_clean</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">_ssh_connections</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="n">best_mode</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="n">workers_tree</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">workers_tree_info</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">work_plan</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">work_plan_metadata</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">debug</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span> <span class="c1"># Cache with default local IPs</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">AgiEnv</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 
@@ -1182,7 +1182,7 @@
 
     <span class="nd">@staticmethod</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_install</span><span class="p">(</span><span class="n">scheduler</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">AGI</span><span class="o">.</span><span class="n">_initialize_installation</span><span class="p">()</span>
+        <span class="n">AGI</span><span class="o">.</span><span class="n">_reset_deploy_state</span><span class="p">()</span>
         <span class="n">env</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">env</span>
         <span class="n">app_path</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">app_abs</span>
         <span class="n">wenv_rel</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span>
@@ -1200,7 +1200,7 @@
         <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
         <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;********   Starting </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_run_type</span><span class="si">}</span><span class="s2"> for </span><span class="si">{</span><span class="n">app_path</span><span class="si">}</span><span class="s2"> in .env on 127.0.0.1&quot;</span><span class="p">)</span>
 
-        <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_install_app_local</span><span class="p">(</span><span class="n">app_path</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="n">wenv_rel</span><span class="p">),</span> <span class="n">options</span><span class="p">)</span>
+        <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_deploy_local_worker</span><span class="p">(</span><span class="n">app_path</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="n">wenv_rel</span><span class="p">),</span> <span class="n">options</span><span class="p">)</span>
         <span class="c1"># logging.info(AGI.run(cmd, wenv_abs))</span>
         <span class="k">if</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span> <span class="o">&amp;</span> <span class="mi">4</span><span class="p">:</span>
             <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
@@ -1208,7 +1208,7 @@
                 <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;********   Starting </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_run_type</span><span class="si">}</span><span class="s2"> for Agi_worker in .venv on </span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">env</span><span class="o">.</span><span class="n">is_local</span><span class="p">(</span><span class="n">ip</span><span class="p">):</span>
                     <span class="n">tasks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span>
-                        <span class="n">AGI</span><span class="o">.</span><span class="n">_install_app_remote</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">wenv_rel</span><span class="p">,</span> <span class="n">options</span><span class="p">[</span><span class="s2">&quot;worker&quot;</span><span class="p">])</span>
+                        <span class="n">AGI</span><span class="o">.</span><span class="n">_deploy_remote_worker</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">wenv_rel</span><span class="p">,</span> <span class="n">options</span><span class="p">[</span><span class="s2">&quot;worker&quot;</span><span class="p">])</span>
                     <span class="p">))</span>
             <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="n">tasks</span><span class="p">)</span>
 
@@ -1217,7 +1217,7 @@
             <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;********   Agi </span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_run_type</span><span class="si">}</span><span class="s2"> completed in </span><span class="si">{</span><span class="n">duration</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_installation</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_reset_deploy_state</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize installation flags and run type.&quot;&quot;&quot;</span>
         <span class="n">AGI</span><span class="o">.</span><span class="n">_run_type</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_run_types</span><span class="p">[(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span> <span class="o">&amp;</span> <span class="n">AGI</span><span class="o">.</span><span class="n">DEPLOYEMENT_MASK</span><span class="p">)</span> <span class="o">&gt;&gt;</span> <span class="mi">4</span><span class="p">]</span>
         <span class="n">AGI</span><span class="o">.</span><span class="n">_install_done_local</span> <span class="o">=</span> <span class="kc">False</span>
@@ -1238,7 +1238,7 @@
             <span class="k">return</span> <span class="kc">False</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_install_app_local</span><span class="p">(</span><span class="n">src</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">wenv_rel</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">options</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_deploy_local_worker</span><span class="p">(</span><span class="n">src</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">wenv_rel</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">options</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Installe l’environnement localement.</span>
 
@@ -1251,18 +1251,18 @@
         <span class="n">pyvers</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">python_version</span> <span class="o">+</span> <span class="n">env</span><span class="o">.</span><span class="n">python_variante</span>
         <span class="n">run_type</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_run_type</span>
         <span class="n">ip</span> <span class="o">=</span> <span class="s2">&quot;127.0.0.1&quot;</span>
-        <span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_hardware_supports_rapids</span><span class="p">()</span> <span class="ow">and</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_rapids_enabled</span>
-        <span class="n">env</span><span class="o">.</span><span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="n">has_rapids_hw</span>
-        <span class="k">if</span> <span class="n">has_rapids_hw</span><span class="p">:</span>
-            <span class="n">env</span><span class="o">.</span><span class="n">set_env_var</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="s2">&quot;has_rapids_hw&quot;</span><span class="p">)</span>
+        <span class="n">hw_rapids_capable</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_hardware_supports_rapids</span><span class="p">()</span> <span class="ow">and</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_rapids_enabled</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">hw_rapids_capable</span> <span class="o">=</span> <span class="n">hw_rapids_capable</span>
+        <span class="k">if</span> <span class="n">hw_rapids_capable</span><span class="p">:</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">set_env_var</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="s2">&quot;hw_rapids_capable&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">env</span><span class="o">.</span><span class="n">set_env_var</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="s2">&quot;no_rapids_hw&quot;</span><span class="p">)</span>
 
-        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Rapids-capable GPU[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">]: </span><span class="si">{</span><span class="n">has_rapids_hw</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Rapids-capable GPU[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">]: </span><span class="si">{</span><span class="n">hw_rapids_capable</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="c1"># Commande pour manager selon si rapids supporté</span>
         <span class="n">app_path</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">app_abs</span>
-        <span class="k">if</span> <span class="n">has_rapids_hw</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">hw_rapids_capable</span><span class="p">:</span>
             <span class="n">cmd_manager</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --config-file uv.toml </span><span class="si">{</span><span class="n">run_type</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;manager&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> --extra managers --project </span><span class="si">{</span><span class="n">app_path</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">cmd_manager</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">run_type</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;manager&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> --extra managers --project </span><span class="si">{</span><span class="n">app_path</span><span class="si">}</span><span class="s2">&quot;</span>
@@ -1281,7 +1281,7 @@
         <span class="n">shutil</span><span class="o">.</span><span class="n">copy2</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">wenv_abs</span><span class="p">)</span>
 
         <span class="c1"># Commande pour workers selon si rapids supporté</span>
-        <span class="k">if</span> <span class="n">has_rapids_hw</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">hw_rapids_capable</span><span class="p">:</span>
             <span class="n">cmd_worker</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s2"> --config-file uv.toml </span><span class="si">{</span><span class="n">run_type</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">wenv_abs</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;worker&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> --extra workers&quot;</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">cmd_worker</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">uv</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">run_type</span><span class="si">}</span><span class="s2"> --project </span><span class="si">{</span><span class="n">wenv_abs</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;worker&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> --extra workers&quot;</span>
@@ -1302,7 +1302,7 @@
         <span class="n">AGI</span><span class="o">.</span><span class="n">_install_done_local</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_install_app_remote</span><span class="p">(</span><span class="n">ip</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">AgiEnv</span><span class="p">,</span> <span class="n">wenv_rel</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">option</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_deploy_remote_worker</span><span class="p">(</span><span class="n">ip</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">AgiEnv</span><span class="p">,</span> <span class="n">wenv_rel</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">option</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Install packages and set up the environment on a remote node.&quot;&quot;&quot;</span>
 
         <span class="n">wenv_abs</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span>
@@ -1338,7 +1338,7 @@
         <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">exec_ssh</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
 
         <span class="c1"># 5) Check remote Rapids hardware support via nvidia-smi</span>
-        <span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">hw_rapids_capable</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="k">if</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_rapids_enabled</span><span class="p">:</span>
             <span class="n">check_rapids</span> <span class="o">=</span> <span class="s1">&#39;nvidia-smi&#39;</span>
 
@@ -1348,14 +1348,14 @@
                 <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;rapids is requested but not supported by node [</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">]&quot;</span><span class="p">)</span>
                 <span class="k">raise</span>
 
-            <span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="p">(</span><span class="n">result</span> <span class="o">!=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_rapids_enabled</span>
-            <span class="n">env</span><span class="o">.</span><span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="n">has_rapids_hw</span>
-            <span class="k">if</span> <span class="n">has_rapids_hw</span><span class="p">:</span>
-                <span class="n">env</span><span class="o">.</span><span class="n">set_env_var</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="s2">&quot;has_rapids_hw&quot;</span><span class="p">)</span>
-            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Rapids-capable GPU[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">]: </span><span class="si">{</span><span class="n">has_rapids_hw</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">hw_rapids_capable</span> <span class="o">=</span> <span class="p">(</span><span class="n">result</span> <span class="o">!=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_rapids_enabled</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">hw_rapids_capable</span> <span class="o">=</span> <span class="n">hw_rapids_capable</span>
+            <span class="k">if</span> <span class="n">hw_rapids_capable</span><span class="p">:</span>
+                <span class="n">env</span><span class="o">.</span><span class="n">set_env_var</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="s2">&quot;hw_rapids_capable&quot;</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Rapids-capable GPU[</span><span class="si">{</span><span class="n">ip</span><span class="si">}</span><span class="s2">]: </span><span class="si">{</span><span class="n">hw_rapids_capable</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-        <span class="c1"># 6) Build and run uv sync, adding --config-file only when has_rapids_hw</span>
-        <span class="k">if</span> <span class="n">has_rapids_hw</span><span class="p">:</span>
+        <span class="c1"># 6) Build and run uv sync, adding --config-file only when hw_rapids_capable</span>
+        <span class="k">if</span> <span class="n">hw_rapids_capable</span><span class="p">:</span>
             <span class="n">sync_cmd</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">uv</span><span class="si">}</span><span class="s2"> sync --upgrade --project </span><span class="si">{</span><span class="n">wenv_rel</span><span class="si">}</span><span class="s2"> --config-file </span><span class="si">{</span><span class="n">wenv_rel</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="s1">&#39;uv.toml&#39;</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">option</span><span class="si">}</span><span class="s2">&quot;</span>
                         <span class="sa">f</span><span class="s2">&quot; --refresh-package dask&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -1579,7 +1579,7 @@
         <span class="n">clean_rel</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">wenv_rel</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;cli.py&quot;</span>
 
         <span class="k">if</span> <span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode_auto</span> <span class="ow">and</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span> <span class="o">==</span> <span class="n">AGI</span><span class="o">.</span><span class="n">DASK_MODE</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode_auto</span><span class="p">:</span>
-            <span class="n">env</span><span class="o">.</span><span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">hw_rapids_capable</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="k">if</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span> <span class="o">&amp;</span> <span class="n">AGI</span><span class="o">.</span><span class="n">DASK_MODE</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">scheduler</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="k">if</span> <span class="nb">list</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">workers</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">]:</span>
@@ -1593,7 +1593,7 @@
             <span class="k">for</span> <span class="n">ip</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">workers</span><span class="p">):</span>
                 <span class="k">await</span> <span class="n">env</span><span class="o">.</span><span class="n">send_file</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">manager_root</span> <span class="o">/</span> <span class="s2">&quot;agi_cluster/cli.py&quot;</span><span class="p">,</span> <span class="n">clean_rel</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">env</span><span class="o">.</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
-                    <span class="n">env</span><span class="o">.</span><span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="kc">False</span>
+                    <span class="n">env</span><span class="o">.</span><span class="n">hw_rapids_capable</span> <span class="o">=</span> <span class="kc">False</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="k">await</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_kill</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">(),</span> <span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
                 <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
@@ -1851,7 +1851,7 @@
 
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">env</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">env</span>
-        <span class="n">env</span><span class="o">.</span><span class="n">has_rapids_hw</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> <span class="s2">&quot;HAS_RAPIDS_HW&quot;</span><span class="p">)</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">hw_rapids_capable</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> <span class="s2">&quot;hw_rapids_capable&quot;</span><span class="p">)</span>
 
         <span class="c1"># check first that install is done</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">wenv_abs</span> <span class="o">/</span> <span class="s2">&quot;.venv&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
@@ -1914,16 +1914,16 @@
         <span class="p">]</span>
         <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;AGI run mode=</span><span class="si">{</span><span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span><span class="si">}</span><span class="s2"> on </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">AGI</span><span class="o">.</span><span class="n">_dask_workers</span><span class="p">)</span><span class="si">}</span><span class="s2"> ... &quot;</span><span class="p">)</span>
 
-        <span class="n">AGI</span><span class="o">.</span><span class="n">workers</span><span class="p">,</span> <span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span> <span class="o">=</span> <span class="n">AgiManager</span><span class="o">.</span><span class="n">do_distrib</span><span class="p">(</span>
+        <span class="n">AGI</span><span class="o">.</span><span class="n">workers</span><span class="p">,</span> <span class="n">work_plan</span><span class="p">,</span> <span class="n">work_plan_metadata</span> <span class="o">=</span> <span class="n">AgiManager</span><span class="o">.</span><span class="n">do_distrib</span><span class="p">(</span>
             <span class="n">AGI</span><span class="o">.</span><span class="n">_target_inst</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">AGI</span><span class="o">.</span><span class="n">workers</span>
         <span class="p">)</span>
-        <span class="n">AGI</span><span class="o">.</span><span class="n">workers_tree</span> <span class="o">=</span> <span class="n">workers_tree</span>
-        <span class="n">AGI</span><span class="o">.</span><span class="n">workers_tree_info</span> <span class="o">=</span> <span class="n">workers_tree_info</span>
+        <span class="n">AGI</span><span class="o">.</span><span class="n">work_plan</span> <span class="o">=</span> <span class="n">work_plan</span>
+        <span class="n">AGI</span><span class="o">.</span><span class="n">work_plan_metadata</span> <span class="o">=</span> <span class="n">work_plan_metadata</span>
 
         <span class="n">AGI</span><span class="o">.</span><span class="n">_scale_cluster</span><span class="p">()</span>
 
         <span class="k">if</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_mode</span> <span class="o">==</span> <span class="n">AGI</span><span class="o">.</span><span class="n">INSTALL_MODE</span><span class="p">:</span>
-            <span class="n">workers_tree</span>
+            <span class="n">work_plan</span>
 
         <span class="n">AGI</span><span class="o">.</span><span class="n">_dask_client</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span>
             <span class="p">[</span>
@@ -1948,8 +1948,8 @@
 
         <span class="n">AGI</span><span class="o">.</span><span class="n">_run_time</span> <span class="o">=</span> <span class="n">AGI</span><span class="o">.</span><span class="n">_dask_client</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
             <span class="n">AgiWorker</span><span class="o">.</span><span class="n">do_works</span><span class="p">,</span>
-            <span class="n">workers_tree</span><span class="p">,</span>
-            <span class="n">workers_tree_info</span><span class="p">,</span>
+            <span class="n">work_plan</span><span class="p">,</span>
+            <span class="n">work_plan_metadata</span><span class="p">,</span>
             <span class="n">workers</span><span class="o">=</span><span class="n">AGI</span><span class="o">.</span><span class="n">_dask_workers</span><span class="p">,</span>
         <span class="p">)</span>
 

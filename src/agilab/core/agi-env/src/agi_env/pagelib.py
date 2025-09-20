@@ -24,7 +24,7 @@ import random
 import socket
 import base64
 import runpy
-from typing import Dict
+from typing import Dict, Optional
 import sys
 import logging
 import webbrowser
@@ -94,11 +94,34 @@ def run(command, cwd=None):
         sys.exit(e.returncode)
 
 
-# Define a module-level flag
-_DOCS_ALREADY_OPENED = False
-
-
 import webbrowser
+
+# Track whether docs have been opened during the session to avoid reopening
+_DOCS_ALREADY_OPENED = False
+_LAST_DOCS_URL: Optional[str] = None
+
+def _resolve_docs_path(env, html_file: str) -> Path | None:
+    """Return the first docs HTML path that exists for the requested file."""
+    candidates = [
+        env.agilab_src.parent / "docs" / "build",
+        env.agilab_src.parent / "docs" / "html",
+        env.agilab_src / "docs" / "build",
+        env.agilab_src / "docs" / "html",
+    ]
+
+    for base in candidates:
+        candidate = base / html_file
+        if candidate.exists():
+            return candidate
+
+    docs_root = env.agilab_src.parent / "docs"
+    if docs_root.exists():
+        matches = list(docs_root.rglob(html_file))
+        if matches:
+            return matches[0]
+
+    return None
+
 
 def open_docs(env, html_file="index.html", anchor=""):
     """
@@ -110,37 +133,40 @@ def open_docs(env, html_file="index.html", anchor=""):
         html_file (str): Which HTML file within the docs/build/ folder to open (default 'index.html').
         anchor (str, optional): Optional hash anchor (e.g. '#project-editor').
     """
-    global _DOCS_ALREADY_OPENED
+    global _DOCS_ALREADY_OPENED, _LAST_DOCS_URL
 
-    if _DOCS_ALREADY_OPENED:
-        print("Documentation is already opened in this session.")
-        return
+    target_url: Optional[str] = None
+    docs_path = _resolve_docs_path(env, html_file)
 
-    _DOCS_ALREADY_OPENED = True
-
-    # Build the path to the local file, e.g. gui.html
-    docs_path = env.agilab_src.parent / "docs" / "build" / html_file
-
-    # Check if the local documentation file exists
-    if not docs_path.exists():
-        print(f"Documentation file not found: {docs_path.resolve()}.\nOpening online docs instead.")
+    if docs_path is None:
+        print("Documentation file not found locally. Opening online docs instead.")
         online_url = "https://thalesgroup.github.io/agilab/"
         if anchor:
             # Ensure the anchor starts with '#'
             if not anchor.startswith("#"):
                 anchor = "#" + anchor
             online_url += anchor
-        webbrowser.open_new_tab(online_url)
+        target_url = online_url
+    else:
+        # Construct a file:// URL with an optional anchor
+        docs_url = docs_path.as_uri()
+        if anchor:
+            if not anchor.startswith("#"):
+                anchor = "#" + anchor
+            docs_url += anchor
+        target_url = docs_url
+
+    if _DOCS_ALREADY_OPENED and _LAST_DOCS_URL == target_url:
+        if _focus_existing_docs_tab(target_url):
+            return
+        # Fallback: attempt to reuse the existing tab via the default browser API.
+        webbrowser.open(target_url, new=0, autoraise=True)
         return
 
-    # Construct a file:// URL with an optional anchor
-    docs_url = f"file://{docs_path}"
-    if anchor:
-        if not anchor.startswith("#"):
-            anchor = "#" + anchor
-        docs_url += anchor
-
-    webbrowser.open_new_tab(docs_url)
+    # Either first open, or navigating to different doc target -> open in new tab.
+    webbrowser.open_new_tab(target_url)
+    _DOCS_ALREADY_OPENED = True
+    _LAST_DOCS_URL = target_url
 
 
 
@@ -1154,3 +1180,73 @@ def activate_mlflow(env=None):
         st.session_state["mlflow_port"] = port
     except RuntimeError as e:
         st.error(f"Failed to start the server: {e}")
+def _focus_existing_docs_tab(target_url: str) -> bool:
+    """Best-effort attempt to focus an existing docs tab instead of opening a new one."""
+    if sys.platform != "darwin":
+        return False
+
+    escaped = target_url.replace("\\", "\\\\").replace("\"", "\\\"")
+    script = f'''
+on chrome_activate(targetUrl)
+    tell application "Google Chrome"
+        repeat with w in windows
+            set tabIndex to 0
+            repeat with t in tabs of w
+                set tabIndex to tabIndex + 1
+                if (URL of t is targetUrl) then
+                    set active tab index of w to tabIndex
+                    set index of w to 1
+                    activate
+                    return true
+                end if
+            end repeat
+        end repeat
+    end tell
+    return false
+end chrome_activate
+
+on safari_activate(targetUrl)
+    tell application "Safari"
+        repeat with w in windows
+            repeat with t in tabs of w
+                if (URL of t is targetUrl) then
+                    set current tab of w to t
+                    set index of w to 1
+                    activate
+                    return true
+                end if
+            end repeat
+        end repeat
+    end tell
+    return false
+end safari_activate
+
+tell application "System Events"
+    set chromeRunning to (exists process "Google Chrome")
+    set safariRunning to (exists process "Safari")
+end tell
+
+if chromeRunning then
+    if chrome_activate("{escaped}") then return true
+end if
+
+if safariRunning then
+    if safari_activate("{escaped}") then return true
+end if
+
+return false
+'''
+
+    try:
+        result = subprocess.run(
+            ["osascript", "-"],
+            input=script,
+            text=True,
+            capture_output=True,
+            timeout=2,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip().lower().endswith("true")
+    except Exception:
+        pass
+    return False

@@ -424,34 +424,34 @@
 
 <div class="viewcode-block" id="DagWorker.works">
 <a class="viewcode-back" href="../../../../agi-workers.html#agi-core.workers.dag_worker.dag_worker.DagWorker.works">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">works</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">works</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">work_plan</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Run the worker tasks.&quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">workers_tree</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">work_plan</span><span class="p">:</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="o">&amp;</span> <span class="mi">4</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">exec_multi_process</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">exec_multi_process</span><span class="p">(</span><span class="n">work_plan</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">exec_mono_process</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">exec_mono_process</span><span class="p">(</span><span class="n">work_plan</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">AgiWorker</span><span class="o">.</span><span class="n">t0</span></div>
 
 
 <div class="viewcode-block" id="DagWorker.exec_mono_process">
 <a class="viewcode-back" href="../../../../agi-workers.html#agi-core.workers.dag_worker.dag_worker.DagWorker.exec_mono_process">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">exec_mono_process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">exec_mono_process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">work_plan</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Execute tasks in a single process, respecting dependencies,</span>
 <span class="sd">        but only for branches assigned to this worker via round-robin.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># guard against None</span>
-        <span class="n">workers_tree</span>      <span class="o">=</span> <span class="n">workers_tree</span>      <span class="ow">or</span> <span class="p">[]</span>
-        <span class="n">workers_tree_info</span> <span class="o">=</span> <span class="n">workers_tree_info</span> <span class="ow">or</span> <span class="p">[]</span>
-        <span class="n">num_workers</span>       <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">)</span>
+        <span class="n">work_plan</span>      <span class="o">=</span> <span class="n">work_plan</span>      <span class="ow">or</span> <span class="p">[]</span>
+        <span class="n">work_plan_metadata</span> <span class="o">=</span> <span class="n">work_plan_metadata</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="n">num_workers</span>       <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">work_plan</span><span class="p">)</span>
         <span class="n">worker_id</span>         <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_id</span>
 
         <span class="c1"># collect only branches for this worker</span>
         <span class="n">assigned</span> <span class="o">=</span> <span class="p">[</span>
             <span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">info</span><span class="p">)</span>
-            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">info</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">info</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">work_plan</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">))</span>
             <span class="k">if</span> <span class="n">idx</span> <span class="o">%</span> <span class="n">num_workers</span> <span class="o">==</span> <span class="n">worker_id</span>
         <span class="p">]</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">assigned</span><span class="p">:</span>
@@ -527,20 +527,20 @@
 
 <div class="viewcode-block" id="DagWorker.exec_multi_process">
 <a class="viewcode-back" href="../../../../agi-workers.html#agi-core.workers.dag_worker.dag_worker.DagWorker.exec_multi_process">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">exec_multi_process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">exec_multi_process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">work_plan</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Execute tasks in multiple threads, distributing branches to workers in</span>
 <span class="sd">        round‑robin, then honoring dependencies per worker.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># guard against None</span>
-        <span class="n">workers_tree</span>      <span class="o">=</span> <span class="n">workers_tree</span>      <span class="ow">or</span> <span class="p">[]</span>
-        <span class="n">workers_tree_info</span> <span class="o">=</span> <span class="n">workers_tree_info</span> <span class="ow">or</span> <span class="p">[]</span>
-        <span class="n">num_workers</span>       <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">)</span>
+        <span class="n">work_plan</span>      <span class="o">=</span> <span class="n">work_plan</span>      <span class="ow">or</span> <span class="p">[]</span>
+        <span class="n">work_plan_metadata</span> <span class="o">=</span> <span class="n">work_plan_metadata</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="n">num_workers</span>       <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">work_plan</span><span class="p">)</span>
         <span class="n">worker_id</span>         <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_id</span>
 
         <span class="c1"># collect tasks assigned to this worker by round-robin</span>
         <span class="n">assigned</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">info</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">)):</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">info</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">work_plan</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">)):</span>
             <span class="k">if</span> <span class="n">idx</span> <span class="o">%</span> <span class="n">num_workers</span> <span class="o">!=</span> <span class="n">worker_id</span><span class="p">:</span>
                 <span class="k">continue</span>
             <span class="k">for</span> <span class="p">(</span><span class="n">fn</span><span class="p">,</span> <span class="n">deps</span><span class="p">),</span> <span class="p">(</span><span class="n">pname</span><span class="p">,</span> <span class="n">weight</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">info</span><span class="p">):</span>

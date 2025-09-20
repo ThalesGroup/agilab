@@ -495,22 +495,22 @@
 
 <div class="viewcode-block" id="PandasWorker.works">
 <a class="viewcode-back" href="../../../../agi-workers.html#agi-core.workers.pandas_worker.pandas_worker.PandasWorker.works">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">works</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">workers_tree</span><span class="p">:</span> <span class="nb">any</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">:</span> <span class="nb">any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">works</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">work_plan</span><span class="p">:</span> <span class="nb">any</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">:</span> <span class="nb">any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Executes worker tasks based on the distribution tree.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            workers_tree (any): Distribution tree structure.</span>
-<span class="sd">            workers_tree_info (any): Additional information about the workers.</span>
+<span class="sd">            work_plan (any): Distribution tree structure.</span>
+<span class="sd">            work_plan_metadata (any): Additional information about the workers.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            float: Execution time in seconds.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">workers_tree</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">work_plan</span><span class="p">:</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="o">&amp;</span> <span class="mi">4</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">exec_multi_process</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">exec_multi_process</span><span class="p">(</span><span class="n">work_plan</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">exec_mono_process</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">exec_mono_process</span><span class="p">(</span><span class="n">work_plan</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
 
@@ -521,17 +521,17 @@
 
 <div class="viewcode-block" id="PandasWorker.exec_multi_process">
 <a class="viewcode-back" href="../../../../agi-workers.html#agi-core.workers.pandas_worker.pandas_worker.PandasWorker.exec_multi_process">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">exec_multi_process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">workers_tree</span><span class="p">:</span> <span class="nb">any</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">:</span> <span class="nb">any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">exec_multi_process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">work_plan</span><span class="p">:</span> <span class="nb">any</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">:</span> <span class="nb">any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Executes tasks in multiprocessing mode.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            workers_tree (any): Distribution tree structure.</span>
-<span class="sd">            workers_tree_info (any): Additional information about the workers.</span>
+<span class="sd">            work_plan (any): Distribution tree structure.</span>
+<span class="sd">            work_plan_metadata (any): Additional information about the workers.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">works</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
-            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">workers_tree</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_id</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">work_plan</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">work_plan</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_id</span><span class="p">]:</span>
                 <span class="n">works</span> <span class="o">+=</span> <span class="n">i</span>
             <span class="n">ncore</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">works</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">())),</span> <span class="mi">1</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -543,7 +543,7 @@
         <span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">work_init</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">work_id</span><span class="p">,</span> <span class="n">work</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_id</span><span class="p">]):</span>
+        <span class="k">for</span> <span class="n">work_id</span><span class="p">,</span> <span class="n">work</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">work_plan</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_id</span><span class="p">]):</span>
             <span class="n">list_df</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">()</span>
             <span class="n">ncore</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">work</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">())),</span> <span class="mi">1</span><span class="p">)</span>
@@ -581,23 +581,23 @@
 
 <div class="viewcode-block" id="PandasWorker.exec_mono_process">
 <a class="viewcode-back" href="../../../../agi-workers.html#agi-core.workers.pandas_worker.pandas_worker.PandasWorker.exec_mono_process">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">exec_mono_process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">workers_tree</span><span class="p">:</span> <span class="nb">any</span><span class="p">,</span> <span class="n">workers_tree_info</span><span class="p">:</span> <span class="nb">any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">exec_mono_process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">work_plan</span><span class="p">:</span> <span class="nb">any</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">:</span> <span class="nb">any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Executes tasks in single-threaded mode.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            workers_tree (any): Distribution tree structure.</span>
-<span class="sd">            workers_tree_info (any): Additional information about the workers.</span>
+<span class="sd">            work_plan (any): Distribution tree structure.</span>
+<span class="sd">            work_plan_metadata (any): Additional information about the workers.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">work_init</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">work_id</span><span class="p">,</span> <span class="n">work</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">workers_tree</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_id</span><span class="p">]):</span>
+        <span class="k">for</span> <span class="n">work_id</span><span class="p">,</span> <span class="n">work</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">work_plan</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_id</span><span class="p">]):</span>
             <span class="n">list_df</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">()</span>
             <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;PandasWorker.work - monoprocess work #</span><span class="si">{</span><span class="n">work_id</span><span class="si">}</span><span class="s2"> - work_pool x </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">work</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
             <span class="p">)</span>
 
-            <span class="k">if</span> <span class="n">workers_tree</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">work_plan</span><span class="p">:</span>
                 <span class="n">dfs</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">work_pool</span><span class="p">(</span><span class="n">file</span><span class="p">)</span> <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">work</span><span class="p">]</span>
 
                 <span class="k">if</span> <span class="n">dfs</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dfs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>

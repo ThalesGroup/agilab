@@ -619,17 +619,17 @@
 
             <span class="c1"># get the second level of the distribution tree by by dispatching these works per workers</span>
             <span class="c1"># make chunk of planes by worker with a load balancing that takes into consideration workers capacities</span>
-            <span class="n">workers_chunks</span> <span class="o">=</span> <span class="n">WorkDispatcher</span><span class="o">.</span><span class="n">make_chunks</span><span class="p">(</span>
+            <span class="n">work_plan_metadata</span> <span class="o">=</span> <span class="n">WorkDispatcher</span><span class="o">.</span><span class="n">make_chunks</span><span class="p">(</span>
                 <span class="nb">len</span><span class="p">(</span><span class="n">planes_partition</span><span class="p">),</span> <span class="n">planes_partition_size</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="n">workers</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mi">12</span>
             <span class="p">)</span>
-            <span class="k">if</span> <span class="n">workers_chunks</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">work_plan_metadata</span><span class="p">:</span>
                 <span class="c1"># build tree: workers = dask workers -&gt; works = planes -&gt; files &lt;=&gt; list of list of list</span>
                 <span class="c1"># files by plane are capped  to max number of files requested per workers</span>
 
                 <span class="n">workers_planes_dist</span> <span class="o">=</span> <span class="p">[]</span>
                 <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">with_columns</span><span class="p">([</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;id_plane&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Int64</span><span class="p">)])</span>
 
-                <span class="k">for</span> <span class="n">planes</span> <span class="ow">in</span> <span class="n">workers_chunks</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">planes</span> <span class="ow">in</span> <span class="n">work_plan_metadata</span><span class="p">:</span>
                     <span class="n">workers_planes_dist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
                         <span class="p">[</span>
                             <span class="n">df</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;id_plane&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="n">plane_id</span><span class="p">)[</span><span class="s2">&quot;files&quot;</span><span class="p">]</span>
@@ -639,16 +639,16 @@
                         <span class="p">]</span>
                     <span class="p">)</span>
 
-                <span class="n">workers_chunks</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">work_plan_metadata</span> <span class="o">=</span> <span class="p">[</span>
                     <span class="p">[(</span><span class="n">plane</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">size</span> <span class="o">/</span> <span class="mi">1000</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span> <span class="k">for</span> <span class="n">plane</span><span class="p">,</span> <span class="n">size</span> <span class="ow">in</span> <span class="n">chunk</span><span class="p">]</span>
-                    <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">workers_chunks</span>
+                    <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">work_plan_metadata</span>
                 <span class="p">]</span>
 
             <span class="c1"># tree: workers -&gt; planes -&gt; files</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="nb">print</span><span class="p">(</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">())</span>
             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;warning issue while trying to build distribution: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">workers_planes_dist</span><span class="p">,</span> <span class="n">workers_chunks</span><span class="p">,</span> <span class="s2">&quot;plane&quot;</span><span class="p">,</span> <span class="s2">&quot;files&quot;</span><span class="p">,</span> <span class="s2">&quot;ko&quot;</span></div>
+        <span class="k">return</span> <span class="n">workers_planes_dist</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">,</span> <span class="s2">&quot;plane&quot;</span><span class="p">,</span> <span class="s2">&quot;files&quot;</span><span class="p">,</span> <span class="s2">&quot;ko&quot;</span></div>
 
 
 <div class="viewcode-block" id="Flight.get_data_from_hawk">

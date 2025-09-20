@@ -907,19 +907,19 @@
             <span class="n">selected_df</span> <span class="o">=</span> <span class="n">pick_satellites_by_raan</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">selected_df</span> <span class="o">=</span> <span class="n">selected_df</span>
             <span class="c1">### DISTRIBUTIONS</span>
-            <span class="n">workers_chunks</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">work_plan_metadata</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="n">workers_planes_dist</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">selected_df</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
-                <span class="n">workers_chunks</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+                <span class="n">work_plan_metadata</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
                 <span class="n">workers_planes_dist</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">i</span><span class="p">])</span>
             <span class="n">workers_planes_dist</span> <span class="o">=</span> <span class="p">[</span><span class="n">workers_planes_dist</span><span class="p">]</span>
 
 
-            <span class="n">workers_chunks</span> <span class="o">=</span> <span class="n">WorkDispatcher</span><span class="o">.</span><span class="n">make_chunks</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">workers_chunks</span><span class="p">),</span>
-                <span class="n">workers_chunks</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="n">workers</span><span class="p">,</span>
+            <span class="n">work_plan_metadata</span> <span class="o">=</span> <span class="n">WorkDispatcher</span><span class="o">.</span><span class="n">make_chunks</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">work_plan_metadata</span><span class="p">),</span>
+                <span class="n">work_plan_metadata</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="n">workers</span><span class="p">,</span>
                 <span class="n">threshold</span><span class="o">=</span><span class="mi">12</span><span class="p">)</span>
             <span class="n">workers_link_dist</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">worker</span> <span class="ow">in</span> <span class="n">workers_chunks</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">worker</span> <span class="ow">in</span> <span class="n">work_plan_metadata</span><span class="p">:</span>
                 <span class="n">worker_list</span> <span class="o">=</span> <span class="p">[]</span>
                 <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">worker</span><span class="p">:</span>
                     <span class="n">worker_list</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">chunk</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
@@ -927,7 +927,7 @@
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="nb">print</span><span class="p">(</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">())</span>
             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;warning issue while trying to build distribution: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">workers_link_dist</span><span class="p">,</span> <span class="n">workers_chunks</span><span class="p">,</span> <span class="s1">&#39;plane&#39;</span><span class="p">,</span> <span class="s1">&#39;files&#39;</span><span class="p">,</span> <span class="s1">&#39;ko&#39;</span></div>
+        <span class="k">return</span> <span class="n">workers_link_dist</span><span class="p">,</span> <span class="n">work_plan_metadata</span><span class="p">,</span> <span class="s1">&#39;plane&#39;</span><span class="p">,</span> <span class="s1">&#39;files&#39;</span><span class="p">,</span> <span class="s1">&#39;ko&#39;</span></div>
 </div>
 
 </pre></div>
