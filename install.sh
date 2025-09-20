@@ -262,9 +262,10 @@ install_core() {
     popd  > /dev/null
 }
 
-install_apps_views() {
+install_apps() {
   dir="$AGI_INSTALL_PATH/src/agilab"
   pushd $dir > /dev/null
+  chmod +x "install_apps.sh"
   ./install_apps.sh
   popd > /dev/null
 }
@@ -296,10 +297,12 @@ write_env_values() {
 }
 
 install_enduser() {
-    chmod +x "tools/install_enduser.sh"
+    pushd "tools" > /dev/null
     echo -e "${BLUE}Installing agilab (endusers)...${NC}"
-    ./tools/install_enduser.sh --source $SOURCE
+    chmod +x "install_enduser.sh"
+    .install_enduser.sh --source $SOURCE
     echo -e "${GREEN}agilab (enduser) installation complete.${NC}"
+    popd > /dev/null
 }
 
 install_pycharm_script() {
