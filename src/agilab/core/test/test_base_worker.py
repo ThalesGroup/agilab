@@ -28,7 +28,7 @@ async def test_baseworker_run_calls_exec():
     mock_env.mode2str.return_value = "mode=0"
     with patch.object(BaseWorker, 'env', new=mock_env), \
             patch.object(BaseWorker, '_load_manager', return_value=DummyWorker()), \
-            patch('agi_node.agi_dispatcher.WorkDispatcher.do_distrib', return_value=({}, {}, {})):
+            patch('agi_node.agi_dispatcher.WorkDispatcher._do_distrib', return_value=({}, {}, {})):
         await BaseWorker.run(args={})
 
 
