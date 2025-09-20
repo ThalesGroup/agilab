@@ -46,9 +46,9 @@ class DummyPandasWorker(PandasWorker):
     def works(self, workers_tree, workers_tree_info):
         start = time.time()
         # Appelle la méthode réelle pour faire un travail minimal
-        if self.mode == 0:
+        if self._mode == 0:
             self._exec_mono_process(workers_tree, workers_tree_info)
-        elif self.mode == 1:
+        elif self._mode == 1:
             self._exec_multi_process(workers_tree, workers_tree_info)
         else:
             pass

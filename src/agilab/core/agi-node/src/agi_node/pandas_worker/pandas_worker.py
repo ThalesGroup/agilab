@@ -113,7 +113,7 @@ class PandasWorker(BaseWorker):
             float: Execution time in seconds.
         """
         if workers_tree:
-            if self.mode & 4:
+            if self._mode & 4:
                 self._exec_multi_process(workers_tree, workers_tree_info)
             else:
                 self._exec_mono_process(workers_tree, workers_tree_info)

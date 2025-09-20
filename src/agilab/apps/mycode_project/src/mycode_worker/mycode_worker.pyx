@@ -53,7 +53,7 @@ class MycodeWorker(DagWorker):
             None
         """
         logging.info(f"from: {__file__}")
-        if(self.mode & 2 and "cy" not in __file__):
+        if(self._mode & 2 and "cy" not in __file__):
             raise RuntimeError("Cython requested but not executed")
 
     def get_work(self, work: str,args,previous_result):

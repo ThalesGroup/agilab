@@ -92,14 +92,14 @@ class BaseWorker(abc.ABC):
         """
         """ """
         logging.info(
-            f"worker #{BaseWorker._worker_id}: {BaseWorker._worker} - mode: {self.mode}")
+            f"worker #{BaseWorker._worker_id}: {BaseWorker._worker} - mode: {self._mode}")
         self.start()
 
     def stop(self):
         """
         Returns:
         """
-        logging.info(f"worker #{self._worker_id}: {self._worker} - mode: {self.mode}"
+        logging.info(f"worker #{self._worker_id}: {self._worker} - mode: {self._mode}"
                         )
 
     @staticmethod
