@@ -1,0 +1,37 @@
+@startuml classes_agi_node
+set namespaceSeparator none
+class "DagWorker" as agilab.core.agi-node.src.agi_node.dag_worker.dag_worker.DagWorker {
+  _exec_mono_process(workers_plan, workers_plan_metadata)
+  _exec_multi_process(workers_plan, workers_plan_metadata)
+  _invoke(fn_name: str, args: Any, prev_result: Any) -> Any
+  _topological_sort(graph)
+  get_work(fn_name, args, prev_result)
+  works(workers_plan, workers_plan_metadata)
+}
+class "PandasWorker" as agilab.core.agi-node.src.agi_node.pandas_worker.pandas_worker.PandasWorker {
+  _exec_mono_process(workers_plan: any, workers_plan_metadata: any) -> None
+  _exec_multi_process(workers_plan: any, workers_plan_metadata: any) -> None
+  work_done(df: pd.DataFrame) -> None
+  work_pool(x: any) -> pd.DataFrame
+  works(workers_plan: any, workers_plan_metadata: any) -> float
+}
+class "PolarsWorker" as agilab.core.agi-node.src.agi_node.polars_worker.polars_worker.PolarsWorker {
+  _exec_mono_process(workers_plan: any, workers_plan_metadata: any) -> None
+  _exec_multi_process(workers_plan: any, workers_plan_metadata: any) -> None
+  work_done(df: pl.DataFrame) -> None
+  work_pool(x: any) -> pl.DataFrame
+  works(workers_plan: any, workers_plan_metadata: any) -> float
+}
+class "WorkDispatcher" as agilab.core.agi-node.src.agi_node.agi_dispatcher.agi_dispatcher.WorkDispatcher {
+  args : dict
+  verbose : NoneType
+  __init__(args)
+  _convert_functions_to_names(workers_plan)
+  _do_distrib(env, workers, args)
+  _load_module(module: str, package: Optional[str], path: Optional[Union[str, Path]]) -> Any
+  _make_chunks_fastest(subsets: List[Any], chk_weights: List[Any]) -> List[List[Any]]
+  _make_chunks_optimal(subsets: List[Any], chkweights: List[Any], chunks: Optional[List[Any]], chunks_sizes: Optional[Any]) -> Any
+  _onerror(func, path, exc_info)
+  make_chunks(nchunk2: int, weights: List[Any], capacities: Optional[List[Any]], workers: Dict, verbose: int, threshold: int) -> List[List[List[Any]]]
+}
+@enduml
