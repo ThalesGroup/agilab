@@ -642,7 +642,7 @@ def main():
     logging.info("Project setup completed successfully.")
     logging.info(f"Realized apps: {', '.join([app for app in realized_apps])}")
     logging.info(f"Realized core: {', '.join([core for core in realized_core])}")
-    logging.info(f"Realized apps_pages: {', '.join([apps_page for apps_page in realized_apps_pages])}")
+    logging.info(f"Realized apps-pages: {', '.join([apps_page for apps_page in realized_apps_pages])}")
 
     if cfg.AGISPACE.exists():
         logging.info("Realizing agi-space as a module.")
