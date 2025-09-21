@@ -218,7 +218,7 @@ done
 
 
 # --- Run installer for each views (stable CWD so ../core/cluster resolves) -----
-pushd -- "$AGILAB_PUBLIC/views" >/dev/null
+pushd -- "$AGILAB_PUBLIC/apps-pages" >/dev/null
 
 for view in ${INCLUDED_VIEWS+"${INCLUDED_VIEWS[@]}"}; do
   echo -e "${BLUE}Installing $view...${NC}"

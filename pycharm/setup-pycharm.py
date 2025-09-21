@@ -51,8 +51,6 @@ class Config:
                 continue
             if not p.name.endswith("_project"):  # rule requested
                 continue
-            if venv_python_for(p) is None:
-                continue
             out.append(p)
         return out
 
@@ -65,8 +63,6 @@ class Config:
                 continue
             if p.name.startswith((".", "__")):
                 continue
-            if venv_python_for(p) is None:
-                continue
             out.append(p)
         return out
 
@@ -78,8 +74,6 @@ class Config:
             if not p.is_dir():
                 continue
             if p.name.startswith((".", "__")):
-                continue
-            if venv_python_for(p) is None:
                 continue
             out.append(p)
         return out
@@ -608,13 +602,15 @@ def main():
     realized_apps_pages = []
     for apps_page in cfg.eligible_apps_pages:
         apps_page_py = venv_python_for(apps_page)
-        if not apps_page_py:
-            logging.warning(f"No virtual environment found for {apps_page.name}, skipping.")
-            continue
-
         iml = model.write_module_minimal(apps_page.name, apps_page)
-        sdk_name = f"uv ({apps_page.name})"
-        jdk_table.add_jdk(sdk_name, apps_page_py)
+
+        if apps_page_py:
+            sdk_name = f"uv ({apps_page.name})"
+            jdk_table.add_jdk(sdk_name, apps_page_py)
+        else:
+            logging.warning(f"No virtual environment found for {apps_page.name}, falling back to project SDK {cfg.PROJECT_SDK}.")
+            sdk_name = cfg.PROJECT_SDK
+
         model.set_module_sdk(iml, sdk_name)
         model.add_module_entry(iml)
         realized_apps_pages.append(apps_page.name)
