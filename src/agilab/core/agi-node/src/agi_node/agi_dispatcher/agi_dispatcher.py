@@ -63,8 +63,8 @@ class WorkDispatcher:
         WorkDispatcher.args = args
 
     @staticmethod
-    def _convert_functions_to_names(workers_tree):
-        """Recursively replace callables in ``workers_tree`` by their ``__name__``."""
+    def _convert_functions_to_names(workers_plan):
+        """Recursively replace callables in ``workers_plan`` by their ``__name__``."""
         def _convert(val):
             if isinstance(val, list):
                 return [_convert(item) for item in val]
@@ -77,7 +77,7 @@ class WorkDispatcher:
             else:
                 return val
 
-        return _convert(workers_tree)
+        return _convert(workers_plan)
 
     @staticmethod
     async def _do_distrib(env, workers, args):
@@ -97,30 +97,30 @@ class WorkDispatcher:
         target_inst = target_class(env, **args)
 
         file = env.distribution_tree
-        workers_tree = []
-        workers_tree_info = []
+        workers_plan = []
+        workers_plan_metadata = []
         rebuild_tree = False
         if file.exists():
             with open(file, "r") as f:
                 data = json.load(f)
-            workers_tree = data.get("work_plan")
-            workers_tree_info = data.get("work_plan_metadata", [])
-            if workers_tree is None or (
+            workers_plan = data.get("work_plan")
+            workers_plan_metadata = data.get("work_plan_metadata", [])
+            if workers_plan is None or (
                 data["workers"] != workers
                 or data["target_args"] != args
             ):
                 rebuild_tree = True
 
         if not file.exists() or rebuild_tree:
-            workers_tree, workers_tree_info, part, nb_unit, weight_unit = (
+            workers_plan, workers_plan_metadata, part, nb_unit, weight_unit = (
                 target_inst.build_distribution(workers)
             )
 
             data = {
                 "target_args": args,
                 "workers": workers,
-                "work_plan_metadata": workers_tree_info,
-                "work_plan": WorkDispatcher._convert_functions_to_names(workers_tree),
+                "work_plan_metadata": workers_plan_metadata,
+                "work_plan": WorkDispatcher._convert_functions_to_names(workers_plan),
                 "partition_key": part,
                 "nb_unit": nb_unit,
                 "weights_unit": weight_unit,
@@ -135,7 +135,7 @@ class WorkDispatcher:
                 json.dump(data, f, default=convert_dates, indent=2)
 
         loaded_workers = {}
-        workers_work_item_tree_iter = iter(workers_tree)
+        workers_work_item_tree_iter = iter(workers_plan)
         for ip, nb_workers in workers.items():
             for i, chunks in enumerate(workers_work_item_tree_iter):
                 if ip not in loaded_workers:
@@ -143,9 +143,9 @@ class WorkDispatcher:
                 if chunks:
                     loaded_workers[ip] += 1
 
-        workers_tree = [chunks for chunks in workers_tree if chunks]
+        workers_plan = [chunks for chunks in workers_plan if chunks]
 
-        return loaded_workers.copy(), workers_tree, workers_tree_info
+        return loaded_workers.copy(), workers_plan, workers_plan_metadata
 
     @staticmethod
     def _onerror(func, path, exc_info):

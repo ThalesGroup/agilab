@@ -333,16 +333,16 @@ class BaseWorker(abc.ABC):
         try:
             from .agi_dispatcher import WorkDispatcher  # Local import to avoid circular dependency
 
-            workers, workers_tree, workers_tree_info = await WorkDispatcher._do_distrib(env, workers, args)
+            workers, workers_plan, workers_plan_metadata = await WorkDispatcher._do_distrib(env, workers, args)
         except Exception as err:
             logging.error(traceback.format_exc())
             sys.exit(1)
 
         if mode == 48:
-            return workers_tree
+            return workers_plan
 
         t = time.time()
-        BaseWorker._do_works(workers_tree, workers_tree_info)
+        BaseWorker._do_works(workers_plan, workers_plan_metadata)
         runtime = time.time() - t
         env._run_time = runtime
 
@@ -549,12 +549,12 @@ class BaseWorker(abc.ABC):
             raise err
 
     @staticmethod
-    def _do_works(workers_tree, workers_tree_info):
+    def _do_works(workers_plan, workers_plan_metadata):
         """run of workers
 
         Args:
-          workers_tree: distribution tree
-          workers_tree_info:
+          workers_plan: distribution tree
+          workers_plan_metadata:
         Returns:
             logs: str, the log output from this worker
         """
@@ -571,8 +571,8 @@ class BaseWorker(abc.ABC):
             worker_id = BaseWorker._worker_id
             if worker_id is not None:
                 logging.info(f"worker #{worker_id}: {BaseWorker._worker} from {Path(__file__)}")
-                logging.info(f"work #{worker_id + 1} / {len(workers_tree)}")
-                BaseWorker._insts[worker_id].works(workers_tree, workers_tree_info)
+                logging.info(f"work #{worker_id + 1} / {len(workers_plan)}")
+                BaseWorker._insts[worker_id].works(workers_plan, workers_plan_metadata)
             else:
                 logging.error(f"this worker is not initialized")
                 raise Exception(f"failed to do_works")

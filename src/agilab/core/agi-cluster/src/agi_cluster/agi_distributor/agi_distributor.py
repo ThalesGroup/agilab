@@ -1748,16 +1748,16 @@ class AGI:
         ]
         logger.info(f"AGI run mode={AGI._mode} on {list(AGI._dask_workers)} ... ")
 
-        AGI._workers, workers_tree, workers_tree_info = await WorkDispatcher._do_distrib(
+        AGI._workers, workers_plan, workers_plan_metadata = await WorkDispatcher._do_distrib(
             env, AGI._workers, AGI._args
         )
-        AGI._work_plan = workers_tree
-        AGI._work_plan_metadata = workers_tree_info
+        AGI._work_plan = workers_plan
+        AGI._work_plan_metadata = workers_plan_metadata
 
         AGI._scale_cluster()
 
         if AGI._mode == AGI._INSTALL_MODE:
-            workers_tree
+            workers_plan
 
         dask_workers = list(AGI._dask_workers)
         client = AGI._dask_client
@@ -1786,8 +1786,8 @@ class AGI:
         # --- Capture logs from each worker! ---
         worker_logs = client.run(
             BaseWorker._do_works,
-            workers_tree,
-            workers_tree_info,
+            workers_plan,
+            workers_plan_metadata,
             workers=dask_workers,
         )
 

@@ -88,7 +88,7 @@ class Mycode(BaseWorker):
     def build_distribution(self, workers):
         """Build distribution as a calling graph."""
 
-        # workers_tree is a list representing multiple "workers" (parallel execution units).
+        # workers_plan is a list representing multiple "workers" (parallel execution units).
         # Each worker is represented as a list of tasks.
         #
         # Each task is stored as a tuple:
@@ -112,10 +112,10 @@ class Mycode(BaseWorker):
         # ]
         #
         # Example meaning:
-        # workers_tree[0][1] → Second task of worker 0:
+        # workers_plan[0][1] → Second task of worker 0:
         #   function: "algo_B", args: [15, 20, 30], dependencies: ["algo_A"]
 
-        workers_tree = [
+        workers_plan = [
             [  # worker 0
                 (
                     {
@@ -156,7 +156,7 @@ class Mycode(BaseWorker):
             ],
         ]
 
-        workers_tree_info = [
+        workers_plan_metadata = [
             [  # worker 0
                 ("algo A", 1.1),
                 ("algo B", 1.2),
@@ -169,4 +169,4 @@ class Mycode(BaseWorker):
             ],
         ]
 
-        return workers_tree, workers_tree_info, "id", "main", "unit"
+        return workers_plan, workers_plan_metadata, "id", "main", "unit"

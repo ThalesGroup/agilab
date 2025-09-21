@@ -101,22 +101,22 @@ class PandasWorker(BaseWorker):
         else:
             raise ValueError("Unsupported output format")
 
-    def works(self, workers_tree: any, workers_tree_info: any) -> float:
+    def works(self, workers_plan: any, workers_plan_metadata: any) -> float:
         """
         Executes worker tasks based on the distribution tree.
 
         Args:
-            workers_tree (any): Distribution tree structure.
-            workers_tree_info (any): Additional information about the workers.
+            workers_plan (any): Distribution tree structure.
+            workers_plan_metadata (any): Additional information about the workers.
 
         Returns:
             float: Execution time in seconds.
         """
-        if workers_tree:
+        if workers_plan:
             if self._mode & 4:
-                self._exec_multi_process(workers_tree, workers_tree_info)
+                self._exec_multi_process(workers_plan, workers_plan_metadata)
             else:
-                self._exec_mono_process(workers_tree, workers_tree_info)
+                self._exec_mono_process(workers_plan, workers_plan_metadata)
 
         self.stop()
 
@@ -124,17 +124,17 @@ class PandasWorker(BaseWorker):
             BaseWorker._t0 = time.time()
         return time.time() - BaseWorker._t0
 
-    def _exec_multi_process(self, workers_tree: any, workers_tree_info: any) -> None:
+    def _exec_multi_process(self, workers_plan: any, workers_plan_metadata: any) -> None:
         """
         Executes tasks in multiprocessing mode.
 
         Args:
-            workers_tree (any): Distribution tree structure.
-            workers_tree_info (any): Additional information about the workers.
+            workers_plan (any): Distribution tree structure.
+            workers_plan_metadata (any): Additional information about the workers.
         """
         works = []
-        if isinstance(workers_tree, list):
-            for i in workers_tree[self._worker_id]:
+        if isinstance(workers_plan, list):
+            for i in workers_plan[self._worker_id]:
                 works += i
             ncore = max(min(len(works), int(os.cpu_count())), 1)
         else:
@@ -146,7 +146,7 @@ class PandasWorker(BaseWorker):
         )
 
         self.work_init()
-        for work_id, work in enumerate(workers_tree[self._worker_id]):
+        for work_id, work in enumerate(workers_plan[self._worker_id]):
             list_df = []
             df = pd.DataFrame()
             ncore = max(min(len(work), int(os.cpu_count())), 1)
@@ -181,23 +181,23 @@ class PandasWorker(BaseWorker):
 
             self.work_done(df if not df.empty else pd.DataFrame())
 
-    def _exec_mono_process(self, workers_tree: any, workers_tree_info: any) -> None:
+    def _exec_mono_process(self, workers_plan: any, workers_plan_metadata: any) -> None:
         """
         Executes tasks in single-threaded mode.
 
         Args:
-            workers_tree (any): Distribution tree structure.
-            workers_tree_info (any): Additional information about the workers.
+            workers_plan (any): Distribution tree structure.
+            workers_plan_metadata (any): Additional information about the workers.
         """
         self.work_init()
-        for work_id, work in enumerate(workers_tree[self._worker_id]):
+        for work_id, work in enumerate(workers_plan[self._worker_id]):
             list_df = []
             df = pd.DataFrame()
             logging.info(
                 f"PandasWorker.work - monoprocess work #{work_id} - work_pool x {len(work)}"
             )
 
-            if workers_tree:
+            if workers_plan:
                 dfs = [self.work_pool(file) for file in work]
 
                 if dfs and isinstance(dfs[0], pd.DataFrame):

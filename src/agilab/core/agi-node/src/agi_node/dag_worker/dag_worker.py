@@ -101,16 +101,16 @@ class DagWorker(BaseWorker):
     # -----------------------------
     # Your existing methods (kept minimal)
     # -----------------------------
-    def works(self, workers_tree, workers_tree_info):
+    def works(self, workers_plan, workers_plan_metadata):
         """
         Your existing entry point; keep as-is, just call multiprocess path for mode 4, etc.
         """
         # If you had mode checks, keep them. Here we directly call the multi-process variant.
-        self._exec_multi_process(workers_tree, workers_tree_info)
+        self._exec_multi_process(workers_plan, workers_plan_metadata)
 
-    def _exec_mono_process(self, workers_tree, workers_tree_info):
+    def _exec_mono_process(self, workers_plan, workers_plan_metadata):
         """Sequential fallback kept for compatibility; reuses the multi-process pipeline."""
-        return self._exec_multi_process(workers_tree, workers_tree_info)
+        return self._exec_multi_process(workers_plan, workers_plan_metadata)
 
     @staticmethod
     def _topological_sort(graph):
@@ -150,7 +150,7 @@ class DagWorker(BaseWorker):
             raise ValueError("Cycle detected in dependency graph")
         return order
 
-    def _exec_multi_process(self, workers_tree, workers_tree_info):
+    def _exec_multi_process(self, workers_plan, workers_plan_metadata):
         """
         Execute tasks in multiple threads, distributing branches to workers by
         round‑robin, then honoring dependencies per worker.
@@ -159,15 +159,15 @@ class DagWorker(BaseWorker):
         from concurrent.futures import ThreadPoolExecutor
         import os
 
-        workers_tree = workers_tree or []
-        workers_tree_info = workers_tree_info or []
+        workers_plan = workers_plan or []
+        workers_plan_metadata = workers_plan_metadata or []
 
-        num_partitions = max(1, len(workers_tree))
+        num_partitions = max(1, len(workers_plan))
         worker_id = getattr(self, "worker_id", 0) % num_partitions
 
         # gather tasks for this worker by round‑robin
         assigned = []
-        for idx, (tree, info) in enumerate(zip(workers_tree, workers_tree_info)):
+        for idx, (tree, info) in enumerate(zip(workers_plan, workers_plan_metadata)):
             if idx % num_partitions != worker_id:
                 continue
             for (fn_dict, deps), (pname, weight) in zip(tree, info):

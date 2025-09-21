@@ -129,7 +129,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int):
         time.sleep(0.1)
 
 
-def discover_pages(pages_dir: Union[str, Path]) -> list[Path]:
+def discover_views(pages_dir: Union[str, Path]) -> list[Path]:
     """
     Dynamic discovery under env.AGILAB_PAGES_ABS with common layouts:
       - <root>/apps-pages/*.py
@@ -241,16 +241,26 @@ async def main():
     # Keep only those that still exist
     preselect = [v for v in project_views if v in view_names]
 
+    selection_key = f"view_selection__{project or 'default'}"
+
+    if selection_key not in st.session_state:
+        st.session_state[selection_key] = list(preselect)
+
     selected_views = st.multiselect(
         "Select page to expose on the home page",
         view_names,
-        default=preselect,
+        key=selection_key,
         help="These will appear as buttons below."
     )
 
-    # Persist selection
-    cfg["views"]["view_module"] = selected_views
-    _write_config(app_settings, cfg)
+    cleaned_selection = [v for v in selected_views if v in view_names]
+    if cleaned_selection != selected_views:
+        st.session_state[selection_key] = cleaned_selection
+        selected_views = cleaned_selection
+
+    if cfg.get("views", {}).get("view_module") != selected_views:
+        cfg.setdefault("views", {})["view_module"] = selected_views
+        _write_config(app_settings, cfg)
 
     # Show buttons for the selected views
     st.divider()

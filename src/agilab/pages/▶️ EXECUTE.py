@@ -163,7 +163,7 @@ def safe_eval(expression, expected_type, error_message):
         return None
 
 def parse_and_validate_scheduler(scheduler_input):
-    env = st.session_state["env"]
+    env = st.session_state.setdefault("env", AgiEnv())
     scheduler = scheduler_input.strip()
     if not scheduler:
         st.error("Scheduler must be provided as a valid IP address.")
@@ -707,6 +707,7 @@ async def page():
 
     else:
         env = st.session_state["env"]
+        st.session_state["_env"] = env
 
     # Set page configuration and render logo
     st.set_page_config(layout="wide", menu_items=get_about_content())
@@ -731,6 +732,7 @@ async def page():
         "check_all": True,
         "export_tab_previous_project": None,
         "env": env,
+        "_env": env,
     }
 
 

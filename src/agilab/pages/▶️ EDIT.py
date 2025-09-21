@@ -1462,8 +1462,9 @@ def page():
 
     else:
         env = st.session_state['env']
+        st.session_state['_env'] = env
 
-    env = st.session_state['env']
+    env = st.session_state['_env']
 
     render_logo("Edit your Project")
 
@@ -1501,6 +1502,8 @@ def page():
 
     # Initialize session state variables
     session_defaults = {
+        "env": env,
+        "_env": env,
         "orchest_functions": ["build_distribution"],
         "templates": get_templates(),
         "archives": ["-- Select a file --"] + get_projects_zip(),
