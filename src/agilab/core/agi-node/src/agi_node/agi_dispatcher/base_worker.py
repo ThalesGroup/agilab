@@ -406,7 +406,7 @@ class BaseWorker(abc.ABC):
 
             # Instantiate the class with arguments
             worker_inst = worker_class()
-            worker_inst.mode = mode
+            worker_inst._mode = mode
             worker_inst.args = SimpleNamespace(**args)
             worker_inst.verbose = verbose
 
@@ -482,26 +482,6 @@ class BaseWorker(abc.ABC):
 
         return system_info
 
-    def build(self, target_worker, dask_home, worker, mode: Optional[int]=None, verbose: Optional[int]=None):
-        """Public wrapper that orchestrates loading and delegates to the legacy builder."""
-        effective_mode = mode if mode is not None else getattr(self, "_mode", 0) or 0
-        effective_verbose = verbose if verbose is not None else getattr(self, "verbose", 0) or 0
-
-        # Ensure manager/worker modules are loaded (patched in tests for isolation)
-        self._load_manager()
-        self._load_worker(effective_mode)
-
-        BaseWorker._build(
-            target_worker=target_worker,
-            dask_home=dask_home,
-            worker=worker,
-            mode=effective_mode,
-            verbose=effective_verbose,
-        )
-        BaseWorker._built = True
-
-        return True
-
     @staticmethod
     def _build(target_worker, dask_home, worker, mode=0, verbose=0):
         """
@@ -533,7 +513,6 @@ class BaseWorker(abc.ABC):
             logging.info("set verbose=3 to see something in this trace file ...")
 
             if verbose > 2:
-                logging.info("starting worker_build ...")
                 logging.info(f"home_dir: {BaseWorker._home_dir}")
                 logging.info(
                     f"target_worker={target_worker}, dask_home={dask_home}, mode={mode}, verbose={verbose}, worker={worker})"

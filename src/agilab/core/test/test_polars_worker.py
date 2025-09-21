@@ -86,7 +86,7 @@ def test_work_done_parquet(worker_parquet):
     assert df_read["col"].to_list() == [4, 5, 6]
 
 def test_exec_mono_process(worker_csv):
-    worker_csv.mode = 0
+    worker_csv._mode = 0
     workers_tree = {0: [[10, 20]]}
     workers_tree_info = None
     worker_csv.last_df = None
@@ -98,7 +98,7 @@ def test_exec_mono_process(worker_csv):
     assert part_values == [str((0, 0)), str((0, 0))], f"Unexpected worker_id values: {part_values}"
 
 def test_exec_multi_process(worker_csv):
-    worker_csv.mode = 1
+    worker_csv._mode = 1
     workers_tree = {0: [[100, 200]]}
     workers_tree_info = None
     worker_csv.last_df = None
@@ -112,7 +112,7 @@ def test_exec_multi_process(worker_csv):
 def test_works_method(worker_csv):
     dummy_tree = {0: [[1], [2, 3]]}
     dummy_info = None
-    worker_csv.mode = 0
+    worker_csv._mode = 0
     exec_time = worker_csv.works(dummy_tree, dummy_info)
     assert isinstance(exec_time, float), "works() should return a float."
     assert exec_time > 0, f"Expected execution time > 0, got {exec_time}."

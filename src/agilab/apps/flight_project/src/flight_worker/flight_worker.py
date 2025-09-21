@@ -123,7 +123,7 @@ class FlightWorker(PolarsWorker):
 
         # Remove dataframe files from previous run
         try:
-            shutil.rmtree(self.data_out, ignore_errors=True, onerror=self.onerror)
+            shutil.rmtree(self.data_out, ignore_errors=True, onerror=self._onerror)
             os.makedirs(self.data_out, exist_ok=True)
         except Exception as e:
             logging.info(f"Error removing directory: {e}")
