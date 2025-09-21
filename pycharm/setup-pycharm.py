@@ -21,7 +21,7 @@ class Config:
         self.PROJECT_SDK = f"uv ({self.PROJECT_NAME})"
         self.PROJECT_SDK_TYPE = sdk_type
         self.APPS_DIR = self.ROOT / "src" / self.PROJECT_NAME / "apps"
-        self.VIEWS_DIR = self.ROOT / "src" / self.PROJECT_NAME / "apps-pages"
+        self.APPS_PAGES_DIR = self.ROOT / "src" / self.PROJECT_NAME / "apps-pages"
         self.CORE_DIR = self.ROOT / "src" / self.PROJECT_NAME / "core"
 
         self.FILE_TEMPLATE = {
@@ -58,9 +58,9 @@ class Config:
 
     def __eligible_views(self) -> List[Path]:
         out: List[Path] = []
-        if not self.VIEWS_DIR.exists():
+        if not self.APPS_PAGES_DIR.exists():
             return out
-        for p in sorted(self.VIEWS_DIR.iterdir()):
+        for p in sorted(self.APPS_PAGES_DIR.iterdir()):
             if not p.is_dir():
                 continue
             if p.name.startswith((".", "__")):
@@ -605,19 +605,19 @@ def main():
 
         realized_apps.append(app.name)
     
-    realized_views = []
-    for view in cfg.eligible_views:
-        view_py = venv_python_for(view)
-        if not view_py:
-            logging.warning(f"No virtual environment found for {view.name}, skipping.")
+    realized_apps_pages = []
+    for apps_page in cfg.eligible_apps_pages:
+        apps_page_py = venv_python_for(apps_page)
+        if not apps_page_py:
+            logging.warning(f"No virtual environment found for {apps_page.name}, skipping.")
             continue
 
-        iml = model.write_module_minimal(view.name, view)
-        sdk_name = f"uv ({view.name})"
-        jdk_table.add_jdk(sdk_name, view_py)
+        iml = model.write_module_minimal(apps_page.name, apps_page)
+        sdk_name = f"uv ({apps_page.name})"
+        jdk_table.add_jdk(sdk_name, apps_page_py)
         model.set_module_sdk(iml, sdk_name)
         model.add_module_entry(iml)
-        realized_views.append(view.name)
+        realized_apps_pages.append(apps_page.name)
 
     realized_core = []
     for core in cfg.eligible_core:
@@ -642,7 +642,7 @@ def main():
     logging.info("Project setup completed successfully.")
     logging.info(f"Realized apps: {', '.join([app for app in realized_apps])}")
     logging.info(f"Realized core: {', '.join([core for core in realized_core])}")
-    logging.info(f"Realized views: {', '.join([view for view in realized_views])}")
+    logging.info(f"Realized apps_pages: {', '.join([apps_page for apps_page in realized_apps_pages])}")
 
     if cfg.AGISPACE.exists():
         logging.info("Realizing agi-space as a module.")
