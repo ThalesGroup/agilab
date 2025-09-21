@@ -602,13 +602,32 @@ def main():
     realized_apps_pages = []
     for apps_page in cfg.eligible_apps_pages:
         apps_page_py = venv_python_for(apps_page)
+        if not apps_page_py:
+            logging.info(f"No virtual environment found for {apps_page.name}; attempting uv sync to bootstrap it.")
+            try:
+                subprocess.run(
+                    ["uv", "sync", "--project", ".", "--preview-features", "python-upgrade"],
+                    cwd=apps_page,
+                    check=True,
+                )
+            except FileNotFoundError:
+                logging.warning("'uv' command not found while bootstrapping %s", apps_page.name)
+            except subprocess.CalledProcessError as exc:
+                logging.warning("uv sync failed for %s: %s", apps_page.name, exc)
+            else:
+                apps_page_py = venv_python_for(apps_page)
+
         iml = model.write_module_minimal(apps_page.name, apps_page)
 
         if apps_page_py:
             sdk_name = f"uv ({apps_page.name})"
             jdk_table.add_jdk(sdk_name, apps_page_py)
         else:
-            logging.warning(f"No virtual environment found for {apps_page.name}, falling back to project SDK {cfg.PROJECT_SDK}.")
+            logging.warning(
+                "No virtual environment found for %s even after bootstrap; falling back to project SDK %s.",
+                apps_page.name,
+                cfg.PROJECT_SDK,
+            )
             sdk_name = cfg.PROJECT_SDK
 
         model.set_module_sdk(iml, sdk_name)
