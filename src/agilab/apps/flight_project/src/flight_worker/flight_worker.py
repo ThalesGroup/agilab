@@ -131,10 +131,10 @@ class FlightWorker(PolarsWorker):
         self.args["data_uri"] = data_uri
 
         if self.verbose > 1:
-            logging.info(f"Worker #{self.worker_id} dataframe root path = {self.data_out}")
+            logging.info(f"Worker #{self._worker_id} dataframe root path = {self.data_out}")
 
         if self.verbose > 0:
-            logging.info(f"start worker_id {self.worker_id}\n")
+            logging.info(f"start worker_id {self._worker_id}\n")
         args = self.args
 
         if args["data_source"] == "file":
