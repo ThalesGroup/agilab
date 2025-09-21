@@ -35,4 +35,4 @@ def test_onerror_handles_exception():
             # Important: lambda doit accepter un argument, ici 'path'
             dispatcher._onerror(func=lambda path: None, path='dummy_path', exc_info=('exc_type', 'exc_value', 'traceback'))
         except Exception:
-            pytest.fail("onerror raised Exception unexpectedly!")
+            pytest.fail("_onerror raised Exception unexpectedly!")
