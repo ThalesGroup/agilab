@@ -3,7 +3,7 @@ Example4: Link-Sim-Project
 
 manager: link_sim
 ------
-.. image:: diagrams/packages_link_sim.png
+.. image:: diagrams/packages_link_sim.svg
    :width: 400
    :alt: Alternative text
    :align: center
@@ -13,14 +13,26 @@ manager: link_sim
    :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_link_sim.png
+.. image:: diagrams/classes_link_sim.svg
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+args: link_sim.app_args
+-------------
+.. automodule:: link_sim.app_args
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_link_sim_args.svg
    :width: 400
    :alt: Alternative text
    :align: center
 
 worker: link_sim_worker
 -------------
-.. image:: diagrams/packages_link_sim_worker.png
+.. image:: diagrams/packages_link_sim_worker.svg
    :width: 400
    :alt: Alternative text
    :align: center
@@ -30,7 +42,7 @@ worker: link_sim_worker
    :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_link_sim_worker.png
+.. image:: diagrams/classes_link_sim_worker.svg
    :width: 400
    :alt: Alternative text
    :align: center

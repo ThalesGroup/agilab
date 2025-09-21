@@ -121,7 +121,7 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="framework-api.html">Framework API</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="agi-env.html">agi_env API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-env.html">agi-env API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="agi-env.html#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#instanciation">Instanciation</a></li>
 </ul>
@@ -137,7 +137,16 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="agi-distributor.html">agi_distributor API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-node.html">agi-node API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agi-node.html#reference">Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#dag-worker">dag_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#pandas-worker">pandas_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#polars-worker">polars_worker</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="agi-distributor.html">agi-distributor API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="agi-distributor.html#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-distributor.html#installation">Installation</a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-distributor.html#distribute">Distribute</a></li>
@@ -145,15 +154,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="agi-distributor.html#reference">Reference</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="workers.html">agi-node API</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="workers.html#agi-node-reference">agi-node Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#dag-worker">dag_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#pandas-worker">pandas_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#polars-worker">polars_worker</a></li>
-</ul>
-</li>
 </ul>
 </li>
 </ul>
@@ -186,26 +186,31 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="mycode-project.html">Example1: Mycode-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="mycode-project.html#manager">manager:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#args">args:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mycode-project.html#worker-mycode-worker">worker: mycode_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="flight-project.html">Example2: Flight-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#manager-flight">manager: flight</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#args-flight-args">args: flight_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#worker-flight-worker">worker: flight_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="flight-trajectory-project.html">Example3: Flight-Trajectory-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#manager-flight-trajectory">manager: flight_trajectory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#args-flight-trajectory-app-args">args: flight_trajectory.app_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#worker-flight-trajectory-worker">worker: flight_trajectory_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="link-sim-project.html">Example4: Link-Sim-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#manager-link-sim">manager: link_sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#args-link-sim-app-args">args: link_sim.app_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#worker-link-sim-worker">worker: link_sim_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Example5: Sat-Trajectory-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#manager-sat-trajectory">manager: sat_trajectory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#args-sat-trajectory-app-args">args: sat_trajectory.app_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#worker-sat-trajectory-worker">worker: sat_trajectory_worker</a></li>
 </ul>
 </li>
@@ -249,16 +254,21 @@
 <h1>Example5: Sat-Trajectory-Project<a class="headerlink" href="#example5-sat-trajectory-project" title="Link to this heading"></a></h1>
 <section id="manager-sat-trajectory">
 <h2>manager: sat_trajectory<a class="headerlink" href="#manager-sat-trajectory" title="Link to this heading"></a></h2>
-<a class="reference internal image-reference" href="_images/packages_sat_trajectory.png"><img alt="Alternative text" class="align-center" src="_images/packages_sat_trajectory.png" style="width: 400px;" />
+<a class="reference internal image-reference" href="_images/packages_sat_trajectory.svg"><img alt="Alternative text" class="align-center" src="_images/packages_sat_trajectory.svg" style="width: 400px;" />
 </a>
-<a class="reference internal image-reference" href="_images/classes_sat_trajectory.png"><img alt="Alternative text" class="align-center" src="_images/classes_sat_trajectory.png" style="width: 400px;" />
+<a class="reference internal image-reference" href="_images/classes_sat_trajectory.svg"><img alt="Alternative text" class="align-center" src="_images/classes_sat_trajectory.svg" style="width: 400px;" />
+</a>
+</section>
+<section id="args-sat-trajectory-app-args">
+<h2>args: sat_trajectory.app_args<a class="headerlink" href="#args-sat-trajectory-app-args" title="Link to this heading"></a></h2>
+<a class="reference internal image-reference" href="_images/classes_sat_trajectory_args.svg"><img alt="Alternative text" class="align-center" src="_images/classes_sat_trajectory_args.svg" style="width: 400px;" />
 </a>
 </section>
 <section id="worker-sat-trajectory-worker">
 <h2>worker: sat_trajectory_worker<a class="headerlink" href="#worker-sat-trajectory-worker" title="Link to this heading"></a></h2>
-<a class="reference internal image-reference" href="_images/packages_sat_trajectory_worker.png"><img alt="Alternative text" class="align-center" src="_images/packages_sat_trajectory_worker.png" style="width: 400px;" />
+<a class="reference internal image-reference" href="_images/packages_sat_trajectory_worker.svg"><img alt="Alternative text" class="align-center" src="_images/packages_sat_trajectory_worker.svg" style="width: 400px;" />
 </a>
-<a class="reference internal image-reference" href="_images/classes_sat_trajectory_worker.png"><img alt="Alternative text" class="align-center" src="_images/classes_sat_trajectory_worker.png" style="width: 400px;" />
+<a class="reference internal image-reference" href="_images/classes_sat_trajectory_worker.svg"><img alt="Alternative text" class="align-center" src="_images/classes_sat_trajectory_worker.svg" style="width: 400px;" />
 </a>
 </section>
 </section>

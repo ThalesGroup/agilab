@@ -1,4 +1,4 @@
-agi_env API
+agi-env API
 ===========
 
 This is a module share between core/agi-core and gui/agilab to set all the path required by both
@@ -19,7 +19,7 @@ Reference
 agi_env
 ~~~~~~~~
 
-.. image:: diagrams/packages_agi_env.png
+.. image:: diagrams/packages_agi_env.svg
    :width: 400
    :alt: Packages diagram for agi-env
    :align: center
@@ -29,7 +29,7 @@ agi_env
    :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_agi_env.png
+.. image:: diagrams/classes_agi_env.svg
    :width: 400
    :alt: Classes diagram for agi_env
    :align: center

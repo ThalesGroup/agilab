@@ -118,16 +118,10 @@
 <li class="toctree-l3"><a class="reference internal" href="experiment_help.html#main-content-area">Main Content Area</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="views_help.html">▶️ VIEW</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="views_help.html#introduction">Introduction</a></li>
-<li class="toctree-l3"><a class="reference internal" href="views_help.html#sidebar">Sidebar</a></li>
-<li class="toctree-l3"><a class="reference internal" href="views_help.html#main-content-area">Main Content Area</a></li>
-</ul>
-</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="framework-api.html">Framework API</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="agi-env.html">agi_env API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-env.html">agi-env API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="agi-env.html#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#instanciation">Instanciation</a></li>
 </ul>
@@ -143,7 +137,16 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="agi-distributor.html">agi_distributor API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-node.html">agi-node API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agi-node.html#reference">Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#dag-worker">dag_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#pandas-worker">pandas_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#polars-worker">polars_worker</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="agi-distributor.html">agi-distributor API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="agi-distributor.html#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-distributor.html#installation">Installation</a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-distributor.html#distribute">Distribute</a></li>
@@ -151,16 +154,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="agi-distributor.html#reference">Reference</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="workers.html">workers API</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="workers.html#workers-reference">Workers Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#agent-worker">agent_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#dag-worker">dag_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#pandas-worker">pandas_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#polars-worker">polars_worker</a></li>
-</ul>
-</li>
 </ul>
 </li>
 </ul>
@@ -193,26 +186,31 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="mycode-project.html">Example1: Mycode-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="mycode-project.html#manager">manager:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#args">args:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mycode-project.html#worker-mycode-worker">worker: mycode_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="flight-project.html">Example2: Flight-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#manager-flight">manager: flight</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#args-flight-args">args: flight_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#worker-flight-worker">worker: flight_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="flight-trajectory-project.html">Example3: Flight-Trajectory-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#manager-flight-trajectory">manager: flight_trajectory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#args-flight-trajectory-app-args">args: flight_trajectory.app_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#worker-flight-trajectory-worker">worker: flight_trajectory_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="link-sim-project.html">Example4: Link-Sim-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#manager-link-sim">manager: link_sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#args-link-sim-app-args">args: link_sim.app_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#worker-link-sim-worker">worker: link_sim_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="sat-trajectory-project.html">Example5: Sat-Trajectory-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#manager-sat-trajectory">manager: sat_trajectory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#args-sat-trajectory-app-args">args: sat_trajectory.app_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#worker-sat-trajectory-worker">worker: sat_trajectory_worker</a></li>
 </ul>
 </li>
@@ -263,93 +261,27 @@ it will create a file (~/xxx-project_trace.txt) that shows what happened in duri
 <section id="b-pycharm-run-debug-configurations">
 <h2>B - Pycharm Run/Debug configurations:<a class="headerlink" href="#b-pycharm-run-debug-configurations" title="Link to this heading"></a></h2>
 <p>These scripts are provided to debug your app with the PyCharm IDE, which best matches Agilab troubleshooting.</p>
-<div class="code text highlight-default notranslate"><div class="highlight"><pre><span></span>runConfigurations
-├── _flight_call_worker.xml
-├── _flight_distribute.xml
-├── _flight_egg_manager.xml
-├── _flight_lib_worker.xml
-├── _flight_postinstall_worker.xml
-├── _flight_preinstall_manager.xml
-├── _flight_run.xml
-├── _flight_test.xml
-├── _flight_test_manager.xml
-├── _flight_test_worker.xml
-├── _flight_trajectory_call_worker.xml
-├── _flight_trajectory_distribute.xml
-├── _flight_trajectory_egg_manager.xml
-├── _flight_trajectory_lib_worker.xml
-├── _flight_trajectory_postinstall_worker.xml
-├── _flight_trajectory_preinstall_manager.xml
-├── _flight_trajectory_run.xml
-├── _flight_trajectory_test.xml
-├── _flight_trajectory_test_manager.xml
-├── _flight_trajectory_test_worker.xml
-├── _link_sim_call_worker.xml
-├── _link_sim_distribute.xml
-├── _link_sim_egg_manager.xml
-├── _link_sim_lib_worker.xml
-├── _link_sim_postinstall_worker.xml
-├── _link_sim_preinstall_manager.xml
-├── _link_sim_run.xml
-├── _link_sim_test.xml
-├── _link_sim_test_manager.xml
-├── _link_sim_test_worker.xml
-├── _mycode_call_worker.xml
-├── _mycode_distribute.xml
-├── _mycode_egg_manager.xml
-├── _mycode_lib_worker.xml
-├── _mycode_postinstall_worker.xml
-├── _mycode_preinstall_manager.xml
-├── _mycode_run.xml
-├── _mycode_test.xml
-├── _mycode_test_manager.xml
-├── _mycode_test_worker.xml
-├── _sat_trajectory_call_worker.xml
-├── _sat_trajectory_distribute.xml
-├── _sat_trajectory_egg_manager.xml
-├── _sat_trajectory_lib_worker.xml
-├── _sat_trajectory_postinstall_worker.xml
-├── _sat_trajectory_preinstall_manager.xml
-├── _sat_trajectory_run.xml
-├── _sat_trajectory_test.xml
-├── _sat_trajectory_test_manager.xml
-├── _sat_trajectory_test_worker.xml
-├── _sb3_trainer_call_worker.xml
-├── _sb3_trainer_distribute.xml
-├── _sb3_trainer_egg_manager.xml
-├── _sb3_trainer_lib_worker.xml
-├── _sb3_trainer_postinstall_worker.xml
-├── _sb3_trainer_preinstall_manager.xml
-├── _sb3_trainer_run.xml
-├── _sb3_trainer_test.xml
-├── _sb3_trainer_test_manager.xml
-├── _sb3_trainer_test_worker.xml
-├── agilab_run__dev_.xml
-├── agilab_run__enduser_.xml
-├── app_install.xml
-├── app_install__local_.xml
+<div class="code text highlight-default notranslate"><div class="highlight"><pre><span></span>Command
+    tree -L 1 .idea/runConfigurations
+
+Structure
+.idea/runConfigurations/
+├── &lt;app&gt;_{call_worker, distribute, egg_manager, lib_worker, postinstall_worker, preinstall_manager, run, test, test_manager, test_worker}.xml
+│      where &lt;app&gt; ∈ {flight, flight_trajectory, link_sim, mycode, sat_trajectory, sb3_trainer}
+├── agilab_run_{dev,enduser}.xml
+├── app_install{,_local}.xml
 ├── app_script_gen.xml
 ├── app_test.xml
-├── autoencoder_latenspace.xml
-├── barycentric_graph.xml
-├── folders.xml
-├── install_agilab_dev.xml
-├── install_agilab_enduser.xml
+├── install_agilab_{dev,enduser}.xml
 ├── lab_run_test.xml
-├── maps.xml
-├── maps_3D.xml
-├── maps_network_graph.xml
-├── pypi_publish.xml
-├── run_ssh_cmd.xml
+├── learn_examples: {autoencoder_latenspace, barycentric_graph}.xml
+├── maps{,_3D,_network_graph}.xml
 ├── show_depencencies.xml
-├── test_agi_distributor.xml
-├── test_agi_env.xml
-├── test_base_worker.xml
-├── test_dag_worker.xml
-├── test_pandas_worker.xml
-├── test_polars_worker.xml
-├── test_work_dispatcher.xml
-└── zip_all_gen.xml
+├── run_ssh_cmd.xml
+├── zip_all_gen.xml
+├── pypi_publish.xml
+├── folders.xml
+└── misc tests: {test_agi_distributor, test_agi_env, test_base_worker, test_dag_worker, test_pandas_worker, test_polars_worker, test_work_dispatcher}.xml
 </pre></div>
 </div>
 </section>

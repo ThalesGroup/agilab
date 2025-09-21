@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>agi_env API &mdash; AGILab 1.0.0 documentation</title>
+  <title>agi-env API &mdash; AGILab 1.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
@@ -24,7 +24,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="agi_distributor API" href="agi-distributor.html" />
+    <link rel="next" title="agi-node API" href="agi-node.html" />
     <link rel="prev" title="Framework API" href="framework-api.html" /> 
 </head>
 
@@ -121,7 +121,7 @@
 </ul>
 </li>
 <li class="toctree-l1 current"><a class="reference internal" href="framework-api.html">Framework API</a><ul class="current">
-<li class="toctree-l2 current"><a class="current reference internal" href="#">agi_env API</a><ul>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">agi-env API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#instanciation">Instanciation</a></li>
 </ul>
@@ -137,7 +137,16 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="agi-distributor.html">agi_distributor API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-node.html">agi-node API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agi-node.html#reference">Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#dag-worker">dag_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#pandas-worker">pandas_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#polars-worker">polars_worker</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="agi-distributor.html">agi-distributor API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="agi-distributor.html#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-distributor.html#installation">Installation</a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-distributor.html#distribute">Distribute</a></li>
@@ -145,15 +154,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="agi-distributor.html#reference">Reference</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="workers.html">agi-node API</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="workers.html#agi-node-reference">agi-node Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#dag-worker">dag_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#pandas-worker">pandas_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#polars-worker">polars_worker</a></li>
-</ul>
-</li>
 </ul>
 </li>
 </ul>
@@ -186,26 +186,31 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="mycode-project.html">Example1: Mycode-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="mycode-project.html#manager">manager:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#args">args:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mycode-project.html#worker-mycode-worker">worker: mycode_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="flight-project.html">Example2: Flight-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#manager-flight">manager: flight</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#args-flight-args">args: flight_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#worker-flight-worker">worker: flight_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="flight-trajectory-project.html">Example3: Flight-Trajectory-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#manager-flight-trajectory">manager: flight_trajectory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#args-flight-trajectory-app-args">args: flight_trajectory.app_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#worker-flight-trajectory-worker">worker: flight_trajectory_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="link-sim-project.html">Example4: Link-Sim-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#manager-link-sim">manager: link_sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#args-link-sim-app-args">args: link_sim.app_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#worker-link-sim-worker">worker: link_sim_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="sat-trajectory-project.html">Example5: Sat-Trajectory-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#manager-sat-trajectory">manager: sat_trajectory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#args-sat-trajectory-app-args">args: sat_trajectory.app_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#worker-sat-trajectory-worker">worker: sat_trajectory_worker</a></li>
 </ul>
 </li>
@@ -236,7 +241,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="framework-api.html">Framework API</a></li>
-      <li class="breadcrumb-item active">agi_env API</li>
+      <li class="breadcrumb-item active">agi-env API</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/agi-env.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -247,7 +252,7 @@
            <div itemprop="articleBody">
              
   <section id="agi-env-api">
-<h1>agi_env API<a class="headerlink" href="#agi-env-api" title="Link to this heading"></a></h1>
+<h1>agi-env API<a class="headerlink" href="#agi-env-api" title="Link to this heading"></a></h1>
 <p>This is a module share between core/agi-core and gui/agilab to set all the path required by both</p>
 <section id="usage-example">
 <h2>Usage Example<a class="headerlink" href="#usage-example" title="Link to this heading"></a></h2>
@@ -257,12 +262,18 @@
 </section>
 <section id="reference">
 <h2>Reference<a class="headerlink" href="#reference" title="Link to this heading"></a></h2>
-<a class="reference internal image-reference" href="_images/packages_agi_env.png"><img alt="Packages diagram for agi-env" class="align-center" src="_images/packages_agi_env.png" style="width: 400px;" />
+<a class="reference internal image-reference" href="_images/packages_agi_env.svg"><img alt="Packages diagram for agi-env" class="align-center" src="_images/packages_agi_env.svg" style="width: 400px;" />
 </a>
-<dl class="py class" id="module-agi_env.agi_env">
+<p id="module-agi_env.agi_env">AGILab environment bootstrapper and utility helpers.</p>
+<p>The module exposes the <a class="reference internal" href="#agi_env.agi_env.AgiEnv" title="agi_env.agi_env.AgiEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">AgiEnv</span></code></a> class which orchestrates project discovery,
+virtual-environment management, packaging helpers, and convenience utilities used
+by installers as well as runtime workers.  Supporting free functions provide small
+parsing and path utilities leveraged during setup.</p>
+<dl class="py class">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv">
 <em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agi_env.agi_env.</span></span><span class="sig-name descname"><span class="pre">AgiEnv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">active_app</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">install_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">debug</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">python_variante</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Encapsulates filesystem and configuration state for AGILab deployments.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.EXTRA_INDEX_URL">
 <span class="sig-name descname"><span class="pre">EXTRA_INDEX_URL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'https://pypi.org/simple'</span></em><a class="headerlink" href="#agi_env.agi_env.AgiEnv.EXTRA_INDEX_URL" title="Link to this definition"></a></dt>
@@ -291,7 +302,8 @@
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.active">
 <span class="sig-name descname"><span class="pre">active</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">install_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.active"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.active" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Switch <code class="xref py py-attr docutils literal notranslate"><span class="pre">active_app</span></code> to <code class="docutils literal notranslate"><span class="pre">target</span></code> if it differs from the current one.</p>
+</dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.app">
@@ -316,7 +328,8 @@
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.check_args">
 <span class="sig-name descname"><span class="pre">check_args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_args_class</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.check_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.check_args" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Validate <code class="docutils literal notranslate"><span class="pre">target_args</span></code> using <code class="docutils literal notranslate"><span class="pre">target_args_class</span></code> and return any errors.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.check_internet">
@@ -348,15 +361,14 @@ then cleaning up any leftovers.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.copy_and_replace">
 <span class="sig-name descname"><span class="pre">copy_and_replace</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">src</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dst</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">8</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.copy_and_replace"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.copy_and_replace" title="Link to this definition"></a></dt>
-<dd><p>Remove any existing subdirectory in dst that matches src’s subdirectory,
-then copy everything from src into dst.
-Robust: skips missing items, logs a warning, never crashes.</p>
+<dd><p>Copy <code class="docutils literal notranslate"><span class="pre">src</span></code> into <code class="docutils literal notranslate"><span class="pre">dst</span></code> after removing existing conflicting entries.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.copy_existing_projects">
 <span class="sig-name descname"><span class="pre">copy_existing_projects</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">src_apps</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dst_apps</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.copy_existing_projects"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.copy_existing_projects" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Copy <code class="docutils literal notranslate"><span class="pre">*_project</span></code> trees from <code class="docutils literal notranslate"><span class="pre">src_apps</span></code> into <code class="docutils literal notranslate"><span class="pre">dst_apps</span></code> if missing.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.create_junction_windows">
@@ -417,37 +429,44 @@ in-file identifiers and class names.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.extract_base_info">
 <span class="sig-name descname"><span class="pre">extract_base_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">import_mapping</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.extract_base_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.extract_base_info" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Return the base-class name and originating module for <code class="docutils literal notranslate"><span class="pre">base</span></code> nodes.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.get_base_classes">
 <span class="sig-name descname"><span class="pre">get_base_classes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">module_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">class_name</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.get_base_classes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.get_base_classes" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Inspect <code class="docutils literal notranslate"><span class="pre">module_path</span></code> AST to retrieve base classes of <code class="docutils literal notranslate"><span class="pre">class_name</span></code>.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.get_base_worker_cls">
 <span class="sig-name descname"><span class="pre">get_base_worker_cls</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">module_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">class_name</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.get_base_worker_cls"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.get_base_worker_cls" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Return the base worker class name and module for <code class="docutils literal notranslate"><span class="pre">class_name</span></code>.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.get_full_attribute_name">
 <span class="sig-name descname"><span class="pre">get_full_attribute_name</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.get_full_attribute_name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.get_full_attribute_name" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Reconstruct the dotted attribute path represented by <code class="docutils literal notranslate"><span class="pre">node</span></code>.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.get_import_mapping">
 <span class="sig-name descname"><span class="pre">get_import_mapping</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.get_import_mapping"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.get_import_mapping" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Build a mapping of names to modules from <code class="docutils literal notranslate"><span class="pre">import</span></code> statements in <code class="docutils literal notranslate"><span class="pre">source</span></code>.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.get_modules">
 <span class="sig-name descname"><span class="pre">get_modules</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.get_modules"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.get_modules" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Return canonical module names derived from discovered projects.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.get_projects">
 <span class="sig-name descname"><span class="pre">get_projects</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.get_projects"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.get_projects" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Return the names of <code class="docutils literal notranslate"><span class="pre">*_project</span></code> directories beneath <code class="docutils literal notranslate"><span class="pre">path</span></code>.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.handle_venv_directory">
@@ -480,7 +499,8 @@ in-file identifiers and class names.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.has_agilab_anywhere_under_home">
 <span class="sig-name descname"><span class="pre">has_agilab_anywhere_under_home</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.has_agilab_anywhere_under_home"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.has_agilab_anywhere_under_home" title="Link to this definition"></a></dt>
-<dd><dl class="field-list simple">
+<dd><p>Return <code class="docutils literal notranslate"><span class="pre">True</span></code> when <code class="docutils literal notranslate"><span class="pre">path</span></code> sits under the user’s home <code class="docutils literal notranslate"><span class="pre">agilab</span></code> tree.</p>
+<dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></span></p>
 </dd>
@@ -490,7 +510,8 @@ in-file identifiers and class names.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.humanize_validation_errors">
 <span class="sig-name descname"><span class="pre">humanize_validation_errors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">error</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.humanize_validation_errors"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.humanize_validation_errors" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Format pydantic-style validation <code class="docutils literal notranslate"><span class="pre">error</span></code> messages for human consumption.</p>
+</dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.hw_rapids_capable">
@@ -505,7 +526,8 @@ in-file identifiers and class names.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.init_envars_app">
 <span class="sig-name descname"><span class="pre">init_envars_app</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">envars</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.init_envars_app"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.init_envars_app" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Cache frequently used environment variables and ensure directories exist.</p>
+</dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.install_type">
@@ -541,7 +563,8 @@ in-file identifiers and class names.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.locate_agilab_installation">
 <em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">locate_agilab_installation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.locate_agilab_installation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.locate_agilab_installation" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Attempt to locate the installed AGILab package path on disk.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.log_info">
@@ -561,12 +584,14 @@ in-file identifiers and class names.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.mode2int">
 <em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">mode2int</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.mode2int"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.mode2int" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Convert an iterable of mode flags (<code class="docutils literal notranslate"><span class="pre">p</span></code>, <code class="docutils literal notranslate"><span class="pre">c</span></code>, <code class="docutils literal notranslate"><span class="pre">d</span></code>) to the bitmask int.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.mode2str">
 <span class="sig-name descname"><span class="pre">mode2str</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.mode2str"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.mode2str" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Encode a bitmask <code class="docutils literal notranslate"><span class="pre">mode</span></code> into readable <code class="docutils literal notranslate"><span class="pre">pcdr</span></code> flag form.</p>
+</dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.out_log">
@@ -581,7 +606,8 @@ in-file identifiers and class names.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.read_agilab_path">
 <em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">read_agilab_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.read_agilab_path"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.read_agilab_path" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Return the persisted AGILab installation path if previously recorded.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.read_gitignore">
@@ -645,7 +671,8 @@ Raises on non-zero exit (logs stderr tail).</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.set_env_var">
 <em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">set_env_var</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.set_env_var"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.set_env_var" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Persist <code class="docutils literal notranslate"><span class="pre">key</span></code>/<code class="docutils literal notranslate"><span class="pre">value</span></code> in <code class="xref py py-attr docutils literal notranslate"><span class="pre">envars</span></code>, <code class="docutils literal notranslate"><span class="pre">os.environ</span></code> and the <code class="docutils literal notranslate"><span class="pre">.env</span></code> file.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.set_install_type">
@@ -676,7 +703,8 @@ Raises on non-zero exit (logs stderr tail).</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.update_pyproject">
 <span class="sig-name descname"><span class="pre">update_pyproject</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.update_pyproject"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.update_pyproject" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Synchronise <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> dependencies with editable installs.</p>
+</dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.uv">
@@ -970,7 +998,8 @@ Raises on non-zero exit (logs stderr tail).</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="agi_env.agi_env.is_packaging_cmd">
 <span class="sig-prename descclassname"><span class="pre">agi_env.agi_env.</span></span><span class="sig-name descname"><span class="pre">is_packaging_cmd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#is_packaging_cmd"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.is_packaging_cmd" title="Link to this definition"></a></dt>
-<dd><dl class="field-list simple">
+<dd><p>Return <code class="docutils literal notranslate"><span class="pre">True</span></code> when <code class="docutils literal notranslate"><span class="pre">cmd</span></code> appears to invoke <code class="docutils literal notranslate"><span class="pre">uv</span></code> or <code class="docutils literal notranslate"><span class="pre">pip</span></code>.</p>
+<dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></span></p>
 </dd>
@@ -980,24 +1009,44 @@ Raises on non-zero exit (logs stderr tail).</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="agi_env.agi_env.normalize_path">
 <span class="sig-prename descclassname"><span class="pre">agi_env.agi_env.</span></span><span class="sig-name descname"><span class="pre">normalize_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#normalize_path"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.normalize_path" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Return <code class="docutils literal notranslate"><span class="pre">path</span></code> coerced to a normalised string representation.</p>
+<p><code class="docutils literal notranslate"><span class="pre">Path</span></code> objects are converted to a string that matches the current platform
+conventions so the value can safely be stored in configuration files or
+environment variables.</p>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="agi_env.agi_env.parse_level">
 <span class="sig-prename descclassname"><span class="pre">agi_env.agi_env.</span></span><span class="sig-name descname"><span class="pre">parse_level</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">line</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_level</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#parse_level"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.parse_level" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Resolve a logging level token found in <code class="docutils literal notranslate"><span class="pre">line</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>line</strong> – The text that might contain a logging level marker.</p></li>
+<li><p><strong>default_level</strong> – The integer level returned when no explicit marker is present.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The numeric logging level understood by <code class="xref py py-mod docutils literal notranslate"><span class="pre">logging</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="agi_env.agi_env.strip_time_level_prefix">
 <span class="sig-prename descclassname"><span class="pre">agi_env.agi_env.</span></span><span class="sig-name descname"><span class="pre">strip_time_level_prefix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">line</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#strip_time_level_prefix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.strip_time_level_prefix" title="Link to this definition"></a></dt>
-<dd><dl class="field-list simple">
+<dd><p>Remove a <code class="docutils literal notranslate"><span class="pre">HH:MM:SS</span> <span class="pre">LEVEL</span></code> prefix commonly emitted by log handlers.</p>
+<dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></span></p>
 </dd>
 </dl>
 </dd></dl>
 
-<a class="reference internal image-reference" href="_images/classes_agi_env.png"><img alt="Classes diagram for agi_env" class="align-center" src="_images/classes_agi_env.png" style="width: 400px;" />
+<a class="reference internal image-reference" href="_images/classes_agi_env.svg"><img alt="Classes diagram for agi_env" class="align-center" src="_images/classes_agi_env.svg" style="width: 400px;" />
 </a>
 </section>
 </section>
@@ -1007,7 +1056,7 @@ Raises on non-zero exit (logs stderr tail).</p>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="framework-api.html" class="btn btn-neutral float-left" title="Framework API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="agi-distributor.html" class="btn btn-neutral float-right" title="agi_distributor API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="agi-node.html" class="btn btn-neutral float-right" title="agi-node API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

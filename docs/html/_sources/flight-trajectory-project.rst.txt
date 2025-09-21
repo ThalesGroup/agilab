@@ -3,7 +3,7 @@ Example3: Flight-Trajectory-Project
 
 manager: flight_trajectory
 ------
-.. image:: diagrams/packages_flight_trajectory.png
+.. image:: diagrams/packages_flight_trajectory.svg
    :width: 400
    :alt: Alternative text
    :align: center
@@ -13,14 +13,26 @@ manager: flight_trajectory
    :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_flight_trajectory.png
+.. image:: diagrams/classes_flight_trajectory.svg
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+args: flight_trajectory.app_args
+-------------
+.. automodule:: flight_trajectory.app_args
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_flight_trajectory_args.svg
    :width: 400
    :alt: Alternative text
    :align: center
 
 worker: flight_trajectory_worker
 -------------
-.. image:: diagrams/packages_flight_trajectory_worker.png
+.. image:: diagrams/packages_flight_trajectory_worker.svg
    :width: 400
    :alt: Alternative text
    :align: center
@@ -30,7 +42,7 @@ worker: flight_trajectory_worker
    :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_flight_trajectory_worker.png
+.. image:: diagrams/classes_flight_trajectory_worker.svg
    :width: 400
    :alt: Alternative text
    :align: center

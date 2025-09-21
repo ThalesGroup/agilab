@@ -1,5 +1,5 @@
-agi_distributor API
-======================
+agi-distributor API
+===================
 
 Usage Example
 -------------
@@ -7,12 +7,12 @@ Usage Example
 Installation
 ^^^^^^^^^^^^
 
-.. literalinclude:: examples/AGI.install-mycode.py
+.. literalinclude:: examples/mycode/AGI.install-mycode.py
    :language: python
 
 ------
 
-.. literalinclude:: examples/AGI.install-flight.py
+.. literalinclude:: examples/flight/AGI.install-flight.py
    :language: python
 
 ------
@@ -20,12 +20,12 @@ Installation
 Distribute
 ^^^^^^^^^^^^
 
-.. literalinclude:: examples/AGI.distribute-mycode.py
+.. literalinclude:: examples/mycode/AGI.get_distrib-mycode.py
    :language: python
 
 -----
 
-.. literalinclude:: examples/AGI.distribute-flight.py
+.. literalinclude:: examples/flight/AGI.get_distrib-flight.py
    :language: python
 
 ----
@@ -33,12 +33,12 @@ Distribute
 Run
 ^^^
 
-.. literalinclude:: examples/AGI.run-mycode.py
+.. literalinclude:: examples/mycode/AGI.run-mycode.py
    :language: python
 
 ----
 
-.. literalinclude:: examples/AGI.run-flight.py
+.. literalinclude:: examples/flight/AGI.run-flight.py
    :language: python
 
 ----
@@ -49,14 +49,14 @@ Reference
 agi_distributor
 ~~~~~~~~~~
 
-.. image:: diagrams/packages_agi_distributor.png
+.. image:: diagrams/packages_agi_distributor.svg
    :width: 400
    :alt: Packages diagram for agi_distributor
    :align: center
 
 ----
 
-.. image:: diagrams/classes_agi_distributor.png
+.. image:: diagrams/classes_agi_distributor.svg
    :width: 400
    :alt: Classes diagram for agi_distributor
    :align: center

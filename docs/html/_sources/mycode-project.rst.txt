@@ -4,7 +4,7 @@ Example1: Mycode-Project
 
 manager:
 -------
-.. image:: diagrams/packages_mycode.png
+.. image:: diagrams/packages_mycode.svg
    :width: 400
    :alt: Alternative text
    :align: center
@@ -14,14 +14,26 @@ manager:
    :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_mycode.png
+.. image:: diagrams/classes_mycode.svg
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+args:
+-------------
+.. automodule:: mycode.app_args
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_mycode_args.svg
    :width: 400
    :alt: Alternative text
    :align: center
 
 worker: mycode_worker
 ---------------
-.. image:: diagrams/packages_mycode_worker.png
+.. image:: diagrams/packages_mycode_worker.svg
    :width: 400
    :alt: Alternative text
    :align: center
@@ -31,7 +43,7 @@ worker: mycode_worker
    :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_mycode_worker.png
+.. image:: diagrams/classes_mycode_worker.svg
    :width: 400
    :alt: Alternative text
    :align: center

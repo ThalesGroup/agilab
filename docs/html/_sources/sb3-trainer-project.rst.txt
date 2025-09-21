@@ -3,7 +3,7 @@ Example6: Sb3-Trainer-Project
 
 manager: sb3_trainer
 ------
-.. image:: diagrams/packages_sb3_trainer.png
+.. image:: diagrams/packages_sb3_trainer.svg
    :width: 400
    :alt: Alternative text
    :align: center
@@ -13,14 +13,14 @@ manager: sb3_trainer
    :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_sb3_trainer.png
+.. image:: diagrams/classes_sb3_trainer.svg
    :width: 400
    :alt: Alternative text
    :align: center
 
 worker: sb3_trainer_worker
 -------------
-.. image:: diagrams/packages_sb3_trainer_worker.png
+.. image:: diagrams/packages_sb3_trainer_worker.svg
    :width: 400
    :alt: Alternative text
    :align: center
@@ -30,7 +30,7 @@ worker: sb3_trainer_worker
    :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_sb3_trainer_worker.png
+.. image:: diagrams/classes_sb3_trainer_worker.svg
    :width: 400
    :alt: Alternative text
    :align: center

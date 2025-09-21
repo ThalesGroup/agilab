@@ -1,4 +1,4 @@
-Apps Pages
+apps-pages
 ===========
 
 App-page is a page to select the web page you want to enable for your app

@@ -3,7 +3,7 @@ Example2: Flight-Project
 
 manager: flight
 ------
-.. image:: diagrams/packages_flight.png
+.. image:: diagrams/packages_flight.svg
    :width: 400
    :alt: Alternative text
    :align: center
@@ -13,14 +13,26 @@ manager: flight
    :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_flight.png
+.. image:: diagrams/classes_flight.svg
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+args: flight_args
+-------------
+.. automodule:: flight.flight_args
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_flight_args.svg
    :width: 400
    :alt: Alternative text
    :align: center
 
 worker: flight_worker
 -------------
-.. image:: diagrams/packages_flight_worker.png
+.. image:: diagrams/packages_flight_worker.svg
    :width: 400
    :alt: Alternative text
    :align: center
@@ -30,7 +42,7 @@ worker: flight_worker
    :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_flight_worker.png
+.. image:: diagrams/classes_flight_worker.svg
    :width: 400
    :alt: Alternative text
    :align: center

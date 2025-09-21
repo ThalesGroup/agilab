@@ -25,7 +25,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Installation Overview" href="install-usecase.html" />
-    <link rel="prev" title="agi-node API" href="workers.html" /> 
+    <link rel="prev" title="agi-distributor API" href="agi-distributor.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -121,7 +121,7 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="framework-api.html">Framework API</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="agi-env.html">agi_env API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-env.html">agi-env API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="agi-env.html#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#instanciation">Instanciation</a></li>
 </ul>
@@ -137,7 +137,16 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="agi-distributor.html">agi_distributor API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-node.html">agi-node API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agi-node.html#reference">Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#dag-worker">dag_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#pandas-worker">pandas_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#polars-worker">polars_worker</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="agi-distributor.html">agi-distributor API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="agi-distributor.html#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-distributor.html#installation">Installation</a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-distributor.html#distribute">Distribute</a></li>
@@ -145,15 +154,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="agi-distributor.html#reference">Reference</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="workers.html">agi-node API</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="workers.html#agi-node-reference">agi-node Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#dag-worker">dag_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#pandas-worker">pandas_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#polars-worker">polars_worker</a></li>
-</ul>
-</li>
 </ul>
 </li>
 </ul>
@@ -186,26 +186,31 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="mycode-project.html">Example1: Mycode-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="mycode-project.html#manager">manager:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#args">args:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mycode-project.html#worker-mycode-worker">worker: mycode_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="flight-project.html">Example2: Flight-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#manager-flight">manager: flight</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#args-flight-args">args: flight_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#worker-flight-worker">worker: flight_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="flight-trajectory-project.html">Example3: Flight-Trajectory-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#manager-flight-trajectory">manager: flight_trajectory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#args-flight-trajectory-app-args">args: flight_trajectory.app_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#worker-flight-trajectory-worker">worker: flight_trajectory_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="link-sim-project.html">Example4: Link-Sim-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#manager-link-sim">manager: link_sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#args-link-sim-app-args">args: link_sim.app_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#worker-link-sim-worker">worker: link_sim_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="sat-trajectory-project.html">Example5: Sat-Trajectory-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#manager-sat-trajectory">manager: sat_trajectory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#args-sat-trajectory-app-args">args: sat_trajectory.app_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#worker-sat-trajectory-worker">worker: sat_trajectory_worker</a></li>
 </ul>
 </li>
@@ -264,31 +269,9 @@
 __pycache__/ [excluded]
 apps/
     __pycache__/ [excluded]
-    dag_app_template/
-        src/
-            __pycache__/ [excluded]
-            dag_app/
-                __pycache__/ [excluded]
-                __init__.py
-                app_args.py
-                dag_app.py
-            dag_app_worker/
-                __pycache__/ [excluded]
-                __init__.py
-                dag_app_worker.py
-                post_install.py
-                pre_install.py
-                pyproject.toml
-            app_settings.toml
-            args_ui_snippet.py
-            pre_prompt.json
-        .gitignore
-        MANIFEST.in
-        pyproject.toml
-        README.md
-        uv_config.toml
     flight_project/
         .pytest_cache/ [excluded]
+        .venv/ [excluded]
         Modules/ [excluded]
         src/
             __pycache__/ [excluded]
@@ -304,7 +287,6 @@ apps/
                 dataset.7z
                 flight_worker.c
                 flight_worker.py
-                flight_worker.pyx
                 post_install.py
                 pre_install.py
                 pyproject.toml
@@ -338,6 +320,7 @@ apps/
         uv_config.toml
     mycode_project/
         .pytest_cache/ [excluded]
+        .venv/ [excluded]
         Modules/ [excluded]
         src/
             __pycache__/ [excluded]
@@ -356,8 +339,10 @@ apps/
                 pre_install.py
                 pyproject.toml
                 run-all-test.py
+            agi_dispatcher
             app_settings.toml
             custom_ui.py
+            dag_worker
             pre_prompt.json
         test/
             __pycache__/ [excluded]
@@ -379,52 +364,67 @@ apps/
         pyproject.toml
         README.md
         uv_config.toml
-    pandas_app_template/
-        src/
-            __pycache__/ [excluded]
-            pandas_app/
-                __pycache__/ [excluded]
-                __init__.py
-                app_args.py
-                pandas_app.py
-            pandas_app_worker/
-                __pycache__/ [excluded]
-                __init__.py
-                pandas_app_worker.py
-                post_install.py
-                pre_install.py
-                pyproject.toml
-            app_settings.toml
-            args_ui_snippet.py
-            pre_prompt.json
-        .gitignore
-        MANIFEST.in
-        pyproject.toml
-        README.md
-        uv_config.toml
-    polars_app_template/
-        src/
-            __pycache__/ [excluded]
-            polars_app/
-                __pycache__/ [excluded]
-                __init__.py
-                app_args.py
-                polars_app.py
-            polars_app_worker/
-                __pycache__/ [excluded]
-                __init__.py
-                polars_app_worker.py
-                post_install.py
-                pre_install.py
-                pyproject.toml
-            app_settings.toml
-            args_ui_snippet.py
-            pre_prompt.json
-        .gitignore
-        MANIFEST.in
-        pyproject.toml
-        README.md
-        uv_config.toml
+    templates/
+        dag_app_template/
+            src/
+                dag_app/
+                    __init__.py
+                    app_args.py
+                    dag_app.py
+                dag_app_worker/
+                    __init__.py
+                    dag_app_worker.py
+                    post_install.py
+                    pre_install.py
+                    pyproject.toml
+                app_settings.toml
+                args_ui_snippet.py
+                pre_prompt.json
+            .gitignore
+            MANIFEST.in
+            pyproject.toml
+            README.md
+            uv_config.toml
+        pandas_app_template/
+            src/
+                pandas_app/
+                    __init__.py
+                    app_args.py
+                    pandas_app.py
+                pandas_app_worker/
+                    __init__.py
+                    pandas_app_worker.py
+                    post_install.py
+                    pre_install.py
+                    pyproject.toml
+                app_settings.toml
+                args_ui_snippet.py
+                pre_prompt.json
+            .gitignore
+            MANIFEST.in
+            pyproject.toml
+            README.md
+            uv_config.toml
+        polars_app_template/
+            src/
+                polars_app/
+                    __init__.py
+                    app_args.py
+                    polars_app.py
+                polars_app_worker/
+                    __init__.py
+                    polars_app_worker.py
+                    post_install.py
+                    pre_install.py
+                    pyproject.toml
+                app_settings.toml
+                args_ui_snippet.py
+                pre_prompt.json
+            .gitignore
+            MANIFEST.in
+            pyproject.toml
+            README.md
+            uv_config.toml
     .gitignore
     __init__.py
     flight_trajectory_project
@@ -436,6 +436,7 @@ apps/
     sb3_trainer_project
 apps-pages/
     view_autoencoder_latenspace/
+        .venv/ [excluded]
         src/
             view_autoencoder_latentspace/
                 __init__.py
@@ -443,6 +444,7 @@ apps-pages/
                 view_autoencoder_latentspace.py
         pyproject.toml
     view_barycentric/
+        .venv/ [excluded]
         src/
             view_barycentric/
                 __init__.py
@@ -457,6 +459,7 @@ apps-pages/
                 Project_Default.xml
             maps.iml
             modules.xml
+        .venv/ [excluded]
         apps/
         src/
             view_maps/
@@ -464,13 +467,14 @@ apps-pages/
                 maps.py
                 view_maps.py
         pyproject.toml
-    view_maps-3d/
+    view_maps_3d/
         .idea/
             inspectionProfiles/
                 profiles_settings.xml
                 Project_Default.xml
             maps-3d.iml
             modules.xml
+        .venv/ [excluded]
         src/
             view_maps_3d/
                 __init__.py
@@ -478,6 +482,7 @@ apps-pages/
                 view_maps_3d.py
         pyproject.toml
     view_maps_network/
+        .venv/ [excluded]
         src/
             view_maps_network/
                 maps_network_graph.py
@@ -581,8 +586,11 @@ core/
                 __init__.py
             __init__.py
         __init__.py
+        classes_agi_node.puml
+        classes_base_worker.puml
         LICENSE
         MANIFEST.in
+        packages_agi_node.puml
         pyproject.toml
         README.md
         SECURITY.md
@@ -610,24 +618,64 @@ core/
     install.ps1
     install.sh
 examples/
-    AGI.get_distrib-flight.py
-    AGI.get_distrib-flight_trajectory.py
-    AGI.get_distrib-link_sim.py
-    AGI.get_distrib-mycode.py
-    AGI.get_distrib-sat_trajectory.py
-    AGI.get_distrib-sb3_trainer.py
-    AGI.install-flight.py
-    AGI.install-flight_trajectory.py
-    AGI.install-link_sim.py
-    AGI.install-mycode.py
-    AGI.install-sat_trajectory.py
-    AGI.install-sb3_trainer.py
-    AGI.run-flight.py
-    AGI.run-flight_trajectory.py
-    AGI.run-link_sim.py
-    AGI.run-mycode.py
-    AGI.run-sat_trajectory.py
-    AGI.run-sb3_trainer.py
+    flight/
+        AGI.get_distrib-flight.py
+        AGI.install-flight.py
+        AGI.run-flight.py
+        classes_flight.png
+        classes_flight.svg
+        classes_flight_args.png
+        classes_flight_args.svg
+        classes_flight_worker.png
+        classes_flight_worker.svg
+    flight_trajectory/
+        AGI.get_distrib-flight_trajectory.py
+        AGI.install-flight_trajectory.py
+        AGI.run-flight_trajectory.py
+        classes_flight_trajectory.png
+        classes_flight_trajectory.svg
+        classes_flight_trajectory_args.png
+        classes_flight_trajectory_args.svg
+        classes_flight_trajectory_worker.png
+        classes_flight_trajectory_worker.svg
+    link_sim/
+        AGI.get_distrib-link_sim.py
+        AGI.install-link_sim.py
+        AGI.run-link_sim.py
+        classes_link_sim.png
+        classes_link_sim.svg
+        classes_link_sim_args.png
+        classes_link_sim_args.svg
+        classes_link_sim_worker.png
+        classes_link_sim_worker.svg
+    mycode/
+        AGI.get_distrib-mycode.py
+        AGI.install-mycode.py
+        AGI.run-mycode.py
+        classes_mycode.png
+        classes_mycode.svg
+        classes_mycode_args.png
+        classes_mycode_args.svg
+        classes_mycode_worker.png
+        classes_mycode_worker.svg
+    sat_trajectory/
+        AGI.get_distrib-sat_trajectory.py
+        AGI.install-sat_trajectory.py
+        AGI.run-sat_trajectory.py
+        classes_sat_trajectory.png
+        classes_sat_trajectory.svg
+        classes_sat_trajectory_args.png
+        classes_sat_trajectory_args.svg
+        classes_sat_trajectory_worker.png
+        classes_sat_trajectory_worker.svg
+    sb3_trainer/
+        AGI.get_distrib-sb3_trainer.py
+        AGI.install-sb3_trainer.py
+        AGI.run-sb3_trainer.py
+        classes_sb3_trainer.png
+        classes_sb3_trainer.svg
+        classes_sb3_trainer_worker.png
+        classes_sb3_trainer_worker.svg
     dask_worker_0.pid
 pages/
     __pycache__/ [excluded]
@@ -649,9 +697,62 @@ resources/
     code_editor.scss
     custom_buttons.json
     info_bar.json
+templates/
+    dag_app_template/
+        src/
+            __pycache__/ [excluded]
+            dag_app/
+                __pycache__/ [excluded]
+                __init__.py
+                app_args.py
+                dag_app.py
+            dag_app_worker/
+                __pycache__/ [excluded]
+                __init__.py
+                dag_app_worker.py
+                post_install.py
+                pre_install.py
+                pyproject.toml
+            __init__.py
+            app_settings.toml
+            args_ui_snippet.py
+            pre_prompt.json
+        .gitignore
+        __init__.py
+        MANIFEST.in
+        pyproject.toml
+        README.md
+        uv_config.toml
+    polars_app_template/
+        src/
+            __pycache__/ [excluded]
+            polars_app/
+                __pycache__/ [excluded]
+                __init__.py
+                app_args.py
+                polars_app.py
+            polars_app_worker/
+                __pycache__/ [excluded]
+                __init__.py
+                polars_app_worker.py
+                post_install.py
+                pre_install.py
+                pyproject.toml
+            __init__.py
+            app_settings.toml
+            args_ui_snippet.py
+            pre_prompt.json
+        .gitignore
+        __init__.py
+        MANIFEST.in
+        pyproject.toml
+        README.md
+        uv_config.toml
+    __init__.py
 test/
     __init__.py
     test-streamlit.sh
+views/
 .gitignore
 __init__.py
 agi_codex.py
@@ -672,7 +773,7 @@ uv_config.toml
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="workers.html" class="btn btn-neutral float-left" title="agi-node API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="agi-distributor.html" class="btn btn-neutral float-left" title="agi-distributor API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="install-usecase.html" class="btn btn-neutral float-right" title="Installation Overview" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

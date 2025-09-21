@@ -3,7 +3,7 @@ Example5: Sat-Trajectory-Project
 
 manager: sat_trajectory
 ------
-.. image:: diagrams/packages_sat_trajectory.png
+.. image:: diagrams/packages_sat_trajectory.svg
    :width: 400
    :alt: Alternative text
    :align: center
@@ -13,14 +13,26 @@ manager: sat_trajectory
    :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_sat_trajectory.png
+.. image:: diagrams/classes_sat_trajectory.svg
+   :width: 400
+   :alt: Alternative text
+   :align: center
+
+args: sat_trajectory.app_args
+-------------
+.. automodule:: sat_trajectory.app_args
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_sat_trajectory_args.svg
    :width: 400
    :alt: Alternative text
    :align: center
 
 worker: sat_trajectory_worker
 -------------
-.. image:: diagrams/packages_sat_trajectory_worker.png
+.. image:: diagrams/packages_sat_trajectory_worker.svg
    :width: 400
    :alt: Alternative text
    :align: center
@@ -30,7 +42,7 @@ worker: sat_trajectory_worker
    :undoc-members:
    :show-inheritance:
 
-.. image:: diagrams/classes_sat_trajectory_worker.png
+.. image:: diagrams/classes_sat_trajectory_worker.svg
    :width: 400
    :alt: Alternative text
    :align: center
