@@ -81,7 +81,7 @@ if __name__ == "__main__":
         'pycharm/_template_app_preinstall_manager.xml',
         'pycharm/_template_app_postinstall_worker.xml',
         'pycharm/_template_app_run.xml',
-        'pycharm/_template_app_distribute.xml',
+        'pycharm/_template_app_get_distrib.xml',
         'pycharm/_template_app_test_manager.xml',
         'pycharm/_template_app_test_worker.xml',
         'pycharm/_template_app_call_worker.xml',

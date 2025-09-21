@@ -299,8 +299,8 @@ write_env_values() {
 install_enduser() {
     pushd "tools" > /dev/null
     echo -e "${BLUE}Installing agilab (endusers)...${NC}"
-    chmod +x "install_enduser.sh"
-    .install_enduser.sh --source $SOURCE
+    chmod +x "./install_enduser.sh"
+    ./install_enduser.sh --source $SOURCE
     echo -e "${GREEN}agilab (enduser) installation complete.${NC}"
     popd > /dev/null
 }

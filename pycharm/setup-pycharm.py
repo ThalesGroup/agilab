@@ -35,7 +35,7 @@ class Config:
 
         self.eligible_apps = self.__eligible_apps()
         self.eligible_core = self.__eligible_core()
-        self.eligible_views = self.__eligible_views()
+        self.eligible_apps_pages = self.__eligible_apps_pages()
 
     def create_directories(self):
         self.IDEA_DIR.mkdir(exist_ok=True)
@@ -56,7 +56,7 @@ class Config:
             out.append(p)
         return out
 
-    def __eligible_views(self) -> List[Path]:
+    def __eligible_apps_pages(self) -> List[Path]:
         out: List[Path] = []
         if not self.APPS_PAGES_DIR.exists():
             return out

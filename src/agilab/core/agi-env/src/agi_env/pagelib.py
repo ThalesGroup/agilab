@@ -295,7 +295,21 @@ def get_templates():
         list: A list of template names (strings).
     """
     env = st.session_state["env"]
-    return [p.stem for p in env.apps_dir.glob("*template")]
+    candidates = []
+    templates_root = env.apps_dir / "templates"
+    if templates_root.exists():
+        candidates.extend(p.name for p in templates_root.iterdir() if p.is_dir())
+
+    agilab_templates = getattr(env, "agilab_src", None)
+    if agilab_templates:
+        agilab_templates = Path(agilab_templates) / "agilab/templates"
+        if agilab_templates.exists():
+            candidates.extend(p.name for p in agilab_templates.iterdir() if p.is_dir())
+
+    if not candidates:
+        candidates.extend(p.stem for p in env.apps_dir.glob("*template"))
+
+    return sorted(dict.fromkeys(candidates))
 
 
 def get_about_content():

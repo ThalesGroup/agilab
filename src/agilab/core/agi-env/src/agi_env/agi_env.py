@@ -1398,10 +1398,17 @@ class AgiEnv:
         def cap(s: str) -> str:
             return "".join(p.capitalize() for p in s.split("_"))
 
-        name_tp = target_project.name      # e.g. "flight_project"
+        name_tp = target_project.name      # e.g. "flight_project" or "dag_app_template"
         name_dp = dest_project.name        # e.g. "tata_project"
-        tp = name_tp[:-8]                  # strip "_project" → "flight"
-        dp = name_dp[:-8]                  # → "tata"
+
+        def strip_suffix(name: str) -> str:
+            for suffix in ("_project", "_template"):
+                if name.endswith(suffix):
+                    return name[: -len(suffix)]
+            return name
+
+        tp = strip_suffix(name_tp)
+        dp = strip_suffix(name_dp)
 
         tm = tp.replace("-", "_")
         dm = dp.replace("-", "_")
@@ -1437,13 +1444,18 @@ class AgiEnv:
         """
 
         # normalize names
+        templates_root = AgiEnv.apps_dir / "templates"
         if not target_project.name.endswith("_project"):
-            target_project = target_project.with_name(target_project.name + "_project")
+            candidate = target_project.with_name(target_project.name + "_project")
+            if (AgiEnv.apps_dir / candidate).exists() or (templates_root / candidate).exists():
+                target_project = candidate
         if not dest_project.name.endswith("_project"):
             dest_project = dest_project.with_name(dest_project.name + "_project")
 
         rename_map  = self.create_rename_map(target_project, dest_project)
         source_root = AgiEnv.apps_dir / target_project
+        if not source_root.exists() and templates_root.exists():
+            source_root = templates_root / target_project
         dest_root   = AgiEnv.apps_dir / dest_project
 
         if not source_root.exists():
