@@ -27,7 +27,7 @@ async def main():
     cmd = f"uv run --project {wenv} python {build} build_ext --packages base_worker, dag_worker -b '{wenv}'"
     await env.run(cmd, wenv)
 
-    # BaseWorker.run flight command
+    # BaseWorker._run flight command
     for i in  [0,1,3]: # 2 is working only if you have generate the cython lib before
         with open(env.home_abs / ".local/share/agilab/.agilab-path", 'r') as f:
             agilab_path = Path(f.read().strip())
@@ -40,7 +40,7 @@ async def main():
         if path not in sys.path:
             sys.path.insert(0, path)
         BaseWorker._new(mode=i, env=env, verbose=3, args=args)
-        result = await BaseWorker.run(mode=i, args=args)
+        result = await BaseWorker._run(mode=i, args=args)
 
     print(result)
 
