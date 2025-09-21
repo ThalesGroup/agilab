@@ -44,7 +44,7 @@ async def main():
         if path not in sys.path:
             sys.path.insert(0, path)
         BaseWorker._new(mode=i, env=env, verbose=3, args=args)
-        result = await BaseWorker.run(mode=i, args=args)
+        result = await BaseWorker._run(mode=i, args=args)
         print(result)
 
 if __name__ == "__main__":
