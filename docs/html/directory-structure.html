@@ -307,10 +307,9 @@ apps/
             test_flight_worker.py
         .coverage
         .gitignore
-        app-test.py
+        app_test.py
         build.py
         coverage.xml
-        dask_worker_0.pid
         distribution.json
         MANIFEST.in
         output.json
@@ -355,7 +354,7 @@ apps/
             test_mycode_worker.py
         .coverage
         .gitignore
-        app-test.py
+        app_test.py
         build.py
         coverage.xml
         install.py
@@ -437,6 +436,47 @@ apps/
             pyproject.toml
             README.md
             uv_config.toml
+    titi_project/
+        src/
+            titi/
+                __init__.py
+                app_args.py
+                flight_args.py
+                titi.py
+            titi_worker/
+                __init__.py
+                dataset.7z
+                post_install.py
+                pre_install.py
+                pyproject.toml
+                titi_worker.c
+                titi_worker.py
+            app_args_form.py
+            app_settings.toml
+            lab_steps.ipynb
+            lab_steps.toml
+            pre_prompt.json
+        test/
+            __init__.py
+            _test_call_worker.py
+            _test_flight_manager.py
+            _test_flight_worker.py
+            output.json
+            test_df.ipynb
+            test_flight_manager.py
+            test_flight_worker.py
+        .coverage
+        .gitignore
+        app_test.py
+        build.py
+        coverage.xml
+        distribution.json
+        MANIFEST.in
+        output.json
+        pyproject.toml
+        README.md
+        run_test.sh
+        uv_config.toml
     .gitignore
     __init__.py
     flight_trajectory_project
@@ -671,7 +711,6 @@ examples/
         AGI.run-sb3_trainer.py
         classes_sb3_trainer.svg
         classes_sb3_trainer_worker.svg
-    dask_worker_0.pid
 pages/
     __pycache__/ [excluded]
     ▶️ EDIT.py

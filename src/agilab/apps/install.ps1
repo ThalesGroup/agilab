@@ -194,10 +194,10 @@ try {
 
             Push-Location $app
             try {
-                if (Test-Path -LiteralPath 'app-test.py') {
-                    & uv run -p $env:AGI_PYTHON_VERSION python 'app-test.py'
+                if (Test-Path -LiteralPath 'app_test.py') {
+                    & uv run -p $env:AGI_PYTHON_VERSION python 'app_test.py'
                 } else {
-                    Write-Info ("No app-test.py in {0}, skipping tests." -f $app)
+                    Write-Info ("No app_test.py in {0}, skipping tests." -f $app)
                 }
             } finally {
                 Pop-Location

@@ -70,4 +70,4 @@ Invoke-UvPreview @("pip", "install", "-e", "src/agilab/core/agi-core")
 Pop-Location
 
 Write-Host "Checking installation..." -ForegroundColor Green
-uv run -p $env:AGI_PYTHON_VERSION --project agi-cluster python app-test.py
+uv run -p $env:AGI_PYTHON_VERSION --project agi-cluster python app_test.py

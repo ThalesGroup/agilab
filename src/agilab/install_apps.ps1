@@ -1,9 +1,9 @@
 <#
-  Script: install_apps_views.ps1
-  Purpose: Mirror the behavior of install_apps_views.sh for Windows/PowerShell
+  Script: install_apps_pages.ps1
+  Purpose: Mirror the behavior of install_apps_pages.sh for Windows/PowerShell
   Notes:
     - Uses junctions for directory links (works without admin). Falls back to copying if linking fails.
-    - Respects the same env vars as the bash script: AGI_PYTHON_VERSION, AGILAB_PRIVATE, INSTALL_TYPE, APPS_DEST_BASE, VIEWS_DEST_BASE.
+    - Respects the same env vars as the bash script: AGI_PYTHON_VERSION, AGILAB_PRIVATE, INSTALL_TYPE, APPS_DEST_BASE, PAGES_DEST_BASE.
 #>
 
 #----- Strict mode / setup -----------------------------------------------------
@@ -93,11 +93,11 @@ if (-not (Test-Path -LiteralPath $agilabPathFile)) {
 
 $AGILAB_PRIVATE = $env:AGILAB_PRIVATE
 
-$VIEWS_TARGET_BASE = if ($AGILAB_PRIVATE) { Join-Path $AGILAB_PRIVATE "src/agilab/apps-pages" } else { "" }
+$PAGES_TARGET_BASE = if ($AGILAB_PRIVATE) { Join-Path $AGILAB_PRIVATE "src/agilab/apps-pages" } else { "" }
 $APPS_TARGET_BASE  = if ($AGILAB_PRIVATE) { Join-Path $AGILAB_PRIVATE "src/agilab/apps" } else { "" }
 
 if ($AGILAB_PRIVATE) {
-  if (-not (Test-Path -LiteralPath $VIEWS_TARGET_BASE)) { Write-Color RED "Error: Missing directory: $VIEWS_TARGET_BASE"; exit 1 }
+  if (-not (Test-Path -LiteralPath $PAGES_TARGET_BASE)) { Write-Color RED "Error: Missing directory: $PAGES_TARGET_BASE"; exit 1 }
   if (-not (Test-Path -LiteralPath $APPS_TARGET_BASE))  { Write-Color RED "Error: Missing directory: $APPS_TARGET_BASE";  exit 1 }
 }
 
@@ -105,21 +105,21 @@ $INSTALL_TYPE = if ($env:INSTALL_TYPE) { $env:INSTALL_TYPE } else { "1" }
 
 # Destination base (defaults to current dir)
 $APPS_DEST_BASE  = if ($env:APPS_DEST_BASE)  { $env:APPS_DEST_BASE }  else { Join-Path (Get-Location) "apps" }
-$VIEWS_DEST_BASE = if ($env:VIEWS_DEST_BASE) { $env:VIEWS_DEST_BASE } else { Join-Path (Get-Location) "views" }
+$PAGES_DEST_BASE = if ($env:PAGES_DEST_BASE) { $env:PAGES_DEST_BASE } else { Join-Path (Get-Location) "apps-pages" }
 
 Ensure-Dir $APPS_DEST_BASE
-Ensure-Dir $VIEWS_DEST_BASE
+Ensure-Dir $PAGES_DEST_BASE
 
 Write-Color BLUE "Using AGILAB_PRIVATE: $AGILAB_PRIVATE"
 Write-Color BLUE "Using AGILAB_PUBLIC: $AGILAB_PUBLIC"
 
 Write-Color BLUE "(Apps) Destination base: $APPS_DEST_BASE"
 Write-Color BLUE "(Apps) Link target base: $APPS_TARGET_BASE"
-Write-Color BLUE "(Views) Destination base: $VIEWS_DEST_BASE"
-Write-Color BLUE "(Views) Link target base: $VIEWS_TARGET_BASE`n"
+Write-Color BLUE "(Pages) Destination base: $PAGES_DEST_BASE"
+Write-Color BLUE "(Pages) Link target base: $PAGES_TARGET_BASE`n"
 
-# --- App/View lists (merge private + public) ---------------------------------
-$PRIVATE_VIEWS = @(
+# --- App/Page lists (merge private + public) ---------------------------------
+$PRIVATE_PAGES = @(
   "maps-network-graph"
 )
 
@@ -130,9 +130,9 @@ $PRIVATE_APPS = @(
   "sb3_trainer_project"
 )
 
-$PUBLIC_VIEWS = @()
-if (Test-Path -LiteralPath $VIEWS_DEST_BASE) {
-  $PUBLIC_VIEWS = Get-ChildItem -LiteralPath $VIEWS_DEST_BASE -Directory |
+$PUBLIC_PAGES = @()
+if (Test-Path -LiteralPath $PAGES_DEST_BASE) {
+  $PUBLIC_PAGES = Get-ChildItem -LiteralPath $PAGES_DEST_BASE -Directory |
     Where-Object { $_.Name -ne ".venv" } | ForEach-Object { $_.Name }
 }
 
@@ -143,15 +143,15 @@ if (Test-Path -LiteralPath $APPS_DEST_BASE) {
 }
 
 if ([string]::IsNullOrEmpty($AGILAB_PRIVATE)) {
-  $INCLUDED_VIEWS = @($PUBLIC_VIEWS)
+  $INCLUDED_PAGES = @($PUBLIC_PAGES)
   $INCLUDED_APPS  = @($PUBLIC_APPS)
 } else {
-  $INCLUDED_VIEWS = @($PRIVATE_VIEWS + $PUBLIC_VIEWS)
+  $INCLUDED_PAGES = @($PRIVATE_PAGES + $PUBLIC_PAGES)
   $INCLUDED_APPS  = @($PRIVATE_APPS + $PUBLIC_APPS)
 }
 
 Write-Color BLUE ("Apps to install: " + ($(if ($INCLUDED_APPS.Count) { $INCLUDED_APPS -join ' ' } else { "<none>" })))
-Write-Color BLUE ("Views to install: " + ($(if ($INCLUDED_VIEWS.Count) { $INCLUDED_VIEWS -join ' ' } else { "<none>" })) + "`n")
+Write-Color BLUE ("Pages to install: " + ($(if ($INCLUDED_PAGES.Count) { $INCLUDED_PAGES -join ' ' } else { "<none>" })) + "`n")
 
 # --- Ensure local links in DEST_BASE -----------------------------------------
 if (-not [string]::IsNullOrEmpty($AGILAB_PRIVATE)) {
@@ -172,22 +172,22 @@ if (-not [string]::IsNullOrEmpty($AGILAB_PRIVATE)) {
 
 $status = 0
 if (-not [string]::IsNullOrEmpty($AGILAB_PRIVATE)){
-  foreach ($view in $PRIVATE_VIEWS) {
-    $view_target = Join-Path $VIEWS_TARGET_BASE $view
-    $view_dest   = Join-Path $VIEWS_DEST_BASE $view
-    if (-not (Test-Path -LiteralPath $view_target)) {
-      Write-Color RED "Target for '$view' not found: $view_target — skipping."
+  foreach ($page in $PRIVATE_PAGES) {
+    $page_target = Join-Path $PAGES_TARGET_BASE $page
+    $page_dest   = Join-Path $PAGES_DEST_BASE $page
+    if (-not (Test-Path -LiteralPath $page_target)) {
+      Write-Color RED "Target for '$page' not found: $page_target — skipping."
       $global:status = 1; continue
     }
-    if (Is-Link $view_dest) {
-      Write-Color BLUE "View '$view_dest' is a link. Recreating -> '$view_target'..."
-      Remove-Item -LiteralPath $view_dest -Force
-      New-DirLink -LinkPath $view_dest -TargetPath $view_target
-    } elseif (-not (Test-Path -LiteralPath $view_dest)) {
-      Write-Color BLUE "View '$view_dest' does not exist. Creating link -> '$view_target'..."
-      New-DirLink -LinkPath $view_dest -TargetPath $view_target
+    if (Is-Link $page_dest) {
+      Write-Color BLUE "Page '$page_dest' is a link. Recreating -> '$page_target'..."
+      Remove-Item -LiteralPath $page_dest -Force
+      New-DirLink -LinkPath $page_dest -TargetPath $page_target
+    } elseif (-not (Test-Path -LiteralPath $page_dest)) {
+      Write-Color BLUE "Page '$page_dest' does not exist. Creating link -> '$page_target'..."
+      New-DirLink -LinkPath $page_dest -TargetPath $page_target
     } else {
-      Write-Color GREEN "View '$view_dest' exists and is not a link. Leaving untouched."
+      Write-Color GREEN "Page '$page_dest' exists and is not a link. Leaving untouched."
     }
   }
 
@@ -211,15 +211,15 @@ if (-not [string]::IsNullOrEmpty($AGILAB_PRIVATE)){
   }
 }
 
-# --- Install views ------------------------------------------------------------
+# --- Install pages ------------------------------------------------------------
 if (-not [string]::IsNullOrEmpty($AGILAB_PUBLIC)) {
-  Push-Location (Join-Path $AGILAB_PUBLIC "views")
-  foreach ($view in $INCLUDED_VIEWS) {
-    Write-Color BLUE "Installing $view..."
-    Push-Location $view
+  Push-Location (Join-Path $AGILAB_PUBLIC "apps-pages")
+  foreach ($page in $INCLUDED_PAGES) {
+    Write-Color BLUE "Installing $page..."
+    Push-Location $page
     & uv sync --project . --preview-features python-upgrade | Out-Host
     if ($LASTEXITCODE -ne 0) {
-      Write-Color RED "Error during 'uv sync' for view '$view'."
+      Write-Color RED "Error during 'uv sync' for page '$page'."
       $status = 1
     }
     Pop-Location
@@ -236,13 +236,13 @@ if (-not [string]::IsNullOrEmpty($AGILAB_PUBLIC)) {
       Write-Color GREEN "Checking installation..."
       if (Test-Path -LiteralPath $app) {
         Push-Location $app
-        if (Test-Path -LiteralPath "app-test.py") {
-          & uv run -p $AGI_PYTHON_VERSION python app-test.py | Out-Host
+        if (Test-Path -LiteralPath "app_test.py") {
+          & uv run -p $AGI_PYTHON_VERSION python app_test.py | Out-Host
           if ($LASTEXITCODE -ne 0) { 
             $status = 1
           }
         } else {
-          Write-Color BLUE "No app-test.py in $app, skipping tests."
+          Write-Color BLUE "No app_test.py in $app, skipping tests."
         }
         Pop-Location
       } else {

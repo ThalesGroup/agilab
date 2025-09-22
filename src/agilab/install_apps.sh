@@ -9,7 +9,7 @@ export AGI_PYTHON_VERSION
 export PYTHONPATH="$PWD:${PYTHONPATH-}"
 
 # Capture potential overrides before arrays are declared (preserves set -u semantics)
-PUBLIC_VIEWS_FROM_ENV="${PUBLIC_VIEWS-}"
+PUBLIC_PAGES_FROM_ENV="${PUBLIC_PAGES-}"
 PUBLIC_APPS_FROM_ENV="${PUBLIC_APPS-}"
 
 # Colors for output
@@ -28,9 +28,9 @@ AGI_PYTHON_VERSION=$(echo "${AGI_PYTHON_VERSION:-}" | sed -E 's/^([0-9]+\.[0-9]+
 AGILAB_PUBLIC="$(cat "$HOME/.local/share/agilab/.agilab-path")"
 AGILAB_PRIVATE="${AGILAB_PRIVATE:-}"
 
-VIEWS_TARGET_BASE="$AGILAB_PRIVATE/src/agilab/apps-pages"
+PAGES_TARGET_BASE="$AGILAB_PRIVATE/src/agilab/apps-pages"
 APPS_TARGET_BASE="$AGILAB_PRIVATE/src/agilab/apps"
-[[ -d "$VIEWS_TARGET_BASE" ]] || { echo -e "${RED}Error:${NC} Missing directory: $VIEWS_TARGET_BASE"; exit 1; }
+[[ -d "$PAGES_TARGET_BASE" ]] || { echo -e "${RED}Error:${NC} Missing directory: $PAGES_TARGET_BASE"; exit 1; }
 [[ -d "$APPS_TARGET_BASE" ]] || { echo -e "${RED}Error:${NC} Missing directory: $APPS_TARGET_BASE"; exit 1; }
 
 INSTALL_TYPE="${INSTALL_TYPE:-1}"
@@ -38,9 +38,9 @@ INSTALL_TYPE="${INSTALL_TYPE:-1}"
 
 # --- Ensure arrays exist (avoids 'unbound variable' with set -u) -------------
 # We declare them empty up front; later code can append or overwrite freely.
-# This prevents errors like: ${PRIVATE_VIEWS[@]}: unbound variable
-declare -a PUBLIC_VIEWS=()
-declare -a PRIVATE_VIEWS=()
+# This prevents errors like: ${PRIVATE_PAGES[@]}: unbound variable
+declare -a PUBLIC_PAGES=()
+declare -a PRIVATE_PAGES=()
 declare -a PUBLIC_APPS=(
   mycode_project
   flight_project
@@ -86,41 +86,41 @@ parse_list_to_array() {
 
 # Destination base for creating local app symlinks (defaults to current dir)
 : "${APPS_DEST_BASE:="$(pwd)/apps"}"
-: "${VIEWS_DEST_BASE:="$(pwd)/views"}"
+: "${PAGES_DEST_BASE:="$(pwd)/pages"}"
 
 mkdir -p -- "$APPS_DEST_BASE"
-mkdir -p -- "$VIEWS_DEST_BASE"
+mkdir -p -- "$PAGES_DEST_BASE"
 
 echo -e "${BLUE}Using AGILAB_PRIVATE:${NC} $AGILAB_PRIVATE"
 echo -e "${BLUE}(Apps) Destination base:${NC} $APPS_DEST_BASE)"
 echo -e "${BLUE}(Apps) Link target base:${NC} $APPS_TARGET_BASE\n"
-echo -e "${BLUE}(Views) Destination base:${NC} $VIEWS_DEST_BASE)"
-echo -e "${BLUE}(Views) Link target base:${NC} $VIEWS_TARGET_BASE\n"
+echo -e "${BLUE}(Pages) Destination base:${NC} $PAGES_DEST_BASE)"
+echo -e "${BLUE}(Pages) Link target base:${NC} $PAGES_TARGET_BASE\n"
 
 
-# --- PUBLIC_VIEWS: allow manual override via env ------------------------------
-# You can set PUBLIC_VIEWS or PUBLIC_VIEWS_OVERRIDE to a comma/space/newline
+# --- PUBLIC_PAGES: allow manual override via env ------------------------------
+# You can set PUBLIC_PAGES or PUBLIC_PAGES_OVERRIDE to a comma/space/newline
 # separated list (e.g. "home dashboard,foo-view\nbar-view").
-if [[ -n "${PUBLIC_VIEWS_OVERRIDE-}" && -n "${PUBLIC_VIEWS_OVERRIDE//[[:space:]]/}" ]]; then
-  parse_list_to_array PUBLIC_VIEWS "$PUBLIC_VIEWS_OVERRIDE"
-  echo -e "${BLUE}(Views) Override enabled via PUBLIC_VIEWS_OVERRIDE:${NC} ${PUBLIC_VIEWS[*]}"
-elif [[ -n "${PUBLIC_VIEWS_FROM_ENV}" && -n "${PUBLIC_VIEWS_FROM_ENV//[[:space:]]/}" ]]; then
-  parse_list_to_array PUBLIC_VIEWS "$PUBLIC_VIEWS_FROM_ENV"
-  echo -e "${BLUE}(Views) Override enabled via PUBLIC_VIEWS:${NC} ${PUBLIC_VIEWS[*]}"
+if [[ -n "${PUBLIC_PAGES_OVERRIDE-}" && -n "${PUBLIC_PAGES_OVERRIDE//[[:space:]]/}" ]]; then
+  parse_list_to_array PUBLIC_PAGES "$PUBLIC_PAGES_OVERRIDE"
+  echo -e "${BLUE}(Pages) Override enabled via PUBLIC_PAGES_OVERRIDE:${NC} ${PUBLIC_PAGES[*]}"
+elif [[ -n "${PUBLIC_PAGES_FROM_ENV}" && -n "${PUBLIC_PAGES_FROM_ENV//[[:space:]]/}" ]]; then
+  parse_list_to_array PUBLIC_PAGES "$PUBLIC_PAGES_FROM_ENV"
+  echo -e "${BLUE}(Pages) Override enabled via PUBLIC_PAGES:${NC} ${PUBLIC_PAGES[*]}"
 else
   while IFS= read -r -d '' dir; do
     dir_name="$(basename -- "$dir")"
-    if [[ " ${PUBLIC_VIEWS[@]-} " != *" ${dir_name} "* ]]; then
-      PUBLIC_VIEWS+=("$dir_name")
+    if [[ " ${PUBLIC_PAGES[@]-} " != *" ${dir_name} "* ]]; then
+      PUBLIC_PAGES+=("$dir_name")
     fi
-  done < <(find "$VIEWS_DEST_BASE" -mindepth 1 -maxdepth 1 -type d ! -name ".venv" -print0)
+  done < <(find "$PAGES_DEST_BASE" -mindepth 1 -maxdepth 1 -type d ! -name ".venv" -print0)
 fi
 
-declare -a INCLUDED_VIEWS=()
+declare -a INCLUDED_PAGES=()
 if [[ -z "$AGILAB_PRIVATE" ]]; then
-  INCLUDED_VIEWS=(${PUBLIC_VIEWS+"${PUBLIC_VIEWS[@]}"})
+  INCLUDED_PAGES=(${PUBLIC_PAGES+"${PUBLIC_PAGES[@]}"})
 else
-  INCLUDED_VIEWS=(${PUBLIC_VIEWS+"${PUBLIC_VIEWS[@]}"} ${PRIVATE_VIEWS+"${PRIVATE_VIEWS[@]}"})
+  INCLUDED_PAGES=(${PUBLIC_PAGES+"${PUBLIC_PAGES[@]}"} ${PRIVATE_PAGES+"${PRIVATE_PAGES[@]}"})
 fi
 
 # --- PUBLIC_APPS: allow manual override via env ------------------------------
@@ -149,7 +149,7 @@ else
 fi
 
 echo -e "${BLUE}Apps to install:${NC} ${INCLUDED_APPS[*]:-<none>}\n"
-echo -e "${BLUE}Views to install:${NC} ${INCLUDED_VIEWS[*]:-<none>}\n"
+echo -e "${BLUE}Pages to install:${NC} ${INCLUDED_PAGES[*]:-<none>}\n"
 
 # --- Ensure local symlinks exist/refresh in DEST_BASE ------------------------
 if [[ ! -z "$AGILAB_PRIVATE" ]]; then
@@ -174,24 +174,24 @@ PY
 fi
 
 status=0
-# Safe loop if PRIVATE_VIEWS is unset/empty with `set -u`
-for view in ${PRIVATE_VIEWS+"${PRIVATE_VIEWS[@]}"}; do
-  view_target="$VIEWS_TARGET_BASE/$view"
-  view_dest="$VIEWS_DEST_BASE/$view"
+# Safe loop if PRIVATE_PAGES is unset/empty with `set -u`
+for page in ${PRIVATE_PAGES+"${PRIVATE_PAGES[@]}"}; do
+  page_target="$PAGES_TARGET_BASE/$page"
+  page_dest="$PAGES_DEST_BASE/$page"
 
-  if [[ ! -e "$view_target" ]]; then
-    echo -e "${RED}Target for '${view}' not found:${NC} $view_target — skipping."
+  if [[ ! -e "$page_target" ]]; then
+    echo -e "${RED}Target for '${page}' not found:${NC} $page_target — skipping."
     status=1; continue
   fi
 
-  if [[ -L "$view_dest" ]]; then
-    echo -e "${BLUE}View '$view_dest' is a symlink. Recreating -> '$view_target'...${NC}"
-    rm -f -- "$view_dest"; ln -s -- "$view_target" "$view_dest"
-  elif [[ ! -e "$view_dest" ]]; then
-    echo -e "${BLUE}View '$view_dest' does not exist. Creating symlink -> '$view_target'...${NC}"
-    ln -s -- "$view_target" "$view_dest"
+  if [[ -L "$page_dest" ]]; then
+    echo -e "${BLUE}Page '$page_dest' is a symlink. Recreating -> '$page_target'...${NC}"
+    rm -f -- "$page_dest"; ln -s -- "$page_target" "$page_dest"
+  elif [[ ! -e "$page_dest" ]]; then
+    echo -e "${BLUE}Page '$page_dest' does not exist. Creating symlink -> '$page_target'...${NC}"
+    ln -s -- "$page_target" "$page_dest"
   else
-    echo -e "${GREEN}View '$view_dest' exists and is not a symlink. Leaving untouched.${NC}"
+    echo -e "${GREEN}Page '$page_dest' exists and is not a symlink. Leaving untouched.${NC}"
   fi
 done
 
@@ -217,16 +217,16 @@ for app in ${PRIVATE_APPS+"${PRIVATE_APPS[@]}"}; do
 done
 
 
-# --- Run installer for each views (stable CWD so ../core/cluster resolves) -----
+# --- Run installer for each pages (stable CWD so ../core/cluster resolves) -----
 pushd -- "$AGILAB_PUBLIC/apps-pages" >/dev/null
 
-for view in ${INCLUDED_VIEWS+"${INCLUDED_VIEWS[@]}"}; do
-  echo -e "${BLUE}Installing $view...${NC}"
-  pushd "$view" >/dev/null
+for view in ${INCLUDED_PAGES+"${INCLUDED_PAGES[@]}"}; do
+  echo -e "${BLUE}Installing $page...${NC}"
+  pushd "$page" >/dev/null
   uv sync --project . --preview-features python-upgrade
   status=$(echo $?)
   if (( status != 0 )); then
-    echo -e "${RED}Error during 'uv sync' for view '$view'.${NC}"
+    echo -e "${RED}Error during 'uv sync' for view '$page'.${NC}"
   fi
   popd >/dev/null
 done
@@ -245,11 +245,11 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
     echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
     echo -e "${GREEN}Checking installation...${NC}"
     if pushd -- "$app" >/dev/null; then
-      if [[ -f app-test.py ]]; then
-        echo uv run --no-sync -p "$AGI_PYTHON_VERSION" python app-test.py
-        uv run --no-sync -p "$AGI_PYTHON_VERSION" python app-test.py
+      if [[ -f app_test.py ]]; then
+        echo uv run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
+        uv run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
       else
-        echo -e "${BLUE}No app-test.py in $app, skipping tests.${NC}"
+        echo -e "${BLUE}No app_test.py in $app, skipping tests.${NC}"
       fi
       popd >/dev/null
     else
