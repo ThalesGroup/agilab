@@ -80,20 +80,21 @@ class BaseWorker(abc.ABC):
     _cython_decorators = ["njit"]
     env: Optional[AgiEnv] = None
 
-    def start(self):
-        """
-        Start the worker and print out a message if verbose mode is enabled.
-
-        Args:
-            None
-
-        Returns:
-            None
-        """
-        """ """
-        logging.info(
-            f"worker #{BaseWorker._worker_id}: {BaseWorker._worker} - mode: {self._mode}")
-        self.start()
+    @staticmethod
+    def start(worker_inst):
+        """Invoke the concrete worker's ``start`` hook once initialised."""
+        try:
+            logging.info(
+                "worker #%s: %s - mode: %s",
+                BaseWorker._worker_id,
+                BaseWorker._worker,
+                getattr(worker_inst, "_mode", None),
+            )
+            if hasattr(worker_inst, "start"):
+                worker_inst.start()
+        except Exception:  # pragma: no cover - log and rethrow for visibility
+            logging.error("Worker start hook failed:\n%s", traceback.format_exc())
+            raise
 
     def stop(self):
         """

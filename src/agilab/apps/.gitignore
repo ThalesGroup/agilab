@@ -23,7 +23,7 @@ EGG*
 *.pyd
 *.whl
 *.c
-*.pyc
+*.pyx
 coverage.xml
 build.py
 
