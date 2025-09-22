@@ -10,6 +10,7 @@ import ast
 import re
 import json
 import numbers
+import logging
 from pathlib import Path
 import importlib
 from datetime import datetime
@@ -231,8 +232,14 @@ def filter_warning_messages(log: str) -> str:
 def load_toml_file(file_path):
     file_path = Path(file_path)
     if file_path.exists():
-        with file_path.open("rb") as f:
-            return tomli.load(f)
+        try:
+            with file_path.open("rb") as f:
+                return tomli.load(f)
+        except tomli.TOMLDecodeError as exc:
+            st.warning(f"Invalid TOML detected in {file_path.name}: {exc}")
+            logger = logging.getLogger(__name__)
+            logger.warning("Failed to parse %s: %s", file_path, exc)
+            return {}
     return {}
 
 @st.cache_data(show_spinner=False)

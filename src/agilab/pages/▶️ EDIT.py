@@ -1243,6 +1243,7 @@ def handle_project_creation():
             st.success(f"Project '{new_name}' created.")
             env.change_active_app(new_name)
             st.session_state["switch_to_select"] = True
+            time.sleep(1.5)
             st.rerun()
         else:
             st.error(f"Error while creating '{new_name}'.")
