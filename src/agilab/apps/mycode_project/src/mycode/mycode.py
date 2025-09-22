@@ -34,7 +34,7 @@ import py7zr
 from agi_node.agi_dispatcher import WorkDispatcher, BaseWorker
 import logging
 
-from .app_args import (
+from .mycode_args import (
     ArgsOverrides,
     MycodeArgs,
     dump_args,

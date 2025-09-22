@@ -8,7 +8,7 @@ import py7zr
 from agi_cluster.agi_distributor import AGI
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
-from .app_args import (
+from .pandas_app_args import (
     ArgsOverrides,
     PandasAppArgs,
     dump_args,
@@ -116,4 +116,3 @@ class PandasApp(BaseWorker):
         self,
     ) -> Tuple[List[List], List[List[Tuple[int, int]]], str, str, str]:  # pragma: no cover - template hook
         return [], [], "id", "nb_fct", ""
-

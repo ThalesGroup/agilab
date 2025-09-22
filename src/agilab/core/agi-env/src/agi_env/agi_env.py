@@ -157,7 +157,7 @@ class AgiEnv:
 
         AgiEnv.is_managed_pc = getpass.getuser().startswith("T0")
         AgiEnv._is_managed_pc = AgiEnv.is_managed_pc
-        self.agi_resources = Path("resources/.agilab")
+        self._agi_resources = Path("resources/.agilab")
         home_abs = Path.home() / "MyApp" if AgiEnv.is_managed_pc else Path.home()
         self.home_abs = home_abs
 
@@ -169,7 +169,7 @@ class AgiEnv:
         elif verbose >= 3:
             self.uv = "uv --verbose"
 
-        AgiEnv.resources_path = home_abs / self.agi_resources.name
+        AgiEnv.resources_path = home_abs / self._agi_resources.name
         env_path = AgiEnv.resources_path / ".env"
         self.benchmark = AgiEnv.resources_path / "benchmark.json"
         AgiEnv.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
@@ -206,8 +206,6 @@ class AgiEnv:
         target = active_app.name.replace("_project", "").replace("_worker","").replace("-", "_")
 
         AgiEnv.verbose = verbose
-        AgiEnv.verbose = verbose
-        self.verbose = verbose
         self.verbose = verbose
         self._is_managed_pc = AgiEnv.is_managed_pc
         AgiEnv.python_variante = python_variante
@@ -234,8 +232,8 @@ class AgiEnv:
             self.env_root = agilab_src / "agilab/core/agi-env"
             self.core_root = agilab_src / "agilab/core/agi-core"
             self.cluster_root = agilab_src / "agilab/core/agi-cluster"
-            self.src_cluster = self.cluster_root / "src"
-            self.cli = self.src_cluster / "agi_cluster/agi_distributor/cli.py"
+            src_cluster = self.cluster_root / "src"
+            self.cli = src_cluster / "agi_cluster/agi_distributor/cli.py"
             self.agilab_src = agilab_src
         else:
             self.agilab_src = agilab_installed
@@ -281,7 +279,7 @@ class AgiEnv:
         if install_type==1:
             resources_root = self.env_root / "src/agi_env"
         if install_type != 2:
-            self._init_resources(resources_root / self.agi_resources)
+            self._init_resources(resources_root / self._agi_resources)
         self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
         self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
 
@@ -306,7 +304,6 @@ class AgiEnv:
         if not dist in sys.path:
             sys.path.append(dist)
         self.dist_abs = dist_abs
-        self.wenv_target_worker = self.wenv_abs
         self.app_src = active_app / "src"
         self.manager_pyproject = active_app / "pyproject.toml"
         self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
@@ -365,19 +362,18 @@ class AgiEnv:
         if install_type == 2:
             return
 
-        self.base_worker_cls, self.base_worker_module = self.get_base_worker_cls(
+        self.base_worker_cls, self._base_worker_module = self.get_base_worker_cls(
             self.worker_path, worker_class
         )
-        self.workers_packages_prefix = "workers."
         if not self.worker_path.exists():
             AgiEnv.logger.info(f"Missing {self.target_worker_class} definition; should be in {self.worker_path} but it does not exist")
             sys.exit(1)
 
         envars = AgiEnv.envars
-        self.credantials = envars.get("CLUSTER_CREDENTIALS", getpass.getuser())
-        credantials = self.credantials.split(":")
-        self.user = credantials[0]
-        self.password = credantials[1] if len(credantials) > 1 else None
+        raw_credentials = envars.get("CLUSTER_CREDENTIALS", getpass.getuser())
+        credentials_parts = raw_credentials.split(":")
+        self.user = credentials_parts[0]
+        self.password = credentials_parts[1] if len(credentials_parts) > 1 else None
 
         self.projects = self.get_projects(AgiEnv.apps_dir)
         if not self.projects:
@@ -495,17 +491,6 @@ class AgiEnv:
         if str(self.active_app) != target:
             self.change_active_app(target, install_type)
 
-    def check_args(self, target_args_class, target_args):
-        """Validate ``target_args`` using ``target_args_class`` and return any errors."""
-
-        try:
-            validated_args = target_args_class.parse_obj(target_args)
-            validation_errors = None
-        except Exception as e:
-            import humanize
-            validation_errors = self.humanize_validation_errors(e)
-        return validation_errors
-
     def humanize_validation_errors(self, error):
         """Format pydantic-style validation ``error`` messages for human consumption."""
 
@@ -596,28 +581,6 @@ class AgiEnv:
             except Exception as e:
                 AgiEnv.logger.error(f"Warning: Could not copy {item} → {dst_item}: {e}")
 
-    def copy_and_replace(self, src: Path, dst: Path, max_workers=8):
-        """Copy ``src`` into ``dst`` after removing existing conflicting entries."""
-        dst.mkdir(parents=True, exist_ok=True)
-
-        for item in src.iterdir():
-            src_item = item
-            dst_item = dst / item.name
-
-            if not src_item.exists():
-                AgiEnv.logger.info(f"[WARN] Source item missing: {src_item}, skipping")
-                continue
-
-            # If it's a directory and already exists at destination -> remove it first
-            if src_item.is_dir():
-                if dst_item.exists():
-                    shutil.rmtree(dst_item)
-                shutil.copytree(src_item, dst_item)
-            else:
-                # Ensure parent exists
-                dst_item.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(src_item, dst_item)
-
     # Simplified: keep single copy_missing implementation defined later using _copy_file
 
     def _update_env_file(updates: dict):
@@ -653,46 +616,13 @@ class AgiEnv:
         for idx, project in enumerate(self.projects):
             if self.target == project[:-8].replace("-", "_"):
                 self.active_app = AgiEnv.apps_dir / project
-                self.project_index = idx
                 self.app = project
                 break
-
-    def _determine_apps_dir(self, module_path):
-        """Return the apps directory that owns ``module_path``."""
-
-        path_str = str(module_path)
-        index = path_str.index("_project")
-        return Path(path_str[:index]).parent
-
-    def _determine_module_path(self, project_or_module_name):
-        """Construct the module path from a project or module identifier."""
-
-        parts = project_or_module_name.rsplit("-", 1)
-        suffix = parts[-1]
-        name = parts[0].split(os.sep)[-1]
-        module_name = name.replace("-", "_")
-        if suffix.startswith("project"):
-            name = name.replace("-" + suffix, "")
-            project_name = name + "_project"
-        else:
-            project_name = name.replace("_", "-") + "_project"
-        module_path = AgiEnv.apps_dir / project_name / "src" / module_name / (module_name + ".py")
-        return module_path.resolve()
 
     def get_projects(self, path: Path):
         """Return the names of ``*_project`` directories beneath ``path``."""
 
         return [p.name for p in path.glob("*project")]
-
-    def get_modules(self, target=None):
-        """Return canonical module names derived from discovered projects."""
-
-        pattern = "_project"
-        modules = [
-            re.sub(f"^{pattern}|{pattern}$", "", project).replace("-", "_")
-            for project in self.get_projects(AgiEnv.apps_dir)
-        ]
-        return modules
 
     def get_base_worker_cls(self, module_path, class_name):
         """Return the base worker class name and module for ``class_name``."""
@@ -833,44 +763,6 @@ class AgiEnv:
             self.copilot_file = self.agilab_src / "agi_codex.py"
 
 
-    def update_pyproject(self):
-        """Synchronise ``pyproject.toml`` dependencies with editable installs."""
-
-        agilab_src = self.agilab_src
-        for file in [self.worker_pyproject, self.manager_pyproject]: #, self.core_root / "src/agilab/core/pyproject.toml"]:
-            if not file.exists():
-                raise FileNotFoundError(f"{file} not found in {self.active_app}")
-
-            text = file.read_text(encoding="utf-8")
-            doc = tomlkit.parse(text)
-
-            try:
-                uv = doc["tool"]["uv"]
-            except KeyError:
-                continue
-
-            if "sources" not in uv or not isinstance(uv["sources"], tomlkit.items.Table):
-                continue
-
-            sources = uv["sources"]
-
-            if "site-packages" in agilab_src.parts:
-                for package in ["agi-env", "agi-node", "agi-cluster"]:
-                    if package in sources:
-                        del sources[package]
-                        if not sources:
-                            del uv["sources"]
-                        if not uv:
-                            del doc["tool"]["uv"]
-                        if not doc["tool"]:
-                            del doc["tool"]
-                    deps = doc["project"].get("dependencies", [])
-                    if not any(dep.split()[0] == package for dep in deps):
-                        deps.append(package)
-                        doc["project"]["dependencies"] = deps
-
-            file.write_text(tomlkit.dumps(doc), encoding="utf-8")
-
     @staticmethod
     def _copy_file(src_item, dst_item):
         """Copy ``src_item`` to ``dst_item`` if the destination does not exist."""
@@ -952,18 +844,6 @@ class AgiEnv:
                         extra_paths.append(part)
             proc_env["PYTHONPATH"] = os.pathsep.join(extra_paths)
         return proc_env
-
-    @staticmethod
-    def log_info(line):
-        GREEN = "\033[32m"
-        RESET = "\033[0m"
-
-        if not isinstance(line, str):
-            line = str(line)
-
-        msg = f"{GREEN}{line}{RESET}" if sys.stdout.isatty() else line
-        if AgiEnv.logger:
-            AgiEnv.logger.info(msg)
 
     @staticmethod
     async def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
@@ -1289,25 +1169,6 @@ class AgiEnv:
 
         return False
 
-    def set_cluster_credentials(self, credentials: str):
-        """Set the AGI_CREDENTIALS environment variable."""
-        self.CLUSTER_CREDENTIALS = credentials  # maintain internal state
-        self.set_env_var("CLUSTER_CREDENTIALS", credentials)
-
-    def set_openai_api_key(self, api_key: str):
-        """Set the OPENAI_API_KEY environment variable."""
-        self.OPENAI_API_KEY = api_key
-        self.set_env_var("OPENAI_API_KEY", api_key)
-
-    @staticmethod
-    def set_install_type(install_type: int):
-        AgiEnv.install_type = install_type
-        AgiEnv.set_env_var("INSTALL_TYPE", str(install_type))
-
-    def set_apps_dir(self, apps_dir: Path):
-        self.apps_dir = apps_dir
-        self.set_env_var("APPS_DIR", apps_dir)
-
     @staticmethod
     def has_admin_rights():
         """
@@ -1370,24 +1231,6 @@ class AgiEnv:
             AgiEnv.logger.info(
                 f"Failed to create symbolic link for .venv. Error code: {error_code}"
             )
-
-    def handle_venv_directory(self, source_venv: Path, dest_venv: Path):
-        """
-        Create a symbolic link for the .venv directory instead of copying it.
-
-        Args:
-            source_venv (Path): Source .venv directory path.
-            dest_venv (Path): Destination .venv symbolic link path.
-        """
-        try:
-            if os.name == "nt":
-                AgiEnv.create_symlink_windows(source_venv, dest_venv)
-            else:
-                # For Unix-like systems
-                os.symlink(source_venv, dest_venv, target_is_directory=True)
-                AgiEnv.logger.info(f"Created symbolic link for .venv: {dest_venv.name} -> ~/{source_venv}")
-        except OSError as e:
-            AgiEnv.logger.error(f"Failed to create symbolic link for .venv: {e}")
 
     def create_rename_map(self, target_project: Path, dest_project: Path) -> dict:
         """
@@ -1616,13 +1459,6 @@ class AgiEnv:
             parts = ip.split(".")
             return all(0 <= int(part) <= 255 for part in parts)
         return False
-
-    @property
-    def scheduler_ip_address(self):
-        return self.scheduler_ip
-
-    def log_remote_line(self, ip, line):
-        AgiEnv.logger.info(f"[{ip}] {line}")  # Replace with your real remote line AgiEnv.logger
 
     def unzip_data(self, archive_path: Path, extract_to: Path | str = None):
         archive_path = Path(archive_path)

@@ -1,5 +1,5 @@
 from .pandas_app import *  # noqa: F401,F403
-from .app_args import (  # noqa: F401
+from .pandas_app_args import (  # noqa: F401
     ArgsModel,
     ArgsOverrides,
     PandasAppArgs,

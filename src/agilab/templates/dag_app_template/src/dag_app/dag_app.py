@@ -5,7 +5,7 @@ from typing import Any, List, Tuple
 
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
-from .app_args import (
+from .dag_app_args import (
     ArgsOverrides,
     DagAppArgs,
     dump_args,
@@ -84,4 +84,3 @@ class DagApp(BaseWorker):
         self,
     ) -> Tuple[List[List], List[List[Tuple[int, int]]], str, str, str]:  # pragma: no cover - template hook
         return [], [], "id", "nb_fct", ""
-

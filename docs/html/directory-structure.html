@@ -271,6 +271,7 @@ apps/
     __pycache__/ [excluded]
     flight_project/
         .pytest_cache/ [excluded]
+        .venv/ [excluded]
         Modules/ [excluded]
         src/
             __pycache__/ [excluded]
@@ -328,6 +329,7 @@ apps/
                 __init__.py
                 app_args.py
                 mycode.py
+                mycode_args.py
             mycode_worker/
                 __pycache__/ [excluded]
                 __init__.py
@@ -366,11 +368,15 @@ apps/
     templates/
         dag_app_template/
             src/
+                __pycache__/ [excluded]
                 dag_app/
+                    __pycache__/ [excluded]
                     __init__.py
                     app_args.py
                     dag_app.py
+                    dag_app_args.py
                 dag_app_worker/
+                    __pycache__/ [excluded]
                     __init__.py
                     dag_app_worker.py
                     post_install.py
@@ -386,11 +392,15 @@ apps/
             uv_config.toml
         pandas_app_template/
             src/
+                __pycache__/ [excluded]
                 pandas_app/
+                    __pycache__/ [excluded]
                     __init__.py
                     app_args.py
                     pandas_app.py
+                    pandas_app_args.py
                 pandas_app_worker/
+                    __pycache__/ [excluded]
                     __init__.py
                     pandas_app_worker.py
                     post_install.py
@@ -406,11 +416,15 @@ apps/
             uv_config.toml
         polars_app_template/
             src/
+                __pycache__/ [excluded]
                 polars_app/
+                    __pycache__/ [excluded]
                     __init__.py
                     app_args.py
                     polars_app.py
+                    polars_app_args.py
                 polars_app_worker/
+                    __pycache__/ [excluded]
                     __init__.py
                     polars_app_worker.py
                     post_install.py
@@ -435,6 +449,7 @@ apps/
     sb3_trainer_project
 apps-pages/
     view_autoencoder_latenspace/
+        .venv/ [excluded]
         src/
             view_autoencoder_latentspace/
                 __init__.py
@@ -442,6 +457,7 @@ apps-pages/
                 view_autoencoder_latentspace.py
         pyproject.toml
     view_barycentric/
+        .venv/ [excluded]
         src/
             view_barycentric/
                 __init__.py
@@ -456,6 +472,7 @@ apps-pages/
                 Project_Default.xml
             maps.iml
             modules.xml
+        .venv/ [excluded]
         apps/
         src/
             view_maps/
@@ -470,6 +487,7 @@ apps-pages/
                 Project_Default.xml
             maps-3d.iml
             modules.xml
+        .venv/ [excluded]
         src/
             view_maps_3d/
                 __init__.py
@@ -477,6 +495,7 @@ apps-pages/
                 view_maps_3d.py
         pyproject.toml
     view_maps_network/
+        .venv/ [excluded]
         src/
             view_maps_network/
                 maps_network_graph.py
@@ -616,59 +635,42 @@ examples/
         AGI.get_distrib-flight.py
         AGI.install-flight.py
         AGI.run-flight.py
-        classes_flight.png
         classes_flight.svg
-        classes_flight_args.png
         classes_flight_args.svg
-        classes_flight_worker.png
         classes_flight_worker.svg
     flight_trajectory/
         AGI.get_distrib-flight_trajectory.py
         AGI.install-flight_trajectory.py
         AGI.run-flight_trajectory.py
-        classes_flight_trajectory.png
         classes_flight_trajectory.svg
-        classes_flight_trajectory_args.png
         classes_flight_trajectory_args.svg
-        classes_flight_trajectory_worker.png
         classes_flight_trajectory_worker.svg
     link_sim/
         AGI.get_distrib-link_sim.py
         AGI.install-link_sim.py
         AGI.run-link_sim.py
-        classes_link_sim.png
         classes_link_sim.svg
-        classes_link_sim_args.png
         classes_link_sim_args.svg
-        classes_link_sim_worker.png
         classes_link_sim_worker.svg
     mycode/
         AGI.get_distrib-mycode.py
         AGI.install-mycode.py
         AGI.run-mycode.py
-        classes_mycode.png
         classes_mycode.svg
-        classes_mycode_args.png
         classes_mycode_args.svg
-        classes_mycode_worker.png
         classes_mycode_worker.svg
     sat_trajectory/
         AGI.get_distrib-sat_trajectory.py
         AGI.install-sat_trajectory.py
         AGI.run-sat_trajectory.py
-        classes_sat_trajectory.png
         classes_sat_trajectory.svg
-        classes_sat_trajectory_args.png
         classes_sat_trajectory_args.svg
-        classes_sat_trajectory_worker.png
         classes_sat_trajectory_worker.svg
     sb3_trainer/
         AGI.get_distrib-sb3_trainer.py
         AGI.install-sb3_trainer.py
         AGI.run-sb3_trainer.py
-        classes_sb3_trainer.png
         classes_sb3_trainer.svg
-        classes_sb3_trainer_worker.png
         classes_sb3_trainer_worker.svg
     dask_worker_0.pid
 pages/
@@ -700,6 +702,7 @@ templates/
                 __init__.py
                 app_args.py
                 dag_app.py
+                dag_app_args.py
             dag_app_worker/
                 __pycache__/ [excluded]
                 __init__.py
@@ -725,6 +728,7 @@ templates/
                 __init__.py
                 app_args.py
                 polars_app.py
+                polars_app_args.py
             polars_app_worker/
                 __pycache__/ [excluded]
                 __init__.py

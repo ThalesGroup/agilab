@@ -1,5 +1,5 @@
 from .polars_app import *  # noqa: F401,F403
-from .app_args import (  # noqa: F401
+from .polars_app_args import (  # noqa: F401
     ArgsModel,
     ArgsOverrides,
     PolarsAppArgs,
