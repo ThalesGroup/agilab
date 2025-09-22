@@ -1091,8 +1091,8 @@ def handle_project_selection():
     env = st.session_state["env"]
 
     # Export Button
-    side_cols = st.sidebar.columns(2)
-    if side_cols[1].button(
+    button_col = st.sidebar.columns([0.6, 0.4])[1]
+    if button_col.button(
         "Export",
         type="secondary",
         use_container_width=True,
@@ -1393,11 +1393,14 @@ def handle_project_import():
             help="This will remove all the .gitignore file from the project.",
         )
 
-        path = env.apps_dir / selected_archive
+        target_dir = env.apps_dir / import_target
         overwrite_modal = Modal("Import project", key="import-modal", max_width=450)
-        cols = st.sidebar.columns(3)
-        if cols[2].button("Import", type="primary", use_container_width=True):
-            if not path.exists():
+
+        import_clicked = st.sidebar.button(
+            "Import", type="primary", use_container_width=True
+        )
+        if import_clicked:
+            if not target_dir.exists():
                 import_project(selected_archive, st.session_state["clean_import"])
                 env.change_active_app(import_target)
             else:
@@ -1411,8 +1414,8 @@ def handle_project_import():
                         "Overwrite", type="primary", use_container_width=True
                 ):
                     try:
-                        shutil.rmtree(path)
-                        import_project(import_target, st.session_state["clean_import"])
+                        shutil.rmtree(target_dir)
+                        import_project(selected_archive, st.session_state["clean_import"])
                         env.change_active_app(import_target)
                         overwrite_modal.close()
                     except PermissionError:
