@@ -50,10 +50,11 @@ jobs:
         run: |
           set -eux
           pushd "src/agilab/core/agi-cluster"
-          uv sync --dev
-          uv pip install -e .
-          uv pip install -e ../agi-env
-          uv pip install -e ../agi-node
+          UV="uv --preview-features extra-build-dependencies"
+          $UV sync --dev
+          $UV pip install -e .
+          $UV pip install -e ../agi-env
+          $UV pip install -e ../agi-node
           popd
 
       - name: Run tests
@@ -96,7 +97,7 @@ jobs:
 
       # Build + verify + publish to PyPI (official)
       - name: Build agi-env
-        run: uv build --project src/agilab/core/agi-env --wheel
+        run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-env --wheel
       - name: Verify agi-env
         run: twine check src/agilab/core/agi-env/dist/*
       - name: Publish agi-env to PyPI
@@ -106,7 +107,7 @@ jobs:
         run: twine upload --skip-existing src/agilab/core/agi-env/dist/*
 
       - name: Build agi-node
-        run: uv build --project src/agilab/core/agi-node --wheel
+        run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-node --wheel
       - name: Verify agi-node
         run: twine check src/agilab/core/agi-node/dist/*
       - name: Publish agi-node to PyPI
@@ -116,7 +117,7 @@ jobs:
         run: twine upload --skip-existing src/agilab/core/agi-node/dist/*
 
       - name: Build agi-cluster
-        run: uv build --project src/agilab/core/agi-cluster --wheel
+        run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-cluster --wheel
       - name: Verify agi-cluster
         run: twine check src/agilab/core/agi-cluster/dist/*
       - name: Publish agi-cluster to PyPI
@@ -126,7 +127,7 @@ jobs:
         run: twine upload --skip-existing src/agilab/core/agi-cluster/dist/*
 
       - name: Build agi-core
-        run: uv build --project src/agilab/core/agi-core --wheel
+        run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-core --wheel
       - name: Verify agi-core
         run: twine check src/agilab/core/agi-core/dist/*
       - name: Publish agi-core to PyPI
@@ -167,7 +168,7 @@ jobs:
           find src/agilab/apps src/agilab/views -type l -print -delete || true
 
       - name: Build agilab
-        run: uv build --wheel
+        run: uv --preview-features extra-build-dependencies build --wheel
 
       - name: Verify agilab
         run: twine check dist/*

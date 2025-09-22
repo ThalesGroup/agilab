@@ -81,6 +81,7 @@ jobs:
               ("agi-cluster", REPO_ROOT / "src/agilab/core/agi-cluster/pyproject.toml", REPO_ROOT / "src/agilab/core/agi-cluster"),
               ("agi-core",    REPO_ROOT / "src/agilab/core/agi-core/pyproject.toml",    REPO_ROOT / "src/agilab/core/agi-core"),
           ]
+          UV = ["uv", "--preview-features", "extra-build-dependencies"]
 
           def run(cmd, cwd=None):
               loc = str(cwd or Path.cwd())
@@ -199,7 +200,7 @@ jobs:
                   d = project_dir / sub
                   if d.exists():
                       shutil.rmtree(d)
-              cmd = ["uv","build","--project", str(project_dir)]
+              cmd = UV + ["build","--project", str(project_dir)]
               cmd += ["--wheel"] if wheel_only else ["--sdist","--wheel"]
               rc, _ = run(cmd, cwd=str(REPO_ROOT))
               if rc != 0:
@@ -277,6 +278,7 @@ jobs:
           REPO_URL = os.environ.get("REPOSITORY_URL", "https://test.pypi.org/legacy/")
           REPO_ROOT = Path.cwd().resolve()
           UMBRELLA = ("agilab", REPO_ROOT / "pyproject.toml", REPO_ROOT)
+          UV = ["uv", "--preview-features", "extra-build-dependencies"]
 
           def run(cmd, cwd=None):
               loc = str(cwd or Path.cwd())
@@ -301,7 +303,7 @@ jobs:
                   d = REPO_ROOT / sub
                   if d.exists():
                       shutil.rmtree(d)
-              cmd = ["uv","build"]
+              cmd = UV + ["build"]
               cmd += ["--wheel"] if wheel_only else ["--sdist","--wheel"]
               rc, _ = run(cmd, cwd=str(REPO_ROOT))
               if rc != 0:
