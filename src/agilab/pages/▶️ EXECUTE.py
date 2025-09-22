@@ -349,6 +349,22 @@ def render_cluster_settings_ui():
     env = st.session_state["env"]
     cluster_params = st.session_state.app_settings["cluster"]
 
+    boolean_params = ["cython", "pool"]
+    if env.is_managed_pc:
+        cluster_params["rapids"] = False
+    else:
+        boolean_params.append("rapids")
+    cols_other = st.columns(len(boolean_params))
+    for idx, param in enumerate(boolean_params):
+        current_value = cluster_params.get(param, False)
+        updated_value = cols_other[idx].checkbox(
+            param.replace("_", " ").capitalize(),
+            value=current_value,
+            key=f"cluster_{param}",
+            help=f"Enable or disable {param}."
+        )
+        cluster_params[param] = updated_value
+
     cluster_enabled = st.toggle(
         "Enable Cluster",
         value=cluster_params.get("cluster_enabled", False),
@@ -387,22 +403,6 @@ def render_cluster_settings_ui():
     else:
         cluster_params.pop("scheduler", None)
         cluster_params.pop("workers", None)
-
-    boolean_params = ["cython", "pool"]
-    if env.is_managed_pc:
-        cluster_params["rapids"] = False
-    else:
-        boolean_params.append("rapids")
-    cols_other = st.columns(len(boolean_params))
-    for idx, param in enumerate(boolean_params):
-        current_value = cluster_params.get(param, False)
-        updated_value = cols_other[idx].checkbox(
-            param.replace("_", " ").capitalize(),
-            value=current_value,
-            key=f"cluster_{param}",
-            help=f"Enable or disable {param}."
-        )
-        cluster_params[param] = updated_value
 
     st.session_state.dask = cluster_enabled
     st.session_state["mode"] = (
@@ -661,7 +661,7 @@ def show_graph(workers, work_plan_metadata, work_plan, partition_key, weights_ke
                     graph.add_node(leaf, level=3)
                     graph.add_edge(part_node, leaf)
 
-    _draw_distribution(graph, partition_key, show_leaf_list, title="Orchestration View")
+    _draw_distribution(graph, partition_key, show_leaf_list, title="Workplan")
 
 def workload_barchart(workers, work_plan_metadata, partition_key, weights_key, weights_unit):
     """Display a workload bar chart using Plotly."""
@@ -740,6 +740,7 @@ async def page():
         "export_tab_previous_project": None,
         "env": env,
         "_env": env,
+        "TABLE_MAX_ROWS": getattr(env, "TABLE_MAX_ROWS", None),
     }
 
 
@@ -769,14 +770,18 @@ async def page():
 
 
     # Sidebar toggles for each page section
-    show_install = st.sidebar.checkbox("INSTALL", value=True)
-    show_distribute = st.sidebar.checkbox("SET ARGS", value=False)
-    if _is_app_installed(env):
-        show_run = st.sidebar.checkbox("RUN", value=False)
-    else:
-        show_run = False
+    if "show_install" not in st.session_state:
+        st.session_state["show_install"] = True
+    if "show_distribute" not in st.session_state:
+        st.session_state["show_distribute"] = True
+    if "show_run" not in st.session_state:
+        st.session_state["show_run"] = _is_app_installed(env)
 
-    show_export = st.sidebar.checkbox("EXPORT DATA", value=False, help="")
+    show_install = st.session_state["show_install"]
+    show_distribute = st.session_state["show_distribute"]
+    show_run = st.session_state["show_run"] if _is_app_installed(env) else False
+
+    show_export = True
 
     cluster_params = st.session_state.app_settings["cluster"]
     cluster_params.setdefault("verbose", 1)
@@ -817,16 +822,12 @@ async def page():
     st.session_state["_verbose_user_override"] = selected_verbose_int != 1
 
     verbose = cluster_params.get('verbose', 1)
-    with st.expander("System settings:", expanded=True):
+    with st.expander("System settings", expanded=False):
         render_cluster_settings_ui()
         cluster_params = st.session_state.app_settings["cluster"]
         verbose = cluster_params.get('verbose', 1)
-    # ------------------
-    # INSTALL Section
-    # ------------------
-    if show_install:
 
-        with st.expander("Install snippet"):
+        if show_install:
             enabled = cluster_params.get("cluster_enabled", False)
             raw_scheduler = cluster_params.get("scheduler", "")
             scheduler = f'"{str(raw_scheduler)}"' if enabled and raw_scheduler else "None"
@@ -850,58 +851,59 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())"""
             st.code(cmd, language="python")
-        log_expander = st.expander("Install logs", expanded=True)
-        with log_expander:
-            log_placeholder = st.empty()
-            existing_log = st.session_state.get("log_text", "").strip()
-            if existing_log:
-                log_placeholder.code(existing_log, language="python")
-        if st.button("INSTALL", key="install_btn", type="primary",
-                     help="Run the install snippet to set up your .venv for Manager and Worker"):
-            clear_log()
-            venv = env.cluster_root if env.install_type else env.active_app.parents[1]
-            install_command = cmd.replace("asyncio.run(main())", env.snippet_tail)
-            context_lines = [
-                "=== Install request ===",
-                f"timestamp: {datetime.now().isoformat(timespec='seconds')}",
-                f"active_app: {env.active_app}",
-                f"install_type: {env.install_type}",
-                f"cluster_enabled: {enabled}",
-                f"verbose: {verbose}",
-                f"modes_enabled: {st.session_state.get('mode', 'N/A')}",
-                f"scheduler: {raw_scheduler if enabled and raw_scheduler else 'None'}",
-                f"workers: {raw_workers if enabled and raw_workers else 'None'}",
-                f"venv: {venv}",
-                "=== Streaming install logs ===",
-            ]
-            with log_expander:
-                log_placeholder.empty()
-                for line in context_lines:
-                    update_log(log_placeholder, line)
-            with st.spinner("Installing worker..."):
-                _stdout, stderr = await env.run_agi(
-                    install_command,
-                    log_callback=lambda message: update_log(log_placeholder, message),
-                    venv=venv
-                )
 
+            log_expander = st.expander("Install logs", expanded=False)
+            with log_expander:
+                log_placeholder = st.empty()
+                existing_log = st.session_state.get("log_text", "").strip()
+                if existing_log:
+                    log_placeholder.code(existing_log, language="python")
+            if st.button("INSTALL", key="install_btn", type="primary",
+                         help="Run the install snippet to set up your .venv for Manager and Worker"):
+                clear_log()
+                venv = env.cluster_root if env.install_type else env.active_app.parents[1]
+                install_command = cmd.replace("asyncio.run(main())", env.snippet_tail)
+                context_lines = [
+                    "=== Install request ===",
+                    f"timestamp: {datetime.now().isoformat(timespec='seconds')}",
+                    f"active_app: {env.active_app}",
+                    f"install_type: {env.install_type}",
+                    f"cluster_enabled: {enabled}",
+                    f"verbose: {verbose}",
+                    f"modes_enabled: {st.session_state.get('mode', 'N/A')}",
+                    f"scheduler: {raw_scheduler if enabled and raw_scheduler else 'None'}",
+                    f"workers: {raw_workers if enabled and raw_workers else 'None'}",
+                    f"venv: {venv}",
+                    "=== Streaming install logs ===",
+                ]
                 with log_expander:
-                    status_line = "✅ Install finished without errors." if not stderr else "❌ Install finished with errors. Check logs above."
-                    update_log(log_placeholder, status_line)
                     log_placeholder.empty()
-                    display_log(st.session_state.get("log_text", ""), stderr)
-                if not stderr:
-                    st.success("Cluster installation completed.")
-                    # 👇 Auto-enable the RUN section after install
-                    st.session_state["SET ARGS"] = True  # reveals the "SET ARGS" checkbox (uses its label as the key)
-                    st.session_state["RUN"] = True  # pre-checks the "RUN" checkbox (its label is the key)
-                    st.rerun()
+                    for line in context_lines:
+                        update_log(log_placeholder, line)
+                with st.spinner("Installing worker..."):
+                    _stdout, stderr = await env.run_agi(
+                        install_command,
+                        log_callback=lambda message: update_log(log_placeholder, message),
+                        venv=venv
+                    )
+
+                    with log_expander:
+                        status_line = "✅ Install finished without errors." if not stderr else "❌ Install finished with errors. Check logs above."
+                        update_log(log_placeholder, status_line)
+                        log_placeholder.empty()
+                        display_log(st.session_state.get("log_text", ""), stderr)
+                    if not stderr:
+                        st.success("Cluster installation completed.")
+                        # 👇 Auto-enable the RUN section after install
+                        st.session_state["SET ARGS"] = True  # reveals the "SET ARGS" checkbox (uses its label as the key)
+                        st.session_state["RUN"] = True  # pre-checks the "RUN" checkbox (its label is the key)
+                        st.rerun()
 
     # ------------------
     # DISTRIBUTE Section
     # ------------------
     if show_distribute:
-        with st.expander(f"{module} settings:", expanded=True):
+        with st.expander(f"{module} args", expanded=True):
             app_args_form = env.app_args_form
 
             # ---- PATCH: Set default unchecked if snippet is empty ----
@@ -913,7 +915,7 @@ if __name__ == "__main__":
                 st.session_state["toggle_custom"] = snippet_not_empty
 
             # Always use the current value in session_state
-            st.checkbox("Custom UI", key="toggle_custom", on_change=init_custom_ui, args=[app_args_form])
+            st.toggle("Custom UI", key="toggle_custom", on_change=init_custom_ui, args=[app_args_form])
 
             if st.session_state["toggle_custom"] and snippet_exists and snippet_not_empty:
                 try:
@@ -934,7 +936,7 @@ if __name__ == "__main__":
             if st.session_state.get("args_reload_required"):
                 del st.session_state["app_settings"]
                 st.rerun()
-        with st.expander("Distribute snippet"):
+        with st.expander("Distribute snippet", expanded=False):
             cluster_params = st.session_state.app_settings["cluster"]
             enabled = cluster_params.get("cluster_enabled", False)
             scheduler = cluster_params.get("scheduler", "")
@@ -959,89 +961,96 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())"""
             st.code(cmd, language="python")
-        if st.button("TEST DISTRIBUTE", key="preview_btn", type="secondary",
-                     help="Run the snippet and display your distribution tree"):
-            st.session_state.preview_tree = True
-            with st.expander("Orchestration log:", expanded=True):
-                clear_log()
-                live_log_placeholder = st.empty()
-                with st.spinner("Building distribution..."):
-                    stdout, stderr = await env.run_agi(
-                        cmd.replace("asyncio.run(main())", env.snippet_tail),
-                        log_callback=lambda message: update_log(live_log_placeholder, message),
-                        venv=project_path
-                    )
-                live_log_placeholder.empty()
-                display_log(stdout, stderr)
-                if not stderr:
-                    st.success("Distribution built successfully.")
-        with st.expander("Orchestration view:", expanded=False):
-            if st.session_state.get("preview_tree"):
-                dist_tree_path = env.wenv_abs / "distribution.json"
-                if dist_tree_path.exists():
-                    workers, work_plan_metadata, work_plan = load_distribution(dist_tree_path)
-                    partition_key = "Partition"
-                    weights_key = "Units"
-                    weights_unit = "Unit"
-                    tabs = st.tabs(["Tree", "Workload"])
-                    with tabs[0]:
-                        if env.base_worker_cls.endswith('dag-worker'):
-                            show_graph(workers, work_plan_metadata, work_plan, partition_key, weights_key,
-                                   show_leaf_list=st.checkbox("Show leaf nodes", value=False))
-                        else:
-                            show_tree(workers, work_plan_metadata, work_plan, partition_key, weights_key,
-                                   show_leaf_list=st.checkbox("Show leaf nodes", value=False))
-                    with tabs[1]:
-                        workload_barchart(workers, work_plan_metadata, partition_key, weights_key, weights_unit)
-                    unused_workers = [worker for worker, chunks in zip(workers, work_plan_metadata) if not chunks]
-                    if unused_workers:
-                        st.warning(f"**{len(unused_workers)} Unused workers:** " + ", ".join(unused_workers))
-                    st.markdown("**Modify Distribution:**")
-                    ncols = 2
-                    cols = st.columns([10, 1, 10])
-                    count = 0
-                    for i, chunks in enumerate(work_plan_metadata):
-                        for j, chunk in enumerate(chunks):
-                            partition, size = chunk
-                            with cols[0 if count % ncols == 0 else 2]:
-                                b1, b2 = st.columns(2)
-                                b1.text(f"{partition_key.title()} {partition} ({weights_key}: {size} {weights_unit})")
-                                key = f"worker_partition_{partition}_{i}_{j}"
-                                b2.selectbox("Worker", options=workers, key=key, index=i if i < len(workers) else 0)
-                            count += 1
-                    if st.button("Apply", key="apply_btn", type="primary"):
-                        new_work_plan_metadata = [[] for _ in workers]
-                        new_work_plan = [[] for _ in workers]
-                        for i, (chunks, files_tree) in enumerate(zip(work_plan_metadata, work_plan)):
-                            for j, (chunk, files) in enumerate(zip(chunks, files_tree)):
-                                key = f"worker_partition{chunk[0]}"
-                                selected_worker = st.session_state.get(key)
-                                if selected_worker and selected_worker in workers:
-                                    idx = workers.index(selected_worker)
-                                    new_work_plan_metadata[idx].append(chunk)
-                                    new_work_plan[idx].append(files)
-                        data = load_distribution(dist_tree_path)[0]
-                        data["target_args"] = st.session_state.app_settings["args"]
-                        data["work_plan_metadata"] = new_work_plan_metadata
-                        data["work_plan"] = new_work_plan
-                        with open(dist_tree_path, "w") as f:
-                            json.dump(data, f)
-                        st.rerun()
+            if st.button("CHECK DISTRIBUTE", key="preview_btn", type="primary",
+                         help="Run the snippet and display your distribution tree"):
+                st.session_state.preview_tree = True
+                with st.expander("Orchestration log", expanded=False):
+                    clear_log()
+                    live_log_placeholder = st.empty()
+                    with st.spinner("Building distribution..."):
+                        stdout, stderr = await env.run_agi(
+                            cmd.replace("asyncio.run(main())", env.snippet_tail),
+                            log_callback=lambda message: update_log(live_log_placeholder, message),
+                            venv=project_path
+                        )
+                    live_log_placeholder.empty()
+                    display_log(stdout, stderr)
+                    if not stderr:
+                        st.success("Distribution built successfully.")
+
+            with st.expander("Workplan", expanded=False):
+                if st.session_state.get("preview_tree"):
+                    dist_tree_path = env.wenv_abs / "distribution.json"
+                    if dist_tree_path.exists():
+                        workers, work_plan_metadata, work_plan = load_distribution(dist_tree_path)
+                        partition_key = "Partition"
+                        weights_key = "Units"
+                        weights_unit = "Unit"
+                        tabs = st.tabs(["Tree", "Workload"])
+                        with tabs[0]:
+                            if env.base_worker_cls.endswith('dag-worker'):
+                                show_graph(workers, work_plan_metadata, work_plan, partition_key, weights_key,
+                                       show_leaf_list=st.checkbox("Show leaf nodes", value=False))
+                            else:
+                                show_tree(workers, work_plan_metadata, work_plan, partition_key, weights_key,
+                                       show_leaf_list=st.checkbox("Show leaf nodes", value=False))
+                        with tabs[1]:
+                            workload_barchart(workers, work_plan_metadata, partition_key, weights_key, weights_unit)
+                        unused_workers = [worker for worker, chunks in zip(workers, work_plan_metadata) if not chunks]
+                        if unused_workers:
+                            st.warning(f"**{len(unused_workers)} Unused workers:** " + ", ".join(unused_workers))
+                        st.markdown("**Modify Distribution:**")
+                        ncols = 2
+                        cols = st.columns([10, 1, 10])
+                        count = 0
+                        for i, chunks in enumerate(work_plan_metadata):
+                            for j, chunk in enumerate(chunks):
+                                partition, size = chunk
+                                with cols[0 if count % ncols == 0 else 2]:
+                                    b1, b2 = st.columns(2)
+                                    b1.text(f"{partition_key.title()} {partition} ({weights_key}: {size} {weights_unit})")
+                                    key = f"worker_partition_{partition}_{i}_{j}"
+                                    b2.selectbox("Worker", options=workers, key=key, index=i if i < len(workers) else 0)
+                                count += 1
+                        if st.button("Apply", key="apply_btn", type="primary"):
+                            new_work_plan_metadata = [[] for _ in workers]
+                            new_work_plan = [[] for _ in workers]
+                            for i, (chunks, files_tree) in enumerate(zip(work_plan_metadata, work_plan)):
+                                for j, (chunk, files) in enumerate(zip(chunks, files_tree)):
+                                    key = f"worker_partition{chunk[0]}"
+                                    selected_worker = st.session_state.get(key)
+                                    if selected_worker and selected_worker in workers:
+                                        idx = workers.index(selected_worker)
+                                        new_work_plan_metadata[idx].append(chunk)
+                                        new_work_plan[idx].append(files)
+                            data = load_distribution(dist_tree_path)[0]
+                            data["target_args"] = st.session_state.app_settings["args"]
+                            data["work_plan_metadata"] = new_work_plan_metadata
+                            data["work_plan"] = new_work_plan
+                            with open(dist_tree_path, "w") as f:
+                                json.dump(data, f)
+                            st.rerun()
 
     # ------------------
     # RUN Section
     # ------------------
     if show_run:
-        if st.checkbox("Benchmark all modes", value=False, key="benchmark",
-                           help="This will run the snippet for each available mode and return a table with each run’s duration"):
-            st.session_state["mode"] = None
+        st.session_state.setdefault("run_log_cache", "")
+        run_cmd = None
+        with st.expander("Run snippet", expanded=False):
+            st.session_state.setdefault("benchmark", False)
+            if st.toggle(
+                "Benchmark all modes",
+                key="benchmark",
+                help="Run the snippet once per mode and report timings for each path",
+            ):
+                st.session_state["mode"] = None
 
-        with st.expander("Run snippet", expanded=True):
             cluster_params = st.session_state.app_settings["cluster"]
             enabled = cluster_params.get("cluster_enabled", False)
             scheduler = f'"{cluster_params.get("scheduler")}"' if enabled else "None"
             workers = str(cluster_params.get("workers")) if enabled else "None"
-            cmd = f"""
+            run_cmd = f"""
 import asyncio
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv, normalize_path
@@ -1059,84 +1068,121 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())"""
-            st.code(cmd, language="python")
-        if st.button("RUN", key="run_btn", type="primary", help="Run your snippet with your cluster and app settings"):
-                clear_log()
-                live_log_placeholder = st.empty()
-                with st.spinner("Running AGI..."):
-                    stdout, stderr = await env.run_agi(
-                        cmd.replace("asyncio.run(main())", env.snippet_tail),
-                        log_callback=lambda message: update_log(live_log_placeholder, message),
-                        venv=project_path
-                    )
-                    live_log_placeholder.empty()
-                    display_log(stdout, stderr)
-                    run_log = stdout
+            st.code(run_cmd, language="python")
 
-        st.session_state["loaded_df"] = cached_load_df(Path().home() / env.dataframe_path,with_index=False)
+            with st.expander("Benchmark results", expanded=False):
+                if not st.session_state.get('mode'):
+                    try:
+                        if env.benchmark.exists():
+                            with open(env.benchmark, "r") as f:
+                                raw = json.load(f) or {}
 
-        if st.sidebar.button("Load Data", key="load_data"):
-            st.session_state["loaded_df"] = cached_load_df(Path().home() / env.dataframe_path,with_index=False)
-        loaded_df = st.session_state.get("loaded_df")
-        if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
-            st.dataframe(loaded_df)
+                            # Pull out a date if present, so it doesn't break the DF shape
+                            date_value = str(raw.pop("date", "") or "").strip()
+
+                            # Keep your original layout
+                            benchmark_df = pd.DataFrame.from_dict(raw, orient='index')
+
+                            # Only display if there's real content (not all-NaN rows/cols)
+                            df_nonempty = benchmark_df.dropna(how='all')
+                            if not df_nonempty.empty:
+                                df_nonempty = df_nonempty.loc[:, df_nonempty.notna().any(axis=0)]
+                            if not df_nonempty.empty and df_nonempty.shape[1] > 0:
+                                # If no date in JSON, try file mtime; otherwise skip date
+                                if not date_value:
+                                    try:
+                                        ts = os.path.getmtime(env.benchmark)
+                                        date_value = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+                                    except Exception:
+                                        date_value = ""
+
+                                if date_value:
+                                    st.caption(f"Benchmark date: {date_value}")
+
+                                st.dataframe(df_nonempty)
+                            # else: don't display anything if table is effectively empty
+                        else:
+                            st.error("program abort before all mode have been run")
+                            st.session_state['mode'] = 0
+                            st.session_state['benchmark'] = False
+
+                    except json.JSONDecodeError as e:
+                        st.warning(f"Error decoding JSON: {e}")
+
+        existing_run_log = st.session_state.get("run_log_cache", "").strip()
+        run_log_expander = None
+        run_log_placeholder = None
+        if existing_run_log:
+            run_log_expander = st.expander("Run logs", expanded=False)
+            with run_log_expander:
+                run_log_placeholder = st.empty()
+                run_log_placeholder.code(existing_run_log, language="python")
+
+        run_col, load_col = st.columns(2)
+        run_clicked = False
+        if run_cmd:
+            run_clicked = run_col.button(
+                "RUN",
+                key="run_btn",
+                type="primary",
+                help="Run your snippet with your cluster and app settings",
+                use_container_width=True,
+            )
         else:
-            st.info("No data loaded yet. Click 'Load Data' from the sidebar to load it.")
+            run_col.button(
+                "RUN",
+                key="run_btn_disabled",
+                type="primary",
+                disabled=True,
+                help="Configure the run snippet to enable execution",
+                use_container_width=True,
+            )
 
-        with st.expander("Benchmark results", expanded=True):
-            if not st.session_state.get('mode'):
-                try:
-                    if env.benchmark.exists():
-                        with open(env.benchmark, "r") as f:
-                            raw = json.load(f) or {}
+        load_clicked = load_col.button(
+            "Load Data",
+            key="load_data_main",
+            type="primary",
+            use_container_width=True,
+            help="Fetch the latest dataframe preview for export",
+        )
 
-                        # Pull out a date if present, so it doesn't break the DF shape
-                        date_value = str(raw.pop("date", "") or "").strip()
+        if load_clicked:
+            st.session_state["loaded_df"] = cached_load_df(Path().home() / env.dataframe_path, with_index=False)
+            st.session_state["_force_export_open"] = True
 
-                        # Keep your original layout
-                        benchmark_df = pd.DataFrame.from_dict(raw, orient='index')
+        if run_clicked and run_cmd:
+            clear_log()
+            st.session_state["run_log_cache"] = ""
+            if run_log_expander is None:
+                run_log_expander = st.expander("Run logs", expanded=True)
+            with run_log_expander:
+                run_log_placeholder = st.empty()
+            with st.spinner("Running AGI..."):
+                stdout, stderr = await env.run_agi(
+                    run_cmd.replace("asyncio.run(main())", env.snippet_tail),
+                    log_callback=lambda message: update_log(run_log_placeholder, message),
+                    venv=project_path
+                )
+                st.session_state["run_log_cache"] = st.session_state.get("log_text", "")
+            with run_log_expander:
+                run_log_placeholder.empty()
+                display_log(st.session_state["run_log_cache"], stderr)
 
-                        # Only display if there's real content (not all-NaN rows/cols)
-                        df_nonempty = benchmark_df.dropna(how='all')
-                        if not df_nonempty.empty:
-                            df_nonempty = df_nonempty.loc[:, df_nonempty.notna().any(axis=0)]
-                        if not df_nonempty.empty and df_nonempty.shape[1] > 0:
-                            # If no date in JSON, try file mtime; otherwise skip date
-                            if not date_value:
-                                try:
-                                    ts = os.path.getmtime(env.benchmark)
-                                    date_value = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
-                                except Exception:
-                                    date_value = ""
+    df_preview = st.session_state.get("loaded_df")
+    if isinstance(df_preview, pd.DataFrame) and not df_preview.empty:
+        st.dataframe(df_preview)
 
-                            if date_value:
-                                st.caption(f"Benchmark date: {date_value}")
-
-                            st.dataframe(df_nonempty)
-                        # else: don't display anything if table is effectively empty
-                    else:
-                        st.error("program abort before all mode have been run")
-                        st.session_state['mode'] = 0
-                        st.session_state['benchmark'] = False
-
-                except json.JSONDecodeError as e:
-                    st.warning(f"Error decoding JSON: {e}")
-
-    # ------------------
-    # EXPORT-COLUMNS Section
-    # ------------------
-    if show_export:
+    export_expanded = st.session_state.pop("_force_export_open", False)
+    expander = st.expander("Export data", expanded=export_expanded)
+    with expander:
         loaded_df = st.session_state.get("loaded_df")
 
-        # If loaded_df exists, make sure there are no empty column names.
         if isinstance(loaded_df, pd.DataFrame):
-            # Rename any empty column names to a default value with an index.
             loaded_df.columns = [
                 col if col.strip() != "" else f"Unnamed Column {idx}"
                 for idx, col in enumerate(loaded_df.columns)
             ]
 
-        # Check if we need to update the session state for export tab
         if ("export_tab_previous_project" not in st.session_state or
                 st.session_state.export_tab_previous_project != env.app or
                 st.session_state.get("df_cols") != (loaded_df.columns.tolist() if loaded_df is not None else [])):
@@ -1154,11 +1200,13 @@ if __name__ == "__main__":
         if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
             def on_select_all_changed():
                 st.session_state.selected_cols = st.session_state.df_cols.copy() if st.session_state.check_all else []
+                for idx in range(len(st.session_state.df_cols)):
+                    st.session_state[f"export_col_{idx}"] = st.session_state.check_all
 
             st.checkbox("Select All", key="check_all", on_change=on_select_all_changed)
 
-            def on_individual_checkbox_change(col_name):
-                if st.session_state.get(f"export_col_{col_name}"):
+            def on_individual_checkbox_change(col_name, state_key):
+                if st.session_state.get(state_key):
                     if col_name not in st.session_state.selected_cols:
                         st.session_state.selected_cols.append(col_name)
                 else:
@@ -1166,50 +1214,49 @@ if __name__ == "__main__":
                         st.session_state.selected_cols.remove(col_name)
                 st.session_state.check_all = len(st.session_state.selected_cols) == len(st.session_state.df_cols)
 
-            # Create 5 columns for checkboxes layout
             cols_layout = st.columns(5)
             for idx, col in enumerate(st.session_state.df_cols):
-                # Provide a default label if the column name is empty.
                 label = col if col.strip() != "" else f"Unnamed Column {idx}"
+                state_key = f"export_col_{idx}"
+                st.session_state.setdefault(state_key, col in st.session_state.selected_cols)
                 with cols_layout[idx % 5]:
                     st.checkbox(
                         label,
-                        key=f"export_col_{col}",
-                        value=col in st.session_state.selected_cols,
+                        key=state_key,
                         on_change=on_individual_checkbox_change,
-                        args=(col,)
+                        args=(col, state_key)
                     )
-
-            export_file_input = st.sidebar.text_input(
-                "Export to filename:",
-                value=st.session_state.df_export_file,
-                key="input_df_export_file"
-            )
-            st.session_state.df_export_file = export_file_input.strip()
-
-            if st.sidebar.button("Export-DF", key="export_df", use_container_width=True):
-                target_path = st.session_state.df_export_file
-                if not st.session_state.selected_cols:
-                    st.warning("No columns selected for export.")
-                elif not target_path:
-                    st.warning("Please provide a filename for the export.")
-                else:
-                    exported_df = loaded_df[st.session_state.selected_cols]
-                    if save_csv(exported_df, target_path):
-                        st.success(f"Dataframe exported successfully to {target_path}.")
-
-                if st.session_state.profile_report_file.exists():
-                    os.remove(st.session_state.profile_report_file)
-
-            if st.sidebar.button("Stats Report", key="stats_report", use_container_width=True, type="primary"):
-                profile_file = st.session_state.profile_report_file
-                if not profile_file.exists():
-                    profile = generate_profile_report(loaded_df)
-                    with st.spinner("Generating profile report..."):
-                        profile.to_file(profile_file, silent=False)
-                open_new_tab(profile_file.as_uri())
         else:
-            st.warning("No dataset found for this project.")
+            st.info("No data loaded yet. Click 'Load Data' above to populate it before export.")
+
+        export_file_input = st.text_input(
+            "Export to filename:",
+            value=st.session_state.df_export_file,
+            key="input_df_export_file_main"
+        )
+        st.session_state.df_export_file = export_file_input.strip()
+
+        if st.button("Export-DF", key="export_df_main"):
+            target_path = st.session_state.df_export_file
+            if not st.session_state.selected_cols:
+                st.warning("No columns selected for export.")
+            elif not target_path:
+                st.warning("Please provide a filename for the export.")
+            else:
+                exported_df = loaded_df[st.session_state.selected_cols]
+                if save_csv(exported_df, target_path):
+                    st.success(f"Dataframe exported successfully to {target_path}.")
+
+            if st.session_state.profile_report_file.exists():
+                os.remove(st.session_state.profile_report_file)
+
+        if st.button("Stats Report", key="stats_report_main", type="primary"):
+            profile_file = st.session_state.profile_report_file
+            if not profile_file.exists():
+                profile = generate_profile_report(loaded_df)
+                with st.spinner("Generating profile report..."):
+                    profile.to_file(profile_file, silent=False)
+            open_new_tab(profile_file.as_uri())
 
 # ===========================
 # Main Entry Point

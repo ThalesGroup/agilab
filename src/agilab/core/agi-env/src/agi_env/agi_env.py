@@ -127,7 +127,7 @@ class AgiEnv:
     apps_dir = None
     app = None
     target = None
-    GUI_NROW = None
+    TABLE_MAX_ROWS = None
     GUI_SAMPLING = None
     init_done = False
     hw_rapids_capable = None
@@ -280,7 +280,7 @@ class AgiEnv:
             resources_root = self.env_root / "src/agi_env"
         if install_type != 2:
             self._init_resources(resources_root / self._agi_resources)
-        self.GUI_NROW = int(envars.get("GUI_NROW", 1000))
+        self.TABLE_MAX_ROWS = int(envars.get("TABLE_MAX_ROWS", 1000))
         self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
 
         self.target = target

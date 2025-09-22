@@ -561,10 +561,10 @@ def page():
                 "Select the desired number of points:",
                 min_value=10,
                 max_value=nrows,
-                value=st.session_state.GUI_NROW,
+                value=st.session_state.TABLE_MAX_ROWS,
                 step=10,
             )
-            st.session_state.GUI_NROW = lines
+            st.session_state.TABLE_MAX_ROWS = lines
             if lines >= 0:
                 st.session_state.loaded_df = st.session_state.loaded_df.iloc[:lines, :]
 
@@ -861,8 +861,8 @@ def main():
         env.init_done = True
         st.session_state['env'] = env
 
-        if "GUI_NROW" not in st.session_state:
-            st.session_state["GUI_NROW"] = env.GUI_NROW
+        if "TABLE_MAX_ROWS" not in st.session_state:
+            st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
         if "GUI_SAMPLING" not in st.session_state:
             st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
 

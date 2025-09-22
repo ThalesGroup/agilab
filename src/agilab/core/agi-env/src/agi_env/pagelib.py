@@ -743,8 +743,22 @@ def run_lab(query, snippet, copilot):
 
 
 @st.cache_data
-def cached_load_df(path, with_index=True):
-    return load_df(path, with_index=with_index)
+def cached_load_df(path, with_index=True, nrows=None):
+    """Convenience wrapper that honors TABLE_MAX_ROWS for lightweight previews."""
+    if nrows is None:
+        df_max_rows = st.session_state.get("TABLE_MAX_ROWS") if "TABLE_MAX_ROWS" in st.session_state else None
+    else:
+        df_max_rows = nrows
+
+    if df_max_rows is not None:
+        try:
+            df_max_rows = int(df_max_rows)
+        except (TypeError, ValueError):
+            df_max_rows = None
+    if df_max_rows == 0:
+        df_max_rows = None
+
+    return load_df(path, with_index=with_index, nrows=df_max_rows)
 
 def get_first_match_and_keyword(string_list, keywords_to_find):
     """

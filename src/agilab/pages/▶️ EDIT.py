@@ -1076,8 +1076,8 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
 
 def handle_project_selection():
     """
-    Handle the 'Select' tab in the sidebar for project selection,
-    but render each section only if its checkbox is checked.
+    Handle the 'Select' tab in the sidebar for project selection.
+    Each section is presented inside an expander for easier navigation.
     """
     env = st.session_state["env"]
     projects = env.projects
@@ -1108,12 +1108,12 @@ def handle_project_selection():
         ("WORKER",     lambda: _render_worker(env)),
         ("EXPORT‑APP‑FILTER", lambda: _render_gitignore(env)),
         ("APP‑SETTINGS",      lambda: _render_app_settings(env)),
-        ("ARGS‑UI",           lambda: _render_args_ui(env)),
+        ("APP-ARGS‑FORM",           lambda: _render_args_ui(env)),
         ("PRE‑PROMPT",        lambda: _render_pre_prompt(env)),
     ]
 
     for label, render_fn in sections:
-        if st.checkbox(label, value=False, key=label):
+        with st.expander(label, expanded=False):
             render_fn()
 
 

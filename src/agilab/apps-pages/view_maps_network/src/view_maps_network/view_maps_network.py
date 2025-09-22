@@ -32,8 +32,8 @@ if 'env' not in st.session_state:
 else:
     env = st.session_state['env']
 
-if "GUI_NROW" not in st.session_state:
-    st.session_state["GUI_NROW"] = env.GUI_NROW
+if "TABLE_MAX_ROWS" not in st.session_state:
+    st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
 if "GUI_SAMPLING" not in st.session_state:
     st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
 render_logo("Cartography Visualisation")

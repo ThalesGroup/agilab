@@ -15,7 +15,7 @@ cluster_enabled = false
 verbose = 1
 cython = false
 pool = false
-rapids = true
+rapids = false
 
 [pages]
 view_module = []
