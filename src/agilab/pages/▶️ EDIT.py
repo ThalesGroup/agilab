@@ -1236,8 +1236,8 @@ def handle_project_creation():
 
     raw = st.sidebar.text_input("Project Name (no suffix)", key="clone_dest").strip()
 
-    cols = st.sidebar.columns(3)
-    if cols[2].button("Create", type="primary", use_container_width=True):
+    create_clicked = st.sidebar.button("Create", type="primary", use_container_width=True)
+    if create_clicked:
         if not raw:
             st.error("Project name must not be empty.")
             return
@@ -1297,8 +1297,8 @@ def handle_project_rename():
         help="Enter the base name for your new project; '_project' will be appended if needed."
     ).strip()
 
-    cols = st.sidebar.columns(3)
-    if cols[2].button("Rename", type="primary", use_container_width=True):
+    rename_clicked = st.sidebar.button("Rename", type="primary", use_container_width=True)
+    if rename_clicked:
         if not raw:
             st.error("Project name must not be empty.")
             return
@@ -1352,7 +1352,8 @@ def handle_project_delete():
 
     cols = st.sidebar.columns(3)
     # Delete button
-    if cols[2].button("Delete"):
+    delete_clicked = st.sidebar.button("Delete", type="primary", use_container_width=True)
+    if delete_clicked:
         if not confirm_delete:
             st.error("Please confirm that you want to delete the project.")
         else:
