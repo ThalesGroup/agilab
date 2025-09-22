@@ -349,7 +349,7 @@ def render_cluster_settings_ui():
     env = st.session_state["env"]
     cluster_params = st.session_state.app_settings["cluster"]
 
-    cluster_enabled = st.checkbox(
+    cluster_enabled = st.toggle(
         "Enable Cluster",
         value=cluster_params.get("cluster_enabled", False),
         key="cluster_enabled",
@@ -779,26 +779,48 @@ async def page():
     show_export = st.sidebar.checkbox("EXPORT DATA", value=False, help="")
 
     cluster_params = st.session_state.app_settings["cluster"]
+    cluster_params.setdefault("verbose", 1)
     verbosity_options = [0, 1, 2, 3]
-    default_verbose = cluster_params.get("verbose", 2)
+    current_verbose = cluster_params.get("verbose", 1)
+    if isinstance(current_verbose, bool):
+        current_verbose = 1
     try:
-        default_index = verbosity_options.index(int(default_verbose))
-    except (ValueError, TypeError):
-        default_index = 2
+        current_verbose = int(current_verbose)
+    except (TypeError, ValueError):
+        current_verbose = 1
+    if current_verbose not in verbosity_options:
+        current_verbose = 1
 
-    cluster_params["verbose"] = st.sidebar.selectbox(
+    user_override = st.session_state.get("_verbose_user_override", False)
+    if not user_override:
+        current_verbose = 1
+        cluster_params["verbose"] = 1
+
+    st.session_state.setdefault("cluster_verbose", current_verbose)
+
+    selected_verbose = st.sidebar.selectbox(
         "Verbosity level",
         options=verbosity_options,
-        index=default_index,
         key="cluster_verbose",
         help="Controls AgiEnv verbosity for generated install/distribute/run snippets.",
     )
 
-    verbose = cluster_params.get('verbose', 2)
+    try:
+        selected_verbose_int = int(selected_verbose)
+    except (TypeError, ValueError):
+        selected_verbose_int = 1
+
+    if selected_verbose_int not in verbosity_options:
+        selected_verbose_int = 1
+
+    cluster_params["verbose"] = selected_verbose_int
+    st.session_state["_verbose_user_override"] = selected_verbose_int != 1
+
+    verbose = cluster_params.get('verbose', 1)
     with st.expander("System settings:", expanded=True):
         render_cluster_settings_ui()
         cluster_params = st.session_state.app_settings["cluster"]
-        verbose = cluster_params.get('verbose', 2)
+        verbose = cluster_params.get('verbose', 1)
     # ------------------
     # INSTALL Section
     # ------------------
@@ -891,7 +913,7 @@ if __name__ == "__main__":
                 st.session_state["toggle_custom"] = snippet_not_empty
 
             # Always use the current value in session_state
-            st.toggle("Custom UI", key="toggle_custom", on_change=init_custom_ui, args=[app_args_form])
+            st.checkbox("Custom UI", key="toggle_custom", on_change=init_custom_ui, args=[app_args_form])
 
             if st.session_state["toggle_custom"] and snippet_exists and snippet_not_empty:
                 try:

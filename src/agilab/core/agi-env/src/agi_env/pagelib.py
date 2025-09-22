@@ -1044,23 +1044,49 @@ def update_datadir(var_key, widget_key):
 
 def select_project(projects, current_project):
     """
-    Render the project selection sidebar.
+    Render the project selection sidebar. Provides a lightweight filter so we
+    never ship thousands of entries to the browser at once.
 
     :param projects: List of available projects.
-    :type projects: list
+    :type projects: list[str]
     :param current_project: Currently selected project.
     :type current_project: str
-    :return: Selected project name.
-    :rtype: str
     """
-    st.sidebar.selectbox(
+    search_term = st.sidebar.text_input("Filter projects", key="project_filter").strip().lower()
+
+    if search_term:
+        filtered_projects = [p for p in projects if search_term in p.lower()]
+        total_matches = len(filtered_projects)
+    else:
+        filtered_projects = projects
+        total_matches = len(projects)
+
+    shortlist = list(filtered_projects[:50])
+
+    if current_project and current_project in filtered_projects and current_project not in shortlist:
+        shortlist = [current_project] + [p for p in shortlist if p != current_project]
+
+    if not shortlist:
+        st.sidebar.info("No projects match that filter.")
+        return
+
+    if search_term and total_matches > len(shortlist):
+        st.sidebar.caption(f"Showing first {len(shortlist)} of {total_matches} matches")
+
+    try:
+        default_index = shortlist.index(current_project)
+    except ValueError:
+        default_index = 0
+
+    selection = st.sidebar.selectbox(
         "Project Name",
-        projects,
-        index=projects.index(current_project) if current_project in projects else 0,
-        on_change=lambda: on_project_change(st.session_state["project_selectbox"]),
+        shortlist,
+        index=default_index,
         key="project_selectbox",
     )
-    return
+
+    if selection != current_project:
+        on_project_change(selection)
 
 
 def open_new_tab(url):

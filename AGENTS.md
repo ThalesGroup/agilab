@@ -1,17 +1,14 @@
 # AGILab Run & Troubleshooting Checklist
 
-This runbook centralises every IDE run configuration, grouped smoke tests, and the
-operational tips we rely on during day-to-day development. Keep it in sync with
-`.idea/runConfigurations` so that anyone can reproduce an issue—or validate a fix—
-in a single copy/paste.
-
-> **Note**
-> AGILAB is still evolving rapidly. During this early phase we do **not** keep
-> backward compatibility across releases; expect breaking changes between updates.
+Use this runbook to launch, validate, and troubleshoot AGILab flows from a single
+place. The sections mirror the IDE run configurations so you can copy commands
+directly into a shell or Streamlit page. After changing anything under
+`.idea/runConfigurations`, regenerate the table below so everyone executes the
+same instructions.
 
 > **Tip**
-> When you update or add run configs, refresh this document immediately so CI and
-> reviewers share the same playbook.
+> Update this document whenever a run config, environment variable, or Streamlit
+> control changes. CI, reviewers, and support rely on it for reproduction steps.
 
 <details>
 <summary><strong>Launch matrix (auto-sorted from .idea/runConfigurations)</strong></summary>
@@ -167,6 +164,9 @@ in a single copy/paste.
 - Apps-pages: launch Streamlit pages bound to an active app
 - `uv run streamlit run src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py -- --install-type 1 --active-app src/agilab/apps/flight_project`
 - `uv run streamlit run src/agilab/apps-pages/view_barycentric/src/view_barycentric/view_barycentric.py -- --install-type 1 --active-app src/agilab/apps/flight_project`
+- `▶️ EXECUTE` page tips:
+  - Use the sidebar `Verbosity level` select to choose AgiEnv verbosity (0–3). The value propagates to the generated install/distribute/run snippets and appears in the install log header.
+  - Install output now streams inside the dedicated **Install logs** expander. Keep it open to watch live progress even if the snippet expander is collapsed.
 - End-user mode: `cd ../agi-space && uv run streamlit run .venv/lib/python3.13/site-packages/agilab/AGILAB.py -- --openai-api-key "your-key" --install 0`
 
 For each tier, capture: command, expected output, and pitfalls (CWD, env vars, interpreter).
