@@ -395,7 +395,7 @@ def on_project_change(project, switch_to_select=True):
         session_state.module_rel = Path(module)
         session_state.datadir = env.AGILAB_EXPORT_ABS / module
         session_state.datadir_str = str(session_state.datadir)
-        st.session_state.df_export_file = session_state.datadir / "export.csv"
+        st.session_state.df_export_file = str(session_state.datadir / "export.csv")
 
         # Optional: Set a flag to switch the sidebar tab if needed
         session_state.switch_to_select = switch_to_select
@@ -517,11 +517,17 @@ def export_df():
     Raises:
         None
     """
-    if st.session_state.get("loaded_df") is not None:
-        st.session_state.loaded_df.to_csv(st.session_state.df_file_out)
-        st.success("saved!")
-    else:
+    df = st.session_state.get("loaded_df")
+    target = st.session_state.get("df_file_out", "")
+
+    if df is None:
         st.warning("DataFrame is empty. Nothing to export.")
+        return
+
+    if save_csv(df, target):
+        st.success(f"Saved to {target}!")
+    else:
+        st.warning("Export failed; please check the filename and dataframe content.")
 
 # Remove ANSI escape codes
 import ast
@@ -848,7 +854,7 @@ def load_df(path: Path, nrows=None, with_index=True):
 
 
 
-def save_csv(df, path: Path, sep=","):
+def save_csv(df, path: Path, sep=",") -> bool:
     """
     Save a DataFrame to a CSV file.
 
@@ -857,13 +863,23 @@ def save_csv(df, path: Path, sep=","):
         path (Path): The file path to save the CSV.
         sep (str): The separator to use in the CSV file.
     """
-    path = Path(path)
+    # Allow users to pass shortcuts like "~/file.csv" or "$HOME/file.csv".
+    path_str = str(path).strip()
+    if not path_str:
+        st.error("Please provide a filename for the export.")
+        return False
+
+    expanded_path = os.path.expanduser(os.path.expandvars(path_str))
+    path = Path(expanded_path)
+
     if path.is_dir():
         st.error(f"{path} is a directory instead of a filename.")
-        return
+        return False
     path.parent.mkdir(parents=True, exist_ok=True)
     if df.shape[1] > 0:
-        df.to_csv(path, sep=sep,index=False)
+        df.to_csv(path, sep=sep, index=False)
+        return True
+    return False
 
 
 def get_df_index(df_files, df_file):

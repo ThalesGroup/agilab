@@ -218,26 +218,17 @@ def replace_content(content, rename_map):
 
 @st.cache_data
 def read_gitignore(gitignore_path):
+    """Return a :class:`PathSpec` built from ``gitignore_path``.
+
+    When the project does not ship a ``.gitignore`` we still want to allow
+    exports, so we fall back to an empty ignore list instead of raising.
     """
 
-    Read patterns from a .gitignore file and compile them into a PathSpec.
-
-
-
-    Args:
-
-        gitignore_path (Path): Path to the .gitignore file.
-
-
-
-    Returns:
-
-        PathSpec: Compiled PathSpec object.
-
-    """
-
-    with open(gitignore_path, "r") as f:
-        patterns = f.read().splitlines()
+    try:
+        with open(gitignore_path, "r") as f:
+            patterns = f.read().splitlines()
+    except FileNotFoundError:
+        patterns = []
 
     return PathSpec.from_lines(GitWildMatchPattern, patterns)
 # -------------------- Project Cleaner -------------------- #
@@ -252,10 +243,6 @@ def clean_project(project_path):
     """
     project_path = Path(project_path)
     gitignore_path = project_path / ".gitignore"
-
-    if not gitignore_path.exists():
-        st.warning(f"No .gitignore file found at '{gitignore_path}'.")
-        return
 
     spec = read_gitignore(gitignore_path)
 
@@ -287,9 +274,7 @@ def handle_export_project():
     gitignore_path = input_dir / ".gitignore"
 
     if not gitignore_path.exists():
-        st.error(f"No .gitignore file found at '{gitignore_path}'.")
-        return
-
+        st.info("No .gitignore found; exporting all files.")
     spec = read_gitignore(gitignore_path)
 
     with zipfile.ZipFile(output_zip, "w", zipfile.ZIP_DEFLATED) as out:

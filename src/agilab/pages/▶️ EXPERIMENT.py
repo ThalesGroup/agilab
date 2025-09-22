@@ -22,6 +22,7 @@ from agi_env.pagelib import (
     get_about_content,
     get_css_text,
     export_df,
+    save_csv,
     scan_dir,
     on_df_change,
     render_logo,
@@ -166,22 +167,135 @@ def extract_code(gpt_message: str) -> Tuple[str, str]:
     return "", ""
 
 
+def _format_for_responses(conversation: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Convert legacy message payload into Responses API format."""
+
+    formatted: List[Dict[str, Any]] = []
+    for message in conversation:
+        role = message.get("role", "user")
+        content = message.get("content", "")
+
+        if isinstance(content, list):
+            # Assume content already follows the new schema.
+            formatted.append({"role": role, "content": content})
+            continue
+
+        text_value = "" if content is None else str(content)
+        formatted.append(
+            {
+                "role": role,
+                "content": [
+                    {
+                        "type": "text",
+                        "text": text_value,
+                    }
+                ],
+            }
+        )
+
+    return formatted
+
+
+def _response_to_text(response: Any) -> str:
+    """Extract plain text from a Responses API reply with graceful fallbacks."""
+
+    if not response:
+        return ""
+
+    # New SDKs expose an `output_text` convenience attribute.
+    text_value = getattr(response, "output_text", None)
+    if isinstance(text_value, str) and text_value.strip():
+        return text_value.strip()
+
+    collected: List[str] = []
+    for item in getattr(response, "output", []) or []:
+        item_type = getattr(item, "type", None)
+        if item_type == "message":
+            for part in getattr(item, "content", []) or []:
+                part_type = getattr(part, "type", None)
+                if part_type in {"text", "output_text"}:
+                    part_text = getattr(part, "text", "")
+                    if hasattr(part_text, "value"):
+                        collected.append(str(part_text.value))
+                    else:
+                        collected.append(str(part_text))
+        elif hasattr(item, "text"):
+            chunk = getattr(item, "text")
+            if hasattr(chunk, "value"):
+                collected.append(str(chunk.value))
+            else:
+                collected.append(str(chunk))
+
+    if collected:
+        return "\n".join(piece for piece in collected if piece).strip()
+
+    # Fall back to legacy completions format if present.
+    choices = getattr(response, "choices", None)
+    if choices:
+        try:
+            return choices[0].message.content.strip()
+        except (AttributeError, IndexError, KeyError):
+            pass
+
+    return ""
+
+
 def chat_online(
     input_request: str,
     prompt: List[Dict[str, str]],
     envars: Dict[str, str],
 ) -> str:
-    """Send a chat request to OpenAI API."""
+    """Send a chat request to the OpenAI Responses API using GPT-5."""
+
     import openai
 
-    prompt.append({"role": "user", "content": input_request})
+    conversation = [*prompt, {"role": "user", "content": input_request}]
+    formatted_messages = _format_for_responses(conversation)
+
+    api_key = envars.get("OPENAI_API_KEY", "")
+    if not api_key:
+        raise JumpToMain("Missing OPENAI_API_KEY environment variable.")
+
+    model_name = envars.get("OPENAI_MODEL", "gpt-5")
     try:
-        client = openai.OpenAI(api_key=envars.get("OPENAI_API_KEY", ""))
-        response = client.chat.completions.create(
-            model="gpt-5", messages=prompt, max_tokens=500, temperature=0.0
-        )
-        prompt.pop()
-        return response.choices[0].message.content.strip()
+        temperature = float(envars.get("OPENAI_TEMPERATURE", 0.0))
+    except (TypeError, ValueError):
+        temperature = 0.0
+
+    try:
+        max_output_tokens = int(envars.get("OPENAI_MAX_OUTPUT_TOKENS", 800))
+    except (TypeError, ValueError):
+        max_output_tokens = 800
+    max_output_tokens = max(1, max_output_tokens)
+    reasoning_effort = envars.get("OPENAI_REASONING_EFFORT", "medium")
+
+    try:
+        client = openai.OpenAI(api_key=api_key)
+
+        try:
+            request_args: Dict[str, Any] = {
+                "model": model_name,
+                "input": formatted_messages,
+                "temperature": temperature,
+                "max_output_tokens": max_output_tokens,
+                "modalities": ["text"],
+            }
+            if model_name.startswith("gpt-5"):
+                request_args["reasoning"] = {"effort": reasoning_effort}
+
+            response = client.responses.create(**request_args)
+        except AttributeError:
+            # Older client fallback: use chat.completions endpoint as a safety net.
+            legacy_response = client.chat.completions.create(
+                model=model_name,
+                messages=conversation,
+                temperature=temperature,
+                max_tokens=max_output_tokens,
+            )
+            return legacy_response.choices[0].message.content.strip()
+
+        return _response_to_text(response)
+
     except openai.OpenAIError as e:
         st.error(f"OpenAI API error: {e}")
         logger.error(f"OpenAI error: {e}")
@@ -472,7 +586,7 @@ def sidebar_controls() -> None:
     )
 
     if st.session_state.get(key_df):
-        st.session_state["df_file"] = Agi_export_abs / st.session_state[key_df]
+        st.session_state["df_file"] = str(Agi_export_abs / st.session_state[key_df])
     else:
         st.session_state["df_file"] = None
 
@@ -579,14 +693,16 @@ def display_lab_tab(
                     env.copilot_file,
                 )
                 if isinstance(st.session_state.get("data"), pd.DataFrame) and not st.session_state["data"].empty:
-                    st.session_state["data"].to_csv(
-                        st.session_state["df_file_out"], index=False
-                    )
-                    st.session_state["df_file_in"] = st.session_state["df_file_out"]
-                    st.session_state["step_checked"] = True
+                    export_target = st.session_state.get("df_file_out", "")
+                    if save_csv(st.session_state["data"], export_target):
+                        st.session_state["df_file_in"] = export_target
+                        st.session_state["step_checked"] = True
 
     if "loaded_df" not in st.session_state:
-        st.session_state["loaded_df"] = load_df_cached(st.session_state.df_file)
+        df_source = st.session_state.get("df_file")
+        st.session_state["loaded_df"] = (
+            load_df_cached(Path(df_source)) if df_source else None
+        )
     loaded_df = st.session_state["loaded_df"]
     if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
         st.dataframe(loaded_df)
@@ -696,9 +812,9 @@ def main() -> None:
         df_dir_def = Path(env.AGILAB_EXPORT_ABS) / env.target
         st.session_state.setdefault("steps_file", Path(env.active_app) / STEPS_FILE_NAME)
         st.session_state.setdefault(
-            "df_file_out", df_dir_def / ("lab_" + DEFAULT_DF.replace(".csv", "_out.csv"))
+            "df_file_out", str(df_dir_def / ("lab_" + DEFAULT_DF.replace(".csv", "_out.csv")))
         )
-        st.session_state.setdefault("df_file", df_dir_def / DEFAULT_DF)
+        st.session_state.setdefault("df_file", str(df_dir_def / DEFAULT_DF))
 
         df_file = Path(st.session_state["df_file"]) if st.session_state["df_file"] else None
         if df_file:

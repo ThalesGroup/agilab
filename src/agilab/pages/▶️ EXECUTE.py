@@ -756,7 +756,7 @@ async def page():
     else:
         st.session_state["rapids_default"] = False
     if "df_export_file" not in st.session_state:
-        st.session_state["df_export_file"] = export_abs_module / "export.csv"
+        st.session_state["df_export_file"] = str(export_abs_module / "export.csv")
     if "loaded_df" not in st.session_state:
         st.session_state["loaded_df"] = None
 
@@ -1110,18 +1110,21 @@ if __name__ == "__main__":
 
             export_file_input = st.sidebar.text_input(
                 "Export to filename:",
-                value=str(st.session_state.df_export_file),
+                value=st.session_state.df_export_file,
                 key="input_df_export_file"
             )
-            st.session_state.df_export_file = Path(export_file_input)
+            st.session_state.df_export_file = export_file_input.strip()
 
             if st.sidebar.button("Export-DF", key="export_df", use_container_width=True):
-                if st.session_state.selected_cols:
-                    exported_df = loaded_df[st.session_state.selected_cols]
-                    save_csv(exported_df, st.session_state.df_export_file)
-                    st.success(f"Dataframe exported successfully to {st.session_state.df_export_file}.")
-                else:
+                target_path = st.session_state.df_export_file
+                if not st.session_state.selected_cols:
                     st.warning("No columns selected for export.")
+                elif not target_path:
+                    st.warning("Please provide a filename for the export.")
+                else:
+                    exported_df = loaded_df[st.session_state.selected_cols]
+                    if save_csv(exported_df, target_path):
+                        st.success(f"Dataframe exported successfully to {target_path}.")
 
                 if st.session_state.profile_report_file.exists():
                     os.remove(st.session_state.profile_report_file)
