@@ -1192,11 +1192,11 @@ def _render_app_settings(env):
         st.warning("App settings file not found.")
 
 def _render_args_ui(env):
-    custom_ui = env.custom_ui
-    if custom_ui.exists():
+    app_args_form = env.app_args_form
+    if app_args_form.exists():
         render_code_editor(
-            custom_ui,
-            custom_ui.read_text(),
+            app_args_form,
+            app_args_form.read_text(),
             "python",
             "st",
             comp_props,

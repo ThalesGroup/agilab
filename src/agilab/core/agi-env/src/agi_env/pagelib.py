@@ -335,21 +335,11 @@ def get_about_content():
 
 
 def init_custom_ui(render_generic_ui):
-    """
-    Initialize a custom user interface based on an input UI snippet.
-
-    Args:
-        custom_ui (str): A snippet of UI content to customize the interface.
-
-    Returns:
-        None
-
-    Session State Modifiers:
-        - 'toggle_custom': The state of the custom toggle based on UI snippet size.
-    """
+    """Ensure the custom app-args form toggle reflects the snippet state."""
     env = st.session_state["env"]
+    form_path = env.app_args_form
     if "toggle_custom" not in st.session_state:
-        st.session_state["toggle_custom"] = env.custom_ui.stat().st_size > 0
+        st.session_state["toggle_custom"] = form_path.stat().st_size > 0
     return
 
 

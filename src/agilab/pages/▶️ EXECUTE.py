@@ -830,28 +830,28 @@ if __name__ == "__main__":
     # ------------------
     if show_distribute:
         with st.expander(f"{module} settings:", expanded=True):
-            custom_ui = env.custom_ui
+            app_args_form = env.app_args_form
 
             # ---- PATCH: Set default unchecked if snippet is empty ----
-            snippet_exists = custom_ui.exists()
-            snippet_not_empty = snippet_exists and custom_ui.stat().st_size > 1
+            snippet_exists = app_args_form.exists()
+            snippet_not_empty = snippet_exists and app_args_form.stat().st_size > 1
 
             # Only set default value if toggle_custom is not in session_state
             if "toggle_custom" not in st.session_state:
                 st.session_state["toggle_custom"] = snippet_not_empty
 
             # Always use the current value in session_state
-            st.toggle("Custom UI", key="toggle_custom", on_change=init_custom_ui, args=[custom_ui])
+            st.toggle("Custom UI", key="toggle_custom", on_change=init_custom_ui, args=[app_args_form])
 
             if st.session_state["toggle_custom"] and snippet_exists and snippet_not_empty:
                 try:
-                    runpy.run_path(custom_ui, init_globals=globals())
+                    runpy.run_path(app_args_form, init_globals=globals())
                 except Exception as e:
                     st.warning(e)
             else:
                 render_generic_ui()
                 if not snippet_exists:
-                    with open(custom_ui, "w") as st_src:
+                    with open(app_args_form, "w") as st_src:
                         st_src.write("")
 
             args_serialized = ", ".join(
