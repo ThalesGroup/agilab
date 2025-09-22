@@ -803,7 +803,7 @@ class AgiEnv:
         app_settings_file.touch(exist_ok=True)
         self.app_settings_file = app_settings_file
 
-        app_args_form = self.app_src / f"{self.target}_args_form.py"
+        app_args_form = self.app_src / "app_args_form.py"
         app_args_form.touch(exist_ok=True)
         self.app_args_form = app_args_form
 
@@ -1154,8 +1154,26 @@ class AgiEnv:
             AgiEnv.logger.error(f"Failed to create symlink @{dest} -> {src}: {e}")
 
     def change_active_app(self, app, install_type=1):
-        if app.name != str(self.active_app.name):
-            self.__init__(active_app=app, install_type=install_type, verbose=AgiEnv.verbose)
+        if not isinstance(app, Path):
+            app = Path(app)
+        app = app.expanduser()
+
+        current_name = None
+        if getattr(self, "active_app", None):
+            current_name = Path(self.active_app).name
+
+        if app.name == current_name:
+            return
+
+        apps_dir = getattr(self, "apps_dir", None) or AgiEnv.apps_dir
+        app_path = app if app.is_absolute() else apps_dir / app
+
+        try:
+            self.__init__(active_app=app_path, install_type=install_type, verbose=AgiEnv.verbose)
+        except Exception:
+            if app_path.exists():
+                shutil.rmtree(app_path, ignore_errors=True)
+            raise
 
     @staticmethod
     def is_local(ip):
