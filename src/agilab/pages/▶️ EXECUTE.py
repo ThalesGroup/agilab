@@ -811,20 +811,28 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())"""
             st.code(cmd, language="python")
+        log_expander = st.expander("Install logs", expanded=True)
+        with log_expander:
+            log_placeholder = st.empty()
+            existing_log = st.session_state.get("log_text", "").strip()
+            if existing_log:
+                log_placeholder.code(existing_log, language="python")
         if st.button("INSTALL", key="install_btn", type="primary",
                      help="Run the install snippet to set up your .venv for Manager and Worker"):
             clear_log()
-            live_log_placeholder = st.empty()
+            with log_expander:
+                log_placeholder.empty()
             with st.spinner("Installing worker..."):
                 venv = env.cluster_root if env.install_type else env.active_app.parents[1]
                 stdout, stderr = await env.run_agi(
                     cmd.replace("asyncio.run(main())", env.snippet_tail),
-                    log_callback=lambda message: update_log(live_log_placeholder, message),
+                    log_callback=lambda message: update_log(log_placeholder, message),
                     venv=venv
                 )
 
-                live_log_placeholder.empty()
-                display_log(stdout, stderr)
+                with log_expander:
+                    log_placeholder.empty()
+                    display_log(stdout, stderr)
                 if not stderr:
                     st.success("Cluster installation completed.")
                     # 👇 Auto-enable the RUN section after install
