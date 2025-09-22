@@ -1,3 +1,17 @@
+# AGILab Run & Troubleshooting Checklist
+
+This runbook centralises every IDE run configuration, grouped smoke tests, and the
+operational tips we rely on during day-to-day development. Keep it in sync with
+`.idea/runConfigurations` so that anyone can reproduce an issue—or validate a fix—
+in a single copy/paste.
+
+> **Tip**
+> When you update or add run configs, refresh this document immediately so CI and
+> reviewers share the same playbook.
+
+<details>
+<summary><strong>Launch matrix (auto-sorted from .idea/runConfigurations)</strong></summary>
+
 | Group | Config name | Entry | Args | Workdir | Env | How to run | Interpreter |
 |---|---|---|---|---|---|---|---|
 | apps | **Flight** |  |  |  |  |  |  |
@@ -102,14 +116,16 @@
 | views | view_maps_network | streamlit | run $ProjectFileDir$/src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py -- --install-type 1 --active-app $ProjectFileDir$/src/agilab/apps/flight_project |  | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | uv run streamlit run $ProjectFileDir$/src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py -- --install-type 1 --active-app $ProjectFileDir$/src/agilab/apps/flight_project | uv (view_maps_network) |
 | docs | gen-docs | /Users/jpm/PycharmProjects/thales_agilab/docs/gen-docs.py |  | /Users/jpm/PycharmProjects/thales_agilab | PYTHONUNBUFFERED=1 | cd /Users/jpm/PycharmProjects/thales_agilab && uv run python /Users/jpm/PycharmProjects/thales_agilab/docs/gen-docs.py | uv (thales_agilab) |
 
-### 2) Progressive test plan
+</details>
 
-Tier A — Quick checks (fast sanity)
+## Progressive test plan
+
+### Tier A — Quick checks (fast sanity)
 - UI smoke: `cd $ProjectFileDir$ && uv run streamlit run src/agilab/AGILAB.py -- --install-type 1 --openai-api-key "your-key" --apps-dir src/agilab/apps` (agilab run dev)
 - Dependencies: `cd $ProjectFileDir$ && uv run python tools/show_dependencies.py --repo testpypi`
 - App skeleton: `uv run python src/agilab/apps/$Prompt:Enter app manager name:flight$_project/app-test.py`
 
-Tier B — Component/app flows
+### Tier B — Component/app flows
 - Flight: run → test manager/worker → distribute → call → pre/postinstall
   - `cd src/agilab/apps/flight_project && uv run python ../../snippets/AGI.run-flight.py`
   - `cd src/agilab/apps/flight_project && uv run python test/_test_flight_manager.py`
@@ -143,7 +159,7 @@ Tier B — Component/app flows
   - `cd src/agilab/snippets && uv run python AGI.get_distrib-sb3_trainer.py`
   - `cd src/agilab/apps/sb3_trainer_project && uv run python test/_test_call_worker.py`
 
-Tier C — Apps-pages and end-user
+### Tier C — Apps-pages and end-user
 - Apps-pages: launch Streamlit pages bound to an active app
 - `uv run streamlit run src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py -- --install-type 1 --active-app src/agilab/apps/flight_project`
 - `uv run streamlit run src/agilab/apps-pages/view_barycentric/src/view_barycentric/view_barycentric.py -- --install-type 1 --active-app src/agilab/apps/flight_project`
@@ -151,14 +167,14 @@ Tier C — Apps-pages and end-user
 
 For each tier, capture: command, expected output, and pitfalls (CWD, env vars, interpreter).
 
-### 3) Troubleshooting & environment
+## Troubleshooting & environment
 
-- **Interpreter/SDK**: préférer l’environnement du projet (ex.: `uv`). À défaut, utiliser le chemin complet de l’interpréteur ou `uv run`.  
-- **Env vars**: à partir de `<envs/>` dans les XML, produire un `.env.example` (clés, valeurs fictives).  
-- **Common errors**:  
-  - `ModuleNotFoundError`: vérifier CWD = `WORKING_DIRECTORY` et `PYTHONPATH`.  
-  - Logs Streamlit qui ne flushent pas: `PYTHONUNBUFFERED=1`.  
-  - Lancements lents: `UV_NO_SYNC=1` en dev.
+- **Interpreter/SDK**: prefer the project environment (`uv`). Otherwise point to the full interpreter path or call through `uv run`.
+- **Environment variables**: inspect `<envs/>` in the XML and mirror them in a `.env.example` (use placeholders, never secrets).
+- **Common errors**:
+  - `ModuleNotFoundError`: ensure the working directory matches `WORKING_DIRECTORY` and that `PYTHONPATH` carries the project roots.
+  - Streamlit logs missing: set `PYTHONUNBUFFERED=1`.
+  - Slow iterative runs: add `UV_NO_SYNC=1` in dev environments.
 
 **`.env.example` (template)**
 ```dotenv
@@ -166,7 +182,7 @@ OPENAI_API_KEY=__set_me__
 AGI_CLUSTER_URL=__set_me__
 ```
 
-### 4) Automate with Codex (safe write with approvals)
+## Automate with Codex (safe write with approvals)
 
 ```bash
 codex --model gpt-5-codex --approvals ask "
@@ -178,25 +194,27 @@ by parsing .idea/runConfigurations/*.xml:
 - Keep edits scoped to this section; show a unified diff before saving"
 ```
 
-### 5) Keeping run configs in sync
-- Quand tu crées/renommes des workflows, clone un XML existant et ajuste scripts, workdirs, interpreters; garde le grouping propre.
-- Traite `.idea/runConfigurations/` comme la checklist canonique “comment repro X ?” et régénère la matrice dès que ça change.
+## Keeping run configs in sync
+- When you create or rename workflows, clone an existing XML, tweak script/workdir/interpreter, and keep the grouping tidy.
+- Treat `.idea/runConfigurations/` as the canonical “how do I repro this?” checklist and regenerate the matrix whenever something changes.
 - Important: when renaming or relocating scripts/entries, update both:
-  - The concrete launchers in `.idea/runConfigurations/*.xml` (names, `SCRIPT_NAME`, `WORKING_DIRECTORY`, envs)
-  - The PyCharm templates and helpers under `pycharm/` and related generators:
-    - `pycharm/_template_app_*.xml`, `pycharm/setup-pycharm.py`, `pycharm/gen-app-script.py`
-    - And, if used, `src/agilab/core/gen-app-script.py`
+  - The concrete launchers in `.idea/runConfigurations/*.xml` (names, `SCRIPT_NAME`, `WORKING_DIRECTORY`, envs).
+  - The PyCharm templates and helpers under `pycharm/` and related generators, for example:
+    - `pycharm/app-scripts/_template_app_*.xml`
+    - `pycharm/setup-pycharm.py`
+    - `pycharm/gen-app-script.py`
+    - `src/agilab/core/gen-app-script.py` (if you rely on the core helper)
   - After changes, re-run the “Run matrix” refresh to keep docs aligned.
 
-#### Regenerate Run Configs (step-by-step)
+### Regenerate run configs (step-by-step)
 
-1) Update templates (if needed)
-   - Edit `pycharm/_template_app_*.xml` to reflect new script names/paths (e.g., `AGI.get_distrib-*`).
+1. Update templates (if needed)
+   - Edit `pycharm/app-scripts/_template_app_*.xml` to reflect new script names/paths (e.g., `AGI.get_distrib-*`).
 
-2) Sync PyCharm modules + registered SDKs
+2. Sync PyCharm modules + registered SDKs
    - `uv run python pycharm/setup-pycharm.py`
 
-3) Re-generate per‑app launchers (one per app)
+3. Re-generate per‑app launchers (one per app)
    - Examples:
      - `uv run python pycharm/gen-app-script.py flight`
      - `uv run python pycharm/gen-app-script.py link_sim`

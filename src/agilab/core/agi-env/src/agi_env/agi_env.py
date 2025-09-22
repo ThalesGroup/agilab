@@ -846,6 +846,17 @@ class AgiEnv:
         return proc_env
 
     @staticmethod
+    def log_info(line: str) -> None:
+        """Lightweight info logger retained for legacy hooks (e.g. pre_install scripts)."""
+
+        if not isinstance(line, str):
+            line = str(line)
+        if AgiEnv.logger:
+            AgiEnv.logger.info(line)
+        else:
+            print(line)
+
+    @staticmethod
     async def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
         """
         Run a shell command inside a virtual environment.
