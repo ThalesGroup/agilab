@@ -92,9 +92,9 @@ mkdir -p -- "$APPS_DEST_BASE"
 mkdir -p -- "$PAGES_DEST_BASE"
 
 echo -e "${BLUE}Using AGILAB_PRIVATE:${NC} $AGILAB_PRIVATE"
-echo -e "${BLUE}(Apps) Destination base:${NC} $APPS_DEST_BASE)"
+echo -e "${BLUE}(Apps) Destination base:${NC} $APPS_DEST_BASE"
 echo -e "${BLUE}(Apps) Link target base:${NC} $APPS_TARGET_BASE\n"
-echo -e "${BLUE}(Pages) Destination base:${NC} $PAGES_DEST_BASE)"
+echo -e "${BLUE}(Pages) Destination base:${NC} $PAGES_DEST_BASE"
 echo -e "${BLUE}(Pages) Link target base:${NC} $PAGES_TARGET_BASE\n"
 
 
@@ -217,16 +217,16 @@ for app in ${PRIVATE_APPS+"${PRIVATE_APPS[@]}"}; do
 done
 
 
-# --- Run installer for each pages (stable CWD so ../core/cluster resolves) -----
+# --- Run installer for each page (stable CWD so ../core/cluster resolves) -----
 pushd -- "$AGILAB_PUBLIC/apps-pages" >/dev/null
 
-for view in ${INCLUDED_PAGES+"${INCLUDED_PAGES[@]}"}; do
+for page in ${INCLUDED_PAGES+"${INCLUDED_PAGES[@]}"}; do
   echo -e "${BLUE}Installing $page...${NC}"
   pushd "$page" >/dev/null
   uv sync --project . --preview-features python-upgrade
-  status=$(echo $?)
+  status=$?
   if (( status != 0 )); then
-    echo -e "${RED}Error during 'uv sync' for view '$page'.${NC}"
+    echo -e "${RED}Error during 'uv sync' for page '$page'.${NC}"
   fi
   popd >/dev/null
 done

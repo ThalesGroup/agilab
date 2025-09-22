@@ -15,51 +15,51 @@ in a single copy/paste.
 | Group | Config name | Entry | Args | Workdir | Env | How to run | Interpreter |
 |---|---|---|---|---|---|---|---|
 | apps | **Flight** |  |  |  |  |  |  |
-| apps | flight AGI.get_distrib | $ProjectFileDir$/src/agilab/examples/flight/AGI.get_distrib-flight.py |  | $ProjectFileDir$/src/agilab/examples/flight | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/examples/flight && uv run python $ProjectFileDir$/src/agilab/examples/flight/AGI.get_distrib-flight.py | uv (flight_project) |
-| apps | flight AGI.run | $ProjectFileDir$/src/agilab/examples/flight/AGI.run-flight.py |  | $ProjectFileDir$/src/agilab/apps/flight_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/flight_project && uv run python $ProjectFileDir$/src/agilab/examples/flight/AGI.run-flight.py | uv (flight_project) |
+| apps | flight AGI.get_distrib | $ProjectFileDir$/src/agilab/examples/flight/AGI.get_distrib_flight.py |  | $ProjectFileDir$/src/agilab/examples/flight | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/examples/flight && uv run python $ProjectFileDir$/src/agilab/examples/flight/AGI.get_distrib_flight.py | uv (flight_project) |
+| apps | flight AGI.run | $ProjectFileDir$/src/agilab/examples/flight/AGI.run_flight.py |  | $ProjectFileDir$/src/agilab/apps/flight_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/flight_project && uv run python $ProjectFileDir$/src/agilab/examples/flight/AGI.run_flight.py | uv (flight_project) |
 | apps | flight call worker | $ProjectFileDir$/src/agilab/apps/flight_project/test/_test_call_worker.py |  | $ProjectFileDir$/src/agilab/apps/flight_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/flight_project && uv run python $ProjectFileDir$/src/agilab/apps/flight_project/test/_test_call_worker.py | uv (flight_project) |
 | apps | flight test manager | $ProjectFileDir$/src/agilab/apps/flight_project/test/_test_flight_manager.py |  | $ProjectFileDir$/src/agilab/apps/flight_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/flight_project && uv run python $ProjectFileDir$/src/agilab/apps/flight_project/test/_test_flight_manager.py | uv (flight_project) |
 | apps | flight test worker | $ProjectFileDir$/src/agilab/apps/flight_project/test/_test_flight_worker.py |  | $ProjectFileDir$/src/agilab/apps/flight_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/flight_project && uv run python $ProjectFileDir$/src/agilab/apps/flight_project/test/_test_flight_worker.py | uv (flight_worker) |
 | apps | flight tests | $ProjectFileDir$/src/agilab/apps/flight_project/app_test.py |  | $ProjectFileDir$/src/agilab/apps/flight_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/flight_project && uv run python $ProjectFileDir$/src/agilab/apps/flight_project/app_test.py | uv (flight_project) |
 | apps | **Flight Trajectory** |  |  |  |  |  |  |
-| apps | flight_trajectory AGI.get_distrib | $ProjectFileDir$/src/agilab/examples/flight_trajectory/AGI.get_distrib-flight_trajectory.py |  | $ProjectFileDir$/src/agilab/examples/flight_trajectory | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/examples/flight_trajectory && uv run python $ProjectFileDir$/src/agilab/examples/flight_trajectory/AGI.get_distrib-flight_trajectory.py | uv (flight_trajectory_project) |
-| apps | flight_trajectory AGI.run | $ProjectFileDir$/src/agilab/examples/flight_trajectory/AGI.run-flight_trajectory.py |  | $ProjectFileDir$/src/agilab/apps/flight_trajectory_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/flight_trajectory_project && uv run python $ProjectFileDir$/src/agilab/examples/flight_trajectory/AGI.run-flight_trajectory.py | uv (flight_trajectory_project) |
+| apps | flight_trajectory AGI.get_distrib | $ProjectFileDir$/src/agilab/examples/flight_trajectory/AGI.get_distrib_flight_trajectory.py |  | $ProjectFileDir$/src/agilab/examples/flight_trajectory | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/examples/flight_trajectory && uv run python $ProjectFileDir$/src/agilab/examples/flight_trajectory/AGI.get_distrib_flight_trajectory.py | uv (flight_trajectory_project) |
+| apps | flight_trajectory AGI.run | $ProjectFileDir$/src/agilab/examples/flight_trajectory/AGI.run_flight_trajectory.py |  | $ProjectFileDir$/src/agilab/apps/flight_trajectory_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/flight_trajectory_project && uv run python $ProjectFileDir$/src/agilab/examples/flight_trajectory/AGI.run_flight_trajectory.py | uv (flight_trajectory_project) |
 | apps | flight_trajectory call worker | $ProjectFileDir$/src/agilab/apps/flight_trajectory_project/test/_test_call_worker.py |  | $ProjectFileDir$/src/agilab/apps/flight_trajectory_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/flight_trajectory_project && uv run python $ProjectFileDir$/src/agilab/apps/flight_trajectory_project/test/_test_call_worker.py | uv (flight_trajectory_project) |
 | apps | flight_trajectory test manager | $ProjectFileDir$/src/agilab/apps/flight_trajectory_project/test/_test_flight_trajectory_manager.py |  | $ProjectFileDir$/src/agilab/apps/flight_trajectory_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/flight_trajectory_project && uv run python $ProjectFileDir$/src/agilab/apps/flight_trajectory_project/test/_test_flight_trajectory_manager.py | uv (flight_trajectory_project) |
 | apps | flight_trajectory test worker | $ProjectFileDir$/src/agilab/apps/flight_trajectory_project/test/_test_flight_trajectory_worker.py |  | $ProjectFileDir$/src/agilab/apps/flight_trajectory_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/flight_trajectory_project && uv run python $ProjectFileDir$/src/agilab/apps/flight_trajectory_project/test/_test_flight_trajectory_worker.py | uv (flight_trajectory_worker) |
 | apps | flight_trajectory tests | $ProjectFileDir$/src/agilab/apps/flight_trajectory_project/app_test.py |  | $ProjectFileDir$/src/agilab/apps/flight_trajectory_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/flight_trajectory_project && uv run python $ProjectFileDir$/src/agilab/apps/flight_trajectory_project/app_test.py | uv (flight_trajectory_project) |
 | apps | **Link Sim** |  |  |  |  |  |  |
-| apps | link_sim AGI.get_distrib | $ProjectFileDir$/src/agilab/examples/link_sim/AGI.get_distrib-link_sim.py |  | $ProjectFileDir$/src/agilab/examples/link_sim | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/examples/link_sim && uv run python $ProjectFileDir$/src/agilab/examples/link_sim/AGI.get_distrib-link_sim.py | uv (link_sim_project) |
-| apps | link_sim AGI.run | $ProjectFileDir$/src/agilab/examples/link_sim/AGI.run-link_sim.py |  | $ProjectFileDir$/src/agilab/apps/link_sim_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/link_sim_project && uv run python $ProjectFileDir$/src/agilab/examples/link_sim/AGI.run-link_sim.py | uv (link_sim_project) |
+| apps | link_sim AGI.get_distrib | $ProjectFileDir$/src/agilab/examples/link_sim/AGI.get_distrib_link_sim.py |  | $ProjectFileDir$/src/agilab/examples/link_sim | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/examples/link_sim && uv run python $ProjectFileDir$/src/agilab/examples/link_sim/AGI.get_distrib_link_sim.py | uv (link_sim_project) |
+| apps | link_sim AGI.run | $ProjectFileDir$/src/agilab/examples/link_sim/AGI.run_link_sim.py |  | $ProjectFileDir$/src/agilab/apps/link_sim_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/link_sim_project && uv run python $ProjectFileDir$/src/agilab/examples/link_sim/AGI.run_link_sim.py | uv (link_sim_project) |
 | apps | link_sim call worker | $ProjectFileDir$/src/agilab/apps/link_sim_project/test/_test_call_worker.py |  | $ProjectFileDir$/src/agilab/apps/link_sim_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/link_sim_project && uv run python $ProjectFileDir$/src/agilab/apps/link_sim_project/test/_test_call_worker.py | uv (link_sim_project) |
 | apps | link_sim test manager | $ProjectFileDir$/src/agilab/apps/link_sim_project/test/_test_link_sim_manager.py |  | $ProjectFileDir$/src/agilab/apps/link_sim_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/link_sim_project && uv run python $ProjectFileDir$/src/agilab/apps/link_sim_project/test/_test_link_sim_manager.py | uv (link_sim_project) |
 | apps | link_sim test worker | $ProjectFileDir$/src/agilab/apps/link_sim_project/test/_test_link_sim_worker.py |  | $ProjectFileDir$/src/agilab/apps/link_sim_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/link_sim_project && uv run python $ProjectFileDir$/src/agilab/apps/link_sim_project/test/_test_link_sim_worker.py | uv (link_sim_worker) |
 | apps | link_sim tests | $ProjectFileDir$/src/agilab/apps/link_sim_project/app_test.py |  | $ProjectFileDir$/src/agilab/apps/link_sim_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/link_sim_project && uv run python $ProjectFileDir$/src/agilab/apps/link_sim_project/app_test.py | uv (link_sim_project) |
 | apps | **MyCode** |  |  |  |  |  |  |
-| apps | mycode AGI.get_distrib | $ProjectFileDir$/src/agilab/examples/mycode/AGI.get_distrib-mycode.py |  | $ProjectFileDir$/src/agilab/examples | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/examples && uv run python $ProjectFileDir$/src/agilab/examples/mycode/AGI.get_distrib-mycode.py | uv (mycode_project) |
-| apps | mycode AGI.get_distrib | $ProjectFileDir$/src/agilab/examples/mycode/AGI.get_distrib-mycode.py |  | $ProjectFileDir$/src/agilab/examples/mycode | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/examples/mycode && uv run python $ProjectFileDir$/src/agilab/examples/mycode/AGI.get_distrib-mycode.py | uv (mycode_project) |
-| apps | mycode AGI.run | $ProjectFileDir$/src/agilab/examples/mycode/AGI.run-mycode.py |  | $ProjectFileDir$/src/agilab/apps/mycode_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/mycode_project && uv run python $ProjectFileDir$/src/agilab/examples/mycode/AGI.run-mycode.py | uv (mycode_project) |
+| apps | mycode AGI.get_distrib | $ProjectFileDir$/src/agilab/examples/mycode/AGI.get_distrib_mycode.py |  | $ProjectFileDir$/src/agilab/examples | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/examples && uv run python $ProjectFileDir$/src/agilab/examples/mycode/AGI.get_distrib_mycode.py | uv (mycode_project) |
+| apps | mycode AGI.get_distrib | $ProjectFileDir$/src/agilab/examples/mycode/AGI.get_distrib_mycode.py |  | $ProjectFileDir$/src/agilab/examples/mycode | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/examples/mycode && uv run python $ProjectFileDir$/src/agilab/examples/mycode/AGI.get_distrib_mycode.py | uv (mycode_project) |
+| apps | mycode AGI.run | $ProjectFileDir$/src/agilab/examples/mycode/AGI.run_mycode.py |  | $ProjectFileDir$/src/agilab/apps/mycode_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/mycode_project && uv run python $ProjectFileDir$/src/agilab/examples/mycode/AGI.run_mycode.py | uv (mycode_project) |
 | apps | mycode call worker | $ProjectFileDir$/src/agilab/apps/mycode_project/test/_test_call_worker.py |  | $ProjectFileDir$/src/agilab/apps/mycode_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/mycode_project && uv run python $ProjectFileDir$/src/agilab/apps/mycode_project/test/_test_call_worker.py | uv (mycode_project) |
 | apps | mycode test manager | $ProjectFileDir$/src/agilab/apps/mycode_project/test/_test_mycode_manager.py |  | $ProjectFileDir$/src/agilab/apps/mycode_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/mycode_project && uv run python $ProjectFileDir$/src/agilab/apps/mycode_project/test/_test_mycode_manager.py | uv (mycode_project) |
 | apps | mycode test worker | $ProjectFileDir$/src/agilab/apps/mycode_project/test/_test_mycode_worker.py |  | $ProjectFileDir$/src/agilab/apps/mycode_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/mycode_project && uv run python $ProjectFileDir$/src/agilab/apps/mycode_project/test/_test_mycode_worker.py | uv (mycode_worker) |
 | apps | mycode tests | $ProjectFileDir$/src/agilab/apps/mycode_project/app_test.py |  | $ProjectFileDir$/src/agilab/apps/mycode_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/mycode_project && uv run python $ProjectFileDir$/src/agilab/apps/mycode_project/app_test.py | uv (mycode_project) |
 | apps | **Sat Trajectory** |  |  |  |  |  |  |
-| apps | sat_trajectory AGI.get_distrib | $ProjectFileDir$/src/agilab/examples/sat_trajectory/AGI.get_distrib-sat_trajectory.py |  | $ProjectFileDir$/src/agilab/examples/sat_trajectory | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/examples/sat_trajectory && uv run python $ProjectFileDir$/src/agilab/examples/sat_trajectory/AGI.get_distrib-sat_trajectory.py | uv (sat_trajectory_project) |
-| apps | sat_trajectory AGI.run | $ProjectFileDir$/src/agilab/examples/sat_trajectory/AGI.run-sat_trajectory.py |  | $ProjectFileDir$/src/agilab/apps/sat_trajectory_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/sat_trajectory_project && uv run python $ProjectFileDir$/src/agilab/examples/sat_trajectory/AGI.run-sat_trajectory.py | uv (sat_trajectory_project) |
+| apps | sat_trajectory AGI.get_distrib | $ProjectFileDir$/src/agilab/examples/sat_trajectory/AGI.get_distrib_sat_trajectory.py |  | $ProjectFileDir$/src/agilab/examples/sat_trajectory | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/examples/sat_trajectory && uv run python $ProjectFileDir$/src/agilab/examples/sat_trajectory/AGI.get_distrib_sat_trajectory.py | uv (sat_trajectory_project) |
+| apps | sat_trajectory AGI.run | $ProjectFileDir$/src/agilab/examples/sat_trajectory/AGI.run_sat_trajectory.py |  | $ProjectFileDir$/src/agilab/apps/sat_trajectory_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/sat_trajectory_project && uv run python $ProjectFileDir$/src/agilab/examples/sat_trajectory/AGI.run_sat_trajectory.py | uv (sat_trajectory_project) |
 | apps | sat_trajectory call worker | $ProjectFileDir$/src/agilab/apps/sat_trajectory_project/test/_test_call_worker.py |  | $ProjectFileDir$/src/agilab/apps/sat_trajectory_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/sat_trajectory_project && uv run python $ProjectFileDir$/src/agilab/apps/sat_trajectory_project/test/_test_call_worker.py | uv (sat_trajectory_project) |
 | apps | sat_trajectory test manager | $ProjectFileDir$/src/agilab/apps/sat_trajectory_project/test/_test_sat_trajectory_manager.py |  | $ProjectFileDir$/src/agilab/apps/sat_trajectory_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/sat_trajectory_project && uv run python $ProjectFileDir$/src/agilab/apps/sat_trajectory_project/test/_test_sat_trajectory_manager.py | uv (sat_trajectory_project) |
 | apps | sat_trajectory test worker | $ProjectFileDir$/src/agilab/apps/sat_trajectory_project/test/_test_sat_trajectory_worker.py |  | $ProjectFileDir$/src/agilab/apps/sat_trajectory_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/sat_trajectory_project && uv run python $ProjectFileDir$/src/agilab/apps/sat_trajectory_project/test/_test_sat_trajectory_worker.py | uv (sat_trajectory_worker) |
 | apps | sat_trajectory tests | $ProjectFileDir$/src/agilab/apps/sat_trajectory_project/app_test.py |  | $ProjectFileDir$/src/agilab/apps/sat_trajectory_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/sat_trajectory_project && uv run python $ProjectFileDir$/src/agilab/apps/sat_trajectory_project/app_test.py | uv (sat_trajectory_project) |
 | apps | **SB3 Trainer** |  |  |  |  |  |  |
-| apps | sb3_trainer AGI.get_distrib | $ProjectFileDir$/src/agilab/examples/sb3_trainer/AGI.get_distrib-sb3_trainer.py |  | $ProjectFileDir$/src/agilab/examples/sb3_trainer | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/examples/sb3_trainer && uv run python $ProjectFileDir$/src/agilab/examples/sb3_trainer/AGI.get_distrib-sb3_trainer.py | uv (sb3_trainer_project) |
-| apps | sb3_trainer AGI.run | $ProjectFileDir$/src/agilab/examples/sb3_trainer/AGI.run-sb3_trainer.py |  | $ProjectFileDir$/src/agilab/apps/sb3_trainer_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/sb3_trainer_project && uv run python $ProjectFileDir$/src/agilab/examples/sb3_trainer/AGI.run-sb3_trainer.py | uv (sb3_trainer_project) |
+| apps | sb3_trainer AGI.get_distrib | $ProjectFileDir$/src/agilab/examples/sb3_trainer/AGI.get_distrib_sb3_trainer.py |  | $ProjectFileDir$/src/agilab/examples/sb3_trainer | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/examples/sb3_trainer && uv run python $ProjectFileDir$/src/agilab/examples/sb3_trainer/AGI.get_distrib_sb3_trainer.py | uv (sb3_trainer_project) |
+| apps | sb3_trainer AGI.run | $ProjectFileDir$/src/agilab/examples/sb3_trainer/AGI.run_sb3_trainer.py |  | $ProjectFileDir$/src/agilab/apps/sb3_trainer_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/sb3_trainer_project && uv run python $ProjectFileDir$/src/agilab/examples/sb3_trainer/AGI.run_sb3_trainer.py | uv (sb3_trainer_project) |
 | apps | sb3_trainer call worker | $ProjectFileDir$/src/agilab/apps/sb3_trainer_project/test/_test_call_worker.py |  | $ProjectFileDir$/src/agilab/apps/sb3_trainer_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/sb3_trainer_project && uv run python $ProjectFileDir$/src/agilab/apps/sb3_trainer_project/test/_test_call_worker.py | uv (sb3_trainer_project) |
 | apps | sb3_trainer test manager | $ProjectFileDir$/src/agilab/apps/sb3_trainer_project/test/_test_sb3_trainer_manager.py |  | $ProjectFileDir$/src/agilab/apps/sb3_trainer_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/sb3_trainer_project && uv run python $ProjectFileDir$/src/agilab/apps/sb3_trainer_project/test/_test_sb3_trainer_manager.py | uv (sb3_trainer_project) |
 | apps | sb3_trainer test worker | $ProjectFileDir$/src/agilab/apps/sb3_trainer_project/test/_test_sb3_trainer_worker.py |  | $ProjectFileDir$/src/agilab/apps/sb3_trainer_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/sb3_trainer_project && uv run python $ProjectFileDir$/src/agilab/apps/sb3_trainer_project/test/_test_sb3_trainer_worker.py | uv (sb3_trainer_worker) |
 | apps | sb3_trainer tests | $ProjectFileDir$/src/agilab/apps/sb3_trainer_project/app_test.py |  | $ProjectFileDir$/src/agilab/apps/sb3_trainer_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/sb3_trainer_project && uv run python $ProjectFileDir$/src/agilab/apps/sb3_trainer_project/app_test.py | uv (sb3_trainer_project) |
 | apps | **Other Apps** |  |  |  |  |  |  |
 | apps | **Apps** |  |  |  |  |  |  |
-| apps | app install | $ProjectFileDir$/src/agilab/snippets/AGI.install-$Prompt:Enter app manager name:flight$.py |  | $ProjectFileDir$ | PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run python $ProjectFileDir$/src/agilab/snippets/AGI.install-$Prompt:Enter app manager name:flight$.py | uv (agi-cluster) |
+| apps | app install | $ProjectFileDir$/src/agilab/snippets/AGI.install_$Prompt:Enter app manager name:flight$.py |  | $ProjectFileDir$ | PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run python $ProjectFileDir$/src/agilab/snippets/AGI.install_$Prompt:Enter app manager name:flight$.py | uv (agi-cluster) |
 | apps | app-test | $ProjectFileDir$/src/agilab/apps/$Prompt:Enter app manager name:flight$_project/app_test.py |  |  | PYTHONUNBUFFERED=1 | uv run python $ProjectFileDir$/src/agilab/apps/$Prompt:Enter app manager name:flight$_project/app_test.py | uv (agi-cluster) |
 | apps | **Flight** |  |  |  |  |  |  |
 | apps | **Flight Trajectory** |  |  |  |  |  |  |
@@ -70,7 +70,7 @@ in a single copy/paste.
 | agilab | agilab run (dev) | streamlit | run $ProjectFileDir$/src/agilab/AGILAB.py -- --install-type 1 --openai-api-key "your-key" --apps-dir $ProjectFileDir$/src/agilab/apps | $ProjectFileDir$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run streamlit run $ProjectFileDir$/src/agilab/AGILAB.py -- --install-type 1 --openai-api-key "your-key" --apps-dir $ProjectFileDir$/src/agilab/apps | uv (agilab) |
 | agilab | agilab run (enduser) | streamlit | run .venv/lib/python3.13/site-packages/agilab/AGILAB.py -- --openai-api-key "your-key" --install 0 | $ProjectFileDir$/../agi-space | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/../agi-space && uv run streamlit run .venv/lib/python3.13/site-packages/agilab/AGILAB.py -- --openai-api-key "your-key" --install 0 | uv (agi-space) |
 | agilab | app install (local) | $ProjectFileDir$/src/agilab/apps/install.py | $Prompt:selected app:~/agilab/src/agilab/apps/flight_project$ --install-type "1" --verbose 1 | $ProjectFileDir$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run python $ProjectFileDir$/src/agilab/apps/install.py $Prompt:selected app:~/agilab/src/agilab/apps/flight_project$ --install-type "1" --verbose 1 | uv (agi-cluster) |
-| agilab | app-script gen | $ProjectFileDir$/pycharm/gen-app-script.py | $Prompt:Enter app manager name:flight$ |  | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | uv run python $ProjectFileDir$/pycharm/gen-app-script.py $Prompt:Enter app manager name:flight$ |  |
+| agilab | app-script gen | $ProjectFileDir$/pycharm/gen_app_script.py | $Prompt:Enter app manager name:flight$ |  | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | uv run python $ProjectFileDir$/pycharm/gen_app_script.py $Prompt:Enter app manager name:flight$ |  |
 | agilab | install-agilab-dev | bash | $PROJECT_DIR$/setup-pycharm.sh | $PROJECT_DIR$ |  | cd $PROJECT_DIR$ && /bin/bash $PROJECT_DIR$/setup-pycharm.sh |  |
 | agilab | install-agilab-enduser | bash | $PROJECT_DIR$/tools/install_enduser.sh --source testpypi | $PROJECT_DIR$/test |  | cd $PROJECT_DIR$/test && /bin/bash $PROJECT_DIR$/tools/install_enduser.sh --source testpypi |  |
 | agilab | lab_run test | $USER_HOME$/agi-workspace/.venv/lib/python3.12/site-packages/agilab/lab_run.py | --openai-api-key "your-key" | $USER_HOME$/agi-workspace/ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $USER_HOME$/agi-workspace/ && uv run python $USER_HOME$/agi-workspace/.venv/lib/python3.12/site-packages/agilab/lab_run.py --openai-api-key "your-key" | uv (agilab) |
@@ -127,36 +127,36 @@ in a single copy/paste.
 
 ### Tier B — Component/app flows
 - Flight: run → test manager/worker → distribute → call → pre/postinstall
-  - `cd src/agilab/apps/flight_project && uv run python ../../snippets/AGI.run-flight.py`
+  - `cd src/agilab/apps/flight_project && uv run python ../../snippets/AGI.run_flight.py`
   - `cd src/agilab/apps/flight_project && uv run python test/_test_flight_manager.py`
   - `cd src/agilab/apps/flight_project && uv run python test/_test_flight_worker.py`
-  - `cd src/agilab/snippets && uv run python AGI.get_distrib-flight.py`
+  - `cd src/agilab/snippets && uv run python AGI.get_distrib_flight.py`
   - `cd src/agilab/apps/flight_project && uv run python test/_test_call_worker.py`
   - `cd src/agilab/apps/flight_project && uv run python src/flight_worker/pre_install.py remove_decorators --verbose --worker_path $USER_HOME$/wenv/flight_worker/src/flight_worker/flight_worker.py`
   - `cd src/agilab/apps/flight_project && uv run python $USER_HOME$/wenv/flight_worker/src/flight_worker/post_install.py src/agilab/apps/flight_project 1 $USER_HOME$/data/flight`
 - LinkSim:
-  - `cd src/agilab/apps/link_sim_project && uv run python ../../snippets/AGI.run-link_sim.py`
+  - `cd src/agilab/apps/link_sim_project && uv run python ../../snippets/AGI.run_link_sim.py`
   - `cd src/agilab/apps/link_sim_project && uv run python test/_test_link_sim_manager.py`
   - `cd src/agilab/apps/link_sim_project && uv run python test/_test_link_sim_worker.py`
-  - `cd src/agilab/snippets && uv run python AGI.get_distrib-link_sim.py`
+  - `cd src/agilab/snippets && uv run python AGI.get_distrib_link_sim.py`
   - `cd src/agilab/apps/link_sim_project && uv run python test/_test_call_worker.py`
 - MyCode:
-  - `cd src/agilab/apps/mycode_project && uv run python ../../snippets/AGI.run-mycode.py`
+  - `cd src/agilab/apps/mycode_project && uv run python ../../snippets/AGI.run_mycode.py`
   - `cd src/agilab/apps/mycode_project && uv run python test/_test_mycode_manager.py`
   - `cd src/agilab/apps/mycode_project && uv run python test/_test_mycode_worker.py`
-  - `cd src/agilab/snippets && uv run python AGI.get_distrib-mycode.py`
+  - `cd src/agilab/snippets && uv run python AGI.get_distrib_mycode.py`
   - `cd src/agilab/apps/mycode_project && uv run python test/_test_call_worker.py`
 - SatTrajectory:
-  - `cd src/agilab/apps/sat_trajectory_project && uv run python ../../snippets/AGI.run-sat_trajectory.py`
+  - `cd src/agilab/apps/sat_trajectory_project && uv run python ../../snippets/AGI.run_sat_trajectory.py`
   - `cd src/agilab/apps/sat_trajectory_project && uv run python test/_test_sat_trajectory_manager.py`
   - `cd src/agilab/apps/sat_trajectory_project && uv run python test/_test_sat_trajectory_worker.py`
-  - `cd src/agilab/snippets && uv run python AGI.get_distrib-sat_trajectory.py`
+  - `cd src/agilab/snippets && uv run python AGI.get_distrib_sat_trajectory.py`
   - `cd src/agilab/apps/sat_trajectory_project && uv run python test/_test_call_worker.py`
 - Sb3Trainer:
-  - `cd src/agilab/apps/sb3_trainer_project && uv run python ../../snippets/AGI.run-sb3_trainer.py`
+  - `cd src/agilab/apps/sb3_trainer_project && uv run python ../../snippets/AGI.run_sb3_trainer.py`
   - `cd src/agilab/apps/sb3_trainer_project && uv run python test/_test_sb3_trainer_manager.py`
   - `cd src/agilab/apps/sb3_trainer_project && uv run python test/_test_sb3_trainer_worker.py`
-  - `cd src/agilab/snippets && uv run python AGI.get_distrib-sb3_trainer.py`
+  - `cd src/agilab/snippets && uv run python AGI.get_distrib_sb3_trainer.py`
   - `cd src/agilab/apps/sb3_trainer_project && uv run python test/_test_call_worker.py`
 
 ### Tier C — Apps-pages and end-user
@@ -202,25 +202,25 @@ by parsing .idea/runConfigurations/*.xml:
   - The PyCharm templates and helpers under `pycharm/` and related generators, for example:
     - `pycharm/app-scripts/_template_app_*.xml`
     - `pycharm/setup-pycharm.py`
-    - `pycharm/gen-app-script.py`
-    - `src/agilab/core/gen-app-script.py` (if you rely on the core helper)
+    - `pycharm/gen_app_script.py`
+    - `src/agilab/core/gen_app_script.py` (if you rely on the core helper)
   - After changes, re-run the “Run matrix” refresh to keep docs aligned.
 
 ### Regenerate run configs (step-by-step)
 
 1. Update templates (if needed)
-   - Edit `pycharm/app-scripts/_template_app_*.xml` to reflect new script names/paths (e.g., `AGI.get_distrib-*`).
+   - Edit `pycharm/app-scripts/_template_app_*.xml` to reflect new script names/paths (e.g., `AGI.get_distrib_*`).
 
 2. Sync PyCharm modules + registered SDKs
    - `uv run python pycharm/setup-pycharm.py`
 
 3. Re-generate per‑app launchers (one per app)
    - Examples:
-     - `uv run python pycharm/gen-app-script.py flight`
-     - `uv run python pycharm/gen-app-script.py link_sim`
-     - `uv run python pycharm/gen-app-script.py mycode`
-     - `uv run python pycharm/gen-app-script.py sat_trajectory`
-     - `uv run python pycharm/gen-app-script.py sb3_trainer`
+     - `uv run python pycharm/gen_app_script.py flight`
+     - `uv run python pycharm/gen_app_script.py link_sim`
+     - `uv run python pycharm/gen_app_script.py mycode`
+     - `uv run python pycharm/gen_app_script.py sat_trajectory`
+     - `uv run python pycharm/gen_app_script.py sb3_trainer`
 
 4) Verify
    - Inspect `.idea/runConfigurations/*.xml` for updated `SCRIPT_NAME`, names, and `folderName` grouping.

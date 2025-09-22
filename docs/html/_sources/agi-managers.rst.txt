@@ -7,7 +7,7 @@ Usage Example
 Installation
 ^^^^^^^^^^^^
 
-.. literalinclude:: log/AGI.install-.py
+.. literalinclude:: log/AGI.install_.py
    :language: python
 
 ------
@@ -36,12 +36,12 @@ Distribute
 Run
 ^^^
 
-.. literalinclude:: log/AGI.run-.py
+.. literalinclude:: log/AGI.run_.py
    :language: python
 
 ----
 
-.. literalinclude:: log/AGI.run-flight.py
+.. literalinclude:: log/AGI.run_flight.py
    :language: python
 
 ----
