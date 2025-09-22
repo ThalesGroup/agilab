@@ -1,1 +1,0 @@
-# Titi example project
