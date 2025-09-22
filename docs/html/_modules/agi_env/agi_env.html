@@ -1118,9 +1118,9 @@
         <span class="n">app_settings_file</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">app_settings_file</span> <span class="o">=</span> <span class="n">app_settings_file</span>
 
-        <span class="n">custom_ui</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">/</span> <span class="s2">&quot;custom_ui.py&quot;</span>
-        <span class="n">custom_ui</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">custom_ui</span> <span class="o">=</span> <span class="n">custom_ui</span>
+        <span class="n">app_args_form</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_src</span> <span class="o">/</span> <span class="s2">&quot;app_args_form.py&quot;</span>
+        <span class="n">app_args_form</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_args_form</span> <span class="o">=</span> <span class="n">app_args_form</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">gitignore_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">active_app</span> <span class="o">/</span> <span class="s2">&quot;.gitignore&quot;</span>
         <span class="n">dest</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">resources_path</span>
@@ -1159,6 +1159,20 @@
                         <span class="n">extra_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">part</span><span class="p">)</span>
             <span class="n">proc_env</span><span class="p">[</span><span class="s2">&quot;PYTHONPATH&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">pathsep</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">extra_paths</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">proc_env</span>
+
+<div class="viewcode-block" id="AgiEnv.log_info">
+<a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.log_info">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">log_info</span><span class="p">(</span><span class="n">line</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Lightweight info logger retained for legacy hooks (e.g. pre_install scripts).&quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="p">:</span>
+            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">line</span><span class="p">)</span></div>
+
 
 <div class="viewcode-block" id="AgiEnv.run">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.run">[docs]</a>
@@ -1472,8 +1486,26 @@
 <div class="viewcode-block" id="AgiEnv.change_active_app">
 <a class="viewcode-back" href="../../agi-env.html#agi_env.agi_env.AgiEnv.change_active_app">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">change_active_app</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">app</span><span class="p">,</span> <span class="n">install_type</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">app</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">active_app</span><span class="o">.</span><span class="n">name</span><span class="p">):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">app</span><span class="p">,</span> <span class="n">install_type</span><span class="o">=</span><span class="n">install_type</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span><span class="p">)</span></div>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">Path</span><span class="p">):</span>
+            <span class="n">app</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+        <span class="n">app</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+
+        <span class="n">current_name</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;active_app&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
+            <span class="n">current_name</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">active_app</span><span class="p">)</span><span class="o">.</span><span class="n">name</span>
+
+        <span class="k">if</span> <span class="n">app</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">current_name</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">apps_dir</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;apps_dir&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span>
+        <span class="n">app_path</span> <span class="o">=</span> <span class="n">app</span> <span class="k">if</span> <span class="n">app</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">()</span> <span class="k">else</span> <span class="n">apps_dir</span> <span class="o">/</span> <span class="n">app</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">active_app</span><span class="o">=</span><span class="n">app_path</span><span class="p">,</span> <span class="n">install_type</span><span class="o">=</span><span class="n">install_type</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">AgiEnv</span><span class="o">.</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">app_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">app_path</span><span class="p">,</span> <span class="n">ignore_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">raise</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.is_local">
