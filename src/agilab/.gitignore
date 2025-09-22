@@ -21,6 +21,7 @@ EGG*
 *.so
 *.pyd
 *.whl
+*.pyc
 
 # Specific src patterns (adjust if needed)
 src/*-info/
