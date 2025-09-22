@@ -75,27 +75,35 @@ if __name__ == "__main__":
 
     print(f"Replacement name: {app}")
 
-    template_paths = [
-        'pycharm/_template_app_egg_manager.xml',
-        'pycharm/_template_app_lib_worker.xml',
-        'pycharm/_template_app_preinstall_manager.xml',
-        'pycharm/_template_app_postinstall_worker.xml',
-        'pycharm/_template_app_run.xml',
-        'pycharm/_template_app_get_distrib.xml',
-        'pycharm/_template_app_test_manager.xml',
-        'pycharm/_template_app_test_worker.xml',
-        'pycharm/_template_app_call_worker.xml',
-        'pycharm/_template_app_test.xml',
+    script_root = Path(__file__).resolve().parent
+    templates_root = script_root / "app-scripts"
+
+    template_names = [
+        "_template_app_egg_manager.xml",
+        "_template_app_lib_worker.xml",
+        "_template_app_preinstall_manager.xml",
+        "_template_app_postinstall_worker.xml",
+        "_template_app_run.xml",
+        "_template_app_get_distrib.xml",
+        "_template_app_test_manager.xml",
+        "_template_app_test_worker.xml",
+        "_template_app_call_worker.xml",
+        "_template_app_test.xml",
     ]
 
     output_dir = os.path.join(os.getcwd(), '.idea', 'runConfigurations')
     os.makedirs(output_dir, exist_ok=True)
 
-    for tpl in template_paths:
-        tree = ET.parse(tpl)
+    for filename in template_names:
+        tpl_path = templates_root / filename
+        if not tpl_path.exists():
+            print(f"Warning: skipped template '{filename}' (file not found in {templates_root}).")
+            continue
+
+        tree = ET.parse(tpl_path)
         _replace_placeholders(tree, app_name)
 
-        base = os.path.basename(tpl).replace('_template_app', f'_{app_name}')
+        base = tpl_path.name.replace('_template_app', f'_{app_name}')
         out_path = os.path.join(output_dir, base)
 
         first_cfg = next(tree.getroot().iter("configuration"), None)
