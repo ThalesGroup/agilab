@@ -72,6 +72,12 @@ function New-DirLink([string]$LinkPath, [string]$TargetPath) {
   }
 }
 
+$UvPreviewArgs = @("--preview-features", "extra-build-dependencies")
+function Invoke-UvPreview {
+  param([string[]]$Args)
+  & uv @UvPreviewArgs @Args
+}
+
 #----- Load env + normalize Python version ------------------------------------
 $APPDATA = $env:LOCALAPPDATA
 $envPath = Join-Path $APPDATA "agilab/.env"
@@ -217,7 +223,7 @@ if (-not [string]::IsNullOrEmpty($AGILAB_PUBLIC)) {
   foreach ($page in $INCLUDED_PAGES) {
     Write-Color BLUE "Installing $page..."
     Push-Location $page
-    & uv sync --project . --preview-features python-upgrade | Out-Host
+    Invoke-UvPreview @("sync", "--project", ".", "--preview-features", "python-upgrade") | Out-Host
     if ($LASTEXITCODE -ne 0) {
       Write-Color RED "Error during 'uv sync' for page '$page'."
       $status = 1

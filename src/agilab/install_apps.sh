@@ -8,6 +8,8 @@ set -euo pipefail
 export AGI_PYTHON_VERSION
 export PYTHONPATH="$PWD:${PYTHONPATH-}"
 
+UV_PREVIEW=(uv --preview-features extra-build-dependencies)
+
 # Capture potential overrides before arrays are declared (preserves set -u semantics)
 PUBLIC_PAGES_FROM_ENV="${PUBLIC_PAGES-}"
 PUBLIC_APPS_FROM_ENV="${PUBLIC_APPS-}"
@@ -223,7 +225,7 @@ pushd -- "$AGILAB_PUBLIC/apps-pages" >/dev/null
 for page in ${INCLUDED_PAGES+"${INCLUDED_PAGES[@]}"}; do
   echo -e "${BLUE}Installing $page...${NC}"
   pushd "$page" >/dev/null
-  uv sync --project . --preview-features python-upgrade
+  ${UV_PREVIEW[@]} sync --project . --preview-features python-upgrade
   status=$?
   if (( status != 0 )); then
     echo -e "${RED}Error during 'uv sync' for page '$page'.${NC}"

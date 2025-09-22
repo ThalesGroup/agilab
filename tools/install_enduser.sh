@@ -60,7 +60,7 @@ rm -fr .venv uv.lock
 if [ ! -f pyproject.toml ]; then
     uv init --bare --no-workspace
 fi
-uv sync
+${UV_PREVIEW[@]} sync
 
 # -----------------------------
 # Installation modes
