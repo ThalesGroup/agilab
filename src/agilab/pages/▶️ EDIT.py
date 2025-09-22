@@ -295,6 +295,8 @@ def handle_export_project():
     if app_zip not in st.session_state["archives"]:
         st.session_state["archives"].append(app_zip)
 
+    st.info(f"Project exported to {(env.export_apps / app_zip)}")
+
 
 def import_project(project_zip, ignore=False):
     """
