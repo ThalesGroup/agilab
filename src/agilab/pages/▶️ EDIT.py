@@ -1502,7 +1502,7 @@ def page():
         "project_imported": False,
         "project_created": False,
         "show_widgets": [True, False],
-        "views": [],
+        "pages": [],
         # Initialize the sidebar_selection with a default value if not set
         "sidebar_selection": (
             "Select"

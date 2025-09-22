@@ -411,7 +411,7 @@ def render_cluster_settings_ui():
         "12: rapids and dask", "13: rapids and dask and pool", "14: rapids and dask and cython",
         "15: rapids and dask and pool and cython"
     ]
-    st.info(f"Run mode: {run_mode_label[st.session_state['mode']]}")
+    st.info(f"Run mode {run_mode_label[st.session_state['mode']]}")
     st.session_state.app_settings["cluster"] = cluster_params
 
     with open(env.app_settings_file, "wb") as file:

@@ -208,11 +208,11 @@ async def main():
     current_project = env.app if env.app in projects else (projects[0] if projects else None)
     select_project(projects, current_project)  # may be updated by select_project
 
-    # Where to store selected views per project
+    # Where to store selected pages per project
     project = env.app
     app_settings = Path(env.apps_dir) / project / "src" / "app_settings.toml"
 
-    # Discover views dynamically under AGILAB_PAGES_ABS
+    # Discover pages dynamically under AGILAB_PAGES_ABS
     all_views = discover_views(Path(env.AGILAB_PAGES_ABS))
 
     # Route: only render a view when the param is a concrete path, not "main"/empty
@@ -227,14 +227,14 @@ async def main():
     st.title(page_title)
 
     if not all_views:
-        st.info("No views found under AGILAB_PAGES_ABS.")
+        st.info("No pages found under AGILAB_PAGES_ABS.")
         return
 
     # Load config and ensure structure
     cfg = _read_config(app_settings)
-    if "views" not in cfg:
-        cfg["views"] = {}
-    project_views: list[str] = cfg.get("views", {}).get("view_module", [])
+    if "pages" not in cfg:
+        cfg["pages"] = {}
+    project_views: list[str] = cfg.get("pages", {}).get("view_module", [])
 
     # Multiselect with current selections
     view_names = [p.stem for p in all_views]
@@ -258,11 +258,11 @@ async def main():
         st.session_state[selection_key] = cleaned_selection
         selected_views = cleaned_selection
 
-    if cfg.get("views", {}).get("view_module") != selected_views:
-        cfg.setdefault("views", {})["view_module"] = selected_views
+    if cfg.get("pages", {}).get("view_module") != selected_views:
+        cfg.setdefault("pages", {})["view_module"] = selected_views
         _write_config(app_settings, cfg)
 
-    # Show buttons for the selected views
+    # Show buttons for the selected pages
     st.divider()
     cols = st.columns(min(len(selected_views), 4) or 1)
 

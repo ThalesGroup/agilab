@@ -907,21 +907,21 @@ def get_df_index(df_files, df_file):
 @lru_cache(maxsize=None)
 def list_views(views_root):
     """
-    List all view Python files in the views directory.
+    List all view Python files in the pages directory.
 
     Args:
-        views_root (Path): The root directory of views.
+        views_root (Path): The root directory of pages.
 
     Returns:
         list: Sorted list of view file paths.
     """
     pattern = os.path.join(views_root, "**", "*.py")
-    views = [
+    pages = [
         py_file
         for py_file in glob.glob(pattern, recursive=True)
         if not py_file.endswith("__init__.py")
     ]
-    return sorted(views)
+    return sorted(pages)
 
 
 def read_file_lines(filepath):
@@ -952,13 +952,13 @@ def handle_go_action(view_module, view_path):
     # Implement your desired functionality here.
 
 
-def update_views(project, views):
+def update_views(project, pages):
     """
-    Create and remove hard links according to views checkbox.
+    Create and remove hard links according to pages checkbox.
 
     Args:
         project (str): The project name.
-        views (list): The currently selected views.
+        pages (list): The currently selected pages.
 
     Returns:
         bool: True if an update was required, False otherwise.
@@ -972,7 +972,7 @@ def update_views(project, views):
     existing_pages = set(os.listdir(pages_root))
 
     expected_pages = set()
-    for view_abs in views:
+    for view_abs in pages:
         view_abs_path = Path(view_abs)
         view = view_abs_path.parts[-2]
         prefix = "📈"

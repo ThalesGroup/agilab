@@ -175,7 +175,7 @@ class AgiEnv:
         AgiEnv.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
         envars = AgiEnv.envars
         agilab_src, sep, after = __file__.rpartition("agilab")
-        agilab_src = agilab_src.replace("/views/maps", "")
+        agilab_src = agilab_src.replace("/app-pages/maps", "")
         agilab_src = Path(agilab_src).resolve()
         agilab = importlib.util.find_spec("agilab")
         if agilab is not None and agilab.origin:
