@@ -7,7 +7,7 @@ from pathlib import Path
 async def main():
     app_env = AgiEnv(active_app=Path('~/agilab/src/agilab/apps/mycode_project'), install_type=1, verbose=True) 
     res = await AGI.run(app_env, 
-                        _mode=None,
+                        mode=None,
                         scheduler="127.0.0.1", 
                         workers={'127.0.0.1': 2}, 
                         param1=0, param2="some text", param3=3.14, param4=True)

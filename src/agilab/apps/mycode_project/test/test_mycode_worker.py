@@ -39,6 +39,6 @@ async def test_baseworker_mycode_project(mode):
         sys.path.insert(0, env_src)
 
     BaseWorker._new(mode=mode, env=env, verbose=3, args=args)
-    result = await BaseWorker.run(mode=mode, args=args)
+    result = await BaseWorker._run(mode=mode, args=args)
     print(result)
     assert result is not None

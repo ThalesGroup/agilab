@@ -65,6 +65,6 @@ async def build_worker_libs(env):
 @pytest.mark.asyncio
 async def test_baseworker_modes(mode, args, env, build_worker_libs):
     BaseWorker._new(mode=mode, env=env, verbose=3, args=args)
-    result = await BaseWorker.run(mode=mode, args=args)
+    result = await BaseWorker._run(mode=mode, args=args)
     print(f"[mode={mode}] {result}")
     assert result is not None

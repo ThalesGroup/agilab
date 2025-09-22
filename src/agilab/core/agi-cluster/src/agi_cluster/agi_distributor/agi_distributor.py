@@ -1707,7 +1707,7 @@ class AGI:
 
         if env.debug:
             BaseWorker._new(env=env, mode=AGI._mode, verbose=env.verbose, args=AGI._args)
-            res = await BaseWorker.run(env=env, mode=AGI._mode, workers=AGI._workers, verbose=env.verbose,
+            res = await BaseWorker._run(env=env, mode=AGI._mode, workers=AGI._workers, verbose=env.verbose,
                                        args=AGI._args)
         else:
             cmd = (
@@ -1716,7 +1716,7 @@ class AGI:
                 f"import asyncio\n"
                 f"async def main():\n"
                 f"  BaseWorker._new(active_app='{env.target_worker}', mode={AGI._mode}, verbose={env.verbose}, args={AGI._args})\n"
-                f"  res = await BaseWorker.run(mode={AGI._mode}, workers={AGI._workers}, args={AGI._args})\n"
+                f"  res = await BaseWorker._run(mode={AGI._mode}, workers={AGI._workers}, args={AGI._args})\n"
                 f"  print(res)\n"
                 f"if __name__ == '__main__':\n"
                 f"  asyncio.run(main())\""
