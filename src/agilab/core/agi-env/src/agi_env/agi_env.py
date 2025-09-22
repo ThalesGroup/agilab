@@ -803,7 +803,7 @@ class AgiEnv:
         app_settings_file.touch(exist_ok=True)
         self.app_settings_file = app_settings_file
 
-        app_args_form = self.app_src / "app_args_form.py"
+        app_args_form = self.app_src / f"{self.target}_args_form.py"
         app_args_form.touch(exist_ok=True)
         self.app_args_form = app_args_form
 

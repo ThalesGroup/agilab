@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='utf-8'?>
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="{APP}_preinstall test" type="PythonConfigurationType" factoryName="Python" folderName="{APP}_project">
+    <module name="{APP}_project" />
+    <option name="ENV_FILES" value="" />
+    <option name="INTERPRETER_OPTIONS" value="" />
+    <option name="PARENT_ENVS" value="true" />
+    <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+        <env name="UV_NO_SYNC" value="1" />
+    </envs>
+    <option name="SDK_HOME" value="" />
+    <option name="SDK_NAME" value="uv ({APP}_project)" />
+    <option name="WORKING_DIRECTORY" value="$ProjectFileDir$/src/agilab/apps/{APP}_project" />
+    <option name="IS_MODULE_SDK" value="false" />
+    <option name="ADD_CONTENT_ROOTS" value="true" />
+    <option name="ADD_SOURCE_ROOTS" value="true" />
+    <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/agilab/apps/{APP}_project/src/{APP}_worker/pre_install.py" />
+    <option name="PARAMETERS" value="remove_decorators --verbose --worker_path $USER_HOME$/wenv/{APP}_worker/src/{APP}_worker/{APP}_worker.py" />
+    <option name="EMULATE_TERMINAL" value="false" />
+    <option name="MODULE_MODE" value="false" />
+    <option name="REDIRECT_INPUT" value="false" />
+    <option name="INPUT_FILE" value="" />
+    <method v="2" />
+  </configuration>
+</component>
