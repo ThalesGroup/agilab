@@ -5,6 +5,10 @@ operational tips we rely on during day-to-day development. Keep it in sync with
 `.idea/runConfigurations` so that anyone can reproduce an issue—or validate a fix—
 in a single copy/paste.
 
+> **Note**
+> AGILAB is still evolving rapidly. During this early phase we do **not** keep
+> backward compatibility across releases; expect breaking changes between updates.
+
 > **Tip**
 > When you update or add run configs, refresh this document immediately so CI and
 > reviewers share the same playbook.
