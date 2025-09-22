@@ -20,7 +20,7 @@ These scripts are provided to debug your app with the PyCharm IDE, which best ma
 C - Exemple of Tests Sequence:
 ----------------------
 
-- ** zip-all gen**
+- ** zip_all gen**
 
   TGenerate the zip of the whole agi project directory with .gitignore filtration. A agi.zip file should created at the root dir of your projectu
 
@@ -160,7 +160,7 @@ So you have to attach this project to your currrent project for enabling your sc
 <PYCHARM> Can't open your project
 ---------------------------------
 After an install of agilab when you select your project to open but it failed.
-This might come from pycharm/setup-pycharm.sh that have corrupted your pycharm settings
+This might come from pycharm/setup_pycharm.sh that have corrupted your pycharm settings
 
 **Solution (macOS):**
 

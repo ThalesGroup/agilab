@@ -2,7 +2,7 @@ agilab_run__dev_.xml|PythonConfigurationType|streamlit|$ProjectFileDir$|run $Pro
 agilab_run__enduser_.xml|PythonConfigurationType|streamlit|$ProjectFileDir$/../agi-space|run .venv/lib/python3.13/site-packages/agilab/AGILAB.py -- --openai-api-key "your-key" --install 0|PYTHONUNBUFFERED=1;UV_NO_SYNC=1|uv (agi-space)|public
 app_install__local_.xml|PythonConfigurationType|$ProjectFileDir$/src/agilab/apps/install.py|$ProjectFileDir$|$Prompt:selected app:~/agilab/src/agilab/apps/flight_project$ --install-type "1" --verbose 1|PYTHONUNBUFFERED=1;UV_NO_SYNC=1|uv (agi-cluster)|public
 app_script_gen.xml|PythonConfigurationType|$ProjectFileDir$/pycharm/gen_app_script.py||$Prompt:Enter app manager name:flight$|PYTHONUNBUFFERED=1;UV_NO_SYNC=1||public
-install_agilab_dev.xml|ShConfigurationType|bash|$PROJECT_DIR$|$PROJECT_DIR$/setup-pycharm.sh|||public
+install_agilab_dev.xml|ShConfigurationType|bash|$PROJECT_DIR$|$PROJECT_DIR$/setup_pycharm.sh|||public
 install_agilab_enduser.xml|ShConfigurationType|bash|$PROJECT_DIR$/test|$PROJECT_DIR$/tools/install_enduser.sh --source testpypi|||public
 lab_run_test.xml|PythonConfigurationType|$USER_HOME$/agi-workspace/.venv/lib/python3.12/site-packages/agilab/lab_run.py|$USER_HOME$/agi-workspace/|--openai-api-key "your-key"|PYTHONUNBUFFERED=1;UV_NO_SYNC=1|uv (agilab)|public
 pypi_publish.xml|PythonConfigurationType|$ProjectFileDir$/test/_pypi_publish.py|$ProjectFileDir$|--repo testpypi --user agilab --clean --user agilab --regex ^\d+\.\d+\.\d+\.post\d+$|PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1|uv (agilab)|public
@@ -15,7 +15,7 @@ test_dag_worker.xml|tests|pytest||$PROJECT_DIR$/src/agilab/core/test/test_dag_wo
 test_pandas_worker.xml|tests|pytest|$PROJECT_DIR$/src/agilab/core/agi-cluster|$PROJECT_DIR$/src/agilab/core/test/test_pandas_worker.py||uv (agi-cluster)|public
 test_polars_worker.xml|tests|pytest|$PROJECT_DIR$/src/agilab/core/agi-cluster|$PROJECT_DIR$/src/agilab/core/test/test_polars_worker.py||uv (agi-cluster)|public
 test_work_dispatcher.xml|tests|pytest||$PROJECT_DIR$/src/agilab/core/test/test_work_dispatcher.py||uv (agi-cluster)|public
-zip_all_gen.xml|PythonConfigurationType|$ProjectFileDir$/../../tools/zip-all.py|$ProjectFileDir$/../../tools|--dir2zip src --zipfile src.zip|PYTHONUNBUFFERED=1;UV_NO_SYNC=1||public
+zip_all_gen.xml|PythonConfigurationType|$ProjectFileDir$/../../tools/zip_all.py|$ProjectFileDir$/../../tools|--dir2zip src --zipfile src.zip|PYTHONUNBUFFERED=1;UV_NO_SYNC=1||public
 app_install.xml|PythonConfigurationType|$ProjectFileDir$/src/agilab/snippets/AGI.install_$Prompt:Enter app manager name:flight$.py|$ProjectFileDir$||PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1|uv (agi-cluster)|public
 app_test.xml|PythonConfigurationType|$ProjectFileDir$/src/agilab/apps/$Prompt:Enter app manager name:flight$_project/app_test.py|||PYTHONUNBUFFERED=1|uv (agi-cluster)|public
 _flight_get_distrib.xml|PythonConfigurationType|$ProjectFileDir$/src/agilab/examples/flight/AGI.get_distrib_flight.py|$ProjectFileDir$/src/agilab/examples/flight||PYTHONUNBUFFERED=1;UV_NO_SYNC=1|uv (flight_project)|public

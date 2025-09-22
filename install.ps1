@@ -265,9 +265,9 @@ function Write-EnvValues {
 function Install-PyCharmScript {
     rm -f .idea/workspace.xml
     Write-Host "Patching PyCharm workspace.xml interpreter settings..." -ForegroundColor Blue
-    uv run -p $env:PYTHON_VERSION python pycharm/setup-pycharm.py
+    uv run -p $env:PYTHON_VERSION python pycharm/setup_pycharm.py
     if ($LastExitCode -ne 0) {
-        Write-Host "Pycharm/setup-pycharm.py failed or not found; continuing..." -ForegroundColor Yellow
+        Write-Host "Pycharm/setup_pycharm.py failed or not found; continuing..." -ForegroundColor Yellow
     }
 }
 

@@ -7,12 +7,12 @@ Usage Example
 Installation
 ^^^^^^^^^^^^
 
-.. literalinclude:: examples/mycode/AGI.install_mycode.py
+.. literalinclude:: examples/mycode/AGI.install-mycode.py
    :language: python
 
 ------
 
-.. literalinclude:: examples/flight/AGI.install_flight.py
+.. literalinclude:: examples/flight/AGI.install-flight.py
    :language: python
 
 ------
@@ -20,12 +20,12 @@ Installation
 Distribute
 ^^^^^^^^^^^^
 
-.. literalinclude:: examples/mycode/AGI.get_distrib_mycode.py
+.. literalinclude:: examples/mycode/AGI.get_distrib-mycode.py
    :language: python
 
 -----
 
-.. literalinclude:: examples/flight/AGI.get_distrib_flight.py
+.. literalinclude:: examples/flight/AGI.get_distrib-flight.py
    :language: python
 
 ----
@@ -33,12 +33,12 @@ Distribute
 Run
 ^^^
 
-.. literalinclude:: examples/mycode/AGI.run_mycode.py
+.. literalinclude:: examples/mycode/AGI.run-mycode.py
    :language: python
 
 ----
 
-.. literalinclude:: examples/flight/AGI.run_flight.py
+.. literalinclude:: examples/flight/AGI.run-flight.py
    :language: python
 
 ----

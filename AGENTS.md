@@ -70,8 +70,8 @@ in a single copy/paste.
 | agilab | agilab run (dev) | streamlit | run $ProjectFileDir$/src/agilab/AGILAB.py -- --install-type 1 --openai-api-key "your-key" --apps-dir $ProjectFileDir$/src/agilab/apps | $ProjectFileDir$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run streamlit run $ProjectFileDir$/src/agilab/AGILAB.py -- --install-type 1 --openai-api-key "your-key" --apps-dir $ProjectFileDir$/src/agilab/apps | uv (agilab) |
 | agilab | agilab run (enduser) | streamlit | run .venv/lib/python3.13/site-packages/agilab/AGILAB.py -- --openai-api-key "your-key" --install 0 | $ProjectFileDir$/../agi-space | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/../agi-space && uv run streamlit run .venv/lib/python3.13/site-packages/agilab/AGILAB.py -- --openai-api-key "your-key" --install 0 | uv (agi-space) |
 | agilab | app install (local) | $ProjectFileDir$/src/agilab/apps/install.py | $Prompt:selected app:~/agilab/src/agilab/apps/flight_project$ --install-type "1" --verbose 1 | $ProjectFileDir$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run python $ProjectFileDir$/src/agilab/apps/install.py $Prompt:selected app:~/agilab/src/agilab/apps/flight_project$ --install-type "1" --verbose 1 | uv (agi-cluster) |
-| agilab | app-script gen | $ProjectFileDir$/pycharm/gen_app_script.py | $Prompt:Enter app manager name:flight$ |  | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | uv run python $ProjectFileDir$/pycharm/gen_app_script.py $Prompt:Enter app manager name:flight$ |  |
-| agilab | install-agilab-dev | bash | $PROJECT_DIR$/setup-pycharm.sh | $PROJECT_DIR$ |  | cd $PROJECT_DIR$ && /bin/bash $PROJECT_DIR$/setup-pycharm.sh |  |
+| agilab | app_script gen | $ProjectFileDir$/pycharm/gen_app_script.py | $Prompt:Enter app manager name:flight$ |  | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | uv run python $ProjectFileDir$/pycharm/gen_app_script.py $Prompt:Enter app manager name:flight$ |  |
+| agilab | install-agilab-dev | bash | $PROJECT_DIR$/setup_pycharm.sh | $PROJECT_DIR$ |  | cd $PROJECT_DIR$ && /bin/bash $PROJECT_DIR$/setup_pycharm.sh |  |
 | agilab | install-agilab-enduser | bash | $PROJECT_DIR$/tools/install_enduser.sh --source testpypi | $PROJECT_DIR$/test |  | cd $PROJECT_DIR$/test && /bin/bash $PROJECT_DIR$/tools/install_enduser.sh --source testpypi |  |
 | agilab | lab_run test | $USER_HOME$/agi-workspace/.venv/lib/python3.12/site-packages/agilab/lab_run.py | --openai-api-key "your-key" | $USER_HOME$/agi-workspace/ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $USER_HOME$/agi-workspace/ && uv run python $USER_HOME$/agi-workspace/.venv/lib/python3.12/site-packages/agilab/lab_run.py --openai-api-key "your-key" | uv (agilab) |
 | agilab | pypi publish | $ProjectFileDir$/test/_pypi_publish.py | --repo testpypi --user agilab --clean --user agilab --regex ^\d+\.\d+\.\d+\.post\d+$ | $ProjectFileDir$ | PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run python $ProjectFileDir$/test/_pypi_publish.py --repo testpypi --user agilab --clean --user agilab --regex ^\d+\.\d+\.\d+\.post\d+$ | uv (agilab) |
@@ -84,7 +84,7 @@ in a single copy/paste.
 | agilab | test pandas_worker | pytest | $PROJECT_DIR$/src/agilab/core/test/test_pandas_worker.py | $PROJECT_DIR$/src/agilab/core/agi-cluster |  | cd $PROJECT_DIR$/src/agilab/core/agi-cluster && uv run pytest $PROJECT_DIR$/src/agilab/core/test/test_pandas_worker.py | uv (agi-cluster) |
 | agilab | test polars_worker | pytest | $PROJECT_DIR$/src/agilab/core/test/test_polars_worker.py | $PROJECT_DIR$/src/agilab/core/agi-cluster |  | cd $PROJECT_DIR$/src/agilab/core/agi-cluster && uv run pytest $PROJECT_DIR$/src/agilab/core/test/test_polars_worker.py | uv (agi-cluster) |
 | agilab | test work_dispatcher | pytest | $PROJECT_DIR$/src/agilab/core/test/test_work_dispatcher.py |  |  | uv run pytest $PROJECT_DIR$/src/agilab/core/test/test_work_dispatcher.py | uv (agi-cluster) |
-| agilab | zip-all gen | $ProjectFileDir$/../../tools/zip-all.py | --dir2zip src --zipfile src.zip | $ProjectFileDir$/../../tools | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/../../tools && uv run python $ProjectFileDir$/../../tools/zip-all.py --dir2zip src --zipfile src.zip |  |
+| agilab | zip_all gen | $ProjectFileDir$/../../tools/zip_all.py | --dir2zip src --zipfile src.zip | $ProjectFileDir$/../../tools | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/../../tools && uv run python $ProjectFileDir$/../../tools/zip_all.py --dir2zip src --zipfile src.zip |  |
 | components | flight_egg gen | $PROJECT_DIR$/src/agilab/apps/flight_project/build.py | bdist_egg --packages "agent_worker, pandas_worker, polars_worker, dag_worker" -d $USER_HOME$/wenv/flight_worker | $ProjectFileDir$/src/agilab/apps/flight_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/flight_project && uv run python $PROJECT_DIR$/src/agilab/apps/flight_project/build.py bdist_egg --packages "agent_worker, pandas_worker, polars_worker, dag_worker" -d $USER_HOME$/wenv/flight_worker | uv (flight_project) |
 | components | flight_lib gen | $USER_HOME$/wenv/flight_worker/build.py | build_ext --packages "dag_worker, pandas_worker, polars_worker, agent_worker" -b $USER_HOME$/wenv/flight_worker | $USER_HOME$/wenv/flight_worker | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $USER_HOME$/wenv/flight_worker && uv run python $USER_HOME$/wenv/flight_worker/build.py build_ext --packages "dag_worker, pandas_worker, polars_worker, agent_worker" -b $USER_HOME$/wenv/flight_worker | uv (flight_worker) |
 | components | flight_postinstall test | $USER_HOME$/wenv/flight_worker/src/flight_worker/post_install.py | $ProjectFileDir$/src/agilab/apps/flight_project 1 $USER_HOME$/data/flight | $ProjectFileDir$/src/agilab/apps/flight_project | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $ProjectFileDir$/src/agilab/apps/flight_project && uv run python $USER_HOME$/wenv/flight_worker/src/flight_worker/post_install.py $ProjectFileDir$/src/agilab/apps/flight_project 1 $USER_HOME$/data/flight | uv (flight_worker) |
@@ -200,8 +200,8 @@ by parsing .idea/runConfigurations/*.xml:
 - Important: when renaming or relocating scripts/entries, update both:
   - The concrete launchers in `.idea/runConfigurations/*.xml` (names, `SCRIPT_NAME`, `WORKING_DIRECTORY`, envs).
   - The PyCharm templates and helpers under `pycharm/` and related generators, for example:
-    - `pycharm/app-scripts/_template_app_*.xml`
-    - `pycharm/setup-pycharm.py`
+    - `pycharm/app_scripts/_template_app_*.xml`
+    - `pycharm/setup_pycharm.py`
     - `pycharm/gen_app_script.py`
     - `src/agilab/core/gen_app_script.py` (if you rely on the core helper)
   - After changes, re-run the “Run matrix” refresh to keep docs aligned.
@@ -209,10 +209,10 @@ by parsing .idea/runConfigurations/*.xml:
 ### Regenerate run configs (step-by-step)
 
 1. Update templates (if needed)
-   - Edit `pycharm/app-scripts/_template_app_*.xml` to reflect new script names/paths (e.g., `AGI.get_distrib_*`).
+   - Edit `pycharm/app_scripts/_template_app_*.xml` to reflect new script names/paths (e.g., `AGI.get_distrib_*`).
 
 2. Sync PyCharm modules + registered SDKs
-   - `uv run python pycharm/setup-pycharm.py`
+   - `uv run python pycharm/setup_pycharm.py`
 
 3. Re-generate per‑app launchers (one per app)
    - Examples:
