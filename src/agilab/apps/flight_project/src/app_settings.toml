@@ -12,7 +12,7 @@ output_format = "parquet"
 
 [cluster]
 cluster_enabled = false
-verbose = false
+verbose = 0
 cython = false
 pool = false
 rapids = false

@@ -388,7 +388,7 @@ def render_cluster_settings_ui():
         cluster_params.pop("scheduler", None)
         cluster_params.pop("workers", None)
 
-    boolean_params = ["verbose", "cython", "pool"]
+    boolean_params = ["cython", "pool"]
     if env.is_managed_pc:
         cluster_params["rapids"] = False
     else:
@@ -779,9 +779,26 @@ async def page():
     show_export = st.sidebar.checkbox("EXPORT DATA", value=False, help="")
 
     cluster_params = st.session_state.app_settings["cluster"]
+    verbosity_options = [0, 1, 2, 3]
+    default_verbose = cluster_params.get("verbose", 2)
+    try:
+        default_index = verbosity_options.index(int(default_verbose))
+    except (ValueError, TypeError):
+        default_index = 2
+
+    cluster_params["verbose"] = st.sidebar.selectbox(
+        "Verbosity level",
+        options=verbosity_options,
+        index=default_index,
+        key="cluster_verbose",
+        help="Controls AgiEnv verbosity for generated install/distribute/run snippets.",
+    )
+
     verbose = cluster_params.get('verbose', 2)
     with st.expander("System settings:", expanded=True):
         render_cluster_settings_ui()
+        cluster_params = st.session_state.app_settings["cluster"]
+        verbose = cluster_params.get('verbose', 2)
     # ------------------
     # INSTALL Section
     # ------------------
@@ -789,10 +806,10 @@ async def page():
 
         with st.expander("Install snippet"):
             enabled = cluster_params.get("cluster_enabled", False)
-            scheduler = cluster_params.get("scheduler", "")
-            scheduler = f'"{str(scheduler)}"' if enabled and scheduler else "None"
-            workers = cluster_params.get("workers", "")
-            workers = str(workers) if enabled and workers else "None"
+            raw_scheduler = cluster_params.get("scheduler", "")
+            scheduler = f'"{str(raw_scheduler)}"' if enabled and raw_scheduler else "None"
+            raw_workers = cluster_params.get("workers", "")
+            workers = str(raw_workers) if enabled and raw_workers else "None"
             cmd = f"""
 import asyncio
 from agi_cluster.agi_distributor import AGI
@@ -820,19 +837,37 @@ if __name__ == "__main__":
         if st.button("INSTALL", key="install_btn", type="primary",
                      help="Run the install snippet to set up your .venv for Manager and Worker"):
             clear_log()
+            venv = env.cluster_root if env.install_type else env.active_app.parents[1]
+            install_command = cmd.replace("asyncio.run(main())", env.snippet_tail)
+            context_lines = [
+                "=== Install request ===",
+                f"timestamp: {datetime.now().isoformat(timespec='seconds')}",
+                f"active_app: {env.active_app}",
+                f"install_type: {env.install_type}",
+                f"cluster_enabled: {enabled}",
+                f"verbose: {verbose}",
+                f"modes_enabled: {st.session_state.get('mode', 'N/A')}",
+                f"scheduler: {raw_scheduler if enabled and raw_scheduler else 'None'}",
+                f"workers: {raw_workers if enabled and raw_workers else 'None'}",
+                f"venv: {venv}",
+                "=== Streaming install logs ===",
+            ]
             with log_expander:
                 log_placeholder.empty()
+                for line in context_lines:
+                    update_log(log_placeholder, line)
             with st.spinner("Installing worker..."):
-                venv = env.cluster_root if env.install_type else env.active_app.parents[1]
-                stdout, stderr = await env.run_agi(
-                    cmd.replace("asyncio.run(main())", env.snippet_tail),
+                _stdout, stderr = await env.run_agi(
+                    install_command,
                     log_callback=lambda message: update_log(log_placeholder, message),
                     venv=venv
                 )
 
                 with log_expander:
+                    status_line = "✅ Install finished without errors." if not stderr else "❌ Install finished with errors. Check logs above."
+                    update_log(log_placeholder, status_line)
                     log_placeholder.empty()
-                    display_log(stdout, stderr)
+                    display_log(st.session_state.get("log_text", ""), stderr)
                 if not stderr:
                     st.success("Cluster installation completed.")
                     # 👇 Auto-enable the RUN section after install

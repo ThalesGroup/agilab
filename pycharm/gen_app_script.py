@@ -84,6 +84,7 @@ if __name__ == "__main__":
         "_template_app_preinstall_manager.xml",
         "_template_app_postinstall_worker.xml",
         "_template_app_run.xml",
+        "_template_app_install.xml",
         "_template_app_get_distrib.xml",
         "_template_app_test_manager.xml",
         "_template_app_test_worker.xml",
