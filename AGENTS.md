@@ -140,6 +140,13 @@ same instructions.
   - `cd src/agilab/apps/flight_project && uv run python test/_test_call_worker.py`
   - `cd src/agilab/apps/flight_project && uv run python src/flight_worker/pre_install.py remove_decorators --verbose --worker_path $USER_HOME$/wenv/flight_worker/src/flight_worker/flight_worker.py`
   - `cd src/agilab/apps/flight_project && uv run python $USER_HOME$/wenv/flight_worker/src/flight_worker/post_install.py src/agilab/apps/flight_project 1 $USER_HOME$/data/flight`
+- FlightTrajectory:
+  - `cd src/agilab/apps/flight_trajectory_project && uv run python ../../snippets/AGI.run_flight_trajectory.py`
+  - `cd src/agilab/apps/flight_trajectory_project && uv run python test/_test_flight_trajectory_manager.py`
+  - `cd src/agilab/apps/flight_trajectory_project && uv run python test/_test_flight_trajectory_worker.py`
+  - `cd src/agilab/snippets && uv run python AGI.get_distrib_flight_trajectory.py`
+  - `cd src/agilab/apps/flight_trajectory_project && uv run python test/_test_call_worker.py`
+  - Workers load the exact `<data_uri>/<filename>` paths defined in app settings; missing files halt distribution.
 - LinkSim:
   - `cd src/agilab/apps/link_sim_project && uv run python ../../snippets/AGI.run_link_sim.py`
   - `cd src/agilab/apps/link_sim_project && uv run python test/_test_link_sim_manager.py`
@@ -158,6 +165,7 @@ same instructions.
   - `cd src/agilab/apps/sat_trajectory_project && uv run python test/_test_sat_trajectory_worker.py`
   - `cd src/agilab/snippets && uv run python AGI.get_distrib_sat_trajectory.py`
   - `cd src/agilab/apps/sat_trajectory_project && uv run python test/_test_call_worker.py`
+  - Worker expects TLE data under the configured `data_uri` and returns task payloads as `(satellite_id, csv)` tuples; ensure those files exist before distributing.
 - Sb3Trainer:
   - `cd src/agilab/apps/sb3_trainer_project && uv run python ../../snippets/AGI.run_sb3_trainer.py`
   - `cd src/agilab/apps/sb3_trainer_project && uv run python test/_test_sb3_trainer_manager.py`
