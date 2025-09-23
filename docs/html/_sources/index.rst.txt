@@ -20,7 +20,6 @@ You’ll find everything from quickstarts to API references, as well as example 
 
    cluster
    agilab
-   apps-pages
    framework-api
    directory-structure
    install-usecase
@@ -29,7 +28,13 @@ You’ll find everything from quickstarts to API references, as well as example 
 
 .. toctree::
    :maxdepth: 1
-   :caption: Example Projects
+   :caption: PAGES Examples
+
+   apps-pages
+
+.. toctree::
+   :maxdepth: 1
+   :caption: APPS Examples
 
    mycode-project
    flight-project

@@ -56,7 +56,7 @@ The selection of these technologies have been done for Portability, Simplicity a
 - **Performance**: AGILab provide runtime benchmark for combinaisons of Cython, Dask and Pool of Thread/Process execution modes
 
 
-Example: Aircraft Telecommunication
+Example: Aircraft Radio Communication
 -----------------------------------
 
 - **Needs Algos Set**
@@ -73,7 +73,7 @@ AGILab is designed for modern development needs—reducing overhead, promoting c
 
 - **Needs Model of Models**
 
-Since Artificial General Intelligence (AGI) has not yet been achieved with a single algorithm, a "model of models" is necessary. For instance, in aircraft telecom, this approach is illustrated as follows:
+Since Artificial General Intelligence (AGI) has not yet been achieved with a single algorithm, a "model of models" is necessary. For instance, in aircraft radio communication, this approach is illustrated as follows:
 
 .. image:: ModelOfModels.svg
    :alt: Model Of Models

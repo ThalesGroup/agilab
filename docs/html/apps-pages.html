@@ -24,8 +24,8 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Framework API" href="framework-api.html" />
-    <link rel="prev" title="AGILab" href="agilab.html" /> 
+    <link rel="next" title="MyCode Project" href="mycode-project.html" />
+    <link rel="prev" title="Flight-project Licenses" href="flight-project-licenses.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -62,7 +62,7 @@
 <li class="toctree-l2"><a class="reference internal" href="introduction.html#target-audience"><strong>Target Audience</strong></a></li>
 <li class="toctree-l2"><a class="reference internal" href="introduction.html#main-dependencies"><strong>Main Dependencies</strong></a></li>
 <li class="toctree-l2"><a class="reference internal" href="introduction.html#technologies-selection-criteria"><strong>Technologies Selection Criteria</strong></a></li>
-<li class="toctree-l2"><a class="reference internal" href="introduction.html#example-aircraft-telecommunication">Example: Aircraft Telecommunication</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#example-aircraft-radio-communication">Example: Aircraft Radio Communication</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="features.html">Features</a><ul>
@@ -72,7 +72,7 @@
 </li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Core Topics</span></p>
-<ul class="current">
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="cluster.html">Cluster</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="cluster-help.html">Cluster Help</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="cluster-help.html#overview">Overview</a></li>
@@ -103,48 +103,25 @@
 <li class="toctree-l1"><a class="reference internal" href="agilab.html">AGILab</a><ul class="simple">
 </ul>
 </li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">apps-pages</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#view-barycentric">view-barycentric</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#view-autoencoder-latentspace">view-autoencoder-latentspace</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#viewmaps-network">viewmaps-network</a></li>
-</ul>
-</li>
 <li class="toctree-l1"><a class="reference internal" href="framework-api.html">Framework API</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="agi-env.html">agi-env API</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="agi-env.html#usage-example">Usage Example</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="agi-env.html#instanciation">Instanciation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="framework-api.html#core-packages">Core packages</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agi-env.html">agi-env API</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#usage-example">Usage Example</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#reference">Reference</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="agi-env.html#reference">Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.is_packaging_cmd"><code class="docutils literal notranslate"><span class="pre">is_packaging_cmd()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.normalize_path"><code class="docutils literal notranslate"><span class="pre">normalize_path()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.parse_level"><code class="docutils literal notranslate"><span class="pre">parse_level()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.strip_time_level_prefix"><code class="docutils literal notranslate"><span class="pre">strip_time_level_prefix()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="agi-node.html">agi-node API</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#reference">Reference</a></li>
 </ul>
 </li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="agi-node.html">agi-node API</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="agi-node.html#reference">Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="agi-node.html#dag-worker">dag_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-node.html#pandas-worker">pandas_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-node.html#polars-worker">polars_worker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="agi-distributor.html">agi-distributor API</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-distributor.html#usage-example">Usage Example</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-distributor.html#reference">Reference</a></li>
 </ul>
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="agi-distributor.html">agi-distributor API</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="agi-distributor.html#usage-example">Usage Example</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="agi-distributor.html#installation">Installation</a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-distributor.html#distribute">Distribute</a></li>
-<li class="toctree-l4"><a class="reference internal" href="agi-distributor.html#run">Run</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="agi-distributor.html#reference">Reference</a></li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="framework-api.html#working-with-the-api">Working with the API</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="directory-structure.html">Project Files Structure</a></li>
@@ -171,41 +148,70 @@
 </ul>
 </li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Example Projects</span></p>
+<p class="caption" role="heading"><span class="caption-text">PAGES Examples</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">apps-pages</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#view-autoencoder-latenspace">view_autoencoder_latenspace</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#view-barycentric">view_barycentric</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#view-maps">view_maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#view-maps-3d">view_maps_3d</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#view-maps-network">view_maps_network</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">APPS Examples</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="mycode-project.html">Example1: Mycode-Project</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#manager">manager:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#args">args:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#worker-mycode-worker">worker: mycode_worker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mycode-project.html">MyCode Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#manager-mycode-mycode">Manager (<cite>mycode.mycode</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#args-mycode-app-args">Args (<cite>mycode.app_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#worker-mycode-worker-mycode-worker">Worker (<cite>mycode_worker.mycode_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#api-reference">API Reference</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="flight-project.html">Example2: Flight-Project</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="flight-project.html#manager-flight">manager: flight</a></li>
-<li class="toctree-l2"><a class="reference internal" href="flight-project.html#args-flight-args">args: flight_args</a></li>
-<li class="toctree-l2"><a class="reference internal" href="flight-project.html#worker-flight-worker">worker: flight_worker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="flight-project.html">Flight Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#manager-flight-flight">Manager (<cite>flight.flight</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#args-flight-flight-args">Args (<cite>flight.flight_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#worker-flight-worker-flight-worker">Worker (<cite>flight_worker.flight_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#api-reference">API Reference</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="flight-trajectory-project.html">Example3: Flight-Trajectory-Project</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#manager-flight-trajectory">manager: flight_trajectory</a></li>
-<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#args-flight-trajectory-app-args">args: flight_trajectory.app_args</a></li>
-<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#worker-flight-trajectory-worker">worker: flight_trajectory_worker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="flight-trajectory-project.html">Flight Trajectory Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#manager-flight-trajectory-flight-trajectory">Manager (<cite>flight_trajectory.flight_trajectory</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#args-flight-trajectory-app-args">Args (<cite>flight_trajectory.app_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#worker-flight-trajectory-worker-flight-trajectory-worker">Worker (<cite>flight_trajectory_worker.flight_trajectory_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#api-reference">API Reference</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="link-sim-project.html">Example4: Link-Sim-Project</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#manager-link-sim">manager: link_sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#args-link-sim-app-args">args: link_sim.app_args</a></li>
-<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#worker-link-sim-worker">worker: link_sim_worker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="link-sim-project.html">Link Sim Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#manager-link-sim-link-sim">Manager (<cite>link_sim.link_sim</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#args-link-sim-app-args">Args (<cite>link_sim.app_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#worker-link-sim-worker-link-sim-worker">Worker (<cite>link_sim_worker.link_sim_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#api-reference">API Reference</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="sat-trajectory-project.html">Example5: Sat-Trajectory-Project</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#manager-sat-trajectory">manager: sat_trajectory</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#args-sat-trajectory-app-args">args: sat_trajectory.app_args</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#worker-sat-trajectory-worker">worker: sat_trajectory_worker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sat-trajectory-project.html">Sat Trajectory Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#manager-sat-trajectory-sat-trajectory">Manager (<cite>sat_trajectory.sat_trajectory</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#args-sat-trajectory-app-args">Args (<cite>sat_trajectory.app_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#worker-sat-trajectory-worker-sat-trajectory-worker">Worker (<cite>sat_trajectory_worker.sat_trajectory_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#api-reference">API Reference</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="sb3-trainer-project.html">Example6: Sb3-Trainer-Project</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="sb3-trainer-project.html#manager-sb3-trainer">manager: sb3_trainer</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sb3-trainer-project.html#worker-sb3-trainer-worker">worker: sb3_trainer_worker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sb3-trainer-project.html">SB3 Trainer Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="sb3-trainer-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sb3-trainer-project.html#manager-sb3-trainer-sb3-trainer">Manager (<cite>sb3_trainer.sb3_trainer</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sb3-trainer-project.html#worker-sb3-trainer-worker-sb3-trainer-worker">Worker (<cite>sb3_trainer_worker.sb3_trainer_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sb3-trainer-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sb3-trainer-project.html#api-reference">API Reference</a></li>
 </ul>
 </li>
 </ul>
@@ -241,18 +247,72 @@
              
   <section id="apps-pages">
 <h1>apps-pages<a class="headerlink" href="#apps-pages" title="Link to this heading"></a></h1>
-<p>App-page is a page to select the web page you want to enable for your app</p>
+<p>AGILab ships a handful of prebuilt Streamlit bundles that you can expose from
+the Explore catalogue or the home dashboard. Each bundle is a standalone
+Streamlit project with its own <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>/<code class="docutils literal notranslate"><span class="pre">.venv</span></code> so the launcher spins
+it up in an isolated interpreter. Add the module name to the
+<code class="docutils literal notranslate"><span class="pre">[pages].view_module</span></code> list in <code class="docutils literal notranslate"><span class="pre">app_settings.toml</span></code> (or use Explore → Configure)
+and the page becomes available to every user of the project.</p>
+<section id="view-autoencoder-latenspace">
+<h2>view_autoencoder_latenspace<a class="headerlink" href="#view-autoencoder-latenspace" title="Link to this heading"></a></h2>
+<p>Interactive dimensionality reduction playground powered by an autoencoder.</p>
+<ul class="simple">
+<li><p>Loads the dataframe exported from Execute and lets you pick the features to
+embed into latent space.</p></li>
+<li><p>Trains a configurable autoencoder (Keras) on the fly and visualises the
+latent space with barycentric projections using <code class="docutils literal notranslate"><span class="pre">barviz</span></code>.</p></li>
+<li><p>Supports both categorical and continuous colouring, including automatic data
+normalisation and training/test splits.</p></li>
+</ul>
+</section>
 <section id="view-barycentric">
-<h2>view-barycentric<a class="headerlink" href="#view-barycentric" title="Link to this heading"></a></h2>
-<p>This is mainly a view to visualize latent-space</p>
+<h2>view_barycentric<a class="headerlink" href="#view-barycentric" title="Link to this heading"></a></h2>
+<p>Barycentric simplex visualisation for high-dimensional metrics.</p>
+<ul class="simple">
+<li><p>Uses the same <code class="docutils literal notranslate"><span class="pre">barviz</span></code> primitives as the autoencoder view but expects a set
+of aggregated KPI columns that should sum to one.</p></li>
+<li><p>Provides interactive controls to choose the variables plotted on the simplex
+and to re-centre the projection around a particular point.</p></li>
+<li><p>Handy for comparing relative contributions (for example cluster weights or
+class probabilities) across the exported dataset.</p></li>
+</ul>
 </section>
-<section id="view-autoencoder-latentspace">
-<h2>view-autoencoder-latentspace<a class="headerlink" href="#view-autoencoder-latentspace" title="Link to this heading"></a></h2>
-<p>A dimension reduction visualisation based on auto-encoder</p>
+<section id="view-maps">
+<h2>view_maps<a class="headerlink" href="#view-maps" title="Link to this heading"></a></h2>
+<p>2D cartography dashboard focused on geolocated telemetry.</p>
+<ul class="simple">
+<li><p>Discovers datasets under <code class="docutils literal notranslate"><span class="pre">${AGILAB_EXPORT_ABS}</span></code> and lets you point at the
+CSV/parquet file to render.</p></li>
+<li><p>Requires latitude/longitude columns; optional value column drives the colour
+scale and can be toggled between discrete and continuous modes.</p></li>
+<li><p>Offers deterministic down-sampling, colour palette selection and mapbox
+basemap overlays to keep the view responsive with large datasets.</p></li>
+</ul>
 </section>
-<section id="viewmaps-network">
-<h2>viewmaps-network<a class="headerlink" href="#viewmaps-network" title="Link to this heading"></a></h2>
-<p>A dual synchronised view to visualize network status on a waypoint</p>
+<section id="view-maps-3d">
+<h2>view_maps_3d<a class="headerlink" href="#view-maps-3d" title="Link to this heading"></a></h2>
+<p>Deck.gl powered 3D cartography with optional beam overlays.</p>
+<ul class="simple">
+<li><p>Plots the selected dataset on a terrain surface (elevation tiles + satellite
+imagery) and supports multiple CSV sources (e.g. telemetry and beam
+footprints).</p></li>
+<li><p>Lets you colour by discrete categories, adjust extrusion heights and switch
+between plotly based scatter maps and 3D mesh layers.</p></li>
+<li><p>Generates random palettes when needed so each category stands out against the
+terrain background.</p></li>
+</ul>
+</section>
+<section id="view-maps-network">
+<h2>view_maps_network<a class="headerlink" href="#view-maps-network" title="Link to this heading"></a></h2>
+<p>Network topology explorer that synchronises geographic and graph views.</p>
+<ul class="simple">
+<li><p>Reads link definitions (<code class="docutils literal notranslate"><span class="pre">satcom_link</span></code>, <code class="docutils literal notranslate"><span class="pre">optical_link</span></code>, <code class="docutils literal notranslate"><span class="pre">legacy_link</span></code>, …)
+directly from the dataset and builds the associated edge list.</p></li>
+<li><p>Colours each link type consistently across the map, the 3D deck.gl layer and
+the accompanying plotly/networkx charts.</p></li>
+<li><p>Helpful to debug dynamic routing: filter by active links, inspect node
+trajectories and replay snapshots side by side.</p></li>
+</ul>
 </section>
 </section>
 
@@ -260,8 +320,8 @@
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="agilab.html" class="btn btn-neutral float-left" title="AGILab" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="framework-api.html" class="btn btn-neutral float-right" title="Framework API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="flight-project-licenses.html" class="btn btn-neutral float-left" title="Flight-project Licenses" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="mycode-project.html" class="btn btn-neutral float-right" title="MyCode Project" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
