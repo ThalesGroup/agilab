@@ -1287,7 +1287,7 @@ class AgiEnv:
         tc = cap(tm)                       # "Flight"
         dc = cap(dm)                       # "Tata"
 
-        return {
+        rename_map = {
             # project-level
             name_tp:              name_dp,
 
@@ -1302,8 +1302,17 @@ class AgiEnv:
             # class-level
             f"{tc}Worker":       f"{dc}Worker",
             f"{tc}Args":         f"{dc}Args",
+            f"{tc}ArgsTD":       f"{dc}ArgsTD",
             tc:                    dc,
         }
+
+        # Add common suffix variants (e.g., flight_args -> toto_args)
+        for suffix in ("_args", "_manager", "_worker", "_distributor", "_project"):
+            rename_map.setdefault(f"{tm}{suffix}", f"{dm}{suffix}")
+        rename_map.setdefault(f"{tm}_args_td", f"{dm}_args_td")
+        rename_map.setdefault(f"{tm}ArgsTD", f"{dm}ArgsTD")
+
+        return rename_map
 
     def clone_project(self, target_project: Path, dest_project: Path):
         """
@@ -1325,6 +1334,15 @@ class AgiEnv:
             dest_project = dest_project.with_name(dest_project.name + "_project")
 
         rename_map  = self.create_rename_map(target_project, dest_project)
+        def _strip(name: Path) -> str:
+            base = name.name if isinstance(name, Path) else str(name)
+            for suffix in ("_project", "_template"):
+                if base.endswith(suffix):
+                    base = base[: -len(suffix)]
+            return base.replace("-", "_")
+
+        tm = _strip(target_project)
+        dm = _strip(dest_project)
         source_root = AgiEnv.apps_dir / target_project
         if not source_root.exists() and templates_root.exists():
             source_root = templates_root / target_project
@@ -1337,11 +1355,9 @@ class AgiEnv:
             AgiEnv.logger.info(f"Destination project '{dest_project}' already exists.")
             return
 
-        gitignore = source_root / ".gitignore"
-        if not gitignore.exists():
-            AgiEnv.logger.info(f"No .gitignore at '{gitignore}'.")
-            return
-        spec = PathSpec.from_lines(GitWildMatchPattern, gitignore.read_text().splitlines())
+        # Clone all files by default. Only skip repository metadata such as .git.
+        ignore_patterns = [".git", ".git/", ".git/**"]
+        spec = PathSpec.from_lines(GitWildMatchPattern, ignore_patterns)
 
         try:
             dest_root.mkdir(parents=True, exist_ok=False)
@@ -1355,6 +1371,15 @@ class AgiEnv:
         # 2) Final cleanup
         self._cleanup_rename(dest_root, rename_map)
         self.projects.insert(0, dest_project)
+
+        # 3) Mirror data directory if present under ~/data/<source>
+        src_data_dir = self.home_abs / "data" / tm
+        dest_data_dir = self.home_abs / "data" / dm
+        try:
+            if src_data_dir.exists() and not dest_data_dir.exists():
+                shutil.copytree(src_data_dir, dest_data_dir)
+        except Exception as exc:
+            AgiEnv.logger.info(f"Unable to copy data directory '{src_data_dir}' to '{dest_data_dir}': {exc}")
 
     def clone_directory(self,
                         source_dir: Path,

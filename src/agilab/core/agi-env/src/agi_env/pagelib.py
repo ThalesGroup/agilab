@@ -343,7 +343,7 @@ def init_custom_ui(render_generic_ui):
     return
 
 
-def on_project_change(project, switch_to_select=True):
+def on_project_change(project, switch_to_select=False):
     """
     Callback function to handle project changes.
 
@@ -388,6 +388,7 @@ def on_project_change(project, switch_to_select=True):
 
         # Change the app/project
         env.change_active_app(env.apps_dir / project, env.install_type)
+        
 
         module = env.target
 
@@ -399,6 +400,7 @@ def on_project_change(project, switch_to_select=True):
 
         # Optional: Set a flag to switch the sidebar tab if needed
         session_state.switch_to_select = switch_to_select
+        session_state.project_changed = True
 
     except Exception as e:
         st.error(f"An error occurred while changing the project: {e}")

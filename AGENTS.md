@@ -9,6 +9,11 @@ same instructions.
 > **Tip**
 > Update this document whenever a run config, environment variable, or Streamlit
 > control changes. CI, reviewers, and support rely on it for reproduction steps.
+>
+> **Model compatibility check**
+> When reviewing or updating flows with GPT-5 Codex agents, confirm they do **not** rely on
+> deprecated Streamlit APIs such as `st.experimental_rerun()`. Upgrade callers to the
+> supported replacement (`st.rerun`) before merging.
 
 <details>
 <summary><strong>Launch matrix (auto-sorted from .idea/runConfigurations)</strong></summary>

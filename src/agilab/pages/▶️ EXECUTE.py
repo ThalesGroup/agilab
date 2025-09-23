@@ -195,7 +195,24 @@ def parse_and_validate_workers(workers_input):
 
 def initialize_app_settings():
     env = st.session_state["env"]
-    app_settings = st.session_state.get("app_settings") or load_toml_file(env.app_settings_file)
+
+    file_settings = load_toml_file(env.app_settings_file)
+    session_settings = st.session_state.get("app_settings")
+    app_settings = {}
+
+    if isinstance(file_settings, dict):
+        app_settings.update(file_settings)
+    if isinstance(session_settings, dict):
+        for key, value in session_settings.items():
+            if key in {"args", "cluster"} and isinstance(value, dict):
+                base = app_settings.get(key, {})
+                if isinstance(base, dict):
+                    merged = {**base, **value}
+                else:
+                    merged = value
+                app_settings[key] = merged
+            else:
+                app_settings[key] = value
 
     if env.app == "flight_project":
         try:
@@ -347,7 +364,12 @@ def render_generic_ui():
 def render_cluster_settings_ui():
 
     env = st.session_state["env"]
-    cluster_params = st.session_state.app_settings["cluster"]
+    app_settings = st.session_state.get("app_settings")
+    if not isinstance(app_settings, dict):
+        app_settings = {"args": {}, "cluster": {}}
+        st.session_state["app_settings"] = app_settings
+
+    cluster_params = app_settings.setdefault("cluster", {})
 
     boolean_params = ["cython", "pool"]
     if env.is_managed_pc:
@@ -746,14 +768,18 @@ async def page():
 
 
     init_session_state(defaults)
-    initialize_app_settings()
     projects = env.projects
     current_project = env.app
     if "args_serialized" not in st.session_state:
         st.session_state["args_serialized"] = ""
     if current_project not in projects:
         current_project = projects[0] if projects else None
+    previous_project = current_project
     select_project(projects, current_project)
+    if st.session_state.pop("project_changed", False) or env.app != previous_project:
+        initialize_app_settings()
+        st.rerun()
+
     module = env.target
     project_path = env.active_app
     export_abs_module = env.AGILAB_EXPORT_ABS / module
@@ -768,6 +794,15 @@ async def page():
         st.session_state["df_export_file"] = str(export_abs_module / "export.csv")
     if "loaded_df" not in st.session_state:
         st.session_state["loaded_df"] = None
+
+    # Reload app settings after potential project change
+    app_settings = st.session_state.get("app_settings")
+    if not isinstance(app_settings, dict):
+        initialize_app_settings()
+        app_settings = st.session_state.get("app_settings")
+        if not isinstance(app_settings, dict):
+            app_settings = {"args": {}, "cluster": {}}
+            st.session_state["app_settings"] = app_settings
 
 
     # Sidebar toggles for each page section
@@ -784,7 +819,7 @@ async def page():
 
     show_export = True
 
-    cluster_params = st.session_state.app_settings["cluster"]
+    cluster_params = app_settings.setdefault("cluster", {})
     cluster_params.setdefault("verbose", 1)
     verbosity_options = [0, 1, 2, 3]
     current_verbose = cluster_params.get("verbose", 1)
