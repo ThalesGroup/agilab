@@ -318,7 +318,6 @@ apps/
         README.md
         run_test.sh
         uv_config.toml
-        wenv
     mycode_project/
         .pytest_cache/ [excluded]
         Modules/ [excluded]
@@ -381,8 +380,29 @@ apps/
                     post_install.py
                     pre_install.py
                     pyproject.toml
+                app_args_form.py
                 app_settings.toml
-                args_ui_snippet.py
+                pre_prompt.json
+            .gitignore
+            MANIFEST.in
+            pyproject.toml
+            README.md
+            uv_config.toml
+        fireducks_app_template/
+            src/
+                fireducks_app/
+                    __init__.py
+                    app_args.py
+                    fireducks_app.py
+                    fireducks_app_args.py
+                fireducks_app_worker/
+                    __init__.py
+                    fireducks_app_worker.py
+                    post_install.py
+                    pre_install.py
+                    pyproject.toml
+                app_args_form.py
+                app_settings.toml
                 pre_prompt.json
             .gitignore
             MANIFEST.in
@@ -405,8 +425,8 @@ apps/
                     post_install.py
                     pre_install.py
                     pyproject.toml
+                app_args_form.py
                 app_settings.toml
-                args_ui_snippet.py
                 pre_prompt.json
             .gitignore
             MANIFEST.in
@@ -429,66 +449,27 @@ apps/
                     post_install.py
                     pre_install.py
                     pyproject.toml
+                app_args_form.py
                 app_settings.toml
-                args_ui_snippet.py
                 pre_prompt.json
             .gitignore
             MANIFEST.in
             pyproject.toml
             README.md
             uv_config.toml
-    titi_project/
-        Modules/ [excluded]
-        src/
-            titi/
-                __init__.py
-                app_args.py
-                flight_args.py
-                titi.py
-            titi_worker/
-                __init__.py
-                dataset.7z
-                post_install.py
-                pre_install.py
-                pyproject.toml
-                titi_worker.c
-                titi_worker.py
-                titi_worker.pyx
-            app_args_form.py
-            app_settings.toml
-            lab_steps.ipynb
-            lab_steps.toml
-            pre_prompt.json
-        test/
-            __init__.py
-            _test_call_worker.py
-            _test_flight_manager.py
-            _test_flight_worker.py
-            output.json
-            test_df.ipynb
-            test_flight_manager.py
-            test_flight_worker.py
-        .coverage
-        .gitignore
-        app_test.py
-        build.py
-        coverage.xml
-        distribution.json
-        MANIFEST.in
-        output.json
-        pyproject.toml
-        README.md
-        run_test.sh
-        uv_config.toml
     toto_project/
+        .pytest_cache/ [excluded]
         Modules/ [excluded]
         src/
+            __pycache__/ [excluded]
             toto/
+                __pycache__/ [excluded]
                 __init__.py
                 app_args.py
-                flight_args.py
                 toto.py
+                toto_args.py
             toto_worker/
+                __pycache__/ [excluded]
                 __init__.py
                 dataset.7z
                 post_install.py
@@ -496,12 +477,14 @@ apps/
                 pyproject.toml
                 toto_worker.c
                 toto_worker.py
+                toto_worker.pyx
             app_args_form.py
             app_settings.toml
             lab_steps.ipynb
             lab_steps.toml
             pre_prompt.json
         test/
+            __pycache__/ [excluded]
             __init__.py
             _test_call_worker.py
             _test_flight_manager.py
@@ -512,6 +495,7 @@ apps/
             test_flight_worker.py
         .coverage
         .gitignore
+        .venv
         app_test.py
         build.py
         coverage.xml
@@ -585,8 +569,6 @@ apps-pages/
                 maps_network_graph.py
                 view_maps_network.py
         pyproject.toml
-    .git_archival.txt
-    .gitattributes
     .gitignore
     __init__.py
     README.md
@@ -672,6 +654,9 @@ core/
                     __pycache__/ [excluded]
                     __init__.py
                     dag_worker.py
+                fireducks_worker/
+                    __init__.py
+                    fireducks_worker.py
                 pandas_worker/
                     __pycache__/ [excluded]
                     __init__.py
@@ -699,6 +684,7 @@ core/
         test_agi_distributor.py
         test_base_worker.py
         test_dag_worker.py
+        test_fireducks_worker.py
         test_pandas_worker.py
         test_polars_worker.py
         test_work_dispatcher.py
@@ -756,8 +742,9 @@ examples/
         AGI.run_sb3_trainer.py
         classes_sb3_trainer.svg
         classes_sb3_trainer_worker.svg
-    AGI.install-flight.py
-    AGI.install-titi.py
+    AGI.get_distrib-toto.py
+    AGI.install-toto.py
+    AGI.run-toto.py
 pages/
     __pycache__/ [excluded]
     ▶️ EDIT.py

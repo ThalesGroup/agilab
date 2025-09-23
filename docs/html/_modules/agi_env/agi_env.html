@@ -391,7 +391,7 @@
     <span class="n">apps_dir</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">app</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">target</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">GUI_NROW</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">TABLE_MAX_ROWS</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">GUI_SAMPLING</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">init_done</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">hw_rapids_capable</span> <span class="o">=</span> <span class="kc">None</span>
@@ -546,7 +546,7 @@
             <span class="n">resources_root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_root</span> <span class="o">/</span> <span class="s2">&quot;src/agi_env&quot;</span>
         <span class="k">if</span> <span class="n">install_type</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_init_resources</span><span class="p">(</span><span class="n">resources_root</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_agi_resources</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">GUI_NROW</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;GUI_NROW&quot;</span><span class="p">,</span> <span class="mi">1000</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">TABLE_MAX_ROWS</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;TABLE_MAX_ROWS&quot;</span><span class="p">,</span> <span class="mi">1000</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">GUI_SAMPLING</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">envars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;GUI_SAMPLING&quot;</span><span class="p">,</span> <span class="mi">20</span><span class="p">))</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">target</span> <span class="o">=</span> <span class="n">target</span>
@@ -1634,7 +1634,7 @@
         <span class="n">tc</span> <span class="o">=</span> <span class="n">cap</span><span class="p">(</span><span class="n">tm</span><span class="p">)</span>                       <span class="c1"># &quot;Flight&quot;</span>
         <span class="n">dc</span> <span class="o">=</span> <span class="n">cap</span><span class="p">(</span><span class="n">dm</span><span class="p">)</span>                       <span class="c1"># &quot;Tata&quot;</span>
 
-        <span class="k">return</span> <span class="p">{</span>
+        <span class="n">rename_map</span> <span class="o">=</span> <span class="p">{</span>
             <span class="c1"># project-level</span>
             <span class="n">name_tp</span><span class="p">:</span>              <span class="n">name_dp</span><span class="p">,</span>
 
@@ -1649,8 +1649,17 @@
             <span class="c1"># class-level</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tc</span><span class="si">}</span><span class="s2">Worker&quot;</span><span class="p">:</span>       <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">dc</span><span class="si">}</span><span class="s2">Worker&quot;</span><span class="p">,</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tc</span><span class="si">}</span><span class="s2">Args&quot;</span><span class="p">:</span>         <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">dc</span><span class="si">}</span><span class="s2">Args&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tc</span><span class="si">}</span><span class="s2">ArgsTD&quot;</span><span class="p">:</span>       <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">dc</span><span class="si">}</span><span class="s2">ArgsTD&quot;</span><span class="p">,</span>
             <span class="n">tc</span><span class="p">:</span>                    <span class="n">dc</span><span class="p">,</span>
-        <span class="p">}</span></div>
+        <span class="p">}</span>
+
+        <span class="c1"># Add common suffix variants (e.g., flight_args -&gt; toto_args)</span>
+        <span class="k">for</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;_args&quot;</span><span class="p">,</span> <span class="s2">&quot;_manager&quot;</span><span class="p">,</span> <span class="s2">&quot;_worker&quot;</span><span class="p">,</span> <span class="s2">&quot;_distributor&quot;</span><span class="p">,</span> <span class="s2">&quot;_project&quot;</span><span class="p">):</span>
+            <span class="n">rename_map</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tm</span><span class="si">}{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">dm</span><span class="si">}{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">rename_map</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tm</span><span class="si">}</span><span class="s2">_args_td&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">dm</span><span class="si">}</span><span class="s2">_args_td&quot;</span><span class="p">)</span>
+        <span class="n">rename_map</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tm</span><span class="si">}</span><span class="s2">ArgsTD&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">dm</span><span class="si">}</span><span class="s2">ArgsTD&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">rename_map</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.clone_project">
@@ -1675,6 +1684,15 @@
             <span class="n">dest_project</span> <span class="o">=</span> <span class="n">dest_project</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="n">dest_project</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s2">&quot;_project&quot;</span><span class="p">)</span>
 
         <span class="n">rename_map</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_rename_map</span><span class="p">(</span><span class="n">target_project</span><span class="p">,</span> <span class="n">dest_project</span><span class="p">)</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">_strip</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">name</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">Path</span><span class="p">)</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;_project&quot;</span><span class="p">,</span> <span class="s2">&quot;_template&quot;</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">base</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">suffix</span><span class="p">):</span>
+                    <span class="n">base</span> <span class="o">=</span> <span class="n">base</span><span class="p">[:</span> <span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">suffix</span><span class="p">)]</span>
+            <span class="k">return</span> <span class="n">base</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
+
+        <span class="n">tm</span> <span class="o">=</span> <span class="n">_strip</span><span class="p">(</span><span class="n">target_project</span><span class="p">)</span>
+        <span class="n">dm</span> <span class="o">=</span> <span class="n">_strip</span><span class="p">(</span><span class="n">dest_project</span><span class="p">)</span>
         <span class="n">source_root</span> <span class="o">=</span> <span class="n">AgiEnv</span><span class="o">.</span><span class="n">apps_dir</span> <span class="o">/</span> <span class="n">target_project</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">source_root</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">and</span> <span class="n">templates_root</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
             <span class="n">source_root</span> <span class="o">=</span> <span class="n">templates_root</span> <span class="o">/</span> <span class="n">target_project</span>
@@ -1687,11 +1705,9 @@
             <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Destination project &#39;</span><span class="si">{</span><span class="n">dest_project</span><span class="si">}</span><span class="s2">&#39; already exists.&quot;</span><span class="p">)</span>
             <span class="k">return</span>
 
-        <span class="n">gitignore</span> <span class="o">=</span> <span class="n">source_root</span> <span class="o">/</span> <span class="s2">&quot;.gitignore&quot;</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">gitignore</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No .gitignore at &#39;</span><span class="si">{</span><span class="n">gitignore</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
-            <span class="k">return</span>
-        <span class="n">spec</span> <span class="o">=</span> <span class="n">PathSpec</span><span class="o">.</span><span class="n">from_lines</span><span class="p">(</span><span class="n">GitWildMatchPattern</span><span class="p">,</span> <span class="n">gitignore</span><span class="o">.</span><span class="n">read_text</span><span class="p">()</span><span class="o">.</span><span class="n">splitlines</span><span class="p">())</span>
+        <span class="c1"># Clone all files by default. Only skip repository metadata such as .git.</span>
+        <span class="n">ignore_patterns</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;.git&quot;</span><span class="p">,</span> <span class="s2">&quot;.git/&quot;</span><span class="p">,</span> <span class="s2">&quot;.git/**&quot;</span><span class="p">]</span>
+        <span class="n">spec</span> <span class="o">=</span> <span class="n">PathSpec</span><span class="o">.</span><span class="n">from_lines</span><span class="p">(</span><span class="n">GitWildMatchPattern</span><span class="p">,</span> <span class="n">ignore_patterns</span><span class="p">)</span>
 
         <span class="k">try</span><span class="p">:</span>
             <span class="n">dest_root</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
@@ -1704,7 +1720,16 @@
 
         <span class="c1"># 2) Final cleanup</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_cleanup_rename</span><span class="p">(</span><span class="n">dest_root</span><span class="p">,</span> <span class="n">rename_map</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">projects</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dest_project</span><span class="p">)</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">projects</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dest_project</span><span class="p">)</span>
+
+        <span class="c1"># 3) Mirror data directory if present under ~/data/&lt;source&gt;</span>
+        <span class="n">src_data_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">/</span> <span class="s2">&quot;data&quot;</span> <span class="o">/</span> <span class="n">tm</span>
+        <span class="n">dest_data_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">home_abs</span> <span class="o">/</span> <span class="s2">&quot;data&quot;</span> <span class="o">/</span> <span class="n">dm</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">src_data_dir</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">dest_data_dir</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span><span class="n">src_data_dir</span><span class="p">,</span> <span class="n">dest_data_dir</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unable to copy data directory &#39;</span><span class="si">{</span><span class="n">src_data_dir</span><span class="si">}</span><span class="s2">&#39; to &#39;</span><span class="si">{</span><span class="n">dest_data_dir</span><span class="si">}</span><span class="s2">&#39;: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="AgiEnv.clone_directory">
