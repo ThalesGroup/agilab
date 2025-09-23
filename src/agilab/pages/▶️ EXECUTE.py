@@ -936,7 +936,7 @@ if __name__ == "__main__":
             if st.session_state.get("args_reload_required"):
                 del st.session_state["app_settings"]
                 st.rerun()
-        with st.expander("Distribute snippet", expanded=False):
+        with st.expander("Distribute details", expanded=False):
             cluster_params = st.session_state.app_settings["cluster"]
             enabled = cluster_params.get("cluster_enabled", False)
             scheduler = cluster_params.get("scheduler", "")
@@ -1037,7 +1037,7 @@ if __name__ == "__main__":
     if show_run:
         st.session_state.setdefault("run_log_cache", "")
         run_cmd = None
-        with st.expander("Run snippet", expanded=False):
+        with st.expander("Run details", expanded=False):
             st.session_state.setdefault("benchmark", False)
             if st.toggle(
                 "Benchmark all modes",
@@ -1173,31 +1173,25 @@ if __name__ == "__main__":
         st.dataframe(df_preview)
 
     export_expanded = st.session_state.pop("_force_export_open", False)
-    expander = st.expander("Export data", expanded=export_expanded)
-    with expander:
-        loaded_df = st.session_state.get("loaded_df")
+    loaded_df = st.session_state.get("loaded_df")
 
-        if isinstance(loaded_df, pd.DataFrame):
+    if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
+        expander = st.expander("Prepare Data for Experiment and Explore", expanded=export_expanded)
+        with expander:
             loaded_df.columns = [
                 col if col.strip() != "" else f"Unnamed Column {idx}"
                 for idx, col in enumerate(loaded_df.columns)
             ]
 
-        if ("export_tab_previous_project" not in st.session_state or
-                st.session_state.export_tab_previous_project != env.app or
-                st.session_state.get("df_cols") != (loaded_df.columns.tolist() if loaded_df is not None else [])):
+            if ("export_tab_previous_project" not in st.session_state or
+                    st.session_state.export_tab_previous_project != env.app or
+                    st.session_state.get("df_cols") != (loaded_df.columns.tolist() if loaded_df is not None else [])):
 
-            st.session_state.export_tab_previous_project = env.app
-            if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
+                st.session_state.export_tab_previous_project = env.app
                 st.session_state.df_cols = loaded_df.columns.tolist()
                 st.session_state.selected_cols = loaded_df.columns.tolist()
                 st.session_state.check_all = True
-            else:
-                st.session_state.df_cols = []
-                st.session_state.selected_cols = []
-                st.session_state.check_all = False
 
-        if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
             def on_select_all_changed():
                 st.session_state.selected_cols = st.session_state.df_cols.copy() if st.session_state.check_all else []
                 for idx in range(len(st.session_state.df_cols)):
@@ -1226,37 +1220,46 @@ if __name__ == "__main__":
                         on_change=on_individual_checkbox_change,
                         args=(col, state_key)
                     )
-        else:
-            st.info("No data loaded yet. Click 'Load Data' above to populate it before export.")
 
-        export_file_input = st.text_input(
-            "Export to filename:",
-            value=st.session_state.df_export_file,
-            key="input_df_export_file_main"
-        )
-        st.session_state.df_export_file = export_file_input.strip()
+            export_file_input = st.text_input(
+                "Export to filename:",
+                value=st.session_state.df_export_file,
+                key="input_df_export_file_main"
+            )
+            st.session_state.df_export_file = export_file_input.strip()
 
-        if st.button("Export-DF", key="export_df_main"):
-            target_path = st.session_state.df_export_file
-            if not st.session_state.selected_cols:
-                st.warning("No columns selected for export.")
-            elif not target_path:
-                st.warning("Please provide a filename for the export.")
-            else:
-                exported_df = loaded_df[st.session_state.selected_cols]
-                if save_csv(exported_df, target_path):
-                    st.success(f"Dataframe exported successfully to {target_path}.")
+            action_col_stats, action_col_export = st.columns([1, 1])
+            with action_col_stats:
+                stats_clicked = st.button("Stats Report", key="stats_report_main", type="primary", use_container_width=True)
+            with action_col_export:
+                export_clicked = st.button("Export DF", key="export_df_main", type="primary", use_container_width=True)
 
-            if st.session_state.profile_report_file.exists():
-                os.remove(st.session_state.profile_report_file)
+            if stats_clicked:
+                profile_file = st.session_state.profile_report_file
+                if not profile_file.exists():
+                    profile = generate_profile_report(loaded_df)
+                    with st.spinner("Generating profile report..."):
+                        profile.to_file(profile_file, silent=False)
+                open_new_tab(profile_file.as_uri())
 
-        if st.button("Stats Report", key="stats_report_main", type="primary"):
-            profile_file = st.session_state.profile_report_file
-            if not profile_file.exists():
-                profile = generate_profile_report(loaded_df)
-                with st.spinner("Generating profile report..."):
-                    profile.to_file(profile_file, silent=False)
-            open_new_tab(profile_file.as_uri())
+            if export_clicked:
+                target_path = st.session_state.df_export_file
+                if not st.session_state.selected_cols:
+                    st.warning("No columns selected for export.")
+                elif not target_path:
+                    st.warning("Please provide a filename for the export.")
+                else:
+                    exported_df = loaded_df[st.session_state.selected_cols]
+                    if save_csv(exported_df, target_path):
+                        st.success(f"Dataframe exported successfully to {target_path}.")
+
+                if st.session_state.profile_report_file.exists():
+                    os.remove(st.session_state.profile_report_file)
+    else:
+        st.session_state.df_cols = []
+        st.session_state.selected_cols = []
+        st.session_state.check_all = False
+        st.info("No data loaded yet. Click 'Load Data' above to populate it before export.")
 
 # ===========================
 # Main Entry Point
