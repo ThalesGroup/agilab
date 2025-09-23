@@ -99,8 +99,8 @@ def page(env):
     )
     if "TABLE_MAX_ROWS" not in st.session_state:
         st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
-    if "GUI_SAMPLING" not in st.session_state:
-        st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
+    if "TABLE_SAMPLING" not in st.session_state:
+        st.session_state["TABLE_SAMPLING"] = env.TABLE_SAMPLING
 
 
 # ------------------------- Main Entrypoint -------------------------

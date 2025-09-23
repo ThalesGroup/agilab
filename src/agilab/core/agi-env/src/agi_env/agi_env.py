@@ -128,7 +128,7 @@ class AgiEnv:
     app = None
     target = None
     TABLE_MAX_ROWS = None
-    GUI_SAMPLING = None
+    TABLE_SAMPLING = None
     init_done = False
     hw_rapids_capable = None
     is_worker_env = False
@@ -281,7 +281,7 @@ class AgiEnv:
         if install_type != 2:
             self._init_resources(resources_root / self._agi_resources)
         self.TABLE_MAX_ROWS = int(envars.get("TABLE_MAX_ROWS", 1000))
-        self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
+        self.TABLE_SAMPLING = int(envars.get("TABLE_SAMPLING", 20))
 
         self.target = target
         wenv_root = Path("wenv")
@@ -1027,7 +1027,7 @@ class AgiEnv:
             else:
                 AgiEnv.logger.info(message)
             return "", ""
-        snippet_file = os.path.join(self.runenv, f"{matches[0]}-{self.target}.py")
+        snippet_file = os.path.join(self.runenv, f"{matches[0]}_{self.target}.py")
         with open(snippet_file, "w") as file:
             file.write(code)
         cmd = f"{AgiEnv.export_local_bin}uv run --no-sync --project {str(venv)} python {snippet_file}"

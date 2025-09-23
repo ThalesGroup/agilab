@@ -550,10 +550,10 @@ def page():
             sampling_ratio = c[4].number_input(
                 "Sampling ratio",
                 min_value=1,
-                value=st.session_state.GUI_SAMPLING,
+                value=st.session_state.TABLE_SAMPLING,
                 step=1,
             )
-            st.session_state.GUI_SAMPLING = sampling_ratio
+            st.session_state.TABLE_SAMPLING = sampling_ratio
             st.session_state.loaded_df=downsample_df_deterministic(st.session_state.loaded_df, sampling_ratio)
             loaded_df = st.session_state.loaded_df
             nrows = st.session_state.loaded_df.shape[0]
@@ -863,8 +863,8 @@ def main():
 
         if "TABLE_MAX_ROWS" not in st.session_state:
             st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
-        if "GUI_SAMPLING" not in st.session_state:
-            st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
+        if "TABLE_SAMPLING" not in st.session_state:
+            st.session_state["TABLE_SAMPLING"] = env.TABLE_SAMPLING
 
         # Initialize session state
         if "datadir" not in st.session_state:

@@ -39,3 +39,6 @@ dag-worker = []
 polars-worker = []
 
 
+
+[tool.freethread_info]
+is_app_freethreaded = false

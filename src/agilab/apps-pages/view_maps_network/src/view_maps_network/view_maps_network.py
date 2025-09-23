@@ -34,8 +34,8 @@ else:
 
 if "TABLE_MAX_ROWS" not in st.session_state:
     st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
-if "GUI_SAMPLING" not in st.session_state:
-    st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
+if "TABLE_SAMPLING" not in st.session_state:
+    st.session_state["TABLE_SAMPLING"] = env.TABLE_SAMPLING
 render_logo("Cartography Visualisation")
 
 MAPBOX_API_KEY = "pk.eyJ1Ijoic2FsbWEtZWxnOSIsImEiOiJjbHkyc3BnbjcwMHE0MmpzM2dyd3RyaDI2In0.9Q5rjICLWC1yThpxSVWX6w"
