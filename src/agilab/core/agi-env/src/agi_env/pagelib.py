@@ -1099,7 +1099,7 @@ def select_project(projects, current_project):
         default_index = 0
 
     selection = st.sidebar.selectbox(
-        "Project Name",
+        "Project name",
         shortlist,
         index=default_index,
         key="project_selectbox",

@@ -102,34 +102,17 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="agilab.html">AGILab</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="edit_help.html">▶️ EDIT</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="edit_help.html#sidebar">Sidebar</a></li>
-<li class="toctree-l3"><a class="reference internal" href="edit_help.html#main-content-area">Main Content Area</a></li>
-<li class="toctree-l3"><a class="reference internal" href="edit_help.html#support">Support</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agilab.html">AGILab</a><ul class="simple">
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="execute_help.html">▶️ EXECUTE</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="execute_help.html#introduction">Introduction</a></li>
-<li class="toctree-l3"><a class="reference internal" href="execute_help.html#sidebar">Sidebar</a></li>
-<li class="toctree-l3"><a class="reference internal" href="execute_help.html#main-content-area">Main Content Area</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="experiment_help.html">▶️ EXPERIMENT</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="experiment_help.html#sidebar">Sidebar</a></li>
-<li class="toctree-l3"><a class="reference internal" href="experiment_help.html#main-content-area">Main Content Area</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="views_help.html">▶️ VIEW</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="views_help.html#introduction">Introduction</a></li>
-<li class="toctree-l3"><a class="reference internal" href="views_help.html#sidebar">Sidebar</a></li>
-<li class="toctree-l3"><a class="reference internal" href="views_help.html#main-content-area">Main Content Area</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="apps-pages.html">apps-pages</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="apps-pages.html#view-barycentric">view-barycentric</a></li>
+<li class="toctree-l2"><a class="reference internal" href="apps-pages.html#view-autoencoder-latentspace">view-autoencoder-latentspace</a></li>
+<li class="toctree-l2"><a class="reference internal" href="apps-pages.html#viewmaps-network">viewmaps-network</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="framework-api.html">Framework API</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="agi-env.html">agi_env API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-env.html">agi-env API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="agi-env.html#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-env.html#instanciation">Instanciation</a></li>
 </ul>
@@ -145,7 +128,16 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="agi-distributor.html">agi_distributor API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-node.html">agi-node API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agi-node.html#reference">Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#dag-worker">dag_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#pandas-worker">pandas_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#polars-worker">polars_worker</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="agi-distributor.html">agi-distributor API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="agi-distributor.html#usage-example">Usage Example</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-distributor.html#installation">Installation</a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-distributor.html#distribute">Distribute</a></li>
@@ -153,16 +145,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="agi-distributor.html#reference">Reference</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="workers.html">workers API</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="workers.html#workers-reference">Workers Reference</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#agent-worker">agent_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#dag-worker">dag_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#pandas-worker">pandas_worker</a></li>
-<li class="toctree-l4"><a class="reference internal" href="workers.html#polars-worker">polars_worker</a></li>
-</ul>
-</li>
 </ul>
 </li>
 </ul>
@@ -195,26 +177,31 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="mycode-project.html">Example1: Mycode-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="mycode-project.html#manager">manager:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#args">args:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mycode-project.html#worker-mycode-worker">worker: mycode_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="flight-project.html">Example2: Flight-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#manager-flight">manager: flight</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#args-flight-args">args: flight_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project.html#worker-flight-worker">worker: flight_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="flight-trajectory-project.html">Example3: Flight-Trajectory-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#manager-flight-trajectory">manager: flight_trajectory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#args-flight-trajectory-app-args">args: flight_trajectory.app_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-trajectory-project.html#worker-flight-trajectory-worker">worker: flight_trajectory_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="link-sim-project.html">Example4: Link-Sim-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#manager-link-sim">manager: link_sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#args-link-sim-app-args">args: link_sim.app_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="link-sim-project.html#worker-link-sim-worker">worker: link_sim_worker</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="sat-trajectory-project.html">Example5: Sat-Trajectory-Project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#manager-sat-trajectory">manager: sat_trajectory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#args-sat-trajectory-app-args">args: sat_trajectory.app_args</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sat-trajectory-project.html#worker-sat-trajectory-worker">worker: sat_trajectory_worker</a></li>
 </ul>
 </li>

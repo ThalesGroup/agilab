@@ -1256,7 +1256,7 @@ def handle_project_creation():
         ),
     )
 
-    raw = st.sidebar.text_input("Project Name (no suffix)", key="clone_dest").strip()
+    raw = st.sidebar.text_input("Project name (no suffix)", key="clone_dest").strip()
 
     create_clicked = st.sidebar.button("Create", type="primary", use_container_width=True)
     if create_clicked:
@@ -1315,7 +1315,7 @@ def handle_project_rename():
 
     # — no on_change here —
     raw = st.sidebar.text_input(
-        "New Project Name (no suffix)",
+        "New Project name (no suffix)",
         key="clone_dest",
         help="Enter the base name for your new project; '_project' will be appended if needed."
     ).strip()
