@@ -21,11 +21,11 @@
 <text xml:space="preserve" text-anchor="start" x="158.38" y="-1206.75" font-family="Helvetica,sans-Serif" font-size="10.00">AGILAB_SHARE : Path</text>
 <text xml:space="preserve" text-anchor="start" x="158.38" y="-1195.5" font-family="Helvetica,sans-Serif" font-size="10.00">CLUSTER_CREDENTIALS</text>
 <text xml:space="preserve" text-anchor="start" x="158.38" y="-1184.25" font-family="Helvetica,sans-Serif" font-size="10.00">EXTRA_INDEX_URL : str</text>
-<text xml:space="preserve" text-anchor="start" x="158.38" y="-1173" font-family="Helvetica,sans-Serif" font-size="10.00">GUI_SAMPLING : NoneType</text>
-<text xml:space="preserve" text-anchor="start" x="158.38" y="-1161.75" font-family="Helvetica,sans-Serif" font-size="10.00">INDEX_URL : str</text>
-<text xml:space="preserve" text-anchor="start" x="158.38" y="-1150.5" font-family="Helvetica,sans-Serif" font-size="10.00">MLFLOW_TRACKING_DIR : Path</text>
-<text xml:space="preserve" text-anchor="start" x="158.38" y="-1139.25" font-family="Helvetica,sans-Serif" font-size="10.00">OPENAI_API_KEY</text>
-<text xml:space="preserve" text-anchor="start" x="158.38" y="-1128" font-family="Helvetica,sans-Serif" font-size="10.00">TABLE_MAX_ROWS : NoneType</text>
+<text xml:space="preserve" text-anchor="start" x="158.38" y="-1173" font-family="Helvetica,sans-Serif" font-size="10.00">INDEX_URL : str</text>
+<text xml:space="preserve" text-anchor="start" x="158.38" y="-1161.75" font-family="Helvetica,sans-Serif" font-size="10.00">MLFLOW_TRACKING_DIR : Path</text>
+<text xml:space="preserve" text-anchor="start" x="158.38" y="-1150.5" font-family="Helvetica,sans-Serif" font-size="10.00">OPENAI_API_KEY</text>
+<text xml:space="preserve" text-anchor="start" x="158.38" y="-1139.25" font-family="Helvetica,sans-Serif" font-size="10.00">TABLE_MAX_ROWS : NoneType</text>
+<text xml:space="preserve" text-anchor="start" x="158.38" y="-1128" font-family="Helvetica,sans-Serif" font-size="10.00">TABLE_SAMPLING : NoneType</text>
 <text xml:space="preserve" text-anchor="start" x="158.38" y="-1116.75" font-family="Helvetica,sans-Serif" font-size="10.00">active_app : Optional[Path | str]</text>
 <text xml:space="preserve" text-anchor="start" x="158.38" y="-1105.5" font-family="Helvetica,sans-Serif" font-size="10.00">agilab_src : Path</text>
 <text xml:space="preserve" text-anchor="start" x="158.38" y="-1094.25" font-family="Helvetica,sans-Serif" font-size="10.00">app : NoneType</text>

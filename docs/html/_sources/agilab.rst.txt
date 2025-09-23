@@ -11,4 +11,4 @@ AGILab
    edit_help
    execute_help
    experiment_help
-   views_help
+   explore_help
