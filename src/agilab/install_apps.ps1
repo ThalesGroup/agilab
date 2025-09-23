@@ -174,27 +174,6 @@ if (-not [string]::IsNullOrEmpty($AGILAB_PRIVATE)) {
   New-DirLink -LinkPath "core" -TargetPath $target
   & uv run python -c "import pathlib; p=pathlib.Path('core').resolve(); print(f'Private core -> {p}')" | Out-Host
 
-  $publicTemplates = if ($AGILAB_PUBLIC) { Join-Path $AGILAB_PUBLIC "apps/templates" } else { "" }
-  if ($publicTemplates -and (Test-Path -LiteralPath $publicTemplates)) {
-    Ensure-Dir "apps"
-    $privateTemplates = Join-Path "apps" "templates"
-    if (Test-Path -LiteralPath $privateTemplates) {
-      if (Is-Link $privateTemplates) {
-        Remove-Item -LiteralPath $privateTemplates -Force
-      } else {
-        Write-Color YELLOW ("Replacing private templates directory with link -> {0}" -f $publicTemplates)
-        Remove-Item -LiteralPath $privateTemplates -Force -Recurse
-      }
-    }
-    if (-not (Test-Path -LiteralPath $privateTemplates)) {
-      New-DirLink -LinkPath $privateTemplates -TargetPath $publicTemplates
-      Write-Color BLUE ("Linked private templates to {0}" -f $publicTemplates)
-    }
-  } else {
-    if ($publicTemplates) {
-      Write-Color YELLOW ("Warning: expected templates at {0} not found; skipping link." -f $publicTemplates)
-    }
-  }
   Pop-Location
 }
 
