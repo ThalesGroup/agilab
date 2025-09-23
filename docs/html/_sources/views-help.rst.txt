@@ -1,0 +1,39 @@
+▶️ VIEW
+=======
+
+Introduction
+------------
+Views are self-contained Streamlit bundles that run in a sidecar session when you
+launch them from the **Explore** page. They inherit the currently selected
+project so they can read its exported datasets, but otherwise keep their UI and
+state completely separate.
+
+Sidebar
+-------
+Explore hides its own sidebar while a view is active. The sidebar you see comes
+from the bundle itself and is free to expose any Streamlit widgets it needs.
+When you navigate back to Explore the parent sidebar returns.
+
+Main Content Area
+-----------------
+- Everything inside the view frame is defined by the bundle code located at
+  ``${AGILAB_PAGES_ABS}/<bundle>/src/<module>/<module>.py``.
+- Use the ``Back to Explore`` button in the top-left corner to close the
+  sidecar session and return to the catalogue.
+
+Configuration
+-------------
+Explore persists visibility and view-specific settings to ``app_settings.toml``
+so each project can curate its own catalogue:
+
+.. code-block:: toml
+
+    [pages]
+    view_module = ["barycentric_graph", "maps"]
+
+    [pages.barycentric_graph]
+    variables = ["rssi", "beam", "flight_serial"]
+
+``view_module`` controls which bundles appear in Explore. Any nested table under
+``[pages.<view>]`` is optional metadata that your view can read at runtime (for
+example to whitelist dataframe columns).

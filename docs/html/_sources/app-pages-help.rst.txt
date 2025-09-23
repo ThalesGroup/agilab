@@ -1,0 +1,24 @@
+▶️ APPS PAGES
+=============
+
+Introduction
+------------
+Apps pages host Streamlit utilities that are independent of any single
+application. You can decide which pages are available to a project by editing
+``[pages]`` in ``app_settings.toml`` or by using the Explore page. A bundle is
+discovered when its directory under ``${AGILAB_PAGES_ABS}`` contains a
+``pyproject.toml`` that points at ``src/<module>/<module>.py``.
+
+Sidebar
+-------
+- Project selector: switch between installed applications.
+- Multi-select of available page bundles (persisted per project).
+
+Main Content Area
+-----------------
+- Browse the catalogue of discovered Streamlit bundles.
+- Choose which pages should surface on the home dashboard.
+- Launch a page in a dedicated sidecar session for interactive work.
+
+See also **EDIT → APP-SETTINGS → File Editor** to review the ``[pages]`` entry
+that Explore updates.
