@@ -164,6 +164,8 @@ same instructions.
   - `cd src/agilab/apps/sb3_trainer_project && uv run python test/_test_sb3_trainer_worker.py`
   - `cd src/agilab/snippets && uv run python AGI.get_distrib_sb3_trainer.py`
   - `cd src/agilab/apps/sb3_trainer_project && uv run python test/_test_call_worker.py`
+- FireDucks worker (core):
+  - `cd src/agilab/core/agi-cluster && uv run pytest src/agilab/core/test/test_fireducks_worker.py`
 
 ### Tier C — Apps-pages and end-user
 - Apps-pages: launch Streamlit pages bound to an active app

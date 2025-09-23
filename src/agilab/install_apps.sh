@@ -154,24 +154,40 @@ echo -e "${BLUE}Apps to install:${NC} ${INCLUDED_APPS[*]:-<none>}\n"
 echo -e "${BLUE}Pages to install:${NC} ${INCLUDED_PAGES[*]:-<none>}\n"
 
 # --- Ensure local symlinks exist/refresh in DEST_BASE ------------------------
-if [[ ! -z "$AGILAB_PRIVATE" ]]; then
+if [[ -n "$AGILAB_PRIVATE" ]]; then
   pushd "$AGILAB_PRIVATE/src/agilab" > /dev/null
-  rm -f core
-  if [[ -d "$AGILAB_PUBLIC/core" ]]; then
-    target="$AGILAB_PUBLIC/core"
-  elif [[ -d "$AGILAB_PUBLIC/src/agilab/core" ]]; then
-    target="$AGILAB_PUBLIC/src/agilab/core"
-  else
-    echo "ERROR: can't find 'core' under \$AGILAB_PUBLIC ($AGILAB_PUBLIC)."
-    echo "Tried: \$AGILAB_PUBLIC/core and \$AGILAB_PUBLIC/src/agilab/core"
-    exit 1
-  fi
-  ln -s "$target" core
-  uv run python - <<'PY'
+    rm -f core
+    if [[ -d "$AGILAB_PUBLIC/core" ]]; then
+      target="$AGILAB_PUBLIC/core"
+    elif [[ -d "$AGILAB_PUBLIC/src/agilab/core" ]]; then
+      target="$AGILAB_PUBLIC/src/agilab/core"
+    else
+      echo "ERROR: can't find 'core' under \$AGILAB_PUBLIC ($AGILAB_PUBLIC)."
+      echo "Tried: \$AGILAB_PUBLIC/core and \$AGILAB_PUBLIC/src/agilab/core"
+      exit 1
+    fi
+    ln -s "$target" core
+    uv run python - <<'PY'
 import pathlib
 p = pathlib.Path("core").resolve()
 print(f"Private core -> {p}")
 PY
+
+    private_templates_dir="apps/templates"
+    public_templates_dir="$AGILAB_PUBLIC/apps/templates"
+    if [[ -d "$public_templates_dir" ]]; then
+      mkdir -p apps
+      if [[ -e "$private_templates_dir" && ! -L "$private_templates_dir" ]]; then
+        echo -e "${YELLOW}Replacing private templates directory with symlink -> ${public_templates_dir}.${NC}"
+        rm -rf -- "$private_templates_dir"
+      fi
+      if [[ ! -e "$private_templates_dir" ]]; then
+        ln -s "$public_templates_dir" "$private_templates_dir"
+        echo -e "${BLUE}Linked private templates to ${public_templates_dir}.${NC}"
+      fi
+    else
+      echo -e "${YELLOW}Warning:${NC} expected templates at $public_templates_dir not found; skipping templates link."
+    fi
   popd >/dev/null
 fi
 

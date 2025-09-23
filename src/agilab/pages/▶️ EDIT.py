@@ -1108,6 +1108,8 @@ def handle_project_selection():
         ("WORKER",     lambda: _render_worker(env)),
         ("EXPORT‑APP‑FILTER", lambda: _render_gitignore(env)),
         ("APP‑SETTINGS",      lambda: _render_app_settings(env)),
+        ("README",            lambda: _render_readme(env)),
+        ("APP‑ARGS",          lambda: _render_app_args_module(env)),
         ("APP-ARGS‑FORM",           lambda: _render_args_ui(env)),
         ("PRE‑PROMPT",        lambda: _render_pre_prompt(env)),
     ]
@@ -1177,6 +1179,41 @@ def _render_app_settings(env):
         )
     else:
         st.warning("App settings file not found.")
+
+def _render_app_args_module(env):
+    target = getattr(env, "target", None)
+    if not target:
+        st.warning("Active app module not resolved; app_args.py unavailable.")
+        return
+
+    app_args_py = env.app_src / target / "app_args.py"
+    if app_args_py.exists():
+        render_code_editor(
+            app_args_py,
+            app_args_py.read_text(),
+            "python",
+            "st",
+            comp_props,
+            ace_props,
+        )
+    else:
+        st.warning("app_args.py file not found.")
+
+
+def _render_readme(env):
+    readme_file = env.active_app / "README.md"
+    if readme_file.exists():
+        render_code_editor(
+            readme_file,
+            readme_file.read_text(),
+            "markdown",
+            "readme",
+            comp_props,
+            ace_props,
+        )
+    else:
+        st.warning("README.md file not found.")
+
 
 def _render_args_ui(env):
     app_args_form = env.app_args_form

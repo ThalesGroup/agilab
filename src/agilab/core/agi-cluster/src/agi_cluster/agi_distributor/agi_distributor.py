@@ -270,6 +270,7 @@ class AGI:
             AGI.agi_workers = {
                 "PolarsWorker": "polars-worker",
                 "PandasWorker": "pandas-worker",
+                "FireducksWorker": "fireducks-worker",
                 "DagWorker": "dag-worker",
             }
             AGI.install_worker_group = [AGI.agi_workers[env.base_worker_cls]]
@@ -1607,6 +1608,8 @@ class AGI:
             packages += "pandas_worker"
         elif baseworker.startswith("Polars"):
             packages += "polars_worker"
+        elif baseworker.startswith("Fireducks"):
+            packages += "fireducks_worker"
 
         app_path = env.active_app
         wenv_abs = env.wenv_abs

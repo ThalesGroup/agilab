@@ -78,3 +78,18 @@ polars_worker
    :show-inheritance:
 
 ----
+
+
+fireducks_worker
+~~~~~~~~~~~~~~
+
+The FireDucks worker layers optional ``fireducks`` acceleration on top of the
+standard ``PandasWorker`` contract, ensuring that returned results are
+normalised to pandas DataFrames before downstream processing.
+
+.. automodule:: agi_node.fireducks_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----
