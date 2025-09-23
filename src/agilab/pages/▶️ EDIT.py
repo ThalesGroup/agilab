@@ -1145,11 +1145,9 @@ def _render_uv_env(env):
         st.warning("App settings file not found.")
 
 def _render_manager(env):
-    st.header("Edit Manager Module")
     handle_editing(env.manager_path, "edit_tab_manager", comp_props, ace_props)
 
 def _render_worker(env):
-    st.header("Edit Worker Module")
     handle_editing(env.worker_path, "edit_tab_worker", comp_props, ace_props)
 
 def _render_gitignore(env):

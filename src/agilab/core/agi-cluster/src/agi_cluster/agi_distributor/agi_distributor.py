@@ -244,7 +244,7 @@ class AGI:
                 logger.error("parameter <mode> must be an int, a list of int or a string")
                 sys.exit(1)
 
-            AGI._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
+            AGI._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "dry-run"]
             if AGI._mode:
                 if AGI._mode & AGI._RUN_MASK not in range(0, AGI.RAPIDS_MODE):
                     raise ValueError(f"mode {AGI._mode} not implemented")
@@ -1367,7 +1367,7 @@ class AGI:
         the distribution tree
         -------
         """
-        AGI._run_type = "simulate"
+        AGI._run_type = "dry-run"
         return await AGI.run(env, scheduler, workers, mode=AGI._SIMULATE_MODE, **args)
 
     # Backward compatibility alias
@@ -1809,7 +1809,7 @@ class AGI:
         AGI._jobs = bg.BackgroundJobManager()
 
         if (AGI._mode & AGI._DEPLOYEMENT_MASK) == AGI._SIMULATE_MODE:
-            # case simulate mode #0b11xxxx
+            # case dry-run mode #0b11xxxx
             res = await AGI._run()
 
         elif AGI._mode >= AGI._INSTALL_MODE:
@@ -1826,7 +1826,7 @@ class AGI:
             res = time.time() - t
 
         elif (AGI._mode & AGI._DEPLOYEMENT_MASK) == AGI._SIMULATE_MODE:
-            # case simulate mode #0b11xxxx
+            # case dry-run mode #0b11xxxx
             res = await AGI._run()
 
         elif AGI._mode & AGI.DASK_MODE:

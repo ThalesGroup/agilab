@@ -11,11 +11,15 @@ datemax = "2021-01-01"
 output_format = "parquet"
 
 [cluster]
-cluster_enabled = false
+cluster_enabled = true
 verbose = 1
 cython = false
 pool = false
 rapids = false
+scheduler = "127.0.0.1"
+
+[cluster.workers]
+"127.0.0.1" = 2
 
 [pages]
 view_module = [

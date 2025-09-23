@@ -99,8 +99,12 @@ class FlightWorker(PolarsWorker):
 
         logging.info(f"from: {__file__}")
 
+        normalized_data_uri = BaseWorker.normalize_data_uri(self.args.data_uri)
+        self.data_uri = Path(normalized_data_uri)
+        self.args.data_uri = normalized_data_uri
+
         if os.name == "nt" and not getpass.getuser().startswith("T0"):
-            data_uri = Path(self.args.data_uri)
+            data_uri = self.data_uri
             parts = data_uri.parts
             if "Users" in parts:
                 index = parts.index("Users") + 2
@@ -115,7 +119,7 @@ class FlightWorker(PolarsWorker):
                 logging.info(f"Failed to map network drive: {e}")
 
         # Path to database on symlink Path.home()/data(symlink)
-        self.home_rel = (Path("~/") / self.args.data_uri).expanduser()
+        self.home_rel = self.data_uri
         data_uri = normalize_path(self.home_rel)
         self.data_out = normalize_path(self.home_rel.parent / "dataframe")
         if os.name != "nt":
@@ -176,14 +180,8 @@ class FlightWorker(PolarsWorker):
 
         data_source = global_vars["args"]["data_source"]
 
-        prefix = "~/"
         if data_source == "file":
-            if os.name != "nt":
-                file = os.path.normpath(os.path.expanduser(prefix + file)).replace(
-                    "\\", "/"
-                )
-            else:
-                file = normalize_path(os.path.expanduser(prefix + file))
+            file = BaseWorker.normalize_data_uri(file)
 
             if not Path(file).is_file():
                 raise FileNotFoundError(file)

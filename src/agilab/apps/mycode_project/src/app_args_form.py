@@ -10,7 +10,7 @@ env = st.session_state._env
 
 defaults_model, defaults_payload, settings_path = load_args_state(env, args_module=args_module)
 
-if st.session_state.get("toggle_custom", True):
+if not st.session_state.get("toggle_edit", False):
     col1, col2 = st.columns(2)
 
     with col1:

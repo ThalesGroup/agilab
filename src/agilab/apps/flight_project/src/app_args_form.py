@@ -51,7 +51,7 @@ defaults_model = apply_source_defaults(stored_args)
 defaults_payload = defaults_model.to_toml_payload()
 st.session_state.app_settings["args"] = defaults_payload
 
-if st.session_state.get("toggle_custom", True):
+if not st.session_state.get("toggle_edit", False):
     # Streamlit User Interface
     c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1.0, 1])
 

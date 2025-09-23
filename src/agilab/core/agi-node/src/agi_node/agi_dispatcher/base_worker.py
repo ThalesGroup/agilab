@@ -36,7 +36,7 @@ import warnings
 import abc
 import traceback
 import json
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Dict, List, Optional, Union
 from types import SimpleNamespace
 
@@ -130,6 +130,25 @@ class BaseWorker(abc.ABC):
             except Exception as e:
                 logging.error(f"Mount failed: {e}")
         return BaseWorker._join(BaseWorker.expand(path1), path2)
+
+    @staticmethod
+    def normalize_data_uri(data_uri: Union[str, Path]) -> str:
+        """Normalize data URI to an absolute path using OS-specific separators."""
+        if isinstance(data_uri, Path):
+            data_uri_str = str(data_uri)
+        else:
+            data_uri_str = str(data_uri)
+
+        if os.name == "nt" and data_uri_str.startswith("\\\\"):
+            return os.path.normpath(str(PureWindowsPath(data_uri_str)))
+
+        candidate = (Path.home() / data_uri_str).expanduser()
+        try:
+            candidate = candidate.resolve(strict=False)
+        except Exception:
+            candidate = Path(os.path.normpath(str(candidate)))
+
+        return str(candidate) if os.name == "nt" else candidate.as_posix()
 
     @staticmethod
     def expand(path, base_directory=None):

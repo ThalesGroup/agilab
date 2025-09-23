@@ -721,8 +721,47 @@ def workload_barchart(workers, work_plan_metadata, partition_key, weights_key, w
     st.plotly_chart(fig, use_container_width=True)
 
 def _is_app_installed(env):
-    venv_root = env.active_app / ".venv"
-    return venv_root.exists()
+    candidates = []
+    active_app = getattr(env, "active_app", None)
+    if active_app is not None:
+        candidates.append(Path(active_app) / ".venv")
+
+    wenv_abs = getattr(env, "wenv_abs", None)
+    if wenv_abs is not None:
+        candidates.append(Path(wenv_abs) / ".venv")
+
+    cluster_root = getattr(env, "cluster_root", None)
+    if cluster_root is not None:
+        candidates.append(Path(cluster_root) / ".venv")
+
+    for candidate in candidates:
+        try:
+            if candidate.exists():
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def _has_dataframe_on_disk(env) -> bool:
+    data_path = Path(getattr(env, "dataframe_path", ""))
+    if not data_path:
+        return False
+    if not data_path.is_absolute():
+        base = getattr(env, "home_abs", Path.home())
+        data_path = Path(base) / data_path
+
+    if not data_path.exists():
+        return False
+
+    if data_path.is_file():
+        return data_path.suffix.lower() in {".csv", ".parquet"}
+
+    for iterator in (data_path.glob, data_path.rglob):
+        for pattern in ("*.csv", "*.parquet"):
+            if next(iterator(pattern), None) is not None:
+                return True
+    return False
 
 # ===========================
 # Main Application UI
@@ -946,14 +985,14 @@ if __name__ == "__main__":
             snippet_exists = app_args_form.exists()
             snippet_not_empty = snippet_exists and app_args_form.stat().st_size > 1
 
-            # Only set default value if toggle_custom is not in session_state
-            if "toggle_custom" not in st.session_state:
-                st.session_state["toggle_custom"] = snippet_not_empty
+            # Only set default value if toggle_edit is not in session_state
+            if "toggle_edit" not in st.session_state:
+                st.session_state["toggle_edit"] = not snippet_not_empty
 
             # Always use the current value in session_state
-            st.toggle("Custom UI", key="toggle_custom", on_change=init_custom_ui, args=[app_args_form])
+            st.toggle("Edit", key="toggle_edit", on_change=init_custom_ui, args=[app_args_form])
 
-            if st.session_state["toggle_custom"] and snippet_exists and snippet_not_empty:
+            if (not st.session_state["toggle_edit"]) and snippet_exists and snippet_not_empty:
                 try:
                     runpy.run_path(app_args_form, init_globals=globals())
                 except Exception as e:
@@ -1048,7 +1087,7 @@ if __name__ == "__main__":
                                     key = f"worker_partition_{partition}_{i}_{j}"
                                     b2.selectbox("Worker", options=workers, key=key, index=i if i < len(workers) else 0)
                                 count += 1
-                        if st.button("Apply", key="apply_btn", type="primary"):
+                        if st.button("APPLY", key="apply_btn", type="primary"):
                             new_work_plan_metadata = [[] for _ in workers]
                             new_work_plan = [[] for _ in workers]
                             for i, (chunks, files_tree) in enumerate(zip(work_plan_metadata, work_plan)):
@@ -1074,6 +1113,11 @@ if __name__ == "__main__":
         st.session_state.setdefault("run_log_cache", "")
         run_cmd = None
         with st.expander("Run details", expanded=False):
+            venv_exists = _is_app_installed(env)
+            if not venv_exists:
+                st.info(
+                    "Install the app environment first (via the Install section) to enable local RUN execution."
+                )
             st.session_state.setdefault("benchmark", False)
             benchmark_enabled = st.toggle(
                 "Benchmark all modes",
@@ -1158,13 +1202,19 @@ if __name__ == "__main__":
         run_col, load_col = st.columns(2)
         run_clicked = False
         run_label = "RUN BENCHMARK" if st.session_state.get("benchmark") else "RUN"
+
+        has_data = _has_dataframe_on_disk(env)
+
+        run_button_type = "primary" if not has_data else "secondary"
+        load_button_type = "secondary" if run_button_type == "primary" else "primary"
         if run_cmd:
             run_clicked = run_col.button(
                 run_label,
                 key="run_btn",
-                type="primary",
+                type=run_button_type,
                 help="Run your snippet with your cluster and app settings",
                 use_container_width=True,
+                disabled=False,
             )
         else:
             run_col.button(
@@ -1176,35 +1226,45 @@ if __name__ == "__main__":
                 use_container_width=True,
             )
 
-        load_clicked = load_col.button(
-            "Load Data",
-            key="load_data_main",
-            type="primary",
-            use_container_width=True,
-            help="Fetch the latest dataframe preview for export",
-        )
+        load_clicked = False
+        if has_data:
+            load_clicked = load_col.button(
+                "LOAD DATA",
+                key="load_data_main",
+                type=load_button_type,
+                use_container_width=True,
+                help="Fetch the latest dataframe preview for export",
+            )
 
         if load_clicked:
-            st.session_state["loaded_df"] = cached_load_df(Path().home() / env.dataframe_path, with_index=False)
+            data_path = Path(getattr(env, "dataframe_path", ""))
+            if not data_path.is_absolute():
+                data_path = Path(getattr(env, "home_abs", Path.home())) / data_path
+            st.session_state["loaded_df"] = cached_load_df(data_path, with_index=False)
             st.session_state["_force_export_open"] = True
 
         if run_clicked and run_cmd:
-            clear_log()
-            st.session_state["run_log_cache"] = ""
-            if run_log_expander is None:
-                run_log_expander = st.expander("Run logs", expanded=True)
-            with run_log_expander:
-                run_log_placeholder = st.empty()
-            with st.spinner("Running AGI..."):
-                stdout, stderr = await env.run_agi(
-                    run_cmd.replace("asyncio.run(main())", env.snippet_tail),
-                    log_callback=lambda message: update_log(run_log_placeholder, message),
-                    venv=project_path
-                )
-                st.session_state["run_log_cache"] = st.session_state.get("log_text", "")
-            with run_log_expander:
-                run_log_placeholder.empty()
-                display_log(st.session_state["run_log_cache"], stderr)
+            if not venv_exists:
+                st.warning("Run requires a local install (.venv). Use the Install section first.")
+            else:
+                clear_log()
+                st.session_state["run_log_cache"] = ""
+                if run_log_expander is None:
+                    run_log_expander = st.expander("Run logs", expanded=True)
+                with run_log_expander:
+                    run_log_placeholder = st.empty()
+                with st.spinner("Running AGI..."):
+                    stdout, stderr = await env.run_agi(
+                        run_cmd.replace("asyncio.run(main())", env.snippet_tail),
+                        log_callback=lambda message: update_log(run_log_placeholder, message),
+                        venv=project_path
+                    )
+                    st.session_state["run_log_cache"] = st.session_state.get("log_text", "")
+                with run_log_expander:
+                    run_log_placeholder.empty()
+                    display_log(st.session_state["run_log_cache"], stderr)
+                st.session_state["_force_export_open"] = True
+                st.rerun()
 
     df_preview = st.session_state.get("loaded_df")
     if isinstance(df_preview, pd.DataFrame) and not df_preview.empty:
@@ -1214,8 +1274,7 @@ if __name__ == "__main__":
     loaded_df = st.session_state.get("loaded_df")
 
     if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
-        expander = st.expander("Prepare Data for Experiment and Explore", expanded=export_expanded)
-        with expander:
+        with st.expander("Prepare Data for Experiment and Explore", expanded=export_expanded):
             loaded_df.columns = [
                 col if col.strip() != "" else f"Unnamed Column {idx}"
                 for idx, col in enumerate(loaded_df.columns)
@@ -1277,9 +1336,9 @@ if __name__ == "__main__":
 
             action_col_stats, action_col_export = st.columns([1, 1])
             with action_col_stats:
-                stats_clicked = st.button("Stats Report", key="stats_report_main", type="primary", use_container_width=True)
+                stats_clicked = st.button("STATS REPORT", key="stats_report_main", type="primary", use_container_width=True)
             with action_col_export:
-                export_clicked = st.button("Export DF", key="export_df_main", type="primary", use_container_width=True)
+                export_clicked = st.button("EXPORT DF", key="export_df_main", type="primary", use_container_width=True)
 
             if stats_clicked:
                 profile_file = st.session_state.profile_report_file
@@ -1308,7 +1367,6 @@ if __name__ == "__main__":
         st.session_state.df_cols = []
         st.session_state.selected_cols = []
         st.session_state.check_all = False
-        st.info("No data loaded yet. Click 'Load Data' above to populate it before export.")
 
 # ===========================
 # Main Entry Point
