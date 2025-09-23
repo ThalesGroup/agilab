@@ -741,6 +741,7 @@ async def page():
         "env": env,
         "_env": env,
         "TABLE_MAX_ROWS": getattr(env, "TABLE_MAX_ROWS", None),
+        "_experiment_reload_required": False,
     }
 
 
@@ -1039,11 +1040,12 @@ if __name__ == "__main__":
         run_cmd = None
         with st.expander("Run details", expanded=False):
             st.session_state.setdefault("benchmark", False)
-            if st.toggle(
+            benchmark_enabled = st.toggle(
                 "Benchmark all modes",
                 key="benchmark",
                 help="Run the snippet once per mode and report timings for each path",
-            ):
+            )
+            if benchmark_enabled:
                 st.session_state["mode"] = None
 
             cluster_params = st.session_state.app_settings["cluster"]
@@ -1120,9 +1122,10 @@ if __name__ == "__main__":
 
         run_col, load_col = st.columns(2)
         run_clicked = False
+        run_label = "RUN BENCHMARK" if st.session_state.get("benchmark") else "RUN"
         if run_cmd:
             run_clicked = run_col.button(
-                "RUN",
+                run_label,
                 key="run_btn",
                 type="primary",
                 help="Run your snippet with your cluster and app settings",
@@ -1130,7 +1133,7 @@ if __name__ == "__main__":
             )
         else:
             run_col.button(
-                "RUN",
+                run_label,
                 key="run_btn_disabled",
                 type="primary",
                 disabled=True,
@@ -1192,10 +1195,18 @@ if __name__ == "__main__":
                 st.session_state.selected_cols = loaded_df.columns.tolist()
                 st.session_state.check_all = True
 
+            if st.session_state.pop("_reset_export_checkboxes", False):
+                st.session_state.selected_cols = st.session_state.df_cols.copy()
+                st.session_state.check_all = True
+                for idx in range(len(st.session_state.df_cols)):
+                    st.session_state[f"export_col_{idx}"] = True
+                st.session_state["_force_export_open"] = True
+
             def on_select_all_changed():
                 st.session_state.selected_cols = st.session_state.df_cols.copy() if st.session_state.check_all else []
                 for idx in range(len(st.session_state.df_cols)):
                     st.session_state[f"export_col_{idx}"] = st.session_state.check_all
+                st.session_state["_force_export_open"] = True
 
             st.checkbox("Select All", key="check_all", on_change=on_select_all_changed)
 
@@ -1207,6 +1218,7 @@ if __name__ == "__main__":
                     if col_name in st.session_state.selected_cols:
                         st.session_state.selected_cols.remove(col_name)
                 st.session_state.check_all = len(st.session_state.selected_cols) == len(st.session_state.df_cols)
+                st.session_state["_force_export_open"] = True
 
             cols_layout = st.columns(5)
             for idx, col in enumerate(st.session_state.df_cols):
@@ -1252,6 +1264,8 @@ if __name__ == "__main__":
                     exported_df = loaded_df[st.session_state.selected_cols]
                     if save_csv(exported_df, target_path):
                         st.success(f"Dataframe exported successfully to {target_path}.")
+                        st.session_state["_reset_export_checkboxes"] = True
+                        st.session_state["_experiment_reload_required"] = True
 
                 if st.session_state.profile_report_file.exists():
                     os.remove(st.session_state.profile_report_file)

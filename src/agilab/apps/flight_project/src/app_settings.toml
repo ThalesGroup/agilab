@@ -18,4 +18,10 @@ pool = false
 rapids = false
 
 [pages]
-view_module = []
+view_module = [
+    "view_autoencoder_latenspace",
+    "view_barycentric",
+    "view_maps",
+    "view_maps_3d",
+    "view_maps_network",
+]

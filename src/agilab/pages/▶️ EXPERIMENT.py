@@ -698,6 +698,9 @@ def display_lab_tab(
                         st.session_state["df_file_in"] = export_target
                         st.session_state["step_checked"] = True
 
+    if st.session_state.pop("_experiment_reload_required", False):
+        st.session_state.pop("loaded_df", None)
+
     if "loaded_df" not in st.session_state:
         df_source = st.session_state.get("df_file")
         st.session_state["loaded_df"] = (
