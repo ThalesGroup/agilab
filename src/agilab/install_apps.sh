@@ -52,6 +52,7 @@ declare -a PRIVATE_APPS=(
   sat_trajectory_project
   flight_trajectory_project
   sb3_trainer_project
+  ilp_project
 )
 
 # (macOS-safe helpers remain below)
