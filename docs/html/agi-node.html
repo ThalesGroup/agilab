@@ -111,6 +111,7 @@
 </ul>
 </li>
 <li class="toctree-l3 current"><a class="current reference internal" href="#">agi-node API</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#path-handling">Path handling</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#reference">Reference</a></li>
 </ul>
 </li>
@@ -150,7 +151,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">PAGES Examples</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="apps-pages.html">apps-pages</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="apps-pages.html">apps bounded pages</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="apps-pages.html#view-autoencoder-latenspace">view_autoencoder_latenspace</a></li>
 <li class="toctree-l2"><a class="reference internal" href="apps-pages.html#view-barycentric">view_barycentric</a></li>
 <li class="toctree-l2"><a class="reference internal" href="apps-pages.html#view-maps">view_maps</a></li>
@@ -248,6 +249,32 @@
              
   <section id="agi-node-api">
 <h1>agi-node API<a class="headerlink" href="#agi-node-api" title="Link to this heading"></a></h1>
+<section id="path-handling">
+<h2>Path handling<a class="headerlink" href="#path-handling" title="Link to this heading"></a></h2>
+<p>Workers resolve any dataset or workspace URI through
+<code class="docutils literal notranslate"><span class="pre">BaseWorker.normalize_data_uri</span></code> before touching the filesystem. The helper
+accepts <code class="docutils literal notranslate"><span class="pre">str</span></code> or <code class="docutils literal notranslate"><span class="pre">pathlib.Path</span></code> inputs and normalises them as follows:</p>
+<ul class="simple">
+<li><p>UNC-style shares on Windows (for example <code class="docutils literal notranslate"><span class="pre">\\server\share</span></code>) are preserved
+by wrapping them in <code class="docutils literal notranslate"><span class="pre">PureWindowsPath</span></code> and returning the
+<code class="docutils literal notranslate"><span class="pre">os.path.normpath</span></code> representation so network drives keep their double
+backslashes.</p></li>
+<li><p>Every other value is first joined with <code class="docutils literal notranslate"><span class="pre">Path.home()</span></code> and expanded. This lets
+configuration files ship relative paths like <code class="docutils literal notranslate"><span class="pre">data/my-project</span></code> while still
+resolving to <code class="docutils literal notranslate"><span class="pre">~/data/my-project</span></code> on the worker host.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Path.resolve(strict=False)</span></code> is applied to keep symlinks such as the
+<code class="docutils literal notranslate"><span class="pre">~/data</span></code> link created by installers, while still accepting directories that
+are created later during the run.</p></li>
+<li><p>The function emits POSIX-style strings on Unix-like systems and uses
+<code class="docutils literal notranslate"><span class="pre">os.path.normpath</span></code> on Windows so downstream code can hand the value to shell
+commands or <code class="docutils literal notranslate"><span class="pre">pathlib</span></code> without further tweaks.</p></li>
+</ul>
+<p>All built-in workers, including <code class="docutils literal notranslate"><span class="pre">flight_worker</span></code> and <code class="docutils literal notranslate"><span class="pre">mycode_worker</span></code>, call
+this helper in <code class="docutils literal notranslate"><span class="pre">start</span></code> and <code class="docutils literal notranslate"><span class="pre">work_pool</span></code> to populate <code class="docutils literal notranslate"><span class="pre">self.args.data_uri</span></code>
+and any per-file path passed to the pool. Extending these workers means you get
+consistent path semantics across local and distributed executions without
+copy-pasting platform-specific logic.</p>
+</section>
 <section id="reference">
 <h2>Reference<a class="headerlink" href="#reference" title="Link to this heading"></a></h2>
 <section id="dag-worker">

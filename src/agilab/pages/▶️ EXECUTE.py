@@ -897,7 +897,7 @@ async def page():
     st.session_state["_verbose_user_override"] = selected_verbose_int != 1
 
     verbose = cluster_params.get('verbose', 1)
-    with st.expander("System settings", expanded=False):
+    with st.expander("Do deployement", expanded=False):
         render_cluster_settings_ui()
         cluster_params = st.session_state.app_settings["cluster"]
         verbose = cluster_params.get('verbose', 1)
@@ -978,7 +978,7 @@ if __name__ == "__main__":
     # DISTRIBUTE Section
     # ------------------
     if show_distribute:
-        with st.expander(f"{module} args", expanded=True):
+        with st.expander(f"Set execution parameters for {module} project", expanded=True):
             app_args_form = env.app_args_form
 
             # ---- PATCH: Set default unchecked if snippet is empty ----
@@ -1011,7 +1011,7 @@ if __name__ == "__main__":
             if st.session_state.get("args_reload_required"):
                 del st.session_state["app_settings"]
                 st.rerun()
-        with st.expander("Distribute details", expanded=False):
+        with st.expander("Check orchestration", expanded=False):
             cluster_params = st.session_state.app_settings["cluster"]
             enabled = cluster_params.get("cluster_enabled", False)
             scheduler = cluster_params.get("scheduler", "")
@@ -1112,7 +1112,7 @@ if __name__ == "__main__":
     if show_run:
         st.session_state.setdefault("run_log_cache", "")
         run_cmd = None
-        with st.expander("Run details", expanded=False):
+        with st.expander("Optimize execution", expanded=False):
             venv_exists = _is_app_installed(env)
             if not venv_exists:
                 st.info(
@@ -1201,7 +1201,7 @@ if __name__ == "__main__":
 
         run_col, load_col = st.columns(2)
         run_clicked = False
-        run_label = "RUN BENCHMARK" if st.session_state.get("benchmark") else "RUN"
+        run_label = "Run Benchmark" if st.session_state.get("benchmark") else "Execute"
 
         has_data = _has_dataframe_on_disk(env)
 

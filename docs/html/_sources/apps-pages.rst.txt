@@ -1,5 +1,5 @@
-apps-pages
-===========
+apps bounded pages
+===================
 
 AGILab ships a handful of prebuilt Streamlit bundles that you can expose from
 the Explore catalogue or the home dashboard. Each bundle is a standalone

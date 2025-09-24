@@ -1,6 +1,32 @@
 agi-node API
 ============
 
+Path handling
+-------------
+Workers resolve any dataset or workspace URI through
+``BaseWorker.normalize_data_uri`` before touching the filesystem. The helper
+accepts ``str`` or ``pathlib.Path`` inputs and normalises them as follows:
+
+- UNC-style shares on Windows (for example ``\\server\share``) are preserved
+  by wrapping them in ``PureWindowsPath`` and returning the
+  ``os.path.normpath`` representation so network drives keep their double
+  backslashes.
+- Every other value is first joined with ``Path.home()`` and expanded. This lets
+  configuration files ship relative paths like ``data/my-project`` while still
+  resolving to ``~/data/my-project`` on the worker host.
+- ``Path.resolve(strict=False)`` is applied to keep symlinks such as the
+  ``~/data`` link created by installers, while still accepting directories that
+  are created later during the run.
+- The function emits POSIX-style strings on Unix-like systems and uses
+  ``os.path.normpath`` on Windows so downstream code can hand the value to shell
+  commands or ``pathlib`` without further tweaks.
+
+All built-in workers, including ``flight_worker`` and ``mycode_worker``, call
+this helper in ``start`` and ``work_pool`` to populate ``self.args.data_uri``
+and any per-file path passed to the pool. Extending these workers means you get
+consistent path semantics across local and distributed executions without
+copy-pasting platform-specific logic.
+
 
 Reference
 --------

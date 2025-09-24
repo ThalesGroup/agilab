@@ -199,10 +199,6 @@ async def main():
     else:
         env = st.session_state['env']
 
-    page_title = "Explore"
-    # Sidebar header/logo
-    render_logo(page_title)
-
     # Sidebar: project selection
     projects = env.projects
     current_project = env.app if env.app in projects else (projects[0] if projects else None)
@@ -224,8 +220,6 @@ async def main():
         return
 
     # ---------- Main "Explore" page ----------
-    st.title(page_title)
-
     if not all_views:
         st.info("No pages found under AGILAB_PAGES_ABS.")
         return
@@ -247,7 +241,7 @@ async def main():
         st.session_state[selection_key] = list(preselect)
 
     selected_views = st.multiselect(
-        "Select page to expose on the home page",
+        "Select page to bound to project",
         view_names,
         key=selection_key,
         help="These will appear as buttons below."

@@ -1102,20 +1102,26 @@ def handle_project_selection():
 
     # Define each section as (label, render‑fn)
     sections = [
-        ("PYTHON‑ENV", lambda: _render_python_env(env)),
-        ("PYTHON-ENV-EXTRA", lambda: _render_uv_env(env)),
-        ("MANAGER",    lambda: _render_manager(env)),
-        ("WORKER",     lambda: _render_worker(env)),
-        ("EXPORT‑APP‑FILTER", lambda: _render_gitignore(env)),
-        ("APP‑SETTINGS",      lambda: _render_app_settings(env)),
-        ("README",            lambda: _render_readme(env)),
-        ("APP‑ARGS",          lambda: _render_app_args_module(env)),
-        ("APP-ARGS‑FORM",           lambda: _render_args_ui(env)),
-        ("PRE‑PROMPT",        lambda: _render_pre_prompt(env)),
+        ("Edit project README", lambda: _render_readme(env), True),
+        ("", lambda: st.markdown("Project configuration&nbsp;"), False),
+        ("Edit project environnement", lambda: _render_python_env(env), True),
+        ("Edit project environnement platform specific", lambda: _render_uv_env(env), True),
+        ("Edit project export filter", lambda: _render_gitignore(env), True),
+        ("", lambda: st.markdown("Code&nbsp;"), False),
+        ("Edit app manager", lambda: _render_manager(env), True),
+        ("Edit app worker", lambda: _render_worker(env), True),
+        ("Edit app args dictionnary", lambda: _render_app_args_module(env), True),
+        ("", lambda: st.markdown("App configuration&nbsp;"), False),
+        ("Edit app default settings", lambda: _render_app_settings(env), True),
+        ("Edit app args form", lambda: _render_args_ui(env), True),
+        ("Edit app pre-prompt for natural langage query", lambda: _render_pre_prompt(env), True),
     ]
 
-    for label, render_fn in sections:
-        with st.expander(label, expanded=False):
+    for label, render_fn, with_expander in sections:
+        if with_expander:
+            with st.expander(label, expanded=False):
+                render_fn()
+        else:
             render_fn()
 
 
