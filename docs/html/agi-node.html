@@ -259,12 +259,15 @@ accepts <code class="docutils literal notranslate"><span class="pre">str</span><
 by wrapping them in <code class="docutils literal notranslate"><span class="pre">PureWindowsPath</span></code> and returning the
 <code class="docutils literal notranslate"><span class="pre">os.path.normpath</span></code> representation so network drives keep their double
 backslashes.</p></li>
-<li><p>Every other value is first joined with <code class="docutils literal notranslate"><span class="pre">Path.home()</span></code> and expanded. This lets
-configuration files ship relative paths like <code class="docutils literal notranslate"><span class="pre">data/my-project</span></code> while still
+<li><p>Every other value is expanded relative to the current home directory. This
+lets configuration files ship entries such as <code class="docutils literal notranslate"><span class="pre">data/my-project</span></code> while still
 resolving to <code class="docutils literal notranslate"><span class="pre">~/data/my-project</span></code> on the worker host.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Path.resolve(strict=False)</span></code> is applied to keep symlinks such as the
 <code class="docutils literal notranslate"><span class="pre">~/data</span></code> link created by installers, while still accepting directories that
 are created later during the run.</p></li>
+<li><p>On non-managed Windows installs the helper also attempts to map the dataset
+under <code class="docutils literal notranslate"><span class="pre">\\127.0.0.1\…</span></code> via <code class="docutils literal notranslate"><span class="pre">net</span> <span class="pre">use</span></code> so local workers gain access to the
+same share paths used on Linux.</p></li>
 <li><p>The function emits POSIX-style strings on Unix-like systems and uses
 <code class="docutils literal notranslate"><span class="pre">os.path.normpath</span></code> on Windows so downstream code can hand the value to shell
 commands or <code class="docutils literal notranslate"><span class="pre">pathlib</span></code> without further tweaks.</p></li>

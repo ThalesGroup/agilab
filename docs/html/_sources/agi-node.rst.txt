@@ -11,12 +11,15 @@ accepts ``str`` or ``pathlib.Path`` inputs and normalises them as follows:
   by wrapping them in ``PureWindowsPath`` and returning the
   ``os.path.normpath`` representation so network drives keep their double
   backslashes.
-- Every other value is first joined with ``Path.home()`` and expanded. This lets
-  configuration files ship relative paths like ``data/my-project`` while still
+- Every other value is expanded relative to the current home directory. This
+  lets configuration files ship entries such as ``data/my-project`` while still
   resolving to ``~/data/my-project`` on the worker host.
 - ``Path.resolve(strict=False)`` is applied to keep symlinks such as the
   ``~/data`` link created by installers, while still accepting directories that
   are created later during the run.
+- On non-managed Windows installs the helper also attempts to map the dataset
+  under ``\\127.0.0.1\…`` via ``net use`` so local workers gain access to the
+  same share paths used on Linux.
 - The function emits POSIX-style strings on Unix-like systems and uses
   ``os.path.normpath`` on Windows so downstream code can hand the value to shell
   commands or ``pathlib`` without further tweaks.
