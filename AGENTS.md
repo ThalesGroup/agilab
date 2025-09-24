@@ -172,6 +172,13 @@ same instructions.
   - `cd src/agilab/apps/sb3_trainer_project && uv run python test/_test_sb3_trainer_worker.py`
   - `cd src/agilab/snippets && uv run python AGI.get_distrib_sb3_trainer.py`
   - `cd src/agilab/apps/sb3_trainer_project && uv run python test/_test_call_worker.py`
+- ILP:
+  - `cd src/agilab/apps/ilp_project && uv run python ../../examples/ilp/AGI.run_ilp.py`
+  - `cd src/agilab/apps/ilp_project && uv run python test/_test_ilp_manager.py`
+  - `cd src/agilab/apps/ilp_project && uv run python test/_test_ilp_worker.py`
+  - `cd src/agilab/examples/ilp && uv run python AGI.get_distrib_ilp.py`
+  - `cd src/agilab/apps/ilp_project && uv run python test/_test_call_worker.py`
+  - The greedy solver consumes `data/topo3N.txt`; add alternative graphs in that folder or update `app_settings.toml`.
 - FireDucks worker (core):
   - `cd src/agilab/core/agi-cluster && uv run pytest src/agilab/core/test/test_fireducks_worker.py`
 
@@ -194,6 +201,13 @@ For each tier, capture: command, expected output, and pitfalls (CWD, env vars, i
   - `ModuleNotFoundError`: ensure the working directory matches `WORKING_DIRECTORY` and that `PYTHONPATH` carries the project roots.
   - Streamlit logs missing: set `PYTHONUNBUFFERED=1`.
   - Slow iterative runs: add `UV_NO_SYNC=1` in dev environments.
+
+### Workspace maintenance
+- Refresh JetBrains run configs and registered SDKs after adding apps: `uv run pycharm/setup_pycharm.py` (runs from repo root).
+- Rebuild docs/diagrams/license tables when templates or run configs change:
+  - `private_apps="$HOME/PycharmProjects/thales_agilab"`
+  - `uv run --project "$private_apps" python "$private_apps/docs/gen-docs.py"`
+    - Requires a Sphinx toolchain in the docs venv; script writes HTML into `docs/html` and updates `docs/source/*-licenses.md`.
 
 **`.env.example` (template)**
 ```dotenv

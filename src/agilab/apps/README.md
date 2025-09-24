@@ -16,6 +16,7 @@ Use this runbook to launch, validate, and troubleshoot AGILab flows from a singl
 - MyCode: `src/agilab/apps/mycode_project/README.md`
 - Sat Trajectory: `src/agilab/apps/sat_trajectory_project/README.md`
 - SB3 Trainer: `src/agilab/apps/sb3_trainer_project/README.md`
+- ILP: `src/agilab/apps/ilp_project/README.md`
 
 <details>
 <summary><strong>Launch matrix (auto-sorted from .idea/runConfigurations)</strong></summary>
