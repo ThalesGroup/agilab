@@ -15,108 +15,8 @@
     [
       [
         [
-          1,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-32208,53.1617,0.0024,0.0001281,91.7786,6853.381685925395,1 60598U 24150R   25189.85348244  .00000097  00000+0  15417-4 0  9990,2 60598  53.1617   0.0024 0001281  91.7786 268.3362 15.30190081 50709,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,1\n"
-        ],
-        [
-          3,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-11129 [DTC],53.1602,28.8051,5.56e-05,93.1043,6737.869716898289,1 60038U 24112A   25189.81776509  .00000136  00000+0  59747-5 0  9991,2 60038  53.1602  28.8051 0000556  93.1043 267.0039 15.69707915 62674,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,3\n"
-        ],
-        [
-          5,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-11736 [DTC],43.0008,57.5504,0.0001924,272.3961,6714.513452309777,1 64317U 25124A   25190.16668981 -.00111495  00000+0 -64475-3 0  9998,2 64317  43.0008  57.5504 0001924 272.3961 302.3217 15.77905317  5637,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,5\n"
-        ],
-        [
-          7,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-34145,53.161,86.3966,9.8e-05,80.7767,6825.355113881238,1 64110U 25110Q   25190.11188158  .00034351  00000+0  86476-3 0  9990,2 64110  53.1610  86.3966 0000980  80.7767 279.3349 15.39624750  8377,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,7\n"
-        ],
-        [
-          9,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-32611,42.9968,115.1976,0.0001328,265.7066,6861.189599442795,1 61976U 24210T   25190.14833286  .00008940  00000+0  33400-3 0  9993,2 61976  42.9968 115.1976 0001328 265.7066  94.3634 15.27578830 37639,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,9\n"
-        ],
-        [
-          11,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-31888,43.0044,143.9676,0.0001239,271.1852,6861.2139946312245,1 59788U 24093G   25190.16005153 -.00001265  00000+0 -36452-4 0  9992,2 59788  43.0044 143.9676 0001239 271.1852  88.8857 15.27570683 65404,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,11\n"
-        ],
-        [
-          13,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-32483,43.0027,172.8492,0.0001648,266.4218,6861.175768512313,1 61856U 24202M   25190.22055019 -.00000973  00000+0 -25844-4 0  9994,2 61856  43.0027 172.8492 0001648 266.4218  93.6445 15.27583449 38678,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,13\n"
-        ],
-        [
-          15,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-33740,53.1573,201.5519,7.14e-05,89.032,6825.360930152669,1 63451U 25069U   25189.31341934  .00022215  00000+0  56367-3 0  9995,2 63451  53.1573 201.5519 0000714  89.0320 271.0767 15.39622782 15823,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,15\n"
-        ],
-        [
-          17,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-31217,43.0006,230.5474,0.0001845,280.0415,6858.7034638644745,1 59036U 24038P   25189.10173378 -.00000169  00000+0  34037-5 0  9993,2 59036  43.0006 230.5474 0001845 280.0415  80.0229 15.28409478 78533,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,17\n"
-        ],
-        [
-          19,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-5341,69.9988,259.207,0.0003377,270.2074,6950.195194796415,1 55287U 23010U   25189.93031905 -.00000186  00000+0 -77956-5 0  9993,2 55287  69.9988 259.2070 0003377 270.2074  89.8698 14.98329255137248,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,19\n"
-        ],
-        [
-          21,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-4793,53.2187,288.1081,0.0001162,81.096,6917.866496752231,1 53867U 22114BB  25190.00873430 -.00000954  00000+0 -41838-4 0  9998,2 53867  53.2187 288.1081 0001162  81.0960 279.0163 15.08844545155923,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,21\n"
-        ],
-        [
-          23,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-32738,53.16,316.867,0.0001227,77.8714,6825.307670947003,1 63046U 25034T   25190.03349136  .00023786  00000+0  60237-3 0  9995,2 63046  53.1600 316.8670 0001227  77.8714 282.2428 15.39640803 22802,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,23\n"
-        ],
-        [
-          25,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-31269,53.1613,345.6179,0.0001192,92.5326,6854.485792644654,1 58844U 24017U   25190.16035418  .00055994  00000+0  19107-2 0  9999,2 58844  53.1613 345.6179 0001192  92.5326 267.5811 15.29820376 81490,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,25\n"
-        ]
-      ]
-    ],
-    [
-      [
-        [
-          2,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-33579,53.1607,14.4024,0.0001083,85.6656,6853.354786516641,1 62764U 25015G   25189.91879069  .00024395  00000+0  83308-3 0  9999,2 62764  53.1607  14.4024 0001083  85.6656 274.4469 15.30199090 27161,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,2\n"
-        ],
-        [
-          4,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-31256,43.0042,43.1881,0.0001171,273.2675,6861.248229707758,1 59161U 24044K   25189.95861266  .00002893  00000+0  11469-3 0  9999,2 59161  43.0042  43.1881 0001171 273.2675  86.8043 15.27559250 76322,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,4\n"
-        ],
-        [
-          6,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-11369 [DTC],42.9997,72.0085,0.0002,260.9487,6734.337781544737,1 62095U 24220H   25189.96810188  .00211105  00000+0  16003-2 0  9999,2 62095  42.9997  72.0085 0002000 260.9487  99.1155 15.70942966 36721,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,6\n"
-        ],
-        [
-          8,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-2616,53.0551,100.7976,0.0001523,97.3321,6925.329727527177,1 48695U 21044BK  25189.96299669 -.00000268  00000+0  89068-6 0  9997,2 48695  53.0551 100.7976 0001523  97.3321 262.7841 15.06406144227461,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,8\n"
-        ],
-        [
-          10,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-32008,53.1599,129.6,0.00012,91.9552,6853.371937135927,1 60028U 24111N   25189.53458815 -.00000117  00000+0  81648-5 0  9990,2 60028  53.1599 129.6000 0001200  91.9552 268.1586 15.30193346 61651,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,10\n"
-        ],
-        [
-          12,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-31495,42.9975,158.3805,7.86e-05,262.2153,6861.186332594083,1 59313U 24056T   25190.22364874  .00000204  00000+0  16919-4 0  9996,2 59313  42.9975 158.3805 0000786 262.2153  97.8610 15.27579921 74012,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,12\n"
-        ],
-        [
-          14,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-4205,53.2164,187.1749,0.0001352,85.7004,6917.892722372362,1 53174U 22083AU  25190.18815576 -.00000223  00000+0  40952-5 0  9995,2 53174  53.2164 187.1749 0001352  85.7004 274.4142 15.08835965165090,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,14\n"
-        ],
-        [
-          16,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-3851,53.2162,216.0487,0.0001152,81.5981,6917.879407795696,1 52344U 22045P   25189.35506901 -.00000573  00000+0 -17910-4 0  9993,2 52344  53.2162 216.0487 0001152  81.5981 278.5141 15.08840321178891,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,16\n"
-        ],
-        [
-          18,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-2373,53.0552,244.8431,0.0001111,87.4648,6925.350911748665,1 47796U 21018K   25190.16526188 -.00000050  00000+0  15539-4 0  9991,2 47796  53.0552 244.8431 0001111  87.4648 272.6468 15.06399232239832,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,18\n"
-        ],
-        [
-          20,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-5525,43.004,273.5908,0.000208,288.1166,6937.211263852039,1 57218U 23094A   25190.23667780  .00000651  00000+0  63303-4 0  9997,2 57218  43.0040 273.5908 0002080 288.1166  71.9450 15.02537712110676,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,20\n"
-        ],
-        [
-          22,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-1171,53.0557,302.4031,0.000123,92.1892,6925.370321566039,1 45062U 20006U   25189.59441038  .00000107  00000+0  26058-4 0  9996,2 45062  53.0557 302.4031 0001230  92.1892 267.9237 15.06392899299675,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,22\n"
-        ],
-        [
-          24,
-          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-1608,53.0571,331.344,0.0001309,96.0241,6925.395052193576,1 46146U 20057AF  25189.83123376 -.00000235  00000+0  30894-5 0  9992,2 46146  53.0571 331.3440 0001309  96.0241 264.0897 15.06384830269312,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,24\n"
+          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-1008,53.0544,201.7195,9.57e-05,71.1676,6925.369766822805,1 44714U 19074B   25189.74737478  .00000408  00000+0  46246-4 0  9990,2 44714  53.0544 201.7195 0000957  71.1676 288.9417 15.06393080311983,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,1\n",
+          1
         ]
       ]
     ]
@@ -124,85 +24,11 @@
   "work_plan": [
     [
       [
-        1
-      ],
-      [
-        3
-      ],
-      [
-        5
-      ],
-      [
-        7
-      ],
-      [
-        9
-      ],
-      [
-        11
-      ],
-      [
-        13
-      ],
-      [
-        15
-      ],
-      [
-        17
-      ],
-      [
-        19
-      ],
-      [
-        21
-      ],
-      [
-        23
-      ],
-      [
-        25
-      ]
-    ],
-    [
-      [
-        2
-      ],
-      [
-        4
-      ],
-      [
-        6
-      ],
-      [
-        8
-      ],
-      [
-        10
-      ],
-      [
-        12
-      ],
-      [
-        14
-      ],
-      [
-        16
-      ],
-      [
-        18
-      ],
-      [
-        20
-      ],
-      [
-        22
-      ],
-      [
-        24
+        "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-1008,53.0544,201.7195,9.57e-05,71.1676,6925.369766822805,1 44714U 19074B   25189.74737478  .00000408  00000+0  46246-4 0  9990,2 44714  53.0544 201.7195 0000957  71.1676 288.9417 15.06393080311983,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,1\n"
       ]
     ]
   ],
-  "partition_key": "satellite",
+  "partition_key": "plane",
   "nb_unit": "files",
-  "weights_unit": "units"
+  "weights_unit": "ko"
 }

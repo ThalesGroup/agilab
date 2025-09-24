@@ -527,6 +527,53 @@ def open_notebook_in_browser() -> None:
 def sidebar_controls() -> None:
     """Create sidebar controls for selecting modules and DataFrames."""
     env: AgiEnv = st.session_state["env"]
+
+    COMMON_STYLE = """
+    <style>
+    div[data-testid=\"stButton\"] button {
+        font-weight: 600;
+        color: #4A90E2 !important;
+        background: transparent !important;
+        border: 1px solid #4A90E2 !important;
+    }
+    div[data-testid=\"stButton\"] button:hover {
+        background: #4A90E2 !important;
+        color: #FFFFFF !important;
+    }
+    div[data-testid=\"stTabs\"] button {
+        color: #4A90E2 !important;
+        font-weight: 600;
+    }
+    div[data-testid=\"stTabs\"] button[aria-selected=\"true\"] {
+        border-bottom: 2px solid #4A90E2 !important;
+    }
+    div[data-testid=\"stToggle\"] label {
+        color: #4A90E2 !important;
+    }
+    div[data-testid=\"stToggle\"] div[role=\"switch\"] {
+        background-color: rgba(74, 144, 226, 0.15) !important;
+        border: 1px solid #4A90E2 !important;
+    }
+    div[data-testid=\"stToggle\"] div[role=\"switch\"][aria-checked=\"true\"] {
+        background-color: #4A90E2 !important;
+    }
+    div[data-testid=\"stToggle\"] div[role=\"switch\"] span {
+        background-color: #FFFFFF !important;
+    }
+    div[data-testid=\"stSelectbox\"] div[data-baseweb=\"select\"] > div {
+        border-radius: 20px;
+        border: 1px solid #4A90E2 !important;
+        box-shadow: none !important;
+    }
+    div[data-testid=\"stSelectbox\"] div[data-baseweb=\"select\"] > div:hover {
+        border-color: #4A90E2 !important;
+    }
+    div[data-testid=\"stSelectbox\"] div[data-baseweb=\"select\"] span {
+        color: #4A90E2 !important;
+    }
+    </style>
+    """
+    st.markdown(COMMON_STYLE, unsafe_allow_html=True)
     Agi_export_abs = Path(env.AGILAB_EXPORT_ABS)
     modules = st.session_state.get("modules", scan_dir(Agi_export_abs))
 

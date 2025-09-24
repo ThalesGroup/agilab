@@ -133,22 +133,37 @@ class BaseWorker(abc.ABC):
 
     @staticmethod
     def normalize_data_uri(data_uri: Union[str, Path]) -> str:
-        """Normalize data URI to an absolute path using OS-specific separators."""
-        if isinstance(data_uri, Path):
-            data_uri_str = str(data_uri)
-        else:
-            data_uri_str = str(data_uri)
+        """Normalize data URIs and ensure Windows shares are reachable."""
 
+        data_uri_str = str(data_uri)
+
+        # Quick exit for UNC paths already normalized
         if os.name == "nt" and data_uri_str.startswith("\\\\"):
-            return os.path.normpath(str(PureWindowsPath(data_uri_str)))
+            candidate = Path(PureWindowsPath(data_uri_str))
+        else:
+            candidate = Path(data_uri_str).expanduser()
+            if not candidate.is_absolute():
+                candidate = (Path.home() / candidate).expanduser()
+            try:
+                candidate = candidate.resolve(strict=False)
+            except Exception:
+                candidate = Path(os.path.normpath(str(candidate)))
 
-        candidate = (Path.home() / data_uri_str).expanduser()
-        try:
-            candidate = candidate.resolve(strict=False)
-        except Exception:
-            candidate = Path(os.path.normpath(str(candidate)))
+        if os.name == "nt":
+            resolved_str = os.path.normpath(str(candidate))
+            if not BaseWorker._is_managed_pc:
+                parts = Path(resolved_str).parts
+                mapped = Path(*parts[parts.index("Users") + 2:]) if "Users" in parts else Path(resolved_str)
+                net_path = normalize_path(f"\\\\127.0.0.1\\{mapped}")
+                try:
+                    cmd = f'net use Z: "{net_path}" /user:your-credentials'
+                    logger.info(cmd)
+                    subprocess.run(cmd, shell=True, check=True)
+                except Exception as exc:
+                    logger.info(f"Failed to map network drive: {exc}")
+            return resolved_str
 
-        return str(candidate) if os.name == "nt" else candidate.as_posix()
+        return candidate.as_posix()
 
     @staticmethod
     def expand(path, base_directory=None):

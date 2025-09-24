@@ -1107,15 +1107,15 @@ def handle_project_selection():
     # Define each section as (label, render‑fn)
     sections = [
         ("Edit project README", lambda: _render_readme(env), True),
-        ("", lambda: st.markdown("Project configuration&nbsp;"), False),
+        ("", lambda: st.markdown('<span style="color:#4A90E2;">Project configuration&nbsp;</span>', unsafe_allow_html=True), False),
         ("Edit project environnement", lambda: _render_python_env(env), True),
         ("Edit project environnement platform specific", lambda: _render_uv_env(env), True),
         ("Edit project export filter", lambda: _render_gitignore(env), True),
-        ("", lambda: st.markdown("Code&nbsp;"), False),
+        ("", lambda: st.markdown('<span style="color:#4A90E2;">Code&nbsp;</span>', unsafe_allow_html=True), False),
         ("Edit app manager", lambda: _render_manager(env), True),
         ("Edit app worker", lambda: _render_worker(env), True),
         ("Edit app args dictionnary", lambda: _render_app_args_module(env), True),
-        ("", lambda: st.markdown("App configuration&nbsp;"), False),
+        ("", lambda: st.markdown('<span style="color:#4A90E2;">App configuration&nbsp;</span>', unsafe_allow_html=True), False),
         ("Edit app default settings", lambda: _render_app_settings(env), True),
         ("Edit app args form", lambda: _render_args_ui(env), True),
         ("Edit app pre-prompt for natural langage query", lambda: _render_pre_prompt(env), True),
@@ -1504,6 +1504,53 @@ def page():
     env = st.session_state['_env']
 
     render_logo("Edit your Project")
+
+    COMMON_STYLE = """
+    <style>
+    div[data-testid="stButton"] button {
+        font-weight: 600;
+        color: #4A90E2 !important;
+        background: transparent !important;
+        border: 1px solid #4A90E2 !important;
+    }
+    div[data-testid="stButton"] button:hover {
+        background: #4A90E2 !important;
+        color: #FFFFFF !important;
+    }
+    div[data-testid="stTabs"] button {
+        color: #4A90E2 !important;
+        font-weight: 600;
+    }
+    div[data-testid="stTabs"] button[aria-selected="true"] {
+        border-bottom: 2px solid #4A90E2 !important;
+    }
+    div[data-testid="stToggle"] label {
+        color: #4A90E2 !important;
+    }
+    div[data-testid="stToggle"] div[role="switch"] {
+        background-color: rgba(74, 144, 226, 0.15) !important;
+        border: 1px solid #4A90E2 !important;
+    }
+    div[data-testid="stToggle"] div[role="switch"][aria-checked="true"] {
+        background-color: #4A90E2 !important;
+    }
+    div[data-testid="stToggle"] div[role="switch"] span {
+        background-color: #FFFFFF !important;
+    }
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+        border-radius: 20px;
+        border: 1px solid #4A90E2 !important;
+        box-shadow: none !important;
+    }
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:hover {
+        border-color: #4A90E2 !important;
+    }
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] span {
+        color: #4A90E2 !important;
+    }
+    </style>
+    """
+    st.markdown(COMMON_STYLE, unsafe_allow_html=True)
 
     if not st.session_state.get("server_started"):
         activate_mlflow(env)

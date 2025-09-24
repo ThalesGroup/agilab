@@ -103,27 +103,12 @@ class FlightWorker(PolarsWorker):
         self.data_uri = Path(normalized_data_uri)
         self.args.data_uri = normalized_data_uri
 
-        if os.name == "nt" and not getpass.getuser().startswith("T0"):
-            data_uri = self.data_uri
-            parts = data_uri.parts
-            if "Users" in parts:
-                index = parts.index("Users") + 2
-                data_uri = Path(*parts[index:])
-            net_path = normalize_path("\\\\127.0.0.1\\" + str(data_uri))
-            try:
-                # Your NFS account in order to mount it as net drive on Windows
-                cmd = f'net use Z: "{net_path}" /user:your-credentials'
-                logging.info(cmd)
-                subprocess.run(cmd, shell=True, check=True)
-            except Exception as e:
-                logging.info(f"Failed to map network drive: {e}")
-
         # Path to database on symlink Path.home()/data(symlink)
         self.home_rel = self.data_uri
-        data_uri = normalize_path(self.home_rel)
-        self.data_out = normalize_path(self.home_rel.parent / "dataframe")
+        data_uri = self.data_uri
+        self.data_out = Path(BaseWorker.normalize_data_uri(self.home_rel.parent / "dataframe"))
         if os.name != "nt":
-            self.data_out = self.data_out.replace("\\", "/")
+            self.data_out = Path(str(self.data_out).replace("\\", "/"))
 
         # Remove dataframe files from previous run
         try:
@@ -132,7 +117,7 @@ class FlightWorker(PolarsWorker):
         except Exception as e:
             logging.info(f"Error removing directory: {e}")
 
-        self.args["data_uri"] = data_uri
+        self.args["data_uri"] = str(data_uri)
 
         if self.verbose > 1:
             logging.info(f"Worker #{self._worker_id} dataframe root path = {self.data_out}")
@@ -229,13 +214,13 @@ class FlightWorker(PolarsWorker):
 
             try:
                 if self.args["output_format"] == "parquet":
-                    filename = (Path(self.data_out) / str(plane)).with_suffix(".parquet")
+                    filename = (self.data_out / str(plane)).with_suffix(".parquet")
                     # Ensure that the "date" column is present and correctly typed.
                     # You might want to cast it to a datetime type if needed.
                     plane_df.write_parquet(str(filename))
                 elif self.args["output_format"] == "csv":
                     timestamp = dt.now().strftime("%Y-%m-%d_%H-%M-%S")
-                    filename = f"{self.data_out}/{str(plane)+'_'+timestamp}.csv"
+                    filename = self.data_out / f"{str(plane)+'_'+timestamp}.csv"
                     plane_df.write_csv(str(filename))
                     logging.info(f"Saved dataframe for plane {plane} with shape {plane_df.shape} in {filename}")
             except Exception as e:
@@ -245,7 +230,7 @@ class FlightWorker(PolarsWorker):
     def stop(self):
         try:
             """Finalize the worker by listing saved dataframes."""
-            files = glob.glob(os.path.join(self.data_out, "**"), recursive=True)
+            files = glob.glob(str(self.data_out) + "/**", recursive=True)
             df_files = [f for f in files if re.search(r"\.(csv|parquet)$", f)]
             n_df = len(df_files)
             if self.verbose > 0:

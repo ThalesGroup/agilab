@@ -781,6 +781,55 @@ async def page():
     st.set_page_config(layout="wide", menu_items=get_about_content())
     render_logo("Execute your Application")
 
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stButton"] button {
+            font-weight: 600;
+            color: #4A90E2 !important;
+            background: transparent !important;
+            border: 1px solid #4A90E2 !important;
+        }
+        div[data-testid="stButton"] button:hover {
+            background: #4A90E2 !important;
+            color: #FFFFFF !important;
+        }
+        div[data-testid="stTabs"] button {
+            color: #4A90E2 !important;
+            font-weight: 600;
+        }
+        div[data-testid="stTabs"] button[aria-selected="true"] {
+            border-bottom: 2px solid #4A90E2 !important;
+        }
+        div[data-testid="stToggle"] label {
+            color: #4A90E2 !important;
+        }
+        div[data-testid="stToggle"] div[role="switch"] {
+            background-color: rgba(74, 144, 226, 0.15) !important;
+            border: 1px solid #4A90E2 !important;
+        }
+        div[data-testid="stToggle"] div[role="switch"][aria-checked="true"] {
+            background-color: #4A90E2 !important;
+        }
+        div[data-testid="stToggle"] div[role="switch"] span {
+            background-color: #FFFFFF !important;
+        }
+        div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+            border-radius: 20px;
+            border: 1px solid #4A90E2 !important;
+            box-shadow: none !important;
+        }
+        div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:hover {
+            border-color: #4A90E2 !important;
+        }
+        div[data-testid="stSelectbox"] div[data-baseweb="select"] span {
+            color: #4A90E2 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     if not st.session_state.get("server_started"):
         activate_mlflow(env)
         st.session_state["server_started"] = True

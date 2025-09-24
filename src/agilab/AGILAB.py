@@ -82,10 +82,27 @@ def show_banner_and_intro(resources_path: Path):
 
 def page(env):
     """Render the main landing page controls and footer for the lab."""
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stButton"] button {
+            color: #4A90E2 !important;
+            font-weight: 600;
+            background: transparent !important;
+            border: 1px solid #4A90E2 !important;
+        }
+        div[data-testid="stButton"] button:hover {
+            background: #4A90E2 !important;
+            color: #FFFFFF !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     cols = st.columns(4)
     help_file = Path(env.help_path) / "index.html"
     from agi_env.pagelib import open_docs
-    if cols[0].button("Read Documentation", use_container_width=True):
+    if cols[0].button("Read Documentation", key="read_docs_btn", use_container_width=True):
         open_docs(env, help_file, "project-editor")
 
     current_year = datetime.now().year
