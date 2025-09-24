@@ -927,14 +927,22 @@ if __name__ == "__main__":
     asyncio.run(main())"""
             st.code(cmd, language="python")
 
+            install_clicked = st.button(
+                "INSTALL",
+                key="install_btn",
+                type="primary",
+                help="Run the install snippet to set up your .venv for Manager and Worker",
+            )
+
+            log_placeholder = None
             log_expander = st.expander("Install logs", expanded=False)
             with log_expander:
                 log_placeholder = st.empty()
                 existing_log = st.session_state.get("log_text", "").strip()
                 if existing_log:
                     log_placeholder.code(existing_log, language="python")
-            if st.button("INSTALL", key="install_btn", type="primary",
-                         help="Run the install snippet to set up your .venv for Manager and Worker"):
+
+            if install_clicked:
                 clear_log()
                 venv = env.cluster_root if env.install_type else env.active_app.parents[1]
                 install_command = cmd.replace("asyncio.run(main())", env.snippet_tail)
@@ -952,6 +960,8 @@ if __name__ == "__main__":
                     "=== Streaming install logs ===",
                 ]
                 with log_expander:
+                    if log_placeholder is None:
+                        log_placeholder = st.empty()
                     log_placeholder.empty()
                     for line in context_lines:
                         update_log(log_placeholder, line)
@@ -1111,6 +1121,8 @@ if __name__ == "__main__":
     # ------------------
     if show_run:
         st.session_state.setdefault("run_log_cache", "")
+        if st.session_state.pop("_reset_benchmark_flag", False):
+            st.session_state["benchmark"] = False
         run_cmd = None
         with st.expander("Optimize execution", expanded=False):
             venv_exists = _is_app_installed(env)
@@ -1185,7 +1197,7 @@ if __name__ == "__main__":
                         else:
                             st.error("program abort before all mode have been run")
                             st.session_state['mode'] = 0
-                            st.session_state['benchmark'] = False
+                            st.session_state['_reset_benchmark_flag'] = True
 
                     except json.JSONDecodeError as e:
                         st.warning(f"Error decoding JSON: {e}")
