@@ -288,7 +288,7 @@ async def main():
         st.session_state[selection_key] = list(preselect)
 
     selected_views = st.multiselect(
-        "Select page to bound to project",
+        "Select page to bound to app",
         view_names,
         key=selection_key,
         help="These will appear as buttons below."
