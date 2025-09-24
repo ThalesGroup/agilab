@@ -523,7 +523,14 @@ class AGI:
             password: str = None
     ):
         if AgiEnv.is_local(ip):
-            shutil.copyfile(local_path, remote_path)
+            # When the target node is local, ensure we copy into the absolute
+            # worker environment under ``env.home_abs`` instead of writing to a
+            # relative path such as ``wenv/<worker>`` in the current project.
+            target_path = remote_path
+            if not target_path.is_absolute():
+                target_path = env.home_abs / target_path
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(local_path, target_path)
             return
 
         if not user:

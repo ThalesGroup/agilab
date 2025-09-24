@@ -1201,7 +1201,7 @@ if __name__ == "__main__":
 
         run_col, load_col = st.columns(2)
         run_clicked = False
-        run_label = "Run Benchmark" if st.session_state.get("benchmark") else "Execute"
+        run_label = "RUN Benchmark" if st.session_state.get("benchmark") else "EXECUTE"
 
         has_data = _has_dataframe_on_disk(env)
 

@@ -836,21 +836,25 @@ def render_code_editor(file, code, lang, tab, comp_props, ace_props, fct=None):
         if isinstance(response, dict):
             if response.get("type") == "save" and code != response.get("text", ""):
                 updated_text = response["text"]
+
+                def _after_save():
+                    st.success(f"Changes saved to '{file.name}'.")
+                    st.cache_data.clear()
+                    st.session_state.pop("app_settings", None)
+                    time.sleep(1)
+
                 if lang == "json":
                     try:
                         # Validate JSON before saving
                         json.loads(updated_text)
                         file.write_text(updated_text)
-                        st.success(f"Changes saved to '{file.name}'.")
-                        time.sleep(1)
-                        if "app_settings" in st.session_state:
-                            del st.session_state["app_settings"]
+                        _after_save()
                     except json.JSONDecodeError as e:
                         st.error(f"Failed to save changes: Invalid JSON format. {e}")
                 else:
                     # For non-JSON files, save directly
                     file.write_text(updated_text)
-                    st.success(f"Changes saved to '{file.name}'.")
+                    _after_save()
     else:
         # Case when the user doesn't have access to write to the file
         st.write(f"### {file.name}")
