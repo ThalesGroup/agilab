@@ -112,6 +112,8 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="agi-node.html">agi-node API</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-node.html#path-handling">Path handling</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#argument-helpers">Argument helpers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#managed-pc-path-remapping">Managed PC path remapping</a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-node.html#reference">Reference</a></li>
 </ul>
 </li>
@@ -123,6 +125,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#working-with-the-api">Working with the API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#app-structure-conventions">App structure conventions</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="directory-structure.html">Project Files Structure</a></li>
@@ -274,6 +277,8 @@ apps, creating distributions, and delegating tasks to remote workers.</p></li>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="agi-node.html">agi-node API</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="agi-node.html#path-handling">Path handling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agi-node.html#argument-helpers">Argument helpers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agi-node.html#managed-pc-path-remapping">Managed PC path remapping</a></li>
 <li class="toctree-l2"><a class="reference internal" href="agi-node.html#reference">Reference</a></li>
 </ul>
 </li>
@@ -294,6 +299,17 @@ active project structure and configuration.</p></li>
 behaviours that can be shipped with your app bundles.</p></li>
 <li><p>Call into <code class="docutils literal notranslate"><span class="pre">agi_distributor.AGI</span></code> for programmatic install / get_distrib / run
 flows; this is the same surface area surfaced in the Execute page snippets.</p></li>
+</ul>
+</section>
+<section id="app-structure-conventions">
+<h2>App structure conventions<a class="headerlink" href="#app-structure-conventions" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Every app bundles a manager module under
+<code class="docutils literal notranslate"><span class="pre">src/agilab/apps/&lt;app&gt;_project/src/&lt;app&gt;/&lt;app&gt;.py</span></code> and a worker module under
+<code class="docutils literal notranslate"><span class="pre">src/agilab/apps/&lt;app&gt;_project/src/&lt;app&gt;_worker/&lt;app&gt;_worker.py</span></code>.</p></li>
+<li><p>Test coverage mirrors that split: <code class="docutils literal notranslate"><span class="pre">test/_test_&lt;app&gt;_manager.py</span></code> drives the
+manager entry points, <code class="docutils literal notranslate"><span class="pre">test/_test_&lt;app&gt;_worker.py</span></code> exercises the worker, and
+<code class="docutils literal notranslate"><span class="pre">app_test.py</span></code> orchestrates the combined flow.</p></li>
 </ul>
 <p>For end-to-end examples, browse <code class="docutils literal notranslate"><span class="pre">src/agilab/examples</span></code> to see how the packages
 fit together in real projects.</p>

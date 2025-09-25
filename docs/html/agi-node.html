@@ -112,6 +112,8 @@
 </li>
 <li class="toctree-l3 current"><a class="current reference internal" href="#">agi-node API</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#path-handling">Path handling</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#argument-helpers">Argument helpers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#managed-pc-path-remapping">Managed PC path remapping</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#reference">Reference</a></li>
 </ul>
 </li>
@@ -123,6 +125,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="framework-api.html#working-with-the-api">Working with the API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="framework-api.html#app-structure-conventions">App structure conventions</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="directory-structure.html">Project Files Structure</a></li>
@@ -277,6 +280,44 @@ this helper in <code class="docutils literal notranslate"><span class="pre">star
 and any per-file path passed to the pool. Extending these workers means you get
 consistent path semantics across local and distributed executions without
 copy-pasting platform-specific logic.</p>
+</section>
+<section id="argument-helpers">
+<h2>Argument helpers<a class="headerlink" href="#argument-helpers" title="Link to this heading"></a></h2>
+<p>Recent updates to <code class="docutils literal notranslate"><span class="pre">BaseWorker</span></code> standardise how workers load, merge, and persist
+their argument models. Every subclass can opt into the following hooks:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">default_settings_path</span></code> and <code class="docutils literal notranslate"><span class="pre">default_settings_section</span></code> control the TOML
+source used by <code class="docutils literal notranslate"><span class="pre">from_toml</span></code> / <code class="docutils literal notranslate"><span class="pre">to_toml</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">args_loader</span></code> and <code class="docutils literal notranslate"><span class="pre">args_merger</span></code> are callables that fetch and combine raw
+settings with user overrides before instantiating the worker.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">args_ensure_defaults</span></code> lets workers patch derived values (for example,
+normalising paths) after the merge but before instantiation.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">args_dumper</span></code> and <code class="docutils literal notranslate"><span class="pre">args_dump_mode</span></code> define how <code class="docutils literal notranslate"><span class="pre">to_toml</span></code> emits the active
+configuration, enabling round-trips back into <code class="docutils literal notranslate"><span class="pre">app_settings.toml</span></code>.</p></li>
+</ul>
+<p>If these helpers live in the worker module (for example <code class="docutils literal notranslate"><span class="pre">load_args</span></code> or
+<code class="docutils literal notranslate"><span class="pre">dump_args</span></code> defined alongside the class) or inside a sibling <code class="docutils literal notranslate"><span class="pre">*_args</span></code>/<code class="docutils literal notranslate"><span class="pre">app_args</span></code>
+module, <code class="docutils literal notranslate"><span class="pre">BaseWorker</span></code> auto-binds them during class creation. That lets most apps
+drop the explicit <code class="docutils literal notranslate"><span class="pre">args_loader</span> <span class="pre">=</span> <span class="pre">…</span></code> boilerplate while still allowing manual
+overrides for custom integrations.</p>
+</section>
+<section id="managed-pc-path-remapping">
+<h2>Managed PC path remapping<a class="headerlink" href="#managed-pc-path-remapping" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">managed_pc_path_fields</span></code> lists argument attributes that should be remapped to
+the managed-machine workspace (<code class="docutils literal notranslate"><span class="pre">~/MyApp</span></code> by default) when <code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code> reports a
+managed PC.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">managed_pc_home_suffix</span></code> customises the managed workspace folder name if your
+deployment uses something other than <code class="docutils literal notranslate"><span class="pre">MyApp</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">BaseWorker.from_toml</span></code> applies the remapping automatically; when instantiating
+a worker manually, call <code class="docutils literal notranslate"><span class="pre">self._apply_managed_pc_paths(args)</span></code> after building the
+arguments.</p></li>
+</ul>
+<p>With these attributes in place, <code class="docutils literal notranslate"><span class="pre">BaseWorker.from_toml</span></code> produces a configured
+instance and <code class="docutils literal notranslate"><span class="pre">BaseWorker.to_toml</span></code> writes the updated schema without each app
+copying boilerplate. <code class="docutils literal notranslate"><span class="pre">BaseWorker.as_dict</span></code> exposes a serialisable payload for
+Streamlit pages and API consumers, while <code class="docutils literal notranslate"><span class="pre">_extend_payload</span></code> stays available for
+apps that need to enrich the exported structure.</p>
 </section>
 <section id="reference">
 <h2>Reference<a class="headerlink" href="#reference" title="Link to this heading"></a></h2>

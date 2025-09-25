@@ -112,6 +112,8 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="agi-node.html">agi-node API</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="agi-node.html#path-handling">Path handling</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#argument-helpers">Argument helpers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#managed-pc-path-remapping">Managed PC path remapping</a></li>
 <li class="toctree-l4"><a class="reference internal" href="agi-node.html#reference">Reference</a></li>
 </ul>
 </li>
@@ -123,6 +125,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="framework-api.html#working-with-the-api">Working with the API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="framework-api.html#app-structure-conventions">App structure conventions</a></li>
 </ul>
 </li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Project Files Structure</a></li>
@@ -386,6 +389,7 @@ apps/
         fireducks_app_template/
             src/
                 fireducks_app/
+                    __pycache__/ [excluded]
                     __init__.py
                     app_args.py
                     fireducks_app.py
@@ -455,6 +459,7 @@ apps/
     .gitignore
     __init__.py
     flight_trajectory_project
+    flow_synth
     ilp_project
     install.ps1
     install.py
@@ -694,10 +699,11 @@ examples/
     AGI.install_flight_trajectory.py
     AGI.install_link_sim.py
     AGI.install_sat_trajectory.py
+    AGI.install_sb3_trainer.py
     AGI.run_flight_trajectory.py
     AGI.run_link_sim.py
     AGI.run_sat_trajectory.py
-    ilp
+    AGI.run_sb3_trainer.py
 pages/
     __pycache__/ [excluded]
     ▶️ EDIT.py

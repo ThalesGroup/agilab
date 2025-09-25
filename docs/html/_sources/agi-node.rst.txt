@@ -31,6 +31,46 @@ consistent path semantics across local and distributed executions without
 copy-pasting platform-specific logic.
 
 
+Argument helpers
+----------------
+
+Recent updates to ``BaseWorker`` standardise how workers load, merge, and persist
+their argument models. Every subclass can opt into the following hooks:
+
+- ``default_settings_path`` and ``default_settings_section`` control the TOML
+  source used by ``from_toml`` / ``to_toml``.
+- ``args_loader`` and ``args_merger`` are callables that fetch and combine raw
+  settings with user overrides before instantiating the worker.
+- ``args_ensure_defaults`` lets workers patch derived values (for example,
+  normalising paths) after the merge but before instantiation.
+- ``args_dumper`` and ``args_dump_mode`` define how ``to_toml`` emits the active
+  configuration, enabling round-trips back into ``app_settings.toml``.
+
+If these helpers live in the worker module (for example ``load_args`` or
+``dump_args`` defined alongside the class) or inside a sibling ``*_args``/``app_args``
+module, ``BaseWorker`` auto-binds them during class creation. That lets most apps
+drop the explicit ``args_loader = …`` boilerplate while still allowing manual
+overrides for custom integrations.
+
+Managed PC path remapping
+-------------------------
+
+- ``managed_pc_path_fields`` lists argument attributes that should be remapped to
+  the managed-machine workspace (``~/MyApp`` by default) when ``AgiEnv`` reports a
+  managed PC.
+- ``managed_pc_home_suffix`` customises the managed workspace folder name if your
+  deployment uses something other than ``MyApp``.
+- ``BaseWorker.from_toml`` applies the remapping automatically; when instantiating
+  a worker manually, call ``self._apply_managed_pc_paths(args)`` after building the
+  arguments.
+
+With these attributes in place, ``BaseWorker.from_toml`` produces a configured
+instance and ``BaseWorker.to_toml`` writes the updated schema without each app
+copying boilerplate. ``BaseWorker.as_dict`` exposes a serialisable payload for
+Streamlit pages and API consumers, while ``_extend_payload`` stays available for
+apps that need to enrich the exported structure.
+
+
 Reference
 --------
 

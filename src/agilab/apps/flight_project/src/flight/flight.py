@@ -28,9 +28,6 @@ from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 from .flight_args import (
     FlightArgs,
     FlightArgsTD,
-    dump_args_to_toml,
-    load_args_from_toml,
-    merge_args,
 )
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
@@ -53,19 +50,7 @@ class Flight(BaseWorker):
                 args = FlightArgs(**kwargs)
             except ValidationError as exc:
                 raise ValueError(f"Invalid Flight arguments: {exc}") from exc
-        self.args = args
-
-        if AgiEnv._is_managed_pc:
-            home = Path.home()
-            myapp_home = home / "MyApp"
-            try:
-                self.args.data_uri = Path(
-                    str(self.args.data_uri).replace(str(home), str(myapp_home))
-                )
-            except Exception:
-                logger.debug(
-                    "Failed to remap data_uri for managed PC", exc_info=True
-                )
+        self.args = self._apply_managed_pc_paths(args)
 
         if self.args.nfile == 0:
             self.args.nfile = 999_999_999_999
@@ -93,35 +78,7 @@ class Flight(BaseWorker):
                 exc,
             )
 
-    @classmethod
-    def from_toml(
-        cls,
-        env,
-        settings_path: str | Path = "app_settings.toml",
-        section: str = "args",
-        **overrides: FlightArgsTD,
-    ) -> "Flight":
-        base_args = load_args_from_toml(settings_path, section)
-        merged = merge_args(base_args, overrides or None)
-        return cls(env, args=merged)
 
-    def to_toml(
-        self,
-        settings_path: str | Path = "app_settings.toml",
-        section: str = "args",
-        create_missing: bool = True,
-    ) -> None:
-        dump_args_to_toml(
-            self.args,
-            settings_path=settings_path,
-            section=section,
-            create_missing=create_missing,
-        )
-
-    def as_dict(self, mode: str = "json") -> dict[str, Any]:
-        """Return current arguments as a serialisable dictionary."""
-
-        return self.args.model_dump(mode=mode)
 
     def build_distribution(self, workers):
         """build_distrib: to provide the list of files per planes (level1) and per workers (level2)

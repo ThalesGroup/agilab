@@ -37,10 +37,6 @@ import logging
 from .mycode_args import (
     ArgsOverrides,
     MycodeArgs,
-    dump_args,
-    ensure_defaults,
-    load_args,
-    merge_args,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,34 +52,18 @@ class Mycode(BaseWorker):
         args: MycodeArgs | None = None,
         **kwargs: ArgsOverrides,
     ) -> None:
+        super().__init__()
         self.env = env
         if args is None:
             args = MycodeArgs(**kwargs)
+
+        ensure_fn = getattr(type(self), "args_ensure_defaults", None)
+        if ensure_fn:
+            args = ensure_fn(args, env=env)
+
+        args = self._apply_managed_pc_paths(args)
         self.args = args
         WorkDispatcher.args = self.args.model_dump(mode="json")
-
-    @classmethod
-    def from_toml(
-        cls,
-        env,
-        settings_path: str | Path = "app_settings.toml",
-        section: str = "args",
-        **overrides: ArgsOverrides,
-    ) -> "Mycode":
-        base = load_args(settings_path, section=section)
-        merged = ensure_defaults(merge_args(base, overrides or None))
-        return cls(env, args=merged)
-
-    def to_toml(
-        self,
-        settings_path: str | Path = "app_settings.toml",
-        section: str = "args",
-        create_missing: bool = True,
-    ) -> None:
-        dump_args(self.args, settings_path, section=section, create_missing=create_missing)
-
-    def as_dict(self) -> dict[str, Any]:
-        return self.args.model_dump(mode="json")
 
     def build_distribution(self, workers):
         """Build distribution as a calling graph."""

@@ -24,7 +24,6 @@ node module
 # Internal Libraries:
 import getpass
 import io
-import importlib
 import os
 import shutil
 import sys
@@ -37,8 +36,10 @@ import abc
 import traceback
 import json
 from pathlib import Path, PureWindowsPath
-from typing import Any, Dict, List, Optional, Union
-from types import SimpleNamespace
+import importlib
+from types import ModuleType, SimpleNamespace
+from typing import Any, Callable, ClassVar, Dict, List, Optional, Union
+
 
 # External Libraries:
 import numpy as np
@@ -79,6 +80,192 @@ class BaseWorker(abc.ABC):
     _is_managed_pc = getpass.getuser().startswith("T0")
     _cython_decorators = ["njit"]
     env: Optional[AgiEnv] = None
+    default_settings_path: ClassVar[str] = "app_settings.toml"
+    default_settings_section: ClassVar[str] = "args"
+    args_loader: ClassVar[Callable[..., Any] | None] = None
+    args_merger: ClassVar[Callable[[Any, Optional[Any]], Any] | None] = None
+    args_ensure_defaults: ClassVar[Callable[..., Any] | None] = None
+    args_dumper: ClassVar[Callable[..., None] | None] = None
+    args_dump_mode: ClassVar[str] = "json"
+    managed_pc_home_suffix: ClassVar[str] = "MyApp"
+    managed_pc_path_fields: ClassVar[tuple[str, ...]] = ("data_uri",)
+    args_helper_module: ClassVar[ModuleType | str | None] = None
+    _args_helper_candidates: ClassVar[Dict[str, tuple[str, ...]]] = {
+        "args_loader": (
+            "load_args_from_toml",
+            "load_args",
+        ),
+        "args_merger": ("merge_args",),
+        "args_ensure_defaults": ("ensure_defaults",),
+        "args_dumper": (
+            "dump_args_to_toml",
+            "dump_args",
+        ),
+    }
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:  # pragma: no cover - simple wiring
+        super().__init_subclass__(**kwargs)
+        module = sys.modules.get(cls.__module__)
+        if module is None:
+            return
+
+        helper_modules: list[ModuleType] = [module]
+
+        helper_spec = getattr(cls, "args_helper_module", None)
+        if isinstance(helper_spec, str):
+            try:
+                helper_module = importlib.import_module(helper_spec)
+            except ImportError:
+                helper_module = None
+        else:
+            helper_module = helper_spec
+
+        if helper_module is not None:
+            helper_modules.append(helper_module)
+        else:
+            package = getattr(module, "__package__", None)
+            if package:
+                module_name = getattr(module, "__name__", "")
+                local_name = module_name.rsplit(".", 1)[-1] if module_name else ""
+                candidate_names = []
+                if local_name:
+                    candidate_names.append(f"{package}.{local_name}_args")
+                candidate_names.append(f"{package}.app_args")
+                for name in candidate_names:
+                    try:
+                        helper_modules.append(importlib.import_module(name))
+                    except ImportError:
+                        continue
+
+        for attr, candidates in cls._args_helper_candidates.items():
+            if getattr(cls, attr, None) is not None:
+                continue
+            helper = None
+            for candidate_module in helper_modules:
+                for name in candidates:
+                    if hasattr(candidate_module, name):
+                        helper = getattr(candidate_module, name)
+                        break
+                if helper is not None:
+                    break
+            if helper is not None:
+                setattr(cls, attr, helper)
+
+    @classmethod
+    def _remap_managed_pc_path(
+        cls,
+        value: Path | str,
+        *,
+        env: AgiEnv | None = None,
+    ) -> Path:
+        env = env or getattr(cls, "env", None)
+        is_managed = getattr(env, "_is_managed_pc", AgiEnv._is_managed_pc)
+        original_is_path = isinstance(value, Path)
+        path = Path(value)
+        if not is_managed:
+            return path
+
+        home = Path.home()
+        target_root = home / cls.managed_pc_home_suffix
+
+        try:
+            remapped = Path(str(path).replace(str(home), str(target_root)))
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug(
+                "Failed to remap path %s for managed PC", path, exc_info=True
+            )
+            return path
+
+        return remapped if original_is_path else str(remapped)
+
+    @classmethod
+    def _apply_managed_pc_path_overrides(
+        cls,
+        args: Any,
+        *,
+        env: AgiEnv | None = None,
+    ) -> Any:
+        fields = getattr(cls, "managed_pc_path_fields", ())
+        if not fields:
+            return args
+
+        for field in fields:
+            if not hasattr(args, field):
+                continue
+            value = getattr(args, field)
+            try:
+                remapped = cls._remap_managed_pc_path(value, env=env)
+            except (TypeError, ValueError):
+                continue
+            setattr(args, field, remapped)
+        return args
+
+    def _apply_managed_pc_paths(self, args: Any) -> Any:
+        return type(self)._apply_managed_pc_path_overrides(args, env=self.env)
+
+    @classmethod
+    def _require_args_helper(cls, attr_name: str) -> Callable[..., Any]:
+        helper = getattr(cls, attr_name, None)
+        if helper is None:
+            raise AttributeError(
+                f"{cls.__name__} must define `{attr_name}` to use {cls.__name__}.from_toml/to_toml"
+            )
+        return helper
+
+    @classmethod
+    def from_toml(
+        cls,
+        env: AgiEnv,
+        settings_path: str | Path | None = None,
+        section: str | None = None,
+        **overrides: Any,
+    ) -> "BaseWorker":
+        """Instantiate the worker with arguments read from a TOML settings file."""
+
+        settings_path = settings_path or cls.default_settings_path
+        section = section or cls.default_settings_section
+
+        loader = cls._require_args_helper("args_loader")
+        merger = cls._require_args_helper("args_merger")
+
+        base_args = loader(settings_path, section=section)
+        merged_args = merger(base_args, overrides or None)
+
+        ensure_fn = getattr(cls, "args_ensure_defaults", None)
+        if ensure_fn:
+            merged_args = ensure_fn(merged_args, env=env)
+
+        merged_args = cls._apply_managed_pc_path_overrides(merged_args, env=env)
+
+        return cls(env, args=merged_args)
+
+    def to_toml(
+        self,
+        settings_path: str | Path | None = None,
+        section: str | None = None,
+        create_missing: bool = True,
+    ) -> None:
+        """Persist current arguments to a TOML settings file."""
+
+        _cls = type(self)
+        settings_path = settings_path or _cls.default_settings_path
+        section = section or _cls.default_settings_section
+
+        dumper = _cls._require_args_helper("args_dumper")
+        dumper(self.args, settings_path, section=section, create_missing=create_missing)
+
+    def as_dict(self, mode: str | None = None) -> dict[str, Any]:
+        """Return serialisable worker arguments, allowing subclasses to extend the payload."""
+
+        _cls = type(self)
+        dump_mode = mode or _cls.args_dump_mode
+        payload = self.args.model_dump(mode=dump_mode) if hasattr(self, "args") else {}
+        return self._extend_payload(payload)
+
+    def _extend_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Hook for subclasses to amend the argument payload before serialisation."""
+
+        return payload
 
     @staticmethod
     def start(worker_inst):

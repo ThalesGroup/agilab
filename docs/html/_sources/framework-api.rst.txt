@@ -37,5 +37,15 @@ Working with the API
 - Call into ``agi_distributor.AGI`` for programmatic install / get_distrib / run
   flows; this is the same surface area surfaced in the Execute page snippets.
 
+App structure conventions
+-------------------------
+
+- Every app bundles a manager module under
+  ``src/agilab/apps/<app>_project/src/<app>/<app>.py`` and a worker module under
+  ``src/agilab/apps/<app>_project/src/<app>_worker/<app>_worker.py``.
+- Test coverage mirrors that split: ``test/_test_<app>_manager.py`` drives the
+  manager entry points, ``test/_test_<app>_worker.py`` exercises the worker, and
+  ``app_test.py`` orchestrates the combined flow.
+
 For end-to-end examples, browse ``src/agilab/examples`` to see how the packages
 fit together in real projects.

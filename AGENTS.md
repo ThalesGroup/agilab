@@ -14,6 +14,29 @@ same instructions.
 > When reviewing or updating flows with GPT-5 Codex agents, confirm they do **not** rely on
 > deprecated Streamlit APIs such as `st.experimental_rerun()`. Upgrade callers to the
 > supported replacement (`st.rerun`) before merging.
+>
+> **Naming map**
+> `manager=<app>.py` resolves to `src/agilab/apps/<app>_project/test/_test_<app>_manager.py`,
+> `worker=<app>_worker.py` resolves to `src/agilab/apps/<app>_project/test/_test_<app>_worker.py`,
+> and `project=<app>_project` resolves to `src/agilab/apps/<app>_project`. All shipping apps
+> (flight, flight_trajectory, ilp, link_sim, mycode, sat_trajectory, sb3_trainer) are aligned
+> with this pattern.
+> Each `<app>` ships a manager module (`src/agilab/apps/<app>_project/src/<app>/<app>.py`) and a
+> worker module (`src/agilab/apps/<app>_project/src/<app>_worker/<app>_worker.py`).
+> Manager flows are covered by `test/_test_<app>_manager.py`, worker flows by
+> `test/_test_<app>_worker.py`, and `app_test.py` calls both.
+>
+> **Docs reminder**
+> After touching `BaseWorker` or other core APIs that surface in the guides, run
+> `uv run python docs/gen-docs.py` so the rendered docs track the source changes.
+>
+> **Codex approvals**
+> When automations need escalated privileges (filesystem/network), ensure Codex has the
+> necessary approvals before running commands outside the standard workspace sandbox.
+>
+> **Requesting access**
+> If approvals aren’t already granted, ask an owner to run `/approvals @codex` in the
+> channel so the agent can escalate when necessary.
 
 <details>
 <summary><strong>Launch matrix (auto-sorted from .idea/runConfigurations)</strong></summary>
