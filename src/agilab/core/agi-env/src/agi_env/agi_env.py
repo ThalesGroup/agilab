@@ -346,18 +346,33 @@ class AgiEnv:
         self.pyvers_worker = self.python_version
         self.is_free_threading_available = envars.get("AGI_PYTHON_FREE_THREADED", 0)
         # Avoid stray stdout; rely on logger when needed
-        with open(self.worker_pyproject, "r") as f:
-            data = tomlkit.parse(f.read())
-        try:
-            use_freethread = data["tool"]["freethread_info"]["is_app_freethreaded"]
-            if use_freethread and self.is_free_threading_available:
-                self.uv_worker = "PYTHON_GIL=0 " + self.uv
-                self.pyvers_worker = self.pyvers_worker + "t"
-            else:
-                self.uv_worker = self.uv
-        except KeyError as e:
-            use_freethread = False
-            self.uv_worker = self.uv
+        self.uv_worker = self.uv
+        use_freethread = False
+
+        if self.worker_pyproject.exists():
+            try:
+                with open(self.worker_pyproject, "r") as f:
+                    data = tomlkit.parse(f.read())
+                use_freethread = data["tool"]["freethread_info"]["is_app_freethreaded"]
+            except (KeyError, TypeError, AttributeError, tomlkit.exceptions.TOMLKitError) as err:
+                AgiEnv.logger.debug(
+                    "worker pyproject missing freethread metadata or invalid; assuming non-freethreaded (%s)",
+                    err,
+                )
+            except OSError as err:
+                AgiEnv.logger.warning(
+                    "Unable to read worker pyproject %s: %s",
+                    self.worker_pyproject,
+                    err,
+                )
+        else:
+            AgiEnv.logger.debug(
+                "No worker pyproject found at %s; assuming non-freethreaded app", self.worker_pyproject
+            )
+
+        if use_freethread and self.is_free_threading_available:
+            self.uv_worker = "PYTHON_GIL=0 " + self.uv
+            self.pyvers_worker = self.pyvers_worker + "t"
 
         if install_type == 2:
             return

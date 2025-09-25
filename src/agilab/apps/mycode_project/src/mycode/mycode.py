@@ -48,10 +48,18 @@ class Mycode(BaseWorker):
     def __init__(
         self,
         env,
-        args: MycodeArgs,
+        args: MycodeArgs | None = None,
+        **raw_args: Any,
     ) -> None:
         super().__init__()
         self.env = env
+
+        if args is None:
+            if not raw_args:
+                raise ValueError(
+                    "Mycode requires arguments provided via args model or keyword values"
+                )
+            args = MycodeArgs(**raw_args)
 
         self.setup_args(args, env=env, error="Mycode requires an initialized MycodeArgs instance")
         WorkDispatcher.args = self.args.model_dump(mode="json")

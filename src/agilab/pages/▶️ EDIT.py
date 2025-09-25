@@ -1107,18 +1107,20 @@ def handle_project_selection():
     # Define each section as (label, render‑fn)
     sections = [
         ("Edit project README", lambda: _render_readme(env), True),
-        ("", lambda: st.markdown('<span style="color:#4A90E2;">Project configuration&nbsp;</span>', unsafe_allow_html=True), False),
+        ("", lambda: st.markdown('<span style="color:#4A90E2;">Project configuration&nbsp;</span>',
+                                 unsafe_allow_html=True), False),
         ("Edit project environnement", lambda: _render_python_env(env), True),
         ("Edit project environnement platform specific", lambda: _render_uv_env(env), True),
         ("Edit project export filter", lambda: _render_gitignore(env), True),
+        ("", lambda: st.markdown('<span style="color:#4A90E2;">App configuration&nbsp;</span>', unsafe_allow_html=True),
+         False),
+        ("Edit app default settings", lambda: _render_app_settings(env), True),
+        ("Edit app args form", lambda: _render_args_ui(env), True),
+        ("Edit app pre-prompt for natural langage query", lambda: _render_pre_prompt(env), True),
         ("", lambda: st.markdown('<span style="color:#4A90E2;">Code&nbsp;</span>', unsafe_allow_html=True), False),
         ("Edit app manager", lambda: _render_manager(env), True),
         ("Edit app worker", lambda: _render_worker(env), True),
         ("Edit app args dictionnary", lambda: _render_app_args_module(env), True),
-        ("", lambda: st.markdown('<span style="color:#4A90E2;">App configuration&nbsp;</span>', unsafe_allow_html=True), False),
-        ("Edit app default settings", lambda: _render_app_settings(env), True),
-        ("Edit app args form", lambda: _render_args_ui(env), True),
-        ("Edit app pre-prompt for natural langage query", lambda: _render_pre_prompt(env), True),
     ]
 
     for label, render_fn, with_expander in sections:
@@ -1191,21 +1193,28 @@ def _render_app_settings(env):
 def _render_app_args_module(env):
     target = getattr(env, "target", None)
     if not target:
-        st.warning("Active app module not resolved; app_args.py unavailable.")
+        st.warning("Active app module not resolved; args module unavailable.")
         return
 
-    app_args_py = env.app_src / target / "app_args.py"
-    if app_args_py.exists():
-        render_code_editor(
-            app_args_py,
-            app_args_py.read_text(),
-            "python",
-            "st",
-            comp_props,
-            ace_props,
-        )
-    else:
-        st.warning("app_args.py file not found.")
+    candidates = [f"{target}_args.py", "app_args.py"]
+    for candidate in candidates:
+        module_path = env.app_src / target / candidate
+        if module_path.exists():
+            render_code_editor(
+                module_path,
+                module_path.read_text(),
+                "python",
+                "st",
+                comp_props,
+                ace_props,
+            )
+            return
+
+    st.warning(
+        "Args helper module not found. Looked for: "
+        + ", ".join(candidates)
+        + "."
+    )
 
 
 def _render_readme(env):

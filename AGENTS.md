@@ -222,8 +222,12 @@ For each tier, capture: command, expected output, and pitfalls (CWD, env vars, i
 
 - **Interpreter/SDK**: prefer the project environment (`uv`). Otherwise point to the full interpreter path or call through `uv run`.
 - **Environment variables**: inspect `<envs/>` in the XML and mirror them in a `.env.example` (use placeholders, never secrets).
+- **Environment defaults**: the full reference lives in `docs/source/environment.rst` (rendered at `/docs/html/environment.html`). Update `$HOME/.agilab/.env`—especially `APPS_DIR`, `AGI_LOG_DIR`, `AGI_PYTHON_VERSION`—to keep local runs consistent.
+- **Install logs**: each `AGI.install_*` writes a timestamped file to `${AGI_LOG_DIR:-~/log}/install_logs`; grab the log from there if the Streamlit expander was closed.
 - **Common errors**:
   - `ModuleNotFoundError`: ensure the working directory matches `WORKING_DIRECTORY` and that `PYTHONPATH` carries the project roots.
+  - Red “Ran …” banner while executing AGENT workflows (Run matrix refresh, docs pipeline, etc.): stop, ping an owner for guidance, and once resolved document the fix here so future **agent** runs show the green success banner. End-user issues should continue to be tracked in the customer runbooks.
+  - `AGI.install_*` complaining about missing `<app>_worker/pyproject.toml`: each worker needs its own `pyproject.toml` mirroring the manager dependencies plus the correct extras (`dag-worker`, `polars-worker`, etc.). Add the file, rerun the installer, and log the fix here so we keep the banner green.
   - Streamlit logs missing: set `PYTHONUNBUFFERED=1`.
   - Slow iterative runs: add `UV_NO_SYNC=1` in dev environments.
 
@@ -255,6 +259,7 @@ by parsing .idea/runConfigurations/*.xml:
 ## Keeping run configs in sync
 - When you create or rename workflows, clone an existing XML, tweak script/workdir/interpreter, and keep the grouping tidy.
 - Treat `.idea/runConfigurations/` as the canonical “how do I repro this?” checklist and regenerate the matrix whenever something changes.
+- `pycharm/gen_app_script.py` is already the source of truth—consider wrapping it (plus `setup_pycharm.py`) in a helper target (`just run-configs`, `make run-configs`) so local workflows and CI both depend on the same command.
 - Important: when renaming or relocating scripts/entries, update both:
   - The concrete launchers in `.idea/runConfigurations/*.xml` (names, `SCRIPT_NAME`, `WORKING_DIRECTORY`, envs).
   - The PyCharm templates and helpers under `pycharm/` and related generators, for example:
@@ -328,6 +333,18 @@ by parsing .idea/runConfigurations/*.xml:
 
 **Q: My run configuration fails with `ModuleNotFoundError`.**  
 A: Ensure your working directory matches the config’s `WORKING_DIRECTORY` and your interpreter matches the project’s SDK.
+
+**Q: `AGI.run_*` dies with missing packages inside a worker venv.**  
+A: Bootstrap the app again by running the matching installer (for example `uv run --project src/agilab/core/agi-cluster python src/agilab/examples/flight/AGI.install_flight.py`). The installer rebuilds the worker egg + venv so the next `AGI.run_*` picks up dependencies.
+
+**Why do we still build eggs instead of wheels?**  
+The cluster-side upload path expects `bdist_egg` artifacts. Our custom `build.py` glue is there to satisfy that constraint; it orchestrates `bdist_egg` plus the supporting symlinks before shipping the payload to Dask.
+
+**Q: Do we already have DAG/task orchestration?**  
+Yes. Managers hand WorkDispatcher a work plan and `DagWorker` executes it, handling dependencies and parallelism across workers. The opportunity space is around richer telemetry and policies, not rebuilding the planner from scratch.
+
+**Q: Who controls multithreading or pools when Dask isn’t used?**  
+`agi_dispatcher` owns the process/thread pools locally. Dask only coordinates work when you explicitly opt into distributed execution.
 
 **Q: Streamlit app doesn’t hot-reload.**  
 A: Start it with `uv run streamlit run ...` and check `PYTHONUNBUFFERED`.

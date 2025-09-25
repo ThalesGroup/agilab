@@ -17,13 +17,13 @@ def quick_logo(resources_path: Path):
         img_data = get_base64_of_image(resources_path / "agilab_logo.png")
         img_src = f"data:image/png;base64,{img_data}"
         st.markdown(
-            f"""<div style="background-color: #333333; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 800px; margin: 20px auto;">
-                    <div style="display: flex; align-items: center; justify-content: center;">
-                        <h1 style="margin: 0; padding: 0 10px 0 0;">Welcome to</h1>
-                        <img src="{img_src}" alt="AGI Logo" style="width:160px; margin-bottom: 20px;">
+            f"""<div style="background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #22d3ee 100%); padding: 24px; border-radius: 14px; box-shadow: 0 12px 24px rgba(15,23,42,0.25); max-width: 820px; margin: 28px auto;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 16px;">
+                        <h1 style="margin: 0; padding: 0; color: #f8fafc; font-size: 2.8rem; letter-spacing: 0.05em; text-shadow: 0 6px 18px rgba(15,23,42,0.4);">Welcome to</h1>
+                        <img src="{img_src}" alt="AGI Logo" style="width:170px; filter: drop-shadow(0 6px 18px rgba(15,23,42,0.45));">
                     </div>
-                    <div style="text-align: center;">
-                        <strong style="color: black;">a step further toward AGI</strong>
+                    <div style="text-align: center; margin-top: 12px;">
+                        <strong style="color: #e0f2fe; font-size: 1.25rem; letter-spacing: 0.08em; text-transform: uppercase;">a step further toward AGI</strong>
                     </div>
                 </div>""", unsafe_allow_html=True
         )
@@ -64,12 +64,6 @@ def display_landing_page(resources_path: Path):
     <p>
       With AGILAB, there’s no need for additional integration—our all-in-one framework is ready to deploy, enabling you to focus on innovation rather than setup.
     </p>
-    <div class="uvp-highlight">
-      <strong>Tips:</strong>
-       <ul>
-         To benefit from AGI cluster automation functionality, all you need is <strong>agi-core</strong>. This means you can remove the lab and view directories. Historically, AGILAB was developed as a playground for agi-core.
-       </ul>
-    </div>
     """
     st.markdown(md_content, unsafe_allow_html=True)
 
@@ -109,7 +103,7 @@ def page(env):
     st.markdown(
         f"""
     <div class='footer' style="display: flex; justify-content: flex-end;">
-        <span>&copy; 2020-{current_year} Thales SIX GTS. All rights reserved.</span>
+        <span style="color:#64748b;">&copy; 2020-{current_year} Thales SIX GTS. All rights reserved.</span>
     </div>
     """,
         unsafe_allow_html=True,

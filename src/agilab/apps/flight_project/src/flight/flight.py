@@ -39,9 +39,16 @@ class Flight(BaseWorker):
     def __init__(
         self,
         env,
-        args: FlightArgs,
+        args: FlightArgs | None = None,
+        **raw_args: Any,
     ) -> None:
         self.env = env
+
+        if args is None:
+            if not raw_args:
+                raise ValueError("Flight requires arguments to be provided via args model or keyword values")
+            args = FlightArgs(**raw_args)
+
         self.setup_args(
             args,
             env=env,

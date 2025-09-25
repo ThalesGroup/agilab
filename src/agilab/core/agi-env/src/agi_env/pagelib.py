@@ -214,37 +214,39 @@ def render_logo(edit_text):
         st.markdown(
             f"""
             <style>
-            /* Ensure the sidebar container is positioned relative */
             [data-testid="stSidebar"] {{
                 position: relative;
             }}
-            /* Display the AGILab logo using the ::after pseudo-element */
+            [data-testid="stSidebar"]::before {{
+                content: "";
+                position: absolute;
+                top: -30px;
+                left: 6px;
+                right: 6px;
+                height: 100px;
+                background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #22d3ee 100%);
+                border-radius: 18px;
+                box-shadow: 0 8px 18px rgba(15, 23, 42, 0.24);
+                z-index: -1;
+                pointer-events: none;
+            }}
             [data-testid="stSidebar"]::after {{
                 content: "";
-                display: block;
+                position: absolute;
+                top: 2px;
+                left: 32px;
+                width: 135px;
+                height: 65px;
                 background-image: url("data:image/png;base64,{agilab_logo_base64}");
-                background-size: contain;
                 background-repeat: no-repeat;
-                background-position: left top;
-                position: absolute;
-                top: 10px;       /* adjust vertical position as needed */
-                left: 18px;      /* adjust horizontal position as needed */
-                width: 70%;
-                height: 48px;
+                background-size: contain;
+                background-position: left center;
+                filter: drop-shadow(0 6px 16px rgba(15, 23, 42, 0.4));
+                z-index: 1;
+                pointer-events: none;
             }}
-            /* Remove extra margin/padding from the h1 title */
-            h1.page-title {{
-                margin-top: 0 !important;
-                padding-top: 0 !important;
-            }}
-            /* Display the version text on the right side using the ::before pseudo-element */
-            [data-testid="stSidebar"]::before {{
-                content: "v{2025.3}";
-                position: absolute;
-                bottom: 10px;       /* align vertically with the logo */
-                right: 18px;     /* position on the right side */
-                font-size: 0.8em;
-                color: gray;
+            [data-testid="stSidebar"] button {{
+                white-space: nowrap;
             }}
             </style>
             """,

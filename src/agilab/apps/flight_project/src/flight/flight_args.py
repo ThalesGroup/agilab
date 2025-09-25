@@ -187,3 +187,34 @@ def dump_args_to_toml(
         section=section,
         create_missing=create_missing,
     )
+
+
+ArgsModel = FlightArgs
+ArgsOverrides = FlightArgsTD
+
+
+def load_args(
+    settings_path: str | Path,
+    *,
+    section: str = ARGS_SECTION,
+) -> FlightArgs:
+    """Compatibility wrapper mirroring legacy ``load_args`` helper."""
+
+    return load_args_from_toml(settings_path, section=section)
+
+
+def dump_args(
+    args: FlightArgs,
+    settings_path: str | Path,
+    *,
+    section: str = ARGS_SECTION,
+    create_missing: bool = True,
+) -> None:
+    """Compatibility wrapper mirroring legacy ``dump_args`` helper."""
+
+    dump_args_to_toml(
+        args,
+        settings_path=settings_path,
+        section=section,
+        create_missing=create_missing,
+    )
