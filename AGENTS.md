@@ -214,6 +214,7 @@ same instructions.
 - `▶️ EXECUTE` page tips:
   - Use the sidebar `Verbosity level` select to choose AgiEnv verbosity (0–3). The value propagates to the generated install/distribute/run snippets and appears in the install log header.
   - Install output now streams inside the dedicated **Install logs** expander. Keep it open to watch live progress even if the snippet expander is collapsed.
+  - `Enable Cluster` automatically drops back to local mode if the scheduler IP or worker map are missing—fill both fields before toggling it on to avoid the SSH resolution failure we hit earlier.
 - End-user mode: `cd ../agi-space && uv run streamlit run .venv/lib/python3.13/site-packages/agilab/AGILAB.py -- --openai-api-key "your-key" --install 0`
 
 For each tier, capture: command, expected output, and pitfalls (CWD, env vars, interpreter).
@@ -228,6 +229,11 @@ For each tier, capture: command, expected output, and pitfalls (CWD, env vars, i
   - `ModuleNotFoundError`: ensure the working directory matches `WORKING_DIRECTORY` and that `PYTHONPATH` carries the project roots.
   - Red “Ran …” banner while executing AGENT workflows (Run matrix refresh, docs pipeline, etc.): stop, ping an owner for guidance, and once resolved document the fix here so future **agent** runs show the green success banner. End-user issues should continue to be tracked in the customer runbooks.
   - `AGI.install_*` complaining about missing `<app>_worker/pyproject.toml`: each worker needs its own `pyproject.toml` mirroring the manager dependencies plus the correct extras (`dag-worker`, `polars-worker`, etc.). Add the file, rerun the installer, and log the fix here so we keep the banner green.
+  - `Sb3Trainer` raising `AttributeError: 'list' object has no attribute 'model_dump'`: this occurs when the installer passes the raw agent list into the manager; fixed by coercing to `Sb3TrainerArgs` (in repo), so pull latest before retrying.
+  - Sat Trajectory worker logging `function has no attribute glob`: fixed upstream by calling the imported `glob()` helper directly. Sync the repo if you still see it.
+  - Link Sim worker `AttributeError: mean_service_duration`: worker now copies defaults from `args` during `start()`. Pull latest and rerun the installer.
+  - Link Sim dataset assets missing (e.g. `service.json` under `~/data/link_sim/dataset`): the worker now points to the dataset directory; rerun `AGI.install_link_sim` to repopulate `~/data/link_sim/dataset` before executing.
+  - ILP manager lookup error (`module 'ilp.ilp' has no attribute 'Ilp'`): fixed by aliasing `IlpApp` as `Ilp`. Pull latest and rerun.
   - Streamlit logs missing: set `PYTHONUNBUFFERED=1`.
   - Slow iterative runs: add `UV_NO_SYNC=1` in dev environments.
 

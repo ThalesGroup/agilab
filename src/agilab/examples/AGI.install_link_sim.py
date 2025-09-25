@@ -7,9 +7,9 @@ from pathlib import Path
 async def main():
     app_env = AgiEnv(active_app=Path('/Users/jpm/agilab/src/agilab/apps/link_sim_project') ,install_type=1, verbose=1)
     res = await AGI.install(app_env, 
-                            modes_enabled=0,
-                            scheduler=None, 
-                            workers=None)
+                            modes_enabled=4,
+                            scheduler="127.0.0.1", 
+                            workers={'127.0.0.1': 2})
     print(res)
     return res
 

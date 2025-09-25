@@ -10,7 +10,7 @@ async def main():
                         mode=4, 
                         scheduler="127.0.0.1", 
                         workers={'127.0.0.1': 2}, 
-                        data_uri="data/sat_trajectory/dataset", duration_s=86400, step_s=1, number_of_sat=25, input_TLE="TLE", input_antenna="antenna_conf.json", input_sat="sat.json")
+                        data_uri="/Users/jpm/data/sat_trajectory/dataset", duration_s=86400, step_s=1, number_of_sat=25, input_TLE="TLE", input_antenna="antenna_conf.json", input_sat="sat.json")
     print(res)
     return res
 

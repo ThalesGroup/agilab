@@ -78,6 +78,23 @@ def update_log(live_log_placeholder, message, max_lines=1000):
 
     live_log_placeholder.code(st.session_state["log_text"], language="python", height=height_px)
 
+    if lines:
+        context = st.session_state.get("_current_log_context")
+        last_line = lines[-1]
+        prev_line = lines[-2] if len(lines) > 1 else last_line
+        if context == "install":
+            st.session_state["install_last_line"] = last_line
+            st.session_state["install_prev_line"] = prev_line
+        elif context == "run":
+            st.session_state["run_last_line"] = last_line
+            st.session_state["run_prev_line"] = prev_line
+
+    if lines:
+        context = st.session_state.get("_current_log_context")
+        if context == "install":
+            st.session_state["install_last_line"] = lines[-1]
+        elif context == "run":
+            st.session_state["run_last_line"] = lines[-1]
 
 
 def strip_ansi(text: str) -> str:
@@ -422,6 +439,18 @@ def render_cluster_settings_ui():
             workers = parse_and_validate_workers(workers_input)
             if workers:
                 cluster_params["workers"] = workers
+        # If cluster toggle is enabled but required fields are missing, fall back to local mode
+        scheduler = cluster_params.get("scheduler")
+        workers = cluster_params.get("workers")
+        if not scheduler or not workers:
+            st.warning(
+                "Cluster mode requires both a scheduler IP and at least one worker entry. "
+                "Cluster has been disabled for this run."
+            )
+            cluster_params.pop("scheduler", None)
+            cluster_params.pop("workers", None)
+            cluster_params["cluster_enabled"] = False
+            cluster_enabled = False
     else:
         cluster_params.pop("scheduler", None)
         cluster_params.pop("workers", None)
@@ -976,6 +1005,10 @@ if __name__ == "__main__":
     asyncio.run(main())"""
             st.code(cmd, language="python")
 
+            last_install_line = st.session_state.get("install_last_line")
+            if last_install_line:
+                st.caption(f"Last install log: {last_install_line}")
+
             install_clicked = st.button(
                 "INSTALL",
                 key="install_btn",
@@ -1008,30 +1041,34 @@ if __name__ == "__main__":
                     f"venv: {venv}",
                     "=== Streaming install logs ===",
                 ]
-                with log_expander:
-                    if log_placeholder is None:
-                        log_placeholder = st.empty()
-                    log_placeholder.empty()
-                    for line in context_lines:
-                        update_log(log_placeholder, line)
-                with st.spinner("Installing worker..."):
-                    _stdout, stderr = await env.run_agi(
-                        install_command,
-                        log_callback=lambda message: update_log(log_placeholder, message),
-                        venv=venv
-                    )
-
+                st.session_state["_current_log_context"] = "install"
+                try:
                     with log_expander:
-                        status_line = "✅ Install finished without errors." if not stderr else "❌ Install finished with errors. Check logs above."
-                        update_log(log_placeholder, status_line)
+                        if log_placeholder is None:
+                            log_placeholder = st.empty()
                         log_placeholder.empty()
-                        display_log(st.session_state.get("log_text", ""), stderr)
-                    if not stderr:
-                        st.success("Cluster installation completed.")
-                        # 👇 Auto-enable the RUN section after install
-                        st.session_state["SET ARGS"] = True  # reveals the "SET ARGS" checkbox (uses its label as the key)
-                        st.session_state["RUN"] = True  # pre-checks the "RUN" checkbox (its label is the key)
-                        st.rerun()
+                        for line in context_lines:
+                            update_log(log_placeholder, line)
+                    with st.spinner("Installing worker..."):
+                        _stdout, stderr = await env.run_agi(
+                            install_command,
+                            log_callback=lambda message: update_log(log_placeholder, message),
+                            venv=venv
+                        )
+
+                        with log_expander:
+                            status_line = "✅ Install finished without errors." if not stderr else "❌ Install finished with errors. Check logs above."
+                            update_log(log_placeholder, status_line)
+                            log_placeholder.empty()
+                            display_log(st.session_state.get("log_text", ""), stderr)
+                        if not stderr:
+                            st.success("Cluster installation completed.")
+                            # 👇 Auto-enable the RUN section after install
+                            st.session_state["SET ARGS"] = True  # reveals the "SET ARGS" checkbox (uses its label as the key)
+                            st.session_state["RUN"] = True  # pre-checks the "RUN" checkbox (its label is the key)
+                            st.rerun()
+                finally:
+                    st.session_state.pop("_current_log_context", None)
 
     # ------------------
     # DISTRIBUTE Section
@@ -1258,7 +1295,7 @@ if __name__ == "__main__":
             run_log_expander = st.expander("Run logs", expanded=False)
             with run_log_expander:
                 run_log_placeholder = st.empty()
-                run_log_placeholder.code(existing_run_log, language="python")
+                run_log_placeholder.code(existing_run_log, language="python", height=400)
 
         run_col, load_col = st.columns(2)
         run_clicked = False
@@ -1277,6 +1314,9 @@ if __name__ == "__main__":
                 use_container_width=True,
                 disabled=False,
             )
+            run_status_line = st.session_state.get("run_prev_line")
+            if run_status_line:
+                run_col.caption(f"Last run log: {run_status_line}")
         else:
             run_col.button(
                 run_label,
@@ -1315,11 +1355,15 @@ if __name__ == "__main__":
                 with run_log_expander:
                     run_log_placeholder = st.empty()
                 with st.spinner("Running AGI..."):
-                    stdout, stderr = await env.run_agi(
-                        run_cmd.replace("asyncio.run(main())", env.snippet_tail),
-                        log_callback=lambda message: update_log(run_log_placeholder, message),
-                        venv=project_path
-                    )
+                    st.session_state["_current_log_context"] = "run"
+                    try:
+                        stdout, stderr = await env.run_agi(
+                            run_cmd.replace("asyncio.run(main())", env.snippet_tail),
+                            log_callback=lambda message: update_log(run_log_placeholder, message),
+                            venv=project_path
+                        )
+                    finally:
+                        st.session_state.pop("_current_log_context", None)
                     st.session_state["run_log_cache"] = st.session_state.get("log_text", "")
                 with run_log_expander:
                     run_log_placeholder.empty()
