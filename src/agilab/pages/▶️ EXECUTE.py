@@ -1314,9 +1314,12 @@ if __name__ == "__main__":
                 use_container_width=True,
                 disabled=False,
             )
-            run_status_line = st.session_state.get("run_prev_line")
-            if run_status_line:
-                run_col.caption(f"Last run log: {run_status_line}")
+            run_prev_line = st.session_state.get("run_prev_line")
+            run_last_line = st.session_state.get("run_last_line")
+            if run_prev_line:
+                run_col.caption(f"Last run log: {run_prev_line}")
+            if run_last_line and run_last_line != run_prev_line:
+                run_col.caption(f"Run status: {run_last_line}")
         else:
             run_col.button(
                 run_label,
