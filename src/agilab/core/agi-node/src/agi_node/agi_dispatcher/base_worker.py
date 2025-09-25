@@ -35,6 +35,7 @@ import warnings
 import abc
 import traceback
 import json
+import inspect
 from pathlib import Path, PureWindowsPath
 import importlib
 from types import ModuleType, SimpleNamespace
@@ -337,8 +338,36 @@ class BaseWorker(abc.ABC):
                 BaseWorker._worker,
                 getattr(worker_inst, "_mode", None),
             )
-            if hasattr(worker_inst, "start"):
-                worker_inst.start()
+            try:
+                base_descriptor = inspect.getattr_static(BaseWorker, "start")
+            except AttributeError:
+                base_descriptor = None
+            try:
+                override_descriptor = inspect.getattr_static(type(worker_inst), "start")
+            except AttributeError:
+                override_descriptor = None
+
+            if override_descriptor is base_descriptor:
+                return
+
+            method = getattr(worker_inst, "start", None)
+            if not callable(method):
+                return
+
+            bound_self = getattr(method, "__self__", None)
+            if bound_self is worker_inst or bound_self is type(worker_inst):
+                method()
+                return
+
+            try:
+                sig = inspect.signature(method)
+            except ValueError:
+                sig = None
+
+            if sig is not None and sig.parameters:
+                method(worker_inst)
+            else:
+                method()
         except Exception:  # pragma: no cover - log and rethrow for visibility
             logging.error("Worker start hook failed:\n%s", traceback.format_exc())
             raise

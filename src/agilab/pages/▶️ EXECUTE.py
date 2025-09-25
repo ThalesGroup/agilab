@@ -82,19 +82,15 @@ def update_log(live_log_placeholder, message, max_lines=1000):
         context = st.session_state.get("_current_log_context")
         last_line = lines[-1]
         prev_line = lines[-2] if len(lines) > 1 else last_line
+        tail = lines[-3:]
         if context == "install":
             st.session_state["install_last_line"] = last_line
             st.session_state["install_prev_line"] = prev_line
+            st.session_state["install_last_lines"] = tail
         elif context == "run":
             st.session_state["run_last_line"] = last_line
             st.session_state["run_prev_line"] = prev_line
-
-    if lines:
-        context = st.session_state.get("_current_log_context")
-        if context == "install":
-            st.session_state["install_last_line"] = lines[-1]
-        elif context == "run":
-            st.session_state["run_last_line"] = lines[-1]
+            st.session_state["run_last_lines"] = tail
 
 
 def strip_ansi(text: str) -> str:
@@ -1316,10 +1312,13 @@ if __name__ == "__main__":
             )
             run_prev_line = st.session_state.get("run_prev_line")
             run_last_line = st.session_state.get("run_last_line")
-            if run_prev_line:
-                run_col.caption(f"Last run log: {run_prev_line}")
-            if run_last_line and run_last_line != run_prev_line:
+            run_tail = st.session_state.get("run_last_lines") or []
+            if len(run_tail) >= 2:
+                run_col.caption(f"Last run log: {run_tail[-2]}")
+            elif run_last_line is not None:
                 run_col.caption(f"Run status: {run_last_line}")
+            elif run_prev_line is not None:
+                run_col.caption(f"Last run log: {run_prev_line}")
         else:
             run_col.button(
                 run_label,

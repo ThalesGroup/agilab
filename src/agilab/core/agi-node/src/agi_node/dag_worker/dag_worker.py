@@ -166,11 +166,34 @@ class DagWorker(BaseWorker):
         worker_id = getattr(self, "worker_id", 0) % num_partitions
 
         # gather tasks for this worker by round‑robin
+        def _normalize_meta(meta: Any) -> tuple[str, float]:
+            """Extract partition metadata with safe fallbacks."""
+            if isinstance(meta, Mapping):
+                return (
+                    str(meta.get("partition_name", meta.get("name", ""))),
+                    float(meta.get("weight", 1.0)),
+                )
+            if isinstance(meta, (list, tuple)):
+                if len(meta) >= 2:
+                    return str(meta[0]), float(meta[1])
+                if len(meta) == 1:
+                    return str(meta[0]), 1.0
+            if meta is None:
+                return "", 1.0
+            return str(meta), 1.0
+
         assigned = []
         for idx, (tree, info) in enumerate(zip(workers_plan, workers_plan_metadata)):
             if idx % num_partitions != worker_id:
                 continue
-            for (fn_dict, deps), (pname, weight) in zip(tree, info):
+            info = info or []
+            for item_idx, entry in enumerate(tree or []):
+                try:
+                    fn_dict, deps = entry
+                except (TypeError, ValueError):  # pragma: no cover - defensive for malformed plans
+                    fn_dict, deps = entry, []
+                meta_entry = info[item_idx] if item_idx < len(info) else {}
+                pname, weight = _normalize_meta(meta_entry)
                 assigned.append((fn_dict, deps, pname, weight))
 
         if not assigned:
