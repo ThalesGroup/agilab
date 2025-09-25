@@ -13,7 +13,7 @@ import numbers
 import logging
 from pathlib import Path
 import importlib
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Third-Party imports
 import networkx as nx
@@ -25,6 +25,55 @@ import streamlit as st
 import tomli         # For reading TOML files
 import tomli_w       # For writing TOML files
 import pandas as pd
+import humanize
+
+
+def _extract_seconds_from_line(line: str) -> float | None:
+    tokens = line.strip().split()
+    if not tokens:
+        return None
+    try:
+        return float(tokens[-1])
+    except ValueError:
+        return None
+
+
+def render_run_summary(run_col, raw_history: list[str]) -> None:
+    if not raw_history:
+        return
+
+    run_mode = ""
+    end_stamp = ""
+    seconds_value: float | None = None
+
+    for line in reversed(raw_history):
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        if not run_mode and stripped.startswith("_d__"):
+            run_mode = stripped.split()[0]
+
+        if not end_stamp:
+            match = re.match(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d+)", stripped)
+            if match:
+                end_stamp = match.group(1)
+
+        if seconds_value is None:
+            seconds_candidate = _extract_seconds_from_line(stripped)
+            if seconds_candidate is not None:
+                seconds_value = seconds_candidate
+
+        if run_mode and end_stamp and seconds_value is not None:
+            break
+
+    if run_mode:
+        run_col.text(f"run mode: {run_mode}")
+    if end_stamp:
+        run_col.text(f"end time: {end_stamp}")
+    if seconds_value is not None:
+        human_runtime = humanize.precisedelta(timedelta(seconds=seconds_value))
+        run_col.text(f"runtime: {human_runtime}")
 # Project Libraries:
 from agi_env.pagelib import (
     get_about_content, render_logo, activate_mlflow, save_csv, init_custom_ui, select_project, open_new_tab,
@@ -54,20 +103,42 @@ def clear_log():
     to avoid mixing logs.
     """
     st.session_state["log_text"] = ""
+    st.session_state["log_text_raw"] = ""
+    for key in (
+        "install_last_line_raw",
+        "install_prev_line_raw",
+        "install_last_lines_raw",
+        "run_last_line_raw",
+        "run_prev_line_raw",
+        "run_last_lines_raw",
+    ):
+        st.session_state.pop(key, None)
 
 def update_log(live_log_placeholder, message, max_lines=1000):
     """
-    Append a cleaned message to the accumulated log and update the live display.
-    Keeps only the last max_lines lines in the log.
+    Append log output (both raw and cleaned) and update the live display.
+    Keeps only the last max_lines lines in memory.
     """
     if "log_text" not in st.session_state:
         st.session_state["log_text"] = ""
+    if "log_text_raw" not in st.session_state:
+        st.session_state["log_text_raw"] = ""
+
+    raw_msg = message or ""
+    if raw_msg:
+        st.session_state["log_text_raw"] += raw_msg
+        if not raw_msg.endswith("\n"):
+            st.session_state["log_text_raw"] += "\n"
 
     clean_msg = strip_ansi(message).rstrip()
     if clean_msg:
         st.session_state["log_text"] += clean_msg + "\n"
 
-    # Keep only last max_lines lines to avoid huge memory/logs
+    raw_lines = st.session_state["log_text_raw"].splitlines()
+    if len(raw_lines) > max_lines:
+        raw_lines = raw_lines[-max_lines:]
+        st.session_state["log_text_raw"] = "\n".join(raw_lines) + "\n"
+
     lines = st.session_state["log_text"].splitlines()
     if len(lines) > max_lines:
         lines = lines[-max_lines:]
@@ -78,19 +149,32 @@ def update_log(live_log_placeholder, message, max_lines=1000):
 
     live_log_placeholder.code(st.session_state["log_text"], language="python", height=height_px)
 
-    if lines:
-        context = st.session_state.get("_current_log_context")
-        last_line = lines[-1]
-        prev_line = lines[-2] if len(lines) > 1 else last_line
-        tail = lines[-3:]
-        if context == "install":
+    context = st.session_state.get("_current_log_context")
+    tail = lines[-3:] if lines else []
+    raw_tail = raw_lines[-3:] if raw_lines else []
+    last_line = lines[-1] if lines else None
+    prev_line = lines[-2] if len(lines) > 1 else last_line
+    raw_last_line = raw_lines[-1] if raw_lines else None
+    raw_prev_line = raw_lines[-2] if len(raw_lines) > 1 else raw_last_line
+
+    if context == "install":
+        if last_line is not None:
             st.session_state["install_last_line"] = last_line
             st.session_state["install_prev_line"] = prev_line
             st.session_state["install_last_lines"] = tail
-        elif context == "run":
+        if raw_last_line is not None:
+            st.session_state["install_last_line_raw"] = raw_last_line
+            st.session_state["install_prev_line_raw"] = raw_prev_line
+            st.session_state["install_last_lines_raw"] = raw_tail
+    elif context == "run":
+        if last_line is not None:
             st.session_state["run_last_line"] = last_line
             st.session_state["run_prev_line"] = prev_line
             st.session_state["run_last_lines"] = tail
+        if raw_last_line is not None:
+            st.session_state["run_last_line_raw"] = raw_last_line
+            st.session_state["run_prev_line_raw"] = raw_prev_line
+            st.session_state["run_last_lines_raw"] = raw_tail
 
 
 def strip_ansi(text: str) -> str:
@@ -1310,15 +1394,8 @@ if __name__ == "__main__":
                 use_container_width=True,
                 disabled=False,
             )
-            run_prev_line = st.session_state.get("run_prev_line")
-            run_last_line = st.session_state.get("run_last_line")
-            run_tail = st.session_state.get("run_last_lines") or []
-            if len(run_tail) >= 2:
-                run_col.caption(f"Last run log: {run_tail[-2]}")
-            elif run_last_line is not None:
-                run_col.caption(f"Run status: {run_last_line}")
-            elif run_prev_line is not None:
-                run_col.caption(f"Last run log: {run_prev_line}")
+            raw_history = st.session_state.get("run_last_lines_raw") or []
+            render_run_summary(run_col, raw_history)
         else:
             run_col.button(
                 run_label,
