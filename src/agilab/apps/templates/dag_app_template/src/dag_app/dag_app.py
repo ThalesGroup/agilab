@@ -6,7 +6,6 @@ from typing import Any, List, Tuple
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
 from .dag_app_args import (
-    ArgsOverrides,
     DagAppArgs,
 )
 
@@ -22,20 +21,12 @@ class DagApp(BaseWorker):
     def __init__(
         self,
         env,
-        args: DagAppArgs | None = None,
-        **kwargs: ArgsOverrides,
+        args: DagAppArgs,
     ) -> None:
         super().__init__()
         self.env = env
 
-        if args is None:
-            args = DagAppArgs(**kwargs)
-
-        ensure_fn = getattr(type(self), "args_ensure_defaults", None)
-        if ensure_fn:
-            args = ensure_fn(args, env=env)
-        args = self._apply_managed_pc_paths(args)
-        self.args = args
+        self.setup_args(args, env=env, error="DagApp requires an initialized DagAppArgs instance")
 
         data_uri = Path(self.args.data_uri).expanduser()
 

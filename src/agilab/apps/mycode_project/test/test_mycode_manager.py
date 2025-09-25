@@ -1,12 +1,12 @@
 import sys
 from pathlib import Path
 import pytest
-from datetime import date
 from agi_env import AgiEnv
 path = str(Path(__file__).expanduser().parents[1]  / "src")
 if path not in sys.path:
     sys.path.append(path)
 from mycode import Mycode
+from mycode.mycode_args import MycodeArgs
 
 @pytest.mark.asyncio
 async def test_mycode_build_distribution():
@@ -15,7 +15,7 @@ async def test_mycode_build_distribution():
 
     mycode = Mycode(
         env=env,
-        verbose=True,
+        args=MycodeArgs(),
     )
 
     workers = {'worker1': 2, 'worker2': 3}

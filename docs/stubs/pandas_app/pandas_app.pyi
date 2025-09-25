@@ -6,7 +6,6 @@ import py7zr
 from agi_cluster.agi_distributor import AGI
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 from .pandas_app_args import (
-    ArgsOverrides,
     PandasAppArgs,
 )
 

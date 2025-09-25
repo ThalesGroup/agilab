@@ -9,7 +9,6 @@ from agi_cluster.agi_distributor import AGI
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
 from .fireducks_app_args import (
-    ArgsOverrides,
     FireducksAppArgs,
 )
 
@@ -25,20 +24,12 @@ class FireducksApp(BaseWorker):
     def __init__(
         self,
         env,
-        args: FireducksAppArgs | None = None,
-        **kwargs: ArgsOverrides,
+        args: FireducksAppArgs,
     ) -> None:
         super().__init__()
         self.env = env
 
-        if args is None:
-            args = FireducksAppArgs(**kwargs)
-
-        ensure_fn = getattr(type(self), "args_ensure_defaults", None)
-        if ensure_fn:
-            args = ensure_fn(args, env=env)
-        args = self._apply_managed_pc_paths(args)
-        self.args = args
+        self.setup_args(args, env=env, error="FireducksApp requires an initialized FireducksAppArgs instance")
 
         data_uri = Path(self.args.data_uri).expanduser()
 

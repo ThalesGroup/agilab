@@ -14,20 +14,17 @@
 import os
 import traceback
 import logging
-import shutil
 import warnings
 from pathlib import Path
 from typing import Any
 
 import py7zr
 import polars as pl
-from pydantic import ValidationError
 
-from agi_env import AgiEnv, normalize_path
+from agi_env import AgiEnv
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 from .flight_args import (
     FlightArgs,
-    FlightArgsTD,
 )
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
@@ -37,48 +34,22 @@ class Flight(BaseWorker):
     """Flight class provides methods to orchestrate the run."""
 
     ivq_logs = None
+    auto_prepare_output_dir = True
 
     def __init__(
         self,
         env,
-        args: FlightArgs | None = None,
-        **kwargs: FlightArgsTD,
+        args: FlightArgs,
     ) -> None:
         self.env = env
-        if args is None:
-            try:
-                args = FlightArgs(**kwargs)
-            except ValidationError as exc:
-                raise ValueError(f"Invalid Flight arguments: {exc}") from exc
-        self.args = self._apply_managed_pc_paths(args
-
-        if self.args.nfile == 0:
-            self.args.nfile = 999_999_999_999
-
-        base_path = Path(env.home_abs) / self.args.data_uri
-        normalized_base = Path(normalize_path(base_path))
-        self.args.data_uri = normalized_base
+        self.setup_args(
+            args,
+            env=env,
+            error="Flight requires an initialized FlightArgs instance",
+            output_field="data_uri",
+        )
 
         WorkDispatcher.args = self.args.model_dump(mode="json")
-
-        self.data_out = Path(normalize_path(normalized_base / "dataframe"))
-
-        try:
-            if self.data_out.exists():
-                shutil.rmtree(
-                    self.data_out,
-                    ignore_errors=True,
-                    onerror=WorkDispatcher._onerror,
-                )
-            self.data_out.mkdir(parents=True, exist_ok=True)
-        except Exception as exc:  # pragma: no cover - defensive guard
-            logger.warning(
-                "Issue while trying to reset dataframe directory %s: %s",
-                self.data_out,
-                exc,
-            )
-
-
 
     def build_distribution(self, workers):
         """build_distrib: to provide the list of files per planes (level1) and per workers (level2)

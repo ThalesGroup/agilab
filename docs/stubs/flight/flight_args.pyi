@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from agi_env import normalize_path
 from agi_env.app_args import (
     dump_model_to_toml,
     load_model_from_toml,
@@ -33,6 +34,8 @@ class FlightArgsTD(TypedDict):
 def load_args_from_toml(*args: Any, **kwargs: Any) -> Any: ...
 
 def merge_args(*args: Any, **kwargs: Any) -> Any: ...
+
+def ensure_defaults(*args: Any, **kwargs: Any) -> Any: ...
 
 def apply_source_defaults(*args: Any, **kwargs: Any) -> Any: ...
 

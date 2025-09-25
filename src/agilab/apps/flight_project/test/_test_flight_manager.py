@@ -1,6 +1,7 @@
 import asyncio
 from agi_env import AgiEnv
 from flight import Flight  # assuming your Flight class is here
+from flight.flight_args import FlightArgs
 from datetime import date
 from pathlib import Path
 
@@ -10,16 +11,18 @@ async def main():
     # Instantiate Flight with your parameters
     flight = Flight(
         env=env,
-        data_source="file",
-        data_uri="data/flight/dataset",
-        files="csv/*",
-        nfile=1,
-        nskip=0,
-        nread=0,
-        sampling_rate=10.0,
-        datemin=date(2020, 1, 1),
-        datemax=date(2021, 1, 1),
-        output_format="parquet"
+        args=FlightArgs(
+            data_source="file",
+            data_uri="data/flight/dataset",
+            files="csv/*",
+            nfile=1,
+            nskip=0,
+            nread=0,
+            sampling_rate=10.0,
+            datemin=date(2020, 1, 1),
+            datemax=date(2021, 1, 1),
+            output_format="parquet",
+        ),
     )
 
     # Example list of workers to pass to build_distribution

@@ -25,6 +25,8 @@ same instructions.
 > worker module (`src/agilab/apps/<app>_project/src/<app>_worker/<app>_worker.py`).
 > Manager flows are covered by `test/_test_<app>_manager.py`, worker flows by
 > `test/_test_<app>_worker.py`, and `app_test.py` calls both.
+> Instantiate managers with their validated args models (e.g. `FlightArgs`) instead of raw
+> keyword overrides; `BaseWorker.from_toml` is the preferred entry point when loading configs.
 >
 > **Docs reminder**
 > After touching `BaseWorker` or other core APIs that surface in the guides, run

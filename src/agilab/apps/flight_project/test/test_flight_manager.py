@@ -8,23 +8,25 @@ path = str(active_app  / "src")
 if path not in sys.path:
     sys.path.append(path)
 from flight import Flight
+from flight.flight_args import FlightArgs
 
 @pytest.fixture
 def flight():
     env = AgiEnv(active_app=active_app, verbose=True)
     return Flight(
         env=env,
-        verbose=True,
-        data_source="file",
-        data_uri="data/flight/dataset",
-        files="csv/*",
-        nfile=1,
-        nskip=0,
-        nread=0,
-        sampling_rate=10.0,
-        datemin=date(2020, 1, 1),
-        datemax=date(2021, 1, 1),
-        output_format="parquet"
+        args=FlightArgs(
+            data_source="file",
+            data_uri="data/flight/dataset",
+            files="csv/*",
+            nfile=1,
+            nskip=0,
+            nread=0,
+            sampling_rate=10.0,
+            datemin=date(2020, 1, 1),
+            datemax=date(2021, 1, 1),
+            output_format="parquet",
+        ),
     )
 
 @pytest.mark.asyncio

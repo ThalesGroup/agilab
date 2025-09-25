@@ -9,7 +9,6 @@ from agi_cluster.agi_distributor import AGI
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
 from .pandas_app_args import (
-    ArgsOverrides,
     PandasAppArgs,
 )
 
@@ -25,20 +24,12 @@ class PandasApp(BaseWorker):
     def __init__(
         self,
         env,
-        args: PandasAppArgs | None = None,
-        **kwargs: ArgsOverrides,
+        args: PandasAppArgs,
     ) -> None:
         super().__init__()
         self.env = env
 
-        if args is None:
-            args = PandasAppArgs(**kwargs)
-
-        ensure_fn = getattr(type(self), "args_ensure_defaults", None)
-        if ensure_fn:
-            args = ensure_fn(args, env=env)
-        args = self._apply_managed_pc_paths(args)
-        self.args = args
+        self.setup_args(args, env=env, error="PandasApp requires an initialized PandasAppArgs instance")
 
         data_uri = Path(self.args.data_uri).expanduser()
 

@@ -63,6 +63,18 @@ Managed PC path remapping
 - ``BaseWorker.from_toml`` applies the remapping automatically; when instantiating
   a worker manually, call ``self._apply_managed_pc_paths(args)`` after building the
   arguments.
+- Use ``setup_args`` inside manager constructors to apply defaults, remap managed-PC
+  paths, and (when ``auto_prepare_output_dir`` is true) create the standard
+  ``dataframe`` output directory in one call.
+
+Output directory helpers
+------------------------
+
+- ``prepare_output_dir`` centralises the setup of manager-side output folders
+  (defaulting to ``dataframe``). Hand it the base path you want to target and it
+  normalises the path, clears old contents when ``auto_clean_data_out`` is enabled,
+  creates the directory, and stores it on ``self.data_out`` unless you override the
+  target attribute.
 
 With these attributes in place, ``BaseWorker.from_toml`` produces a configured
 instance and ``BaseWorker.to_toml`` writes the updated schema without each app

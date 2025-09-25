@@ -1,6 +1,7 @@
 import asyncio
 from agi_env import AgiEnv
 from mycode import Mycode  # assuming your Mycode class is here
+from mycode.mycode_args import MycodeArgs
 from pathlib import Path
 
 async def main():
@@ -9,7 +10,7 @@ async def main():
     # Instantiate Mycode with your parameters
     mycode = Mycode(
         env=env,
-        verbose=True,
+        args=MycodeArgs(),
     )
 
     # Example list of workers to pass to build_distribution

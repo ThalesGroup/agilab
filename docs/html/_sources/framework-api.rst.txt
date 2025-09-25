@@ -46,6 +46,9 @@ App structure conventions
 - Test coverage mirrors that split: ``test/_test_<app>_manager.py`` drives the
   manager entry points, ``test/_test_<app>_worker.py`` exercises the worker, and
   ``app_test.py`` orchestrates the combined flow.
+- Instantiate managers with their validated args models (for example ``FlightArgs``).
+  The convenience constructor ``BaseWorker.from_toml`` remains the recommended entry
+  point for configuration-driven flows.
 
 For end-to-end examples, browse ``src/agilab/examples`` to see how the packages
 fit together in real projects.

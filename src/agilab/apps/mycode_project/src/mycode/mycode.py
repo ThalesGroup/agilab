@@ -35,7 +35,6 @@ from agi_node.agi_dispatcher import WorkDispatcher, BaseWorker
 import logging
 
 from .mycode_args import (
-    ArgsOverrides,
     MycodeArgs,
 )
 
@@ -49,20 +48,12 @@ class Mycode(BaseWorker):
     def __init__(
         self,
         env,
-        args: MycodeArgs | None = None,
-        **kwargs: ArgsOverrides,
+        args: MycodeArgs,
     ) -> None:
         super().__init__()
         self.env = env
-        if args is None:
-            args = MycodeArgs(**kwargs)
 
-        ensure_fn = getattr(type(self), "args_ensure_defaults", None)
-        if ensure_fn:
-            args = ensure_fn(args, env=env)
-
-        args = self._apply_managed_pc_paths(args)
-        self.args = args
+        self.setup_args(args, env=env, error="Mycode requires an initialized MycodeArgs instance")
         WorkDispatcher.args = self.args.model_dump(mode="json")
 
     def build_distribution(self, workers):

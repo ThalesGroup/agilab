@@ -159,24 +159,17 @@ class BaseWorker(abc.ABC):
         env: AgiEnv | None = None,
     ) -> Path:
         env = env or getattr(cls, "env", None)
-        is_managed = getattr(env, "_is_managed_pc", AgiEnv._is_managed_pc)
-        original_is_path = isinstance(value, Path)
-        path = Path(value)
-        if not is_managed:
-            return path
+        if not getattr(env, "_is_managed_pc", AgiEnv._is_managed_pc):
+            return Path(value)
 
         home = Path.home()
-        target_root = home / cls.managed_pc_home_suffix
+        managed_root = home / cls.managed_pc_home_suffix
 
         try:
-            remapped = Path(str(path).replace(str(home), str(target_root)))
+            return Path(str(Path(value)).replace(str(home), str(managed_root)))
         except Exception:  # pragma: no cover - defensive guard
-            logger.debug(
-                "Failed to remap path %s for managed PC", path, exc_info=True
-            )
-            return path
-
-        return remapped if original_is_path else str(remapped)
+            logger.debug("Failed to remap path %s for managed PC", value, exc_info=True)
+            return Path(value)
 
     @classmethod
     def _apply_managed_pc_path_overrides(
@@ -202,6 +195,73 @@ class BaseWorker(abc.ABC):
 
     def _apply_managed_pc_paths(self, args: Any) -> Any:
         return type(self)._apply_managed_pc_path_overrides(args, env=self.env)
+
+    def prepare_output_dir(
+        self,
+        root: Path | str,
+        *,
+        subdir: str = "dataframe",
+        attribute: str = "data_out",
+        clean: bool = True,
+    ) -> Path:
+        """Create (and optionally reset) a deterministic output directory."""
+
+        target = Path(normalize_path(Path(root) / subdir))
+
+        if clean:
+            try:
+                if target.exists():
+                    shutil.rmtree(target, ignore_errors=True, onerror=self._onerror)
+            except Exception as exc:  # pragma: no cover - defensive guard
+                logger.warning(
+                    "Issue while cleaning output directory %s: %s", target, exc
+                )
+
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.warning(
+                "Issue while ensuring output directory %s exists: %s", target, exc
+            )
+
+        setattr(self, attribute, target)
+        return target
+
+    def setup_args(
+        self,
+        args: Any,
+        *,
+        env: AgiEnv | None = None,
+        error: str | None = None,
+        output_field: str | None = None,
+        output_subdir: str = "dataframe",
+        output_attr: str = "data_out",
+        output_clean: bool = True,
+        output_parents_up: int = 0,
+    ) -> Any:
+        env = env or getattr(self, "env", None)
+        if args is None:
+            raise ValueError(error or f"{type(self).__name__} requires an initialized arguments object")
+
+        ensure_fn = getattr(type(self), "args_ensure_defaults", None)
+        if ensure_fn:
+            args = ensure_fn(args, env=env)
+
+        processed = type(self)._apply_managed_pc_path_overrides(args, env=env)
+        self.args = processed
+
+        if output_field:
+            root = Path(getattr(processed, output_field))
+            for _ in range(max(output_parents_up, 0)):
+                root = root.parent
+            self.prepare_output_dir(
+                root,
+                subdir=output_subdir,
+                attribute=output_attr,
+                clean=output_clean,
+            )
+
+        return processed
 
     @classmethod
     def _require_args_helper(cls, attr_name: str) -> Callable[..., Any]:

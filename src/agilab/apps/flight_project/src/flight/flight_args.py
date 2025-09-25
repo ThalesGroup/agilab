@@ -10,6 +10,7 @@ from typing import Any, Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from agi_env import normalize_path
 from agi_env.app_args import (
     dump_model_to_toml,
     load_model_from_toml,
@@ -109,6 +110,28 @@ def merge_args(base: FlightArgs, overrides: FlightArgsTD | None = None) -> Fligh
     """Return a new instance with overrides applied on top of ``base``."""
 
     return merge_model_data(base, overrides)
+
+
+def ensure_defaults(
+    args: FlightArgs,
+    *,
+    env: Any | None = None,
+) -> FlightArgs:
+    """Apply derived defaults that depend on the execution environment."""
+
+    args = apply_source_defaults(args)
+    overrides: FlightArgsTD = {}
+
+    if args.nfile == 0:
+        overrides["nfile"] = 999_999_999_999
+
+    if env is not None and hasattr(env, "home_abs"):
+        dataset_root = Path(env.home_abs) / args.data_uri
+        overrides["data_uri"] = Path(normalize_path(dataset_root))
+    elif not isinstance(args.data_uri, Path):
+        overrides["data_uri"] = Path(args.data_uri)
+
+    return merge_args(args, overrides) if overrides else args
 
 
 def apply_source_defaults(
