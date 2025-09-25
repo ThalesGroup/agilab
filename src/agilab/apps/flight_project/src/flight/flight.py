@@ -50,7 +50,7 @@ class Flight(BaseWorker):
                 args = FlightArgs(**kwargs)
             except ValidationError as exc:
                 raise ValueError(f"Invalid Flight arguments: {exc}") from exc
-        self.args = self._apply_managed_pc_paths(args)
+        self.args = self._apply_managed_pc_paths(args
 
         if self.args.nfile == 0:
             self.args.nfile = 999_999_999_999
