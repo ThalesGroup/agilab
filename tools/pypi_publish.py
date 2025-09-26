@@ -303,7 +303,7 @@ def twine_upload(files: List[str], repo: str):
     if not files:
         raise SystemExit("No artifacts to upload")
     print(f"+ twine upload -r {repo} ({len(files)} files)")
-    run([sys.executable, "-m", "twine", "upload", "--non-interactive", "--skip-existing",
+    run([sys.executable, "-m", "twine", "upload", "--non-interactive",
          "-r", repo, *files], cwd=REPO_ROOT)
 
 # Umbrella
