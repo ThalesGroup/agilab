@@ -22,7 +22,16 @@ if __name__ == "__main__":
         print("Usage: python post_install.py <app> <install_type> [destination]")
         sys.exit(1)
 
-    env = AgiEnv(active_app=Path(sys.argv[1]), install_type=sys.argv[2])
-    archive = Path(__file__).parent / "dataset.7z"
-    dest_arg = sys.argv[3] if len(sys.argv) == 4 else None
-    env.unzip_data(archive, dest_arg)
+install_type = sys.argv[2]
+try:
+    env = AgiEnv(active_app=Path(sys.argv[1]), install_type=install_type)
+except RuntimeError as exc:
+    # Fallback to the packaged resources when developer assets are missing
+    if "Installation issue" in str(exc) and install_type != "0":
+        env = AgiEnv(active_app=Path(sys.argv[1]), install_type=0)
+    else:
+        raise
+
+archive = Path(__file__).parent / "dataset.7z"
+dest_arg = sys.argv[3] if len(sys.argv) == 4 else None
+env.unzip_data(archive, dest_arg)

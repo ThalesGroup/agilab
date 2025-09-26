@@ -189,16 +189,26 @@ class AgiEnv:
         self.benchmark = AgiEnv.resources_path / "benchmark.json"
         AgiEnv.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
         envars = AgiEnv.envars
-        agilab_src, sep, after = __file__.rpartition("agilab")
-        agilab_src = agilab_src.replace("/app-pages/maps", "")
-        agilab_src = Path(agilab_src).resolve()
-        agilab = importlib.util.find_spec("agilab")
-        if agilab is not None and agilab.origin:
-            # Direct path to the 'agilab' package folder
-            agilab_installed = Path(agilab.origin).parents[1]
+
+        module_path = Path(__file__).resolve()
+        package_root = module_path.parent
+        site_packages_root = package_root.parent
+
+        agilab_src = None
+        for parent in module_path.parents:
+            if parent.name == "agilab":
+                agilab_src = parent.parent
+                break
+        if agilab_src is None:
+            agilab_src = site_packages_root
+
+        agilab_spec = importlib.util.find_spec("agilab")
+        if agilab_spec is not None and agilab_spec.origin:
+            agilab_installed = Path(agilab_spec.origin).parents[1]
+        elif (site_packages_root / "agi_env").exists():
+            agilab_installed = site_packages_root
         else:
-            # Fallback if not installed
-            agilab_installed = agilab_src
+            agilab_installed = package_root
 
         if isinstance(active_app, str):
             # case only worker_env
@@ -291,8 +301,14 @@ class AgiEnv:
 
 
         resources_root = self.env_root
-        if install_type==1:
-            resources_root = self.env_root / "src/agi_env"
+        src_layout = self.env_root / "src/agi_env"
+        if install_type == 1 and src_layout.exists():
+            resources_root = src_layout
+        elif not (resources_root / self._agi_resources).exists():
+            package_root = Path(__file__).resolve().parent
+            if (package_root / self._agi_resources).exists():
+                resources_root = package_root
+
         if install_type != 2:
             self._init_resources(resources_root / self._agi_resources)
         self.TABLE_MAX_ROWS = int(envars.get("TABLE_MAX_ROWS", 1000))
