@@ -57,11 +57,12 @@ dependencies = [
     "cmake>=3.29",
 ]
 
-version = "0.1.0.post10"
+version = "0.1.0.post20"
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/agilab/agi-cluster"
 Tracker = "https://github.com/ThalesGroup/agilab/issue"
+
 
 [dependency-groups]
 dev = [
