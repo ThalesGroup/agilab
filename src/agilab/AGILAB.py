@@ -103,7 +103,7 @@ def page(env):
     st.markdown(
         f"""
     <div class='footer' style="display: flex; justify-content: flex-end;">
-        <span style="color:#64748b;">&copy; 2020-{current_year} Thales SIX GTS. All rights reserved.</span>
+                <span style="color:#64748b;">&copy; 2020-{current_year} Thales SIX GTS &middot; BSD 3-Clause Licensed.</span>
     </div>
     """,
         unsafe_allow_html=True,

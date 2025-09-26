@@ -28,8 +28,6 @@ from typing import Dict, Optional
 import sys
 import logging
 import webbrowser
-import importlib.metadata as _metadata
-import tomllib
 
 from sqlalchemy import false
 
@@ -101,26 +99,6 @@ import webbrowser
 # Track whether docs have been opened during the session to avoid reopening
 _DOCS_ALREADY_OPENED = False
 _LAST_DOCS_URL: Optional[str] = None
-
-
-def _resolve_agilab_version(env) -> Optional[str]:
-    """Return the AGILab package version, falling back to the local pyproject."""
-
-    try:
-        return _metadata.version("agilab")
-    except _metadata.PackageNotFoundError:
-        pass
-
-    pyproject = getattr(env, "agilab_src", None)
-    if pyproject:
-        pyproject = Path(pyproject) / "pyproject.toml"
-        if pyproject.exists():
-            try:
-                data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-                return data.get("project", {}).get("version")
-            except Exception:
-                return None
-    return None
 
 def _resolve_docs_path(env, html_file: str) -> Path | None:
     """Return the first docs HTML path that exists for the requested file."""
@@ -232,8 +210,6 @@ def render_logo(edit_text):
 
     agilab_logo_path = env.st_resources / "agilab_logo.png"  # Replace with your logo filename
     agilab_logo_base64 = get_base64_of_image(agilab_logo_path)
-    version = _resolve_agilab_version(env)
-
     if agilab_logo_base64:
         st.markdown(
             f"""
@@ -269,21 +245,6 @@ def render_logo(edit_text):
                 z-index: 1;
                 pointer-events: none;
             }}
-            [data-testid="stSidebar"] .agilab-version-badge {{
-                position: absolute;
-                bottom: 24px;
-                left: 30px;
-                padding: 3px 14px;
-                border-radius: 999px;
-                background: rgba(15, 23, 42, 0.92);
-                color: #E0F2FE;
-                font-size: 0.76rem;
-                font-weight: 600;
-                letter-spacing: 0.04em;
-                box-shadow: 0 6px 16px rgba(15, 23, 42, 0.35);
-                text-transform: uppercase;
-                pointer-events: none;
-            }}
             [data-testid="stSidebar"] button {{
                 white-space: nowrap;
             }}
@@ -291,12 +252,6 @@ def render_logo(edit_text):
             """,
             unsafe_allow_html=True,
         )
-
-        if version:
-            st.sidebar.markdown(
-                f"<div class='agilab-version-badge'>AGILab v{version}</div>",
-                unsafe_allow_html=True,
-            )
 
     else:
         st.sidebar.warning("Logo could not be loaded. Please check the logo path.")
