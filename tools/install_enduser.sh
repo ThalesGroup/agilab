@@ -44,6 +44,14 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ "${SOURCE}" == "testpypi" ]]; then
+  export UV_DEFAULT_INDEX="https://test.pypi.org/simple"
+  export UV_INDEX="https://pypi.org/simple"
+  export UV_INDEX_STRATEGY="unsafe-best-match"
+  export PIP_INDEX_URL="https://test.pypi.org/simple"
+  export PIP_EXTRA_INDEX_URL="https://pypi.org/simple"
+fi
+
 # Deferred: local-source-only path check was here
 
 echo "===================================="
@@ -92,6 +100,12 @@ case "${SOURCE}" in
     ;;
 
   testpypi)
+    export UV_DEFAULT_INDEX="https://test.pypi.org/simple"
+    export UV_INDEX="https://pypi.org/simple"
+    export UV_INDEX_STRATEGY="unsafe-best-match"
+    export PIP_INDEX_URL="https://test.pypi.org/simple"
+    export PIP_EXTRA_INDEX_URL="https://pypi.org/simple"
+
     INDEX_URL="https://test.pypi.org/simple"
     EXTRA_INDEX_URL="https://pypi.org/simple"
 
@@ -138,7 +152,7 @@ PY
 
     echo "Installing packages: ${PACKAGES} == ${VERSION}"
     ${UV_PREVIEW[@]} pip install \
-      --index "${INDEX_URL}" \
+      --default-index "${INDEX_URL}" \
       --index "${EXTRA_INDEX_URL}" \
       --index-strategy unsafe-best-match \
       --upgrade --reinstall --no-cache-dir \
