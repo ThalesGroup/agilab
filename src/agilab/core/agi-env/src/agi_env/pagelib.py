@@ -28,6 +28,8 @@ from typing import Dict, Optional
 import sys
 import logging
 import webbrowser
+import importlib.metadata as _metadata
+import tomllib
 
 from sqlalchemy import false
 
@@ -99,6 +101,26 @@ import webbrowser
 # Track whether docs have been opened during the session to avoid reopening
 _DOCS_ALREADY_OPENED = False
 _LAST_DOCS_URL: Optional[str] = None
+
+
+def _resolve_agilab_version(env) -> Optional[str]:
+    """Return the AGILab version from installed metadata or local pyproject."""
+
+    try:
+        return _metadata.version("agilab")
+    except _metadata.PackageNotFoundError:
+        pass
+
+    agilab_src = getattr(env, "agilab_src", None)
+    if agilab_src:
+        pyproject = Path(agilab_src) / "pyproject.toml"
+        if pyproject.exists():
+            try:
+                data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+                return data.get("project", {}).get("version")
+            except Exception:
+                return None
+    return None
 
 def _resolve_docs_path(env, html_file: str) -> Path | None:
     """Return the first docs HTML path that exists for the requested file."""
@@ -210,12 +232,15 @@ def render_logo(edit_text):
 
     agilab_logo_path = env.st_resources / "agilab_logo.png"  # Replace with your logo filename
     agilab_logo_base64 = get_base64_of_image(agilab_logo_path)
+    version = _resolve_agilab_version(env)
+
     if agilab_logo_base64:
         st.markdown(
             f"""
             <style>
             [data-testid="stSidebar"] {{
                 position: relative;
+                padding-bottom: 92px;
             }}
             [data-testid="stSidebar"]::before {{
                 content: "";
@@ -245,6 +270,37 @@ def render_logo(edit_text):
                 z-index: 1;
                 pointer-events: none;
             }}
+            [data-testid="stSidebar"] .agilab-footer {{
+                position: fixed;
+                left: 20px;
+                right: 20px;
+                bottom: 18px;
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                align-items: center;
+                pointer-events: none;
+                z-index: 5;
+            }}
+            [data-testid="stSidebar"] .agilab-footer .agilab-version-badge {{
+                padding: 4px 18px;
+                border-radius: 999px;
+                background: rgba(15, 23, 42, 0.96);
+                color: #E0F2FE;
+                font-size: 0.72rem;
+                font-weight: 600;
+                letter-spacing: 0.045em;
+                box-shadow: 0 6px 18px rgba(15, 23, 42, 0.35);
+                text-transform: uppercase;
+                pointer-events: auto;
+            }}
+            [data-testid="stSidebar"] .agilab-footer .agilab-legal {{
+                font-size: 0.66rem;
+                color: #CBD5F5;
+                text-align: center;
+                letter-spacing: 0.015em;
+                pointer-events: auto;
+            }}
             [data-testid="stSidebar"] button {{
                 white-space: nowrap;
             }}
@@ -255,6 +311,17 @@ def render_logo(edit_text):
 
     else:
         st.sidebar.warning("Logo could not be loaded. Please check the logo path.")
+
+    if version:
+        st.sidebar.markdown(
+            (
+                "<div class='agilab-footer'>"
+                f"<div class='agilab-version-badge'>AGILab v{version}</div>"
+                "<div class='agilab-legal'>© 2020-2025 Thales SIX GTS · BSD 3-Clause Licensed</div>"
+                "</div>"
+            ),
+            unsafe_allow_html=True,
+        )
 
 
 def subproc(command, cwd):
