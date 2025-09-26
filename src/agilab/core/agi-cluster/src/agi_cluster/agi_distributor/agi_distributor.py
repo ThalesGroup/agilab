@@ -1031,9 +1031,11 @@ class AGI:
 
         app_path = env.active_app
         if hw_rapids_capable:
-            cmd_manager = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(app_path)) else '')}{uv} {run_type} --config-file uv_config.toml --project '{app_path}'"
+            cmd_manager = (
+                f"{uv} {run_type} --config-file uv_config.toml --project '{app_path}'"
+            )
         else:
-            cmd_manager = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(app_path)) else '')}{uv} {run_type} --project '{app_path}'"
+            cmd_manager = f"{uv} {run_type} --project '{app_path}'"
 
         if env.verbose > 0:
             logger.info(f"Installing manager: {cmd_manager}")
@@ -1057,10 +1059,13 @@ class AGI:
         pyvers_worker = env.pyvers_worker
 
         if hw_rapids_capable:
-            cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} --python {pyvers_worker} --config-file uv_config.toml --project '{wenv_abs}'"
-            cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} --python {pyvers_worker} --config-file uv_config.toml --project '{wenv_abs}'"
+            cmd_worker = (
+                f"{uv_worker} {run_type} --python {pyvers_worker} --config-file uv_config.toml --project '{wenv_abs}'"
+            )
         else:
-            cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} {options_worker} --python {pyvers_worker} --project '{wenv_abs}'"
+            cmd_worker = (
+                f"{uv_worker} {run_type} {options_worker} --python {pyvers_worker} --project '{wenv_abs}'"
+            )
 
         if env.verbose > 0:
             logger.info(f"Installing workers: {cmd_worker}")
@@ -1077,10 +1082,10 @@ class AGI:
             cmd = f"{uv_worker} pip install --upgrade agi-node"
             await AgiEnv.run(cmd, wenv_abs)
 
-            cmd = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if _agi__version_missing_on_pypi(env.env_root) else '')}{uv_worker} sync --upgrade --project '{env.env_root}'"
+            cmd = f"{uv_worker} sync --upgrade --project '{env.env_root}'"
             await AgiEnv.run(cmd, wenv_abs)
 
-            cmd = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if _agi__version_missing_on_pypi(env.node_root) else '')}{uv_worker} sync --upgrade --project '{env.node_root}'"
+            cmd = f"{uv_worker} sync --upgrade --project '{env.node_root}'"
             await AgiEnv.run(cmd, wenv_abs)
         else:
             # build agi_env*.whl

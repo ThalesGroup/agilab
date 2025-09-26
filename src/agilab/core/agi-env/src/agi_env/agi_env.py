@@ -169,6 +169,21 @@ class AgiEnv:
         elif verbose >= 3:
             self.uv = "uv --verbose"
 
+        if os.name == "nt":
+            pip_prefix = (
+                f'set "PIP_INDEX_URL={AgiEnv.INDEX_URL}" && '
+                f'set "PIP_EXTRA_INDEX_URL={AgiEnv.EXTRA_INDEX_URL}" && '
+            )
+        else:
+            pip_prefix = (
+                f"PIP_INDEX_URL={AgiEnv.INDEX_URL} "
+                f"PIP_EXTRA_INDEX_URL={AgiEnv.EXTRA_INDEX_URL} "
+            )
+
+        self.pip_prefix = pip_prefix
+        AgiEnv.pip_prefix = pip_prefix
+        self.uv = f"{pip_prefix}{self.uv}"
+
         AgiEnv.resources_path = home_abs / self._agi_resources.name
         env_path = AgiEnv.resources_path / ".env"
         self.benchmark = AgiEnv.resources_path / "benchmark.json"
@@ -1045,7 +1060,8 @@ class AgiEnv:
         snippet_file = os.path.join(self.runenv, f"{matches[0]}_{self.target}.py")
         with open(snippet_file, "w") as file:
             file.write(code)
-        cmd = f"{AgiEnv.export_local_bin}uv run --no-sync --project {str(venv)} python {snippet_file}"
+        pip_prefix = getattr(self, "pip_prefix", getattr(AgiEnv, "pip_prefix", ""))
+        cmd = f"{AgiEnv.export_local_bin}{pip_prefix}uv run --no-sync --project {str(venv)} python {snippet_file}"
         result = await AgiEnv._run_bg(cmd, cwd=venv, log_callback=log_callback)
         if log_callback:
             log_callback(f"Process finished")
