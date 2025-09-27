@@ -32,6 +32,7 @@ import shutil
 import subprocess
 import sys
 import urllib.request
+from datetime import datetime
 from typing import Dict, List, Tuple
 
 # third-party (installed on-demand if missing)
@@ -52,9 +53,13 @@ def parse_args():
                     help="Show chosen version & collisions; do not build or upload.")
     ap.add_argument("--no-pypirc-check", dest="pypirc_check", action="store_false",
                     help="Disable ~/.pypirc preflight (enabled by default).")
-        # Cleanup & auth options (backward-compatible aliases)
+    # Cleanup & auth options (backward-compatible aliases)
     ap.add_argument("--clean", action="store_true",
-                    help="Interactively delete versions on TestPyPI before publishing.")
+                    help="Delete older releases before publishing.")
+    ap.add_argument("--clean-keep-months-back", type=int,
+                    help="Keep releases uploaded N months back (0 = current month).")
+    ap.add_argument("--clean-all-indexes", action="store_true",
+                    help="Apply cleanup against both PyPI and TestPyPI regardless of --repo.")
     ap.add_argument("--user", "--clean-user", dest="clean_user", default=None,
                     help="Username for deletion (e.g., TestPyPI account name for interactive login).")
     ap.add_argument("--regex", "--clean-regex", dest="clean_regex", default=None,
@@ -64,7 +69,19 @@ def parse_args():
     ap.add_argument("--delete-project", "--clean-delete-project", dest="clean_delete_project",
                     action="store_true",
                     help="Pass --delete-project to pypi-cleanup (destructive: deletes all matched releases).")
-    return ap.parse_args()
+    parsed = ap.parse_args()
+    if parsed.clean_keep_months_back is not None and parsed.clean_keep_months_back < 0:
+        ap.error("--clean-keep-months-back must be >= 0")
+    if parsed.clean_keep_months_back is not None:
+        if not parsed.clean:
+            ap.error("--clean-keep-months-back requires --clean")
+        if parsed.clean_delete_project:
+            ap.error("--clean-keep-months-back cannot be mixed with --delete-project")
+        if parsed.clean_regex or parsed.clean_days is not None:
+            ap.error("--clean-keep-months-back cannot be combined with --clean-regex/--clean-days")
+    if parsed.clean and parsed.clean_keep_months_back is None:
+        parsed.clean_keep_months_back = 0
+    return parsed
 
 args = parse_args()
 TARGET: str = args.repo
@@ -90,12 +107,17 @@ JSON_API = {
     "pypi":     "https://pypi.org/pypi/{name}/json",
 }
 
+CLEANUP_HOST = {
+    "testpypi": "https://test.pypi.org/",
+    "pypi": "https://pypi.org/",
+}
+
 # ------------------------- Utils -------------------------
 def run(cmd: List[str], cwd: pathlib.Path | None = None, env: dict | None = None):
     print("+", " ".join(map(str, cmd)))
     subprocess.run(cmd, cwd=str(cwd or pathlib.Path.cwd()), check=True, text=True, env=env)
 
-def ensure_tools():
+def ensure_tools(require_cleanup: bool = False):
     # tomlkit, uv, twine
     try:
         import tomlkit  # noqa: F401
@@ -106,8 +128,10 @@ def ensure_tools():
             run([tool, "--version"])
         except Exception:
             run([sys.executable, "-m", "pip", "install", "--upgrade", tool])
+    if require_cleanup and not shutil.which("pypi-cleanup"):
+        run([sys.executable, "-m", "pip", "install", "--upgrade", "pypi-cleanup"])
 
-ensure_tools()
+ensure_tools(args.clean or args.clean_keep_months_back is not None)
 from tomlkit import parse as toml_parse, dumps as toml_dumps  # type: ignore
 
 def load_doc(p: pathlib.Path):
@@ -134,6 +158,110 @@ def sanitize_project_names(paths: List[pathlib.Path]):
             doc["project"] = proj
             save_doc(p, doc)
             print(f"[fix] {p.relative_to(REPO_ROOT)}: '{raw}' -> '{cleaned}'")
+
+def cleanup_old_releases(packages: List[str], repo_targets: List[str], *, user: str | None,
+                         regex: str | None, days: int | None, delete_project: bool,
+                         keep_months_back: int | None) -> None:
+    """Invoke pypi-cleanup to remove old releases according to the requested strategy."""
+    exe = shutil.which("pypi-cleanup") or "pypi-cleanup"
+
+    target_year_month: Tuple[int, int] | None = None
+    if keep_months_back is not None:
+        target_year_month = resolve_target_year_month(keep_months_back)
+
+    for repo_target in repo_targets:
+        host = CLEANUP_HOST.get(repo_target)
+        if not host:
+            print(f"[clean] No cleanup host configured for repo '{repo_target}', skipping.")
+            continue
+
+        for pkg in packages:
+            if target_year_month is not None:
+                keep_year, keep_month = target_year_month
+                versions, total_versions = versions_outside_month(pkg, repo_target, keep_year, keep_month)
+                if not versions:
+                    print(
+                        f"[clean] {pkg}: nothing to delete on {repo_target} "
+                        f"for keep-months-back={keep_months_back}."
+                    )
+                    continue
+                if total_versions and len(versions) >= total_versions:
+                    print(
+                        f"[clean] {pkg}: skipping cleanup on {repo_target} because "
+                        "it would delete every release."
+                    )
+                    continue
+                pattern = "^(" + "|".join(re.escape(v) for v in versions) + ")$"
+                cmd: List[str] = [exe, "-p", pkg, "-t", host, "-r", pattern, "--do-it"]
+            else:
+                cmd = [exe, "-p", pkg, "-t", host, "--leave-most-recent-only", "--do-it"]
+                if regex:
+                    cmd += ["-r", regex]
+                if days is not None:
+                    cmd += ["-d", str(days)]
+                if delete_project:
+                    cmd += ["--delete-project", "-y"]
+
+            if user:
+                cmd += ["-u", user]
+
+            print(f"[clean] Trimming releases for {pkg} on {repo_target}")
+            proc = subprocess.run(cmd, cwd=str(REPO_ROOT), text=True)
+            if proc.returncode != 0:
+                print(
+                    f"[clean] {pkg}: pypi-cleanup exited with code {proc.returncode}; continuing."
+                )
+
+
+def resolve_target_year_month(months_back: int, *, reference: datetime | None = None) -> Tuple[int, int]:
+    now = reference or datetime.now()
+    year, month = now.year, now.month
+    steps = max(0, months_back)
+    for _ in range(steps):
+        month -= 1
+        if month == 0:
+            month = 12
+            year -= 1
+    return year, month
+
+
+def _parse_iso8601(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    value = value.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def versions_outside_month(package: str, repo_target: str, keep_year: int, keep_month: int) -> Tuple[List[str], int]:
+    url = JSON_API[repo_target].format(name=package)
+    try:
+        with urllib.request.urlopen(url, timeout=10) as response:
+            payload = json.load(response) or {}
+    except Exception as exc:
+        print(f"[clean] {package}: failed to query releases from {url}: {exc}")
+        return []
+
+    releases = payload.get("releases") or {}
+    to_delete: List[str] = []
+    total_versions = 0
+    for version, files in releases.items():
+        if not files:
+            continue
+        total_versions += 1
+        timestamps = [
+            _parse_iso8601(file.get("upload_time_iso_8601") or file.get("upload_time"))
+            for file in files
+        ]
+        timestamps = [dt for dt in timestamps if dt is not None]
+        if not timestamps:
+            continue
+        latest = max(timestamps)
+        if latest.year != keep_year or latest.month != keep_month:
+            to_delete.append(version)
+    return to_delete, total_versions
 
 # ------------------------- .pypirc preflight (optional) -------------------------
 def assert_pypirc_has(repo_name: str):
@@ -218,6 +346,18 @@ def compute_unified_version(core_names: List[str], repo_target: str, base_versio
     collisions: Dict[str, List[str]] = {n: [] for n in core_names}
 
     if base_version:
+        if repo_target == "pypi":
+            try:
+                v = Version(base_version)
+                desired_base = normalize_base(base_version)
+                if desired_base == base_version and not tuple(v.local or ()) and v.post is None:
+                    base = desired_base
+                    if all(base not in pypi_releases(n, repo_target) for n in core_names):
+                        chosen = base
+                        collisions[core_names[0]] = []
+                        return chosen, collisions
+            except InvalidVersion:
+                pass
         base = base_version
     else:
         base = max_base_across_packages(core_names, repo_target)
@@ -344,6 +484,23 @@ def main():
     chosen, collisions = compute_unified_version(core_names, TARGET, BASE_VERSION)
 
     print(f"[plan] Unified version: {chosen}")
+    if args.clean:
+        packages_to_clean = core_names + [UMBRELLA[0]]
+        if DRY_RUN:
+            print("[clean] Skipping cleanup because --dry-run was provided.")
+        else:
+            targets_to_clean: List[str] = [TARGET]
+            if args.clean_all_indexes or args.clean_keep_months_back is not None:
+                targets_to_clean = sorted({"testpypi", "pypi"})
+            cleanup_old_releases(
+                packages_to_clean,
+                targets_to_clean,
+                user=args.clean_user,
+                regex=args.clean_regex,
+                days=args.clean_days,
+                delete_project=args.clean_delete_project,
+                keep_months_back=args.clean_keep_months_back,
+            )
     if DRY_RUN:
         print("[dry-run] Collisions that forced bump (per package):")
         for n in core_names:

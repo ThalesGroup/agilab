@@ -33,6 +33,9 @@ same instructions.
 > `uv run python docs/gen-docs.py` so the rendered docs track the source changes.
 > Docs live in the `$private_apps` clone; export it first (`private_apps="$HOME/PycharmProjects/thales_agilab"` or use the existing `$PRIVATE_APPS` env var), then `cd "$private_apps" && ./docs/gen_docs.sh` (or `cd "$PRIVATE_APPS" && ./docs/gen_docs.sh`) from the directory that contains `gen_docs.sh` to rebuild the generated HTML and stubs.
 >
+> **Publishing tip**
+> `tools/pypi_publish.py --clean` keeps only the current month’s releases on PyPI & TestPyPI. Use `--clean-keep-months-back N` (0=current month, 1=previous, …) to pick a different retention window; the script skips an index automatically if that window would delete every release.
+>
 > **Docs search tip**
 > To list help guides quickly, prefer `rg --files docs/source -g '*-help.rst'`. Giving
 > the docs root avoids false negatives when the directory is untracked or ignored.
@@ -110,7 +113,7 @@ same instructions.
 | agilab | install-agilab-dev | bash | $PROJECT_DIR$/setup_pycharm.sh | $PROJECT_DIR$ |  | cd $PROJECT_DIR$ && /bin/bash $PROJECT_DIR$/setup_pycharm.sh |  |
 | agilab | install-agilab-enduser | bash | $PROJECT_DIR$/tools/install_enduser.sh --source testpypi | $PROJECT_DIR$/test |  | cd $PROJECT_DIR$/test && /bin/bash $PROJECT_DIR$/tools/install_enduser.sh --source testpypi |  |
 | agilab | lab_run test | $USER_HOME$/agi-workspace/.venv/lib/python3.12/site-packages/agilab/lab_run.py | --openai-api-key "your-key" | $USER_HOME$/agi-workspace/ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $USER_HOME$/agi-workspace/ && uv run python $USER_HOME$/agi-workspace/.venv/lib/python3.12/site-packages/agilab/lab_run.py --openai-api-key "your-key" | uv (agilab) |
-| agilab | pypi publish | $ProjectFileDir$/test/_pypi_publish.py | --repo testpypi --user agilab --clean --user agilab --regex ^\d+\.\d+\.\d+\.post\d+$ | $ProjectFileDir$ | PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run python $ProjectFileDir$/test/_pypi_publish.py --repo testpypi --user agilab --clean --user agilab --regex ^\d+\.\d+\.\d+\.post\d+$ | uv (agilab) |
+| agilab | pypi publish | $ProjectFileDir$/tools/pypi_publish.py | --repo testpypi --clean --clean-keep-months-back 0 --user agilab | $ProjectFileDir$ | PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run python $ProjectFileDir$/tools/pypi_publish.py --repo testpypi --clean --clean-keep-months-back 0 --user agilab | uv (agilab) |
 | agilab | run ssh cmd | $ProjectFileDir$/src/agilab/core/agi-env/test/_test_ssh_cmd.py |  |  | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | uv run python $ProjectFileDir$/src/agilab/core/agi-env/test/_test_ssh_cmd.py |  |
 | agilab | show depencencies | $ProjectFileDir$/tools/show_dependencies.py | --repo testpypi | $ProjectFileDir$ | PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1 | cd $ProjectFileDir$ && uv run python $ProjectFileDir$/tools/show_dependencies.py --repo testpypi | uv (agilab) |
 | agilab | test agi_distributor | pytest | $PROJECT_DIR$/src/agilab/core/test/test_agi_distributor.py | $PROJECT_DIR$/src/agilab/core/agi-cluster |  | cd $PROJECT_DIR$/src/agilab/core/agi-cluster && uv run pytest $PROJECT_DIR$/src/agilab/core/test/test_agi_distributor.py | uv (agi-cluster) |
