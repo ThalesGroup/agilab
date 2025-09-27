@@ -5,7 +5,7 @@ app_script_gen.xml|PythonConfigurationType|$ProjectFileDir$/pycharm/gen_app_scri
 install_agilab_dev.xml|ShConfigurationType|bash|$PROJECT_DIR$|$PROJECT_DIR$/setup_pycharm.sh|||public
 install_agilab_enduser.xml|ShConfigurationType|bash|$PROJECT_DIR$/test|$PROJECT_DIR$/tools/install_enduser.sh --source testpypi|||public
 lab_run_test.xml|PythonConfigurationType|$USER_HOME$/agi-workspace/.venv/lib/python3.12/site-packages/agilab/lab_run.py|$USER_HOME$/agi-workspace/|--openai-api-key "your-key"|PYTHONUNBUFFERED=1;UV_NO_SYNC=1|uv (agilab)|public
-pypi_publish.xml|PythonConfigurationType|$ProjectFileDir$/test/_pypi_publish.py|$ProjectFileDir$|--repo testpypi --user agilab --clean --user agilab --regex ^\d+\.\d+\.\d+\.post\d+$|PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1|uv (agilab)|public
+pypi_publish.xml|PythonConfigurationType|$ProjectFileDir$/tools/pypi_publish.py|$ProjectFileDir$|--repo testpypi --clean --clean-keep-months-back 0 --user agilab|PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1|uv (agilab)|public
 run_ssh_cmd.xml|PythonConfigurationType|$ProjectFileDir$/src/agilab/core/agi-env/test/_test_ssh_cmd.py|||PYTHONUNBUFFERED=1;UV_NO_SYNC=1||public
 show_depencencies.xml|PythonConfigurationType|$ProjectFileDir$/tools/show_dependencies.py|$ProjectFileDir$|--repo testpypi|PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1|uv (agilab)|public
 test_agi_distributor.xml|tests|pytest|$PROJECT_DIR$/src/agilab/core/agi-cluster|$PROJECT_DIR$/src/agilab/core/test/test_agi_distributor.py||uv (agi-cluster)|public

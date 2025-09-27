@@ -5,7 +5,7 @@ app_script_gen.xml	app_script gen	agi-cluster	PythonConfigurationType	$ProjectFi
 install_agilab_dev.xml	install_agilab_dev		ShConfigurationType	bash	$PROJECT_DIR$	$PROJECT_DIR$/setup_pycharm.sh			public
 install_agilab_enduser.xml	install-agilab-enduser		ShConfigurationType	bash	$PROJECT_DIR$/test	$PROJECT_DIR$/tools/install_enduser.sh --source testpypi			public
 lab_run_test.xml	lab_run test	agilab	PythonConfigurationType	$USER_HOME$/agi-workspace/.venv/lib/python3.12/site-packages/agilab/lab_run.py	$USER_HOME$/agi-workspace/	--openai-api-key "your-key"	PYTHONUNBUFFERED=1;UV_NO_SYNC=1	uv (agilab)	public
-pypi_publish.xml	pypi publish	agilab	PythonConfigurationType	$ProjectFileDir$/test/_pypi_publish.py	$ProjectFileDir$	--repo testpypi --user agilab --clean --user agilab --regex ^\d+\.\d+\.\d+\.post\d+$	PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1	uv (agilab)	public
+pypi_publish.xml	pypi publish	agilab	PythonConfigurationType	$ProjectFileDir$/tools/pypi_publish.py	$ProjectFileDir$	--repo testpypi --clean --clean-keep-months-back 0 --user agilab	PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1	uv (agilab)	public
 run_ssh_cmd.xml	run ssh cmd	agi-cluster	PythonConfigurationType	$ProjectFileDir$/src/agilab/core/agi-env/test/_test_ssh_cmd.py			PYTHONUNBUFFERED=1;UV_NO_SYNC=1		public
 show_depencencies.xml	show depencencies	agilab	PythonConfigurationType	$ProjectFileDir$/tools/show_dependencies.py	$ProjectFileDir$	--repo testpypi	PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1	uv (agilab)	public
 test_agi_distributor.xml	test agi_distributor	agi-cluster	tests	pytest	$PROJECT_DIR$/src/agilab/core/agi-cluster	$PROJECT_DIR$/src/agilab/core/test/test_agi_distributor.py		uv (agi-cluster)	public
