@@ -61,11 +61,11 @@ Managed PC path remapping
 - ``managed_pc_home_suffix`` customises the managed workspace folder name if your
   deployment uses something other than ``MyApp``.
 - ``BaseWorker.from_toml`` applies the remapping automatically; when instantiating
-  a worker manually, call ``self._apply_managed_pc_paths(args)`` after building the
-  arguments.
-- Use ``setup_args`` inside manager constructors to apply defaults, remap managed-PC
-  paths, and (when ``auto_prepare_output_dir`` is true) create the standard
-  ``dataframe`` output directory in one call.
+  a worker manually, use ``setup_args`` to apply defaults and remap paths in a
+  single call.
+- ``setup_args`` optionally accepts ``output_field`` (e.g. ``"data_uri"``) along with
+  ``output_subdir``, ``output_attr``, ``output_clean`` and ``output_parents_up`` so
+  managers can prepare their output directories without repeating boilerplate.
 
 Output directory helpers
 ------------------------

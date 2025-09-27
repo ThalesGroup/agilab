@@ -19,8 +19,11 @@ You’ll find everything from quickstarts to API references, as well as example 
    :caption: Core Topics
 
    cluster
+   cluster-help
    agilab
    framework-api
+   environment
+   faq
    directory-structure
    install-usecase
    troubleshooting
@@ -28,13 +31,18 @@ You’ll find everything from quickstarts to API references, as well as example 
 
 .. toctree::
    :maxdepth: 1
-   :caption: PAGES Examples
+   :caption: Pages
 
+   edit-help
+   execute-help
+   experiment-help
+   explore-help
+   apps-pages-help
    apps-pages
 
 .. toctree::
    :maxdepth: 1
-   :caption: APPS Examples
+   :caption: Apps Examples
 
    mycode-project
    flight-project

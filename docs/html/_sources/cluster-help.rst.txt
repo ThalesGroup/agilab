@@ -14,3 +14,20 @@ will play the role of scheduler and the others are workers matching the Dask[dis
 agi-core to install your project on each nodes. In order to proceed it requires each node to run a ssh server.
 The node on which agilab run will use ssh client to connect to each node. So that is why you need to generate keys
 from your Agillab node and then copy it to each nodes of your cluster.
+
+Regenerate Documentation
+------------------------
+
+After updating this guide (or any docs surfaced in the IDE), rebuild the
+generated site so teammates and CI consume the same content:
+
+.. code-block:: bash
+
+   ./docs/gen_docs.sh
+
+The wrapper guarantees ``uv`` runs ``docs/gen-docs.py`` with the extra build
+dependencies required for Sphinx and stub generation.
+
+.. literalinclude:: ../gen_docs.sh
+   :language: bash
+   :caption: ``docs/gen_docs.sh``

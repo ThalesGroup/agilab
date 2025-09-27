@@ -31,6 +31,11 @@ same instructions.
 > **Docs reminder**
 > After touching `BaseWorker` or other core APIs that surface in the guides, run
 > `uv run python docs/gen-docs.py` so the rendered docs track the source changes.
+> Docs live in the `$private_apps` clone; export it first (`private_apps="$HOME/PycharmProjects/thales_agilab"` or use the existing `$PRIVATE_APPS` env var), then `cd "$private_apps" && ./docs/gen_docs.sh` (or `cd "$PRIVATE_APPS" && ./docs/gen_docs.sh`) from the directory that contains `gen_docs.sh` to rebuild the generated HTML and stubs.
+>
+> **Docs search tip**
+> To list help guides quickly, prefer `rg --files docs/source -g '*-help.rst'`. Giving
+> the docs root avoids false negatives when the directory is untracked or ignored.
 >
 > **Codex approvals**
 > When automations need escalated privileges (filesystem/network), ensure Codex has the

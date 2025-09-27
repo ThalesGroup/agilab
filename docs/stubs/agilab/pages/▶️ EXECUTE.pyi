@@ -9,7 +9,7 @@ import numbers
 import logging
 from pathlib import Path
 import importlib
-from datetime import datetime
+from datetime import datetime, timedelta
 import networkx as nx
 import matplotlib.pyplot as plt
 import textwrap
@@ -19,12 +19,17 @@ import streamlit as st
 import tomli
 import tomli_w
 import pandas as pd
+import humanize
 from agi_env.pagelib import (
     get_about_content, render_logo, activate_mlflow, save_csv, init_custom_ui, select_project, open_new_tab,
     cached_load_df
 )
 from agi_env import AgiEnv, normalize_path
 from typing import Any
+
+def _extract_seconds_from_line(*args: Any, **kwargs: Any) -> Any: ...
+
+def render_run_summary(*args: Any, **kwargs: Any) -> Any: ...
 
 def init_session_state(*args: Any, **kwargs: Any) -> Any: ...
 

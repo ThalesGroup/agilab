@@ -15,6 +15,8 @@ from typing import Dict, Optional
 import sys
 import logging
 import webbrowser
+import importlib.metadata as _metadata
+import tomllib
 from sqlalchemy import false
 import ast
 from typing import List, Optional, Union
@@ -43,6 +45,8 @@ def log(*args: Any, **kwargs: Any) -> Any: ...
 def run(*args: Any, **kwargs: Any) -> Any: ...
 
 _DOCS_ALREADY_OPENED = False
+
+def _resolve_agilab_version(*args: Any, **kwargs: Any) -> Any: ...
 
 def _resolve_docs_path(*args: Any, **kwargs: Any) -> Any: ...
 

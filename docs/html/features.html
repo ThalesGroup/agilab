@@ -77,6 +77,7 @@
 <li class="toctree-l2"><a class="reference internal" href="cluster-help.html">Cluster Help</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="cluster-help.html#overview">Overview</a></li>
 <li class="toctree-l3"><a class="reference internal" href="cluster-help.html#principle">Principle</a></li>
+<li class="toctree-l3"><a class="reference internal" href="cluster-help.html#regenerate-documentation">Regenerate Documentation</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation</a><ul>
@@ -98,6 +99,12 @@
 <li class="toctree-l3"><a class="reference internal" href="key-generation.html#useful-links">Useful links</a></li>
 </ul>
 </li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cluster-help.html">Cluster Help</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="cluster-help.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cluster-help.html#principle">Principle</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cluster-help.html#regenerate-documentation">Regenerate Documentation</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="agilab.html">AGILab</a><ul class="simple">
@@ -129,6 +136,21 @@
 <li class="toctree-l2"><a class="reference internal" href="framework-api.html#app-structure-conventions">App structure conventions</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="environment.html">Environment Variables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#missing-worker-packages-during-agi-run">Missing worker packages during <cite>AGI.run_*</cite></a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#why-installers-still-build-eggs">Why installers still build eggs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#do-we-already-have-dag-task-orchestration">Do we already have DAG/task orchestration?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#who-manages-multithreading-when-dask-is-disabled">Who manages multithreading when Dask is disabled?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#regenerating-ide-run-configurations">Regenerating IDE run configurations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#virtual-env-does-not-match-the-project-environment-warning">“VIRTUAL_ENV … does not match the project environment” warning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#why-does-a-run-create-distribution-json">Why does a run create <code class="docutils literal notranslate"><span class="pre">distribution.json</span></code>?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#switching-the-active-app-in-streamlit">Switching the active app in Streamlit</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#docs-drift-after-touching-core-apis">Docs drift after touching core APIs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#agi-install-fails-looking-for-pyproject-toml"><cite>AGI.install_*</cite> fails looking for <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#where-are-installer-logs-written">Where are installer logs written?</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="directory-structure.html">Project Files Structure</a></li>
 <li class="toctree-l1"><a class="reference internal" href="install-usecase.html">Installation Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a><ul>
@@ -147,13 +169,59 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-cluster-licenses.html">Agi-cluster Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="agi-node-licenses.html">Agi-node Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="agi-env-licenses.html">Agi-env Licenses</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
 </ul>
 </li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">PAGES Examples</span></p>
+<p class="caption" role="heading"><span class="caption-text">IDE Help</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ EDIT</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="edit-help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l2"><a class="reference internal" href="edit-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="edit-help.html#regenerate-documentation">Regenerate Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="edit-help.html#support">Support</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#regenerate-documentation">Regenerate Documentation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="experiment-help.html">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="experiment-help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l2"><a class="reference internal" href="experiment-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="experiment-help.html#regenerate-documentation">Regenerate Documentation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ EXPLORE</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="explore-help.html#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="explore-help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l2"><a class="reference internal" href="explore-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="explore-help.html#tips-notes">Tips &amp; Notes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="explore-help.html#regenerate-documentation">Regenerate Documentation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="app-pages-help.html">▶️ APPS PAGES</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="app-pages-help.html#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="app-pages-help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l2"><a class="reference internal" href="app-pages-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="app-pages-help.html#regenerate-documentation">Regenerate Documentation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="apps-pages-help.html">▶️ APPS PAGES</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="apps-pages-help.html#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="apps-pages-help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l2"><a class="reference internal" href="apps-pages-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="apps-pages-help.html#regenerate-documentation">Regenerate Documentation</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Page Bundles</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="apps-pages.html">apps bounded pages</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="apps-pages.html#view-autoencoder-latenspace">view_autoencoder_latenspace</a></li>
@@ -182,10 +250,7 @@
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode.mycode.Mycode.args_loader"><code class="docutils literal notranslate"><span class="pre">Mycode.args_loader()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode.mycode.Mycode.args_merger"><code class="docutils literal notranslate"><span class="pre">Mycode.args_merger()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode.mycode.Mycode.as_dict"><code class="docutils literal notranslate"><span class="pre">Mycode.as_dict()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode.mycode.Mycode.auto_clean_data_out"><code class="docutils literal notranslate"><span class="pre">Mycode.auto_clean_data_out</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode.mycode.Mycode.build_distribution"><code class="docutils literal notranslate"><span class="pre">Mycode.build_distribution()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode.mycode.Mycode.data_out_attr"><code class="docutils literal notranslate"><span class="pre">Mycode.data_out_attr</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode.mycode.Mycode.data_out_subdir"><code class="docutils literal notranslate"><span class="pre">Mycode.data_out_subdir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode.mycode.Mycode.default_settings_path"><code class="docutils literal notranslate"><span class="pre">Mycode.default_settings_path</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode.mycode.Mycode.default_settings_section"><code class="docutils literal notranslate"><span class="pre">Mycode.default_settings_section</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode.mycode.Mycode.env"><code class="docutils literal notranslate"><span class="pre">Mycode.env</span></code></a></li>
@@ -196,6 +261,7 @@
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode.mycode.Mycode.managed_pc_path_fields"><code class="docutils literal notranslate"><span class="pre">Mycode.managed_pc_path_fields</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode.mycode.Mycode.normalize_data_uri"><code class="docutils literal notranslate"><span class="pre">Mycode.normalize_data_uri()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode.mycode.Mycode.prepare_output_dir"><code class="docutils literal notranslate"><span class="pre">Mycode.prepare_output_dir()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode.mycode.Mycode.setup_args"><code class="docutils literal notranslate"><span class="pre">Mycode.setup_args()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode.mycode.Mycode.start"><code class="docutils literal notranslate"><span class="pre">Mycode.start()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode.mycode.Mycode.stop"><code class="docutils literal notranslate"><span class="pre">Mycode.stop()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode.mycode.Mycode.to_toml"><code class="docutils literal notranslate"><span class="pre">Mycode.to_toml()</span></code></a></li>
@@ -216,9 +282,6 @@
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode_worker.mycode_worker.MycodeWorker.args_loader"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.args_loader</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode_worker.mycode_worker.MycodeWorker.args_merger"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.args_merger</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode_worker.mycode_worker.MycodeWorker.as_dict"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.as_dict()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode_worker.mycode_worker.MycodeWorker.auto_clean_data_out"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.auto_clean_data_out</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode_worker.mycode_worker.MycodeWorker.data_out_attr"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.data_out_attr</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode_worker.mycode_worker.MycodeWorker.data_out_subdir"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.data_out_subdir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode_worker.mycode_worker.MycodeWorker.default_settings_path"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.default_settings_path</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode_worker.mycode_worker.MycodeWorker.default_settings_section"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.default_settings_section</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode_worker.mycode_worker.MycodeWorker.env"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.env</span></code></a></li>
@@ -230,6 +293,7 @@
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode_worker.mycode_worker.MycodeWorker.managed_pc_path_fields"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.managed_pc_path_fields</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode_worker.mycode_worker.MycodeWorker.normalize_data_uri"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.normalize_data_uri()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode_worker.mycode_worker.MycodeWorker.prepare_output_dir"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.prepare_output_dir()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode_worker.mycode_worker.MycodeWorker.setup_args"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.setup_args()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode_worker.mycode_worker.MycodeWorker.start"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.start()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode_worker.mycode_worker.MycodeWorker.stop"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.stop()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="mycode-project.html#mycode_worker.mycode_worker.MycodeWorker.to_toml"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.to_toml()</span></code></a></li>
@@ -257,10 +321,8 @@
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.args_loader"><code class="docutils literal notranslate"><span class="pre">Flight.args_loader()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.args_merger"><code class="docutils literal notranslate"><span class="pre">Flight.args_merger()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.as_dict"><code class="docutils literal notranslate"><span class="pre">Flight.as_dict()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.auto_clean_data_out"><code class="docutils literal notranslate"><span class="pre">Flight.auto_clean_data_out</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.auto_prepare_output_dir"><code class="docutils literal notranslate"><span class="pre">Flight.auto_prepare_output_dir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.build_distribution"><code class="docutils literal notranslate"><span class="pre">Flight.build_distribution()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.data_out_attr"><code class="docutils literal notranslate"><span class="pre">Flight.data_out_attr</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.data_out_subdir"><code class="docutils literal notranslate"><span class="pre">Flight.data_out_subdir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.default_settings_path"><code class="docutils literal notranslate"><span class="pre">Flight.default_settings_path</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.default_settings_section"><code class="docutils literal notranslate"><span class="pre">Flight.default_settings_section</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.env"><code class="docutils literal notranslate"><span class="pre">Flight.env</span></code></a></li>
@@ -276,12 +338,15 @@
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.managed_pc_path_fields"><code class="docutils literal notranslate"><span class="pre">Flight.managed_pc_path_fields</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.normalize_data_uri"><code class="docutils literal notranslate"><span class="pre">Flight.normalize_data_uri()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.prepare_output_dir"><code class="docutils literal notranslate"><span class="pre">Flight.prepare_output_dir()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.setup_args"><code class="docutils literal notranslate"><span class="pre">Flight.setup_args()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.start"><code class="docutils literal notranslate"><span class="pre">Flight.start()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.stop"><code class="docutils literal notranslate"><span class="pre">Flight.stop()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.to_toml"><code class="docutils literal notranslate"><span class="pre">Flight.to_toml()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight.Flight.verbose"><code class="docutils literal notranslate"><span class="pre">Flight.verbose</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight_args.ArgsModel"><code class="docutils literal notranslate"><span class="pre">ArgsModel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight_args.ArgsOverrides"><code class="docutils literal notranslate"><span class="pre">ArgsOverrides</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight_args.FlightArgs"><code class="docutils literal notranslate"><span class="pre">FlightArgs</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight_args.FlightArgs.__init__"><code class="docutils literal notranslate"><span class="pre">FlightArgs.__init__()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-project.html#flight.flight_args.FlightArgs.construct"><code class="docutils literal notranslate"><span class="pre">FlightArgs.construct()</span></code></a></li>
@@ -351,7 +416,10 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight_args.apply_source_defaults"><code class="docutils literal notranslate"><span class="pre">apply_source_defaults()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight_args.dump_args"><code class="docutils literal notranslate"><span class="pre">dump_args()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight_args.dump_args_to_toml"><code class="docutils literal notranslate"><span class="pre">dump_args_to_toml()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight_args.ensure_defaults"><code class="docutils literal notranslate"><span class="pre">ensure_defaults()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight_args.load_args"><code class="docutils literal notranslate"><span class="pre">load_args()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight_args.load_args_from_toml"><code class="docutils literal notranslate"><span class="pre">load_args_from_toml()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="flight-project.html#flight.flight_args.merge_args"><code class="docutils literal notranslate"><span class="pre">merge_args()</span></code></a></li>
 </ul>
@@ -374,10 +442,7 @@
 <li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.args_loader"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.args_loader()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.args_merger"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.args_merger()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.as_dict"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.as_dict()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.auto_clean_data_out"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.auto_clean_data_out</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.build_distribution"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.build_distribution()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.data_out_attr"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.data_out_attr</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.data_out_subdir"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.data_out_subdir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.default_settings_path"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.default_settings_path</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.default_settings_section"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.default_settings_section</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.env"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.env</span></code></a></li>
@@ -390,115 +455,13 @@
 <li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.managed_pc_path_fields"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.managed_pc_path_fields</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.normalize_data_uri"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.normalize_data_uri()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.prepare_output_dir"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.prepare_output_dir()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.setup_args"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.setup_args()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.start"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.start()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.stop"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.stop()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.to_toml"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.to_toml()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.flight_trajectory.FlightTrajectory.verbose"><code class="docutils literal notranslate"><span class="pre">FlightTrajectory.verbose</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.ArgsModel"><code class="docutils literal notranslate"><span class="pre">ArgsModel</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.ArgsOverrides"><code class="docutils literal notranslate"><span class="pre">ArgsOverrides</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.__init__"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.altitude_loss_speed_treshold"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.altitude_loss_speed_treshold</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.beam_file"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.beam_file</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.construct"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.construct()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.copy"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.copy()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.cruising_pitch_max"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.cruising_pitch_max</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.data_uri"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.data_uri</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.default_alt_value"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.default_alt_value</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.descent_alt_treshold_landing"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.descent_alt_treshold_landing</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.descent_pitch_target"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.descent_pitch_target</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.dict"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.dict()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.enable_climb"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.enable_climb</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.enable_descent"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.enable_descent</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.from_orm"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.from_orm()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.json"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.json()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.landing_pitch_target"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.landing_pitch_target</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.landing_speed_target"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.landing_speed_target</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.max_pitch"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.max_pitch</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.max_roll"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.max_roll</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.max_speed"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.max_speed</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.max_speed_ratio_while_turining"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.max_speed_ratio_while_turining</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.model_computed_fields"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.model_computed_fields</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.model_config"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.model_config</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.model_construct"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.model_construct()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.model_copy"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.model_copy()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.model_dump"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.model_dump()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.model_dump_json"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.model_dump_json()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.model_extra"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.model_extra</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.model_fields"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.model_fields</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.model_fields_set"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.model_fields_set</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.model_json_schema"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.model_json_schema()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.model_parametrized_name"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.model_parametrized_name()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.model_post_init"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.model_post_init()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.model_rebuild"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.model_rebuild()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.model_validate"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.model_validate()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.model_validate_json"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.model_validate_json()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.model_validate_strings"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.model_validate_strings()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.num_flights"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.num_flights</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.parse_file"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.parse_file()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.parse_obj"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.parse_obj()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.parse_raw"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.parse_raw()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.pitch_angular_speed"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.pitch_angular_speed</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.pitch_enable_speed_ratio"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.pitch_enable_speed_ratio</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.plane_type"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.plane_type</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.roll_angular_speed"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.roll_angular_speed</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.sat_file"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.sat_file</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.schema"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.schema()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.schema_json"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.schema_json()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.target_climbup_pitch"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.target_climbup_pitch</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.update_forward_refs"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.update_forward_refs()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.validate"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.validate()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.vehicule_acceleration"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.vehicule_acceleration</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.waypoints"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.waypoints</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgs.yaw_angular_speed"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgs.yaw_angular_speed</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.__init__"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.altitude_loss_speed_treshold"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.altitude_loss_speed_treshold</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.beam_file"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.beam_file</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.clear"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.clear()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.copy"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.copy()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.cruising_pitch_max"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.cruising_pitch_max</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.data_uri"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.data_uri</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.default_alt_value"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.default_alt_value</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.descent_alt_treshold_landing"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.descent_alt_treshold_landing</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.descent_pitch_target"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.descent_pitch_target</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.enable_climb"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.enable_climb</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.enable_descent"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.enable_descent</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.fromkeys"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.fromkeys()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.get"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.get()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.items"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.items()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.keys"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.keys()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.landing_pitch_target"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.landing_pitch_target</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.landing_speed_target"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.landing_speed_target</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.max_pitch"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.max_pitch</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.max_roll"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.max_roll</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.max_speed"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.max_speed</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.max_speed_ratio_while_turining"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.max_speed_ratio_while_turining</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.num_flights"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.num_flights</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.pitch_angular_speed"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.pitch_angular_speed</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.pitch_enable_speed_ratio"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.pitch_enable_speed_ratio</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.plane_type"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.plane_type</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.pop"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.pop()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.popitem"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.popitem()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.roll_angular_speed"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.roll_angular_speed</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.sat_file"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.sat_file</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.setdefault"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.setdefault()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.target_climbup_pitch"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.target_climbup_pitch</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.update"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.update()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.values"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.values()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.vehicule_acceleration"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.vehicule_acceleration</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.waypoints"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.waypoints</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.FlightTrajectoryArgsTD.yaw_angular_speed"><code class="docutils literal notranslate"><span class="pre">FlightTrajectoryArgsTD.yaw_angular_speed</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.dump_args"><code class="docutils literal notranslate"><span class="pre">dump_args()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.ensure_defaults"><code class="docutils literal notranslate"><span class="pre">ensure_defaults()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.load_args"><code class="docutils literal notranslate"><span class="pre">load_args()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="flight-trajectory-project.html#flight_trajectory.app_args.merge_args"><code class="docutils literal notranslate"><span class="pre">merge_args()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -519,10 +482,7 @@
 <li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.args_loader"><code class="docutils literal notranslate"><span class="pre">LinkSim.args_loader()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.args_merger"><code class="docutils literal notranslate"><span class="pre">LinkSim.args_merger()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.as_dict"><code class="docutils literal notranslate"><span class="pre">LinkSim.as_dict()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.auto_clean_data_out"><code class="docutils literal notranslate"><span class="pre">LinkSim.auto_clean_data_out</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.build_distribution"><code class="docutils literal notranslate"><span class="pre">LinkSim.build_distribution()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.data_out_attr"><code class="docutils literal notranslate"><span class="pre">LinkSim.data_out_attr</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.data_out_subdir"><code class="docutils literal notranslate"><span class="pre">LinkSim.data_out_subdir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.default_settings_path"><code class="docutils literal notranslate"><span class="pre">LinkSim.default_settings_path</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.default_settings_section"><code class="docutils literal notranslate"><span class="pre">LinkSim.default_settings_section</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.env"><code class="docutils literal notranslate"><span class="pre">LinkSim.env</span></code></a></li>
@@ -533,146 +493,15 @@
 <li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.managed_pc_path_fields"><code class="docutils literal notranslate"><span class="pre">LinkSim.managed_pc_path_fields</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.normalize_data_uri"><code class="docutils literal notranslate"><span class="pre">LinkSim.normalize_data_uri()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.prepare_output_dir"><code class="docutils literal notranslate"><span class="pre">LinkSim.prepare_output_dir()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.setup_args"><code class="docutils literal notranslate"><span class="pre">LinkSim.setup_args()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.start"><code class="docutils literal notranslate"><span class="pre">LinkSim.start()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.stop"><code class="docutils literal notranslate"><span class="pre">LinkSim.stop()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.to_toml"><code class="docutils literal notranslate"><span class="pre">LinkSim.to_toml()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSim.verbose"><code class="docutils literal notranslate"><span class="pre">LinkSim.verbose</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.__init__"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.cloud_heatmap_IVDL"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.cloud_heatmap_IVDL</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.cloud_heatmap_sat"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.cloud_heatmap_sat</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.construct"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.construct()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.copy"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.copy()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.data_flight"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.data_flight</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.data_sat"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.data_sat</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.data_uri"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.data_uri</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.dict"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.dict()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.from_orm"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.from_orm()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.json"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.json()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.model_computed_fields"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_computed_fields</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.model_config"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_config</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.model_construct"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_construct()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.model_copy"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_copy()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.model_dump"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_dump()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.model_dump_json"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_dump_json()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.model_extra"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_extra</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.model_fields"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_fields</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.model_fields_set"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_fields_set</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.model_json_schema"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_json_schema()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.model_parametrized_name"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_parametrized_name()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.model_post_init"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_post_init()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.model_rebuild"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_rebuild()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.model_validate"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_validate()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.model_validate_json"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_validate_json()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.model_validate_strings"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_validate_strings()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.output_format"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.output_format</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.parse_file"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.parse_file()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.parse_obj"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.parse_obj()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.parse_raw"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.parse_raw()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.plane_conf"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.plane_conf</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.schema"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.schema()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.schema_json"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.schema_json()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.services_conf"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.services_conf</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.update_forward_refs"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.update_forward_refs()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgs.validate"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.validate()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.__init__"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.clear"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.clear()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.cloud_heatmap_IVDL"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.cloud_heatmap_IVDL</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.cloud_heatmap_sat"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.cloud_heatmap_sat</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.copy"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.copy()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.data_flight"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.data_flight</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.data_sat"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.data_sat</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.data_uri"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.data_uri</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.fromkeys"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.fromkeys()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.get"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.get()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.items"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.items()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.keys"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.keys()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.output_format"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.output_format</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.plane_conf"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.plane_conf</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.pop"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.pop()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.popitem"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.popitem()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.services_conf"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.services_conf</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.setdefault"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.setdefault()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.update"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.update()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.LinkSimArgsTD.values"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.values()</span></code></a></li>
-</ul>
-</li>
 <li class="toctree-l3"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.analyze_csvs_in_folder"><code class="docutils literal notranslate"><span class="pre">analyze_csvs_in_folder()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="link-sim-project.html#link_sim.link_sim.combine_csvs_from_folder"><code class="docutils literal notranslate"><span class="pre">combine_csvs_from_folder()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.ArgsModel"><code class="docutils literal notranslate"><span class="pre">ArgsModel</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.ArgsOverrides"><code class="docutils literal notranslate"><span class="pre">ArgsOverrides</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.__init__"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.cloud_heatmap_IVDL"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.cloud_heatmap_IVDL</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.cloud_heatmap_sat"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.cloud_heatmap_sat</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.construct"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.construct()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.copy"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.copy()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.data_flight"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.data_flight</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.data_sat"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.data_sat</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.data_uri"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.data_uri</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.dict"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.dict()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.from_orm"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.from_orm()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.json"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.json()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.model_computed_fields"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_computed_fields</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.model_config"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_config</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.model_construct"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_construct()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.model_copy"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_copy()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.model_dump"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_dump()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.model_dump_json"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_dump_json()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.model_extra"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_extra</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.model_fields"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_fields</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.model_fields_set"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_fields_set</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.model_json_schema"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_json_schema()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.model_parametrized_name"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_parametrized_name()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.model_post_init"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_post_init()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.model_rebuild"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_rebuild()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.model_validate"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_validate()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.model_validate_json"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_validate_json()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.model_validate_strings"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.model_validate_strings()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.output_format"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.output_format</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.parse_file"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.parse_file()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.parse_obj"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.parse_obj()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.parse_raw"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.parse_raw()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.plane_conf"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.plane_conf</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.schema"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.schema()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.schema_json"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.schema_json()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.services_conf"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.services_conf</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.update_forward_refs"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.update_forward_refs()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgs.validate"><code class="docutils literal notranslate"><span class="pre">LinkSimArgs.validate()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.__init__"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.clear"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.clear()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.cloud_heatmap_IVDL"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.cloud_heatmap_IVDL</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.cloud_heatmap_sat"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.cloud_heatmap_sat</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.copy"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.copy()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.data_flight"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.data_flight</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.data_sat"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.data_sat</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.data_uri"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.data_uri</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.fromkeys"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.fromkeys()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.get"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.get()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.items"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.items()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.keys"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.keys()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.output_format"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.output_format</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.plane_conf"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.plane_conf</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.pop"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.pop()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.popitem"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.popitem()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.services_conf"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.services_conf</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.setdefault"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.setdefault()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.update"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.update()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.LinkSimArgsTD.values"><code class="docutils literal notranslate"><span class="pre">LinkSimArgsTD.values()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.dump_args"><code class="docutils literal notranslate"><span class="pre">dump_args()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.ensure_defaults"><code class="docutils literal notranslate"><span class="pre">ensure_defaults()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.load_args"><code class="docutils literal notranslate"><span class="pre">load_args()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="link-sim-project.html#link_sim.app_args.merge_args"><code class="docutils literal notranslate"><span class="pre">merge_args()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -693,10 +522,7 @@
 <li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.args_loader"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.args_loader()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.args_merger"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.args_merger()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.as_dict"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.as_dict()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.auto_clean_data_out"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.auto_clean_data_out</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.build_distribution"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.build_distribution()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.data_out_attr"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.data_out_attr</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.data_out_subdir"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.data_out_subdir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.default_settings_path"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.default_settings_path</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.default_settings_section"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.default_settings_section</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.env"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.env</span></code></a></li>
@@ -707,79 +533,13 @@
 <li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.managed_pc_path_fields"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.managed_pc_path_fields</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.normalize_data_uri"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.normalize_data_uri()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.prepare_output_dir"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.prepare_output_dir()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.setup_args"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.setup_args()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.start"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.start()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.stop"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.stop()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.to_toml"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.to_toml()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.sat_trajectory.SatTrajectory.verbose"><code class="docutils literal notranslate"><span class="pre">SatTrajectory.verbose</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.ArgsModel"><code class="docutils literal notranslate"><span class="pre">ArgsModel</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.ArgsOverrides"><code class="docutils literal notranslate"><span class="pre">ArgsOverrides</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.__init__"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.construct"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.construct()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.copy"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.copy()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.data_uri"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.data_uri</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.dict"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.dict()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.duration_s"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.duration_s</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.from_orm"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.from_orm()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.input_TLE"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.input_TLE</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.input_antenna"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.input_antenna</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.input_sat"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.input_sat</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.json"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.json()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.model_computed_fields"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.model_computed_fields</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.model_config"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.model_config</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.model_construct"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.model_construct()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.model_copy"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.model_copy()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.model_dump"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.model_dump()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.model_dump_json"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.model_dump_json()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.model_extra"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.model_extra</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.model_fields"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.model_fields</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.model_fields_set"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.model_fields_set</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.model_json_schema"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.model_json_schema()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.model_parametrized_name"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.model_parametrized_name()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.model_post_init"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.model_post_init()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.model_rebuild"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.model_rebuild()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.model_validate"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.model_validate()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.model_validate_json"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.model_validate_json()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.model_validate_strings"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.model_validate_strings()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.number_of_sat"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.number_of_sat</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.parse_file"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.parse_file()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.parse_obj"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.parse_obj()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.parse_raw"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.parse_raw()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.schema"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.schema()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.schema_json"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.schema_json()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.step_s"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.step_s</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.update_forward_refs"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.update_forward_refs()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgs.validate"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgs.validate()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.__init__"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.clear"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.clear()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.copy"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.copy()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.data_uri"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.data_uri</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.duration_s"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.duration_s</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.fromkeys"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.fromkeys()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.get"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.get()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.input_TLE"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.input_TLE</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.input_antenna"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.input_antenna</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.input_sat"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.input_sat</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.items"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.items()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.keys"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.keys()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.number_of_sat"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.number_of_sat</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.pop"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.pop()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.popitem"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.popitem()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.setdefault"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.setdefault()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.step_s"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.step_s</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.update"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.update()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.SatTrajectoryArgsTD.values"><code class="docutils literal notranslate"><span class="pre">SatTrajectoryArgsTD.values()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.dump_args"><code class="docutils literal notranslate"><span class="pre">dump_args()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.ensure_defaults"><code class="docutils literal notranslate"><span class="pre">ensure_defaults()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.load_args"><code class="docutils literal notranslate"><span class="pre">load_args()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="sat-trajectory-project.html#sat_trajectory.app_args.merge_args"><code class="docutils literal notranslate"><span class="pre">merge_args()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -799,10 +559,7 @@
 <li class="toctree-l4"><a class="reference internal" href="sb3-trainer-project.html#sb3_trainer.sb3_trainer.Sb3Trainer.args_loader"><code class="docutils literal notranslate"><span class="pre">Sb3Trainer.args_loader()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sb3-trainer-project.html#sb3_trainer.sb3_trainer.Sb3Trainer.args_merger"><code class="docutils literal notranslate"><span class="pre">Sb3Trainer.args_merger()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sb3-trainer-project.html#sb3_trainer.sb3_trainer.Sb3Trainer.as_dict"><code class="docutils literal notranslate"><span class="pre">Sb3Trainer.as_dict()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sb3-trainer-project.html#sb3_trainer.sb3_trainer.Sb3Trainer.auto_clean_data_out"><code class="docutils literal notranslate"><span class="pre">Sb3Trainer.auto_clean_data_out</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sb3-trainer-project.html#sb3_trainer.sb3_trainer.Sb3Trainer.build_distribution"><code class="docutils literal notranslate"><span class="pre">Sb3Trainer.build_distribution()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sb3-trainer-project.html#sb3_trainer.sb3_trainer.Sb3Trainer.data_out_attr"><code class="docutils literal notranslate"><span class="pre">Sb3Trainer.data_out_attr</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="sb3-trainer-project.html#sb3_trainer.sb3_trainer.Sb3Trainer.data_out_subdir"><code class="docutils literal notranslate"><span class="pre">Sb3Trainer.data_out_subdir</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sb3-trainer-project.html#sb3_trainer.sb3_trainer.Sb3Trainer.default_settings_path"><code class="docutils literal notranslate"><span class="pre">Sb3Trainer.default_settings_path</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sb3-trainer-project.html#sb3_trainer.sb3_trainer.Sb3Trainer.default_settings_section"><code class="docutils literal notranslate"><span class="pre">Sb3Trainer.default_settings_section</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sb3-trainer-project.html#sb3_trainer.sb3_trainer.Sb3Trainer.env"><code class="docutils literal notranslate"><span class="pre">Sb3Trainer.env</span></code></a></li>
@@ -813,6 +570,7 @@
 <li class="toctree-l4"><a class="reference internal" href="sb3-trainer-project.html#sb3_trainer.sb3_trainer.Sb3Trainer.managed_pc_path_fields"><code class="docutils literal notranslate"><span class="pre">Sb3Trainer.managed_pc_path_fields</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sb3-trainer-project.html#sb3_trainer.sb3_trainer.Sb3Trainer.normalize_data_uri"><code class="docutils literal notranslate"><span class="pre">Sb3Trainer.normalize_data_uri()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sb3-trainer-project.html#sb3_trainer.sb3_trainer.Sb3Trainer.prepare_output_dir"><code class="docutils literal notranslate"><span class="pre">Sb3Trainer.prepare_output_dir()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sb3-trainer-project.html#sb3_trainer.sb3_trainer.Sb3Trainer.setup_args"><code class="docutils literal notranslate"><span class="pre">Sb3Trainer.setup_args()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sb3-trainer-project.html#sb3_trainer.sb3_trainer.Sb3Trainer.start"><code class="docutils literal notranslate"><span class="pre">Sb3Trainer.start()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sb3-trainer-project.html#sb3_trainer.sb3_trainer.Sb3Trainer.stop"><code class="docutils literal notranslate"><span class="pre">Sb3Trainer.stop()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="sb3-trainer-project.html#sb3_trainer.sb3_trainer.Sb3Trainer.to_toml"><code class="docutils literal notranslate"><span class="pre">Sb3Trainer.to_toml()</span></code></a></li>

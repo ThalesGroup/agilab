@@ -50,3 +50,20 @@ Main Content Area
   powers the Experiment and Explore pages. Use the column selector with
   ``Select all`` support to decide which fields are persisted to
   ``${AGILAB_EXPORT_ABS}/<module>/export.csv``.
+
+Regenerate Documentation
+------------------------
+
+After updating this guide (or any docs surfaced in the IDE), rebuild the
+generated site so teammates and CI consume the same content:
+
+.. code-block:: bash
+
+   ./docs/gen_docs.sh
+
+The wrapper guarantees ``uv`` runs ``docs/gen-docs.py`` with the extra build
+dependencies required for Sphinx and stub generation.
+
+.. literalinclude:: ../gen_docs.sh
+   :language: bash
+   :caption: ``docs/gen_docs.sh``
