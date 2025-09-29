@@ -319,7 +319,7 @@ def dist_files_root() -> List[str]:
 
 def remove_symlinks_for_umbrella():
     # Avoid bundling symlinks that may point outside the project
-    for rel in ("src/agilab/apps", "src/agilab/pages"):
+    for rel in ("src/agilab/apps", "src/agilab/apps-pages"):
         base = REPO_ROOT / rel
         if not base.exists():
             continue
