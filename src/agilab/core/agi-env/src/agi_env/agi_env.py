@@ -657,7 +657,7 @@ class AgiEnv:
         for extra in extras:
             src_extra = self.st_resources / extra
             dest_extra = self.resources_path / extra
-            if src_extra.exists() and not dest_extra.exists():
+            if src_extra.exists():
                 dest_extra.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy(src_extra, dest_extra)
 
