@@ -14,7 +14,7 @@
 | joblib | BSD LICENSE |
 | llvmlite | BSD |
 | locket | BSD LICENSE |
-| markupsafe | BSD LICENSE |
+| markupsafe | BSD-3-CLAUSE |
 | msgpack | APACHE 2.0 |
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | numba | BSD LICENSE |

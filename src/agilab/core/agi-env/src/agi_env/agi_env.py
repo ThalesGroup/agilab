@@ -44,6 +44,7 @@ import ctypes
 from ctypes import wintypes
 import importlib.util
 from concurrent.futures import ThreadPoolExecutor
+from threading import RLock
 from agi_env.agi_logger import AgiLogger
 # Get constructor parameters of FormattedTB
 _sig = inspect.signature(FormattedTB.__init__).parameters
@@ -123,6 +124,29 @@ def is_packaging_cmd(cmd: str) -> bool:
 
 class AgiEnv:
     """Encapsulates filesystem and configuration state for AGILab deployments."""
+    _instance: "AgiEnv | None" = None
+    _lock: RLock = RLock()
+
+    def __new__(cls, *args, **kwargs):
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+        return cls._instance
+
+    @classmethod
+    def current(cls) -> "AgiEnv":
+        """Return the currently initialised environment instance."""
+
+        if cls._instance is None:
+            raise RuntimeError("AgiEnv has not been initialised yet")
+        return cls._instance
+
+    @classmethod
+    def reset(cls) -> None:
+        """Drop the cached singleton so a fresh environment can be bootstrapped."""
+
+        with cls._lock:
+            cls._instance = None
     install_type = None
     apps_dir = None
     app = None

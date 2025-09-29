@@ -1,7 +1,7 @@
 agi-env API
 ===========
 
-This is a module share between core/agi-core and gui/agilab to set all the path required by both
+This is a module share between core/agi-core and agilab to set all the path required by both
 
 Usage Example
 -------------
@@ -12,6 +12,11 @@ Instanciation
 .. literalinclude:: snippets/AgiEnv.instanciation.py
    :language: python
 
+
+.. note::
+   ``AgiEnv`` behaves as a singleton. Repeated instantiation updates the same
+   environment instance; call :func:`AgiEnv.reset` before configuring a new
+   environment, or :func:`AgiEnv.current` to access the active one.
 
 Reference
 ----------

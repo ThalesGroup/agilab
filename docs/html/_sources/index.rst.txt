@@ -15,31 +15,52 @@ You’ll find everything from quickstarts to API references, as well as example 
    features
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Core Topics
 
    cluster
+   cluster-help
    agilab
-   apps-pages
    framework-api
+   environment
+   faq
    directory-structure
    install-usecase
    troubleshooting
    license
 
 .. toctree::
-   :maxdepth: 1
-   :caption: Example Projects
+   :maxdepth: 2
+   :caption: Pages
+
+   edit-help
+
+   execute-help
+
+   experiment-help
+
+   explore-help
+
+   apps-pages
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Apps Examples
 
    mycode-project
+
    flight-project
+
    flight-trajectory-project
+
    link-sim-project
+
    sat-trajectory-project
+
    sb3-trainer-project
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Hosting Sites
 
    agilab-github
