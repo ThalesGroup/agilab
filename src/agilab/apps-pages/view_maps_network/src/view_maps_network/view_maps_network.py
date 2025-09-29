@@ -11,7 +11,7 @@
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from pagelib import find_files, load_df, render_logo
+import sys
 import streamlit as st
 import pandas as pd
 import pydeck as pdk
@@ -22,7 +22,25 @@ import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from pathlib import Path
+
+
+def _ensure_repo_on_path() -> None:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        candidate = parent / "agilab"
+        if candidate.is_dir():
+            src_root = candidate.parent
+            repo_root = src_root.parent
+            for entry in (str(src_root), str(repo_root)):
+                if entry not in sys.path:
+                    sys.path.insert(0, entry)
+            break
+
+
+_ensure_repo_on_path()
+
 from agi_env import AgiEnv
+from agi_env.pagelib import find_files, load_df, render_logo
 
 st.title(":world_map: Maps Network Graph")
 if 'env' not in st.session_state:

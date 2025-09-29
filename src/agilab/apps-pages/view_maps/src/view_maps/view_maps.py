@@ -35,6 +35,16 @@ def _ensure_repo_on_path() -> None:
 
 _ensure_repo_on_path()
 
+def _default_active_app() -> Path | None:
+    apps_dir = Path(__file__).resolve().parents[4] / "apps"
+    if not apps_dir.exists():
+        return None
+    for candidate in sorted(apps_dir.iterdir()):
+        if candidate.is_dir() and candidate.name.endswith("_project"):
+            return candidate
+    return None
+
+
 from agi_env import AgiEnv
 from agi_env.pagelib import find_files, load_df, update_datadir, initialize_csv_files
 
@@ -362,10 +372,17 @@ def main():
             if env_active_app:
                 active_app = Path(env_active_app).expanduser()
             else:
-                with open(Path("~/").expanduser() / ".local/share/agilab/.agilab-path", "r") as f:
-                    agilab_path = f.read()
-                    before, sep, after = agilab_path.rpartition(".venv")
-                    active_app = Path(before) / "apps/flight"
+                active_app = None
+                candidate_file = Path("~/.local/share/agilab/.agilab-path").expanduser()
+                if candidate_file.is_file():
+                    with candidate_file.open("r", encoding="utf-8") as f:
+                        agilab_path = f.read()
+                        before, sep, _ = agilab_path.rpartition(".venv")
+                        potential = Path(before) / "apps" / "flight_project"
+                        if potential.exists():
+                            active_app = potential
+                if active_app is None:
+                    active_app = _default_active_app()
         else:
             active_app = Path(args.active_app)
 

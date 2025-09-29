@@ -11,6 +11,8 @@
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import os
+import sys
 import streamlit as st
 import pandas as pd
 import pydeck as pdk
@@ -19,6 +21,33 @@ import plotly.express as px
 import geojson
 import random
 import argparse
+
+
+def _ensure_repo_on_path() -> None:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        candidate = parent / "agilab"
+        if candidate.is_dir():
+            src_root = candidate.parent
+            repo_root = src_root.parent
+            for entry in (str(src_root), str(repo_root)):
+                if entry not in sys.path:
+                    sys.path.insert(0, entry)
+            break
+
+
+_ensure_repo_on_path()
+
+def _default_active_app() -> Path | None:
+    apps_dir = Path(__file__).resolve().parents[4] / "apps"
+    if not apps_dir.exists():
+        return None
+    for candidate in sorted(apps_dir.iterdir()):
+        if candidate.is_dir() and candidate.name.endswith("_project"):
+            return candidate
+    return None
+
+
 from agi_env import AgiEnv
 from agi_env.pagelib import find_files, load_df, render_logo, cached_load_df
 
@@ -839,25 +868,38 @@ def main():
         parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
         parser.add_argument("--install-type", type=str, help="0:enduser(default)\n1:dev", default="0")
         parser.add_argument("--active-app", type=str, help="Where you store your apps (default is ./)",
-                            default="apps")
+                            default=None)
         args, _ = parser.parse_known_args()
 
+        install_type_value = os.environ.get("AGILAB_INSTALL_TYPE", args.install_type)
+
         if args.active_app is None:
-            with open(Path("~/").expanduser() / ".local/share/agilab/.agi-path", "r") as f:
-                agilab_path = f.read()
-                before, sep, after = agilab_path.rpartition(".venv")
-                args.active_app = Path(before) / "apps/flight"
+            env_active_app = os.environ.get("AGILAB_ACTIVE_APP")
+            if env_active_app:
+                active_app = Path(env_active_app).expanduser()
+            else:
+                active_app = None
+                candidate_file = Path("~/.local/share/agilab/.agi-path").expanduser()
+                if candidate_file.is_file():
+                    with candidate_file.open("r", encoding="utf-8") as f:
+                        agilab_path = f.read()
+                        before, sep, _ = agilab_path.rpartition(".venv")
+                        potential = Path(before) / "apps" / "flight_project"
+                        if potential.exists():
+                            active_app = potential
+                if active_app is None:
+                    active_app = _default_active_app()
         else:
             active_app = Path(args.active_app)
 
-        if args.active_app is None:
+        if active_app is None:
             st.error("Error: Missing mandatory parameter: --active-app")
             sys.exit(1)
 
         st.session_state["apps_dir"] = active_app.parent
 
-        st.session_state["INSTALL_TYPE"] = args.install_type
-        env = AgiEnv(active_app=active_app, install_type=int(args.install_type), verbose=1)
+        st.session_state["INSTALL_TYPE"] = install_type_value
+        env = AgiEnv(active_app=active_app, install_type=int(install_type_value), verbose=1)
         env.init_done = True
         st.session_state['env'] = env
 
