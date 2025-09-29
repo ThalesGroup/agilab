@@ -574,7 +574,7 @@ PROJECT_DIR = Path(__file__).resolve().parents[2]
 PROJECT_SRC = PROJECT_DIR / "src"
 PAGE_DIR = PROJECT_SRC / "{self.cfg.PROJECT_NAME}" / "apps-pages" / "{name}"
 ENTRY_SCRIPT = PAGE_DIR / "src" / "{name}" / "{name}.py"
-DEFAULT_ACTIVE_APP = Path(r"{str(default_active_app) if default_active_app else ''}") if {'True' if default_active_app else 'False'} else None
+DEFAULT_ACTIVE_APP = Path(r"{str(default_active_app) if default_active_app else ''}") if {str(bool(default_active_app))} else None
 PYTHON_CANDIDATES = (
     PAGE_DIR / ".venv" / "bin" / "python3.exe",
     PAGE_DIR / ".venv" / "bin" / "python3",
