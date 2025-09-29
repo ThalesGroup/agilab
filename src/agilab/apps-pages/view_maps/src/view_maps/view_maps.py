@@ -11,11 +11,30 @@
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import os
+import sys
 import pandas as pd
 import streamlit as st
 import plotly.express as px
 from pathlib import Path
 import argparse
+
+
+def _ensure_repo_on_path() -> None:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        candidate = parent / "agilab"
+        if candidate.is_dir():
+            src_root = candidate.parent
+            repo_root = src_root.parent
+            for entry in (str(src_root), str(repo_root)):
+                if entry not in sys.path:
+                    sys.path.insert(0, entry)
+            break
+
+
+_ensure_repo_on_path()
+
 from agi_env import AgiEnv
 from agi_env.pagelib import find_files, load_df, update_datadir, initialize_csv_files
 
@@ -336,11 +355,17 @@ def main():
                             default=None)
         args, _ = parser.parse_known_args()
 
+        install_type_value = os.environ.get("AGILAB_INSTALL_TYPE", args.install_type)
+
         if args.active_app is None:
-            with open(Path("~/").expanduser() / ".local/share/agilab/.agilab-path", "r") as f:
-                agilab_path = f.read()
-                before, sep, after = agilab_path.rpartition(".venv")
-                active_app = Path(before) / "apps/flight"
+            env_active_app = os.environ.get("AGILAB_ACTIVE_APP")
+            if env_active_app:
+                active_app = Path(env_active_app).expanduser()
+            else:
+                with open(Path("~/").expanduser() / ".local/share/agilab/.agilab-path", "r") as f:
+                    agilab_path = f.read()
+                    before, sep, after = agilab_path.rpartition(".venv")
+                    active_app = Path(before) / "apps/flight"
         else:
             active_app = Path(args.active_app)
 
@@ -353,9 +378,9 @@ def main():
 
         st.session_state["apps_dir"] = active_app.parent
 
-        st.session_state["INSTALL_TYPE"] = args.install_type
+        st.session_state["INSTALL_TYPE"] = install_type_value
         st.info(f"active_app: {active_app}")
-        env = AgiEnv(active_app=active_app, install_type=int(args.install_type), verbose=1)
+        env = AgiEnv(active_app=active_app, install_type=int(install_type_value), verbose=1)
         env.init_done = True
         st.session_state['env'] = env
 
