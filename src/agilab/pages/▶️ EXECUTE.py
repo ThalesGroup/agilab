@@ -1075,6 +1075,8 @@ if __name__ == "__main__":
         run_cmd = None
         with st.expander("Run details", expanded=False):
             st.session_state.setdefault("benchmark", False)
+            if st.session_state.pop("benchmark_reset_pending", False):
+                st.session_state["benchmark"] = False
             benchmark_enabled = st.toggle(
                 "Benchmark all modes",
                 key="benchmark",
@@ -1141,7 +1143,7 @@ if __name__ == "__main__":
                         else:
                             st.error("program abort before all mode have been run")
                             st.session_state['mode'] = 0
-                            st.session_state['benchmark'] = False
+                            st.session_state['benchmark_reset_pending'] = True
 
                     except json.JSONDecodeError as e:
                         st.warning(f"Error decoding JSON: {e}")

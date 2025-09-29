@@ -141,7 +141,7 @@ PY
       --index "${INDEX_URL}" \
       --index "${EXTRA_INDEX_URL}" \
       --index-strategy unsafe-best-match \
-      --upgrade --reinstall --no-cache-dir \
+      --upgrade --no-cache-dir \
       $(for p in ${PACKAGES}; do printf "%s==%s " "${p}" "${VERSION}"; done)
     ;;
 

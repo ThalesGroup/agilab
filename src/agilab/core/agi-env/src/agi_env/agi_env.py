@@ -181,9 +181,12 @@ class AgiEnv:
 
         AgiEnv.is_managed_pc = getpass.getuser().startswith("T0")
         AgiEnv._is_managed_pc = AgiEnv.is_managed_pc
+        self.is_managed_pc = AgiEnv.is_managed_pc
+        self._is_managed_pc = AgiEnv._is_managed_pc
         self._agi_resources = Path("resources/.agilab")
         home_abs = Path.home() / "MyApp" if AgiEnv.is_managed_pc else Path.home()
         self.home_abs = home_abs
+        AgiEnv.home_abs = home_abs
 
         if verbose is None:
             verbose = 0
@@ -192,12 +195,16 @@ class AgiEnv:
             self.uv = "uv --quiet"
         elif verbose >= 3:
             self.uv = "uv --verbose"
+        AgiEnv.uv = self.uv
 
         AgiEnv.resources_path = home_abs / self._agi_resources.name
+        self.resources_path = AgiEnv.resources_path
         env_path = AgiEnv.resources_path / ".env"
         self.benchmark = AgiEnv.resources_path / "benchmark.json"
+        AgiEnv.benchmark = self.benchmark
         AgiEnv.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
-        envars = AgiEnv.envars
+        self.envars = AgiEnv.envars
+        envars = self.envars
         agilab_src, sep, after = __file__.rpartition("agilab")
         agilab_src = agilab_src.replace("/app-pages/maps", "")
         agilab_src = Path(agilab_src).resolve()
@@ -231,11 +238,13 @@ class AgiEnv:
 
         AgiEnv.verbose = verbose
         self.verbose = verbose
-        self._is_managed_pc = AgiEnv.is_managed_pc
         AgiEnv.python_variante = python_variante
+        self.python_variante = python_variante
         AgiEnv.logger =  AgiLogger.get_logger("agi_env")
         AgiEnv.logger =  AgiLogger.configure(verbose=verbose, base_name="agi_env")
+        self.logger = AgiEnv.logger
         AgiEnv.debug = debug
+        self.debug = debug
 
         if install_type is None:
             if agilab_src.name == "src":
@@ -246,6 +255,7 @@ class AgiEnv:
             install_type = int(install_type)
 
         AgiEnv.install_type = install_type
+        self.install_type = install_type
         self.node_root = agilab_installed / "agi_node"
         self.env_root = agilab_installed / "agi_env"
         self.core_root = agilab_installed / "agi_core"
@@ -357,6 +367,7 @@ class AgiEnv:
             sys.path.append(src_path)
 
         AgiEnv.apps_dir = active_app.parent
+        self.apps_dir = AgiEnv.apps_dir
         distribution_tree = self.wenv_abs / "distribution_tree.json"
         if distribution_tree.exists():
             distribution_tree.unlink()
@@ -393,13 +404,13 @@ class AgiEnv:
             AgiEnv.logger.info(f"Missing {self.target_worker_class} definition; should be in {self.worker_path} but it does not exist")
             sys.exit(1)
 
-        envars = AgiEnv.envars
+        envars = self.envars
         raw_credentials = envars.get("CLUSTER_CREDENTIALS", getpass.getuser())
         credentials_parts = raw_credentials.split(":")
         self.user = credentials_parts[0]
         self.password = credentials_parts[1] if len(credentials_parts) > 1 else None
 
-        self.projects = self.get_projects(AgiEnv.apps_dir)
+        self.projects = self.get_projects(self.apps_dir)
         if not self.projects:
             AgiEnv.logger.info(f"Could not find any target project app in {self.agilab_src / 'apps'}.")
 
@@ -415,11 +426,12 @@ class AgiEnv:
         if not self.is_valid_ip(self.scheduler_ip):
             raise ValueError(f"Invalid scheduler IP address: {self.scheduler_ip}")
 
-        if AgiEnv.install_type:
+        if self.install_type:
             self.help_path = str(self.agilab_src / "../docs/html")
         else:
             self.help_path = "https://thalesgroup.github.io/agilab"
         self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", home_abs / "data"))
+        AgiEnv.AGILAB_SHARE = self.AGILAB_SHARE
 
         self.app_src.mkdir(parents=True, exist_ok=True)
         app_src_str = str(self.app_src)
@@ -427,15 +439,17 @@ class AgiEnv:
             sys.path.append(app_src_str)
 
         # type 3: only core install
-        if AgiEnv.install_type != 3:
-            AgiEnv.examples = self.agilab_src / "agilab/examples"
-            self.init_envars_app(AgiEnv.envars)
+        if self.install_type != 3:
+            self.examples = self.agilab_src / "agilab/examples"
+            AgiEnv.examples = self.examples
+            self.init_envars_app(self.envars)
             self._init_apps()
 
         if os.name == "nt":
-            AgiEnv.export_local_bin = ""
+            self.export_local_bin = ""
         else:
-            AgiEnv.export_local_bin = 'export PATH="~/.local/bin:$PATH";'
+            self.export_local_bin = 'export PATH="~/.local/bin:$PATH";'
+        AgiEnv.export_local_bin = self.export_local_bin
 
     @staticmethod
     def _resolve_package_root(root: Path) -> Path:
@@ -467,6 +481,7 @@ class AgiEnv:
         """Inject ``entries`` into both ``sys.path`` and the ``PYTHONPATH`` env var."""
 
         AgiEnv._pythonpath_entries = entries
+        self._pythonpath_entries = entries
         if not entries:
             return
         for entry in entries:
@@ -632,6 +647,19 @@ class AgiEnv:
                 dest_file.parent.mkdir(parents=True, exist_ok=True)
                 if not dest_file.exists():
                     shutil.copy(src_file, dest_file)
+
+        # Ensure UI assets required by Streamlit editors are present.
+        extras = [
+            "custom_buttons.json",
+            "info_bar.json",
+            "code_editor.scss",
+        ]
+        for extra in extras:
+            src_extra = self.st_resources / extra
+            dest_extra = self.resources_path / extra
+            if src_extra.exists() and not dest_extra.exists():
+                dest_extra.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(src_extra, dest_extra)
 
     def _init_projects(self):
         """Identify available projects and align state with the selected target."""
@@ -859,7 +887,11 @@ class AgiEnv:
             venv_bin = venv_path / bin_path
             proc_env["PATH"] = str(venv_bin) + os.pathsep + proc_env.get("PATH", "")
 
-        extra_paths = list(AgiEnv._pythonpath_entries)
+        instance = AgiEnv._instance
+        if instance is not None and getattr(instance, "_pythonpath_entries", None):
+            extra_paths = list(instance._pythonpath_entries)
+        else:
+            extra_paths = list(AgiEnv._pythonpath_entries)
         if extra_paths:
             current = proc_env.get("PYTHONPATH", "")
             if current:
