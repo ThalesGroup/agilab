@@ -6,6 +6,9 @@
 import os
 from pathlib import Path
 from datetime import datetime
+
+os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parent / "resources" / "config.toml"))
+
 import streamlit as st
 import sys
 import argparse
@@ -113,7 +116,7 @@ def main():
     from agi_env.pagelib import get_about_content
     st.set_page_config(
         menu_items=get_about_content(),
-        layout="wide"
+        layout="wide",
     )
     resources_path = Path(__file__).resolve().parent / "resources"
     os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(resources_path / "config.toml"))

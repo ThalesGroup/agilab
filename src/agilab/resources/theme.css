@@ -1,90 +1,104 @@
-:root {
-  --agi-primary: #0d47a1;
-  --agi-primary-hover: #1565c0;
-  --agi-secondary-bg: #f6f8fa;
-  --agi-text: #111827;
-}
+/* Shared “primary” styling applied across all Streamlit pages */
 
-body {
-  background-color: var(--agi-secondary-bg) !important;
-  color: var(--agi-text);
-}
-
-.stButton > button,
-.stDownloadButton > button,
-.stFormSubmitButton > button {
-  background-color: var(--agi-primary);
-  border-color: var(--agi-primary);
-  color: #ffffff;
+[data-testid="stButton"] button,
+[data-testid="stDownloadButton"] button,
+[data-testid="stFormSubmitButton"] button {
+  font-weight: 600;
+  color: #4A90E2 !important;
+  background: transparent !important;
+  border: 1px solid #4A90E2 !important;
+  white-space: nowrap;
   border-radius: 6px;
-  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.stButton > button:hover,
-.stDownloadButton > button:hover,
-.stFormSubmitButton > button:hover {
-  background-color: var(--agi-primary-hover);
-  border-color: var(--agi-primary-hover);
-  color: #ffffff;
-  box-shadow: 0 2px 6px rgba(13, 71, 161, 0.25);
+[data-testid="stButton"] button:hover,
+[data-testid="stDownloadButton"] button:hover,
+[data-testid="stFormSubmitButton"] button:hover {
+  background: #4A90E2 !important;
+  color: #FFFFFF !important;
 }
 
-[data-testid="stSidebarNav"]::before {
-  color: var(--agi-primary);
+[data-testid="stTabs"] button {
+  color: #4A90E2 !important;
+  font-weight: 600;
 }
 
-[data-testid="stSlider"] [role="slider"] {
-  background-color: var(--agi-primary);
-  border: 2px solid var(--agi-primary);
+
+
+[data-testid="stToggle"] label {
+  color: #4A90E2 !important;
 }
 
-[data-testid="stSlider"] .st-al, [data-testid="stSlider"] .st-bb {
-  background-color: rgba(13, 71, 161, 0.35);
+[data-testid="stToggle"] div[role="switch"] {
+  background-color: rgba(74, 144, 226, 0.15) !important;
+  border: 1px solid #4A90E2 !important;
 }
 
-[data-testid="stToggle"] [data-baseweb="toggle"] .bc-ef {
-  background-color: var(--agi-primary);
+[data-testid="stToggle"] div[role="switch"][aria-checked="true"] {
+  background-color: #4A90E2 !important;
 }
 
-[data-testid="stSwitch"] .st-bs {
-  background-color: var(--agi-primary);
+[data-testid="stToggle"] div[role="switch"] span {
+  background-color: #FFFFFF !important;
 }
 
-.stSelectbox [data-baseweb="select"] > div {
-  border-color: rgba(13, 71, 161, 0.35);
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+  border-radius: 20px;
+  border: 1px solid #4A90E2 !important;
+  box-shadow: none !important;
 }
 
-.stSelectbox [data-baseweb="select"]:focus-within > div {
-  border-color: var(--agi-primary);
-  box-shadow: 0 0 0 1px rgba(13, 71, 161, 0.25);
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div:hover {
+  border-color: #4A90E2 !important;
 }
 
-/* Radio/Checkbox accents */
-.stRadio input:checked + div > div,
-.stCheckbox input:checked + div > div {
-  background-color: var(--agi-primary);
-  border-color: var(--agi-primary);
+[data-testid="stSelectbox"] div[data-baseweb="select"] span {
+  color: #4A90E2 !important;
 }
 
-/* Tables */
-[data-testid="stTable"] thead tr th {
-  background-color: rgba(13, 71, 161, 0.08);
-  color: var(--agi-primary);
+[data-baseweb="tag"] {
+  background-color: transparent !important;
+  border: 1px solid rgba(0, 0, 0, 0.25) !important;
+  color: inherit !important;
+  box-shadow: none !important;
 }
 
-/* Tabs */
-[data-testid="stTabs"] button[aria-selected="true"] {
-  border-bottom: 3px solid var(--agi-primary) !important;
-  color: var(--agi-primary) !important;
+[data-baseweb="tag"] span[title] {
+  color: inherit !important;
 }
 
-[data-testid="stTabs"] button:not([aria-selected="true"]):hover {
-  color: var(--agi-primary);
+[data-baseweb="tag"] svg[data-baseweb="icon"] {
+  color: inherit !important;
+  fill: currentColor !important;
 }
 
-/* Text inputs focus */
-.stTextInput input:focus,
-.stTextArea textarea:focus {
-  border-color: var(--agi-primary);
-  box-shadow: 0 0 0 1px rgba(13, 71, 161, 0.25);
+/* Toggle accents */
+label[data-baseweb="checkbox"] {
+  color: #4A90E2 !important;
+}
+
+label[data-baseweb="checkbox"] > div:first-child {
+  background-color: rgba(74, 144, 226, 0.15) !important;
+  border: 1px solid #4A90E2 !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+label[data-baseweb="checkbox"] > div:first-child > div {
+  background-color: #FFFFFF !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+}
+
+label[data-baseweb="checkbox"]:has(input[checked]) > div:first-child,
+label[data-baseweb="checkbox"]:has(input[aria-checked="true" i]) > div:first-child {
+  background-color: #4A90E2 !important;
+  border: 1px solid #4A90E2 !important;
+}
+
+label[data-baseweb="checkbox"]:has(input[checked]) > div:first-child > div,
+label[data-baseweb="checkbox"]:has(input[aria-checked="true" i]) > div:first-child > div {
+  background-color: #FFFFFF !important;
 }

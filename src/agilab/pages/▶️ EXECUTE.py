@@ -21,12 +21,12 @@ import matplotlib.pyplot as plt
 import textwrap
 from matplotlib.patches import Patch
 from collections import defaultdict
-import streamlit as st
 import tomli         # For reading TOML files
 import tomli_w       # For writing TOML files
 import pandas as pd
 # Theme configuration
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
+import streamlit as st
 # Project Libraries:
 from agi_env.pagelib import (
     get_about_content, render_logo, activate_mlflow, save_csv, init_custom_ui, select_project, open_new_tab,
@@ -943,27 +943,31 @@ if __name__ == "__main__":
         with st.expander(f"{module} args", expanded=True):
             app_args_form = env.app_args_form
 
-            # ---- PATCH: Set default unchecked if snippet is empty ----
             snippet_exists = app_args_form.exists()
             snippet_not_empty = snippet_exists and app_args_form.stat().st_size > 1
 
-            # Only set default value if toggle_custom is not in session_state
-            if "toggle_custom" not in st.session_state:
-                st.session_state["toggle_custom"] = snippet_not_empty
+            toggle_key = "toggle_edit_ui"
+            if toggle_key not in st.session_state:
+                st.session_state[toggle_key] = not snippet_not_empty
 
-            # Always use the current value in session_state
-            st.toggle("Custom UI", key="toggle_custom", on_change=init_custom_ui, args=[app_args_form])
+            st.toggle("Edit", key=toggle_key, on_change=init_custom_ui, args=[app_args_form])
 
-            if st.session_state["toggle_custom"] and snippet_exists and snippet_not_empty:
-                try:
-                    runpy.run_path(app_args_form, init_globals=globals())
-                except Exception as e:
-                    st.warning(e)
-            else:
+            if st.session_state[toggle_key]:
                 render_generic_ui()
                 if not snippet_exists:
                     with open(app_args_form, "w") as st_src:
                         st_src.write("")
+            else:
+                if snippet_exists and snippet_not_empty:
+                    try:
+                        runpy.run_path(app_args_form, init_globals=globals())
+                    except Exception as e:
+                        st.warning(e)
+                else:
+                    render_generic_ui()
+                    if not snippet_exists:
+                        with open(app_args_form, "w") as st_src:
+                            st_src.write("")
 
             args_serialized = ", ".join(
                 [f'{key}="{value}"' if isinstance(value, str) else f"{key}={value}"
@@ -1160,7 +1164,7 @@ if __name__ == "__main__":
 
         run_col, load_col = st.columns(2)
         run_clicked = False
-        run_label = "RUN BENCHMARK" if st.session_state.get("benchmark") else "RUN"
+        run_label = "EXECUTE BENCHMARK" if st.session_state.get("benchmark") else "EXECUTE"
         if run_cmd:
             run_clicked = run_col.button(
                 run_label,

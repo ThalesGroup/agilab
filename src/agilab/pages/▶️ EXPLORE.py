@@ -21,13 +21,12 @@ import hashlib
 from pathlib import Path
 from typing import Union
 import asyncio
+os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
 import streamlit.components.v1 as components
 from IPython.lib import backgroundjobs as bg
 import logging
 import subprocess
-
-os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 
 # Use modern TOML libraries
 import tomli         # For reading TOML files (read as binary)
@@ -280,7 +279,7 @@ async def main():
                 st.error(f"Page '{view_name}' not found.")
                 continue
             with cols[i % len(cols)]:
-                if st.button(view_name, use_container_width=True):
+                if st.button(view_name, type="primary", use_container_width=True):
                     view_str = str(view_path.resolve())
                     st.session_state["current_page"] = view_str
                     st.query_params["current_page"] = view_str
@@ -295,7 +294,7 @@ async def render_view_page(view_path: Path):
 
     back_col, title_col, _ = st.columns([1, 6, 1])
     with back_col:
-        if st.button("← Back to Explore"):
+        if st.button("← Back to Explore", type="primary"):
             st.session_state["current_page"] = "main"
             st.query_params["current_page"] = "main"
             st.rerun()

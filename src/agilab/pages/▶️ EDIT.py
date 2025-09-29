@@ -22,9 +22,9 @@ import ast
 import re
 import importlib
 
-import streamlit as st
-
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
+
+import streamlit as st
 from agi_env.pagelib import get_about_content, render_logo, inject_theme
 from agi_env.pagelib import (
     get_classes_name,
@@ -1094,10 +1094,9 @@ def handle_project_selection():
     env = st.session_state["env"]
 
     # Export Button
-    button_col = st.sidebar.columns([0.6, 0.4])[1]
-    if button_col.button(
+    if st.sidebar.button(
         "Export",
-        type="secondary",
+        type="primary",
         use_container_width=True,
         help=f"this will export your project under  {(env.export_apps / env.app).with_suffix('.zip')}",
     ):
@@ -1258,7 +1257,7 @@ def handle_project_creation():
         [env.app] + st.session_state["templates"],
         key="clone_src",
         on_change=lambda: on_project_change(
-            st.session_state["clone_src"], switch_to_select=True
+            st.session_state["clone_src"], switch_to_edit=True
         ),
     )
 
@@ -1283,7 +1282,7 @@ def handle_project_creation():
         if (env.apps_dir / new_name).exists():
             st.success(f"Project '{new_name}' created.")
             env.change_active_app(new_name)
-            st.session_state["switch_to_select"] = True
+            st.session_state["switch_to_edit"] = True
             time.sleep(1.5)
             st.rerun()
         else:
@@ -1358,7 +1357,7 @@ def handle_project_rename():
 
             st.success(f"Project renamed: '{current}' → '{new_name}'")
             env.change_active_app(new_name)
-            st.session_state["switch_to_select"] = True
+            st.session_state["switch_to_edit"] = True
             st.rerun()
         else:
             st.error(f"Error: Project '{new_name}' not found after renaming.")
@@ -1402,7 +1401,7 @@ def handle_project_delete():
 
                     # If the deleted project was the current project, switch to another
                     del st.session_state["templates"]
-                    st.session_state["switch_to_select"] = True
+                    st.session_state["switch_to_edit"] = True
                     st.rerun()
                 else:
                     st.error(f"Project '{env.app}' does not exist.")
@@ -1462,7 +1461,7 @@ def handle_project_import():
                         overwrite_modal.close()
                     except PermissionError:
                         st.error(f"Project '{import_target}' is not removable.")
-                if cols[1].button("Cancel", type="secondary", use_container_width=True):
+                if cols[1].button("Cancel", type="primary", use_container_width=True):
                     overwrite_modal.close()
 
         if st.session_state.get("project_imported"):
@@ -1471,7 +1470,7 @@ def handle_project_import():
                 st.success(f"Project '{import_target}' successfully imported.")
                 on_project_change(import_target)
                 # Set the switch flag to switch the sidebar tab
-                st.session_state["switch_to_select"] = True
+                st.session_state["switch_to_edit"] = True
                 st.rerun()  # Trigger rerun to apply the change
             else:
                 st.error(f"Error while importing '{import_target}'.")
@@ -1507,9 +1506,9 @@ def page():
         st.session_state["server_started"] = True
 
     # Check if we need to switch the sidebar tab to "Select"
-    if st.session_state.get("switch_to_select", False):
-        st.session_state["sidebar_selection"] = "Select"
-        st.session_state["switch_to_select"] = False
+    if st.session_state.get("switch_to_edit", False):
+        st.session_state["sidebar_selection"] = "Edit"
+        st.session_state["switch_to_edit"] = False
         st.rerun()  # Reset the flag  # Trigger rerun to apply the change
 
     # Load .agi_resources
@@ -1548,15 +1547,15 @@ def page():
         "pages": [],
         # Initialize the sidebar_selection with a default value if not set
         "sidebar_selection": (
-            "Select"
+            "Edit"
             if "sidebar_selection" not in st.session_state
             else st.session_state["sidebar_selection"]
         ),
-        # Initialize the switch_to_select flag
-        "switch_to_select": (
+        # Initialize the switch_to_edit flag
+        "switch_to_edit": (
             False
-            if "switch_to_select" not in st.session_state
-            else st.session_state["switch_to_select"]
+            if "switch_to_edit" not in st.session_state
+            else st.session_state["switch_to_edit"]
         ),
     }
 
@@ -1565,10 +1564,10 @@ def page():
 
     # Sidebar: Project selection, creation, loading
     sidebar_selection = st.sidebar.radio(
-        "PROJECT", ["Select", "Create and Clone", "Rename", "Delete", "Import"], key="sidebar_selection"
+        "PROJECT", ["Edit", "Create and Clone", "Rename", "Delete", "Import"], key="sidebar_selection"
     )
 
-    if sidebar_selection == "Select":
+    if sidebar_selection == "Edit":
         handle_project_selection()
     elif sidebar_selection == "Create and Clone":
         handle_project_creation()

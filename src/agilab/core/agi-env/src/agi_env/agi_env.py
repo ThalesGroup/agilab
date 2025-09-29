@@ -654,12 +654,22 @@ class AgiEnv:
             "info_bar.json",
             "code_editor.scss",
         ]
-        for extra in extras:
-            src_extra = self.st_resources / extra
-            dest_extra = self.resources_path / extra
-            if src_extra.exists() and not dest_extra.exists():
-                dest_extra.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy(src_extra, dest_extra)
+
+        if self.install_type != 1:
+            for extra in extras:
+                src_extra = self.st_resources / extra
+                dest_extra = self.resources_path / extra
+                if src_extra.exists() and not dest_extra.exists():
+                    dest_extra.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy(src_extra, dest_extra)
+        else:
+            for extra in extras:
+                dest_extra = self.resources_path / extra
+                try:
+                    if dest_extra.exists():
+                        dest_extra.unlink()
+                except OSError:
+                    AgiEnv.logger.warning(f"Could not remove legacy resource {dest_extra}")
 
     def _init_projects(self):
         """Identify available projects and align state with the selected target."""

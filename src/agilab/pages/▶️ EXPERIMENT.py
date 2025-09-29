@@ -7,6 +7,7 @@ import importlib
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
+os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
 import tomli        # For reading TOML files
 import tomli_w      # For writing TOML files
@@ -39,8 +40,6 @@ JUPYTER_URL = "http://localhost:8888"
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 
 
 class JumpToMain(Exception):
