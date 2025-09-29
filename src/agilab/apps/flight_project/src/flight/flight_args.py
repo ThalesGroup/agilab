@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import date
-import socket
 import re
+import socket
+from datetime import date
 from pathlib import Path
 from typing import Any, Literal, TypedDict
+
+import tomli
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -164,3 +166,49 @@ def dump_args_to_toml(
         section=section,
         create_missing=create_missing,
     )
+
+
+ArgsModel = FlightArgs
+ArgsOverrides = FlightArgsTD
+
+
+def load_args(
+    settings_path: str | Path,
+    *,
+    section: str = ARGS_SECTION,
+) -> FlightArgs:
+    return load_args_from_toml(settings_path, section=section)
+
+
+def dump_args(
+    args: FlightArgs,
+    settings_path: str | Path,
+    *,
+    section: str = ARGS_SECTION,
+    create_missing: bool = True,
+) -> None:
+    dump_args_to_toml(
+        args,
+        settings_path,
+        section=section,
+        create_missing=create_missing,
+    )
+
+
+def ensure_defaults(args: FlightArgs, **kwargs: Any) -> FlightArgs:
+    return apply_source_defaults(args, **kwargs)
+
+
+__all__ = [
+    "ArgsModel",
+    "ArgsOverrides",
+    "FlightArgs",
+    "FlightArgsTD",
+    "apply_source_defaults",
+    "dump_args",
+    "dump_args_to_toml",
+    "ensure_defaults",
+    "load_args",
+    "load_args_from_toml",
+    "merge_args",
+]

@@ -41,14 +41,12 @@ def main():
 
     # Collect custom arguments.
     custom_args = []
-    if args.cluster_ssh_credentials is not None:
-        custom_args.extend(["--cluster-ssh-credentials", args.cluster_ssh_credentials])
-    if args.openai_api_key is not None:
-        custom_args.extend(["--openai-api-key", args.openai_api_key])
-
-    if len(custom_args) != 2:
+    if args.cluster_ssh_credentials is None or args.openai_api_key is None:
         print("SSH Credentials and OpenAI API key are required")
         sys.exit(1)
+
+    custom_args.extend(["--cluster-ssh-credentials", args.cluster_ssh_credentials])
+    custom_args.extend(["--openai-api-key", args.openai_api_key])
 
     install_type = 0
     if args.install_type is None:

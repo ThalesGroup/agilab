@@ -24,7 +24,6 @@ node module
 # Internal Libraries:
 import getpass
 import io
-import importlib
 import os
 import shutil
 import sys
@@ -36,8 +35,8 @@ import warnings
 import abc
 import traceback
 import json
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from pathlib import Path, PureWindowsPath
+from typing import Any, Dict, List, Optional, Union, Callable, ClassVar
 from types import SimpleNamespace
 
 # External Libraries:
@@ -79,6 +78,187 @@ class BaseWorker(abc.ABC):
     _is_managed_pc = getpass.getuser().startswith("T0")
     _cython_decorators = ["njit"]
     env: Optional[AgiEnv] = None
+    default_settings_path: ClassVar[str] = "app_settings.toml"
+    default_settings_section: ClassVar[str] = "args"
+    args_loader: ClassVar[Callable[..., Any] | None] = None
+    args_merger: ClassVar[Callable[[Any, Optional[Any]], Any] | None] = None
+    args_ensure_defaults: ClassVar[Callable[..., Any] | None] = None
+    args_dumper: ClassVar[Callable[..., None] | None] = None
+    args_dump_mode: ClassVar[str] = "json"
+    managed_pc_home_suffix: ClassVar[str] = "MyApp"
+    managed_pc_path_fields: ClassVar[tuple[str, ...]] = ()
+
+    @classmethod
+    def _require_args_helper(cls, attr_name: str) -> Callable[..., Any]:
+        helper = getattr(cls, attr_name, None)
+        if helper is None:
+            raise AttributeError(
+                f"{cls.__name__} must define `{attr_name}` to use argument helpers"
+            )
+        return helper
+
+    @classmethod
+    def _remap_managed_pc_path(
+        cls,
+        value: Path | str,
+        *,
+        env: AgiEnv | None = None,
+    ) -> Path:
+        env = env or getattr(cls, "env", None)
+        if not getattr(env, "_is_managed_pc", AgiEnv._is_managed_pc):
+            return Path(value)
+
+        home = Path.home()
+        managed_root = home / cls.managed_pc_home_suffix
+
+        try:
+            return Path(str(Path(value)).replace(str(home), str(managed_root)))
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug("Failed to remap path %s for managed PC", value, exc_info=True)
+            return Path(value)
+
+    @classmethod
+    def _apply_managed_pc_path_overrides(
+        cls,
+        args: Any,
+        *,
+        env: AgiEnv | None = None,
+    ) -> Any:
+        fields = getattr(cls, "managed_pc_path_fields", ())
+        if not fields:
+            return args
+
+        for field in fields:
+            if not hasattr(args, field):
+                continue
+            value = getattr(args, field)
+            try:
+                remapped = cls._remap_managed_pc_path(value, env=env)
+            except (TypeError, ValueError):
+                continue
+            setattr(args, field, remapped)
+        return args
+
+    def _apply_managed_pc_paths(self, args: Any) -> Any:
+        return type(self)._apply_managed_pc_path_overrides(args, env=self.env)
+
+    def prepare_output_dir(
+        self,
+        root: Path | str,
+        *,
+        subdir: str = "dataframe",
+        attribute: str = "data_out",
+        clean: bool = True,
+    ) -> Path:
+        """Create (and optionally reset) a deterministic output directory."""
+
+        target = Path(normalize_path(Path(root) / subdir))
+
+        if clean and target.exists():
+            try:
+                shutil.rmtree(target, ignore_errors=True, onerror=self._onerror)
+            except Exception as exc:  # pragma: no cover - defensive guard
+                logger.warning(
+                    "Issue while cleaning output directory %s: %s", target, exc
+                )
+
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.warning(
+                "Issue while ensuring output directory %s exists: %s", target, exc
+            )
+
+        setattr(self, attribute, target)
+        return target
+
+    def setup_args(
+        self,
+        args: Any,
+        *,
+        env: AgiEnv | None = None,
+        error: str | None = None,
+        output_field: str | None = None,
+        output_subdir: str = "dataframe",
+        output_attr: str = "data_out",
+        output_clean: bool = True,
+        output_parents_up: int = 0,
+    ) -> Any:
+        env = env or getattr(self, "env", None)
+        if args is None:
+            raise ValueError(
+                error or f"{type(self).__name__} requires an initialized arguments object"
+            )
+
+        ensure_fn = getattr(type(self), "args_ensure_defaults", None)
+        if ensure_fn is not None:
+            args = ensure_fn(args, env=env)
+
+        processed = type(self)._apply_managed_pc_path_overrides(args, env=env)
+        self.args = processed
+
+        if output_field:
+            root = Path(getattr(processed, output_field))
+            for _ in range(max(output_parents_up, 0)):
+                root = root.parent
+            self.prepare_output_dir(
+                root,
+                subdir=output_subdir,
+                attribute=output_attr,
+                clean=output_clean,
+            )
+
+        return processed
+
+    @classmethod
+    def from_toml(
+        cls,
+        env: AgiEnv,
+        settings_path: str | Path | None = None,
+        section: str | None = None,
+        **overrides: Any,
+    ) -> "BaseWorker":
+        settings_path = settings_path or cls.default_settings_path
+        section = section or cls.default_settings_section
+
+        loader = cls._require_args_helper("args_loader")
+        merger = cls._require_args_helper("args_merger")
+
+        base_args = loader(settings_path, section=section)
+        merged_args = merger(base_args, overrides or None)
+
+        ensure_fn = getattr(cls, "args_ensure_defaults", None)
+        if ensure_fn is not None:
+            merged_args = ensure_fn(merged_args, env=env)
+
+        merged_args = cls._apply_managed_pc_path_overrides(merged_args, env=env)
+
+        return cls(env, args=merged_args)
+
+    def to_toml(
+        self,
+        settings_path: str | Path | None = None,
+        section: str | None = None,
+        create_missing: bool = True,
+    ) -> None:
+        _cls = type(self)
+        settings_path = settings_path or _cls.default_settings_path
+        section = section or _cls.default_settings_section
+
+        dumper = _cls._require_args_helper("args_dumper")
+        dumper(self.args, settings_path, section=section, create_missing=create_missing)
+
+    def as_dict(self, mode: str | None = None) -> dict[str, Any]:
+        payload: dict[str, Any]
+        if hasattr(self, "args"):
+            dump_mode = mode or type(self).args_dump_mode
+            payload = self.args.model_dump(mode=dump_mode)
+        else:
+            payload = {}
+        return self._extend_payload(payload)
+
+    def _extend_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return payload
 
     @staticmethod
     def start(worker_inst):
@@ -121,7 +301,7 @@ class BaseWorker(abc.ABC):
             if "Users" in parts:
                 index = parts.index("Users") + 2
                 path = Path(*parts[index:])
-            net_path = BaseWorker.normalize_path("\\\\127.0.0.1\\" + str(path))
+            net_path = normalize_path("\\\\127.0.0.1\\" + str(path))
             try:
                 # your nfs account in order to mount it as net drive on windows
                 cmd = f'net use Z: "{net_path}" /user:your-name your-password'
@@ -167,6 +347,42 @@ class BaseWorker(abc.ABC):
             return str(expanded_path)
         else:
             return normalize_path(expanded_path)
+
+    @staticmethod
+    def normalize_data_uri(data_uri: Union[str, Path]) -> str:
+        """Normalise a data URI so workers can rely on consistent paths."""
+
+        data_uri_str = str(data_uri)
+
+        if os.name == "nt" and data_uri_str.startswith("\\\\"):
+            candidate = Path(PureWindowsPath(data_uri_str))
+        else:
+            candidate = Path(data_uri_str).expanduser()
+            if not candidate.is_absolute():
+                candidate = (Path.home() / candidate).expanduser()
+            try:
+                candidate = candidate.resolve(strict=False)
+            except Exception:
+                candidate = Path(os.path.normpath(str(candidate)))
+
+        if os.name == "nt":
+            resolved_str = os.path.normpath(str(candidate))
+            if not BaseWorker._is_managed_pc:
+                parts = Path(resolved_str).parts
+                if "Users" in parts:
+                    mapped = Path(*parts[parts.index("Users") + 2 :])
+                else:
+                    mapped = Path(resolved_str)
+                net_path = normalize_path(f"\\\\127.0.0.1\\{mapped}")
+                try:
+                    cmd = f'net use Z: "{net_path}" /user:your-credentials'
+                    logger.info(cmd)
+                    subprocess.run(cmd, shell=True, check=True)
+                except Exception as exc:
+                    logger.info("Failed to map network drive: %s", exc)
+            return resolved_str
+
+        return candidate.as_posix()
 
     @staticmethod
     def _join(path1, path2):

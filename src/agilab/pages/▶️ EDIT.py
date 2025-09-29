@@ -1183,21 +1183,22 @@ def _render_app_settings(env):
 def _render_app_args_module(env):
     target = getattr(env, "target", None)
     if not target:
-        st.warning("Active app module not resolved; app_args.py unavailable.")
+        st.warning("Active app module not resolved; argument helpers unavailable.")
         return
 
-    app_args_py = env.app_src / target / "app_args.py"
-    if app_args_py.exists():
+    module_name = f"{target}_args.py"
+    args_module_py = env.app_src / target / module_name
+    if args_module_py.exists():
         render_code_editor(
-            app_args_py,
-            app_args_py.read_text(),
+            args_module_py,
+            args_module_py.read_text(),
             "python",
             "st",
             comp_props,
             ace_props,
         )
     else:
-        st.warning("app_args.py file not found.")
+        st.warning(f"{module_name} file not found.")
 
 
 def _render_readme(env):
