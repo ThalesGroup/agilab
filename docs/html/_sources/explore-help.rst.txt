@@ -1,0 +1,79 @@
+▶️ EXPLORE
+==========
+
+.. toctree::
+   :hidden:
+
+Introduction
+------------
+The **Explore** page is the catalog for Streamlit views that belong to your
+AGILab installation. It lets you pick which views should appear on the main
+landing page and launch any of them in an isolated sidecar session for a richer
+interactive experience.
+
+Sidebar
+-------
+- Project selector that keeps the current application in sync with the rest of
+  the suite.
+- The currently selected project determines which views are stored inside its
+  ``src/app_settings.toml`` file under the ``[pages]`` section.
+
+Main Content Area
+-----------------
+.. tab-set::
+
+   .. tab-item:: Discover
+
+      AGILab scans ``${AGILAB_PAGES_ABS}`` for installed Streamlit page
+      packages. A matching ``pyproject.toml`` marks a directory as a page
+      bundle. The page grid lists every discovered bundle so you can preview
+      what is available on disk.
+
+   .. tab-item:: Configure
+
+      Use the multi-select to decide which views should be surfaced on the
+      Explore page and on the home dashboard. The selection is written to
+      ``src/<project>/src/app_settings.toml`` in the ``[pages]`` section under
+      ``view_module``. Only the names you choose are persisted for the active
+      project; every project keeps its own list.
+
+   .. tab-item:: Launch
+
+      Each selected view appears as a button. Clicking it launches the bundle in
+      a dedicated Streamlit process (one port per view, per session) using the
+      nearest virtual environment (``.venv``/``venv`` in the bundle or the
+      directories pointed to ``${AGILAB_VENVS_ABS}`` and
+      ``${AGILAB_PAGES_VENVS_ABS}``). The child app is then embedded via iframe
+      and a ``Back to Explore`` control keeps navigation lightweight.
+
+Tips & Notes
+------------
+- Views are ordinary Streamlit projects. Bundles that expose a ``pyproject.toml``
+  and a ``src/<module>/<module>.py`` entry point are automatically picked up.
+- Built-in IDE pages (Edit, Execute, Experiment, Explore) always remain
+  available; plugin pages from ``apps-pages`` simply add extra entries to the
+  Explore catalogue when the project opts into them.
+- AGILab caches the list per project, so the Explore grid reflects the exact
+  configuration stored in ``app_settings.toml``.
+- If a view needs its own Python environment, place it alongside the page
+  bundle (``.venv`` or ``venv``) or in the shared directories referenced by the
+  ``AGILAB_VENVS_ABS`` / ``AGILAB_PAGES_VENVS_ABS`` environment variables.
+  Explore automatically picks the first interpreter that exists when spinning up
+  the sidecar process.
+
+Regenerate Documentation
+------------------------
+
+After updating this guide (or any docs surfaced in the IDE), rebuild the
+generated site so teammates and CI consume the same content:
+
+.. code-block:: bash
+
+   ./docs/gen_docs.sh
+
+The wrapper guarantees ``uv`` runs ``docs/gen-docs.py`` with the extra build
+dependencies required for Sphinx and stub generation.
+
+.. literalinclude:: ../gen_docs.sh
+   :language: bash
+   :caption: ``docs/gen_docs.sh``
