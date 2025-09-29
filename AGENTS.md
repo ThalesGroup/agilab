@@ -241,6 +241,23 @@ by parsing .idea/runConfigurations/*.xml:
 
 ---
 
+## Service Mode (`AGI.serve`)
+
+- Prefer `AGI.serve` over `AGI.run` for long-lived agents: it keeps workers attached and
+  runs `BaseWorker.loop` on each Dask worker via `Client.submit`.
+- `BaseWorker.loop` creates a thread-safe stop event and honours worker-defined `loop`
+  hooks (sync or async). Returning `False` or calling `BaseWorker.break()` stops the loop.
+- Use `AGI.serve(..., action="stop")` to broadcast `BaseWorker.break` and wait for
+  graceful teardown before optionally shutting down the cluster.
+
+## AgiEnv path discovery
+
+- `AgiEnv._ensure_path_cache` reads `~/.local/share/agilab/.agilab-path` first; the file
+  stores the absolute path to `agilab/src/agilab` in repo checkouts (`install_type=1`).
+- If the hint is missing, it falls back to ``importlib.util.find_spec("agilab")`` and, as a
+  last resort, a parent-directory scan around `agi_env` to support packaged installs.
+- `read_agilab_path` guards logging in case the shared logger is not configured.
+
 ## Coding Standards
 
 - Follow **PEP8** with project-specific exceptions documented in `pyproject.toml`.

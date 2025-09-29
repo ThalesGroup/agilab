@@ -84,7 +84,7 @@ import humanize
 import numpy as np
 import polars as pl
 import psutil
-from dask.distributed import Client
+from dask.distributed import Client, wait
 import json
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
@@ -158,6 +158,11 @@ class AGI:
     _work_plan_metadata: Optional[Any] = None
     debug: Optional[bool] = None  # Cache with default local IPs
     env: Optional[AgiEnv] = None
+    _service_futures: Dict[str, Any] = {}
+    _service_workers: List[str] = []
+    _service_shutdown_on_stop: bool = True
+    _service_stop_timeout: Optional[float] = 30.0
+    _service_poll_interval: Optional[float] = None
 
     def __init__(self, target: str, verbose: int = 1):
         """
@@ -293,6 +298,223 @@ class AGI:
             except Exception as err:
                 logger.error(f"Unhandled exception in AGI.run: {err}", exc_info=True)
                 logger.info(traceback.format_exc())
+
+    @staticmethod
+    async def serve(
+            env: AgiEnv,
+            scheduler: Optional[str] = None,
+            workers: Optional[Dict[str, int]] = None,
+            verbose: int = 0,
+            mode: Optional[Union[int, str]] = None,
+            rapids_enabled: bool = False,
+            action: str = "start",
+            poll_interval: Optional[float] = None,
+            shutdown_on_stop: bool = True,
+            stop_timeout: Optional[float] = 30.0,
+            **args: Any,
+    ) -> Dict[str, Any]:
+        """Manage persistent worker services without invoking the run workplan.
+
+        ``action="start"`` provisions workers and submits ``BaseWorker.loop`` as a
+        long-lived service task pinned to each Dask worker. ``action="stop"``
+        signals the loop through ``BaseWorker.break`` and optionally tears down
+        the Dask cluster when ``shutdown_on_stop`` is true.
+        """
+
+        command = (action or "start").lower()
+        if command not in {"start", "stop"}:
+            raise ValueError("action must be 'start' or 'stop'")
+
+        AGI._service_shutdown_on_stop = shutdown_on_stop
+        AGI._service_stop_timeout = stop_timeout
+        AGI._service_poll_interval = poll_interval
+
+        if command == "stop":
+            client = AGI._dask_client
+
+            if not AGI._service_futures:
+                logger.info("AGI.serve(stop): no active service loops to stop.")
+                if shutdown_on_stop and client:
+                    await AGI._stop()
+                if AGI._jobs:
+                    AGI._clean_job(True)
+                return {"status": "idle", "workers": [], "pending": []}
+
+            if client is None:
+                logger.error(
+                    "AGI.serve(stop): service futures registered but Dask client is unavailable"
+                )
+                pending = list(AGI._service_futures.keys())
+                AGI._service_futures.clear()
+                AGI._service_workers = []
+                if AGI._jobs:
+                    AGI._clean_job(True)
+                return {"status": "error", "workers": [], "pending": pending}
+
+            future_map = {future: worker for worker, future in AGI._service_futures.items()}
+
+            break_tasks = [
+                client.submit(
+                    BaseWorker.break_loop,
+                    workers=[worker],
+                    allow_other_workers=False,
+                    pure=False,
+                    key=f"agi-serve-break-{env.target}-{worker.replace(':', '-')}",
+                )
+                for worker in list(AGI._service_futures.keys())
+            ]
+            client.gather(break_tasks)
+
+            wait_kwargs: Dict[str, Any] = {}
+            if stop_timeout is not None:
+                wait_kwargs["timeout"] = stop_timeout
+
+            done, not_done = wait(list(future_map.keys()), **wait_kwargs)
+
+            stopped_workers = [future_map[f] for f in done]
+            pending_workers = [future_map[f] for f in not_done]
+
+            if done:
+                client.gather(list(done), errors="raise")
+
+            if pending_workers:
+                logger.warning(
+                    "Service loop shutdown timed out on workers: %s", pending_workers
+                )
+
+            AGI._service_futures.clear()
+            AGI._service_workers = []
+
+            if shutdown_on_stop:
+                await AGI._stop()
+
+            if AGI._jobs:
+                AGI._clean_job(True)
+
+            status = "stopped" if not pending_workers else "partial"
+            return {"status": status, "workers": stopped_workers, "pending": pending_workers}
+
+        # command == "start"
+        if AGI._service_futures:
+            raise RuntimeError(
+                "Service loop already running. Please call AGI.serve(..., action='stop') first."
+            )
+
+        if not workers:
+            workers = _workers_default
+        elif not isinstance(workers, dict):
+            raise ValueError("workers must be a dict. {'ip-address':nb-worker}")
+
+        AGI._jobs = bg.BackgroundJobManager()
+        AGI.env = env
+        AGI.target_path = env.manager_path
+        AGI._target = env.target
+        AGI._rapids_enabled = rapids_enabled
+
+        if env.verbose > 0:
+            logger.info(
+                "AGI service instance created for target %s with verbosity %s",
+                env.target,
+                env.verbose,
+            )
+
+        if mode is None:
+            AGI._mode = AGI.DASK_MODE
+        elif isinstance(mode, str):
+            pattern = r"^[dcrp]+$"
+            if not re.fullmatch(pattern, mode.lower()):
+                raise ValueError("parameter <mode> must only contain the letters 'd', 'c', 'r', 'p'")
+            AGI._mode = env.mode2int(mode)
+        elif isinstance(mode, int):
+            AGI._mode = int(mode)
+        else:
+            raise ValueError("parameter <mode> must be an int or a string")
+
+        if not (AGI._mode & AGI.DASK_MODE):
+            raise ValueError("AGI.serve requires Dask mode (include 'd' in mode)")
+
+        if AGI._mode & AGI._RUN_MASK not in range(0, AGI.RAPIDS_MODE):
+            raise ValueError(f"mode {AGI._mode} not implemented")
+
+        AGI._mode_auto = False
+        AGI._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
+        AGI._run_type = AGI._run_types[0]
+        AGI._args = args
+        AGI.verbose = verbose
+        AGI._workers = workers
+        AGI._run_time = {}
+
+        AGI._capacity_data_file = env.resources_path / "balancer_df.csv"
+        AGI._capacity_model_file = env.resources_path / "balancer_model.pkl"
+        path = Path(AGI._capacity_model_file)
+
+        if path.is_file():
+            with open(path, "rb") as f:
+                AGI._capacity_predictor = pickle.load(f)
+        else:
+            AGI._train_capacity(env.home_abs)
+
+        AGI.agi_workers = {
+            "PolarsWorker": "polars-worker",
+            "PandasWorker": "pandas-worker",
+            "FireducksWorker": "fireducks-worker",
+            "DagWorker": "dag-worker",
+        }
+        AGI.install_worker_group = [AGI.agi_workers[env.base_worker_cls]]
+
+        client = AGI._dask_client
+        if client is None or getattr(client, "status", "") in {"closed", "closing"}:
+            await AGI._start(scheduler)
+            client = AGI._dask_client
+        else:
+            await AGI._sync()
+
+        if client is None:
+            raise RuntimeError("Failed to obtain Dask client for service start")
+
+        AGI._dask_workers = [
+            worker.split("/")[-1]
+            for worker in list(client.scheduler_info()["workers"].keys())
+        ]
+
+        dask_workers = list(AGI._dask_workers)
+
+        init_futures = [
+            client.submit(
+                BaseWorker._new,
+                env=0 if env.debug else None,
+                active_app=env.target_worker,
+                mode=AGI._mode,
+                verbose=AGI.verbose,
+                worker_id=index,
+                worker=worker,
+                args=AGI._args,
+                workers=[worker],
+                allow_other_workers=False,
+                pure=False,
+                key=f"agi-worker-init-{env.target}-{worker.replace(':', '-')}",
+            )
+            for index, worker in enumerate(dask_workers)
+        ]
+        client.gather(init_futures)
+
+        service_futures: Dict[str, Any] = {}
+        for worker in dask_workers:
+            future = client.submit(
+                BaseWorker.loop,
+                poll_interval=poll_interval,
+                workers=[worker],
+                allow_other_workers=False,
+                pure=False,
+                key=f"agi-serve-loop-{env.target}-{worker.replace(':', '-')}",
+            )
+            service_futures[worker] = future
+
+        AGI._service_futures = service_futures
+        AGI._service_workers = dask_workers
+
+        logger.info("Service loops started for workers: %s", dask_workers)
+        return {"status": "running", "workers": dask_workers, "pending": []}
 
     @staticmethod
     async def _benchmark(

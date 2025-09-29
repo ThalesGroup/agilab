@@ -2,7 +2,6 @@
 #
 # Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
 # All rights reserved.
-# Co-author: Codex 0.42.0
 #
 # Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 #
@@ -21,7 +20,6 @@ parsing and path utilities leveraged during setup.
 import shlex
 from IPython.core.ultratb import FormattedTB
 import ast
-import importlib
 import asyncio
 import getpass
 import os
@@ -36,8 +34,11 @@ from pathlib import Path, PureWindowsPath, PurePosixPath
 from dotenv import dotenv_values, set_key
 import tomlkit
 import logging
+import astor
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
+import py7zr
+import urllib.request
 import inspect
 import ctypes
 from ctypes import wintypes
@@ -125,28 +126,6 @@ class AgiEnv:
     """Encapsulates filesystem and configuration state for AGILab deployments."""
     _instance: "AgiEnv | None" = None
     _lock: RLock = RLock()
-    _path_cache: dict[str, Path] = {}
-
-    @classmethod
-    def _ensure_path_cache(cls) -> None:
-        if cls._path_cache:
-            return
-        spec = importlib.util.find_spec("agilab")
-        if not spec or not spec.origin:
-            raise RuntimeError("Unable to locate agilab package")
-        package_path = Path(spec.origin).resolve()
-        package_root = package_path.parent
-        installed_root = package_root.parent
-        repo_root = Path(__file__).resolve().parents[6]
-        repo_src_root = repo_root / "src"
-        cls._path_cache = {
-            "package_path": package_path,
-            "package_root": package_root,
-            "installed_root": installed_root,
-            "repo_root": repo_root,
-            "repo_src_root": repo_src_root,
-            "shared_resources": package_root / "resources",
-        }
 
     def __new__(cls, *args, **kwargs):
         with cls._lock:
@@ -168,8 +147,6 @@ class AgiEnv:
 
         with cls._lock:
             cls._instance = None
-            cls._pythonpath_entries.clear()
-            cls._path_cache.clear()
     install_type = None
     apps_dir = None
     app = None
@@ -213,9 +190,6 @@ class AgiEnv:
 
         if verbose is None:
             verbose = 0
-        self.verbose = verbose
-        AgiEnv.verbose = verbose
-
         self.uv = "uv"
         if verbose < 3:
             self.uv = "uv --quiet"
@@ -225,61 +199,86 @@ class AgiEnv:
 
         AgiEnv.resources_path = home_abs / self._agi_resources.name
         self.resources_path = AgiEnv.resources_path
-        env_path = self.resources_path / ".env"
-        self.benchmark = self.resources_path / "benchmark.json"
+        env_path = AgiEnv.resources_path / ".env"
+        self.benchmark = AgiEnv.resources_path / "benchmark.json"
         AgiEnv.benchmark = self.benchmark
         AgiEnv.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
         self.envars = AgiEnv.envars
         envars = self.envars
-
-        self._ensure_path_cache()
-        cache = self._path_cache
-        installed_root = cache["installed_root"]
-        package_root = cache["package_root"]
-        repo_src_root = cache["repo_src_root"]
-
-        if install_type == 1:
-            self.agilab_src = repo_src_root
-            core_base = repo_src_root / "agilab/core"
+        agilab_src, sep, after = __file__.rpartition("agilab")
+        agilab_src = agilab_src.replace("/app-pages/maps", "")
+        agilab_src = Path(agilab_src).resolve()
+        agilab = importlib.util.find_spec("agilab")
+        if agilab is not None and agilab.origin:
+            # Direct path to the 'agilab' package folder
+            agilab_installed = Path(agilab.origin).parents[1]
         else:
-            self.agilab_src = installed_root
-            core_base = installed_root
-
-        AgiEnv.agilab_src = self.agilab_src
-        self.st_resources = cache["shared_resources"]
-        AgiEnv.st_resources = self.st_resources
-
-        self.node_root = core_base / "agi-node"
-        self.env_root = core_base / "agi-env"
-        self.core_root = core_base / "agi-core"
-        self.cluster_root = core_base / "agi-cluster"
-        self.cli = (self.cluster_root / "src/agi_cluster/agi_distributor/cli.py") if install_type == 1 else (self.cluster_root / "agi_distributor/cli.py")
-
-        roots = []
-        for root in (self.env_root, self.node_root, self.core_root, self.cluster_root):
-            src_dir = root / "src"
-            roots.append(src_dir if src_dir.exists() else root)
-        self.env_src, self.node_src, self.core_src, self.cluster_src = roots
+            # Fallback if not installed
+            agilab_installed = agilab_src
 
         if isinstance(active_app, str):
+            # case only worker_env
             self.is_worker_env = True
             active_app = home_abs / "wenv" / active_app
         else:
             if not active_app:
                 venv_home = Path(sys.prefix).parent
-                default_app = envars.get("APP_DEFAULT", "flight_project")
                 if venv_home.name == "agilab":
-                    active_app = repo_src_root / "agilab/apps" / default_app
+                    active_app = agilab_src / "agilab/apps" / envars.get("APP_DEFAULT", 'flight_project')
                 else:
-                    active_app = venv_home / "apps" / default_app
+                    active_app = venv_home / "apps" / envars.get("APP_DEFAULT", 'flight_project')
             else:
                 active_app = active_app.expanduser()
 
             if not active_app.name.endswith('_project') and not active_app.name.endswith('_worker'):
                 raise ValueError(f"{active_app} must end with '_project'")
 
+        self.active_app = active_app
+        target = active_app.name.replace("_project", "").replace("_worker","").replace("-", "_")
 
-        target = Path(active_app).name.replace("_project", "").replace("_worker", "").replace("-", "_")
+        AgiEnv.verbose = verbose
+        self.verbose = verbose
+        AgiEnv.python_variante = python_variante
+        self.python_variante = python_variante
+        AgiEnv.logger =  AgiLogger.get_logger("agi_env")
+        AgiEnv.logger =  AgiLogger.configure(verbose=verbose, base_name="agi_env")
+        self.logger = AgiEnv.logger
+        AgiEnv.debug = debug
+        self.debug = debug
+
+        if install_type is None:
+            if agilab_src.name == "src":
+                install_type = 1
+            else:
+                install_type = 0
+        elif isinstance(install_type, str):
+            install_type = int(install_type)
+
+        AgiEnv.install_type = install_type
+        self.install_type = install_type
+        self.node_root = agilab_installed / "agi_node"
+        self.env_root = agilab_installed / "agi_env"
+        self.core_root = agilab_installed / "agi_core"
+        self.cluster_root = agilab_installed / "agi_cluster"
+
+        if install_type == 1:
+            self.node_root = agilab_src / "agilab/core/agi-node"
+            self.env_root = agilab_src / "agilab/core/agi-env"
+            self.core_root = agilab_src / "agilab/core/agi-core"
+            self.cluster_root = agilab_src / "agilab/core/agi-cluster"
+            src_cluster = self.cluster_root / "src"
+            self.cli = src_cluster / "agi_cluster/agi_distributor/cli.py"
+            self.agilab_src = agilab_src
+        else:
+            self.agilab_src = agilab_installed
+            self.cli = self.cluster_root / "agi_distributor/cli.py"
+
+        self.env_src = self._resolve_package_root(self.env_root)
+        self.node_src = self._resolve_package_root(self.node_root)
+        self.core_src = self._resolve_package_root(self.core_root)
+        self.cluster_src = self._resolve_package_root(self.cluster_root)
+
+        self.st_resources = self.agilab_src / "agilab/resources"
 
         if install_type == 0:
             apps_root = self.agilab_src / "agilab/apps"
@@ -650,6 +649,17 @@ class AgiEnv:
                     shutil.copy(src_file, dest_file)
 
         # Ensure UI assets required by Streamlit editors are present.
+        extras = [
+            "custom_buttons.json",
+            "info_bar.json",
+            "code_editor.scss",
+        ]
+        for extra in extras:
+            src_extra = self.st_resources / extra
+            dest_extra = self.resources_path / extra
+            if src_extra.exists() and not dest_extra.exists():
+                dest_extra.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(src_extra, dest_extra)
 
     def _init_projects(self):
         """Identify available projects and align state with the selected target."""
@@ -1482,7 +1492,6 @@ class AgiEnv:
                         renamer = ContentRenamer(rename_map)
                         new_tree = renamer.visit(tree)
                         ast.fix_missing_locations(new_tree)
-                        import astor
                         out = astor.to_source(new_tree)
                     except SyntaxError:
                         out = src
@@ -1581,7 +1590,6 @@ class AgiEnv:
         dest.mkdir(parents=True, exist_ok=True)
 
         try:
-            import py7zr
             with py7zr.SevenZipFile(archive_path, mode="r") as archive:
                 archive.extractall(path=dest)
             if AgiEnv.verbose > 0:
@@ -1595,7 +1603,7 @@ class AgiEnv:
     def check_internet():
         AgiEnv.logger.info(f"Checking internet connectivity...")
         try:
-            import urllib.request
+            # HEAD request to Google
             req = urllib.request.Request("https://www.google.com", method="HEAD")
             with urllib.request.urlopen(req, timeout=3) as resp:
                 pass  # Success if no exception

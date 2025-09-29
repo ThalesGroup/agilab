@@ -22,26 +22,28 @@ node module
 # Agi Framework call back functions
 ######################################################
 # Internal Libraries:
+import abc
+import asyncio
 import getpass
+import inspect
 import io
+import json
 import os
 import shutil
-import sys
 import stat
-import tempfile
-import time
 import subprocess
-import warnings
-import abc
+import sys
+import tempfile
+import threading
+import time
 import traceback
-import json
+import warnings
 from pathlib import Path, PureWindowsPath
-from typing import Any, Dict, List, Optional, Union, Callable, ClassVar
 from types import SimpleNamespace
+from typing import Any, Callable, ClassVar, Dict, List, Optional, Union
 
 # External Libraries:
 import numpy as np
-from distributed.worker_state_machine import BaseWorker
 from distutils.sysconfig import get_python_lib
 import psutil
 import humanize
@@ -87,6 +89,10 @@ class BaseWorker(abc.ABC):
     args_dump_mode: ClassVar[str] = "json"
     managed_pc_home_suffix: ClassVar[str] = "MyApp"
     managed_pc_path_fields: ClassVar[tuple[str, ...]] = ()
+    _service_stop_events: ClassVar[Dict[int, threading.Event]] = {}
+    _service_active: ClassVar[Dict[int, bool]] = {}
+    _service_lock: ClassVar[threading.Lock] = threading.Lock()
+    _service_poll_default: ClassVar[float] = 1.0
 
     @classmethod
     def _require_args_helper(cls, attr_name: str) -> Callable[..., Any]:
@@ -282,6 +288,137 @@ class BaseWorker(abc.ABC):
         """
         logging.info(f"worker #{self._worker_id}: {self._worker} - mode: {self._mode}"
                         )
+        with BaseWorker._service_lock:
+            is_active = BaseWorker._service_active.get(self._worker_id)
+        if is_active:
+            try:
+                BaseWorker.break_loop()
+            except Exception:
+                logging.debug("break_loop raised", exc_info=True)
+
+    @staticmethod
+    def loop(*, poll_interval: Optional[float] = None) -> Dict[str, Any]:
+        """Run a long-lived service loop on this worker until signalled to stop.
+
+        The derived worker can implement a ``loop`` method accepting either zero
+        arguments or a single ``stop_event`` argument. When the method signature
+        accepts ``stop_event`` (keyword ``stop_event`` or ``should_stop``), the
+        worker implementation is responsible for honouring the event. Otherwise
+        the base implementation repeatedly invokes the method and sleeps for the
+        configured poll interval between calls. Returning ``False`` from the
+        worker method requests termination of the loop.
+        """
+
+        worker_id = BaseWorker._worker_id
+        worker_inst = BaseWorker._insts.get(worker_id)
+        if worker_id is None or worker_inst is None:
+            raise RuntimeError("BaseWorker.loop called before worker initialisation")
+
+        with BaseWorker._service_lock:
+            stop_event = threading.Event()
+            BaseWorker._service_stop_events[worker_id] = stop_event
+            BaseWorker._service_active[worker_id] = True
+
+        poll = BaseWorker._service_poll_default if poll_interval is None else max(poll_interval, 0.0)
+        loop_fn = getattr(worker_inst, "loop", None)
+        accepts_event = False
+        if callable(loop_fn):
+            try:
+                signature = inspect.signature(loop_fn)
+                accepts_event = any(
+                    param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY)
+                    and param.name in {"stop_event", "should_stop"}
+                    for param in signature.parameters.values()
+                )
+            except (TypeError, ValueError):
+                # Some builtins don't expose signatures; fall back to simple mode
+                accepts_event = False
+
+        start_time = time.time()
+        logger.info(
+            "worker #%s: %s entering service loop (poll %.3fs)",
+            worker_id,
+            BaseWorker._worker,
+            poll,
+        )
+
+        try:
+            if not callable(loop_fn):
+                # No custom loop provided; block until break is requested.
+                stop_event.wait()
+                return {"status": "idle", "runtime": 0.0}
+
+            def _run_once() -> Any:
+                if accepts_event:
+                    return loop_fn(stop_event)
+                return loop_fn()
+
+            while not stop_event.is_set():
+                result = _run_once()
+                if inspect.isawaitable(result):
+                    try:
+                        asyncio.run(result)
+                    except RuntimeError:
+                        loop = asyncio.new_event_loop()
+                        try:
+                            loop.run_until_complete(result)
+                        finally:
+                            loop.close()
+
+                if result is False:
+                    break
+
+                if accepts_event:
+                    # Worker manages its own waiting when it handles the stop event.
+                    continue
+
+                if poll > 0:
+                    stop_event.wait(poll)
+
+            return {"status": "stopped", "runtime": time.time() - start_time}
+
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.exception("Service loop failed: %s", exc)
+            raise
+
+        finally:
+            with BaseWorker._service_lock:
+                BaseWorker._service_active.pop(worker_id, None)
+                BaseWorker._service_stop_events.pop(worker_id, None)
+
+            stop_hook = getattr(worker_inst, "stop", None)
+            if callable(stop_hook):
+                try:
+                    stop_hook()
+                except Exception:  # pragma: no cover - defensive logging
+                    logger.exception("Worker stop hook raised inside service loop", exc_info=True)
+
+            logger.info(
+                "worker #%s: %s leaving service loop (elapsed %.3fs)",
+                worker_id,
+                BaseWorker._worker,
+                time.time() - start_time,
+            )
+
+    @staticmethod
+    def break_loop() -> bool:
+        """Signal the service loop to exit on this worker."""
+
+        worker_id = BaseWorker._worker_id
+        if worker_id is None:
+            logger.warning("break_loop called without worker context")
+            return False
+
+        with BaseWorker._service_lock:
+            stop_event = BaseWorker._service_stop_events.get(worker_id)
+
+        if stop_event is None:
+            logger.info("worker #%s: no active service loop to break", worker_id)
+            return False
+
+        stop_event.set()
+        logger.info("worker #%s: service loop break requested", worker_id)
+        return True
 
     @staticmethod
     def expand_and_join(path1, path2):
@@ -406,7 +543,7 @@ class BaseWorker(abc.ABC):
             path = path.replace("\\", "/")
         return path
 
-       # dans node.py (en dehors de la classe BaseWorker)
+    @staticmethod
     def _get_logs_and_result(func, *args, verbosity=logging.CRITICAL, **kwargs):
         import io
         import logging
@@ -803,3 +940,7 @@ class BaseWorker(abc.ABC):
 
         # Return the logs
         return log_stream.getvalue()
+
+
+# enable dotted access ``BaseWorker.break()`` even though ``break`` is a keyword
+setattr(BaseWorker, "break", BaseWorker.break_loop)
