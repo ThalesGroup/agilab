@@ -1511,11 +1511,11 @@ def page():
     # Load .agi_resources
 
     try:
-        with open(env.resources_path / "custom_buttons.json") as f:
+        with open(env.st_resources / "custom_buttons.json") as f:
             CUSTOM_BUTTONS = json.load(f)
-        with open(env.resources_path / "info_bar.json") as f:
+        with open(env.st_resources / "info_bar.json") as f:
             INFO_BAR = json.load(f)
-        with open(env.resources_path / "code_editor.scss") as f:
+        with open(env.st_resources / "code_editor.scss") as f:
             CSS_TEXT = f.read()
     except FileNotFoundError as e:
         st.error(f"Resource file not found: {e}")
