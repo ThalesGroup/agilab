@@ -1,9 +1,10 @@
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Iterable, Dict, List, Tuple
+from typing import Optional, Iterable, Dict, List
 import sys
 import subprocess
+import textwrap
 import xml.etree.ElementTree as ET
 
 class Config:
@@ -514,6 +515,102 @@ class Project:
             logging.info(f"Generating run configs for '{name}' via {self.cfg.GEN_SCRIPT.name} …")
             subprocess.run([sys.executable, str(self.cfg.GEN_SCRIPT), name], check=True, cwd=str(self.cfg.ROOT))
 
+    def _ensure_run_config_folder(self, folder_name: str) -> None:
+        folders_path = self.cfg.RUN_CONFIGS_DIR / "folders.xml"
+        created = not folders_path.exists()
+        if created:
+            root = ET.Element("component", {"name": "RunManager"})
+            tree = ET.ElementTree(root)
+        else:
+            tree = read_xml(folders_path)
+            root = tree.getroot()
+
+        if root.find(f"./folder[@name='{folder_name}']") is None:
+            ET.SubElement(root, "folder", {"name": folder_name})
+            write_xml(tree, folders_path)
+            logging.info(f"Run configuration folder '{folder_name}' registered in {folders_path}")
+        elif created:
+            write_xml(tree, folders_path)
+
+    @staticmethod
+    def _normalized_config_suffix(raw: str) -> str:
+        return raw.strip().replace(" ", "_").replace("-", "_")
+
+    def generate_run_configs_for_apps_pages(self, apps_pages: List[str]) -> None:
+        if not apps_pages:
+            return
+
+        folder_name = "apps-pages"
+        self._ensure_run_config_folder(folder_name)
+
+        for name in apps_pages:
+            apps_page_dir = self.cfg.APPS_PAGES_DIR / name
+            if not apps_page_dir.exists():
+                logging.warning("Apps-page directory %s missing; skipping run config generation.", apps_page_dir)
+                continue
+
+            normalized = self._normalized_config_suffix(name)
+            config_path = self.cfg.RUN_CONFIGS_DIR / f"_pages_run_{normalized}.py"
+            script_contents = textwrap.dedent(
+                f"""#!/usr/bin/env python3
+\"\"\"Auto-generated runner for apps-page '{name}'.\"\"\"
+
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Dict
+
+PROJECT_DIR = Path(__file__).resolve().parents[2]
+PROJECT_SRC = PROJECT_DIR / "src"
+PAGE_DIR = PROJECT_SRC / "{self.cfg.PROJECT_NAME}" / "apps-pages" / "{name}"
+ENTRY_SCRIPT = PAGE_DIR / "src" / "{name}" / "{name}.py"
+PYTHON_CANDIDATES = (
+    PAGE_DIR / ".venv" / "bin" / "python3.exe",
+    PAGE_DIR / ".venv" / "bin" / "python3",
+    PAGE_DIR / ".venv" / "bin" / "python",
+    PAGE_DIR / ".venv" / "Scripts" / "python.exe",
+    PAGE_DIR / ".venv" / "Scripts" / "python3.exe",
+)
+
+
+def _select_python() -> str:
+    for candidate in PYTHON_CANDIDATES:
+        if candidate.exists():
+            return str(candidate)
+    return sys.executable
+
+
+def _enhance_pythonpath(env: Dict[str, str]) -> None:
+    extra_paths = [str(PROJECT_SRC), str(PROJECT_DIR)]
+    existing = env.get("PYTHONPATH")
+    if existing:
+        env["PYTHONPATH"] = os.pathsep.join(extra_paths + [existing])
+    else:
+        env["PYTHONPATH"] = os.pathsep.join(extra_paths)
+
+
+def main() -> None:
+    env = os.environ.copy()
+    env.setdefault("PYTHONUNBUFFERED", "1")
+    env.setdefault("UV_NO_SYNC", "1")
+    _enhance_pythonpath(env)
+
+    cmd = [_select_python(), "-m", "streamlit", "run", str(ENTRY_SCRIPT)]
+    subprocess.run(cmd, check=True, cwd=PROJECT_DIR, env=env)
+
+
+if __name__ == "__main__":
+    main()
+"""
+            ).strip() + "\n"
+
+            config_path.write_text(script_contents, encoding="utf-8")
+            os.chmod(config_path, 0o755)
+            logging.info(f"Run script for apps-page '{name}' written to {config_path}")
+
     def python_terminal_settings(self):
         term_cfg = self.cfg.IDEA_DIR / "python-terminal.xml"
         if term_cfg.exists():
@@ -599,7 +696,7 @@ def main():
 
         realized_apps.append(app.name)
     
-    realized_apps_pages = []
+    realized_apps_pages: List[str] = []
     for apps_page in cfg.eligible_apps_pages:
         apps_page_py = venv_python_for(apps_page)
         if not apps_page_py:
@@ -653,6 +750,7 @@ def main():
     # jdk_table.prune_uv_names([sdk for _, sdk in realized_apps + realized_core])
 
     model.generate_run_configs_for_apps([p for p in realized_apps])
+    model.generate_run_configs_for_apps_pages(realized_apps_pages)
 
     logging.info("Project setup completed successfully.")
     logging.info(f"Realized apps: {', '.join([app for app in realized_apps])}")

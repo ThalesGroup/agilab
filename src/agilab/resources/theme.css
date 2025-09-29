@@ -1,0 +1,90 @@
+:root {
+  --agi-primary: #0d47a1;
+  --agi-primary-hover: #1565c0;
+  --agi-secondary-bg: #f6f8fa;
+  --agi-text: #111827;
+}
+
+body {
+  background-color: var(--agi-secondary-bg) !important;
+  color: var(--agi-text);
+}
+
+.stButton > button,
+.stDownloadButton > button,
+.stFormSubmitButton > button {
+  background-color: var(--agi-primary);
+  border-color: var(--agi-primary);
+  color: #ffffff;
+  border-radius: 6px;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stButton > button:hover,
+.stDownloadButton > button:hover,
+.stFormSubmitButton > button:hover {
+  background-color: var(--agi-primary-hover);
+  border-color: var(--agi-primary-hover);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(13, 71, 161, 0.25);
+}
+
+[data-testid="stSidebarNav"]::before {
+  color: var(--agi-primary);
+}
+
+[data-testid="stSlider"] [role="slider"] {
+  background-color: var(--agi-primary);
+  border: 2px solid var(--agi-primary);
+}
+
+[data-testid="stSlider"] .st-al, [data-testid="stSlider"] .st-bb {
+  background-color: rgba(13, 71, 161, 0.35);
+}
+
+[data-testid="stToggle"] [data-baseweb="toggle"] .bc-ef {
+  background-color: var(--agi-primary);
+}
+
+[data-testid="stSwitch"] .st-bs {
+  background-color: var(--agi-primary);
+}
+
+.stSelectbox [data-baseweb="select"] > div {
+  border-color: rgba(13, 71, 161, 0.35);
+}
+
+.stSelectbox [data-baseweb="select"]:focus-within > div {
+  border-color: var(--agi-primary);
+  box-shadow: 0 0 0 1px rgba(13, 71, 161, 0.25);
+}
+
+/* Radio/Checkbox accents */
+.stRadio input:checked + div > div,
+.stCheckbox input:checked + div > div {
+  background-color: var(--agi-primary);
+  border-color: var(--agi-primary);
+}
+
+/* Tables */
+[data-testid="stTable"] thead tr th {
+  background-color: rgba(13, 71, 161, 0.08);
+  color: var(--agi-primary);
+}
+
+/* Tabs */
+[data-testid="stTabs"] button[aria-selected="true"] {
+  border-bottom: 3px solid var(--agi-primary) !important;
+  color: var(--agi-primary) !important;
+}
+
+[data-testid="stTabs"] button:not([aria-selected="true"]):hover {
+  color: var(--agi-primary);
+}
+
+/* Text inputs focus */
+.stTextInput input:focus,
+.stTextArea textarea:focus {
+  border-color: var(--agi-primary);
+  box-shadow: 0 0 0 1px rgba(13, 71, 161, 0.25);
+}

@@ -1,2 +1,12 @@
-<?xml version='1.0' encoding='utf-8'?>
-<component name="RunManager"><folder name="flight_project" /><folder name="flight_trajectory_project" /><folder name="link_sim_project" /><folder name="mycode_project" /><folder name="sat_trajectory_project" /><folder name="sb3_trainer_project" /><folder name="flight" /><folder name="flight_trajectory" /><folder name="apps-pages" /></component>
+<?xml version='1.0' encoding='UTF-8'?>
+<component name="RunManager">
+    <folder name="flight_project" />
+    <folder name="flight_trajectory_project" />
+    <folder name="link_sim_project" />
+    <folder name="mycode_project" />
+    <folder name="sat_trajectory_project" />
+    <folder name="sb3_trainer_project" />
+    <folder name="flight" />
+    <folder name="flight_trajectory" />
+    <folder name="apps-pages" />
+</component>
