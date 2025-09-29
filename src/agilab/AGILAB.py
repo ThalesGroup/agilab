@@ -1,6 +1,7 @@
 # BSD 3-Clause License
 # Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
 # All rights reserved.
+# Co-author: Codex 0.42.0
 """Streamlit entry point for the AGILab interactive lab."""
 import os
 from pathlib import Path

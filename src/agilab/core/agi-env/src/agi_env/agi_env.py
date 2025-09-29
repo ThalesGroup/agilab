@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
 # All rights reserved.
+# Co-author: Codex 0.42.0
 #
 # Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 #
@@ -212,6 +213,9 @@ class AgiEnv:
 
         if verbose is None:
             verbose = 0
+        self.verbose = verbose
+        AgiEnv.verbose = verbose
+
         self.uv = "uv"
         if verbose < 3:
             self.uv = "uv --quiet"
@@ -274,6 +278,8 @@ class AgiEnv:
             if not active_app.name.endswith('_project') and not active_app.name.endswith('_worker'):
                 raise ValueError(f"{active_app} must end with '_project'")
 
+
+        target = Path(active_app).name.replace("_project", "").replace("_worker", "").replace("-", "_")
 
         if install_type == 0:
             apps_root = self.agilab_src / "agilab/apps"
