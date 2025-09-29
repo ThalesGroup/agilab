@@ -26,12 +26,14 @@ from IPython.lib import backgroundjobs as bg
 import logging
 import subprocess
 
+os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
+
 # Use modern TOML libraries
 import tomli         # For reading TOML files (read as binary)
 import tomli_w       # For writing TOML files (write as binary)
 
 # Project utilities (unchanged)
-from agi_env.pagelib import get_about_content, render_logo, select_project
+from agi_env.pagelib import get_about_content, render_logo, select_project, inject_theme
 from agi_env import AgiEnv, normalize_path
 
 logger = logging.getLogger(__name__)
@@ -41,6 +43,8 @@ st.set_page_config(
     layout="wide",
     menu_items=get_about_content()
 )
+resources_path = Path(__file__).resolve().parents[1] / "resources"
+inject_theme(resources_path)
 
 # =============== Helpers: per-view venv sidecar ==================
 

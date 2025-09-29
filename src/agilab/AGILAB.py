@@ -2,12 +2,14 @@
 # Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
 # All rights reserved.
 """Streamlit entry point for the AGILab interactive lab."""
+import os
 from pathlib import Path
 from datetime import datetime
 import streamlit as st
 import sys
 import argparse
 
+from agi_env.pagelib import inject_theme
 
 # ----------------- Fast-Loading Banner UI -----------------
 def quick_logo(resources_path: Path):
@@ -112,7 +114,9 @@ def main():
         menu_items=get_about_content(),
         layout="wide"
     )
-    resources_path = Path(__file__).parent / "resources"
+    resources_path = Path(__file__).resolve().parent / "resources"
+    os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(resources_path / "config.toml"))
+    inject_theme(resources_path)
     st.session_state.setdefault("first_run", True)
 
     # Always set background style

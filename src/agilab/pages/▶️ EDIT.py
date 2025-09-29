@@ -22,7 +22,9 @@ import re
 import importlib
 
 import streamlit as st
-from agi_env.pagelib import get_about_content, render_logo
+
+os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
+from agi_env.pagelib import get_about_content, render_logo, inject_theme
 from agi_env.pagelib import (
     get_classes_name,
     get_fcts_and_attrs_name,
@@ -1495,6 +1497,7 @@ def page():
         st.session_state['_env'] = env
 
     env = st.session_state['_env']
+    inject_theme(env.st_resources)
 
     render_logo("Edit your Project")
 

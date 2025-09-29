@@ -26,6 +26,7 @@ from agi_env.pagelib import (
     scan_dir,
     on_df_change,
     render_logo,
+    inject_theme,
 )
 from agi_env import AgiEnv, normalize_path
 
@@ -38,6 +39,8 @@ JUPYTER_URL = "http://localhost:8888"
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 
 
 class JumpToMain(Exception):
@@ -804,6 +807,7 @@ def main() -> None:
             layout="wide",
             menu_items=get_about_content(),
         )
+        inject_theme(env.st_resources)
 
         st.session_state.setdefault("steps_file_name", STEPS_FILE_NAME)
         st.session_state.setdefault("help_path", Path(env.agilab_src) / "gui/help")

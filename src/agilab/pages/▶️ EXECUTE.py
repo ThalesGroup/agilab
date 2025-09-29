@@ -25,10 +25,12 @@ import streamlit as st
 import tomli         # For reading TOML files
 import tomli_w       # For writing TOML files
 import pandas as pd
+# Theme configuration
+os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 # Project Libraries:
 from agi_env.pagelib import (
     get_about_content, render_logo, activate_mlflow, save_csv, init_custom_ui, select_project, open_new_tab,
-    cached_load_df
+    cached_load_df, inject_theme
 )
 
 from agi_env import AgiEnv, normalize_path
@@ -729,17 +731,16 @@ def _is_app_installed(env):
 # ===========================
 async def page():
     if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
-        # Redirect back to the landing page and rerun immediately
         page_module = importlib.import_module("AGILAB")
         page_module.main()
         st.rerun()
+        return
 
-    else:
-        env = st.session_state["env"]
-        st.session_state["_env"] = env
+    env = st.session_state["env"]
+    st.session_state["_env"] = env
 
-    # Set page configuration and render logo
     st.set_page_config(layout="wide", menu_items=get_about_content())
+    inject_theme(env.st_resources)
     render_logo("Execute your Application")
 
     if not st.session_state.get("server_started"):

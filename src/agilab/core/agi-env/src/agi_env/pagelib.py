@@ -202,6 +202,17 @@ def get_css_text():
         return file.read()
 
 @st.cache_resource
+def inject_theme(base_path: Path | None = None) -> None:
+    """Apply the AGILAB theme CSS from the given resources directory."""
+    import streamlit as st
+
+    if base_path is None:
+        base_path = Path(__file__).resolve().parents[1] / "resources"
+    css_path = Path(base_path) / "theme.css"
+    if css_path.exists():
+        css = css_path.read_text()
+        st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+
 def render_logo(edit_text):
     if "env" in st.session_state:
         env = st.session_state["env"]
