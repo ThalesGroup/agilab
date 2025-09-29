@@ -543,6 +543,13 @@ class Project:
         folder_name = "apps-pages"
         self._ensure_run_config_folder(folder_name)
 
+        default_active_app = None
+        if self.cfg.APPS_DIR.exists():
+            for candidate in sorted(self.cfg.APPS_DIR.iterdir()):
+                if candidate.is_dir() and candidate.name.endswith("_project"):
+                    default_active_app = candidate
+                    break
+
         for name in apps_pages:
             apps_page_dir = self.cfg.APPS_PAGES_DIR / name
             if not apps_page_dir.exists():
@@ -567,6 +574,7 @@ PROJECT_DIR = Path(__file__).resolve().parents[2]
 PROJECT_SRC = PROJECT_DIR / "src"
 PAGE_DIR = PROJECT_SRC / "{self.cfg.PROJECT_NAME}" / "apps-pages" / "{name}"
 ENTRY_SCRIPT = PAGE_DIR / "src" / "{name}" / "{name}.py"
+DEFAULT_ACTIVE_APP = Path(r"{str(default_active_app) if default_active_app else ''}") if {str(bool(default_active_app)).lower()} else None
 PYTHON_CANDIDATES = (
     PAGE_DIR / ".venv" / "bin" / "python3.exe",
     PAGE_DIR / ".venv" / "bin" / "python3",
@@ -597,6 +605,9 @@ def main() -> None:
     env.setdefault("PYTHONUNBUFFERED", "1")
     env.setdefault("UV_NO_SYNC", "1")
     _enhance_pythonpath(env)
+    env.setdefault("AGILAB_INSTALL_TYPE", "1")
+    if DEFAULT_ACTIVE_APP is not None:
+        env.setdefault("AGILAB_ACTIVE_APP", str(DEFAULT_ACTIVE_APP))
 
     cmd = [_select_python(), "-m", "streamlit", "run", str(ENTRY_SCRIPT)]
     subprocess.run(cmd, check=True, cwd=PROJECT_DIR, env=env)
