@@ -1292,6 +1292,42 @@ class AGI:
 
             cmd = f"{uv_worker} sync --upgrade --project '{env.node_root}'"
             await AgiEnv.run(cmd, wenv_abs)
+
+            python_dirs = env.pyvers_worker.split(".")
+            if python_dirs[-1][-1] == "t":
+                python_version = python_dirs[0] + "." + python_dirs[1] + "t"
+            else:
+                python_version = python_dirs[0] + "." + python_dirs[1]
+
+            worker_site = wenv_abs / f".venv/lib/python{python_version}/site-packages"
+            worker_site.mkdir(parents=True, exist_ok=True)
+
+            def mirror_package(src):
+                if not src or not Path(src).exists():
+                    return
+                src_path = Path(src)
+                dest_path = worker_site / src_path.name
+                if dest_path.exists():
+                    shutil.rmtree(dest_path)
+                shutil.copytree(src_path, dest_path, dirs_exist_ok=True)
+
+                dist_pattern = f"{src_path.name.replace('-', '_')}-*.dist-info"
+                for dist in src_path.parent.glob(dist_pattern):
+                    dest_dist = worker_site / dist.name
+                    if dest_dist.exists():
+                        shutil.rmtree(dest_dist)
+                    shutil.copytree(dist, dest_dist, dirs_exist_ok=True)
+
+            packages_to_copy = [
+                env.env_root,
+                env.node_root,
+                env.core_root,
+                env.cluster_root,
+                env.agilab_src / "agilab",
+            ]
+
+            for pkg_dir in packages_to_copy:
+                mirror_package(pkg_dir)
         else:
             # build agi_env*.whl
             menv = env.env_root
