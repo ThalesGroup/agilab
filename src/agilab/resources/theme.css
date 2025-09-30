@@ -102,3 +102,61 @@ label[data-baseweb="checkbox"]:has(input[checked]) > div:first-child > div,
 label[data-baseweb="checkbox"]:has(input[aria-checked="true" i]) > div:first-child > div {
   background-color: #FFFFFF !important;
 }
+
+/* Streamlit radio buttons */
+[data-testid="stRadio"] label[data-baseweb="radio"] {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child {
+  display: none !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"] input[type="radio"] {
+  appearance: auto !important;
+  -webkit-appearance: auto !important;
+  accent-color: #4A90E2 !important;
+  width: 1rem !important;
+  height: 1rem !important;
+  margin: 0 !important;
+  position: static !important;
+}
+
+
+/* Streamlit radio buttons */
+[data-testid="stRadio"] label[data-baseweb="radio"] {
+  background-color: transparent !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child {
+  border: 2px solid #4A90E2 !important;
+  background-color: #FFFFFF !important;
+  box-shadow: none !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child > div {
+  background-color: #FFFFFF !important;
+  box-shadow: none !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[checked]) > div:first-child,
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[checked]) > div:first-child {
+  border-color: #4A90E2 !important;
+  background-color: #FFFFFF !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[aria-checked="true" i]) > div:first-child {
+  border-color: #4A90E2 !important;
+  background-color: #FFFFFF !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[checked]) > div:first-child > div,
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[checked]) > div:first-child > div {
+  background-color: #4A90E2 !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[aria-checked="true" i]) > div:first-child > div {
+  background-color: #4A90E2 !important;
+}
