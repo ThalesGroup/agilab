@@ -1253,7 +1253,7 @@ def handle_project_creation():
 
     # choose a template (relative project name, e.g. "flight_project")
     st.sidebar.selectbox(
-        "From Template",
+        "Clone source",
         [env.app] + st.session_state["templates"],
         key="clone_src",
         on_change=lambda: on_project_change(
@@ -1564,12 +1564,12 @@ def page():
 
     # Sidebar: Project selection, creation, loading
     sidebar_selection = st.sidebar.radio(
-        "PROJECT", ["Edit", "Create and Clone", "Rename", "Delete", "Import"], key="sidebar_selection"
+        "PROJECT", ["Edit", "Clone", "Rename", "Delete", "Import"], key="sidebar_selection"
     )
 
     if sidebar_selection == "Edit":
         handle_project_selection()
-    elif sidebar_selection == "Create and Clone":
+    elif sidebar_selection == "Clone":
         handle_project_creation()
     elif sidebar_selection == "Rename":
         handle_project_rename()
