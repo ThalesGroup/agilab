@@ -1202,11 +1202,15 @@ class AgiEnv:
                 log_callback=log_callback,
             )
         else:
-            cmd = f"{AgiEnv.export_local_bin}uv run --no-sync python {shlex.quote(snippet_file)}"
+            cmd = f"{AgiEnv.export_local_bin}uv run --no-sync"
+            if not is_install_snippet and project_root:
+                cmd += f" --project {shlex.quote(str(project_root))}"
+            cmd += f" python {shlex.quote(snippet_file)}"
             result = await AgiEnv._run_bg(
                 cmd,
-                cwd=str(self.runenv),
+                cwd=str(project_root or self.runenv),
                 venv=Path(sys.prefix),
+                remove_env={"PYTHONPATH", "PYTHONHOME"},
                 log_callback=log_callback,
             )
         if log_callback:
