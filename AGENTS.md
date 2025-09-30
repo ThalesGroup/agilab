@@ -262,6 +262,7 @@ by parsing .idea/runConfigurations/*.xml:
 
 - Follow **PEP8** with project-specific exceptions documented in `pyproject.toml`.
 - Type hints are **required** for public functions; enforce with `mypy`.
+- Prefer the simplest viable solution before introducing additional abstractions.
 - Prefer composition over inheritance; interfaces live in `agilab/core/`.
 - Break cycles; respect clear layering (core → components → apps → pages).
 

@@ -1142,7 +1142,9 @@ class AgiEnv:
             else:
                 AgiEnv.logger.info(message)
             return "", ""
-        snippet_file = os.path.join(self.runenv, f"{matches[0]}-{self.target}.py")
+        snippet_base = re.sub(r"[^0-9A-Za-z_]+", "_", str(matches[0])).strip("_") or "snippet"
+        snippet_target = re.sub(r"[^0-9A-Za-z_]+", "_", str(self.target)).strip("_") or "app"
+        snippet_file = os.path.join(self.runenv, f"{snippet_base}_{snippet_target}.py")
         with open(snippet_file, "w") as file:
             file.write(code)
         cmd = f"{AgiEnv.export_local_bin}uv run --no-sync --project {str(venv)} python {snippet_file}"
