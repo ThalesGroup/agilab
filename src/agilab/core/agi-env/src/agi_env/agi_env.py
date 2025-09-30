@@ -952,6 +952,8 @@ class AgiEnv:
     def _build_env(venv=None):
         """Build environment dict for subprocesses, with activated virtualenv paths."""
         proc_env = os.environ.copy()
+        proc_env.pop("PYTHONPATH", None)
+        proc_env.pop("PYTHONHOME", None)
         venv_path = None
         if venv is not None:
             venv_path = Path(venv)
