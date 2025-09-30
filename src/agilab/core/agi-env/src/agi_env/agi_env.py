@@ -867,7 +867,23 @@ class AgiEnv:
         if not self.export_apps.exists():
             os.makedirs(str(self.export_apps), exist_ok=True)
         self.MLFLOW_TRACKING_DIR = Path(envars.get("MLFLOW_TRACKING_DIR", self.home_abs / ".mlflow"))
-        self.AGILAB_PAGES_ABS = Path(envars.get("AGI_PAGES_DIR", self.agilab_src / "agilab/apps-pages"))
+        pages_override = envars.get("AGI_PAGES_DIR")
+        if pages_override:
+            pages_root = Path(pages_override).expanduser()
+        else:
+            candidates = [self.agilab_src / "agilab/apps-pages",
+                          self.agilab_src / "apps-pages"]
+            repo_hint = self.read_agilab_path()
+            if repo_hint:
+                repo_hint = Path(repo_hint)
+                for suffix in ("apps-pages", "agilab/apps-pages"):
+                    candidates.append(repo_hint / suffix)
+
+            pages_root = next((c.resolve() for c in candidates if c and c.exists()), candidates[0])
+
+        self.AGILAB_PAGES_ABS = pages_root
+        if not self.AGILAB_PAGES_ABS.exists():
+            AgiEnv.logger.info(f"AGILAB_PAGES_ABS missing: {self.AGILAB_PAGES_ABS}")
         if AgiEnv.install_type == 0:
             self.copilot_file = self.agilab_src / "agi_codex.py" # WTF ?
         else:
