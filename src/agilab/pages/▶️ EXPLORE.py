@@ -250,6 +250,24 @@ async def main():
     if selection_key not in st.session_state:
         st.session_state[selection_key] = list(preselect)
 
+    # Highlight the multiselect so it stands out in the Explore page controls.
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stMultiSelect"] div[data-baseweb="select"] {
+            border: 1px solid #1e88e5 !important;
+            border-radius: 0.5rem !important;
+            box-shadow: 0 0 0 1px rgba(30, 136, 229, 0.15) !important;
+        }
+        div[data-testid="stMultiSelect"] div[data-baseweb="select"]:focus-within {
+            border-color: #1565c0 !important;
+            box-shadow: 0 0 0 3px rgba(21, 101, 192, 0.2) !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     selected_views = st.multiselect(
         "Select page to expose on the home page",
         view_names,
