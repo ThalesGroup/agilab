@@ -265,6 +265,7 @@ by parsing .idea/runConfigurations/*.xml:
 - Prefer the simplest viable solution before introducing additional abstractions.
 - Prefer composition over inheritance; interfaces live in `agilab/core/`.
 - Break cycles; respect clear layering (core → components → apps → pages).
+- Never commit symlinks to the repository; keep repo trees portable across platforms.
 
 ---
 

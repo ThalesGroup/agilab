@@ -1142,13 +1142,50 @@ class AgiEnv:
             else:
                 AgiEnv.logger.info(message)
             return "", ""
-        snippet_base = re.sub(r"[^0-9A-Za-z_]+", "_", str(matches[0])).strip("_") or "snippet"
+        snippet_name = matches[0]
+        is_install_snippet = "install" in snippet_name.lower()
+
+        snippet_base = re.sub(r"[^0-9A-Za-z_]+", "_", str(snippet_name)).strip("_") or "snippet"
         snippet_target = re.sub(r"[^0-9A-Za-z_]+", "_", str(self.target)).strip("_") or "app"
         snippet_file = os.path.join(self.runenv, f"{snippet_base}_{snippet_target}.py")
         with open(snippet_file, "w") as file:
             file.write(code)
-        cmd = f"{AgiEnv.export_local_bin}uv run --no-sync --project {str(venv)} python {snippet_file}"
-        result = await AgiEnv._run_bg(cmd, cwd=venv, log_callback=log_callback)
+
+        project_root = Path(venv) if venv else None
+        project_venv = None
+        if project_root:
+            if project_root.name == ".venv" or (project_root / "pyvenv.cfg").exists():
+                project_venv = project_root
+            else:
+                candidate = project_root / ".venv"
+                if (candidate / "pyvenv.cfg").exists():
+                    project_venv = candidate
+
+        if not is_install_snippet and project_root and project_venv is None:
+            message = f"No virtual environment found in {project_root}. Run INSTALL first."
+            if log_callback:
+                log_callback(message)
+            else:
+                AgiEnv.logger.warning(message)
+            return "", message
+
+        if project_venv:
+            python_bin = project_venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+            cmd = f"{shlex.quote(str(python_bin))} {shlex.quote(snippet_file)}"
+            result = await AgiEnv._run_bg(
+                cmd,
+                cwd=str(project_root),
+                venv=project_venv,
+                log_callback=log_callback,
+            )
+        else:
+            cmd = f"{AgiEnv.export_local_bin}uv run --no-sync python {shlex.quote(snippet_file)}"
+            result = await AgiEnv._run_bg(
+                cmd,
+                cwd=str(self.runenv),
+                venv=Path(sys.prefix),
+                log_callback=log_callback,
+            )
         if log_callback:
             log_callback(f"Process finished")
         else:
