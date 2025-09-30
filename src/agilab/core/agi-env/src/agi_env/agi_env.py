@@ -283,28 +283,41 @@ class AgiEnv:
         if install_type == 0:
             apps_root = self.agilab_src / "agilab/apps"
             os.makedirs(active_app.parent, exist_ok=True)
-            if apps_root.exists():
+
+            link_source = self._get_private_apps_root()
+            if link_source is None:
                 agilab_path = self.read_agilab_path()
                 if agilab_path:
-                    apps_root = agilab_path / "apps"
-                    for src_app in apps_root.glob("*_project"):
-                        # If it's a directory and already exists at destination -> remove it first
-                        dest_app = active_app.parent / src_app.name
-                        try:
-                            if dest_app.is_symlink():
-                                dest_app.unlink()  # remove the link itself
-                            elif dest_app.exists():
-                                shutil.rmtree(dest_app)  # remove a real directory tree
-                        except FileNotFoundError:
-                            pass
-                        if os.name == "nt":
-                            AgiEnv.create_symlink_windows(Path(src_app), dest_app)
-                        else:
-                            # For Unix-like systems
-                            os.symlink(src_app, dest_app, target_is_directory=True)
-                        AgiEnv.logger.info(f"Created symbolic link for app: {src_app} -> {dest_app}")
-                else:
-                    self.copy_existing_projects(apps_root, active_app.name)
+                    candidate = agilab_path / "apps"
+                    if candidate.exists():
+                        link_source = candidate
+
+            if link_source is not None and link_source.exists():
+                for src_app in link_source.glob("*_project"):
+                    dest_app = active_app.parent / src_app.name
+                    try:
+                        if dest_app.is_symlink():
+                            same_target = False
+                            if dest_app.exists():
+                                try:
+                                    same_target = dest_app.resolve() == src_app.resolve()
+                                except OSError:
+                                    same_target = False
+                            if same_target:
+                                continue
+                            dest_app.unlink()
+                        elif dest_app.exists():
+                            shutil.rmtree(dest_app)
+                    except FileNotFoundError:
+                        pass
+
+                    if os.name == "nt":
+                        AgiEnv.create_symlink_windows(Path(src_app), dest_app)
+                    else:
+                        os.symlink(src_app, dest_app, target_is_directory=True)
+                    AgiEnv.logger.info(f"Created symbolic link for app: {src_app} -> {dest_app}")
+            elif apps_root.exists():
+                self.copy_existing_projects(apps_root, active_app.name)
             else:
                 AgiEnv.logger.info(f"Warning: {apps_root} does not exist, nothing to copy!")
 
@@ -461,6 +474,22 @@ class AgiEnv:
 
         src_dir = root / "src"
         return src_dir if src_dir.exists() else root
+
+    def _get_private_apps_root(self) -> Path | None:
+        """Return the private apps directory when ``AGILAB_PRIVATE`` is configured."""
+
+        private_root = self.envars.get("AGILAB_PRIVATE")
+        if not private_root:
+            return None
+
+        candidate = Path(private_root).expanduser() / "src/agilab/apps"
+        if candidate.exists():
+            return candidate
+
+        AgiEnv.logger.info(
+            f"AGILAB_PRIVATE is set but apps directory is missing: {candidate}"
+        )
+        return None
 
     def _collect_pythonpath_entries(self) -> list[str]:
         """Build an ordered list of paths that must live on ``PYTHONPATH``."""
@@ -684,7 +713,27 @@ class AgiEnv:
     def get_projects(self, path: Path):
         """Return the names of ``*_project`` directories beneath ``path``."""
 
-        return [p.name for p in path.glob("*project")]
+        if not path.exists():
+            return []
+
+        projects: list[str] = []
+        for project_path in path.glob("*project"):
+            if project_path.is_symlink() and not project_path.exists():
+                try:
+                    project_path.unlink()
+                    AgiEnv.logger.info(
+                        f"Removed dangling project symlink: {project_path}"
+                    )
+                except OSError as exc:
+                    AgiEnv.logger.warning(
+                        f"Failed to remove dangling project symlink {project_path}: {exc}"
+                    )
+                continue
+
+            if project_path.is_dir():
+                projects.append(project_path.name)
+
+        return projects
 
     def get_base_worker_cls(self, module_path, class_name):
         """Return the base worker class name and module for ``class_name``."""
