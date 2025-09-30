@@ -1072,13 +1072,19 @@ class AgiEnv:
             return 0
 
     @staticmethod
-    async def _run_bg(cmd, cwd=".", venv=None, timeout=None, log_callback=None):
+    async def _run_bg(cmd, cwd=".", venv=None, timeout=None, log_callback=None,
+                      env_override: dict | None = None, remove_env: set[str] | None = None):
         """
         Run the given command asynchronously, reading stdout and stderr line by line
         and passing them to the log_callback. Returns (stdout, stderr) as strings.
         """
         process_env = AgiEnv._build_env(venv)
         process_env["PYTHONUNBUFFERED"] = "1"
+        if remove_env:
+            for key in remove_env:
+                process_env.pop(key, None)
+        if env_override:
+            process_env.update(env_override)
 
         result = []
 
@@ -1192,6 +1198,7 @@ class AgiEnv:
                 cmd,
                 cwd=str(project_root),
                 venv=project_venv,
+                remove_env={"PYTHONPATH", "PYTHONHOME"},
                 log_callback=log_callback,
             )
         else:
