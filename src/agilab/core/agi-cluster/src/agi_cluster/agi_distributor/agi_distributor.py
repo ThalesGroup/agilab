@@ -1337,10 +1337,13 @@ class AGI:
         if src.exists():
             os.makedirs(env.home_abs / env.data_rel / "dataset", exist_ok=True)
             shutil.copy2(src, dest)
-        cmd = (f"{uv_worker} run --no-sync --project '{wenv_abs}' python '{env.home_abs / env.post_install_rel}' "
-               f"'{env.active_app}' "
-               f"1 "
-               f"'{env.data_rel}'")
+        python_bin = wenv_abs / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        cmd = (
+            f"{shlex.quote(str(python_bin))} {shlex.quote(str(env.home_abs / env.post_install_rel))} "
+            f"{shlex.quote(str(env.active_app))} "
+            "1 "
+            f"{shlex.quote(str(env.data_rel))}"
+        )
         await AgiEnv.run(cmd, wenv_abs)
 
         # Build target_worker lib local
