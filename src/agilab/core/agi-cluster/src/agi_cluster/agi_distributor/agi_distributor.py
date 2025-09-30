@@ -1286,10 +1286,10 @@ class AGI:
         ##############
 
         if env.install_type == 0:
-            cmd = f"{uv_worker} pip install --upgrade agi-env"
+            cmd = f"{uv_worker} pip install --upgrade --project '{wenv_abs}' agi-env"
             await AgiEnv.run(cmd, wenv_abs)
 
-            cmd = f"{uv_worker} pip install --upgrade agi-node"
+            cmd = f"{uv_worker} pip install --upgrade --project '{wenv_abs}' agi-node"
             await AgiEnv.run(cmd, wenv_abs)
 
             cmd = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if _agi__version_missing_on_pypi(env.env_root) else '')}{uv_worker} sync --upgrade --project '{env.env_root}'"
@@ -1309,7 +1309,7 @@ class AGI:
             except StopIteration:
                 raise RuntimeError(cmd)
 
-            cmd = f"{uv_worker} pip install -e '{env.env_root}'"
+            cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.env_root}'"
             await AgiEnv.run(cmd, wenv_abs)
 
             # build agi_node*.whl
@@ -1323,10 +1323,10 @@ class AGI:
             except StopIteration:
                 raise RuntimeError(cmd)
 
-            cmd = f"{uv_worker} pip install -e '{env.node_root}'"
+            cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.node_root}'"
             await AgiEnv.run(cmd, wenv_abs)
 
-        cmd = f"{uv_worker} pip install -e '{env.active_app}'"
+        cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.active_app}'"
         await AgiEnv.run(cmd, wenv_abs)
 
         # Post-install script
