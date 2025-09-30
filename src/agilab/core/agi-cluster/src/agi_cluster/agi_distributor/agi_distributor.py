@@ -24,6 +24,7 @@ import re
 import shutil
 import socket
 import sys
+import shlex
 import time
 import warnings
 from copy import deepcopy
