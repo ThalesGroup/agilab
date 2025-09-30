@@ -952,8 +952,6 @@ class AgiEnv:
     def _build_env(venv=None):
         """Build environment dict for subprocesses, with activated virtualenv paths."""
         proc_env = os.environ.copy()
-        proc_env.pop("PYTHONPATH", None)
-        proc_env.pop("PYTHONHOME", None)
         venv_path = None
         if venv is not None:
             venv_path = Path(venv)
@@ -969,6 +967,23 @@ class AgiEnv:
             extra_paths = list(instance._pythonpath_entries)
         else:
             extra_paths = list(AgiEnv._pythonpath_entries)
+        if venv_path and Path(sys.prefix).resolve() != venv_path.resolve():
+            tree_root = Path(sys.prefix).resolve()
+            filtered: list[str] = []
+            for entry in extra_paths:
+                if not entry:
+                    continue
+                try:
+                    resolved = Path(entry).resolve()
+                except Exception:
+                    filtered.append(entry)
+                    continue
+                if tree_root in resolved.parents or resolved == tree_root:
+                    continue
+                filtered.append(str(resolved))
+            extra_paths = filtered
+        proc_env.pop("PYTHONPATH", None)
+        proc_env.pop("PYTHONHOME", None)
         if extra_paths:
             current = proc_env.get("PYTHONPATH", "")
             if current:
