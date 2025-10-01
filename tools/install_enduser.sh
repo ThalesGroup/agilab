@@ -2,6 +2,7 @@
 set -euo pipefail
 
 UV_PREVIEW=(uv --preview-features extra-build-dependencies)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # -----------------------------
 # Config
@@ -15,6 +16,7 @@ VENV="${AGI_SPACE}/.venv"
 PACKAGES="agilab agi-env agi-node agi-cluster agi-core"
 SOURCE="local"     # local | pypi | testpypi
 VERSION=""         # optional, e.g. 1.2.3
+VERSION_ARG_SET=0
 AGI_PATH_FILE="$HOME/.local/share/agilab/.agilab-path"
 AGI_INSTALL_PATH=""
 
@@ -39,10 +41,71 @@ usage() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --source) SOURCE="$2"; shift 2 ;;
-    --version) VERSION="$2"; shift 2 ;;
+    --version) VERSION="$2"; VERSION_ARG_SET=1; shift 2 ;;
     *) usage ;;
   esac
 done
+
+verify_testpypi_versions() {
+  local show_script="${SCRIPT_DIR}/show_dependencies.py"
+  local python_bin="${VENV}/bin/python"
+  if [[ ! -x "${python_bin}" ]]; then
+    echo "[warn] Skipping version verification; missing Python interpreter at ${python_bin}" >&2
+    return 0
+  fi
+  if [[ ! -f "${show_script}" ]]; then
+    echo "[warn] Skipping version verification; show_dependencies.py not found at ${show_script}" >&2
+    return 0
+  fi
+
+  local -a pkg_array
+  read -r -a pkg_array <<< "${PACKAGES}"
+
+  local force_version=""
+  if [[ "${VERSION_ARG_SET}" -eq 1 && -n "${VERSION}" ]]; then
+    force_version="${VERSION}"
+  fi
+
+  FORCE_TESTPYPI_VERSION="${force_version}" "${python_bin}" - "${show_script}" "${pkg_array[@]}" <<'PY'
+import json
+import os
+import pathlib
+import re
+import subprocess
+import sys
+
+show_script = pathlib.Path(sys.argv[1])
+packages = sys.argv[2:]
+force_version = os.environ.get("FORCE_TESTPYPI_VERSION")
+
+cmd = [sys.executable, str(show_script), "--repo", "testpypi"]
+if force_version:
+    cmd.extend(["--version", force_version])
+cmd.extend(packages)
+output = subprocess.check_output(cmd, text=True)
+pattern = re.compile(r'^(ag[\w-]+) \(([^)]+)\) dependencies:', re.MULTILINE)
+expected = {match.group(1).lower(): match.group(2) for match in pattern.finditer(output)}
+
+pip_cmd = [sys.executable, "-m", "pip", "list", "--format", "json"]
+installed_data = json.loads(subprocess.check_output(pip_cmd, text=True))
+installed = {pkg["name"].lower(): pkg["version"] for pkg in installed_data}
+
+mismatches = {}
+for name, exp_version in expected.items():
+    inst_version = installed.get(name)
+    if inst_version != exp_version:
+        mismatches[name] = (exp_version, inst_version)
+
+if mismatches:
+    print("[error] Version mismatch detected between TestPyPI metadata and installed packages:")
+    for name, (exp_version, inst_version) in sorted(mismatches.items()):
+        installed_label = inst_version if inst_version is not None else "missing"
+        print(f"  {name}: expected {exp_version}, installed {installed_label}")
+    sys.exit(1)
+
+print("[info] TestPyPI agi* package versions match metadata.")
+PY
+}
 
 # Deferred: local-source-only path check was here
 
@@ -143,6 +206,21 @@ PY
       --index-strategy unsafe-best-match \
       --upgrade --no-cache-dir \
       $(for p in ${PACKAGES}; do printf "%s==%s " "${p}" "${VERSION}"; done)
+
+    if ! verify_testpypi_versions; then
+      if [[ -z "${AGI_INSTALL_RETRY:-}" ]]; then
+        echo "[warn] Version mismatch detected; retrying install once..." >&2
+        if [[ "${VERSION_ARG_SET}" -eq 1 ]]; then
+          AGI_INSTALL_RETRY=1 exec "$0" --source "${SOURCE}" --version "${VERSION}"
+        else
+          AGI_INSTALL_RETRY=1 exec "$0" --source "${SOURCE}"
+        fi
+      else
+        echo "[error] TestPyPI package versions still do not match metadata after retry." >&2
+        echo "        Resolve the mismatch (e.g. wait for all packages to publish ${VERSION}) and rerun." >&2
+        exit 1
+      fi
+    fi
     ;;
 
   *)
