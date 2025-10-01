@@ -859,7 +859,7 @@ async def page():
     st.session_state["_verbose_user_override"] = selected_verbose_int != 1
 
     verbose = cluster_params.get('verbose', 1)
-    with st.expander("System settings", expanded=False):
+    with st.expander("Do deployment", expanded=False):
         render_cluster_settings_ui()
         cluster_params = st.session_state.app_settings["cluster"]
         verbose = cluster_params.get('verbose', 1)
@@ -977,7 +977,7 @@ if __name__ == "__main__":
             if st.session_state.get("args_reload_required"):
                 del st.session_state["app_settings"]
                 st.rerun()
-        with st.expander("Distribute details", expanded=False):
+        with st.expander("Check orchestration", expanded=False):
             cluster_params = st.session_state.app_settings["cluster"]
             enabled = cluster_params.get("cluster_enabled", False)
             scheduler = cluster_params.get("scheduler", "")
@@ -1078,7 +1078,7 @@ if __name__ == "__main__":
     if show_run:
         st.session_state.setdefault("run_log_cache", "")
         run_cmd = None
-        with st.expander("Run details", expanded=False):
+        with st.expander("Optimize execution", expanded=False):
             st.session_state.setdefault("benchmark", False)
             if st.session_state.pop("benchmark_reset_pending", False):
                 st.session_state["benchmark"] = False
@@ -1164,7 +1164,7 @@ if __name__ == "__main__":
 
         run_col, load_col = st.columns(2)
         run_clicked = False
-        run_label = "EXECUTE BENCHMARK" if st.session_state.get("benchmark") else "EXECUTE"
+        run_label = "RUN BENCHMARK" if st.session_state.get("benchmark") else "EXECUTE"
         if run_cmd:
             run_clicked = run_col.button(
                 run_label,
@@ -1221,7 +1221,7 @@ if __name__ == "__main__":
     loaded_df = st.session_state.get("loaded_df")
 
     if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
-        expander = st.expander("Prepare Data for Experiment and Explore", expanded=export_expanded)
+        expander = st.expander("Prepare data for experiment and exploration", expanded=export_expanded)
         with expander:
             loaded_df.columns = [
                 col if col.strip() != "" else f"Unnamed Column {idx}"
