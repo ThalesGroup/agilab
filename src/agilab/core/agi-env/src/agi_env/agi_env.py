@@ -179,6 +179,12 @@ class AgiEnv:
                  debug=False,
                  python_variante: str = ''):
 
+        def _package_dir(package: str) -> Path:
+            spec = importlib.util.find_spec(package)
+            if spec and spec.submodule_search_locations:
+                return Path(spec.submodule_search_locations[0]).resolve()
+            raise ModuleNotFoundError(f"Unable to locate package directory for {package!r}")
+
         AgiEnv.is_managed_pc = getpass.getuser().startswith("T0")
         AgiEnv._is_managed_pc = AgiEnv.is_managed_pc
         self.is_managed_pc = AgiEnv.is_managed_pc
@@ -208,13 +214,6 @@ class AgiEnv:
         agilab_src, sep, after = __file__.rpartition("agilab")
         agilab_src = agilab_src.replace("/app-pages/maps", "")
         agilab_src = Path(agilab_src).resolve()
-        agilab = importlib.util.find_spec("agilab")
-        if agilab is not None and agilab.origin:
-            # Direct path to the 'agilab' package folder
-            agilab_installed = Path(agilab.origin).parents[1]
-        else:
-            # Fallback if not installed
-            agilab_installed = agilab_src
 
         if isinstance(active_app, str):
             # case only worker_env
@@ -257,16 +256,11 @@ class AgiEnv:
         AgiEnv.install_type = install_type
         self.install_type = install_type
 
-        def _package_dir(package: str) -> Path:
-            spec = importlib.util.find_spec(package)
-            if spec and spec.submodule_search_locations:
-                return Path(spec.submodule_search_locations[0]).resolve()
-            raise ModuleNotFoundError(f"Unable to locate package directory for {package!r}")
-
-        self.node_root = agilab_installed / "agi_node"
-        self.env_root = agilab_installed / "agi_env"
-        self.core_root = agilab_installed / "agi_core"
-        self.cluster_root = agilab_installed / "agi_cluster"
+        env_root = _package_dir("agi_env")
+        self.env_root = env_root
+        self.node_root = env_root.parent / "agi_node"
+        self.core_root = env_root.parent / "agi_core"
+        self.cluster_root = env_root.parent / "agi_cluster"
 
         if install_type == 1:
             self.node_root = agilab_src / "agilab/core/agi-node"
@@ -278,10 +272,6 @@ class AgiEnv:
             self.agilab_src = agilab_src
         else:
             self.agilab_src = _package_dir("agilab")
-            self.env_root = _package_dir("agi_env")
-            self.node_root = _package_dir("agi_node")
-            self.core_root = _package_dir("agi_core")
-            self.cluster_root = _package_dir("agi_cluster")
             self.cli = self.cluster_root / "agi_distributor/cli.py"
 
         self.env_src = self._resolve_package_root(self.env_root)
@@ -290,8 +280,6 @@ class AgiEnv:
         self.cluster_src = self._resolve_package_root(self.cluster_root)
 
         self.st_resources = self.agilab_src / "agilab/resources"
-        if not self.st_resources.exists():
-            self.st_resources = self.agilab_src / "resources"
 
         if install_type == 0:
             apps_root = self.agilab_src / "agilab/apps"
@@ -1193,9 +1181,9 @@ class AgiEnv:
         snippet_name = matches[0]
         is_install_snippet = "install" in snippet_name.lower()
 
-        snippet_base = re.sub(r"[^0-9A-Za-z_]+", "_", str(snippet_name)).strip("_") or "snippet"
-        snippet_target = re.sub(r"[^0-9A-Za-z_]+", "_", str(self.target)).strip("_") or "app"
-        snippet_file = os.path.join(self.runenv, f"{snippet_base}_{snippet_target}.py")
+        snippet_file = Path(self.runenv) / "{}_{}.py".format(
+            re.sub(r"[^0-9A-Za-z_]+", "_", str(snippet_name)).strip("_") or "AGI.unknown_command",
+            re.sub(r"[^0-9A-Za-z_]+", "_", str(self.target)).strip("_") or "unknown_app_name")
         with open(snippet_file, "w") as file:
             file.write(code)
 
