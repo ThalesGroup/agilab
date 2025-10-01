@@ -877,7 +877,7 @@ from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
 async def main():
-    app_env = AgiEnv(active_app=Path('{env.active_app}') verbose={verbose})
+    app_env = AgiEnv(active_app=Path('{env.active_app}'), verbose={verbose})
     res = await AGI.install(app_env, 
                             modes_enabled={st.session_state.mode},
                             scheduler={scheduler}, 
