@@ -877,7 +877,7 @@ from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
 async def main():
-    app_env = AgiEnv(active_app=Path('{env.active_app}') ,install_type={env.install_type}, verbose={verbose})
+    app_env = AgiEnv(active_app=Path('{env.active_app}') verbose={verbose})
     res = await AGI.install(app_env, 
                             modes_enabled={st.session_state.mode},
                             scheduler={scheduler}, 
@@ -991,7 +991,7 @@ from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
 async def main():
-    app_env = AgiEnv(active_app=Path('{env.active_app}'), install_type={env.install_type}, verbose={verbose})
+    app_env = AgiEnv(active_app=Path('{env.active_app}'), verbose={verbose})
     res = await AGI.get_distrib(app_env,
                                scheduler={scheduler}, 
                                workers={workers},
@@ -1077,7 +1077,7 @@ if __name__ == "__main__":
     # ------------------
     if show_run:
         st.session_state.setdefault("run_log_cache", "")
-        run_cmd = None
+        cmd = None
         with st.expander("Optimize execution", expanded=False):
             st.session_state.setdefault("benchmark", False)
             if st.session_state.pop("benchmark_reset_pending", False):
@@ -1094,14 +1094,14 @@ if __name__ == "__main__":
             enabled = cluster_params.get("cluster_enabled", False)
             scheduler = f'"{cluster_params.get("scheduler")}"' if enabled else "None"
             workers = str(cluster_params.get("workers")) if enabled else "None"
-            run_cmd = f"""
+            cmd = f"""
 import asyncio
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
 async def main():
-    app_env = AgiEnv(active_app=Path('{env.active_app}'), install_type={env.install_type}, verbose={verbose}) 
+    app_env = AgiEnv(active_app=Path('{env.active_app}'), verbose={verbose}) 
     res = await AGI.run(app_env, 
                         mode={st.session_state["mode"]}, 
                         scheduler={scheduler}, 
@@ -1112,7 +1112,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())"""
-            st.code(run_cmd, language="python")
+            st.code(cmd, language="python")
 
             with st.expander("Benchmark results", expanded=False):
                 if not st.session_state.get('mode'):
@@ -1165,7 +1165,7 @@ if __name__ == "__main__":
         run_col, load_col = st.columns(2)
         run_clicked = False
         run_label = "RUN BENCHMARK" if st.session_state.get("benchmark") else "EXECUTE"
-        if run_cmd:
+        if cmd:
             run_clicked = run_col.button(
                 run_label,
                 key="run_btn",
@@ -1195,7 +1195,7 @@ if __name__ == "__main__":
             st.session_state["loaded_df"] = cached_load_df(Path().home() / env.dataframe_path, with_index=False)
             st.session_state["_force_export_open"] = True
 
-        if run_clicked and run_cmd:
+        if run_clicked and cmd:
             clear_log()
             st.session_state["run_log_cache"] = ""
             if run_log_expander is None:
@@ -1204,7 +1204,7 @@ if __name__ == "__main__":
                 run_log_placeholder = st.empty()
             with st.spinner("Running AGI..."):
                 stdout, stderr = await env.run_agi(
-                    run_cmd.replace("asyncio.run(main())", env.snippet_tail),
+                    cmd.replace("asyncio.run(main())", env.snippet_tail),
                     log_callback=lambda message: update_log(run_log_placeholder, message),
                     venv=project_path
                 )
