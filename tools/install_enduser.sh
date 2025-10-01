@@ -74,10 +74,10 @@ case "${SOURCE}" in
     echo "Installing packages from local source tree..."
     for pkg in ${PACKAGES}; do
       if [[ -d "${AGI_INSTALL_PATH}/core/${pkg}" ]]; then
-        ${UV_PREVIEW[@]} pip install -e "${AGI_INSTALL_PATH}/core/${pkg}"
+        ${UV_PREVIEW[@]} pip install --upgrade --no-deps "${AGI_INSTALL_PATH}/core/${pkg}"
       fi
     done
-    ${UV_PREVIEW[@]} pip install -e "${AGI_INSTALL_ROOT}"
+    ${UV_PREVIEW[@]} pip install --upgrade --no-deps "${AGI_INSTALL_ROOT}"
     ;;
 
 
