@@ -271,7 +271,7 @@ class AgiEnv:
             self.cli = src_cluster / "agi_cluster/agi_distributor/cli.py"
             self.agilab_src = agilab_src
         else:
-            self.agilab_src = _package_dir("agilab")
+            self.agilab_src = Path(_package_dir("agilab")).parent
             self.cli = self.cluster_root / "agi_distributor/cli.py"
 
         self.env_src = self._resolve_package_root(self.env_root)
@@ -1207,7 +1207,7 @@ class AgiEnv:
 
         if project_venv:
             python_bin = project_venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-            cmd = f"{shlex.quote(str(python_bin))} {shlex.quote(snippet_file)}"
+            cmd = f"{shlex.quote(str(python_bin))} {shlex.quote(str(snippet_file))}"
             result = await AgiEnv._run_bg(
                 cmd,
                 cwd=str(project_root),
@@ -1217,7 +1217,7 @@ class AgiEnv:
             )
         else:
             python_bin = Path(sys.executable)
-            cmd = f"{shlex.quote(str(python_bin))} {shlex.quote(snippet_file)}"
+            cmd = f"{shlex.quote(str(python_bin))} {shlex.quote(str(snippet_file))}"
             result = await AgiEnv._run_bg(
                 cmd,
                 cwd=str(project_root or self.runenv),
