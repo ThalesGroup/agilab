@@ -41,11 +41,30 @@ dependencies = [
     "numba"
 ]
 
-version = "0.7.9.post5"
+version = "0.7.9.post44"
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/agi-env"
 Tracker = "https://github.com/ThalesGroup/agilab/issue"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -102,5 +121,3 @@ asyncio_mode = "auto"
 filterwarnings = [
   "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
 ]
-
-
