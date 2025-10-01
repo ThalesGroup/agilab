@@ -256,6 +256,13 @@ class AgiEnv:
 
         AgiEnv.install_type = install_type
         self.install_type = install_type
+
+        def _package_dir(package: str) -> Path:
+            spec = importlib.util.find_spec(package)
+            if spec and spec.submodule_search_locations:
+                return Path(spec.submodule_search_locations[0]).resolve()
+            raise ModuleNotFoundError(f"Unable to locate package directory for {package!r}")
+
         self.node_root = agilab_installed / "agi_node"
         self.env_root = agilab_installed / "agi_env"
         self.core_root = agilab_installed / "agi_core"
@@ -270,7 +277,11 @@ class AgiEnv:
             self.cli = src_cluster / "agi_cluster/agi_distributor/cli.py"
             self.agilab_src = agilab_src
         else:
-            self.agilab_src = agilab_installed
+            self.agilab_src = _package_dir("agilab")
+            self.env_root = _package_dir("agi_env")
+            self.node_root = _package_dir("agi_node")
+            self.core_root = _package_dir("agi_core")
+            self.cluster_root = _package_dir("agi_cluster")
             self.cli = self.cluster_root / "agi_distributor/cli.py"
 
         self.env_src = self._resolve_package_root(self.env_root)
@@ -279,6 +290,8 @@ class AgiEnv:
         self.cluster_src = self._resolve_package_root(self.cluster_root)
 
         self.st_resources = self.agilab_src / "agilab/resources"
+        if not self.st_resources.exists():
+            self.st_resources = self.agilab_src / "resources"
 
         if install_type == 0:
             apps_root = self.agilab_src / "agilab/apps"
@@ -323,7 +336,7 @@ class AgiEnv:
 
 
         resources_root = self.env_root
-        if install_type==1:
+        if install_type == 1:
             resources_root = self.env_root / "src/agi_env"
         if install_type != 2:
             self._init_resources(resources_root / self._agi_resources)
@@ -661,10 +674,6 @@ class AgiEnv:
 
         src_env_path = resources_src / ".env"
         dest_env_file = AgiEnv.resources_path / ".env"
-        if not src_env_path.exists():
-            msg = f"Installation issue: {src_env_path} is missing!"
-            AgiEnv.logger.info(msg)
-            raise RuntimeError(msg)
         if not dest_env_file.exists():
             os.makedirs(dest_env_file.parent, exist_ok=True)
             shutil.copy(src_env_path, dest_env_file)

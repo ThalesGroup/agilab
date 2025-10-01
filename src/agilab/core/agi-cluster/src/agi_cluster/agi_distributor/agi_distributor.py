@@ -1231,7 +1231,144 @@ class AGI:
         repo_core_project: Path | None = None
         repo_cluster_project: Path | None = None
         repo_agilab_root: Path | None = None
-        dependency_names: set[str] = set()
+        dependency_info: dict[str, dict[str, Any]] = {}
+        dep_versions: dict[str, str] = {}
+        worker_pyprojects: set[str] = set()
+
+        def _cleanup_editable(site_packages: Path) -> None:
+            patterns = (
+                '__editable__.agi_env*.pth',
+                '__editable__.agi_node*.pth',
+                '__editable__.agi_core*.pth',
+                '__editable__.agi_cluster*.pth',
+                '__editable__.agilab*.pth',
+            )
+            for pattern in patterns:
+                for editable in site_packages.glob(pattern):
+                    try:
+                        editable.unlink()
+                    except FileNotFoundError:
+                        pass
+
+        async def _ensure_pip(uv_cmd: str, project: Path) -> None:
+            cmd = f"{uv_cmd} run --project '{project}' python -m ensurepip --upgrade"
+            await AgiEnv.run(cmd, project)
+
+        def _format_dependency_spec(name: str, extras: set[str], specifiers: list[str]) -> str:
+            extras_part = ''
+            if extras:
+                extras_part = '[' + ','.join(sorted(extras)) + ']'
+            spec_part = ''
+            if specifiers:
+                spec_part = ','.join(specifiers)
+            return f"{name}{extras_part}{spec_part}"
+
+        def _update_pyproject_dependencies(
+            pyproject_file: Path,
+            pinned_versions: dict[str, str] | None,
+            *,
+            filter_to_worker: bool = False,
+        ) -> None:
+            try:
+                data = tomlkit.parse(pyproject_file.read_text())
+            except FileNotFoundError:
+                data = tomlkit.document()
+
+            project_tbl = data.get("project")
+            if project_tbl is None:
+                project_tbl = tomlkit.table()
+
+            deps = project_tbl.get("dependencies")
+            if deps is None:
+                deps = tomlkit.array()
+            else:
+                if not isinstance(deps, tomlkit.items.Array):
+                    arr = tomlkit.array()
+                    for item in deps:
+                        arr.append(item)
+                    deps = arr
+
+            existing = {str(item) for item in deps}
+            for key, meta in dependency_info.items():
+                if filter_to_worker and worker_pyprojects and not (meta['sources'] & worker_pyprojects):
+                    continue
+                version = (pinned_versions or {}).get(key)
+                if version:
+                    extras_part = ''
+                    if meta['extras']:
+                        extras_part = '[' + ','.join(sorted(meta['extras'])) + ']'
+                    spec = f"{meta['name']}{extras_part}=={version}"
+                else:
+                    spec = _format_dependency_spec(
+                        meta['name'],
+                        meta['extras'],
+                        meta['specifiers'],
+                    )
+                if spec not in existing:
+                    deps.append(spec)
+                    existing.add(spec)
+
+            project_tbl["dependencies"] = deps
+            data["project"] = project_tbl
+            pyproject_file.write_text(tomlkit.dumps(data))
+
+
+        def _gather_dependency_specs(projects: list[Path | None]) -> None:
+            seen_pyprojects: set[Path] = set()
+            for project_path in projects:
+                if not project_path:
+                    continue
+                pyproject_file = project_path / 'pyproject.toml'
+                try:
+                    resolved_pyproject = pyproject_file.resolve(strict=True)
+                except FileNotFoundError:
+                    continue
+                if resolved_pyproject in seen_pyprojects:
+                    continue
+                seen_pyprojects.add(resolved_pyproject)
+                try:
+                    project_doc = tomlkit.parse(resolved_pyproject.read_text())
+                except Exception:
+                    continue
+                deps = project_doc.get('project', {}).get('dependencies')
+                if not deps:
+                    continue
+                for dep in deps:
+                    try:
+                        req = Requirement(str(dep))
+                    except Exception:
+                        continue
+                    if req.marker and not req.marker.evaluate():
+                        continue
+                    normalized = req.name.lower()
+                    if normalized.startswith('agi-') or normalized == 'agilab':
+                        continue
+                    meta = dependency_info.setdefault(
+                        normalized,
+                        {
+                            'name': req.name,
+                            'extras': set(),
+                            'specifiers': [],
+                            'has_exact': False,
+                            'sources': set(),
+                        },
+                    )
+                    if req.extras:
+                        meta['extras'].update(req.extras)
+                    meta['sources'].add(str(resolved_pyproject))
+                    if req.specifier:
+                        for specifier in req.specifier:
+                            spec_str = str(specifier)
+                            if specifier.operator in {'==', '==='}:
+                                meta['has_exact'] = True
+                                if not meta['specifiers'] or meta['specifiers'][0] != spec_str:
+                                    meta['specifiers'] = [spec_str]
+                                break
+                            if meta['has_exact']:
+                                continue
+                            if spec_str not in meta['specifiers']:
+                                meta['specifiers'].append(spec_str)
+
         if env.install_type == 0:
             repo_root = AgiEnv.read_agilab_path()
             if repo_root:
@@ -1243,6 +1380,57 @@ class AGI:
                     repo_agilab_root = repo_root.parents[1]
                 except IndexError:
                     repo_agilab_root = None
+
+            env_project = (
+                repo_env_project
+                if repo_env_project and repo_env_project.exists()
+                else env.env_root
+            )
+            node_project = (
+                repo_node_project
+                if repo_node_project and repo_node_project.exists()
+                else env.node_root
+            )
+            core_project = (
+                repo_core_project
+                if repo_core_project and repo_core_project.exists()
+                else None
+            )
+            cluster_project = (
+                repo_cluster_project
+                if repo_cluster_project and repo_cluster_project.exists()
+                else None
+            )
+            agilab_project = (
+                repo_agilab_root
+                if repo_agilab_root and repo_agilab_root.exists()
+                else None
+            )
+
+            projects_for_specs = [
+                agilab_project,
+                env_project,
+                node_project,
+                core_project,
+                cluster_project,
+            ]
+            _gather_dependency_specs(projects_for_specs)
+            for project_path in (env_project, node_project, core_project, cluster_project):
+                if not project_path:
+                    continue
+                pyproject_file = project_path / "pyproject.toml"
+                try:
+                    worker_pyprojects.add(str(pyproject_file.resolve(strict=True)))
+                except FileNotFoundError:
+                    continue
+        else:
+            env_project = env.env_root
+            node_project = env.node_root
+            core_project = None
+            cluster_project = None
+            agilab_project = None
+            worker_pyprojects = set()
+
         wenv_abs = env.wenv_abs
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         uv = cmd_prefix + env.uv
@@ -1267,114 +1455,50 @@ class AGI:
         # =========
 
         app_path = env.active_app
+        if env.install_type == 0 and dependency_info:
+            _update_pyproject_dependencies(
+                app_path / "pyproject.toml",
+                pinned_versions=None,
+                filter_to_worker=False,
+            )
+        extra_indexes = ""
+        if str(run_type).strip().startswith("sync") and _agi__version_missing_on_pypi(app_path):
+            extra_indexes = (
+                "PIP_INDEX_URL=https://test.pypi.org/simple "
+                "PIP_EXTRA_INDEX_URL=https://pypi.org/simple "
+            )
         if hw_rapids_capable:
-            cmd_manager = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(app_path)) else '')}{uv} {run_type} --config-file uv_config.toml --project '{app_path}'"
+            cmd_manager = (
+                f"{extra_indexes}{uv} {run_type} --config-file uv_config.toml --project '{app_path}'"
+            )
         else:
-            cmd_manager = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(app_path)) else '')}{uv} {run_type} --project '{app_path}'"
+            cmd_manager = f"{extra_indexes}{uv} {run_type} --project '{app_path}'"
 
         if env.verbose > 0:
             logger.info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
 
-        def _cleanup_editable(site_packages: Path) -> None:
-            patterns = (
-                "__editable__.agi_env*.pth",
-                "__editable__.agi_node*.pth",
-                "__editable__.agi_core*.pth",
-                "__editable__.agi_cluster*.pth",
-                "__editable__.agilab*.pth",
-            )
-            for pattern in patterns:
-                for editable in site_packages.glob(pattern):
-                    try:
-                        editable.unlink()
-                    except FileNotFoundError:
-                        pass
-
-        async def _ensure_pip(uv_cmd: str, project: Path) -> None:
-            cmd = f"{uv_cmd} run --project '{project}' python -m ensurepip --upgrade"
-            await AgiEnv.run(cmd, project)
-
-        def _gather_dependency_names(projects: list[Path | None]) -> set[str]:
-            names: set[str] = set()
-            for project_path in projects:
-                if not project_path or not project_path.exists():
-                    continue
-                pyproject_file = project_path / "pyproject.toml"
-                if not pyproject_file.exists():
-                    continue
-                try:
-                    project_doc = tomlkit.parse(pyproject_file.read_text())
-                except Exception:
-                    continue
-                deps = project_doc.get("project", {}).get("dependencies")
-                if not deps:
-                    continue
-                for dep in deps:
-                    try:
-                        req = Requirement(str(dep))
-                    except Exception:
-                        continue
-                    if req.name:
-                        names.add(req.name)
-            return names
-
-        async def _install_dependency_versions(uv_cmd: str, project: Path, names: set[str]) -> None:
-            for name in sorted(names):
-                if name.lower().startswith("agi-") or name.lower() == "agilab":
-                    continue
-                try:
-                    version = pkg_version(name)
-                except PackageNotFoundError:
-                    continue
-                cmd = (
-                    f"{uv_cmd} run --project '{project}' python -m pip install "
-                    f"--upgrade '{name}=={version}'"
-                )
-                await AgiEnv.run(cmd, project)
-
-        if env.install_type == 0 and repo_root:
+        if env.install_type == 0:
             await _ensure_pip(uv, app_path)
 
-            dependency_names = _gather_dependency_names(
-                [
-                    repo_agilab_root,
-                    repo_env_project,
-                    repo_node_project,
-                    repo_core_project,
-                    repo_cluster_project,
-                ]
-            )
-
             for project_path in (
-                repo_agilab_root,
-                repo_env_project,
-                repo_node_project,
-                repo_core_project,
-                repo_cluster_project,
+                agilab_project,
+                env_project,
+                node_project,
+                core_project,
+                cluster_project,
             ):
                 if project_path and project_path.exists():
+                    if repo_agilab_root and project_path.resolve() == repo_agilab_root.resolve():
+                        continue
                     cmd = (
                         f"{uv} run --project '{app_path}' python -m pip install "
                         f"--upgrade --no-deps '{project_path}'"
                     )
                     await AgiEnv.run(cmd, app_path)
 
-            for project_path in (
-                repo_env_project,
-                repo_node_project,
-                repo_core_project,
-                repo_cluster_project,
-            ):
-                if project_path and project_path.exists():
-                    cmd = (
-                        f"{uv} run --project '{app_path}' python -m pip install "
-                        f"--upgrade --no-deps '{project_path}'"
-                    )
-                    await AgiEnv.run(cmd, app_path)
-
-            resources_src = (repo_env_project / 'src/agi_env/resources') if repo_env_project else None
-            if not resources_src or not resources_src.exists():
+            resources_src = env_project / 'src/agi_env/resources'
+            if not resources_src.exists():
                 resources_src = env.env_root / 'resources'
             manager_resources = app_path / 'agilab/core/agi-env/src/agi_env/resources'
             if resources_src.exists():
@@ -1386,7 +1510,13 @@ class AGI:
             site_packages_manager = env.env_root.parent
             _cleanup_editable(site_packages_manager)
 
-            await _install_dependency_versions(uv, app_path, dependency_names)
+            if dependency_info:
+                dep_versions = {}
+                for key, meta in dependency_info.items():
+                    try:
+                        dep_versions[key] = pkg_version(meta['name'])
+                    except PackageNotFoundError:
+                        logger.debug("Dependency %s not installed in manager environment", meta['name'])
 
         if env.install_type == 1:
             cmd = f"{uv} pip install -e '{env.env_root}'"
@@ -1405,11 +1535,30 @@ class AGI:
         uv_worker = cmd_prefix + env.uv_worker
         pyvers_worker = env.pyvers_worker
 
+        worker_extra_indexes = ""
+        if str(run_type).strip().startswith("sync") and _agi__version_missing_on_pypi(wenv_abs):
+            worker_extra_indexes = (
+                "PIP_INDEX_URL=https://test.pypi.org/simple; "
+                "PIP_EXTRA_INDEX_URL=https://pypi.org/simple; "
+            )
+
+        if env.install_type == 0 and dep_versions:
+            _update_pyproject_dependencies(
+                wenv_abs / "pyproject.toml",
+                dep_versions,
+                filter_to_worker=True,
+            )
+
         if hw_rapids_capable:
-            cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} --python {pyvers_worker} --config-file uv_config.toml --project '{wenv_abs}'"
-            cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} --python {pyvers_worker} --config-file uv_config.toml --project '{wenv_abs}'"
+            cmd_worker = (
+                f"{worker_extra_indexes}{uv_worker} {run_type} --python {pyvers_worker} "
+                f"--config-file uv_config.toml --project '{wenv_abs}'"
+            )
         else:
-            cmd_worker = f"{('PIP_INDEX_URL=https://test.pypi.org/simple; PIP_EXTRA_INDEX_URL=https://pypi.org/simple; ' if (str(run_type).strip().startswith('sync') and _agi__version_missing_on_pypi(wenv_abs)) else '')}{uv_worker} {run_type} {options_worker} --python {pyvers_worker} --project '{wenv_abs}'"
+            cmd_worker = (
+                f"{worker_extra_indexes}{uv_worker} {run_type} {options_worker} "
+                f"--python {pyvers_worker} --project '{wenv_abs}'"
+            )
 
         if env.verbose > 0:
             logger.info(f"Installing workers: {cmd_worker}")
@@ -1419,65 +1568,29 @@ class AGI:
         # install env
         ##############
 
-
-
         if env.install_type == 0:
             await _ensure_pip(uv_worker, wenv_abs)
 
-            pinned = {
-                pkg: pkg_version(pkg)
-                for pkg in ("agi-env", "agi-node", "agi-cluster", "agi-core", "agilab")
-            }
-
-            pyproject = wenv_abs / "pyproject.toml"
-            try:
-                data = tomlkit.parse(pyproject.read_text())
-            except FileNotFoundError:
-                data = tomlkit.document()
-
-            project_tbl = data.get("project")
-            if project_tbl is None:
-                project_tbl = tomlkit.table()
-
-            deps = project_tbl.get("dependencies")
-            if deps is None:
-                deps = tomlkit.array()
-            else:
-                if not isinstance(deps, tomlkit.items.Array):
-                    arr = tomlkit.array()
-                    for item in deps:
-                        arr.append(item)
-                    deps = arr
-
-            existing = {str(item) for item in deps}
-            for pkg, ver in pinned.items():
-                spec = f"{pkg}=={ver}"
-                if spec not in existing:
-                    deps.append(spec)
-                    existing.add(spec)
-
-            project_tbl["dependencies"] = deps
-            data["project"] = project_tbl
-            pyproject.write_text(tomlkit.dumps(data))
-
-            env_project = repo_env_project if repo_env_project and repo_env_project.exists() else env.env_root
-            node_project = repo_node_project if repo_node_project and repo_node_project.exists() else env.node_root
-            core_project = repo_core_project if repo_core_project and repo_core_project.exists() else None
-            cluster_project = repo_cluster_project if repo_cluster_project and repo_cluster_project.exists() else None
-            agilab_root = repo_agilab_root if repo_agilab_root and repo_agilab_root.exists() else None
-
-            resources_src = env_project / 'src/agi_env/resources'
-            if not resources_src.exists():
-                resources_src = env.env_root / 'resources'
+            worker_resources_src = env_project / 'src/agi_env/resources'
+            if not worker_resources_src.exists():
+                worker_resources_src = env.env_root / 'resources'
             resources_dest = wenv_abs / 'agilab/core/agi-env/src/agi_env/resources'
             resources_dest.parent.mkdir(parents=True, exist_ok=True)
             if resources_dest.exists():
                 shutil.rmtree(resources_dest)
-            if resources_src.exists():
-                shutil.copytree(resources_src, resources_dest, dirs_exist_ok=True)
+            if worker_resources_src.exists():
+                shutil.copytree(worker_resources_src, resources_dest, dirs_exist_ok=True)
 
-            for project_path in (agilab_root, env_project, node_project, core_project, cluster_project):
+            for project_path in (
+                agilab_project,
+                env_project,
+                node_project,
+                core_project,
+                cluster_project,
+            ):
                 if project_path and project_path.exists():
+                    if repo_agilab_root and project_path.resolve() == repo_agilab_root.resolve():
+                        continue
                     cmd = (
                         f"{uv_worker} run --project '{wenv_abs}' python -m pip install "
                         f"--upgrade --no-deps '{project_path}'"
@@ -1494,7 +1607,6 @@ class AGI:
             )
             _cleanup_editable(site_packages_worker)
 
-            await _install_dependency_versions(uv_worker, wenv_abs, dependency_names)
         else:
             # build agi_env*.whl
             menv = env.env_root
