@@ -10,6 +10,12 @@ same instructions.
 > Update this document whenever a run config, environment variable, or Streamlit
 > control changes. CI, reviewers, and support rely on it for reproduction steps.
 >
+> **Worker mirroring (install_type=0)**
+> End-user installs no longer pull `agilab`/`agi-*` from PyPI. Before the worker sync
+> runs we mirror the copies that live under `~/agi-space/.venv/lib/python*/site-packages/`
+> (plus `agi_env/resources/.agilab`) directly into the worker `.venv`. Keep these
+> instructions in sync with any installer changes.
+>
 > **Model compatibility check**
 > When reviewing or updating flows with GPT-5 Codex agents, confirm they do **not** rely on
 > deprecated Streamlit APIs such as `st.experimental_rerun()`. Upgrade callers to the

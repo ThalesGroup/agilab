@@ -1289,50 +1289,73 @@ class AGI:
 
 
         if env.install_type == 0:
-            from importlib.metadata import version as pkg_version
-            pinned = {
-                pkg: pkg_version(pkg)
-                for pkg in ("agi-env", "agi-node", "agi-cluster", "agi-core", "agilab")
+            packages = {
+                "agi_env": "agi-env",
+                "agi_node": "agi-node",
+                "agi_core": "agi-core",
+                "agi_cluster": "agi-cluster",
+                "agilab": "agilab",
             }
 
-            pyproject = wenv_abs / "pyproject.toml"
-            try:
-                lines_py = pyproject.read_text().splitlines()
-            except FileNotFoundError:
-                lines_py = ['[project]', 'dependencies = [', ']']
+            site_packages_src = env.env_root.parent
 
-            def _pin_dep(name: str, ver: str) -> None:
-                entry = f'    "{name}=={ver}",' if lines_py else f'"{name}=={ver}"'
-                for i, line in enumerate(lines_py):
-                    stripped = line.strip()
-                    if stripped.startswith(f'"{name}') or stripped.startswith(f"'{name}"):
-                        lines_py[i] = entry
-                        return
-                for i, line in enumerate(lines_py):
-                    if line.strip() == 'dependencies = [':
-                        lines_py.insert(i + 1, entry)
-                        return
-                lines_py.append(entry)
+            python_dirs = env.pyvers_worker.split(".")
+            if python_dirs[-1][-1] == "t":
+                python_version = f"{python_dirs[0]}.{python_dirs[1]}t"
+            else:
+                python_version = f"{python_dirs[0]}.{python_dirs[1]}"
 
-            for pkg, ver in pinned.items():
-                _pin_dep(pkg, ver)
-            if lines_py and lines_py[-1].strip() != ']':
-                lines_py.append(']')
-            pyproject.write_text('\n'.join(lines_py) + '\n')
+            site_packages_dest = (
+                wenv_abs
+                / ".venv"
+                / "lib"
+                / f"python{python_version}"
+                / "site-packages"
+            )
+            site_packages_dest.mkdir(parents=True, exist_ok=True)
 
-            resources_src = env.env_root / 'resources'
-            resources_dest = wenv_abs / 'agilab/core/agi-env/src/agi_env/resources'
-            resources_dest.parent.mkdir(parents=True, exist_ok=True)
-            if resources_dest.exists():
-                shutil.rmtree(resources_dest)
+            def _remove_existing(pattern: str) -> None:
+                for existing in site_packages_dest.glob(pattern):
+                    if existing.is_dir():
+                        shutil.rmtree(existing)
+                    else:
+                        existing.unlink()
+
+            def _copy_tree(src: Path, dest: Path) -> None:
+                if dest.exists():
+                    shutil.rmtree(dest)
+                shutil.copytree(src, dest, dirs_exist_ok=True)
+
+            for folder, dist_name in packages.items():
+                pkg_src = site_packages_src / folder
+                pkg_dest = site_packages_dest / folder
+                if pkg_src.exists():
+                    _copy_tree(pkg_src, pkg_dest)
+
+                normalized = dist_name.replace("_", "-")
+                _remove_existing(f"{normalized}*.dist-info")
+                for metadata_src in site_packages_src.glob(f"{normalized}*.dist-info"):
+                    metadata_dest = site_packages_dest / metadata_src.name
+                    _copy_tree(metadata_src, metadata_dest)
+
+                    base_name = metadata_src.name.replace(".dist-info", "")
+                    data_src = metadata_src.parent / f"{base_name}.data"
+                    if data_src.exists():
+                        data_dest = site_packages_dest / data_src.name
+                        _copy_tree(data_src, data_dest)
+
+                _remove_existing(f"{normalized}*.egg-info")
+                for metadata_src in site_packages_src.glob(f"{normalized}*.egg-info"):
+                    metadata_dest = site_packages_dest / metadata_src.name
+                    _copy_tree(metadata_src, metadata_dest)
+
+            resources_src = site_packages_src / "agi_env" / "resources" / ".agilab"
             if resources_src.exists():
+                resources_dest = site_packages_dest / "agi_env" / "resources" / ".agilab"
+                resources_dest.parent.mkdir(parents=True, exist_ok=True)
+                if resources_dest.exists():
+                    shutil.rmtree(resources_dest)
                 shutil.copytree(resources_src, resources_dest, dirs_exist_ok=True)
-
-            cmd = f"{uv_worker} sync --upgrade --project '{env.env_root}'"
-            await AgiEnv.run(cmd, wenv_abs)
-
-            cmd = f"{uv_worker} sync --upgrade --project '{env.node_root}'"
-            await AgiEnv.run(cmd, wenv_abs)
         else:
             # build agi_env*.whl
             menv = env.env_root
