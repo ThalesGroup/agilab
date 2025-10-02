@@ -3,8 +3,10 @@ from agi_env import AgiEnv
 from mycode import Mycode  # assuming your Mycode class is here
 from pathlib import Path
 
+
 async def main():
-    env = AgiEnv(active_app=Path(__file__).expanduser().parents[1], verbose=True)
+    script_path = Path(__file__).resolve()
+    env = AgiEnv(apps_dir=script_path.parents[2], active_app=script_path.parents[1].name, verbose=True)
 
     # Instantiate Mycode with your parameters
     mycode = Mycode(

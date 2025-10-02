@@ -22,12 +22,12 @@ async def main():
         'datemax': "2021-01-01",
         'output_format': "csv"
     }
-    active_app = base_path.parents[1]
-    sys.path.insert(0, active_app / 'src')
+    active_app_path = base_path.parents[1]
+    sys.path.insert(0, active_app_path / 'src')
     sys.path.insert(0, str(Path.home() / 'wenv/flight_worker/dist'))
 
-    active_app = Path(__file__).expanduser().parents[1]
-    env = AgiEnv(active_app=active_app, verbose=True)
+    apps_dir = base_path.parents[2]
+    env = AgiEnv(apps_dir=apps_dir, active_app=active_app_path.name, verbose=True)
     # build the egg
     wenv = env.wenv_abs
     build = wenv / "build.py"
