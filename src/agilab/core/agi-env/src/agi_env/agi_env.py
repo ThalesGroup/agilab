@@ -297,11 +297,13 @@ class AgiEnv:
         AgiEnv.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
         self.envars = AgiEnv.envars
         envars = self.envars
+        repo_agilab_dir = Path(__file__).resolve().parents[4]
+
         agilab_spec = importlib.util.find_spec("agilab")
         if agilab_spec and getattr(agilab_spec, "origin", None):
             agilab_pkg_dir = Path(agilab_spec.origin).resolve().parent
         else:
-            agilab_pkg_dir = Path(__file__).resolve().parents[2] / "agilab"
+            agilab_pkg_dir = repo_agilab_dir
         agilab_pkg_dir = agilab_pkg_dir.resolve()
         agilab_src = agilab_pkg_dir.parent.resolve()
         markers = {"site-packages", "dist-packages"}
@@ -325,6 +327,10 @@ class AgiEnv:
                 except FileNotFoundError:
                     pass
 
+        force_source_layout = apps_dir_path is not None and _is_relative_to(
+            apps_dir_path, repo_agilab_dir
+        )
+
         if install_type is not None:
             try:
                 install_type = int(install_type)
@@ -333,7 +339,10 @@ class AgiEnv:
         else:
             install_type = self._resolve_install_type(apps_dir_path, agilab_src, self.envars)
 
-        if install_type == 1 and is_agilab_installed:
+        if force_source_layout:
+            install_type = 1
+
+        if install_type == 1 and is_agilab_installed and not force_source_layout:
             install_type = 0
 
         self.is_worker_env = install_type == 2
@@ -377,14 +386,18 @@ class AgiEnv:
         self.install_type = install_type
 
         if install_type == 1:
-            core_root = agilab_src / "agilab/core"
             pkg_dirs = {
                 "env": "agi-env",
                 "node": "agi-node",
                 "core": "agi-core",
                 "cluster": "agi-cluster",
             }
-            self.agilab_src = agilab_src
+            if force_source_layout:
+                self.agilab_src = repo_agilab_dir
+                core_root = self.agilab_src / "core"
+            else:
+                self.agilab_src = agilab_src
+                core_root = agilab_src / "agilab/core"
             self.env_root = core_root / pkg_dirs["env"]
             self.node_root = core_root / pkg_dirs["node"]
             self.core_root = core_root / pkg_dirs["core"]
@@ -410,8 +423,8 @@ class AgiEnv:
 
         if install_type == 1:
             resource_candidates = [
-                self.agilab_src / "agilab/resources",
                 self.agilab_src / "resources",
+                self.agilab_src / "agilab/resources",
             ]
         else:
             resource_candidates = [
@@ -425,7 +438,7 @@ class AgiEnv:
         else:
             self.st_resources = resource_candidates[-1]
 
-        if install_type == 0:
+        if install_type == 0 and not force_source_layout:
             apps_root = self.agilab_src / "apps"
             os.makedirs(active_app.parent, exist_ok=True)
 
@@ -854,14 +867,20 @@ class AgiEnv:
     def locate_agilab_installation(verbose=False):
         """Attempt to locate the installed AGILab package path on disk."""
 
+        base_dir: Path | None = None
+
         for p in sys.path_importer_cache:
-            if p.endswith("agi_env"):
-                base_dir = p
-        before, sep, after = base_dir.rpartition("agilab")
-        if AgiEnv.install_type == 0:
-            return base_dir.parent
-        else:
-            return Path(before) / sep
+            if isinstance(p, str) and p.endswith("agi_env"):
+                base_dir = Path(p)
+
+        if base_dir is None:
+            base_dir = Path(__file__).resolve().parents[2] / "agi_env"
+
+        before, sep, _ = str(base_dir).rpartition("agilab")
+        candidate_repo = Path(before) / sep if sep else base_dir.parent
+        if (candidate_repo / "apps").exists():
+            return candidate_repo
+        return base_dir.parent
 
     def copy_existing_projects(self, src_apps: Path, dst_apps: Path):
         """Copy ``*_project`` trees from ``src_apps`` into ``dst_apps`` if missing."""
@@ -2284,3 +2303,11 @@ class ContentRenamer(ast.NodeTransformer):
 
         me = getpass.getuser()
         my_pid = os.getpid()
+def _is_relative_to(path: Path, other: Path) -> bool:
+    """Return ``True`` if ``path`` lies under ``other`` (without requiring Python 3.9)."""
+
+    try:
+        path.relative_to(other)
+        return True
+    except ValueError:
+        return False
