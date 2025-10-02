@@ -1643,7 +1643,7 @@ class AGI:
         dest = wenv_abs / "src" / env.target_worker
         os.makedirs(dest, exist_ok=True)
         shutil.copy2(env.post_install, dest)
-        src = env.post_install.parent / "dataset.7z"
+        src = env.dataset_archive
         if src.exists():
             os.makedirs(env.home_abs / env.data_rel / "dataset", exist_ok=True)
             shutil.copy2(src, dest)
