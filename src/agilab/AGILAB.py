@@ -140,7 +140,6 @@ def main():
             parser.add_argument("--cluster-ssh-credentials", type=str, help="Cluster credentials (username:password)",
                                 default=None)
             parser.add_argument("--openai-api-key", type=str, help="OpenAI API key (mandatory)", default=None)
-            parser.add_argument("--install-type", type=str, help="0:enduser(default)\n1:dev", default="0")
             parser.add_argument("--apps-dir", type=str, help="Where you store your apps (default is ./)",
                                 default="apps")
 
@@ -156,12 +155,17 @@ def main():
                 st.error("Error: Missing mandatory parameter: --apps-dir")
                 sys.exit(1)
 
-            st.session_state["apps_dir"] = args.apps_dir
+            apps_dir = Path(args.apps_dir).expanduser() if args.apps_dir else None
+            if apps_dir is None:
+                st.error("Error: Missing mandatory parameter: --apps-dir")
+                sys.exit(1)
 
-            st.session_state["INSTALL_TYPE"] = args.install_type
-            env = AgiEnv(install_type=int(args.install_type), verbose=1)
+            st.session_state["apps_dir"] = str(apps_dir)
+
+            env = AgiEnv(apps_dir=apps_dir, verbose=1)
             env.init_done = True
             st.session_state['env'] = env
+            st.session_state["INSTALL_TYPE"] = env.install_type
 
             if not st.session_state.get("server_started"):
                 activate_mlflow(env)
@@ -175,8 +179,8 @@ def main():
             cluster_credentials = env.CLUSTER_CREDENTIALS if env.CLUSTER_CREDENTIALS else args.cluster_ssh_credentials or ""
             AgiEnv.set_env_var("OPENAI_API_KEY", openai_api_key)
             AgiEnv.set_env_var("CLUSTER_CREDENTIALS", cluster_credentials)
-            AgiEnv.set_env_var("INSTALL_TYPE", args.install_type)
-            AgiEnv.set_env_var("APPS_DIR", args.apps_dir)
+            AgiEnv.set_env_var("INSTALL_TYPE", str(env.install_type))
+            AgiEnv.set_env_var("APPS_DIR", str(apps_dir))
 
             st.session_state["first_run"] = False
             st.rerun()

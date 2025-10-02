@@ -1758,9 +1758,9 @@ class AGI:
 
         # build target_worker lib from src/
         if env.verbose > 1:
-            cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {wenv_rel / env.setup_app.name} build_ext --install-type 2 -b {wenv_rel}"
+            cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {wenv_rel / env.setup_app.name} build_ext -b {wenv_rel}"
         else:
-            cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {wenv_rel / env.setup_app.name} -q build_ext --install-type 2 -b {wenv_rel}"
+            cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {wenv_rel / env.setup_app.name} -q build_ext -b {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
 
     @staticmethod
@@ -2156,9 +2156,9 @@ class AGI:
         if env.is_free_threading_available:
             uv = cmd_prefix + " PYTHON_GIL=0 " + env.uv
         if env.verbose > 1:
-            cmd = f"{env.uv} --project '{app_path}' run --no-sync python '{env.setup_app}' bdist_egg --packages \"{packages}\" --install_type {env.install_type} -d \"{wenv_abs}\""
+            cmd = f"{env.uv} --project '{app_path}' run --no-sync python '{env.setup_app}' bdist_egg --packages \"{packages}\" -d \"{wenv_abs}\""
         else:
-            cmd = f"{env.uv} --project '{app_path}' run --no-sync python '{env.setup_app}' -q bdist_egg --packages \"{packages}\" --install_type '{env.install_type}' -d \"{wenv_abs}\""
+            cmd = f"{env.uv} --project '{app_path}' run --no-sync python '{env.setup_app}' -q bdist_egg --packages \"{packages}\" -d \"{wenv_abs}\""
 
         await AgiEnv.run(cmd, app_path)
 
@@ -2173,9 +2173,9 @@ class AGI:
             # cython compilation of wenv/src into wenv
             shutil.copy2(env.setup_core, wenv_abs)
             if env.verbose > 1:
-                cmd = f"{env.uv} --project '{wenv_abs}' run --no-sync python '{env.setup_app}' build_ext --install-type 1 -b '{wenv_abs}'"
+                cmd = f"{env.uv} --project '{wenv_abs}' run --no-sync python '{env.setup_app}' build_ext -b '{wenv_abs}'"
             else:
-                cmd = f"{env.uv} --project '{wenv_abs}' run --no-sync python '{env.setup_app}' -q build_ext --install-type 1 -b '{wenv_abs}'"
+                cmd = f"{env.uv} --project '{wenv_abs}' run --no-sync python '{env.setup_app}' -q build_ext -b '{wenv_abs}'"
 
             res = await AgiEnv.run(cmd, app_path)
             try:

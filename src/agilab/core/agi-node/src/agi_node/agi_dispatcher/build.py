@@ -196,7 +196,11 @@ def main() -> None:
     target_module = name.replace("-", "_")
 
     verbose = 0 if quiet else 2
-    env = AgiEnv(active_app=active_app, verbose=verbose, install_type=install_type)
+    env = AgiEnv(
+        apps_dir=active_app.parent,
+        active_app=active_app.name,
+        verbose=verbose,
+    )
 
     p = Path(outdir)
     if p.suffix and not p.is_dir():

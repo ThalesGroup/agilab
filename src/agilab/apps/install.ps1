@@ -59,7 +59,6 @@ if ($AGILAB_PRIVATE) {
     }
 }
 
-$INSTALL_TYPE = if ($env:INSTALL_TYPE) { $env:INSTALL_TYPE } else { "1" }
 
 # Export PYTHONPATH (prepend cwd)
 $pwdPath = (Get-Location).Path
@@ -184,8 +183,7 @@ try {
         $installArgs = @(
             '-q','run','-p', $env:AGI_PYTHON_VERSION,
             '--project','../core/cluster',
-            'python','install.py', (Join-Path $AGILAB_PUBLIC ("apps/{0}" -f $app)),
-            '--install-type', "$INSTALL_TYPE"
+            'python','install.py', (Join-Path $AGILAB_PUBLIC ("apps/{0}" -f $app))
         )
         & uv @installArgs | ForEach-Object { $_ } | Out-Null
         if ($LASTEXITCODE -eq 0) {

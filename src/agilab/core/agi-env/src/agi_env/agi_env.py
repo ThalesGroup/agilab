@@ -173,10 +173,10 @@ class AgiEnv:
     _pythonpath_entries: list[str] = []
 
     def __init__(self,
-                 active_app: Path | str = None,
-                 install_type: int = None,
-                 verbose: int = None,
-                 debug=False,
+                 apps_dir: str | Path | None = None,
+                 active_app: str | None = None,
+                 verbose: int | None = None,
+                 debug: bool = False,
                  python_variante: str = ''):
 
         def _package_dir(package: str) -> Path:
@@ -234,22 +234,38 @@ class AgiEnv:
         agilab_src = agilab_src.replace("/app-pages/maps", "")
         agilab_src = Path(agilab_src).resolve()
 
-        if isinstance(active_app, str):
-            # case only worker_env
-            self.is_worker_env = True
-            active_app = home_abs / "wenv" / active_app
-        else:
-            if not active_app:
-                venv_home = Path(sys.prefix).parent
-                if venv_home.name == "agilab":
-                    active_app = agilab_src / "agilab/apps" / envars.get("APP_DEFAULT", 'flight_project')
-                else:
-                    active_app = venv_home / "apps" / envars.get("APP_DEFAULT", 'flight_project')
-            else:
-                active_app = active_app.expanduser()
+        apps_dir_path: Path | None = None
+        if apps_dir is not None:
+            apps_dir_path = Path(apps_dir).expanduser()
+            try:
+                apps_dir_path = apps_dir_path.resolve()
+            except FileNotFoundError:
+                pass
 
-            if not active_app.name.endswith('_project') and not active_app.name.endswith('_worker'):
-                raise ValueError(f"{active_app} must end with '_project'")
+        install_type = self._resolve_install_type(apps_dir_path, agilab_src, self.envars)
+
+        self.is_worker_env = install_type == 2
+
+        if install_type != 2 and apps_dir_path is None:
+            raise ValueError("apps_dir is required when install_type != 2")
+
+        if active_app is not None:
+            active_app_candidate = Path(active_app)
+            if install_type != 2 and (active_app_candidate.is_absolute() or active_app_candidate.parent != Path(".")):
+                raise ValueError("active_app must be a directory name, not a full path")
+            active_app_name = active_app_candidate.name
+        else:
+            active_app_name = envars.get("APP_DEFAULT", 'flight_project')
+
+        if install_type == 2:
+            if not active_app_name:
+                raise ValueError("active_app is required when install_type == 2")
+            active_app = home_abs / "wenv" / active_app_name
+        else:
+            active_app = (apps_dir_path or Path()) / active_app_name
+
+        if not active_app.name.endswith('_project') and not active_app.name.endswith('_worker'):
+            raise ValueError(f"{active_app} must end with '_project'")
 
         self.active_app = active_app
         target = active_app.name.replace("_project", "").replace("_worker","").replace("-", "_")
@@ -264,66 +280,27 @@ class AgiEnv:
         AgiEnv.debug = debug
         self.debug = debug
 
-        if install_type is None:
-            if agilab_src.name == "src":
-                install_type = 1
-            else:
-                install_type = 0
-        elif isinstance(install_type, str):
-            install_type = int(install_type)
-
         AgiEnv.install_type = install_type
         self.install_type = install_type
 
-        def _ensure_src_bridge(root: Path, package_name: str) -> None:
-            src_dir = root / "src"
-            target = src_dir / package_name
-            if target.exists():
-                return
-            try:
-                src_dir.mkdir(parents=True, exist_ok=True)
-                if os.name != "nt":
-                    if not target.exists():
-                        target.symlink_to(root, target_is_directory=True)
-                    if package_name == "agi_cluster":
-                        alias = src_dir / "cluster"
-                        if not alias.exists():
-                            alias.symlink_to(root, target_is_directory=True)
-                else:
-                    if not target.exists():
-                        shutil.copytree(root, target, dirs_exist_ok=True)
-                    if package_name == "agi_cluster":
-                        alias = src_dir / "cluster"
-                        if not alias.exists():
-                            shutil.copytree(root, alias, dirs_exist_ok=True)
-            except Exception:
-                if not target.exists():
-                    shutil.copytree(root, target, dirs_exist_ok=True)
-                if package_name == "agi_cluster":
-                    alias = src_dir / "cluster"
-                    if not alias.exists():
-                        shutil.copytree(root, alias, dirs_exist_ok=True)
-
-        component_specs = {
-            "env": {"package": "agi_env", "dev": "agi-env"},
-            "node": {"package": "agi_node", "dev": "agi-node"},
-            "core": {"package": "agi_core", "dev": "agi-core"},
-            "cluster": {"package": "agi_cluster", "dev": "agi-cluster"},
-        }
-
-        component_roots: dict[str, Path] = {}
-
         if install_type == 1:
             core_root = agilab_src / "agilab/core"
-            for name, spec in component_specs.items():
-                component_roots[name] = core_root / spec["dev"]
+            pkg_dirs = {
+                "env": "agi-env",
+                "node": "agi-node",
+                "core": "agi-core",
+                "cluster": "agi-cluster",
+            }
             self.agilab_src = agilab_src
-            self.cli = component_roots["cluster"] / "src/agi_cluster/agi_distributor/cli.py"
+            self.cli = core_root / "agi-cluster/src/agi_cluster/agi_distributor/cli.py"
         else:
-            # Resolve installed package locations
-            for name, spec in component_specs.items():
-                component_roots[name] = _package_dir(spec["package"])
-
+            core_root = _package_dir("agi_env").parent
+            pkg_dirs = {
+                "env": "agi_env",
+                "node": "agi_node",
+                "core": "agi_core",
+                "cluster": "agi_cluster",
+            }
             try:
                 agilab_pkg = _package_dir("agilab")
             except ModuleNotFoundError:
@@ -333,25 +310,21 @@ class AgiEnv:
             elif agilab_pkg:
                 self.agilab_src = agilab_pkg
             else:
-                self.agilab_src = component_roots["env"].parent
+                self.agilab_src = core_root
 
-            cluster_pkg = component_roots["cluster"]
-            self.cli = cluster_pkg / "agi_distributor/cli.py"
+            try:
+                cluster_pkg = _package_dir("agi_cluster")
+            except ModuleNotFoundError:
+                cluster_pkg = None
+            if cluster_pkg and cluster_pkg.name == "agi_cluster":
+                self.cli = cluster_pkg / "agi_distributor/cli.py"
+            else:
+                self.cli = core_root / f"{pkg_dirs['cluster']}/agi_distributor/cli.py"
 
-            for pkg_root, pkg_name in (
-                (component_roots["env"], "agi_env"),
-                (component_roots["node"], "agi_node"),
-                (component_roots["core"], "agi_core"),
-                (component_roots["cluster"], "agi_cluster"),
-                (component_roots["cluster"], "cluster"),
-            ):
-                _ensure_src_bridge(pkg_root, pkg_name)
-
-        self.component_roots = component_roots
-        self.env_root = component_roots["env"]
-        self.node_root = component_roots["node"]
-        self.core_root = component_roots["core"]
-        self.cluster_root = component_roots["cluster"]
+        self.env_root = core_root / pkg_dirs["env"]
+        self.node_root = core_root / pkg_dirs["node"]
+        self.core_root = core_root / pkg_dirs["core"]
+        self.cluster_root = core_root / pkg_dirs["cluster"]
 
         resolve = self._resolve_package_root
         self.env_src = resolve(self.env_root)
@@ -546,6 +519,64 @@ class AgiEnv:
         AgiEnv.export_local_bin = self.export_local_bin
 
     @staticmethod
+    def _resolve_install_type(apps_dir: Path | None,
+                              agilab_src: Path,
+                              envars: dict | None) -> int:
+        """Infer install type without requiring an explicit argument.
+
+        Precedence:
+        1. honour explicit overrides from environment variables (``AGILAB_INSTALL_TYPE``
+           or ``INSTALL_TYPE``) when they are valid integers;
+        2. when no ``apps_dir`` is provided, assume a worker-only environment (type 2);
+        3. otherwise rely on the directory layout to distinguish source checkouts (type 1)
+           from packaged installs (type 0), falling back to the legacy heuristic based on
+           ``agilab_src`` when needed.
+        """
+
+        # Explicit overrides via environment or .env file
+        candidates = (
+            os.environ.get("AGILAB_INSTALL_TYPE"),
+            os.environ.get("INSTALL_TYPE"),
+        )
+        if envars:
+            candidates += (
+                envars.get("AGILAB_INSTALL_TYPE"),
+                envars.get("INSTALL_TYPE"),
+            )
+        for raw in candidates:
+            if raw is None or raw == "":
+                continue
+            try:
+                return int(raw)
+            except (TypeError, ValueError):
+                continue
+
+        if apps_dir is None:
+            return 2
+
+        try:
+            if apps_dir.parent.name == "src":
+                return 1
+            if len(apps_dir.parents) > 1 and apps_dir.parents[1].name == "src":
+                return 1
+        except Exception:
+            pass
+
+        try:
+            if apps_dir.parent.name == "examples":
+                return 0
+            if len(apps_dir.parents) > 1 and apps_dir.parents[1].name == "examples":
+                return 0
+        except Exception:
+            pass
+
+        # Legacy fallback: detect whether the core package is sourced from ``src/agilab``
+        if agilab_src.name == "src":
+            return 1
+
+        return 0
+
+    @staticmethod
     def _resolve_package_root(root: Path) -> Path:
         """Return the ``src`` directory for a package when present.
 
@@ -634,11 +665,11 @@ class AgiEnv:
             return False  # pas sous ~
         return "agilab" in rel.parts
 
-    def active(self, target, install_type):
+    def active(self, target):
         """Switch :attr:`active_app` to ``target`` if it differs from the current one."""
 
         if str(self.active_app) != target:
-            self.change_active_app(target, install_type)
+            self.change_active_app(target)
 
     def humanize_validation_errors(self, error):
         """Format pydantic-style validation ``error`` messages for human consumption."""
@@ -1426,7 +1457,7 @@ class AgiEnv:
         except Exception as e:
             AgiEnv.logger.error(f"Failed to create symlink @{dest} -> {src}: {e}")
 
-    def change_active_app(self, app, install_type=1):
+    def change_active_app(self, app):
         if not isinstance(app, Path):
             app = Path(app)
         app = app.expanduser()
@@ -1440,9 +1471,14 @@ class AgiEnv:
 
         apps_dir = getattr(self, "apps_dir", None) or AgiEnv.apps_dir
         app_path = app if app.is_absolute() else apps_dir / app
+        app_name = app_path.name
 
         try:
-            self.__init__(active_app=app_path, install_type=install_type, verbose=AgiEnv.verbose)
+            self.__init__(
+                apps_dir=app_path.parent,
+                active_app=app_name,
+                verbose=AgiEnv.verbose,
+            )
         except Exception:
             if app_path.exists():
                 shutil.rmtree(app_path, ignore_errors=True)

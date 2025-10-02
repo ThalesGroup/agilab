@@ -4,8 +4,10 @@ from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
+APPS_ROOT = Path(__file__).resolve().parents[2] / "apps"
+
 async def main():
-    app_env = AgiEnv(active_app=Path('/Users/jpm/agilab/src/agilab/apps/flight_project'), verbose=True)
+    app_env = AgiEnv(apps_dir=APPS_ROOT, active_app='flight_project', verbose=True)
     res = await AGI.run(app_env, 
                         mode=None,
                         scheduler="127.0.0.1", 

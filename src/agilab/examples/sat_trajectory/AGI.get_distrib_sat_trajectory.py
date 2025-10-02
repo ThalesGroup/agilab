@@ -1,11 +1,14 @@
 
 import asyncio
 from agi_cluster.agi_distributor import AGI
-from agi_env import AgiEnv, normalize_path
+from agi_env import AgiEnv
 from pathlib import Path
 
+APPS_ROOT = Path(__file__).resolve().parents[2] / "apps"
+
+
 async def main():
-    app_env = AgiEnv(active_app=Path('/Users/jpm/agilab/src/agilab/apps/sat_trajectory_project'), install_type=1, verbose=True)
+    app_env = AgiEnv(apps_dir=APPS_ROOT, active_app="sat_trajectory_project", verbose=1)
     res = await AGI.get_distrib(app_env,
                                scheduler="127.0.0.1", 
                                workers={'127.0.0.1': 2},

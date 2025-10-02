@@ -753,7 +753,7 @@ class BaseWorker(abc.ABC):
             if env:
                 BaseWorker.env = env
             else:
-                BaseWorker.env = AgiEnv(active_app=active_app, install_type=2, verbose=verbose)
+                BaseWorker.env = AgiEnv(active_app=active_app, verbose=verbose)
 
             # import of derived Class of WorkDispatcher, name target_inst which is typically an instance of MyCode
             worker_class = BaseWorker._load_worker(mode)

@@ -3,7 +3,7 @@
   Purpose: Mirror the behavior of install_apps_pages.sh for Windows/PowerShell
   Notes:
     - Uses junctions for directory links (works without admin). Falls back to copying if linking fails.
-    - Respects the same env vars as the bash script: AGI_PYTHON_VERSION, AGILAB_PRIVATE, INSTALL_TYPE, APPS_DEST_BASE, PAGES_DEST_BASE.
+    - Respects the same env vars as the bash script: AGI_PYTHON_VERSION, AGILAB_PRIVATE, APPS_DEST_BASE, PAGES_DEST_BASE.
 #>
 
 #----- Strict mode / setup -----------------------------------------------------
@@ -107,7 +107,6 @@ if ($AGILAB_PRIVATE) {
   if (-not (Test-Path -LiteralPath $APPS_TARGET_BASE))  { Write-Color RED "Error: Missing directory: $APPS_TARGET_BASE";  exit 1 }
 }
 
-$INSTALL_TYPE = if ($env:INSTALL_TYPE) { $env:INSTALL_TYPE } else { "1" }
 
 # Destination base (defaults to current dir)
 $APPS_DEST_BASE  = if ($env:APPS_DEST_BASE)  { $env:APPS_DEST_BASE }  else { Join-Path (Get-Location) "apps" }
@@ -258,7 +257,7 @@ if (-not [string]::IsNullOrEmpty($AGILAB_PUBLIC)) {
   Push-Location (Join-Path $AGILAB_PUBLIC "apps")
   foreach ($app in $INCLUDED_APPS) {
     Write-Color BLUE "Installing $app..."
-    & uv -q run -p $AGI_PYTHON_VERSION --project ../core/cluster python install.py (Join-Path $AGILAB_PUBLIC "apps/$app") --install-type $INSTALL_TYPE | Out-Host
+    & uv -q run -p $AGI_PYTHON_VERSION --project ../core/cluster python install.py (Join-Path $AGILAB_PUBLIC "apps/$app") | Out-Host
     if ($LASTEXITCODE -eq 0) {
       Write-Color GREEN "$app successfully installed."
       Write-Color GREEN "Checking installation..."

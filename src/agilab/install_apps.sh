@@ -35,8 +35,6 @@ APPS_TARGET_BASE="$AGILAB_PRIVATE/src/agilab/apps"
 [[ -d "$PAGES_TARGET_BASE" ]] || { echo -e "${RED}Error:${NC} Missing directory: $PAGES_TARGET_BASE"; exit 1; }
 [[ -d "$APPS_TARGET_BASE" ]] || { echo -e "${RED}Error:${NC} Missing directory: $APPS_TARGET_BASE"; exit 1; }
 
-INSTALL_TYPE="${INSTALL_TYPE:-1}"
-
 
 # --- Ensure arrays exist (avoids 'unbound variable' with set -u) -------------
 # We declare them empty up front; later code can append or overwrite freely.
@@ -257,9 +255,9 @@ pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
 for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   echo -e "${BLUE}Installing $app...${NC}"
   echo  uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
-      "$AGILAB_PUBLIC/apps/$app" --install-type "$INSTALL_TYPE"
+      "$AGILAB_PUBLIC/apps/$app"
   if uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
-      "$AGILAB_PUBLIC/apps/$app" --install-type "$INSTALL_TYPE"; then
+      "$AGILAB_PUBLIC/apps/$app"; then
     echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
     echo -e "${GREEN}Checking installation...${NC}"
     if pushd -- "$app" >/dev/null; then

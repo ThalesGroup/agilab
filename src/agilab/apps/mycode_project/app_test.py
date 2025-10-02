@@ -16,22 +16,23 @@ os.environ.setdefault("UV_NO_SYNC", "1")
 
 async def main() -> None:
     script_dir = Path(__file__).parent
-    active_app = script_dir.absolute()  # manager project root (this repo)
+    apps_dir = script_dir.parent
+    active_app = script_dir.name
 
     # Heuristic: corresponding worker checkout under ~/wenv/<name with project→worker>
-    target_name = active_app.name.replace("_project", "")
+    target_name = script_dir.name.replace("_project", "")
     worker_name = target_name +  "_worker"
     worker_repo = Path.home() / "wenv" / worker_name
 
-    env = AgiEnv(active_app=active_app, verbose=True)
+    env = AgiEnv(apps_dir=apps_dir, active_app=active_app, verbose=True)
     wenv = env.wenv_abs
     build = wenv / 'build.py'
 
     for cmd in [
         f"uv run --no-sync --project {wenv} {build} bdist_egg --packages base_worker,polars_worker -d {wenv}",
         f"uv run --no-sync --project {wenv} {build} build_ext --packages base_worker,polars_worker -b {wenv}",
-        f"uv run --no-sync --project {active_app} {active_app}/test/_test_{target_name}_manager.py",
-        f"uv run --no-sync --project {worker_repo} {active_app}/test/_test_{target_name}_worker.py"
+        f"uv run --no-sync --project {script_dir} {script_dir}/test/_test_{target_name}_manager.py",
+        f"uv run --no-sync --project {worker_repo} {script_dir}/test/_test_{target_name}_worker.py"
     ]:
         await env.run(cmd, wenv)
 

@@ -49,23 +49,25 @@ async def main():
         parser.add_argument("app", type=str, help="Module path")
 
         parser.add_argument(
-            "--install-type", type=str, help="Install type", required=True
-        )
-        parser.add_argument(
             "--verbose", type=int, default=1, help="Verbosity level (1-3 default: 1)"
         )
 
         args, unknown = parser.parse_known_args()
-        # print(args.apps_dir)
-        app_env = AgiEnv(Path(args.app).expanduser(), install_type=int(args.install_type),
-                     verbose=args.verbose)
+
+        app_path = Path(args.app).expanduser()
+        app_env = AgiEnv(
+            apps_dir=app_path.parent,
+            active_app=app_path.name,
+            verbose=args.verbose,
+        )
+        install_type = app_env.install_type
 
     except Exception as e:
         raise Exception("Failed to resolve env and core path in toml") from e
 
     await AGI.install(
         env=app_env,
-        type=int(args.install_type),
+        type=install_type,
         scheduler="127.0.0.1",
         verbose=args.verbose,
         modes_enabled=AGI.DASK_MODE | AGI.CYTHON_MODE
@@ -74,4 +76,3 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
-
