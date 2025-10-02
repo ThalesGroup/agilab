@@ -993,7 +993,7 @@ def update_views(project, pages):
     """
     update_required = False
     env = st.session_state._env
-                env.change_active_app(project),
+    env.change_active_app(project)
     st.session_state.preview_tree = False
 
     pages_root = Path(os.getcwd()) / "src/gui/pages"
