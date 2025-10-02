@@ -30,7 +30,9 @@ import socket
 import subprocess
 import sys
 import traceback
+from functools import lru_cache
 from pathlib import Path, PureWindowsPath, PurePosixPath
+import tempfile
 from dotenv import dotenv_values, set_key
 import tomlkit
 import logging
@@ -43,6 +45,7 @@ import inspect
 import ctypes
 from ctypes import wintypes
 import importlib.util
+import importlib.resources as importlib_resources
 from concurrent.futures import ThreadPoolExecutor
 from threading import RLock
 from agi_env.agi_logger import AgiLogger
@@ -58,6 +61,69 @@ else:
 sys.excepthook = FormattedTB(**_tb_kwargs)
 
 # logger = AgiLogger.get_logger(__name__)
+
+
+@lru_cache(maxsize=None)
+def _resolve_worker_hook(filename: str) -> Path | None:
+    """Return the path to the shared worker hook packaged with agi-node."""
+
+    spec = importlib.util.find_spec("agi_node.agi_dispatcher")
+    if spec is None:
+        return None
+
+    search_locations = list(spec.submodule_search_locations or [])
+    candidates: list[Path] = []
+
+    for location in search_locations:
+        candidates.append(Path(location) / filename)
+
+    if spec.origin:
+        origin_path = Path(spec.origin)
+        if origin_path.name == "__init__.py":
+            candidates.append(origin_path.parent / filename)
+        else:
+            candidates.append(origin_path.with_name(filename))
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    # Fall back to extracting the resource from the package (handles zip installs).
+    try:
+        package_root = importlib_resources.files("agi_node.agi_dispatcher")
+    except (ModuleNotFoundError, AttributeError):
+        return None
+
+    resource = package_root / filename
+    if not resource.is_file():
+        return None
+
+    cache_dir = Path(tempfile.gettempdir()) / "agi_node_hooks"
+    cache_dir.mkdir(exist_ok=True)
+    cached = cache_dir / filename
+    try:
+        with importlib_resources.as_file(resource) as resource_path:
+            if resource_path != cached:
+                shutil.copy2(resource_path, cached)
+    except FileNotFoundError:
+        return None
+
+    return cached if cached.exists() else None
+
+
+def _select_hook(local_candidate: Path, fallback_filename: str, hook_label: str) -> tuple[Path, bool]:
+    """Return the hook to execute and whether it comes from the shared baseline."""
+
+    if local_candidate.exists():
+        return local_candidate, False
+
+    fallback = _resolve_worker_hook(fallback_filename)
+    if fallback and fallback.exists():
+        return fallback, True
+
+    raise FileNotFoundError(
+        f"Unable to resolve {hook_label} script: expected {local_candidate} or shared agi-node copy."
+    )
 
 # Compile regex once globally
 LEVEL_RES = [
@@ -174,7 +240,8 @@ class AgiEnv:
 
     def __init__(self,
                  apps_dir: str | Path | None = None,
-                 active_app: str | None = None,
+                 active_app: str | Path | None = None,
+                 install_type: int | str | None = None,
                  verbose: int | None = None,
                  debug: bool = False,
                  python_variante: str = ''):
@@ -241,8 +308,22 @@ class AgiEnv:
                 apps_dir_path = apps_dir_path.resolve()
             except FileNotFoundError:
                 pass
+        elif active_app is not None:
+            candidate = Path(active_app).expanduser()
+            if candidate.is_absolute() or candidate.parent != Path('.'):
+                apps_dir_path = candidate.parent
+                try:
+                    apps_dir_path = apps_dir_path.resolve()
+                except FileNotFoundError:
+                    pass
 
-        install_type = self._resolve_install_type(apps_dir_path, agilab_src, self.envars)
+        if install_type is not None:
+            try:
+                install_type = int(install_type)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("install_type must be an integer") from exc
+        else:
+            install_type = self._resolve_install_type(apps_dir_path, agilab_src, self.envars)
 
         self.is_worker_env = install_type == 2
 
@@ -252,7 +333,8 @@ class AgiEnv:
         if active_app is not None:
             active_app_candidate = Path(active_app)
             if install_type != 2 and (active_app_candidate.is_absolute() or active_app_candidate.parent != Path(".")):
-                raise ValueError("active_app must be a directory name, not a full path")
+                if apps_dir_path is None:
+                    raise ValueError("apps_dir is required when install_type != 2")
             active_app_name = active_app_candidate.name
         else:
             active_app_name = envars.get("APP_DEFAULT", 'flight_project')
@@ -425,8 +507,7 @@ class AgiEnv:
 
         self.setup_core = self.setup_core / "agi_node/agi_dispatcher/build.py"
         self.uvproject = active_app / "uv_config.toml"
-        self.post_install = self.worker_path.parent / "post_install.py"
-        self.pre_install = self.worker_path.parent / "pre_install.py"
+        self.dataset_archive = self.worker_path.parent / "dataset.7z"
         self.post_install_rel = worker_src / target_worker / "post_install.py"
 
         src_path = normalize_path(self.app_src)
@@ -442,6 +523,18 @@ class AgiEnv:
 
         pythonpath_entries = self._collect_pythonpath_entries()
         self._configure_pythonpath(pythonpath_entries)
+
+        self.pre_install, self.pre_install_is_default = _select_hook(
+            self.worker_path.parent / "pre_install.py",
+            "pre_install.py",
+            "pre_install",
+        )
+
+        self.post_install, self.post_install_is_default = _select_hook(
+            self.worker_path.parent / "post_install.py",
+            "post_install.py",
+            "post_install",
+        )
 
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.13")
 
