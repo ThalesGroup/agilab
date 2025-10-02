@@ -589,12 +589,17 @@ class AgiEnv:
         if install_type == 2:
             return
 
-        self.base_worker_cls, self._base_worker_module = self.get_base_worker_cls(
-            self.worker_path, worker_class
-        )
-        if not self.worker_path.exists():
-            AgiEnv.logger.info(f"Missing {self.target_worker_class} definition; should be in {self.worker_path} but it does not exist")
-            sys.exit(1)
+        if self.worker_path.exists():
+            self.base_worker_cls, self._base_worker_module = self.get_base_worker_cls(
+                self.worker_path, worker_class
+            )
+        else:
+            self.base_worker_cls, self._base_worker_module = (None, None)
+            AgiEnv.logger.info(
+                f"Missing {self.target_worker_class} definition; expected {self.worker_path}"
+            )
+            if install_type == 0:
+                sys.exit(1)
 
         envars = self.envars
         raw_credentials = envars.get("CLUSTER_CREDENTIALS", getpass.getuser())
