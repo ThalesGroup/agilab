@@ -65,7 +65,8 @@ dependencies = [
     "cmake>=3.29",
 ]
 
-version = "0.7.9.post53"
+version = "0.7.9.post56"
+
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/agilab/core/agi-cluster"
@@ -119,4 +120,3 @@ asyncio_mode = "auto"
 filterwarnings = [
   "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
 ]
-
