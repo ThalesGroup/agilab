@@ -387,10 +387,8 @@ class AgiEnv:
                 agilab_pkg = _package_dir("agilab")
             except ModuleNotFoundError:
                 agilab_pkg = None
-            if agilab_pkg and agilab_pkg.name == "agilab":
+            if agilab_pkg is not None:
                 self.agilab_src = agilab_pkg.parent
-            elif agilab_pkg:
-                self.agilab_src = agilab_pkg
             else:
                 self.agilab_src = core_root
 
@@ -414,7 +412,14 @@ class AgiEnv:
         self.core_src = resolve(self.core_root)
         self.cluster_src = resolve(self.cluster_root)
 
-        self.st_resources = self.agilab_src / "agilab/resources"
+        try:
+            resources_spec = importlib.util.find_spec("agilab.resources")
+        except ModuleNotFoundError:
+            resources_spec = None
+        if resources_spec and resources_spec.submodule_search_locations:
+            self.st_resources = Path(resources_spec.submodule_search_locations[0])
+        else:
+            self.st_resources = self.agilab_src / "resources"
 
         if install_type == 0:
             apps_root = self.agilab_src / "agilab/apps"
