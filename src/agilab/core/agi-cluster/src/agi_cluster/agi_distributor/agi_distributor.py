@@ -1222,6 +1222,8 @@ class AGI:
         """
         env = AGI.env
         run_type = AGI._run_type
+        if env.install_type == 0 and isinstance(run_type, str) and "--dev" in run_type:
+            run_type = " ".join(part for part in run_type.split() if part != "--dev")
         ip = "127.0.0.1"
         hw_rapids_capable = AGI._hardware_supports_rapids() and AGI._rapids_enabled
         env.hw_rapids_capable = hw_rapids_capable

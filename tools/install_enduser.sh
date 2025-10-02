@@ -137,20 +137,20 @@ case "${SOURCE}" in
     echo "Installing packages from local source tree..."
     for pkg in ${PACKAGES}; do
       if [[ -d "${AGI_INSTALL_PATH}/core/${pkg}" ]]; then
-        ${UV_PREVIEW[@]} pip install --upgrade --no-deps "${AGI_INSTALL_PATH}/core/${pkg}"
+        ${UV_PREVIEW[@]} pip install --project "." --upgrade --no-deps "${AGI_INSTALL_PATH}/core/${pkg}"
       fi
     done
-    ${UV_PREVIEW[@]} pip install --upgrade --no-deps "${AGI_INSTALL_ROOT}"
+    ${UV_PREVIEW[@]} pip install --project "." --upgrade --no-deps "${AGI_INSTALL_ROOT}"
     ;;
 
 
   pypi)
     echo "Installing from PyPI..."
     if [[ -z "${VERSION}" ]]; then
-      ${UV_PREVIEW[@]} pip install --upgrade ${PACKAGES}
+      ${UV_PREVIEW[@]} pip install --project "." --upgrade ${PACKAGES}
     else
       # shellcheck disable=SC2046
-      ${UV_PREVIEW[@]} pip install --upgrade $(for p in ${PACKAGES}; do printf "%s==%s " "${p}" "${VERSION}"; done)
+      ${UV_PREVIEW[@]} pip install --project "." --upgrade $(for p in ${PACKAGES}; do printf "%s==%s " "${p}" "${VERSION}"; done)
     fi
     ;;
 
@@ -201,8 +201,9 @@ PY
 
     echo "Installing packages: ${PACKAGES} == ${VERSION}"
     ${UV_PREVIEW[@]} pip install \
+      --project "." \
       --index "${INDEX_URL}" \
-      --index "${EXTRA_INDEX_URL}" \
+      --extra-index-url "${EXTRA_INDEX_URL}" \
       --index-strategy unsafe-best-match \
       --upgrade --no-cache-dir \
       $(for p in ${PACKAGES}; do printf "%s==%s " "${p}" "${VERSION}"; done)

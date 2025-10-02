@@ -297,9 +297,17 @@ class AgiEnv:
         AgiEnv.envars = dotenv_values(dotenv_path=env_path, verbose=verbose)
         self.envars = AgiEnv.envars
         envars = self.envars
-        agilab_src, sep, after = __file__.rpartition("agilab")
-        agilab_src = agilab_src.replace("/app-pages/maps", "")
-        agilab_src = Path(agilab_src).resolve()
+        agilab_spec = importlib.util.find_spec("agilab")
+        if agilab_spec and getattr(agilab_spec, "origin", None):
+            agilab_pkg_dir = Path(agilab_spec.origin).resolve().parent
+        else:
+            agilab_pkg_dir = Path(__file__).resolve().parents[2] / "agilab"
+        agilab_pkg_dir = agilab_pkg_dir.resolve()
+        agilab_src = agilab_pkg_dir.parent.resolve()
+        markers = {"site-packages", "dist-packages"}
+        is_agilab_installed = any(part in markers for part in agilab_pkg_dir.parts) or any(
+            part.startswith(".venv") for part in agilab_pkg_dir.parts
+        )
 
         apps_dir_path: Path | None = None
         if apps_dir is not None:
@@ -324,6 +332,9 @@ class AgiEnv:
                 raise ValueError("install_type must be an integer") from exc
         else:
             install_type = self._resolve_install_type(apps_dir_path, agilab_src, self.envars)
+
+        if install_type == 1 and is_agilab_installed:
+            install_type = 0
 
         self.is_worker_env = install_type == 2
 
@@ -374,37 +385,22 @@ class AgiEnv:
                 "cluster": "agi-cluster",
             }
             self.agilab_src = agilab_src
+            self.env_root = core_root / pkg_dirs["env"]
+            self.node_root = core_root / pkg_dirs["node"]
+            self.core_root = core_root / pkg_dirs["core"]
+            self.cluster_root = core_root / pkg_dirs["cluster"]
             self.cli = core_root / "agi-cluster/src/agi_cluster/agi_distributor/cli.py"
         else:
-            core_root = _package_dir("agi_env").parent
-            pkg_dirs = {
-                "env": "agi_env",
-                "node": "agi_node",
-                "core": "agi_core",
-                "cluster": "agi_cluster",
-            }
+            self.agilab_src = agilab_pkg_dir
+            self.env_root = _package_dir("agi_env")
+            self.node_root = _package_dir("agi_node")
             try:
-                agilab_pkg = _package_dir("agilab")
+                self.core_root = _package_dir("agi_core")
             except ModuleNotFoundError:
-                agilab_pkg = None
-            if agilab_pkg is not None:
-                self.agilab_src = agilab_pkg.parent
-            else:
-                self.agilab_src = core_root
-
-            try:
-                cluster_pkg = _package_dir("agi_cluster")
-            except ModuleNotFoundError:
-                cluster_pkg = None
-            if cluster_pkg and cluster_pkg.name == "agi_cluster":
-                self.cli = cluster_pkg / "agi_distributor/cli.py"
-            else:
-                self.cli = core_root / f"{pkg_dirs['cluster']}/agi_distributor/cli.py"
-
-        self.env_root = core_root / pkg_dirs["env"]
-        self.node_root = core_root / pkg_dirs["node"]
-        self.core_root = core_root / pkg_dirs["core"]
-        self.cluster_root = core_root / pkg_dirs["cluster"]
+                self.core_root = Path(_package_dir("agi_env")).parent
+            self.cluster_root = _package_dir("agi_cluster")
+            cli_spec = importlib.util.find_spec("agi_cluster.agi_distributor.cli")
+            self.cli = Path(cli_spec.origin) if cli_spec and cli_spec.origin else self.cluster_root / "agi_distributor/cli.py"
 
         resolve = self._resolve_package_root
         self.env_src = resolve(self.env_root)
@@ -412,17 +408,25 @@ class AgiEnv:
         self.core_src = resolve(self.core_root)
         self.cluster_src = resolve(self.cluster_root)
 
-        try:
-            resources_spec = importlib.util.find_spec("agilab.resources")
-        except ModuleNotFoundError:
-            resources_spec = None
-        if resources_spec and resources_spec.submodule_search_locations:
-            self.st_resources = Path(resources_spec.submodule_search_locations[0])
+        if install_type == 1:
+            resource_candidates = [
+                self.agilab_src / "agilab/resources",
+                self.agilab_src / "resources",
+            ]
         else:
-            self.st_resources = self.agilab_src / "resources"
+            resource_candidates = [
+                self.agilab_src / "resources",
+                self.agilab_src / "agilab/resources",
+            ]
+        for candidate in resource_candidates:
+            if candidate.exists():
+                self.st_resources = candidate
+                break
+        else:
+            self.st_resources = resource_candidates[-1]
 
         if install_type == 0:
-            apps_root = self.agilab_src / "agilab/apps"
+            apps_root = self.agilab_src / "apps"
             os.makedirs(active_app.parent, exist_ok=True)
 
             link_source = self._get_private_apps_root()
@@ -497,20 +501,26 @@ class AgiEnv:
         self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
         self.manager_path = self.app_src / target / f"{target}.py"
         is_local_worker = self.has_agilab_anywhere_under_home(self.agilab_src)
-        self.setup_core = self.agilab_src / "agilab/core/agi-node/src"
-        self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
         worker_src = self.wenv_rel / 'src'
 
-        if install_type == 0:
-            self.setup_core = self.node_root.parent
-        elif install_type == 2 and not is_local_worker:
+        if install_type == 2 and not is_local_worker:
             active_app = self.agilab_src
             self.app_src = self.agilab_src / "src"
-            self.setup_core = worker_src
             self.worker_path = worker_src / target_worker / f"{target_worker}.py"
             self.manager_path = worker_src / target / f"{target}.py"
+            self.setup_core = worker_src / "agi_node/agi_dispatcher/build.py"
+        elif install_type == 0:
+            build_spec = importlib.util.find_spec("agi_node.agi_dispatcher.build")
+            if build_spec and build_spec.origin:
+                self.setup_core = Path(build_spec.origin)
+            else:
+                self.setup_core = self.node_root / "agi_dispatcher/build.py"
+        else:
+            self.setup_core = (
+                self.agilab_src / "agilab/core/agi-node/src/agi_node/agi_dispatcher/build.py"
+            )
 
-        self.setup_core = self.setup_core / "agi_node/agi_dispatcher/build.py"
+        self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
         self.uvproject = active_app / "uv_config.toml"
         self.dataset_archive = self.worker_path.parent / "dataset.7z"
         self.post_install_rel = worker_src / target_worker / "post_install.py"
@@ -546,18 +556,22 @@ class AgiEnv:
         self.pyvers_worker = self.python_version
         self.is_free_threading_available = envars.get("AGI_PYTHON_FREE_THREADED", 0)
         # Avoid stray stdout; rely on logger when needed
-        with open(self.worker_pyproject, "r") as f:
-            data = tomlkit.parse(f.read())
-        try:
-            use_freethread = data["tool"]["freethread_info"]["is_app_freethreaded"]
-            if use_freethread and self.is_free_threading_available:
-                self.uv_worker = "PYTHON_GIL=0 " + self.uv
-                self.pyvers_worker = self.pyvers_worker + "t"
-            else:
+        if self.worker_pyproject.exists():
+            with open(self.worker_pyproject, "r") as f:
+                data = tomlkit.parse(f.read())
+            try:
+                use_freethread = data["tool"]["freethread_info"]["is_app_freethreaded"]
+                if use_freethread and self.is_free_threading_available:
+                    self.uv_worker = "PYTHON_GIL=0 " + self.uv
+                    self.pyvers_worker = self.pyvers_worker + "t"
+                else:
+                    self.uv_worker = self.uv
+            except KeyError as e:
+                use_freethread = False
                 self.uv_worker = self.uv
-        except KeyError as e:
-            use_freethread = False
+        else:
             self.uv_worker = self.uv
+            use_freethread = False
 
         if install_type == 2:
             return
@@ -605,7 +619,16 @@ class AgiEnv:
 
         # type 3: only core install
         if self.install_type != 3:
-            self.examples = self.agilab_src / "agilab/examples"
+            examples_candidates = [
+                self.agilab_src / "agilab/examples",
+                self.agilab_src / "examples",
+            ]
+            for candidate in examples_candidates:
+                if candidate.exists():
+                    self.examples = candidate
+                    break
+            else:
+                self.examples = examples_candidates[-1]
             AgiEnv.examples = self.examples
             self.init_envars_app(self.envars)
             self._init_apps()
@@ -651,6 +674,13 @@ class AgiEnv:
 
         if apps_dir is None:
             return 2
+
+        apps_dir = Path(apps_dir)
+        parts = set(apps_dir.parts)
+        if any(part in {"site-packages", "dist-packages"} for part in parts):
+            return 0
+        if any(part.startswith(".venv") for part in parts):
+            return 0
 
         try:
             if apps_dir.parent.name == "src":
