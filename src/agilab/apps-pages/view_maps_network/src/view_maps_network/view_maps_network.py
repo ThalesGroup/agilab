@@ -44,9 +44,14 @@ from agi_env.pagelib import find_files, load_df, render_logo
 
 st.title(":world_map: Maps Network Graph")
 if 'env' not in st.session_state:
-    env = AgiEnv(verbose=0)
+    apps_dir_value = st.session_state.get("apps_dir")
+    env = AgiEnv(
+        apps_dir=Path(apps_dir_value).expanduser() if apps_dir_value else None,
+        verbose=0,
+    )
     env.init_done = True
     st.session_state['env'] = env
+    st.session_state['INSTALL_TYPE'] = env.install_type
 else:
     env = st.session_state['env']
 

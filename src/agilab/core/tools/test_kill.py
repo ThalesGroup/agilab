@@ -1,5 +1,6 @@
 import runpy
 from agi_env import AgiEnv
 
-env = AgiEnv(active_app="flight", install_type=1, verbose=1)
+apps_dir = AgiEnv.locate_agi_installation(verbose=0) / "apps"
+env = AgiEnv(apps_dir=apps_dir, active_app="flight_project", verbose=1)
 runpy.run_path(env.cluster_root / "src/cluster/cli.py")

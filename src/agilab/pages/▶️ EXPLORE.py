@@ -119,7 +119,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int):
     env.err_log = f"{env.AGILAB_LOG_ABS / view_page.stem}.err"
 
     cmd = (f"uv run --project {page_home} python -m streamlit run {view_page} --server.port {port} --server.headless true"
-           f" --browser.gatherUsageStats false -- --active-app {env.active_app} --install-type {env.install_type}")
+           f" --browser.gatherUsageStats false -- --active-app {env.active_app}")
     result = exec_bg(env, cmd, cwd=page_home)
 
     env = os.environ.copy()
@@ -197,9 +197,14 @@ async def main():
     current_page = qp.get("current_page")
 
     if 'env' not in st.session_state:
-        env = AgiEnv(verbose=0)
+        apps_dir_value = st.session_state.get("apps_dir")
+        env = AgiEnv(
+            apps_dir=Path(apps_dir_value).expanduser() if apps_dir_value else None,
+            verbose=0,
+        )
         env.init_done = True
         st.session_state['env'] = env
+        st.session_state['INSTALL_TYPE'] = env.install_type
     else:
         env = st.session_state['env']
 

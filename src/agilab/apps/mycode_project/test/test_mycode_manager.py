@@ -3,15 +3,18 @@ from pathlib import Path
 import pytest
 from datetime import date
 from agi_env import AgiEnv
-path = str(Path(__file__).expanduser().parents[1]  / "src")
+
+script_path = Path(__file__).resolve()
+apps_dir = script_path.parents[2]
+active_app_path = script_path.parents[1]
+path = str(active_app_path / "src")
 if path not in sys.path:
     sys.path.append(path)
 from mycode import Mycode
 
 @pytest.mark.asyncio
 async def test_mycode_build_distribution():
-    active_app = Path(__file__).expanduser().parents[1]
-    env = AgiEnv(active_app=active_app, verbose=True)
+    env = AgiEnv(apps_dir=apps_dir, active_app=active_app_path.name, verbose=True)
 
     mycode = Mycode(
         env=env,

@@ -4,8 +4,10 @@ import pytest
 import pytest_asyncio
 
 # Ajouter core/node/src au sys.path pour agi_dispatcher
-active_app = Path(__file__).expanduser().parents[1]
-node_src = active_app.parents[1] / 'core/node/src'
+script_path = Path(__file__).resolve()
+active_app_path = script_path.parents[1]
+apps_dir = script_path.parents[2]
+node_src = active_app_path.parents[1] / 'core/node/src'
 if str(node_src) not in sys.path:
     sys.path.insert(0, str(node_src))
 
@@ -33,7 +35,7 @@ def args():
 
 @pytest_asyncio.fixture(scope="session")
 async def env():
-    env = AgiEnv(active_app=active_app, verbose=True)
+    env = AgiEnv(apps_dir=apps_dir, active_app=active_app_path.name, verbose=True)
     wenv = env.wenv_abs
     build = wenv / 'build.py'
 

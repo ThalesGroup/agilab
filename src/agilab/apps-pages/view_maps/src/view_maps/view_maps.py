@@ -360,12 +360,9 @@ def main():
 
     try:
         parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
-        parser.add_argument("--install-type", type=str, help="0:enduser(default)\n1:dev", default="0")
         parser.add_argument("--active-app", type=str, help="Where you store your apps (default is ./)",
                             default=None)
         args, _ = parser.parse_known_args()
-
-        install_type_value = os.environ.get("AGILAB_INSTALL_TYPE", args.install_type)
 
         if args.active_app is None:
             env_active_app = os.environ.get("AGILAB_ACTIVE_APP")
@@ -393,13 +390,17 @@ def main():
         if "coltype" not in st.session_state:
             st.session_state["coltype"] = var[0]
 
-        st.session_state["apps_dir"] = active_app.parent
+        st.session_state["apps_dir"] = str(active_app.parent)
 
-        st.session_state["INSTALL_TYPE"] = install_type_value
         st.info(f"active_app: {active_app}")
-        env = AgiEnv(active_app=active_app, install_type=int(install_type_value), verbose=1)
+        env = AgiEnv(
+            apps_dir=active_app.parent,
+            active_app=active_app.name,
+            verbose=1,
+        )
         env.init_done = True
         st.session_state['env'] = env
+        st.session_state["INSTALL_TYPE"] = env.install_type
 
         if "TABLE_MAX_ROWS" not in st.session_state:
             st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS

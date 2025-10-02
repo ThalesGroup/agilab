@@ -12,21 +12,21 @@ async def test_baseworker_mycode_project(mode):
         'param3': 3.14,
         'param4': True
     }
-    base_path = Path(__file__).resolve().parents[3]
-    src_path = str(base_path / 'apps/mycode_project/src')
-    dist_path = str(Path('~/wenv/mycode_worker/dist').expanduser())
+    script_path = Path(__file__).resolve()
+    active_app_path = script_path.parents[1]
+    src_path = str(active_app_path / 'src')
 
     # Add paths at the start of sys.path if not present
     if src_path not in sys.path:
         sys.path.insert(0, src_path)
-    if dist_path not in sys.path:
-        sys.path.insert(0, dist_path)
 
     from agi_env import AgiEnv
     from agi_node.agi_dispatcher import BaseWorker
 
-    active_app = Path(__file__).expanduser().parents[1]
-    env = AgiEnv(active_app=active_app, verbose=True)
+    env = AgiEnv(apps_dir=active_app_path.parent, active_app=active_app_path.name, verbose=True)
+    dist_path = str(env.wenv_abs / 'dist')
+    if dist_path not in sys.path:
+        sys.path.insert(0, dist_path)
     with open(env.home_abs / ".local/share/agilab/.agilab-path", 'r') as f:
         agilab_path = Path(f.read().strip())
 

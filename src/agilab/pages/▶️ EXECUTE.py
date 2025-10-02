@@ -166,7 +166,14 @@ def safe_eval(expression, expected_type, error_message):
         return None
 
 def parse_and_validate_scheduler(scheduler_input):
-    env = st.session_state.setdefault("env", AgiEnv())
+    apps_dir_value = st.session_state.get("apps_dir")
+    env = st.session_state.setdefault(
+        "env",
+        AgiEnv(
+            apps_dir=Path(apps_dir_value).expanduser() if apps_dir_value else None,
+            verbose=0,
+        ),
+    )
     scheduler = scheduler_input.strip()
     if not scheduler:
         st.error("Scheduler must be provided as a valid IP address.")
@@ -876,8 +883,11 @@ from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
+APPS_DIR = Path({str(env.apps_dir)!r})
+ACTIVE_APP = {env.active_app.name!r}
+
 async def main():
-    app_env = AgiEnv(active_app=Path('{env.active_app}'), verbose={verbose})
+    app_env = AgiEnv(apps_dir=APPS_DIR, active_app=ACTIVE_APP, verbose={verbose})
     res = await AGI.install(app_env, 
                             modes_enabled={st.session_state.mode},
                             scheduler={scheduler}, 
@@ -990,8 +1000,11 @@ from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
+APPS_DIR = Path({str(env.apps_dir)!r})
+ACTIVE_APP = {env.active_app.name!r}
+
 async def main():
-    app_env = AgiEnv(active_app=Path('{env.active_app}'), verbose={verbose})
+    app_env = AgiEnv(apps_dir=APPS_DIR, active_app=ACTIVE_APP, verbose={verbose})
     res = await AGI.get_distrib(app_env,
                                scheduler={scheduler}, 
                                workers={workers},
@@ -1100,8 +1113,11 @@ from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
+APPS_DIR = Path({str(env.apps_dir)!r})
+ACTIVE_APP = {env.active_app.name!r}
+
 async def main():
-    app_env = AgiEnv(active_app=Path('{env.active_app}'), verbose={verbose}) 
+    app_env = AgiEnv(apps_dir=APPS_DIR, active_app=ACTIVE_APP, verbose={verbose})
     res = await AGI.run(app_env, 
                         mode={st.session_state["mode"]}, 
                         scheduler={scheduler}, 
