@@ -180,10 +180,29 @@ class AgiEnv:
                  python_variante: str = ''):
 
         def _package_dir(package: str) -> Path:
-            spec = importlib.util.find_spec(package)
-            if spec and spec.submodule_search_locations:
-                return Path(spec.submodule_search_locations[0]).resolve()
-            raise ModuleNotFoundError(f"Unable to locate package directory for {package!r}")
+            try:
+                spec = importlib.util.find_spec(package)
+            except (ModuleNotFoundError, ValueError):
+                spec = None
+
+            if spec:
+                search_locations = getattr(spec, "submodule_search_locations", None)
+                if search_locations:
+                    for location in search_locations:
+                        if location:
+                            path = Path(location)
+                            if path.exists():
+                                return path.resolve()
+
+                origin = getattr(spec, "origin", None)
+                if origin:
+                    path = Path(origin).parent
+                    if path.exists():
+                        return path.resolve()
+
+            raise ModuleNotFoundError(
+                f"Package '{package}' is not installed in the current environment."
+            )
 
         AgiEnv.is_managed_pc = getpass.getuser().startswith("T0")
         AgiEnv._is_managed_pc = AgiEnv.is_managed_pc
@@ -256,28 +275,89 @@ class AgiEnv:
         AgiEnv.install_type = install_type
         self.install_type = install_type
 
-        env_root = _package_dir("agi_env")
-        self.env_root = env_root
-        self.node_root = env_root.parent / "agi_node"
-        self.core_root = env_root.parent / "agi_core"
-        self.cluster_root = env_root.parent / "agi_cluster"
+        def _ensure_src_bridge(root: Path, package_name: str) -> None:
+            src_dir = root / "src"
+            target = src_dir / package_name
+            if target.exists():
+                return
+            try:
+                src_dir.mkdir(parents=True, exist_ok=True)
+                if os.name != "nt":
+                    if not target.exists():
+                        target.symlink_to(root, target_is_directory=True)
+                    if package_name == "agi_cluster":
+                        alias = src_dir / "cluster"
+                        if not alias.exists():
+                            alias.symlink_to(root, target_is_directory=True)
+                else:
+                    if not target.exists():
+                        shutil.copytree(root, target, dirs_exist_ok=True)
+                    if package_name == "agi_cluster":
+                        alias = src_dir / "cluster"
+                        if not alias.exists():
+                            shutil.copytree(root, alias, dirs_exist_ok=True)
+            except Exception:
+                if not target.exists():
+                    shutil.copytree(root, target, dirs_exist_ok=True)
+                if package_name == "agi_cluster":
+                    alias = src_dir / "cluster"
+                    if not alias.exists():
+                        shutil.copytree(root, alias, dirs_exist_ok=True)
+
+        component_specs = {
+            "env": {"package": "agi_env", "dev": "agi-env"},
+            "node": {"package": "agi_node", "dev": "agi-node"},
+            "core": {"package": "agi_core", "dev": "agi-core"},
+            "cluster": {"package": "agi_cluster", "dev": "agi-cluster"},
+        }
+
+        component_roots: dict[str, Path] = {}
 
         if install_type == 1:
-            self.node_root = agilab_src / "agilab/core/agi-node"
-            self.env_root = agilab_src / "agilab/core/agi-env"
-            self.core_root = agilab_src / "agilab/core/agi-core"
-            self.cluster_root = agilab_src / "agilab/core/agi-cluster"
-            src_cluster = self.cluster_root / "src"
-            self.cli = src_cluster / "agi_cluster/agi_distributor/cli.py"
+            core_root = agilab_src / "agilab/core"
+            for name, spec in component_specs.items():
+                component_roots[name] = core_root / spec["dev"]
             self.agilab_src = agilab_src
+            self.cli = component_roots["cluster"] / "src/agi_cluster/agi_distributor/cli.py"
         else:
-            self.agilab_src = Path(_package_dir("agilab")).parent
-            self.cli = self.cluster_root / "agi_distributor/cli.py"
+            # Resolve installed package locations
+            for name, spec in component_specs.items():
+                component_roots[name] = _package_dir(spec["package"])
 
-        self.env_src = self._resolve_package_root(self.env_root)
-        self.node_src = self._resolve_package_root(self.node_root)
-        self.core_src = self._resolve_package_root(self.core_root)
-        self.cluster_src = self._resolve_package_root(self.cluster_root)
+            try:
+                agilab_pkg = _package_dir("agilab")
+            except ModuleNotFoundError:
+                agilab_pkg = None
+            if agilab_pkg and agilab_pkg.name == "agilab":
+                self.agilab_src = agilab_pkg.parent
+            elif agilab_pkg:
+                self.agilab_src = agilab_pkg
+            else:
+                self.agilab_src = component_roots["env"].parent
+
+            cluster_pkg = component_roots["cluster"]
+            self.cli = cluster_pkg / "agi_distributor/cli.py"
+
+            for pkg_root, pkg_name in (
+                (component_roots["env"], "agi_env"),
+                (component_roots["node"], "agi_node"),
+                (component_roots["core"], "agi_core"),
+                (component_roots["cluster"], "agi_cluster"),
+                (component_roots["cluster"], "cluster"),
+            ):
+                _ensure_src_bridge(pkg_root, pkg_name)
+
+        self.component_roots = component_roots
+        self.env_root = component_roots["env"]
+        self.node_root = component_roots["node"]
+        self.core_root = component_roots["core"]
+        self.cluster_root = component_roots["cluster"]
+
+        resolve = self._resolve_package_root
+        self.env_src = resolve(self.env_root)
+        self.node_src = resolve(self.node_root)
+        self.core_src = resolve(self.core_root)
+        self.cluster_src = resolve(self.cluster_root)
 
         self.st_resources = self.agilab_src / "agilab/resources"
 

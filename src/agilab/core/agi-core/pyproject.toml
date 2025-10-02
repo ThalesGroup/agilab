@@ -16,10 +16,10 @@ classifiers = [
   "Operating System :: POSIX :: Linux",
 ]
 
-version = "0.7.9.post44"
+version = "0.7.9.post53"
 
 # 👇 The whole point of the meta-package:
-dependencies = ["agi-env==0.7.9.post44", "agi-node==0.7.9.post44", "agi-cluster==0.7.9.post44"]
+dependencies = ["agi-env==0.7.9.post53", "agi-node==0.7.9.post53", "agi-cluster==0.7.9.post53"]
 
 [project.urls]
 Homepage = "https://github.com/ThalesGroup/agilab"
@@ -66,5 +66,4 @@ asyncio_mode = "auto"
 filterwarnings = [
   "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
 ]
-
 
