@@ -12,7 +12,20 @@ provisions its environment so the next ``AGI.run_*`` picks up the dependencies.
 
 Why installers still build eggs
 -------------------------------
-The distributed upload path expects ``bdist_egg`` artifacts. Each app ships a ``build.py`` helper
+The distributed upload path expects ``bdist_egg`` artifacts. Invoke
+``python -m agi_node.agi_dispatcher.build --app-path <app_dir>`` to package an
+app; the legacy per-project ``build.py`` stubs are no longer required.
+
+AgiEnv automatically recreates symlinks to private app checkouts when the
+public tree lacks a manager/worker skeleton. Keep the private repository at the
+location recorded in ``~/.local/share/agilab/.env`` so installs can resolve the
+real sources.
+
+Worker hooks are centralised under ``agi_node.agi_dispatcher.pre_install`` and
+``agi_node.agi_dispatcher.post_install``. The build module imports those helpers
+automatically to generate Cython artifacts and stage datasets. If an app needs
+extra steps, create a tiny wrapper next to the worker that calls into the shared
+module before/after the custom logic.
 that produces eggs and symlinks the required modules before they are sent to Dask. Moving to pure
 wheels would break that upload contract, so eggs remain the canonical package format.
 

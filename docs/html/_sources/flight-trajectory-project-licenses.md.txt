@@ -12,7 +12,7 @@
 | distributed | BSD LICENSE |
 | executing | MIT LICENSE |
 | fastparquet | APACHE SOFTWARE LICENSE |
-| fsspec | BSD LICENSE |
+| fsspec | BSD-3-CLAUSE |
 | geographiclib | MIT |
 | geopy | MIT LICENSE |
 | inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
@@ -34,6 +34,7 @@
 | pexpect | ISC LICENSE _ISCL_ |
 | plotly | MIT LICENSE |
 | polars | MIT LICENSE |
+| polars-runtime-32 | MIT LICENSE |
 | prompt-toolkit | BSD LICENSE |
 | psutil | BSD LICENSE |
 | ptyprocess | ISC LICENSE _ISCL_ |

@@ -157,10 +157,11 @@
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#d-agilab-run-vs-gui-run">D - agilab_run vs gui_run:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#d-agilab-run-dev-vs-agilab-run-enduser-vs-lab-run">D - agilab_run_dev vs agilab_run_enduser vs lab_run:</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html#known-bugs">Known Bugs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#install-sh-freeze">&lt;install.sh&gt; freeze:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#uv-virtual-env-warning">&lt;UV&gt; VIRTUAL_ENV Warning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#uv-sync-failed">&lt;UV&gt; Sync Failed</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#dask-debug-issue">&lt;DASK&gt; Debug Issue</a></li>
@@ -307,6 +308,7 @@
 <div class="code text highlight-default notranslate"><div class="highlight"><pre><span></span>agilab/
 __pycache__/ [excluded]
 apps/
+    __pycache__/ [excluded]
     flight_project/
         .venv/ [excluded]
         Modules/ [excluded]
@@ -323,8 +325,6 @@ apps/
                 flight_worker.c
                 flight_worker.py
                 flight_worker.pyx
-                post_install.py
-                pre_install.py
                 pyproject.toml
             app_args_form.py
             app_settings.toml
@@ -342,7 +342,6 @@ apps/
             test_flight_worker.py
         .gitignore
         app_test.py
-        build.py
         distribution.json
         MANIFEST.in
         output.json
@@ -354,41 +353,16 @@ apps/
         .venv/ [excluded]
         Modules/ [excluded]
         src/
-            mycode/
-                __pycache__/ [excluded]
-                __init__.py
-                mycode.py
-                mycode_args.py
             mycode_worker/
-                __pycache__/ [excluded]
                 __init__.py
                 mycode_worker.c
                 mycode_worker.py
                 mycode_worker.pyx
-                post_install.py
-                pre_install.py
                 pyproject.toml
-                run_all_test.py
             app_args_form.py
             app_settings.toml
-            pre_prompt.json
-        test/
-            __init__.py
-            _test_call_worker.py
-            _test_mycode_manager.py
-            _test_mycode_worker.py
-            output.json
-            test_mycode_manager.py
-            test_mycode_worker.py
-        .gitignore
-        app_test.py
-        build.py
-        install.py
-        MANIFEST.in
-        output.json
         pyproject.toml
         README.md
-        uv_config.toml
     templates/
         dag_app_template/
             src/
@@ -400,8 +374,6 @@ apps/
                 dag_app_worker/
                     __init__.py
                     dag_app_worker.py
-                    post_install.py
-                    pre_install.py
                     pyproject.toml
                 app_args_form.py
                 app_settings.toml
@@ -421,8 +393,6 @@ apps/
                 fireducks_app_worker/
                     __init__.py
                     fireducks_app_worker.py
-                    post_install.py
-                    pre_install.py
                     pyproject.toml
                 app_args_form.py
                 app_settings.toml
@@ -442,8 +412,6 @@ apps/
                 pandas_app_worker/
                     __init__.py
                     pandas_app_worker.py
-                    post_install.py
-                    pre_install.py
                     pyproject.toml
                 app_args_form.py
                 app_settings.toml
@@ -463,8 +431,6 @@ apps/
                 polars_app_worker/
                     __init__.py
                     polars_app_worker.py
-                    post_install.py
-                    pre_install.py
                     pyproject.toml
                 app_args_form.py
                 app_settings.toml
@@ -544,6 +510,7 @@ core/
                     agi_distributor.py
                     cli.py
             __init__.py
+        .coverage
         .gitignore
         __init__.py
         build.py
@@ -560,6 +527,7 @@ core/
         pyproject.toml
         README.md
     agi-env/
+        .pytest_cache/ [excluded]
         .venv/ [excluded]
         __pycache__/ [excluded]
         src/
@@ -602,6 +570,8 @@ core/
                     agi_dispatcher.py
                     base_worker.py
                     build.py
+                    post_install.py
+                    pre_install.py
                 dag_worker/
                     __pycache__/ [excluded]
                     __init__.py
@@ -621,17 +591,15 @@ core/
                 __init__.py
             __init__.py
         __init__.py
-        classes_agi_node.puml
-        classes_base_worker.puml
         LICENSE
         MANIFEST.in
-        packages_agi_node.puml
         pyproject.toml
         README.md
         SECURITY.md
         uv_config.toml
     test/
         __pycache__/ [excluded]
+        .coverage
         __init__.py
         test_agi_distributor.py
         test_base_worker.py
@@ -652,6 +620,7 @@ core/
     install.sh
 examples/
     flight/
+        __pycache__/ [excluded]
         AGI.get_distrib_flight.py
         AGI.install_flight.py
         AGI.run_flight.py
@@ -659,6 +628,7 @@ examples/
         classes_flight_args.svg
         classes_flight_worker.svg
     flight_trajectory/
+        __pycache__/ [excluded]
         AGI.get_distrib_flight_trajectory.py
         AGI.install_flight_trajectory.py
         AGI.run_flight_trajectory.py
@@ -666,6 +636,7 @@ examples/
         classes_flight_trajectory_args.svg
         classes_flight_trajectory_worker.svg
     link_sim/
+        __pycache__/ [excluded]
         AGI.get_distrib_link_sim.py
         AGI.install_link_sim.py
         AGI.run_link_sim.py
@@ -673,6 +644,7 @@ examples/
         classes_link_sim_args.svg
         classes_link_sim_worker.svg
     mycode/
+        __pycache__/ [excluded]
         AGI.get_distrib_mycode.py
         AGI.install_mycode.py
         AGI.run_mycode.py
@@ -680,6 +652,7 @@ examples/
         classes_mycode_args.svg
         classes_mycode_worker.svg
     sat_trajectory/
+        __pycache__/ [excluded]
         AGI.get_distrib_sat_trajectory.py
         AGI.install_sat_trajectory.py
         AGI.run_sat_trajectory.py
@@ -687,6 +660,7 @@ examples/
         classes_sat_trajectory_args.svg
         classes_sat_trajectory_worker.svg
     sb3_trainer/
+        __pycache__/ [excluded]
         AGI.get_distrib_sb3_trainer.py
         AGI.install_sb3_trainer.py
         AGI.run_sb3_trainer.py

@@ -313,7 +313,16 @@ provisions its environment so the next <code class="docutils literal notranslate
 </section>
 <section id="why-installers-still-build-eggs">
 <h2>Why installers still build eggs<a class="headerlink" href="#why-installers-still-build-eggs" title="Link to this heading"></a></h2>
-<p>The distributed upload path expects <code class="docutils literal notranslate"><span class="pre">bdist_egg</span></code> artifacts. Each app ships a <code class="docutils literal notranslate"><span class="pre">build.py</span></code> helper
+<p>The distributed upload path expects <code class="docutils literal notranslate"><span class="pre">bdist_egg</span></code> artifacts. Invoke <code class="docutils literal notranslate"><span class="pre">python</span></code><span class="pre">-m</span><span class="pre">agi_node.agi_dispatcher.build</span><span class="pre">--app-path</span><span class="pre">&lt;app_dir&gt;</span> to package an app;
+the legacy per-project <code class="docutils literal notranslate"><span class="pre">build.py</span></code> stubs are no longer required.
+</p>
+<p>AgiEnv automatically recreates symlinks to private app checkouts when the public tree lacks a
+manager or worker skeleton. Keep the private repository at the location recorded in
+<code class="docutils literal notranslate"><span class="pre">~/.local/share/agilab/.env</span></code> so installs can resolve the real sources.</p>
+<p>Worker hooks are centralised under <code class="docutils literal notranslate"><span class="pre">agi_node.agi_dispatcher.pre_install</span></code> and
+<code class="docutils literal notranslate"><span class="pre">agi_node.agi_dispatcher.post_install</span></code>. The shared build module imports those helpers automatically
+to emit Cython sources and stage datasets. If an app needs extra steps, drop a tiny wrapper beside the
+worker that delegates to the shared module before/after your custom logic.</p>
 that produces eggs and symlinks the required modules before they are sent to Dask. Moving to pure
 wheels would break that upload contract, so eggs remain the canonical package format.</p>
 </section>

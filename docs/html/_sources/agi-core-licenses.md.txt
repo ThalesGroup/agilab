@@ -97,6 +97,7 @@
 | pexpect | ISC LICENSE _ISCL_ |
 | platformdirs | MIT LICENSE |
 | polars | MIT LICENSE |
+| polars-runtime-32 | MIT LICENSE |
 | prometheus-client | APACHE-2.0;; BSD-2-CLAUSE |
 | prompt-toolkit | BSD LICENSE |
 | psutil | BSD LICENSE |

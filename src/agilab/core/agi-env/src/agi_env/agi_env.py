@@ -547,6 +547,14 @@ class AgiEnv:
         if not src_path in sys.path:
             sys.path.append(src_path)
 
+        if not self.worker_path.exists():
+            if self._ensure_private_app_link():
+                self.app_src = self.active_app / "src"
+                self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
+                self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
+                self.dataset_archive = self.worker_path.parent / "dataset.7z"
+                self.post_install_rel = worker_src / target_worker / "post_install.py"
+
         AgiEnv.apps_dir = active_app.parent
         self.apps_dir = AgiEnv.apps_dir
         distribution_tree = self.wenv_abs / "distribution_tree.json"
@@ -1056,6 +1064,28 @@ class AgiEnv:
                 for alias in node.names:
                     mapping[alias.asname or alias.name] = module
         return mapping
+
+    def _ensure_private_app_link(self) -> bool:
+        """Create a symlink to a private app when the public tree is missing it."""
+
+        link_root = self._get_private_apps_root()
+        if not link_root:
+            return False
+
+        candidate = link_root / self.active_app.name
+        if not candidate.exists():
+            return False
+
+        dest = self.active_app
+        if dest.exists():
+            if dest.is_symlink():
+                dest.unlink()
+            else:
+                return False
+
+        dest.symlink_to(candidate, target_is_directory=True)
+        AgiEnv.logger.info("Created private app symlink: %s -> %s", dest, candidate)
+        return True
 
     def extract_base_info(self, base, import_mapping):
         """Return the base-class name and originating module for ``base`` nodes."""

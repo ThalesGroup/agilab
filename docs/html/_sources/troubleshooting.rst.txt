@@ -70,22 +70,37 @@ C - Exemple of Tests Sequence:
   In the contexte of  apps/<your app>/.venv it will run the log/AGI.<snippet> you have selected which should only be a distribute or a run one.
   Remark: use script "app install" to test your app install as it has to be run under fwk/core/.venv virtual environnement.
 
-D - agilab_run vs gui_run:
+D - agilab_run_dev vs agilab_run_enduser vs lab_run:
 --------------------------
 
-- **1. agilab_run**
+- **1. agilab_run_dev and agilab_run_enduser**
 
-  Main script to lunch agilab
+  Main script to lunch agilab in mode dev or in mode enduser
   This will run streamlit module which will run AGILAB.py in run/debug mode
 
-- **12. gui-run**
+- **12. lab_run_test**
 
-  Only for enabling run_lab.py debugging
+  Only for enabling lab_run.py debugging
   This will directly lunch run_lab.py in run/debug mode
-
 
 Known Bugs
 ==========
+
+<install.sh> freeze:
+--------------------
+When you run install.sh it may looks like it is freezed at some point.
+"Installing agi-cluster...
+uv --preview-features extra-build-dependencies sync -p 3.xx.xx --dev
+Using CPython 3.xx.xx
+Creating virtual environment at: .venv
+Resolved xxx packages in xxms
+   Building agi-cluster @ file:///Users/jpm/agilab/src/agilab/core/agi-cluster"
+
+The sync keeps “freezing” because uv still has to build some heavy dependencies (most notably numba/llvmlite) from
+  source. Those wheels are only pre-built for a few Python versions; with 3.13 they do not exist yet, and even on
+  3.12 they can fall back to a full compile that takes many minutes before any log progress appears.
+Unfortunatly when NumPy/Numba falls back to compiling from source you won’t see messages until the compiler finishes, so it
+  looks like the run “hung”.
 
 <UV> VIRTUAL_ENV Warning
 ------------------------

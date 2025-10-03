@@ -15,10 +15,10 @@
 | decorator | BSD LICENSE |
 | etils | APACHE SOFTWARE LICENSE |
 | farama-notifications | MIT LICENSE |
-| filelock | THE UNLICENSE _UNLICENSE_ |
+| filelock | UNLICENSE |
 | flax | APACHE SOFTWARE LICENSE |
 | fonttools | MIT |
-| fsspec | BSD LICENSE |
+| fsspec | BSD-3-CLAUSE |
 | glfw | MIT LICENSE |
 | grpcio | APACHE SOFTWARE LICENSE |
 | gymnasium | MIT LICENSE |
@@ -54,6 +54,7 @@
 | parso | MIT LICENSE |
 | pillow | MIT-CMU |
 | polars | MIT LICENSE |
+| polars-runtime-32 | MIT LICENSE |
 | proglog | MIT |
 | protobuf | 3-CLAUSE BSD LICENSE |
 | psutil | BSD LICENSE |
@@ -63,7 +64,7 @@
 | pygame | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
 | pygments | BSD LICENSE |
 | pyopengl | BSD LICENSE |
-| pyparsing | MIT LICENSE |
+| pyparsing | MIT |
 | pyppmd | LGPL-2.1-OR-LATER |
 | python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | BSD LICENSE |

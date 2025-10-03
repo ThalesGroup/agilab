@@ -22,8 +22,8 @@ EGG*
 *.so
 *.pyd
 *.whl
-*.c
-*.pyx
+*_worker.c
+*_worker.pyx
 coverage.xml
 build.py
 

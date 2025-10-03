@@ -15,6 +15,21 @@ same instructions.
 > deprecated Streamlit APIs such as `st.experimental_rerun()`. Upgrade callers to the
 > supported replacement (`st.rerun`) before merging.
 
+> **Private apps auto-link**
+> The installer now creates symlinks to the private app checkout on demand. Keep the
+> private repository at the path recorded in `~/.local/share/agilab/.env` so missing
+> workers are resolved automatically.
+
+> **Shared build module**
+> All packaging invocations go through `python -m agi_node.agi_dispatcher.build --app-path …`.
+> References to per-app `build.py` helpers are obsolete.
+
+> **Pre/Post install hooks**
+> Worker `pre_install`/`post_install` logic lives in the shared
+> `agi_node.agi_dispatcher.{pre_install,post_install}` modules. Packaging invokes
+> them automatically via `python -m …`. If an app needs custom behavior, drop a
+> small wrapper alongside the worker that imports and extends the shared module.
+
 <details>
 <summary><strong>Launch matrix (auto-sorted from .idea/runConfigurations)</strong></summary>
 

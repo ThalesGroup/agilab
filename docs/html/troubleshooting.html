@@ -157,10 +157,11 @@
 <li class="toctree-l2"><a class="reference internal" href="#a-prerequisite">A - Prerequisite:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#d-agilab-run-vs-gui-run">D - agilab_run vs gui_run:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#d-agilab-run-dev-vs-agilab-run-enduser-vs-lab-run">D - agilab_run_dev vs agilab_run_enduser vs lab_run:</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="#known-bugs">Known Bugs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#install-sh-freeze">&lt;install.sh&gt; freeze:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#uv-virtual-env-warning">&lt;UV&gt; VIRTUAL_ENV Warning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#uv-sync-failed">&lt;UV&gt; Sync Failed</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#dask-debug-issue">&lt;DASK&gt; Debug Issue</a></li>
@@ -360,15 +361,15 @@ Remark: use script “app install” to test your app install as it has to be ru
 </li>
 </ul>
 </section>
-<section id="d-agilab-run-vs-gui-run">
-<h2>D - agilab_run vs gui_run:<a class="headerlink" href="#d-agilab-run-vs-gui-run" title="Link to this heading"></a></h2>
+<section id="d-agilab-run-dev-vs-agilab-run-enduser-vs-lab-run">
+<h2>D - agilab_run_dev vs agilab_run_enduser vs lab_run:<a class="headerlink" href="#d-agilab-run-dev-vs-agilab-run-enduser-vs-lab-run" title="Link to this heading"></a></h2>
 <ul>
-<li><p><strong>1. agilab_run</strong></p>
-<p>Main script to lunch agilab
+<li><p><strong>1. agilab_run_dev and agilab_run_enduser</strong></p>
+<p>Main script to lunch agilab in mode dev or in mode enduser
 This will run streamlit module which will run AGILAB.py in run/debug mode</p>
 </li>
-<li><p><strong>12. gui-run</strong></p>
-<p>Only for enabling run_lab.py debugging
+<li><p><strong>12. lab_run_test</strong></p>
+<p>Only for enabling lab_run.py debugging
 This will directly lunch run_lab.py in run/debug mode</p>
 </li>
 </ul>
@@ -376,6 +377,25 @@ This will directly lunch run_lab.py in run/debug mode</p>
 </section>
 <section id="known-bugs">
 <h1>Known Bugs<a class="headerlink" href="#known-bugs" title="Link to this heading"></a></h1>
+<section id="install-sh-freeze">
+<h2>&lt;install.sh&gt; freeze:<a class="headerlink" href="#install-sh-freeze" title="Link to this heading"></a></h2>
+<p>When you run install.sh it may looks like it is freezed at some point.
+“Installing agi-cluster…
+uv –preview-features extra-build-dependencies sync -p 3.xx.xx –dev
+Using CPython 3.xx.xx
+Creating virtual environment at: .venv
+Resolved xxx packages in xxms</p>
+<blockquote>
+<div><p>Building agi-cluster &#64; <a class="reference external" href="file:///Users/jpm/agilab/src/agilab/core/agi-cluster">file:///Users/jpm/agilab/src/agilab/core/agi-cluster</a>”</p>
+</div></blockquote>
+<dl class="simple">
+<dt>The sync keeps “freezing” because uv still has to build some heavy dependencies (most notably numba/llvmlite) from</dt><dd><p>source. Those wheels are only pre-built for a few Python versions; with 3.13 they do not exist yet, and even on
+3.12 they can fall back to a full compile that takes many minutes before any log progress appears.</p>
+</dd>
+<dt>Unfortunatly when NumPy/Numba falls back to compiling from source you won’t see messages until the compiler finishes, so it</dt><dd><p>looks like the run “hung”.</p>
+</dd>
+</dl>
+</section>
 <section id="uv-virtual-env-warning">
 <h2>&lt;UV&gt; VIRTUAL_ENV Warning<a class="headerlink" href="#uv-virtual-env-warning" title="Link to this heading"></a></h2>
 <p>while running uv into a project from another one:
