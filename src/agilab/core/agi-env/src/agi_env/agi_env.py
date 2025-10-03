@@ -490,8 +490,14 @@ class AgiEnv:
                     else:
                         os.symlink(src_app, dest_app, target_is_directory=True)
                     AgiEnv.logger.info(f"Created symbolic link for app: {src_app} -> {dest_app}")
+                if not active_app.exists() and apps_root.exists():
+                    AgiEnv.logger.info(
+                        "Private apps root missing %s; copying packaged examples instead",
+                        active_app.name,
+                    )
+                    self.copy_existing_projects(apps_root, active_app.parent)
             elif apps_root.exists():
-                self.copy_existing_projects(apps_root, active_app.name)
+                self.copy_existing_projects(apps_root, active_app.parent)
             else:
                 AgiEnv.logger.info(f"Warning: {apps_root} does not exist, nothing to copy!")
 
