@@ -529,9 +529,7 @@ class AgiEnv:
             else:
                 self.setup_core = self.node_root / "agi_dispatcher/build.py"
         else:
-            self.setup_core = (
-                self.agilab_src / "agilab/core/agi-node/src/agi_node/agi_dispatcher/build.py"
-            )
+            self.setup_core = self.node_root / "src/agi_node/agi_dispatcher/build.py"
 
         self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
         self.uvproject = active_app / "uv_config.toml"
