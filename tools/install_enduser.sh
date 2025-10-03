@@ -19,6 +19,10 @@ VERSION=""         # optional, e.g. 1.2.3
 VERSION_ARG_SET=0
 AGI_PATH_FILE="$HOME/.local/share/agilab/.agilab-path"
 AGI_INSTALL_PATH=""
+AGI_INSTALL_ROOT=""
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_SRC_DIR="${REPO_ROOT}/src/agilab"
+LOCAL_PACKAGE_SOURCES=""
 
 
 if [[ -f "$AGI_PATH_FILE" ]]; then
@@ -27,8 +31,6 @@ if [[ -f "$AGI_PATH_FILE" ]]; then
 else
     echo "No saved agilab install path found." >&2
 fi
-
-AGI_INSTALL_ROOT="${AGI_INSTALL_PATH%/src/agilab}"
 
 usage() {
   echo "Usage: $0 [--source local|pypi|testpypi] [--version X.Y.Z]"
@@ -45,6 +47,39 @@ while [[ $# -gt 0 ]]; do
     *) usage ;;
   esac
 done
+
+if [[ "$SOURCE" == "local" ]]; then
+  if [[ -z "${AGI_INSTALL_PATH}" || ! -d "${AGI_INSTALL_PATH}" ]]; then
+    if [[ -d "${REPO_SRC_DIR}" ]]; then
+      AGI_INSTALL_PATH="${REPO_SRC_DIR}"
+      echo "[info] Local source auto-detected at ${AGI_INSTALL_PATH}"
+    else
+      echo "Error: Unable to locate local source checkout (expected ${REPO_SRC_DIR})." >&2
+      exit 1
+    fi
+  elif [[ "${AGI_INSTALL_PATH}" == */wenv/* ]]; then
+    if [[ -d "${REPO_SRC_DIR}" ]]; then
+      echo "[warn] Saved local install path (${AGI_INSTALL_PATH}) points to a worker environment; using ${REPO_SRC_DIR} instead."
+      AGI_INSTALL_PATH="${REPO_SRC_DIR}"
+    fi
+  fi
+
+  if [[ "${AGI_INSTALL_PATH}" != "${REPO_SRC_DIR}" && -d "${REPO_SRC_DIR}" ]]; then
+    echo "[info] Persisting local install path to ${REPO_SRC_DIR}"
+    AGI_INSTALL_PATH="${REPO_SRC_DIR}"
+  fi
+
+  printf '%s\n' "${AGI_INSTALL_PATH}" > "${AGI_PATH_FILE}"
+
+  if [[ "${AGI_INSTALL_PATH}" == "${REPO_SRC_DIR}" ]]; then
+    AGI_INSTALL_ROOT="${REPO_ROOT}"
+  else
+    AGI_INSTALL_ROOT="${AGI_INSTALL_PATH%/src/agilab}"
+    if [[ -z "${AGI_INSTALL_ROOT}" || "${AGI_INSTALL_ROOT}" == "${AGI_INSTALL_PATH}" ]]; then
+      AGI_INSTALL_ROOT="${AGI_INSTALL_PATH}"
+    fi
+  fi
+fi
 
 verify_testpypi_versions() {
   local show_script="${SCRIPT_DIR}/show_dependencies.py"
@@ -120,8 +155,57 @@ echo "===================================="
 # moved: uv build --wheel
 pushd "$AGI_SPACE" >/dev/null
 rm -fr .venv uv.lock
-if [ ! -f pyproject.toml ]; then
-    uv init --bare --no-workspace
+if [[ "$SOURCE" == "local" ]]; then
+    local_pkg_sources=("agilab|${AGI_INSTALL_ROOT}")
+    for pkg in ${PACKAGES}; do
+        [[ "$pkg" == "agilab" ]] && continue
+        candidate_path="${AGI_INSTALL_PATH}/core/${pkg}"
+        if [[ -d "${candidate_path}" ]]; then
+            local_pkg_sources+=("${pkg}|${candidate_path}")
+        fi
+    done
+
+    LOCAL_PACKAGE_SOURCES="$(printf '%s\n' "${local_pkg_sources[@]}")"
+    export LOCAL_PACKAGE_SOURCES
+
+    python3 - <<'PY'
+import os
+from pathlib import Path
+
+pyproject_path = Path("pyproject.toml")
+lines = [
+    "[project]",
+    'name = "agi-space"',
+    'version = "0.1.0"',
+    'requires-python = ">=3.13"',
+    'dependencies = [',
+    '    "agilab",',
+    "]",
+    "",
+]
+
+sources = []
+raw_sources = os.environ.get("LOCAL_PACKAGE_SOURCES", "")
+for entry in raw_sources.splitlines():
+    if not entry:
+        continue
+    name, path = entry.split("|", 1)
+    pkg_path = Path(path).resolve()
+    if not pkg_path.exists():
+        continue
+    sources.append((name, pkg_path))
+
+for name, path in sources:
+    lines.append(f"[tool.uv.sources.{name}]")
+    lines.append(f'path = "{path.as_posix()}"')
+    lines.append("")
+
+pyproject_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+PY
+else
+    if [ ! -f pyproject.toml ]; then
+        uv init --bare --no-workspace
+    fi
 fi
 ${UV_PREVIEW[@]} sync
 
@@ -130,10 +214,26 @@ ${UV_PREVIEW[@]} sync
 # -----------------------------
 case "${SOURCE}" in
   local)
-  [[ -n "${AGI_INSTALL_PATH:-}" && -d "${AGI_INSTALL_PATH}" ]] || { echo "Error: Missing or invalid install path: ${AGI_INSTALL_PATH}" >&2; exit 1; }
-  pushd "${AGI_INSTALL_ROOT}" >/dev/null
-  uv build --wheel
-  popd >/dev/null
+    if [[ -z "${AGI_INSTALL_ROOT:-}" ]]; then
+      if [[ "${AGI_INSTALL_PATH}" == "${REPO_SRC_DIR}" ]]; then
+        AGI_INSTALL_ROOT="${REPO_ROOT}"
+      else
+        AGI_INSTALL_ROOT="${AGI_INSTALL_PATH%/src/agilab}"
+        if [[ -z "${AGI_INSTALL_ROOT}" || "${AGI_INSTALL_ROOT}" == "${AGI_INSTALL_PATH}" ]]; then
+          AGI_INSTALL_ROOT="${AGI_INSTALL_PATH}"
+        fi
+      fi
+    fi
+
+    [[ -n "${AGI_INSTALL_ROOT}" && -d "${AGI_INSTALL_ROOT}" ]] || {
+      echo "Error: Missing or invalid install path for local source: ${AGI_INSTALL_PATH}" >&2
+      exit 1
+    }
+
+    [[ -n "${AGI_INSTALL_PATH:-}" && -d "${AGI_INSTALL_PATH}" ]] || { echo "Error: Missing or invalid install path: ${AGI_INSTALL_PATH}" >&2; exit 1; }
+    pushd "${AGI_INSTALL_ROOT}" >/dev/null
+    uv build --wheel
+    popd >/dev/null
     echo "Installing packages from local source tree..."
     for pkg in ${PACKAGES}; do
       if [[ -d "${AGI_INSTALL_PATH}/core/${pkg}" ]]; then
