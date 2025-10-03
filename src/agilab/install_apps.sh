@@ -85,8 +85,8 @@ parse_list_to_array() {
 # --- App lists (merge private + public) --------------------------------------
 
 # Destination base for creating local app symlinks (defaults to current dir)
-: "${APPS_DEST_BASE:="$(pwd)/apps"}"
-: "${PAGES_DEST_BASE:="$(pwd)/pages"}"
+: "${APPS_DEST_BASE:="$AGILAB_PUBLIC/apps"}"
+: "${PAGES_DEST_BASE:="$AGILAB_PUBLIC/apps-pages"}"
 
 mkdir -p -- "$APPS_DEST_BASE"
 mkdir -p -- "$PAGES_DEST_BASE"
