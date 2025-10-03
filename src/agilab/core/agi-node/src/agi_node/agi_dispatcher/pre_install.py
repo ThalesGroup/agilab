@@ -16,6 +16,45 @@ import sys
 import argparse
 from pathlib import Path
 import parso
+
+
+def _ensure_agi_env() -> None:
+    """Make sure the :mod:`agi_env` package can be imported in source layouts."""
+
+    try:
+        from agi_env import AgiEnv  # noqa: F401  # pragma: no cover
+        return
+    except ModuleNotFoundError:
+        pass
+
+    script_path = Path(__file__).resolve()
+    candidates: list[Path] = []
+
+    path_parents = list(script_path.parents)
+    for offset in range(len(path_parents)):
+        root = path_parents[offset]
+        candidates.extend(
+            [
+                root / "agi-env/src",
+                root / "core/agi-env/src",
+                root / "agilab/core/agi-env/src",
+            ]
+        )
+
+    for candidate in candidates:
+        package_dir = candidate / "agi_env"
+        if package_dir.exists() and package_dir.is_dir():
+            sys.path.insert(0, str(candidate))
+            sys.modules.pop("agi_env", None)
+            from agi_env import AgiEnv  # noqa: F401  # pragma: no cover
+            return
+
+    raise ModuleNotFoundError(
+        "Unable to locate the agi_env package required by pre_install.py"
+    )
+
+
+_ensure_agi_env()
 from agi_env import AgiEnv
 
 
