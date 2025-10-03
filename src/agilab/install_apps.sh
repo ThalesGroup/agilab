@@ -221,8 +221,8 @@ for page in ${PRIVATE_PAGES+"${PRIVATE_PAGES[@]}"}; do
   page_dest="$PAGES_DEST_BASE/$page"
 
   if [[ ! -e "$page_target" ]]; then
-    echo -e "${RED}Target for '${page}' not found:${NC} $page_target — skipping."
-    status=1; continue
+    echo -e "${YELLOW}Skipping private page '${page}': missing target $page_target.${NC}"
+    continue
   fi
 
   if [[ -L "$page_dest" ]]; then
@@ -244,8 +244,8 @@ for app in ${PRIVATE_APPS+"${PRIVATE_APPS[@]}"}; do
   app_dest="$APPS_DEST_BASE/$app"
 
   if [[ ! -e "$app_target" ]]; then
-    echo -e "${RED}Target for '${app}' not found:${NC} $app_target — skipping."
-    status=1; continue
+    echo -e "${YELLOW}Skipping private app '${app}': missing target $app_target.${NC}"
+    continue
   fi
 
   if [[ -L "$app_dest" ]]; then
