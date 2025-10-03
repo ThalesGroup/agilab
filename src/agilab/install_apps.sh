@@ -91,6 +91,30 @@ parse_list_to_array() {
 mkdir -p -- "$APPS_DEST_BASE"
 mkdir -p -- "$PAGES_DEST_BASE"
 
+resolve_physical_dir() {
+  (cd "$1" >/dev/null 2>&1 && pwd -P)
+}
+
+APPS_DEST_REAL=$(resolve_physical_dir "$APPS_DEST_BASE")
+APPS_TARGET_REAL=$(resolve_physical_dir "$APPS_TARGET_BASE")
+PAGES_DEST_REAL=$(resolve_physical_dir "$PAGES_DEST_BASE")
+PAGES_TARGET_REAL=$(resolve_physical_dir "$PAGES_TARGET_BASE")
+
+SKIP_PRIVATE_APPS=0
+SKIP_PRIVATE_PAGES=0
+
+if [[ "$APPS_DEST_REAL" == "$APPS_TARGET_REAL" ]]; then
+  echo -e "${YELLOW}Warning:${NC} apps destination resolves inside the private tree; skipping private app symlink refresh to avoid self-links."\
+  " (dest=$APPS_DEST_REAL)."
+  SKIP_PRIVATE_APPS=1
+fi
+
+if [[ "$PAGES_DEST_REAL" == "$PAGES_TARGET_REAL" ]]; then
+  echo -e "${YELLOW}Warning:${NC} pages destination resolves inside the private tree; skipping private page symlink refresh to avoid self-links."\
+  " (dest=$PAGES_DEST_REAL)."
+  SKIP_PRIVATE_PAGES=1
+fi
+
 echo -e "${BLUE}Using AGILAB_PRIVATE:${NC} $AGILAB_PRIVATE"
 echo -e "${BLUE}(Apps) Destination base:${NC} $APPS_DEST_BASE"
 echo -e "${BLUE}(Apps) Link target base:${NC} $APPS_TARGET_BASE\n"
@@ -191,6 +215,7 @@ fi
 
 status=0
 # Safe loop if PRIVATE_PAGES is unset/empty with `set -u`
+if (( SKIP_PRIVATE_PAGES == 0 )); then
 for page in ${PRIVATE_PAGES+"${PRIVATE_PAGES[@]}"}; do
   page_target="$PAGES_TARGET_BASE/$page"
   page_dest="$PAGES_DEST_BASE/$page"
@@ -210,8 +235,10 @@ for page in ${PRIVATE_PAGES+"${PRIVATE_PAGES[@]}"}; do
     echo -e "${GREEN}Page '$page_dest' exists and is not a symlink. Leaving untouched.${NC}"
   fi
 done
+fi
 
 # Safe loop if PRIVATE_APPS is unset/empty with `set -u`
+if (( SKIP_PRIVATE_APPS == 0 )); then
 for app in ${PRIVATE_APPS+"${PRIVATE_APPS[@]}"}; do
   app_target="$APPS_TARGET_BASE/$app"
   app_dest="$APPS_DEST_BASE/$app"
@@ -231,6 +258,7 @@ for app in ${PRIVATE_APPS+"${PRIVATE_APPS[@]}"}; do
     echo -e "${GREEN}App '$app_dest' exists and is not a symlink. Leaving untouched.${NC}"
   fi
 done
+fi
 
 
 # --- Run installer for each page (stable CWD so ../core/cluster resolves) -----
