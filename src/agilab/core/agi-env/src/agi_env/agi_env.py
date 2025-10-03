@@ -589,7 +589,7 @@ class AgiEnv:
                 self.post_install_rel = worker_src / target_worker / "post_install.py"
             else:
                 packaged_app = self.agilab_src / "apps" / self.active_app.name
-                if packaged_app.exists():
+                if install_type != 2 and packaged_app.exists():
                     try:
                         shutil.copytree(
                             packaged_app,
@@ -607,7 +607,12 @@ class AgiEnv:
                 elif install_type != 2 and apps_root.exists():
                     self.copy_existing_projects(apps_root, active_app.parent)
 
-                if not self.worker_path.exists() and apps_root.exists() and self.active_app.name.endswith("_worker"):
+                if (
+                    install_type != 2
+                    and not self.worker_path.exists()
+                    and apps_root.exists()
+                    and self.active_app.name.endswith("_worker")
+                ):
                     project_name = self.active_app.name.replace("_worker", "_project")
                     project_worker_dir = apps_root / project_name / "src" / self.active_app.name
                     if project_worker_dir.exists():
@@ -636,9 +641,9 @@ class AgiEnv:
                     self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
                     self.dataset_archive = self.worker_path.parent / "dataset.7z"
                     self.post_install_rel = worker_src / target_worker / "post_install.py"
-                elif install_type == 2 and not packaged_app.exists():
+                elif install_type == 2:
                     AgiEnv.logger.info(
-                        "Packaged worker app missing: %s", packaged_app
+                        "Worker sources not found for install_type=2 at %s", self.worker_path
                     )
 
         AgiEnv.apps_dir = active_app.parent
