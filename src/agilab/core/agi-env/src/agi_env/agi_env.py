@@ -490,16 +490,33 @@ class AgiEnv:
                     else:
                         os.symlink(src_app, dest_app, target_is_directory=True)
                     AgiEnv.logger.info(f"Created symbolic link for app: {src_app} -> {dest_app}")
-                if not active_app.exists() and apps_root.exists():
+            elif apps_root.exists():
+                self.copy_existing_projects(apps_root, active_app.parent)
+            else:
+                AgiEnv.logger.info(f"Warning: {apps_root} does not exist, nothing to copy!")
+
+            if not active_app.exists() and apps_root.exists():
+                packaged_app = apps_root / active_app.name
+                if packaged_app.exists():
+                    try:
+                        shutil.copytree(
+                            packaged_app,
+                            active_app,
+                            dirs_exist_ok=True,
+                        )
+                        AgiEnv.logger.info(
+                            "Copied packaged app %s into %s", packaged_app, active_app
+                        )
+                    except Exception as exc:
+                        AgiEnv.logger.warning(
+                            f"Failed to copy packaged app {packaged_app}: {exc}"
+                        )
+                else:
                     AgiEnv.logger.info(
                         "Private apps root missing %s; copying packaged examples instead",
                         active_app.name,
                     )
                     self.copy_existing_projects(apps_root, active_app.parent)
-            elif apps_root.exists():
-                self.copy_existing_projects(apps_root, active_app.parent)
-            else:
-                AgiEnv.logger.info(f"Warning: {apps_root} does not exist, nothing to copy!")
 
 
         resources_root = self.env_root
@@ -563,12 +580,66 @@ class AgiEnv:
             sys.path.append(src_path)
 
         if not self.worker_path.exists():
+            copied_packaged_worker = False
             if self._ensure_private_app_link():
                 self.app_src = self.active_app / "src"
                 self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
                 self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
                 self.dataset_archive = self.worker_path.parent / "dataset.7z"
                 self.post_install_rel = worker_src / target_worker / "post_install.py"
+            else:
+                packaged_app = self.agilab_src / "apps" / self.active_app.name
+                if packaged_app.exists():
+                    try:
+                        shutil.copytree(
+                            packaged_app,
+                            self.active_app,
+                            dirs_exist_ok=True,
+                        )
+                        copied_packaged_worker = True
+                        AgiEnv.logger.info(
+                            "Copied packaged app %s into %s", packaged_app, self.active_app
+                        )
+                    except Exception as exc:
+                        AgiEnv.logger.warning(
+                            f"Unable to copy packaged worker app from {packaged_app} to {self.active_app}: {exc}"
+                        )
+                elif install_type != 2 and apps_root.exists():
+                    self.copy_existing_projects(apps_root, active_app.parent)
+
+                if not self.worker_path.exists() and apps_root.exists() and self.active_app.name.endswith("_worker"):
+                    project_name = self.active_app.name.replace("_worker", "_project")
+                    project_worker_dir = apps_root / project_name / "src" / self.active_app.name
+                    if project_worker_dir.exists():
+                        dest_worker_dir = self.active_app / "src" / self.active_app.name
+                        try:
+                            shutil.copytree(
+                                project_worker_dir,
+                                dest_worker_dir,
+                                dirs_exist_ok=True,
+                            )
+                            AgiEnv.logger.info(
+                                "Copied project worker sources %s into %s",
+                                project_worker_dir,
+                                dest_worker_dir,
+                            )
+                        except Exception as exc:
+                            AgiEnv.logger.warning(
+                                f"Failed to copy worker sources from {project_worker_dir}: {exc}"
+                            )
+                        else:
+                            copied_packaged_worker = True
+
+                if copied_packaged_worker:
+                    self.app_src = self.active_app / "src"
+                    self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
+                    self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
+                    self.dataset_archive = self.worker_path.parent / "dataset.7z"
+                    self.post_install_rel = worker_src / target_worker / "post_install.py"
+                elif install_type == 2 and not packaged_app.exists():
+                    AgiEnv.logger.info(
+                        "Packaged worker app missing: %s", packaged_app
+                    )
 
         AgiEnv.apps_dir = active_app.parent
         self.apps_dir = AgiEnv.apps_dir
