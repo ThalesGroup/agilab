@@ -1,0 +1,48 @@
+[project]
+name = "mycode_project"
+version = "0.1.0"
+description = "Example project used to validate AGILab installers."
+requires-python = ">=3.11"
+authors = [
+    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
+]
+dependencies = [
+    "ipython",
+    "psutil",
+    "py7zr",
+    "python-dotenv",
+    "setuptools",
+]
+
+[project.license]
+text = "Thales SIX GTS France SAS"
+
+[dependency-groups]
+dev = [
+    "black",
+    "pytest",
+    "pytest-asyncio",
+    "licensecheck",
+    "mycode_project",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv.sources.mycode_project]
+workspace = true
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+mycode_project = [
+    "**/*.json",
+    "**/*.toml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+asyncio_mode = "auto"
+filterwarnings = []
