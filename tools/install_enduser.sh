@@ -11,6 +11,9 @@ AGI_SPACE="${HOME}/agi-space"
 mkdir -p "$AGI_SPACE"
 echo "Using AGI_SPACE: ${AGI_SPACE}"
 
+APPS_ROOT="${AGI_SPACE}/apps"
+mkdir -p "${APPS_ROOT}"
+
 [[ -d "${AGI_SPACE}" ]] || { echo "Error: Missing AGI_SPACE directory: ${AGI_SPACE}" >&2; exit 1; }
 VENV="${AGI_SPACE}/.venv"
 PACKAGES="agilab agi-env agi-node agi-cluster agi-core"
@@ -23,6 +26,7 @@ AGI_INSTALL_ROOT=""
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_SRC_DIR="${REPO_ROOT}/src/agilab"
 LOCAL_PACKAGE_SOURCES=""
+ENV_FILE="$HOME/.agilab/.env"
 
 
 if [[ -f "$AGI_PATH_FILE" ]]; then
@@ -35,6 +39,45 @@ fi
 usage() {
   echo "Usage: $0 [--source local|pypi|testpypi] [--version X.Y.Z]"
   exit 1
+}
+
+persist_env_var() {
+  local key="$1"
+  local value="$2"
+  local env_file="$3"
+  python3 - "$env_file" "$key" "$value" <<'PY'
+import sys
+from pathlib import Path
+
+env_path = Path(sys.argv[1])
+key = sys.argv[2]
+value = sys.argv[3]
+
+if not env_path.parent.exists():
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+
+lines: list[str]
+if env_path.exists():
+    lines = env_path.read_text(encoding="utf-8").splitlines()
+else:
+    lines = []
+
+updated = False
+for idx, line in enumerate(lines):
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        continue
+    name, sep, _ = line.partition("=")
+    if sep and name.strip() == key:
+        lines[idx] = f"{key}={value}"
+        updated = True
+        break
+
+if not updated:
+    lines.append(f"{key}={value}")
+
+env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+PY
 }
 
 # -----------------------------
@@ -80,6 +123,8 @@ if [[ "$SOURCE" == "local" ]]; then
     fi
   fi
 fi
+
+persist_env_var "APPS_DIR" "${APPS_ROOT}" "${ENV_FILE}"
 
 verify_testpypi_versions() {
   local show_script="${SCRIPT_DIR}/show_dependencies.py"

@@ -928,6 +928,22 @@ class AgiEnv:
 
             rel = item.relative_to(src_apps)  # keep nested structure
             dst_item = dst_apps / rel
+            if dst_item.is_symlink():
+                try:
+                    dst_item.unlink()
+                except OSError as exc:
+                    AgiEnv.logger.warning(
+                        f"Failed to remove dangling project symlink {dst_item}: {exc}"
+                    )
+                    continue
+            elif dst_item.exists() and not dst_item.is_dir():
+                try:
+                    dst_item.unlink()
+                except OSError as exc:
+                    AgiEnv.logger.warning(
+                        f"Failed to remove conflicting project file {dst_item}: {exc}"
+                    )
+                    continue
             try:
                 shutil.copytree(
                     item,
