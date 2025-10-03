@@ -55,6 +55,8 @@ def parse_args():
         # Cleanup & auth options (backward-compatible aliases)
     ap.add_argument("--clean", action="store_true",
                     help="Interactively delete versions on TestPyPI before publishing.")
+    ap.add_argument("--leave-most-recent", dest="clean_leave_latest", action="store_true",
+                    help="Delete all published versions for each package except the most recent one on the target repo.")
     ap.add_argument("--user", "--clean-user", dest="clean_user", default=None,
                     help="Username for deletion (e.g., TestPyPI account name for interactive login).")
     ap.add_argument("--regex", "--clean-regex", dest="clean_regex", default=None,
@@ -109,6 +111,29 @@ def ensure_tools():
 
 ensure_tools()
 from tomlkit import parse as toml_parse, dumps as toml_dumps  # type: ignore
+
+
+def cleanup_leave_latest(packages):
+    if not args.clean_leave_latest:
+        return
+
+    host = "https://pypi.org/"
+    if TARGET == "testpypi":
+        host = "https://test.pypi.org/"
+
+    for pkg in packages:
+        cmd = [
+            "pypi-cleanup",
+            "--package", pkg,
+            "--leave-most-recent-only",
+            "--do-it",
+            "-y",
+            "--host", host,
+        ]
+        if args.clean_user:
+            cmd.extend(["--username", args.clean_user])
+        print(f"[cleanup] Keeping only latest release for {pkg} on {TARGET}")
+        run(cmd)
 
 def load_doc(p: pathlib.Path):
     return toml_parse(p.read_text(encoding="utf-8"))
@@ -342,6 +367,8 @@ def main():
 
     core_names = [n for n, _, __ in CORE]
     chosen, collisions = compute_unified_version(core_names, TARGET, BASE_VERSION)
+
+    cleanup_leave_latest(core_names + [UMBRELLA[0]])
 
     print(f"[plan] Unified version: {chosen}")
     if DRY_RUN:
