@@ -453,6 +453,13 @@ class AgiEnv:
             if link_source is not None and link_source.exists():
                 for src_app in link_source.glob("*_project"):
                     dest_app = active_app.parent / src_app.name
+                    # Avoid creating self-referential symlinks when the public
+                    # destination already resides inside the private tree.
+                    if dest_app.resolve(strict=False) == src_app.resolve():
+                        AgiEnv.logger.info(
+                            f"Skipping symlink for app {src_app} because destination matches source"
+                        )
+                        continue
                     try:
                         if dest_app.is_symlink():
                             same_target = False

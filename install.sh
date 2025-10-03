@@ -266,7 +266,11 @@ install_apps() {
   dir="$AGI_INSTALL_PATH/src/agilab"
   pushd $dir > /dev/null
   chmod +x "install_apps.sh"
-  ./install_apps.sh
+  local agilab_public
+  agilab_public="$(cat "$HOME/.local/share/agilab/.agilab-path")"
+  APPS_DEST_BASE="${agilab_public}/apps" \
+  PAGES_DEST_BASE="${agilab_public}/apps-pages" \
+    ./install_apps.sh
   popd > /dev/null
 }
 
@@ -331,4 +335,3 @@ else
   install_enduser
   echo -e "${GREEN}Installation complete!${NC}"
 fi
-
