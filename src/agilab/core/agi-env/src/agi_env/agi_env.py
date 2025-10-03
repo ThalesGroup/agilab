@@ -348,6 +348,15 @@ class AgiEnv:
         self.is_worker_env = install_type == 2
 
         if install_type != 2 and apps_dir_path is None:
+            env_apps_dir = envars.get("APPS_DIR") or os.environ.get("APPS_DIR")
+            if env_apps_dir:
+                apps_dir_path = Path(env_apps_dir).expanduser()
+                try:
+                    apps_dir_path = apps_dir_path.resolve()
+                except FileNotFoundError:
+                    pass
+
+        if install_type != 2 and apps_dir_path is None:
             raise ValueError("apps_dir is required when install_type != 2")
 
         if active_app is not None:
