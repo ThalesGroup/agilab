@@ -20,6 +20,11 @@ same instructions.
 > private repository at the path recorded in `~/.local/share/agilab/.env` so missing
 > workers are resolved automatically.
 
+> **Runtime isolation reminder**
+> When you launch flows inside `~/agi-space`, assume the upstream `~/agilab` checkout is
+> absent. Agents and scripts must rely solely on the packaged assets inside the virtual
+> environment; never reference repository-relative paths at runtime.
+
 > **Shared build module**
 > All packaging invocations go through `python -m agi_node.agi_dispatcher.build --app-path …`.
 > References to per-app `build.py` helpers are obsolete.
