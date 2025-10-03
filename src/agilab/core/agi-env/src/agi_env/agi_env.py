@@ -781,11 +781,23 @@ class AgiEnv:
     def _collect_pythonpath_entries(self) -> list[str]:
         """Build an ordered list of paths that must live on ``PYTHONPATH``."""
 
+        def import_root(path: Path) -> Path:
+            """Return the directory that must be added to ``PYTHONPATH`` for ``path``."""
+
+            try:
+                init_file = path / "__init__.py"
+            except TypeError:
+                return path
+
+            if init_file.exists():
+                return path.parent
+            return path
+
         candidates = [
-            self.env_src,
-            self.node_src,
-            self.core_src,
-            self.cluster_src,
+            import_root(Path(self.env_src)),
+            import_root(Path(self.node_src)),
+            import_root(Path(self.core_src)),
+            import_root(Path(self.cluster_src)),
             self.dist_abs,
             self.app_src,
             self.wenv_abs / "src",
