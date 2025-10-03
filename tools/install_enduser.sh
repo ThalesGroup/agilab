@@ -25,7 +25,6 @@ AGI_INSTALL_PATH=""
 AGI_INSTALL_ROOT=""
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_SRC_DIR="${REPO_ROOT}/src/agilab"
-LOCAL_PACKAGE_SOURCES=""
 ENV_FILE="$HOME/.agilab/.env"
 
 
@@ -200,57 +199,8 @@ echo "===================================="
 # moved: uv build --wheel
 pushd "$AGI_SPACE" >/dev/null
 rm -fr .venv uv.lock
-if [[ "$SOURCE" == "local" ]]; then
-    local_pkg_sources=("agilab|${AGI_INSTALL_ROOT}")
-    for pkg in ${PACKAGES}; do
-        [[ "$pkg" == "agilab" ]] && continue
-        candidate_path="${AGI_INSTALL_PATH}/core/${pkg}"
-        if [[ -d "${candidate_path}" ]]; then
-            local_pkg_sources+=("${pkg}|${candidate_path}")
-        fi
-    done
-
-    LOCAL_PACKAGE_SOURCES="$(printf '%s\n' "${local_pkg_sources[@]}")"
-    export LOCAL_PACKAGE_SOURCES
-
-    python3 - <<'PY'
-import os
-from pathlib import Path
-
-pyproject_path = Path("pyproject.toml")
-lines = [
-    "[project]",
-    'name = "agi-space"',
-    'version = "0.1.0"',
-    'requires-python = ">=3.13"',
-    'dependencies = [',
-    '    "agilab",',
-    "]",
-    "",
-]
-
-sources = []
-raw_sources = os.environ.get("LOCAL_PACKAGE_SOURCES", "")
-for entry in raw_sources.splitlines():
-    if not entry:
-        continue
-    name, path = entry.split("|", 1)
-    pkg_path = Path(path).resolve()
-    if not pkg_path.exists():
-        continue
-    sources.append((name, pkg_path))
-
-for name, path in sources:
-    lines.append(f"[tool.uv.sources.{name}]")
-    lines.append(f'path = "{path.as_posix()}"')
-    lines.append("")
-
-pyproject_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-PY
-else
-    if [ ! -f pyproject.toml ]; then
-        uv init --bare --no-workspace
-    fi
+if [ ! -f pyproject.toml ]; then
+    uv init --bare --no-workspace
 fi
 ${UV_PREVIEW[@]} sync
 
@@ -282,20 +232,20 @@ case "${SOURCE}" in
     echo "Installing packages from local source tree..."
     for pkg in ${PACKAGES}; do
       if [[ -d "${AGI_INSTALL_PATH}/core/${pkg}" ]]; then
-        ${UV_PREVIEW[@]} pip install --project "." --upgrade --no-deps "${AGI_INSTALL_PATH}/core/${pkg}"
+        ${UV_PREVIEW[@]} run python -m pip install --upgrade --no-deps "${AGI_INSTALL_PATH}/core/${pkg}"
       fi
     done
-    ${UV_PREVIEW[@]} pip install --project "." --upgrade --no-deps "${AGI_INSTALL_ROOT}"
+    ${UV_PREVIEW[@]} run python -m pip install --upgrade --no-deps "${AGI_INSTALL_ROOT}"
     ;;
 
 
   pypi)
     echo "Installing from PyPI..."
     if [[ -z "${VERSION}" ]]; then
-      ${UV_PREVIEW[@]} pip install --project "." --upgrade ${PACKAGES}
+      ${UV_PREVIEW[@]} run python -m pip install --upgrade ${PACKAGES}
     else
       # shellcheck disable=SC2046
-      ${UV_PREVIEW[@]} pip install --project "." --upgrade $(for p in ${PACKAGES}; do printf "%s==%s " "${p}" "${VERSION}"; done)
+      ${UV_PREVIEW[@]} run python -m pip install --upgrade $(for p in ${PACKAGES}; do printf "%s==%s " "${p}" "${VERSION}"; done)
     fi
     ;;
 
@@ -345,8 +295,7 @@ PY
     fi
 
     echo "Installing packages: ${PACKAGES} == ${VERSION}"
-    ${UV_PREVIEW[@]} pip install \
-      --project "." \
+    ${UV_PREVIEW[@]} run python -m pip install \
       --index "${INDEX_URL}" \
       --extra-index-url "${EXTRA_INDEX_URL}" \
       --index-strategy unsafe-best-match \
@@ -375,6 +324,16 @@ PY
 esac
 
 popd >/dev/null
+
+# Some uv operations materialize helper folders inside the venv root when
+# installing from local sources. They are not required once the packages are
+# installed, so prune them to keep the environment tidy.
+for leftover in "${VENV}/agi_env" "${VENV}/agi-node" "${VENV}/agi-cluster" "${VENV}/agi-core"; do
+  if [[ -d "${leftover}" ]]; then
+    rm -rf "${leftover}"
+  fi
+done
+
 # -----------------------------
 # Show results
 # -----------------------------
