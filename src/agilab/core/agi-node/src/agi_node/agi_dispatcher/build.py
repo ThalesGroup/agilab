@@ -12,9 +12,26 @@ import logging
 from pathlib import Path
 from zipfile import ZipFile
 import argparse
+import subprocess
 
 from setuptools import setup, find_packages, Extension, SetuptoolsDeprecationWarning
 from Cython.Build import cythonize
+
+
+def _inject_shared_site_packages() -> None:
+    version = f"python{sys.version_info.major}.{sys.version_info.minor}"
+    candidates = [
+        Path.home() / "agilab/.venv/lib" / version / "site-packages",
+        Path.home() / ".agilab/.venv/lib" / version / "site-packages",
+    ]
+    for candidate in candidates:
+        path_str = str(candidate)
+        if path_str not in sys.path:
+            sys.path.append(path_str)
+
+
+_inject_shared_site_packages()
+
 from agi_env import AgiEnv, normalize_path
 from agi_env import AgiLogger
 import warnings
@@ -27,7 +44,14 @@ except Exception:
     # Non-fatal if directory can't be created (e.g., read-only env)
     pass
 
-def parse_custom_args(raw_args: list[str], cwd) -> argparse.Namespace:
+def _relative_to_home(path: Path) -> Path:
+    try:
+        return path.relative_to(Path.home())
+    except ValueError:
+        return path
+
+
+def parse_custom_args(raw_args: list[str], app_dir: Path) -> argparse.Namespace:
     """
     Parse custom CLI arguments and return an argparse Namespace.
     Known args:
@@ -51,17 +75,18 @@ def parse_custom_args(raw_args: list[str], cwd) -> argparse.Namespace:
         type=int,
         default=1
     )
+    default_dir = _relative_to_home(app_dir)
     parser.add_argument(
         '--build-dir', '-b',
         dest='build_dir',
-        default=cwd.relative_to(Path().home()),
+        default=default_dir,
         help='Output directory for build_ext (must be a directory)'
     )
     parser.add_argument(
         '--dist-dir', '-d',
         dest='dist_dir',
         help='Output directory for bdist_egg (must be a directory)',
-        default=cwd.relative_to(Path().home())
+        default=default_dir
     )
     known, remaining = parser.parse_known_args(raw_args)
     known.remaining = remaining
@@ -175,10 +200,21 @@ def _keep_lflag(arg: str) -> bool:
     cand = arg[2:]
     return Path(cand).exists()
 
-def main() -> None:
-    active_app = Path(__file__).parent.resolve()
+def main(argv: list[str] | None = None) -> None:
+    raw_args = sys.argv[1:] if argv is None else list(argv)
+    prog_name = sys.argv[0]
+
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("--app-path", dest="app_path")
+    global_args, remaining = pre_parser.parse_known_args(raw_args)
+
+    if global_args.app_path:
+        active_app = Path(global_args.app_path).expanduser().resolve()
+    else:
+        active_app = Path(__file__).parent.resolve()
+
     os.chdir(active_app)
-    opts = parse_custom_args(sys.argv[1:], active_app)
+    opts = parse_custom_args(remaining, active_app)
     cmd = opts.command
     quiet = True if opts.remaining and ("-q" in opts.remaining or "--quiet" in opts.remaining) else False
     packages = opts.packages
@@ -226,7 +262,22 @@ def main() -> None:
             AgiEnv.logger.error(e)
             sys.exit(1)
 
-    sys.argv = [sys.argv[0], cmd, flag, env.home_abs / out_arg / "dist"]
+        worker_py = env.worker_path
+        worker_pyx = worker_py.with_suffix('.pyx')
+        if not worker_pyx.exists() and env.pre_install:
+            pre_cmd = [
+                sys.executable,
+                str(env.pre_install),
+                "remove_decorators",
+                "--worker_path",
+                str(worker_py),
+            ]
+            if env.verbose:
+                pre_cmd.append("--verbose")
+            AgiEnv.logger.info("Ensuring Cython source via pre_install: %s", " ".join(pre_cmd))
+            subprocess.run(pre_cmd, check=True)
+
+    sys.argv = [prog_name, cmd, flag, env.home_abs / out_arg / "dist"]
     worker_module = target_module + "_worker"
     links_created: list[Path] = []
     ext_modules = []

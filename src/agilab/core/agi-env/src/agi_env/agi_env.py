@@ -617,6 +617,7 @@ class AgiEnv:
             AgiEnv.logger.info(f"Could not find any target project app in {self.agilab_src / 'apps'}.")
 
         self.setup_app = active_app / "build.py"
+        self.setup_app_module = "agi_node.agi_dispatcher.build"
 
         self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", "data"))
         data_rel = self.AGILAB_SHARE / self.target

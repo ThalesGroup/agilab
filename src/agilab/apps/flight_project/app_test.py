@@ -26,11 +26,11 @@ async def main() -> None:
 
     env = AgiEnv(apps_dir=apps_dir, active_app=active_app, verbose=True)
     wenv = env.wenv_abs
-    build = wenv / 'build.py'
-
     for cmd in [
-        f"uv run --no-sync --project {wenv} {build} bdist_egg --packages base_worker,polars_worker -d {wenv}",
-        f"uv run --no-sync --project {wenv} {build} build_ext --packages base_worker,polars_worker -b {wenv}",
+        f"uv run --no-sync --project {wenv} python -m agi_node.agi_dispatcher.build --app-path {wenv} "
+        f"bdist_egg --packages base_worker,polars_worker -d {wenv}",
+        f"uv run --no-sync --project {wenv} python -m agi_node.agi_dispatcher.build --app-path {wenv} "
+        f"build_ext --packages base_worker,polars_worker -b {wenv}",
         f"uv run --no-sync --project {script_dir} {script_dir}/test/_test_{target_name}_manager.py",
         f"uv run --no-sync --project {worker_repo} {script_dir}/test/_test_{target_name}_worker.py"
     ]:

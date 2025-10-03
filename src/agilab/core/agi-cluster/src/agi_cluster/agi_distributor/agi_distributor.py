@@ -1025,11 +1025,6 @@ class AGI:
             logger.info(f"Copying {file} -> {wenv_abs}")
         shutil.copy(file, wenv_abs / file.name)
 
-        file = env.setup_core
-        if env.verbose > 0:
-            logger.info(f"Copying {file} -> {wenv_abs}")
-        shutil.copy2(file, wenv_abs)
-
         file = env.cli
         if env.verbose > 0:
             logger.info(f"Copying {file} -> {wenv_abs.parent}")
@@ -1438,12 +1433,6 @@ class AGI:
         uv = cmd_prefix + env.uv
         pyvers = env.python_version
 
-        file = env.setup_core
-        if env.verbose > 0:
-            logger.info(f"Copying {file.name} -> {wenv_abs}")
-
-        shutil.copy2(file, wenv_abs)
-
         if hw_rapids_capable:
             AgiEnv.set_env_var(ip, "hw_rapids_capable")
         else:
@@ -1706,7 +1695,7 @@ class AGI:
             raise FileNotFoundError(f"no existing whl file in {wenv / "agi_node*"}")
 
         await AGI.send_files(env, ip,
-                             [egg_file, node_whl, env_whl, env.setup_core, env.worker_pyproject, env.uvproject],
+                             [egg_file, node_whl, env_whl, env.worker_pyproject, env.uvproject],
                              wenv_rel)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
@@ -1759,10 +1748,20 @@ class AGI:
         await AGI.exec_ssh(ip, cmd)
 
         # build target_worker lib from src/
+        module = getattr(env, "setup_app_module", "agi_node.agi_dispatcher.build")
+        project_arg = shlex.quote(str(wenv_rel))
+        app_arg = f"--app-path {project_arg}"
+        module_cmd = f"python -m {module}"
         if env.verbose > 1:
-            cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {wenv_rel / env.setup_app.name} build_ext -b {wenv_rel}"
+            cmd = (
+                f"{uv} --project {project_arg} run --no-sync -p {pyvers} "
+                f"{module_cmd} {app_arg} build_ext -b {project_arg}"
+            )
         else:
-            cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {wenv_rel / env.setup_app.name} -q build_ext -b {wenv_rel}"
+            cmd = (
+                f"{uv} --project {project_arg} run --no-sync -p {pyvers} "
+                f"{module_cmd} {app_arg} -q build_ext -b {project_arg}"
+            )
         await AGI.exec_ssh(ip, cmd)
 
     @staticmethod
@@ -2150,17 +2149,27 @@ class AGI:
 
         app_path = env.active_app
         wenv_abs = env.wenv_abs
-        shutil.copy2(env.setup_core, app_path)
+        module = getattr(env, "setup_app_module", "agi_node.agi_dispatcher.build")
 
         # build egg and unzip it into wenv
         uv = env.uv
         cmd_prefix = env.envars.get(f"127.0.0.1_CMD_PREFIX", "")
         if env.is_free_threading_available:
             uv = cmd_prefix + " PYTHON_GIL=0 " + env.uv
+        app_path_q = shlex.quote(str(app_path))
+        wenv_abs_q = shlex.quote(str(wenv_abs))
+        module_cmd = f"python -m {module}"
+        app_arg = f"--app-path {app_path_q}"
         if env.verbose > 1:
-            cmd = f"{env.uv} --project '{app_path}' run --no-sync python '{env.setup_app}' bdist_egg --packages \"{packages}\" -d \"{wenv_abs}\""
+            cmd = (
+                f"{env.uv} --project {app_path_q} run --no-sync "
+                f"{module_cmd} {app_arg} bdist_egg --packages \"{packages}\" -d {wenv_abs_q}"
+            )
         else:
-            cmd = f"{env.uv} --project '{app_path}' run --no-sync python '{env.setup_app}' -q bdist_egg --packages \"{packages}\" -d \"{wenv_abs}\""
+            cmd = (
+                f"{env.uv} --project {app_path_q} run --no-sync "
+                f"{module_cmd} {app_arg} -q bdist_egg --packages \"{packages}\" -d {wenv_abs_q}"
+            )
 
         await AgiEnv.run(cmd, app_path)
 
@@ -2173,11 +2182,16 @@ class AGI:
         # compile in cython when cython is requested
         if is_cy:
             # cython compilation of wenv/src into wenv
-            shutil.copy2(env.setup_core, wenv_abs)
             if env.verbose > 1:
-                cmd = f"{env.uv} --project '{wenv_abs}' run --no-sync python '{env.setup_app}' build_ext -b '{wenv_abs}'"
+                cmd = (
+                    f"{env.uv} --project {wenv_abs_q} run --no-sync "
+                    f"{module_cmd} --app-path {wenv_abs_q} build_ext -b {wenv_abs_q}"
+                )
             else:
-                cmd = f"{env.uv} --project '{wenv_abs}' run --no-sync python '{env.setup_app}' -q build_ext -b '{wenv_abs}'"
+                cmd = (
+                    f"{env.uv} --project {wenv_abs_q} run --no-sync "
+                    f"{module_cmd} --app-path {wenv_abs_q} -q build_ext -b {wenv_abs_q}"
+                )
 
             res = await AgiEnv.run(cmd, app_path)
             try:

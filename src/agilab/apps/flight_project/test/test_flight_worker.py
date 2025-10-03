@@ -37,12 +37,13 @@ def args():
 async def env():
     env = AgiEnv(apps_dir=apps_dir, active_app=active_app_path.name, verbose=True)
     wenv = env.wenv_abs
-    build = wenv / 'build.py'
-
-    for cmd in [
-        f'uv run --project {wenv} python {build} bdist_egg --packages base_worker,polars_worker -d {wenv}',
-        f'uv run --project {wenv} python {build} build_ext --packages base_worker,polars_worker -b {wenv}'
-    ]:
+    commands = [
+        f"uv run --project {wenv} python -m agi_node.agi_dispatcher.build --app-path {wenv} "
+        f"bdist_egg --packages base_worker,polars_worker -d {wenv}",
+        f"uv run --project {wenv} python -m agi_node.agi_dispatcher.build --app-path {wenv} "
+        f"build_ext --packages base_worker,polars_worker -b {wenv}"
+    ]
+    for cmd in commands:
         await env.run(cmd, wenv)
 
     return env
@@ -51,12 +52,18 @@ async def env():
 async def build_worker_libs(env):
     # Build eggs and Cython (only once per session)
     wenv = env.wenv_abs
-    build = wenv / "build.py"
+    build_cmd = "python -m agi_node.agi_dispatcher.build"
     # Build egg
-    cmd = f"uv run --project {wenv} python {build} bdist_egg --packages base_worker,polars_worker -d {wenv}"
+    cmd = (
+        f"uv run --project {wenv} {build_cmd} --app-path {wenv} "
+        f"bdist_egg --packages base_worker,polars_worker -d {wenv}"
+    )
     await env.run(cmd, wenv)
     # Build cython
-    cmd = f"uv run --project {wenv} python {build} build_ext --packages base_worker,polars_worker -b {wenv}"
+    cmd = (
+        f"uv run --project {wenv} {build_cmd} --app-path {wenv} "
+        f"build_ext --packages base_worker,polars_worker -b {wenv}"
+    )
     await env.run(cmd, wenv)
     # Add src to sys.path
     src_path = str(env.home_abs / "src")
