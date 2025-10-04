@@ -28,15 +28,15 @@ async def main():
 
     apps_dir = base_path.parents[2]
     env = AgiEnv(apps_dir=apps_dir, active_app=active_app_path.name, verbose=True)
-    # build the egg
+    # build the egg using the shared build module
     wenv = env.wenv_abs
-    build = wenv / "build.py"
     menv = env.wenv_abs
-    cmd = f"uv run --project {menv} python {build} bdist_egg --packages 'base_worker, polars_worker' -d '{menv}'"
+    module_cmd = f"uv run --project {menv} python -m agi_node.agi_dispatcher.build --app-path {menv}"
+    cmd = f"{module_cmd} -q bdist_egg --packages \"agi_dispatcher, polars_worker\" -d '{menv}'"
     await env.run(cmd, menv)
 
     # build cython lib
-    cmd = f"uv run --project {wenv} python {build} build_ext --packages base_worker, polars_worker -b '{wenv}'"
+    cmd = f"{module_cmd} -q build_ext -b '{wenv}'"
     await env.run(cmd, wenv)
 
     for i in [0, 1, 2, 3]: # 2 is working only if you have generate the cython lib before
