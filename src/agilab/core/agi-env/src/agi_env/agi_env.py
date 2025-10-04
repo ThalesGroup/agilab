@@ -280,7 +280,7 @@ class AgiEnv:
             except Exception:
                 app = str(val) if val is not None else None
 
-        def _resolve_install_type(apps_dir: Path | None,
+        def _resolve_install_type(apps_dir: str | None,
                                   agilab_src: Path,
                                   envars: dict | None) -> int:
             """Infer install type without requiring an explicit argument.
@@ -301,7 +301,7 @@ class AgiEnv:
             # Heuristic: if apps_dir resides inside a worker env folder (wenv/*_worker),
             # treat this as a worker-only environment regardless of source/layout markers.
             try:
-                parts = set(Path(apps_dir).resolve().parts)
+                parts = set(apps_dir.resolve().parts)
                 if "wenv" in parts:
                     self.is_worker_env = True
                     return 2
@@ -382,22 +382,13 @@ class AgiEnv:
         )
 
         if apps_dir is not None:
-            apps_dir_path = apps_dir.expanduser()
+            apps_dir = Path(apps_dir).expanduser()
             try:
-                apps_dir_path = apps_dir_path.resolve()
+                apps_dir = apps_dir.resolve()
             except FileNotFoundError:
                 pass
 
-        install_type = _resolve_install_type(apps_dir_path, agilab_src, self.envars)
-
-        if not self.is_worker_env and apps_dir_path is None:
-            env_apps_dir = envars.get("APPS_DIR") or os.environ.get("APPS_DIR")
-            if env_apps_dir:
-                apps_dir_path = Path(env_apps_dir).expanduser()
-                try:
-                    apps_dir_path = apps_dir_path.resolve()
-                except FileNotFoundError:
-                    pass
+        install_type = _resolve_install_type(apps_dir, agilab_src, self.envars)
 
         if self.is_worker_env:
             if not app:
@@ -406,7 +397,7 @@ class AgiEnv:
         else:
             if app is None:
                 app = envars.get("APP_DEFAULT", 'flight_project')
-            active_app = (apps_dir_path or Path()) / app
+            active_app = Path() / app
 
         if not app.endswith('_project') and not app.endswith('_worker'):
             raise ValueError(f"{app} must end with '_project'")
@@ -544,7 +535,7 @@ class AgiEnv:
                         shutil.copytree(
                             packaged_app,
                             app,
-                            dirs_exist_ok=True,
+                            dirs_exist_ok=True
                         )
                         AgiEnv.logger.info(
                             "Copied packaged app %s into %s", packaged_app, app
