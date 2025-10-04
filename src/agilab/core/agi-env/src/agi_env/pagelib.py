@@ -399,7 +399,7 @@ def on_project_change(project, switch_to_select=False):
     try:
 
         # Change the app/project
-        env.change_active_app(env.apps_dir / project)
+        env.change_app(env.apps_dir / project)
         
 
         module = env.target
@@ -993,7 +993,7 @@ def update_views(project, pages):
     """
     update_required = False
     env = st.session_state._env
-    env.change_active_app(project)
+    env.change_app(project)
     st.session_state.preview_tree = False
 
     pages_root = Path(os.getcwd()) / "src/gui/pages"

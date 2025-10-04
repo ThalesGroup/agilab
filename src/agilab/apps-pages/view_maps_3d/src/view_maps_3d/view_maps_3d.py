@@ -38,7 +38,7 @@ def _ensure_repo_on_path() -> None:
 
 _ensure_repo_on_path()
 
-def _default_active_app() -> Path | None:
+def _default_app() -> Path | None:
     apps_dir = Path(__file__).resolve().parents[4] / "apps"
     if not apps_dir.exists():
         return None
@@ -870,12 +870,12 @@ def main():
                             default=None)
         args, _ = parser.parse_known_args()
 
-        if args.active_app is None:
-            env_active_app = os.environ.get("AGILAB_ACTIVE_APP")
-            if env_active_app:
-                active_app = Path(env_active_app).expanduser()
+        if args.app is None:
+            env_app = os.environ.get("AGILAB_APP")
+            if env_app:
+                app = Path(env_app).expanduser()
             else:
-                active_app = None
+                app = None
                 candidate_file = Path("~/.local/share/agilab/.agi-path").expanduser()
                 if candidate_file.is_file():
                     with candidate_file.open("r", encoding="utf-8") as f:
@@ -883,21 +883,21 @@ def main():
                         before, sep, _ = agilab_path.rpartition(".venv")
                         potential = Path(before) / "apps" / "flight_project"
                         if potential.exists():
-                            active_app = potential
-                if active_app is None:
-                    active_app = _default_active_app()
+                            app = potential
+                if app is None:
+                    app = _default_app()
         else:
-            active_app = Path(args.active_app)
+            app = Path(args.app)
 
-        if active_app is None:
+        if app is None:
             st.error("Error: Missing mandatory parameter: --active-app")
             sys.exit(1)
 
-        st.session_state["apps_dir"] = str(active_app.parent)
+        st.session_state["apps_dir"] = str(app.parent)
 
         env = AgiEnv(
-            apps_dir=active_app.parent,
-            active_app=active_app.name,
+            apps_dir=app.parent,
+            app=app.name,
             verbose=1,
         )
         env.init_done = True

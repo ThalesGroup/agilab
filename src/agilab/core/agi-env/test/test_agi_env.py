@@ -9,7 +9,7 @@ from agi_env import AgiEnv
 def env():
     agipath = AgiEnv.locate_agilab_installation(verbose=False)
     apps_dir = agipath / 'apps'
-    return AgiEnv(apps_dir=apps_dir, active_app='flight_project', verbose=1)
+    return AgiEnv(apps_dir=apps_dir, app='flight_project', verbose=1)
 
 def test_replace_content_replaces_whole_words(env):
     txt = 'foo foo_bar barfoo bar Foo foo.'
@@ -17,7 +17,7 @@ def test_replace_content_replaces_whole_words(env):
     out = env.replace_content(txt, rename_map)
     assert out == 'baz foo_bar barfoo qux Baz baz.'
 
-def test_change_active_app_reinitializes_on_change(monkeypatch, env):
+def test_change_app_reinitializes_on_change(monkeypatch, env):
     called = {'count': 0, 'kwargs': None}
     def fake_init(self, *a, **k):
         called['count'] += 1
@@ -27,13 +27,13 @@ def test_change_active_app_reinitializes_on_change(monkeypatch, env):
     env.app = flight_path
     mycode_name = "mycode_path"
     with mock.patch.object(AgiEnv, '__init__', fake_init, create=True):
-        env.change_active_app(mycode_name)
+        env.change_app(mycode_name)
     assert called['count'] == 1
     assert called['kwargs'].get('apps_dir') == apps_path
-    assert called['kwargs'].get('active_app') == mycode_name
+    assert called['kwargs'].get('app') == mycode_name
     assert 'install_type' not in called['kwargs']
 
-def test_change_active_app_noop_when_same_app(monkeypatch, env):
+def test_change_app_noop_when_same_app(monkeypatch, env):
     called = {'count': 0}
     def fake_init(self, *a, **k):
         called['count'] += 1
@@ -41,7 +41,7 @@ def test_change_active_app_noop_when_same_app(monkeypatch, env):
     flight_path = apps_path / 'flight_project'
     env.app = flight_path
     with mock.patch.object(AgiEnv, '__init__', fake_init, create=True):
-        env.change_active_app('flight_project')
+        env.change_app('flight_project')
     assert called['count'] == 0
 
 def test_humanize_validation_errors(env):

@@ -487,7 +487,7 @@ class AGI:
             client.submit(
                 BaseWorker._new,
                 env=0 if env.debug else None,
-                active_app=env.target_worker,
+                app=env.target_worker,
                 mode=AGI._mode,
                 verbose=AGI.verbose,
                 worker_id=index,
@@ -1154,7 +1154,7 @@ class AGI:
     async def _deploy_application(scheduler_addr: Optional[str]) -> None:
         AGI._reset_deploy_state()
         env = AGI.env
-        app_path = env.active_app
+        app_path = env.app
         wenv_rel = env.wenv_rel
         if isinstance(env.base_worker_cls, str):
             options_worker = " --extra " + " --extra ".join(AGI.install_worker_group)
@@ -1445,7 +1445,7 @@ class AGI:
         # MANAGER install command with and without rapids capable
         # =========
 
-        app_path = env.active_app
+        app_path = env.app
         if env.install_type == 0 and dependency_info:
             _update_pyproject_dependencies(
                 app_path / "pyproject.toml",
@@ -1627,7 +1627,7 @@ class AGI:
             cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.node_root}'"
             await AgiEnv.run(cmd, wenv_abs)
 
-        cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.active_app}'"
+        cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.app}'"
         await AgiEnv.run(cmd, wenv_abs)
 
         # Post-install script
@@ -1641,7 +1641,7 @@ class AGI:
         python_bin = wenv_abs / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         cmd = (
             f"{shlex.quote(str(python_bin))} {shlex.quote(str(env.home_abs / env.post_install_rel))} "
-            f"{shlex.quote(str(env.active_app))} "
+            f"{shlex.quote(str(env.app))} "
             "1 "
             f"{shlex.quote(str(env.data_rel))}"
         )
@@ -1961,7 +1961,7 @@ class AGI:
             except Exception as e:
                 raise
 
-            toml_local = env.active_app / "pyproject.toml"
+            toml_local = env.app / "pyproject.toml"
             wenv_rel = env.wenv_rel
             wenv_abs = env.wenv_abs
             if env.is_local(AGI._scheduler_ip):
@@ -1971,7 +1971,7 @@ class AGI:
                     f"--host {AGI._scheduler_ip} --pid-file {wenv_abs.parent / 'dask_scheduler.pid'} "
                 )
                 logger.info(f"Starting dask scheduler locally: {cmd}")
-                result = AGI._exec_bg(cmd, env.active_app)
+                result = AGI._exec_bg(cmd, env.app)
                 if result:  # assuming _exec_bg is sync
                     logger.info(result)
             else:
@@ -2147,7 +2147,7 @@ class AGI:
         elif baseworker.startswith("Fireducks"):
             packages += "fireducks_worker"
 
-        app_path = env.active_app
+        app_path = env.app
         wenv_abs = env.wenv_abs
         module = getattr(env, "setup_app_module", "agi_node.agi_dispatcher.build")
 
@@ -2269,7 +2269,7 @@ class AGI:
                 f"from agi_node.agi_dispatcher import  BaseWorker\n"
                 f"import asyncio\n"
                 f"async def main():\n"
-                f"  BaseWorker._new(active_app='{env.target_worker}', mode={AGI._mode}, verbose={env.verbose}, args={AGI._args})\n"
+                f"  BaseWorker._new(app='{env.target_worker}', mode={AGI._mode}, verbose={env.verbose}, args={AGI._args})\n"
                 f"  res = await BaseWorker._run(mode={AGI._mode}, workers={AGI._workers}, args={AGI._args})\n"
                 f"  print(res)\n"
                 f"if __name__ == '__main__':\n"
@@ -2321,7 +2321,7 @@ class AGI:
                 client.submit(
                     BaseWorker._new,
                     env=0 if env.debug else None,
-                    active_app=env.target_worker,
+                    app=env.target_worker,
                     mode=AGI._mode,
                     verbose=AGI.verbose,
                     worker_id=dask_workers.index(worker),

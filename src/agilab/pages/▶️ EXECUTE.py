@@ -730,7 +730,7 @@ def workload_barchart(workers, work_plan_metadata, partition_key, weights_key, w
     st.plotly_chart(fig, use_container_width=True)
 
 def _is_app_installed(env):
-    venv_root = env.active_app / ".venv"
+    venv_root = env.app / ".venv"
     return venv_root.exists()
 
 # ===========================
@@ -789,7 +789,7 @@ async def page():
         st.rerun()
 
     module = env.target
-    project_path = env.active_app
+    project_path = env.app
     export_abs_module = env.AGILAB_EXPORT_ABS / module
     export_abs_module.mkdir(parents=True, exist_ok=True)
     pyproject_file = env.active_app / "pyproject.toml"
@@ -884,10 +884,10 @@ from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
 APPS_DIR = Path({str(env.apps_dir)!r})
-ACTIVE_APP = {env.active_app.name!r}
+APP = {env.app.name!r}
 
 async def main():
-    app_env = AgiEnv(apps_dir=APPS_DIR, active_app=ACTIVE_APP, verbose={verbose})
+    app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
     res = await AGI.install(app_env, 
                             modes_enabled={st.session_state.mode},
                             scheduler={scheduler}, 
@@ -908,12 +908,12 @@ if __name__ == "__main__":
             if st.button("INSTALL", key="install_btn", type="primary",
                          help="Run the install snippet to set up your .venv for Manager and Worker"):
                 clear_log()
-                venv = env.cluster_root if env.install_type else env.active_app.parents[1]
+                venv = env.cluster_root if env.install_type else env.app.parents[1]
                 install_command = cmd.replace("asyncio.run(main())", env.snippet_tail)
                 context_lines = [
                     "=== Install request ===",
                     f"timestamp: {datetime.now().isoformat(timespec='seconds')}",
-                    f"active_app: {env.active_app}",
+                    f"app: {env.app}",
                     f"install_type: {env.install_type}",
                     f"cluster_enabled: {enabled}",
                     f"verbose: {verbose}",
@@ -1001,10 +1001,10 @@ from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
 APPS_DIR = Path({str(env.apps_dir)!r})
-ACTIVE_APP = {env.active_app.name!r}
+APP = {env.app.name!r}
 
 async def main():
-    app_env = AgiEnv(apps_dir=APPS_DIR, active_app=ACTIVE_APP, verbose={verbose})
+    app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
     res = await AGI.get_distrib(app_env,
                                scheduler={scheduler}, 
                                workers={workers},
@@ -1114,10 +1114,10 @@ from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
 APPS_DIR = Path({str(env.apps_dir)!r})
-ACTIVE_APP = {env.active_app.name!r}
+APP = {env.app.name!r}
 
 async def main():
-    app_env = AgiEnv(apps_dir=APPS_DIR, active_app=ACTIVE_APP, verbose={verbose})
+    app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
     res = await AGI.run(app_env, 
                         mode={st.session_state["mode"]}, 
                         scheduler={scheduler}, 

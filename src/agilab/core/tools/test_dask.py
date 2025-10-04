@@ -18,7 +18,7 @@ async def main():
     scheduler_addr = "192.168.3.86"
 
     agipath = AgiEnv.locate_agi_installation(verbose=0)
-    env = AgiEnv(apps_dir=agipath / "apps", active_app="flight_project", verbose=1)
+    env = AgiEnv(apps_dir=agipath / "apps", app="flight_project", verbose=1)
     env.user = "nsbl"
 
     # Kill dask process on worker

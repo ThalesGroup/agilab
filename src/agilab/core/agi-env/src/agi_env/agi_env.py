@@ -240,11 +240,36 @@ class AgiEnv:
 
     def __init__(self,
                  apps_dir: str | Path | None = None,
-                 active_app: str | Path | None = None,
-                 install_type: int | str | None = None,
+                 app: str | Path | None = None,
                  verbose: int | None = None,
                  debug: bool = False,
                  python_variante: str = ''):
+
+        def _resolve_install_type(apps_dir: Path | None,
+                                  agilab_src: Path,
+                                  envars: dict | None) -> int:
+            """Infer install type without requiring an explicit argument.
+
+            Precedence:
+            1. honour explicit overrides from environment variables (``AGILAB_INSTALL_TYPE``
+               or ``INSTALL_TYPE``) when they are valid integers;
+            2. when no ``apps_dir`` is provided, assume a worker-only environment (type 2);
+            3. otherwise rely on the directory layout to distinguish source checkouts (type 1)
+               from packaged installs (type 0), falling back to the legacy heuristic based on
+               ``agilab_src`` when needed.
+            """
+
+            if apps_dir is None:
+                self.is_worker_env = True
+                return 2
+
+            try:
+                if Path(apps_dir).parents[1].name == "src":
+                    return 1
+            except Exception:
+                pass
+
+            return 0
 
         def _package_dir(package: str) -> Path:
             try:
@@ -311,43 +336,16 @@ class AgiEnv:
             part.startswith(".venv") for part in agilab_pkg_dir.parts
         )
 
-        apps_dir_path: Path | None = None
         if apps_dir is not None:
             apps_dir_path = Path(apps_dir).expanduser()
             try:
                 apps_dir_path = apps_dir_path.resolve()
             except FileNotFoundError:
                 pass
-        elif active_app is not None:
-            candidate = Path(active_app).expanduser()
-            if candidate.is_absolute() or candidate.parent != Path('.'):
-                apps_dir_path = candidate.parent
-                try:
-                    apps_dir_path = apps_dir_path.resolve()
-                except FileNotFoundError:
-                    pass
 
-        force_source_layout = apps_dir_path is not None and _is_relative_to(
-            apps_dir_path, repo_agilab_dir
-        )
+        install_type = _resolve_install_type(apps_dir_path, agilab_src, self.envars)
 
-        if install_type is not None:
-            try:
-                install_type = int(install_type)
-            except (TypeError, ValueError) as exc:
-                raise ValueError("install_type must be an integer") from exc
-        else:
-            install_type = self._resolve_install_type(apps_dir_path, agilab_src, self.envars)
-
-        if force_source_layout:
-            install_type = 1
-
-        if install_type == 1 and is_agilab_installed and not force_source_layout:
-            install_type = 0
-
-        self.is_worker_env = install_type == 2
-
-        if install_type != 2 and apps_dir_path is None:
+        if not self.is_worker_env and apps_dir_path is None:
             env_apps_dir = envars.get("APPS_DIR") or os.environ.get("APPS_DIR")
             if env_apps_dir:
                 apps_dir_path = Path(env_apps_dir).expanduser()
@@ -356,30 +354,22 @@ class AgiEnv:
                 except FileNotFoundError:
                     pass
 
-        if install_type != 2 and apps_dir_path is None:
-            raise ValueError("apps_dir is required when install_type != 2")
-
-        if active_app is not None:
-            active_app_candidate = Path(active_app)
-            if install_type != 2 and (active_app_candidate.is_absolute() or active_app_candidate.parent != Path(".")):
-                if apps_dir_path is None:
-                    raise ValueError("apps_dir is required when install_type != 2")
-            active_app_name = active_app_candidate.name
+        if self.is_worker_env:
+            if not app:
+                raise ValueError("app is required when self.is_worker_env")
+            active_app = home_abs / "wenv" / app
         else:
-            active_app_name = envars.get("APP_DEFAULT", 'flight_project')
+            if app is None:
+                app = envars.get("APP_DEFAULT", 'flight_project')
+            active_app = (apps_dir_path or Path()) / app
 
-        if install_type == 2:
-            if not active_app_name:
-                raise ValueError("active_app is required when install_type == 2")
-            active_app = home_abs / "wenv" / active_app_name
-        else:
-            active_app = (apps_dir_path or Path()) / active_app_name
+        if not app.name.endswith('_project') and not app.name.endswith('_worker'):
+            raise ValueError(f"{app} must end with '_project'")
 
-        if not active_app.name.endswith('_project') and not active_app.name.endswith('_worker'):
-            raise ValueError(f"{active_app} must end with '_project'")
-
+        self.app = app
         self.active_app = active_app
-        target = active_app.name.replace("_project", "").replace("_worker","").replace("-", "_")
+
+        target = app.name.replace("_project", "").replace("_worker","").replace("-", "_")
 
         AgiEnv.verbose = verbose
         self.verbose = verbose
@@ -401,7 +391,7 @@ class AgiEnv:
                 "core": "agi-core",
                 "cluster": "agi-cluster",
             }
-            if force_source_layout:
+            if install_type == 1: #force_source_layout
                 self.agilab_src = repo_agilab_dir
                 core_root = self.agilab_src / "core"
             else:
@@ -447,9 +437,9 @@ class AgiEnv:
         else:
             self.st_resources = resource_candidates[-1]
 
-        if install_type == 0 and not force_source_layout:
+        if install_type == 0: # and not force_source_layout:
             apps_root = self.agilab_src / "apps"
-            os.makedirs(active_app.parent, exist_ok=True)
+            os.makedirs(app.parent, exist_ok=True)
 
             link_source = self._get_private_apps_root()
             if link_source is None:
@@ -461,7 +451,7 @@ class AgiEnv:
 
             if link_source is not None and link_source.exists():
                 for src_app in link_source.glob("*_project"):
-                    dest_app = active_app.parent / src_app.name
+                    dest_app = app.parent / src_app.name
                     # Avoid creating self-referential symlinks when the public
                     # destination already resides inside the private tree.
                     if dest_app.resolve(strict=False) == src_app.resolve():
@@ -491,21 +481,21 @@ class AgiEnv:
                         os.symlink(src_app, dest_app, target_is_directory=True)
                     AgiEnv.logger.info(f"Created symbolic link for app: {src_app} -> {dest_app}")
             elif apps_root.exists():
-                self.copy_existing_projects(apps_root, active_app.parent)
+                self.copy_existing_projects(apps_root, app.parent)
             else:
                 AgiEnv.logger.info(f"Warning: {apps_root} does not exist, nothing to copy!")
 
-            if not active_app.exists() and apps_root.exists():
-                packaged_app = apps_root / active_app.name
+            if not app.exists() and apps_root.exists():
+                packaged_app = apps_root / app.name
                 if packaged_app.exists():
                     try:
                         shutil.copytree(
                             packaged_app,
-                            active_app,
+                            app,
                             dirs_exist_ok=True,
                         )
                         AgiEnv.logger.info(
-                            "Copied packaged app %s into %s", packaged_app, active_app
+                            "Copied packaged app %s into %s", packaged_app, app
                         )
                     except Exception as exc:
                         AgiEnv.logger.warning(
@@ -514,15 +504,15 @@ class AgiEnv:
                 else:
                     AgiEnv.logger.info(
                         "Private apps root missing %s; copying packaged examples instead",
-                        active_app.name,
+                        app.name,
                     )
-                    self.copy_existing_projects(apps_root, active_app.parent)
+                    self.copy_existing_projects(apps_root, app.parent)
 
 
         resources_root = self.env_root
         if install_type == 1:
             resources_root = self.env_root / "src/agi_env"
-        if install_type != 2:
+        if not self.is_worker_env:
             self._init_resources(resources_root / self._agi_resources)
         self.TABLE_MAX_ROWS = int(envars.get("TABLE_MAX_ROWS", 1000))
         self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
@@ -548,15 +538,15 @@ class AgiEnv:
         if not dist in sys.path:
             sys.path.append(dist)
         self.dist_abs = dist_abs
-        self.app_src = active_app / "src"
-        self.manager_pyproject = active_app / "pyproject.toml"
+        self.app_src = app / "src"
+        self.manager_pyproject = app / "pyproject.toml"
         self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
         self.manager_path = self.app_src / target / f"{target}.py"
         is_local_worker = self.has_agilab_anywhere_under_home(self.agilab_src)
         worker_src = self.wenv_rel / 'src'
 
-        if install_type == 2 and not is_local_worker:
-            active_app = self.agilab_src
+        if self.is_worker_env and not is_local_worker:
+            app = self.agilab_src
             self.app_src = self.agilab_src / "src"
             self.worker_path = worker_src / target_worker / f"{target_worker}.py"
             self.manager_path = worker_src / target / f"{target}.py"
@@ -571,7 +561,7 @@ class AgiEnv:
             self.setup_core = self.node_root / "src/agi_node/agi_dispatcher/build.py"
 
         self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
-        self.uvproject = active_app / "uv_config.toml"
+        self.uvproject = app / "uv_config.toml"
         self.dataset_archive = self.worker_path.parent / "dataset.7z"
         self.post_install_rel = worker_src / target_worker / "post_install.py"
 
@@ -582,41 +572,41 @@ class AgiEnv:
         if not self.worker_path.exists():
             copied_packaged_worker = False
             if self._ensure_private_app_link():
-                self.app_src = self.active_app / "src"
+                self.app_src = self.app / "src"
                 self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
                 self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
                 self.dataset_archive = self.worker_path.parent / "dataset.7z"
                 self.post_install_rel = worker_src / target_worker / "post_install.py"
             else:
-                packaged_app = self.agilab_src / "apps" / self.active_app.name
-                if install_type != 2 and packaged_app.exists():
+                packaged_app = self.agilab_src / "apps" / self.app.name
+                if not self.is_worker_env and packaged_app.exists():
                     try:
                         shutil.copytree(
                             packaged_app,
-                            self.active_app,
+                            self.app,
                             dirs_exist_ok=True,
                         )
                         copied_packaged_worker = True
                         AgiEnv.logger.info(
-                            "Copied packaged app %s into %s", packaged_app, self.active_app
+                            "Copied packaged app %s into %s", packaged_app, self.app
                         )
                     except Exception as exc:
                         AgiEnv.logger.warning(
-                            f"Unable to copy packaged worker app from {packaged_app} to {self.active_app}: {exc}"
+                            f"Unable to copy packaged worker app from {packaged_app} to {self.app}: {exc}"
                         )
-                elif install_type != 2 and apps_root.exists():
-                    self.copy_existing_projects(apps_root, active_app.parent)
+                elif not self.is_worker_env and apps_root.exists():
+                    self.copy_existing_projects(apps_root, app.parent)
 
                 if (
-                    install_type != 2
+                    not self.is_worker_env
                     and not self.worker_path.exists()
                     and apps_root.exists()
-                    and self.active_app.name.endswith("_worker")
+                    and self.app.name.endswith("_worker")
                 ):
-                    project_name = self.active_app.name.replace("_worker", "_project")
-                    project_worker_dir = apps_root / project_name / "src" / self.active_app.name
+                    project_name = self.app.name.replace("_worker", "_project")
+                    project_worker_dir = apps_root / project_name / "src" / self.app.name
                     if project_worker_dir.exists():
-                        dest_worker_dir = self.active_app / "src" / self.active_app.name
+                        dest_worker_dir = self.app / "src" / self.app.name
                         try:
                             shutil.copytree(
                                 project_worker_dir,
@@ -636,17 +626,17 @@ class AgiEnv:
                             copied_packaged_worker = True
 
                 if copied_packaged_worker:
-                    self.app_src = self.active_app / "src"
+                    self.app_src = self.app / "src"
                     self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
                     self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
                     self.dataset_archive = self.worker_path.parent / "dataset.7z"
                     self.post_install_rel = worker_src / target_worker / "post_install.py"
-                elif install_type == 2:
+                elif self.is_worker_env:
                     AgiEnv.logger.info(
                         "Worker sources not found for install_type=2 at %s", self.worker_path
                     )
 
-        AgiEnv.apps_dir = active_app.parent
+        AgiEnv.apps_dir = app.parent
         self.apps_dir = AgiEnv.apps_dir
         distribution_tree = self.wenv_abs / "distribution_tree.json"
         if distribution_tree.exists():
@@ -690,7 +680,7 @@ class AgiEnv:
             self.uv_worker = self.uv
             use_freethread = False
 
-        if install_type == 2:
+        if self.is_worker_env:
             return
 
         if self.worker_path.exists():
@@ -715,7 +705,7 @@ class AgiEnv:
         if not self.projects:
             AgiEnv.logger.info(f"Could not find any target project app in {self.agilab_src / 'apps'}.")
 
-        self.setup_app = active_app / "build.py"
+        self.setup_app = app / "build.py"
         self.setup_app_module = "agi_node.agi_dispatcher.build"
 
         self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", "data"))
@@ -762,70 +752,6 @@ class AgiEnv:
             self.export_local_bin = 'export PATH="~/.local/bin:$PATH";'
         AgiEnv.export_local_bin = self.export_local_bin
 
-    @staticmethod
-    def _resolve_install_type(apps_dir: Path | None,
-                              agilab_src: Path,
-                              envars: dict | None) -> int:
-        """Infer install type without requiring an explicit argument.
-
-        Precedence:
-        1. honour explicit overrides from environment variables (``AGILAB_INSTALL_TYPE``
-           or ``INSTALL_TYPE``) when they are valid integers;
-        2. when no ``apps_dir`` is provided, assume a worker-only environment (type 2);
-        3. otherwise rely on the directory layout to distinguish source checkouts (type 1)
-           from packaged installs (type 0), falling back to the legacy heuristic based on
-           ``agilab_src`` when needed.
-        """
-
-        # Explicit overrides via environment or .env file
-        candidates = (
-            os.environ.get("AGILAB_INSTALL_TYPE"),
-            os.environ.get("INSTALL_TYPE"),
-        )
-        if envars:
-            candidates += (
-                envars.get("AGILAB_INSTALL_TYPE"),
-                envars.get("INSTALL_TYPE"),
-            )
-        for raw in candidates:
-            if raw is None or raw == "":
-                continue
-            try:
-                return int(raw)
-            except (TypeError, ValueError):
-                continue
-
-        if apps_dir is None:
-            return 2
-
-        apps_dir = Path(apps_dir)
-        parts = set(apps_dir.parts)
-        if any(part in {"site-packages", "dist-packages"} for part in parts):
-            return 0
-        if any(part.startswith(".venv") for part in parts):
-            return 0
-
-        try:
-            if apps_dir.parent.name == "src":
-                return 1
-            if len(apps_dir.parents) > 1 and apps_dir.parents[1].name == "src":
-                return 1
-        except Exception:
-            pass
-
-        try:
-            if apps_dir.parent.name == "examples":
-                return 0
-            if len(apps_dir.parents) > 1 and apps_dir.parents[1].name == "examples":
-                return 0
-        except Exception:
-            pass
-
-        # Legacy fallback: detect whether the core package is sourced from ``src/agilab``
-        if agilab_src.name == "src":
-            return 1
-
-        return 0
 
     @staticmethod
     def _resolve_package_root(root: Path) -> Path:
@@ -929,10 +855,10 @@ class AgiEnv:
         return "agilab" in rel.parts
 
     def active(self, target):
-        """Switch :attr:`active_app` to ``target`` if it differs from the current one."""
+        """Switch :attr:`app` to ``target`` if it differs from the current one."""
 
-        if str(self.active_app) != target:
-            self.change_active_app(target)
+        if str(self.app) != target:
+            self.change_app(target)
 
     def humanize_validation_errors(self, error):
         """Format pydantic-style validation ``error`` messages for human consumption."""
@@ -1099,7 +1025,7 @@ class AgiEnv:
         self.projects = self.get_projects(self.apps_dir)
         for idx, project in enumerate(self.projects):
             if self.target == project[:-8].replace("-", "_"):
-                self.active_app = AgiEnv.apps_dir / project
+                self.app = AgiEnv.apps_dir / project
                 self.app = project
                 break
 
@@ -1191,11 +1117,11 @@ class AgiEnv:
         if not link_root:
             return False
 
-        candidate = link_root / self.active_app.name
+        candidate = link_root / self.app.name
         if not candidate.exists():
             return False
 
-        dest = self.active_app
+        dest = self.app
         if dest.exists():
             if dest.is_symlink():
                 dest.unlink()
@@ -1273,7 +1199,7 @@ class AgiEnv:
         if not AGILAB_LOG_ABS.exists():
             AGILAB_LOG_ABS.mkdir(parents=True)
         self.AGILAB_LOG_ABS = AGILAB_LOG_ABS
-        self.runenv = AgiEnv.examples
+        self.runenv = AgiEnv.examples / self.target
         AGILAB_EXPORT_ABS = Path(envars.get("AGI_EXPORT_DIR", self.home_abs / "export"))
         if not AGILAB_EXPORT_ABS.exists():
             AGILAB_EXPORT_ABS.mkdir(parents=True)
@@ -1764,14 +1690,14 @@ class AgiEnv:
         except Exception as e:
             AgiEnv.logger.error(f"Failed to create symlink @{dest} -> {src}: {e}")
 
-    def change_active_app(self, app):
+    def change_app(self, app):
         if not isinstance(app, Path):
             app = Path(app)
         app = app.expanduser()
 
         current_name = None
-        if getattr(self, "active_app", None):
-            current_name = Path(self.active_app).name
+        if getattr(self, "app", None):
+            current_name = Path(self.app).name
 
         if app.name == current_name:
             return
@@ -1783,7 +1709,7 @@ class AgiEnv:
         try:
             self.__init__(
                 apps_dir=app_path.parent,
-                active_app=app_name,
+                app=app_name,
                 verbose=AgiEnv.verbose,
             )
         except Exception:
