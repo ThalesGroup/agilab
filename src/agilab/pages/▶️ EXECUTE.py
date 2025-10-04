@@ -730,7 +730,7 @@ def workload_barchart(workers, work_plan_metadata, partition_key, weights_key, w
     st.plotly_chart(fig, use_container_width=True)
 
 def _is_app_installed(env):
-    venv_root = env.app / ".venv"
+    venv_root = env.active_app / ".venv"
     return venv_root.exists()
 
 # ===========================
@@ -883,8 +883,8 @@ from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
-APPS_DIR = Path({str(env.apps_dir)!r})
-APP = {env.app.name!r}
+APPS_DIR = {env.apps_dir}
+APP = {env.app}
 
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
@@ -1000,8 +1000,8 @@ from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
-APPS_DIR = Path({str(env.apps_dir)!r})
-APP = {env.app.name!r}
+APPS_DIR = {env.apps_dir}
+APP = {env.app}
 
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
@@ -1113,8 +1113,8 @@ from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
-APPS_DIR = Path({str(env.apps_dir)!r})
-APP = {env.app.name!r}
+APPS_DIR = {env.apps_dir}
+APP = {env.app.name}
 
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
