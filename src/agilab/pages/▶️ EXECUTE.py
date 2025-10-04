@@ -883,8 +883,8 @@ from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
-APPS_DIR = {env.apps_dir}
-APP = {env.app}
+APPS_DIR = "{env.apps_dir}"
+APP = "{env.app}"
 
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
@@ -1000,8 +1000,8 @@ from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
-APPS_DIR = {env.apps_dir}
-APP = {env.app}
+APPS_DIR = "{env.apps_dir}"
+APP = "{env.app}"
 
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
@@ -1113,8 +1113,8 @@ from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv, normalize_path
 from pathlib import Path
 
-APPS_DIR = {env.apps_dir}
-APP = {env.app.name}
+APPS_DIR = "{env.apps_dir}"
+APP = "{env.app}"
 
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
