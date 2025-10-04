@@ -39,7 +39,7 @@ AGI_INSTALL_PATH="$(realpath '.')"
 CURRENT_PATH="$(realpath '.')"
 cluster_credentials=""
 openai_api_key=""
-SOURCE="testpypi"
+SOURCE="local"
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -315,6 +315,20 @@ install_pycharm_script() {
     $UV run -p "$AGI_PYTHON_VERSION" python pycharm/setup_pycharm.py || echo -e "${YELLOW}pycharm/install-apps-script.py failed or not found; continuing.${NC}"
 }
 
+refresh_launch_matrix() {
+    echo -e "${BLUE}Refreshing Launch Matrix from .idea/runConfigurations...${NC}"
+    pushd "$AGI_INSTALL_PATH" > /dev/null || return 0
+    if [[ -f "tools/refresh_launch_matrix.py" ]]; then
+        # Best-effort; do not fail install if this step errors
+        $UV run -p "$AGI_PYTHON_VERSION" python tools/refresh_launch_matrix.py --inplace \
+          && echo -e "${GREEN}Launch Matrix updated in AGENTS.md.${NC}" \
+          || echo -e "${YELLOW}Launch Matrix refresh skipped (tooling not available).${NC}"
+    else
+        echo -e "${YELLOW}No tools/refresh_launch_matrix.py found; skipping matrix refresh.${NC}"
+    fi
+    popd > /dev/null || true
+}
+
 # ================================
 # Script Execution
 # ================================
@@ -330,8 +344,10 @@ write_env_values
 if ! install_apps; then
   echo -e "${YELLOW}install_apps failed; continuing with PyCharm setup.${NC}"
   install_pycharm_script # needed to investigate with pycharm why previous script has failed
+  refresh_launch_matrix
 else
   install_pycharm_script
+  refresh_launch_matrix
   install_enduser
   echo -e "${GREEN}Installation complete!${NC}"
 fi

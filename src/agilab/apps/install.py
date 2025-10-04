@@ -46,7 +46,7 @@ async def main():
             description="Run AGILAB application with custom options."
         )
 
-        parser.add_argument("app", type=str, help="Module path")
+        parser.add_argument("active_app", type=str, help="Path to the app project (e.g. src/agilab/apps/flight_project)")
 
         parser.add_argument(
             "--verbose", type=int, default=1, help="Verbosity level (1-3 default: 1)"
@@ -54,10 +54,10 @@ async def main():
 
         args, unknown = parser.parse_known_args()
 
-        app_path = Path(args.app).expanduser()
+        app_path = Path(args.active_app).expanduser()
         app_env = AgiEnv(
             apps_dir=app_path.parent,
-            active_app=app_path.name,
+            app=app_path.name,
             verbose=args.verbose,
         )
         install_type = app_env.install_type

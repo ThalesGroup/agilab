@@ -1154,7 +1154,7 @@ class AGI:
     async def _deploy_application(scheduler_addr: Optional[str]) -> None:
         AGI._reset_deploy_state()
         env = AGI.env
-        app_path = env.app
+        app_path = env.active_app
         wenv_rel = env.wenv_rel
         if isinstance(env.base_worker_cls, str):
             options_worker = " --extra " + " --extra ".join(AGI.install_worker_group)
@@ -1445,7 +1445,7 @@ class AGI:
         # MANAGER install command with and without rapids capable
         # =========
 
-        app_path = env.app
+        app_path = env.active_app
         if env.install_type == 0 and dependency_info:
             _update_pyproject_dependencies(
                 app_path / "pyproject.toml",
@@ -1627,7 +1627,8 @@ class AGI:
             cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.node_root}'"
             await AgiEnv.run(cmd, wenv_abs)
 
-        cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.app}'"
+        # Install the app sources into the worker venv using the absolute app path
+        cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.active_app}'"
         await AgiEnv.run(cmd, wenv_abs)
 
         # Post-install script
@@ -1961,7 +1962,7 @@ class AGI:
             except Exception as e:
                 raise
 
-            toml_local = env.app / "pyproject.toml"
+            toml_local = env.active_app / "pyproject.toml"
             wenv_rel = env.wenv_rel
             wenv_abs = env.wenv_abs
             if env.is_local(AGI._scheduler_ip):
@@ -2147,7 +2148,7 @@ class AGI:
         elif baseworker.startswith("Fireducks"):
             packages += "fireducks_worker"
 
-        app_path = env.app
+        app_path = env.active_app
         wenv_abs = env.wenv_abs
         module = getattr(env, "setup_app_module", "agi_node.agi_dispatcher.build")
 

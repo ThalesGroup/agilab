@@ -295,10 +295,10 @@ PY
     fi
 
     echo "Installing packages: ${PACKAGES} == ${VERSION}"
+    # pip 25 removed --index-strategy; rely on default resolver across indexes
     ${UV_PREVIEW[@]} run python -m pip install \
       --index "${INDEX_URL}" \
       --extra-index-url "${EXTRA_INDEX_URL}" \
-      --index-strategy unsafe-best-match \
       --upgrade --no-cache-dir \
       $(for p in ${PACKAGES}; do printf "%s==%s " "${p}" "${VERSION}"; done)
 
