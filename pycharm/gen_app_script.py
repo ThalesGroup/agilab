@@ -104,6 +104,8 @@ if __name__ == "__main__":
         tree = ET.parse(tpl_path)
         _replace_placeholders(tree, app_name)
 
+        # Templates now always use underscore naming (AGI_run_*, AGI_install_*, AGI_get_distrib_*)
+
         base = tpl_path.name.replace('_template_app', f'_{app_name}')
         out_path = os.path.join(output_dir, base)
 
