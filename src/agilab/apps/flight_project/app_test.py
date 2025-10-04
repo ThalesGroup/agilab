@@ -28,9 +28,9 @@ async def main() -> None:
     wenv = env.wenv_abs
     for cmd in [
         f"uv run --no-sync --project {wenv} python -m agi_node.agi_dispatcher.build --app-path {wenv} "
-        f"bdist_egg --packages base_worker,polars_worker -d {wenv}",
+        f"-q bdist_egg --packages agi_dispatcher,polars_worker -d {wenv}",
         f"uv run --no-sync --project {wenv} python -m agi_node.agi_dispatcher.build --app-path {wenv} "
-        f"build_ext --packages base_worker,polars_worker -b {wenv}",
+        f"-q build_ext -b {wenv}",
         f"uv run --no-sync --project {script_dir} {script_dir}/test/_test_{target_name}_manager.py",
         f"uv run --no-sync --project {worker_repo} {script_dir}/test/_test_{target_name}_worker.py"
     ]:
