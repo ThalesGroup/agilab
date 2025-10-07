@@ -1,8 +1,0 @@
-Installation Overview
-======================
-
-This is describing the mechanism of Agilab applications seamless installation automation
-
-.. image:: install-usecase.svg
-   :alt: Installation Overview
-   :align: center
