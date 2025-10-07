@@ -42,3 +42,12 @@ src/*-info/
 
 # Built documentation
 docs/html/
+
+# Python bytecode
+*.pyc
+
+# Pytest cache
+.pytest_cache/
+
+# Sphinx build directory
+docs/build/
