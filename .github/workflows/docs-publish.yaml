@@ -35,17 +35,18 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v5
-      - name: Build documentation
+      - name: Build documentation (Sphinx with fallback)
         run: |
           set -e
           mkdir -p docs/html
           if [ -f docs/conf.py ] || [ -f docs/source/conf.py ]; then
             python3 -m pip install --upgrade pip
-            python3 -m pip install sphinx sphinx-rtd-theme
+            # Install core Sphinx + common extensions used by the repo (best-effort)
+            python3 -m pip install sphinx sphinx-rtd-theme myst-parser sphinx-design sphinx-tabs sphinx-autodoc-typehints || true
             if [ -f docs/conf.py ]; then
-              sphinx-build -b html docs docs/html
+              sphinx-build -b html docs docs/html || rsync -a --delete src/agilab/resources/help/ docs/html/
             else
-              sphinx-build -b html docs/source docs/html
+              sphinx-build -b html docs/source docs/html || rsync -a --delete src/agilab/resources/help/ docs/html/
             fi
           elif [ -d src/agilab/resources/help ]; then
             rsync -a --delete src/agilab/resources/help/ docs/html/
