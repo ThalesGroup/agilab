@@ -1,0 +1,62 @@
+[project]
+name = "your_fireducks_project"
+version = "0.7.3"
+description = ""
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    {name = "your name", email = "your email"}
+]
+
+dependencies = [
+    "setuptools",
+    "cython",
+    "parso",
+    "py7zr",
+    "python-dotenv",
+    "ipython",
+    "psutil",
+    "fireducks",
+]
+
+[dependency-groups]
+dev = [
+    "black",
+    "pytest",
+    "pytest-cov",
+    "pytest-local-badge",
+    "pytest-asyncio",
+    "licensecheck",
+    "your_fireducks_project",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv.sources.your_fireducks_project]
+workspace = true
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+your_fireducks_project = [
+    "**/*.ipynb",
+    "**/*.json",
+    "**/*.toml",
+]
+
+[tool.mypy]
+mypy_path = [
+    "stubs",
+]
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+# Quiet known third-party deprecations
+filterwarnings = [
+    "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
+    "ignore:.*Theme names and color schemes are lowercase in IPython 9.0.*:DeprecationWarning:IPython\\.core\\.ultratb",
+]
+

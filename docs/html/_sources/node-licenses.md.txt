@@ -1,0 +1,53 @@
+# Node Licenses
+| Package Name | License |
+|--------------|---------|
+| brotli | MIT LICENSE |
+| click | BSD-3-CLAUSE |
+| cloudpickle | BSD LICENSE |
+| cython | APACHE SOFTWARE LICENSE |
+| dask | BSD LICENSE |
+| distributed | BSD LICENSE |
+| fsspec | BSD LICENSE |
+| inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| jinja2 | BSD LICENSE |
+| joblib | BSD LICENSE |
+| llvmlite | BSD |
+| locket | BSD LICENSE |
+| logging | COPYRIGHT _C_ 2001-2005 BY VINAY SAJIP. ALL RIGHTS RESERVED. SEE LICENSE FOR LICENSE. |
+| markupsafe | BSD LICENSE |
+| msgpack | APACHE 2.0 |
+| multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| numba | BSD LICENSE |
+| numpy | BSD LICENSE |
+| packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| pandas | BSD LICENSE |
+| parso | MIT LICENSE |
+| partd | BSD |
+| polars | MIT LICENSE |
+| psutil | BSD LICENSE |
+| py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
+| pyppmd | LGPL-2.1-OR-LATER |
+| python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| python-dotenv | BSD LICENSE |
+| pytz | MIT LICENSE |
+| pyyaml | MIT LICENSE |
+| pyzstd | BSD LICENSE |
+| scikit-learn | BSD-3-CLAUSE |
+| scipy | BSD LICENSE |
+| setuptools | MIT |
+| six | MIT LICENSE |
+| sortedcontainers | APACHE SOFTWARE LICENSE |
+| tblib | BSD-2-CLAUSE |
+| texttable | MIT LICENSE |
+| threadpoolctl | BSD LICENSE |
+| tomli | MIT LICENSE |
+| toolz | BSD LICENSE |
+| tornado | APACHE SOFTWARE LICENSE |
+| typing-extensions | PSF-2.0 |
+| typing-inspection | MIT |
+| tzdata | APACHE SOFTWARE LICENSE |
+| urllib3 | MIT |
+| wheel | MIT LICENSE |
+| zict | BSD LICENSE |

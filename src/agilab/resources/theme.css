@@ -1,0 +1,180 @@
+/* Shared “primary” styling applied across all Streamlit pages */
+
+[data-testid="stButton"] button,
+[data-testid="stDownloadButton"] button,
+[data-testid="stFormSubmitButton"] button {
+  font-weight: 600;
+  color: #4A90E2 !important;
+  background: transparent !important;
+  border: 1px solid #4A90E2 !important;
+  white-space: nowrap;
+  border-radius: 6px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+[data-testid="stButton"] button:hover,
+[data-testid="stDownloadButton"] button:hover,
+[data-testid="stFormSubmitButton"] button:hover {
+  background: #4A90E2 !important;
+  color: #FFFFFF !important;
+}
+
+[data-testid="stTabs"] button {
+  color: #4A90E2 !important;
+  font-weight: 600;
+}
+
+
+
+[data-testid="stToggle"] label {
+  color: #4A90E2 !important;
+}
+
+[data-testid="stToggle"] div[role="switch"] {
+  background-color: rgba(74, 144, 226, 0.15) !important;
+  border: 1px solid #4A90E2 !important;
+}
+
+[data-testid="stToggle"] div[role="switch"][aria-checked="true"] {
+  background-color: #4A90E2 !important;
+}
+
+[data-testid="stToggle"] div[role="switch"] span {
+  background-color: #FFFFFF !important;
+}
+
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+  border-radius: 20px;
+  border: 1px solid #4A90E2 !important;
+  box-shadow: none !important;
+}
+
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div:hover {
+  border-color: #4A90E2 !important;
+}
+
+[data-testid="stSelectbox"] div[data-baseweb="select"] span {
+  color: #4A90E2 !important;
+}
+
+/* Multiselect: align borders and focus ring with primary color */
+[data-testid="stMultiSelect"] div[data-baseweb="select"] > div {
+  border-radius: 20px !important;
+  border: 1px solid #4A90E2 !important;
+  box-shadow: none !important;
+}
+
+[data-testid="stMultiSelect"] div[data-baseweb="select"] > div:focus-within {
+  border-color: #4A90E2 !important;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2) !important;
+}
+
+[data-testid="stMultiSelect"] div[data-baseweb="select"] > div[aria-invalid="true" i] {
+  /* Neutralize BaseWeb invalid (red) border to our primary */
+  border-color: #4A90E2 !important;
+  box-shadow: none !important;
+}
+
+[data-baseweb="tag"] {
+  background-color: transparent !important;
+  border: 1px solid rgba(0, 0, 0, 0.25) !important;
+  color: inherit !important;
+  box-shadow: none !important;
+}
+
+[data-baseweb="tag"] span[title] {
+  color: inherit !important;
+}
+
+[data-baseweb="tag"] svg[data-baseweb="icon"] {
+  color: inherit !important;
+  fill: currentColor !important;
+}
+
+/* Toggle accents */
+label[data-baseweb="checkbox"] {
+  color: #4A90E2 !important;
+}
+
+label[data-baseweb="checkbox"] > div:first-child {
+  background-color: rgba(74, 144, 226, 0.15) !important;
+  border: 1px solid #4A90E2 !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+label[data-baseweb="checkbox"] > div:first-child > div {
+  background-color: #FFFFFF !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+}
+
+label[data-baseweb="checkbox"]:has(input[checked]) > div:first-child,
+label[data-baseweb="checkbox"]:has(input[aria-checked="true" i]) > div:first-child {
+  background-color: #4A90E2 !important;
+  border: 1px solid #4A90E2 !important;
+}
+
+label[data-baseweb="checkbox"]:has(input[checked]) > div:first-child > div,
+label[data-baseweb="checkbox"]:has(input[aria-checked="true" i]) > div:first-child > div {
+  background-color: #FFFFFF !important;
+}
+
+/* Streamlit radio buttons */
+[data-testid="stRadio"] label[data-baseweb="radio"] {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child {
+  display: none !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"] input[type="radio"] {
+  appearance: auto !important;
+  -webkit-appearance: auto !important;
+  accent-color: #4A90E2 !important;
+  width: 1rem !important;
+  height: 1rem !important;
+  margin: 0 !important;
+  position: static !important;
+}
+
+
+/* Streamlit radio buttons */
+[data-testid="stRadio"] label[data-baseweb="radio"] {
+  background-color: transparent !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child {
+  border: 2px solid #4A90E2 !important;
+  background-color: #FFFFFF !important;
+  box-shadow: none !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child > div {
+  background-color: #FFFFFF !important;
+  box-shadow: none !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[checked]) > div:first-child,
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[checked]) > div:first-child {
+  border-color: #4A90E2 !important;
+  background-color: #FFFFFF !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[aria-checked="true" i]) > div:first-child {
+  border-color: #4A90E2 !important;
+  background-color: #FFFFFF !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[checked]) > div:first-child > div,
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[checked]) > div:first-child > div {
+  background-color: #4A90E2 !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[aria-checked="true" i]) > div:first-child > div {
+  background-color: #4A90E2 !important;
+}

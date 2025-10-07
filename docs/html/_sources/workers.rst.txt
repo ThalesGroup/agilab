@@ -1,0 +1,95 @@
+agi-node API
+============
+
+
+agi-node Reference
+--------
+
+dag_worker
+~~~~~~~~~~
+
+.. image:: diagrams/packages_dag_worker.png
+   :width: 400
+   :alt: Packages diagram for dag_worker
+   :align: center
+
+----
+
+.. image:: diagrams/classes_dag_worker.png
+   :width: 400
+   :alt: Classes diagram for dag_worker
+   :align: center
+
+----
+
+.. automodule:: dag_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----
+
+
+pandas_worker
+~~~~~~~~~~~
+
+.. image:: diagrams/packages_pandas_worker.png
+   :width: 400
+   :alt: Packages diagram for pandas_worker
+   :align: center
+
+----
+
+.. image:: diagrams/classes_pandas_worker.png
+   :width: 400
+   :alt: Classes diagram for pandas_worker
+   :align: center
+
+----
+
+.. automodule:: agi_core.pandas_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----
+
+
+polars_worker
+~~~~~~~~~~~
+
+.. image:: diagrams/packages_polars_worker.png
+   :width: 400
+   :alt: Packages diagram for polars_worker
+   :align: center
+
+----
+
+.. image:: diagrams/classes_polars_worker.png
+   :width: 400
+   :alt: Classes diagram for polars_worker
+   :align: center
+
+----
+
+.. automodule:: polars_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----
+
+
+fireducks_worker
+~~~~~~~~~~~~~~
+
+The FireDucks worker layers optional ``fireducks`` acceleration on top of the
+standard ``PandasWorker`` contract, ensuring that returned results are
+normalised to pandas DataFrames before downstream processing.
+
+.. automodule:: agi_node.fireducks_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----

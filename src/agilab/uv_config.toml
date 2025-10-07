@@ -1,0 +1,5 @@
+
+ override-dependencies = [
+    "streamlit-pandas-profiling",
+    "ydata-profiling",
+ ]

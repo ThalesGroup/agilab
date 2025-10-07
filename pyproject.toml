@@ -1,0 +1,207 @@
+[project]
+version = "0.8.5"
+name = "agilab"
+description = "AGILAB is a PyCharm‑integrated AI experimentation lab for engineering (requires PyCharm for full workflow)"
+requires-python = ">=3.11"
+readme = "README.md"
+authors = [
+    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
+]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+]
+keywords = [
+    "jupyter", "mlflow", "asyncio", "dask", "rapids",
+    "streamlit", "distributed", "cython", "cluster", "dataframe",
+    "dataset", "load balancing", "gen ai", "copilot", "agi",
+    "pycharm", "datascience"
+]
+dependencies = ["astor", "asyncssh", "build", "cmake>=3.29", "fastparquet", "geojson", "humanize", "jupyter-ai[all]", "keras", "matplotlib", "mlflow", "networkx", "numba", "numpy>=1.14.1", "openai", "pathspec", "pip", "plotly", "polars", "py7zr", "seaborn", "setuptools", "scipy==1.15.2", "streamlit", "streamlit-modal", "streamlit_code_editor", "streamlit_extras", "tomli", "tomli_w", "twine", "watchdog", "wheel", "agi-core==0.8.5", "legacy-cgi; python_version >= '3.13'", "standard-imghdr; python_version >= '3.13'"]
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+
+[project.scripts]
+agilab = "agilab.lab_run:main"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[dependency-groups]
+dev = [
+    "agi-core",
+    "pytest",
+    "pytest-cov",
+    "pytest-local-badge",
+    "pytest-asyncio",
+    "ydata-profiling",
+    "genbadge[coverage]",
+    "pypi-cleanup",
+]
+
+[tool.uv.extra-build-dependencies]
+htmlmin = ["legacy-cgi"]
+ydata-profiling = ["standard-imghdr"]
+
+[tool.uv.sources.agi-core]
+    path = "./src/agilab/core/agi-core"
+    editable = true
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["agilab*"]
+exclude = [
+    "agilab.core*",
+    ".idea*",
+    "test*",
+    "build*",
+    ".venv*"
+]
+
+[tool.setuptools.package-data]
+agilab = [
+    "resources/*.*",
+    "resources/help/*",
+    "*.toml",
+    "*.ipynb",
+]
+
+[tool.mypy]
+mypy_path = [
+    "stubs",
+]
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pyment]
+source_dir = "src"
+format = "google"
+
+[tool.pytest.ini_options]
+# Let pytest discover tests from repo root
+testpaths = [
+  "test",
+  "src/agilab/core/test",
+  "src/agilab/core/agi-env/test",
+]
+
+# Make the core packages importable when running pytest from the repo root
+pythonpath = [
+  "src/agilab/core/agi-env/src",
+  "src/agilab/core/agi-node/src",
+  "src/agilab/core/agi-cluster/src",
+]
+
+# (merge everything you had inline here)
+asyncio_mode = "auto"
+# addopts = "--import-mode=importlib"   # if you had it
+filterwarnings = [
+  "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
+  "ignore:Theme names and color schemes are lowercase.*:DeprecationWarning:IPython\\.core\\.ultratb",
+]
+
+addopts = [
+  "--cov=agilab", "--cov=agi_core", "--cov=agi_env", "--cov=agi_cluster", "--cov=agi_node",
+  "--cov-report=term-missing:skip-covered"
+]
+
+[tool.coverage.run]
+branch = true
+source = ["agilab", "agi_core", "agi_env", "agi_cluster", "agi_node"]

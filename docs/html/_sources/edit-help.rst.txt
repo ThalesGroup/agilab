@@ -1,0 +1,76 @@
+▶️ EDIT
+=======
+
+.. toctree::
+   :hidden:
+
+Sidebar
+-------
+
+- ``Select`` loads the chosen project and exposes an ``Export`` button that writes
+  ``<project>.zip`` to ``${EXPORT_APPS}`` using the active ``export-app-filter``.
+  The rest of the page (expanders described below) becomes available from this
+  view.
+- ``Create and Clone`` lets you clone either the current project or one of the
+  templates discovered on disk. The helper normalises the name (adds the
+  ``_project`` suffix) and rejects duplicates before cloning.
+- ``Rename`` copies the selected project to the new name, removes the original
+  folder and switches the session to the renamed project once the operation
+  succeeds.
+- ``Delete`` permanently removes the active project after you tick the
+  confirmation box. When the folder is deleted, AGILab automatically selects a
+  remaining project so you can keep working.
+- ``Import`` restores a project archive produced by ``Export``. You can request a
+  clean import (strips ``.gitignore`` files) and the modal overwrite flow guards
+  against accidentally replacing an existing project.
+
+Main Content Area
+-----------------
+- When ``Select`` is active the page reveals a stack of expanders backed by the
+  in-browser code editor. Each expander streams syntax-highlighted content and
+  writes any saved changes straight back to disk:
+
+  - ``PYTHON-ENV`` edits the project ``pyproject.toml`` so you can manage
+    dependencies without leaving the browser.
+  - ``PYTHON-ENV-EXTRA`` surfaces ``uv_config.toml`` for supplemental dependency
+    constraints.
+  - ``MANAGER`` and ``WORKER`` expose the main orchestration modules. The editor
+    offers class/function/attribute pickers so you can focus on specific
+    sections before saving.
+  - ``EXPORT-APP-FILTER`` controls the ``.gitignore`` rules that the export flow
+    applies when producing the archive.
+  - ``APP-SETTINGS`` opens ``app_settings.toml``. AGILab keeps the ``[args]`` and
+    ``[pages]`` sections in sync with the Execute and Explore pages.
+  - ``README`` allows quick edits to the project ``README.md``.
+  - ``APP-ARGS`` targets ``app_args.py`` in the app package. Use it to
+    synchronise default arguments with the Execute page.
+  - ``APP-ARGS-FORM`` displays (and creates if missing) the optional
+    ``app_args_form.py`` Streamlit snippet used to render a custom parameter UI
+    in Execute.
+  - ``PRE-PROMPT`` serialises ``pre_prompt.json`` so you can tailor the prompt
+    used by the Experiment assistant.
+
+Regenerate Documentation
+------------------------
+
+After updating this guide (or any docs surfaced in the IDE), rebuild the
+generated site so teammates and CI consume the same content:
+
+.. code-block:: bash
+
+   ./docs/gen_docs.sh
+
+The wrapper guarantees ``uv`` runs ``docs/gen-docs.py`` with the extra build
+dependencies required for Sphinx and stub generation.
+
+.. literalinclude:: ../gen_docs.sh
+   :language: bash
+   :caption: ``docs/gen_docs.sh``
+
+Support
+-------
+
+Email: focus@thalesgroup.com
+
+.. |PyPI version| image:: https://img.shields.io/pypi/v/AGI.svg
+   :target: https://pypi.org/project/agilab/

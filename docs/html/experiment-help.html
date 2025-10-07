@@ -1,0 +1,399 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>▶️ EXPERIMENT &mdash; AGILab 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+      <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css?v=28052664" />
+
+  
+    <link rel="canonical" href="https://thalesgroup.github.io/agilab/experiment-help.html" />
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=8d563738"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="▶️ EXPLORE" href="explore-help.html" />
+    <link rel="prev" title="▶️ EXECUTE" href="execute-help.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            AGILab
+              <img src="_static/agi_logo.svg" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quick-start.html">Quick-Start</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="quick-start.html#license">LICENSE</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick-start.html#install-agilab">Install Agilab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick-start.html#support">Support</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#purpose"><strong>Purpose</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#target-audience"><strong>Target Audience</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#main-dependencies"><strong>Main Dependencies</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#technologies-selection-criteria"><strong>Technologies Selection Criteria</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#example-aircraft-radio-communication">Example: Aircraft Radio Communication</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="features.html">Features</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="features.html#agi-core">agi-core</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.html#agilab">agilab</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Core Topics</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="cluster.html">Cluster</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="cluster-help.html">Cluster Help</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="cluster-help.html#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="cluster-help.html#principle">Principle</a></li>
+<li class="toctree-l3"><a class="reference internal" href="cluster-help.html#regenerate-documentation">Regenerate Documentation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#generate-the-keys">1. Generate the keys</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#loading-the-private-key-in-ssh-agent">2. Loading the private key in SSH Agent</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#load-the-private-key">2.1 Load the private key</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verify-the-key-addition">2.2 Verify the key Addition</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#copy-the-public-key-to-the-server">3. Copy the public key to the server</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#allow-your-key">3.1 Allow your key</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verification">3.2 Verification</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#sshd-service">SSHD Service</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#useful-links">Useful links</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cluster-help.html">Cluster Help</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="cluster-help.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cluster-help.html#principle">Principle</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cluster-help.html#regenerate-documentation">Regenerate Documentation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="agilab.html">AGILab</a><ul class="simple">
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="framework-api.html">Framework API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="framework-api.html#core-packages">Core packages</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agi-env.html">agi-env API</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#usage-example">Usage Example</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#reference">Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="agi-node.html">agi-node API</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#path-handling">Path handling</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#argument-helpers">Argument helpers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#managed-pc-path-remapping">Managed PC path remapping</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#output-directory-helpers">Output directory helpers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-node.html#reference">Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="agi-distributor.html">agi-distributor API</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-distributor.html#usage-example">Usage Example</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-distributor.html#reference">Reference</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="framework-api.html#working-with-the-api">Working with the API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="framework-api.html#app-structure-conventions">App structure conventions</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="environment.html">Environment Variables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#missing-worker-packages-during-agi-run">Missing worker packages during <cite>AGI.run_*</cite></a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#why-installers-still-build-eggs">Why installers still build eggs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#do-we-already-have-dag-task-orchestration">Do we already have DAG/task orchestration?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#who-manages-multithreading-when-dask-is-disabled">Who manages multithreading when Dask is disabled?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#regenerating-ide-run-configurations">Regenerating IDE run configurations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#virtual-env-does-not-match-the-project-environment-warning">“VIRTUAL_ENV … does not match the project environment” warning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#why-does-a-run-create-distribution-json">Why does a run create <code class="docutils literal notranslate"><span class="pre">distribution.json</span></code>?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#switching-the-active-app-in-streamlit">Switching the active app in Streamlit</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#docs-drift-after-touching-core-apis">Docs drift after touching core APIs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#agi-install-fails-looking-for-pyproject-toml"><cite>AGI.install_*</cite> fails looking for <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#where-are-installer-logs-written">Where are installer logs written?</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="directory-structure.html">Project Files Structure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-usecase.html">Installation Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#d-agilab-run-dev-vs-agilab-run-enduser-vs-lab-run">D - agilab_run_dev vs agilab_run_enduser vs lab_run:</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html#known-bugs">Known Bugs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#install-sh-freeze">&lt;install.sh&gt; freeze:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#uv-virtual-env-warning">&lt;UV&gt; VIRTUAL_ENV Warning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#uv-sync-failed">&lt;UV&gt; Sync Failed</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#dask-debug-issue">&lt;DASK&gt; Debug Issue</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#pycharm-run-debug-configuration-is-broken">&lt;PYCHARM&gt; Run/Debug Configuration is Broken</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#pycharm-can-t-open-your-project">&lt;PYCHARM&gt; Can’t open your project</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-cluster-licenses.html">Agi-cluster Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agi-node-licenses.html">Agi-node Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agi-env-licenses.html">Agi-env Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project-licenses.html">Flight-project Licenses</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Pages</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ EDIT</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="edit-help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l2"><a class="reference internal" href="edit-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="edit-help.html#regenerate-documentation">Regenerate Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="edit-help.html#support">Support</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="execute-help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="execute-help.html#regenerate-documentation">Regenerate Documentation</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#sidebar">Sidebar</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#regenerate-documentation">Regenerate Documentation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="explore-help.html">▶️ EXPLORE</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="explore-help.html#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="explore-help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l2"><a class="reference internal" href="explore-help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="explore-help.html#tips-notes">Tips &amp; Notes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="explore-help.html#regenerate-documentation">Regenerate Documentation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="apps-pages.html">apps bounded pages</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="apps-pages.html#view-autoencoder-latenspace">view_autoencoder_latenspace</a></li>
+<li class="toctree-l2"><a class="reference internal" href="apps-pages.html#view-barycentric">view_barycentric</a></li>
+<li class="toctree-l2"><a class="reference internal" href="apps-pages.html#view-maps">view_maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="apps-pages.html#view-maps-3d">view_maps_3d</a></li>
+<li class="toctree-l2"><a class="reference internal" href="apps-pages.html#view-maps-network">view_maps_network</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Apps Examples</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="mycode-project.html">MyCode Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#manager-mycode-mycode">Manager (<cite>mycode.mycode</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#args-mycode-app-args">Args (<cite>mycode.app_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#worker-mycode-worker-mycode-worker">Worker (<cite>mycode_worker.mycode_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mycode-project.html#api-reference">API Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="flight-project.html">Flight Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#manager-flight-flight">Manager (<cite>flight.flight</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#args-flight-flight-args">Args (<cite>flight.flight_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#worker-flight-worker-flight-worker">Worker (<cite>flight_worker.flight_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flight-project.html#api-reference">API Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="example-app-project.html">Flight Trajectory Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#manager-example-app-example-app">Manager (<cite>example_app.example_app</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#args-example-app-app-args">Args (<cite>example_app.app_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#worker-example-app-worker-example-app-worker">Worker (<cite>example_worker.example_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#api-reference">API Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="example-app-project.html">Link Sim Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#manager-example-app-example-app">Manager (<cite>example_app.example_app</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#args-example-app-app-args">Args (<cite>example_app.app_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#worker-example-app-worker-example-app-worker">Worker (<cite>example_worker.example_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#api-reference">API Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="example-app-project.html">Sat Trajectory Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#manager-example-app-example-app">Manager (<cite>example_app.example_app</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#args-example-app-app-args">Args (<cite>example_app.app_args</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#worker-example-app-worker-example-app-worker">Worker (<cite>example_worker.example_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#api-reference">API Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="example-app-project.html">Example App Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#manager-example-app-example-app">Manager (<cite>example_app.example_app</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#worker-example-app-worker-example-app-worker">Worker (<cite>example_worker.example_worker</cite>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#assets-tests">Assets &amp; Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="example-app-project.html#api-reference">API Reference</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Hosting Sites</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="agilab-github.html"><strong>Agilab project</strong></a></li>
+<li class="toctree-l1"><a class="reference internal" href="agilab-github.html#agilab-components"><strong>Agilab components</strong></a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">AGILab</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">▶️ EXPERIMENT</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/experiment-help.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="experiment">
+<h1>▶️ EXPERIMENT<a class="headerlink" href="#experiment" title="Link to this heading"></a></h1>
+<div class="toctree-wrapper compound">
+</div>
+<section id="sidebar">
+<h2>Sidebar<a class="headerlink" href="#sidebar" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Lab</span> <span class="pre">Directory</span></code>: choose the module whose lab artefacts you want to work on.
+The selection points at <code class="docutils literal notranslate"><span class="pre">${AGILAB_EXPORT_ABS}/&lt;module&gt;</span></code> and initialises
+<code class="docutils literal notranslate"><span class="pre">lab_steps.toml</span></code> if it does not exist yet.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Steps</span></code>: pick the <code class="docutils literal notranslate"><span class="pre">lab_steps</span></code> file relative to the export directory. When
+you change the selection the assistant reloads the stored conversation.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">DataFrame</span></code>: select which CSV (or parquet) is mounted for the assistant. The
+resolved absolute path lives under <code class="docutils literal notranslate"><span class="pre">${AGILAB_EXPORT_ABS}</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Import</span> <span class="pre">Notebook</span></code>: upload an <code class="docutils literal notranslate"><span class="pre">.ipynb</span></code> file to seed the conversation when
+working offline.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Open</span> <span class="pre">MLflow</span> <span class="pre">UI</span></code>: launches the MLflow dashboard in a new browser tab once
+<code class="docutils literal notranslate"><span class="pre">activate_mlflow</span></code> has started the local tracking server.</p></li>
+</ul>
+</section>
+<section id="main-content-area">
+<h2>Main Content Area<a class="headerlink" href="#main-content-area" title="Link to this heading"></a></h2>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" for="sd-tab-item-0">
+ASSISTANT</label><div class="sd-tab-content docutils">
+<p>Each lab is organised as a sequence of steps stored in <code class="docutils literal notranslate"><span class="pre">lab_steps.toml</span></code>.
+The numbered buttons at the top let you jump between them. Ask questions or
+describe transformations in the text area—AGILab forwards the prompt to the
+Responses API together with the selected DataFrame metadata. The code editor
+reacts to the toolbar actions:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Save</span></code> keeps the snippet as-is in the current step.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Next</span></code> persists the snippet and advances to a fresh step.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Remove</span></code> deletes the step from <code class="docutils literal notranslate"><span class="pre">lab_steps.toml</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Run</span></code> writes the snippet to <code class="docutils literal notranslate"><span class="pre">lab_snippet.py</span></code>, executes it and stores any
+produced dataframe under <code class="docutils literal notranslate"><span class="pre">lab_export_out.csv</span></code> so the preview and the
+Execute/Explore pages can consume the result.</p></li>
+</ul>
+<p>The assistant automatically reloads the most recent dataframe and shows it below
+the editor. If nothing has been saved yet, you will see a reminder to run a
+snippet first.</p>
+</div>
+<input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" for="sd-tab-item-1">
+HISTORY</label><div class="sd-tab-content docutils">
+<p>Inspect or tweak the raw <code class="docutils literal notranslate"><span class="pre">lab_steps.toml</span></code> via the code editor. Saving the
+file here immediately refreshes the assistant tab.</p>
+</div>
+</div>
+</section>
+<section id="regenerate-documentation">
+<h2>Regenerate Documentation<a class="headerlink" href="#regenerate-documentation" title="Link to this heading"></a></h2>
+<p>After updating this guide (or any docs surfaced in the IDE), rebuild the
+generated site so teammates and CI consume the same content:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./docs/gen_docs.sh
+</pre></div>
+</div>
+<p>The wrapper guarantees <code class="docutils literal notranslate"><span class="pre">uv</span></code> runs <code class="docutils literal notranslate"><span class="pre">docs/gen-docs.py</span></code> with the extra build
+dependencies required for Sphinx and stub generation.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="execute-help.html" class="btn btn-neutral float-left" title="▶️ EXECUTE" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="explore-help.html" class="btn btn-neutral float-right" title="▶️ EXPLORE" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, THALES SIX GTS France SAS.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

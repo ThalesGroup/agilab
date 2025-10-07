@@ -1,0 +1,18 @@
+[project]
+name = "view-maps"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "ipython>=9.5.0",
+    "streamlit>=1.49.1",
+    "watchdog>=6.0.0",
+    "agi-env",
+    "plotly>=6.3.0",
+    "sqlalchemy>=2.0.43",
+]
+
+[tool.uv.sources.agi-env]
+path = "../../core/agi-env"
+editable = true
+
+

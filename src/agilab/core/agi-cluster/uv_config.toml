@@ -1,0 +1,5 @@
+extra-index-url = ["https://pypi.nvidia.com"]
+
+override-dependencies = [
+  "cuspatial-cu12==25.4.0; platform_system == 'Linux'",
+]

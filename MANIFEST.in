@@ -1,0 +1,16 @@
+# Include only these trees
+graft src/agilab/apps
+graft src/resources
+
+# Keep junk out (root-level if present)
+prune build
+prune dist
+prune .idea
+
+# Exclude any files inside ANY directory named ".venv" (any depth)
+global-exclude **/.venv/**
+global-exclude **/__pycache__/**
+global-exclude **/.pytest_cache/**
+global-exclude **/node_modules/**
+global-exclude **/*~ **/*.py[cod] **/.DS_Store
+
