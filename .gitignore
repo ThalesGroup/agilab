@@ -39,3 +39,6 @@ src/*-info/
 /thales/
 
 .coverage*
+
+# Built documentation
+docs/html/
