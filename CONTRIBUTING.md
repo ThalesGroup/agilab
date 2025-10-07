@@ -40,3 +40,16 @@ Ensure that all unit tests are run as part of the regression testing process.
 
 ### Issues Management
 For issue management, please contact [focus@thalesgroup.com](mailto:focus@thalesgroup.com) and include “[MANAGEMENT]” in the subject line.
+
+## Repository Hygiene
+- Do not commit virtual environments or build artifacts:
+  - Ignored: `.venv/`, `dist/`, `build/`, `docs/html/`, `docs/build/`, `*.pyc`, `.pytest_cache/`.
+  - Recreate envs locally with `uv venv && uv sync` (or `python -m venv .venv && pip install -e .`).
+- Documentation
+  - Docs are built and published by CI to GitHub Pages from `docs/` (or from `src/agilab/resources/help/` fallback).
+  - Do not commit `docs/html/`; edit sources under `docs/` instead.
+- Large files and datasets
+  - Do not commit datasets, generated binaries, archives, or SQLite databases.
+  - Store data externally (artifact storage, buckets) or use Git LFS with explicit patterns.
+- History rewrites
+  - This repo may periodically rewrite history to remove large artifacts. Rebase or re-clone if you see non-fast-forward updates.
