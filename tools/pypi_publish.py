@@ -292,8 +292,8 @@ def cleanup_leave_latest(packages):
             cleanup_env["PYPI_PASSWORD"] = pword
         # Allow cleanup to fail without aborting the publish (e.g., 404 already deleted).
         # Capture output to avoid noisy tracebacks; summarize on failure.
+        # Build subprocess.run kwargs separately; pass 'cmd' as a positional argument
         run_kwargs = dict(
-            cmd,
             cwd=str(REPO_ROOT),
             env={**os.environ, **cleanup_env} if cleanup_env else None,
             text=True,
@@ -303,7 +303,7 @@ def cleanup_leave_latest(packages):
         if CLEANUP_TIMEOUT:
             run_kwargs["timeout"] = CLEANUP_TIMEOUT
         try:
-            proc = subprocess.run(**run_kwargs)
+            proc = subprocess.run(cmd, **run_kwargs)
         except subprocess.TimeoutExpired:
             print(f"[cleanup] warning: pypi-cleanup timed out after {CLEANUP_TIMEOUT}s for {pkg}; skipping.")
             return
