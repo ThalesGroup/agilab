@@ -1,6 +1,6 @@
 [project]
 name = "view-maps-3d"
-version = "0.1.0"
+version = "0.8.17"
 requires-python = ">=3.13"
 dependencies = [
     "ipython>=9.5.0",
