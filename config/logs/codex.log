@@ -1,0 +1,48 @@
+2025-09-15 16:47:05 | WARNING  | Cannot detect or read from CBR archives
+2025-09-15 16:47:05 | INFO     | Starting Codex v1.8.14
+2025-09-15 16:47:05 | INFO     | Ensuring database is correct and up to date...
+2025-09-15 16:47:08 | SUCCESS  | Database ready.
+2025-09-15 16:47:08 | SUCCESS  | Created admin user.
+2025-09-15 16:47:08 | INFO     | Created AdminFlag: Auto Update = False
+2025-09-15 16:47:08 | INFO     | Created AdminFlag: Banner Text = True
+2025-09-15 16:47:08 | INFO     | Created AdminFlag: Folder View = True
+2025-09-15 16:47:08 | INFO     | Created AdminFlag: Import Metadata = True
+2025-09-15 16:47:08 | INFO     | Created AdminFlag: Lazy Import Metadata = True
+2025-09-15 16:47:08 | INFO     | Created AdminFlag: Non Users = True
+2025-09-15 16:47:08 | INFO     | Created AdminFlag: Registration = True
+2025-09-15 16:47:08 | INFO     | Created AdminFlag: Send Telemetry = True
+2025-09-15 16:47:09 | INFO     | Created Custom Covers Dir settings in the db.
+2025-09-15 16:47:09 | INFO     | root_path: 
+2025-09-15 16:47:09 | SUCCESS  | Running Codex v1.8.14
+2025-09-15 16:57:17 | WARNING  | Cannot detect or read from CBR archives
+2025-09-15 16:57:17 | INFO     | Starting Codex v1.8.14
+2025-09-15 16:57:17 | INFO     | Ensuring database is correct and up to date...
+2025-09-15 16:57:17 | INFO     | Database up to date.
+2025-09-15 16:57:17 | SUCCESS  | Database ready.
+2025-09-15 16:57:17 | INFO     | root_path: 
+2025-09-15 16:57:17 | SUCCESS  | Running Codex v1.8.14
+2025-09-15 16:58:42 | WARNING  | Cannot detect or read from CBR archives
+2025-09-15 16:58:43 | INFO     | Starting Codex v1.8.14
+2025-09-15 16:58:43 | INFO     | Ensuring database is correct and up to date...
+2025-09-15 16:58:43 | INFO     | Database up to date.
+2025-09-15 16:58:43 | SUCCESS  | Database ready.
+2025-09-15 16:58:43 | INFO     | root_path: 
+2025-09-15 16:58:43 | SUCCESS  | Running Codex v1.8.14
+2025-09-15 16:58:43 | SUCCESS  | BroadcastListener started.
+2025-09-15 16:58:43 | WARNING  | Cannot detect or read from CBR archives
+2025-09-15 16:58:44 | WARNING  | Cannot detect or read from CBR archives
+2025-09-15 16:58:44 | WARNING  | Cannot detect or read from CBR archives
+2025-09-15 16:58:45 | WARNING  | Cannot detect or read from CBR archives
+2025-09-15 16:58:45 | INFO     | LibrarianDaemon started all threads.
+2025-09-15 16:58:45 | SUCCESS  | LibrarianDaemon ready for tasks.
+2025-09-15 16:58:45 | INFO     | Started watching library /Users/example/agilab/config/custom-covers with poll
+2025-09-15 16:58:45 | INFO     | Library /Users/example/agilab/config/custom-covers waiting for manual poll.
+2025-09-15 16:58:45 | INFO     | Looking for search entries to update since the fracturing of the multiverse...
+2025-09-15 16:58:45 | INFO     | Looking for missing search entries to create...
+2025-09-15 16:58:45 | SUCCESS  | Search index found to be already synced in a moment.
+2025-09-15 17:02:43 | INFO     | Saved new latest codex version 1.8.14.
+2025-09-15 17:02:43 | INFO     | Checked Codex latest version in a moment.
+2025-09-15 17:03:31 | INFO     | Asking hypercorn to shut down gracefully. Could take 10 seconds...
+2025-09-15 17:03:31 | INFO     | BroadcastListener shutdown
+2025-09-15 17:03:31 | INFO     | LibrarianDaemon joined all threads.
+2025-09-15 17:03:32 | SUCCESS  | Goodbye.
