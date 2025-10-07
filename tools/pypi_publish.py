@@ -73,6 +73,10 @@ def parse_args():
                     help="pypi-cleanup login (PyPI account username; not __token__).")
     ap.add_argument("--cleanup-password", dest="cleanup_password", default=None,
                     help="pypi-cleanup password (PyPI account password; tokens are not accepted by web login).")
+    ap.add_argument("--skip-cleanup", dest="skip_cleanup", action="store_true",
+                    help="Skip pypi-cleanup pruning pre/post upload (avoids 2FA prompts and hangs).")
+    ap.add_argument("--cleanup-timeout", dest="cleanup_timeout", type=int, default=60,
+                    help="Timeout in seconds for pypi-cleanup calls (0 disables). Prevents hangs on 2FA prompts.")
     # Unified Twine auth (optional): avoids repeated prompts
     ap.add_argument("--twine-username", dest="twine_user", default=None,
                     help="Twine username to upload to {testpypi,pypi}. Overrides ~/.pypirc if set.")
@@ -91,6 +95,8 @@ VERBOSE: bool = args.verbose
 TWINE_USER: str | None = args.twine_user
 TWINE_PASS: str | None = args.twine_pass
 YANK_PREVIOUS: bool = args.yank_previous
+SKIP_CLEANUP: bool = args.skip_cleanup
+CLEANUP_TIMEOUT: int = max(0, int(getattr(args, "cleanup_timeout", 60) or 0))
 
 # If a version was provided explicitly, enforce a strict format before proceeding.
 # Accepted: 'X.Y.Z' or 'X.Y.Z.postN' (after stripping an optional leading 'v').
@@ -166,7 +172,7 @@ from tomlkit import parse as toml_parse, dumps as toml_dumps  # type: ignore
 
 
 def cleanup_leave_latest(packages):
-    if not args.clean_leave_latest:
+    if not args.clean_leave_latest or SKIP_CLEANUP:
         return
 
     host = "https://pypi.org/"
@@ -286,7 +292,7 @@ def cleanup_leave_latest(packages):
             cleanup_env["PYPI_PASSWORD"] = pword
         # Allow cleanup to fail without aborting the publish (e.g., 404 already deleted).
         # Capture output to avoid noisy tracebacks; summarize on failure.
-        proc = subprocess.run(
+        run_kwargs = dict(
             cmd,
             cwd=str(REPO_ROOT),
             env={**os.environ, **cleanup_env} if cleanup_env else None,
@@ -294,6 +300,13 @@ def cleanup_leave_latest(packages):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        if CLEANUP_TIMEOUT:
+            run_kwargs["timeout"] = CLEANUP_TIMEOUT
+        try:
+            proc = subprocess.run(**run_kwargs)
+        except subprocess.TimeoutExpired:
+            print(f"[cleanup] warning: pypi-cleanup timed out after {CLEANUP_TIMEOUT}s for {pkg}; skipping.")
+            return
         if proc.returncode != 0:
             hint = ""
             body = (proc.stdout or "") + "\n" + (proc.stderr or "")
