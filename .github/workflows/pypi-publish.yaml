@@ -1,0 +1,180 @@
+name: pypi-publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag for the release (e.g. v0.3.66 or 0.3.66)"
+        required: true
+  push:
+    tags:
+      - "v*.*.*"
+
+concurrency:
+  group: pypi-publish-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        run: python -m pip install --upgrade --no-cache-dir uv
+
+      - name: Fix accidental O.* version typos (core only)
+        run: |
+          set -euxo pipefail
+          find src/agilab/core -type f -name pyproject.toml -print0 |
+          while IFS= read -r -d '' f; do
+            sed -i -E '/^[[:space:]]*version[[:space:]]*=/ s/"O\./"0./' "$f"
+          done
+          if grep -R --line-number '^[[:space:]]*version[[:space:]]*=[[:space:]]*"O\.' src/agilab/core; then
+            echo "❌ Still found bad version lines (capital O)"; exit 1
+          fi
+
+      - name: Sync and install editable core projects
+        run: |
+          set -eux
+          pushd "src/agilab/core/agi-cluster"
+          UV="uv --preview-features extra-build-dependencies"
+          $UV sync --dev
+          $UV pip install -e .
+          $UV pip install -e ../agi-env
+          $UV pip install -e ../agi-node
+          popd
+
+      - name: Run tests
+        run: |
+          set -eux
+          pushd "src/agilab/core"
+          uv run --dev --project agi-cluster python -m pytest --maxfail=5 --disable-warnings -v
+          popd
+
+
+  publish-core-packages:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      VERSION: ${{ github.event.inputs.version || github.ref_name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv and twine
+        run: python -m pip install --upgrade --no-cache-dir uv twine
+
+      - name: Clean previous builds
+        run: |
+          rm -rf src/agilab/core/agi-env/dist
+          rm -rf src/agilab/core/agi-node/dist
+          rm -rf src/agilab/core/agi-cluster/dist
+          rm -rf src/agilab/core/agi-core/dist
+
+      # Build + verify + publish to PyPI (official)
+      - name: Build agi-env
+        run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-env --wheel
+      - name: Verify agi-env
+        run: twine check src/agilab/core/agi-env/dist/*
+      - name: Publish agi-env to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
+        run: twine upload --skip-existing src/agilab/core/agi-env/dist/*
+
+      - name: Build agi-node
+        run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-node --wheel
+      - name: Verify agi-node
+        run: twine check src/agilab/core/agi-node/dist/*
+      - name: Publish agi-node to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
+        run: twine upload --skip-existing src/agilab/core/agi-node/dist/*
+
+      - name: Build agi-cluster
+        run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-cluster --wheel
+      - name: Verify agi-cluster
+        run: twine check src/agilab/core/agi-cluster/dist/*
+      - name: Publish agi-cluster to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
+        run: twine upload --skip-existing src/agilab/core/agi-cluster/dist/*
+
+      - name: Build agi-core
+        run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-core --wheel
+      - name: Verify agi-core
+        run: twine check src/agilab/core/agi-core/dist/*
+      - name: Publish agi-core to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
+        run: twine upload --skip-existing src/agilab/core/agi-core/dist/*
+  publish-agilab:
+    needs: publish-core-packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      VERSION: ${{ github.event.inputs.version || github.ref_name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv and twine
+        run: python -m pip install --upgrade --no-cache-dir uv twine
+
+      - name: Clean previous builds
+        run: rm -rf dist
+
+      - name: Remove symlinks (apps/ and views/)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          find src/agilab/apps src/agilab/views -type l -print -delete || true
+
+      - name: Build agilab
+        run: uv --preview-features extra-build-dependencies build --wheel
+
+      - name: Verify agilab
+        run: twine check dist/*
+
+      - name: Publish agilab to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
+        run: twine upload --skip-existing dist/*

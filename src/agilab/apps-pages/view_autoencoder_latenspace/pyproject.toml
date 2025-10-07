@@ -1,0 +1,26 @@
+[project]
+name = "view-autoencoder-latenspace"
+version = "0.1.0"
+requires-python = "==3.12"
+dependencies = [
+    "barviz>=1.2.2",
+    "ipython>=9.5.0",
+    "streamlit>=1.49.1",
+    "watchdog>=6.0.0",
+    "agi-env",
+    "sqlalchemy>=2.0.43",
+    "keras>=3.11.3",
+    "tensorflow==2.19.1",
+    "scikit-learn>=1.7.2",
+]
+
+[optional-dependencies]
+dev = [
+    "agi-env"
+]
+
+[tool.uv.sources.agi-env]
+path = "../../core/agi-env"
+editable = true
+
+

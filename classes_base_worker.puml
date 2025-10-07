@@ -1,0 +1,3 @@
+@startuml classes_base_worker
+set namespaceSeparator none
+@enduml

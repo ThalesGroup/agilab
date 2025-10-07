@@ -1,0 +1,135 @@
+[project]
+name = "agi-env"
+description = "AGI Env"
+requires-python = ">=3.11"
+readme = "README.md"
+authors = [
+    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
+]
+
+classifiers = [
+    "Intended Audience :: Developers",
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+]
+
+keywords = [
+    "jupyter", "mlflow", "asyncio", "dask", "rapids",
+    "streamlit", "distributed", "cython", "cluster", "dataframe",
+    "dataset", "loadbalancing", "genai", "copilot", "agi",
+    "pycharm", "datascience"
+]
+
+dependencies = [
+    "humanize",
+    "pydantic",
+    "python-dotenv",
+    "setuptools",
+    "tomlkit",
+    "astor",
+    "psutil",
+    "pathspec",
+    "ipython",
+    "py7zr",
+    "cmake>=3.29",
+    "numba"
+]
+
+version = "0.8.5"
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/agi-env"
+Tracker = "https://github.com/ThalesGroup/agilab/issue"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[dependency-groups]
+dev = [
+    "black",
+    "pytest",
+    "pytest-asyncio",
+    "licensecheck",
+    "pytest-cov",
+    "agi-env"
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.data-files]
+agi_env = [
+    "src/resources/*",
+    "*.ipynb",
+    "*.json",
+    "*.toml",
+]
+
+[tool.mypy]
+mypy_path = ["stubs"]
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pyment]
+source_dir = "src"
+format = "google"
+
+[tool.pytest.ini_options]
+# Where your tests live for this project
+testpaths = ["test"]
+
+# Prefer auto so async tests don't need @pytest.mark.asyncio
+asyncio_mode = "auto"
+
+# Quiet known third-party deprecations
+filterwarnings = [
+  "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
+]
