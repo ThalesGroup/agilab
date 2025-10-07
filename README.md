@@ -1,0 +1,87 @@
+[![PyPI version](https://img.shields.io/pypi/v/agilab.svg?color=informational)](https://pypi.org/project/agilab)
+[![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
+[![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
+[![pypi_dl](https://img.shields.io/pypi/dm/agilab)]()
+[![tests](https://thalesgroup.github.io/agilab/tests.svg)](https://thalesgroup.github.io/agilab/tests.svg)
+[![coverage](https://thalesgroup.github.io/agilab/coverage.svg)](https://thalesgroup.github.io/agilab/coverage.svg)
+[![GitHub stars](https://img.shields.io/github/stars/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab)
+[![black](https://img.shields.io/badge/code%20style-black-000000.svg)]()
+[![docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://thalesgroup.github.io/agilab)
+[![ORCID](https://img.shields.io/badge/ORCID-0009--0003--5375--368X-A6CE39?logo=orcid)](https://orcid.org/0009-0003-5375-368X)
+
+
+# AGILAB Open Source Project
+
+AGILAB [BSD license](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) is a PyCharm‑integrated AI experimentation lab for engineering. It’s designed to help engineers quickly experiment with AI‑driven methods using the provided PyCharm run configurations and workflows. Note: full workflow assumes PyCharm IDE.
+See [documentation](https://thalesgroup.github.io/agilab).
+
+See also: CHANGELOG.md for recent changes.
+
+## Install and Execution for end users
+
+Quick run (no setup):
+
+```bash
+uvx -p 3.13 agilab
+```
+
+Managed workspace (project folder):
+
+```bash
+mkdir agi-space && cd agi-space
+uv init --bare --no-workspace
+uv add agilab
+uv run agilab
+```
+
+## Install for developers
+
+<details open> 
+<summary>
+    <strong> Linux and MacOs </strong>
+</summary>
+
+```bash
+git clone https://github.com/ThalesGroup/agilab
+cd agilab
+./install.sh --openai-api-key "sk-your-api-key" --cluster-ssh-credentials "username[:password]"
+```
+</details>
+
+<details> 
+<summary>
+    <strong>Windows</strong>
+</summary>
+
+```powershell
+git clone https://github.com/ThalesGroup/agilab
+cd agilabpush it
+powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key "sk-your-api-key"
+```
+</details>
+
+## AGILab Execution
+
+### Linux and MacOS and Windows:
+
+```bash
+cd agilab/src/agilab
+uv run agilab
+```
+
+## Notes for developers
+
+- AgiEnv is a singleton. Use instance attributes (`env.apps_dir`, `env.logger`, etc.).
+  Class attribute reads (e.g., `AgiEnv.apps_dir`) proxy to the singleton when initialised;
+  methods/properties are not shadowed. A few helpers are pre‑init safe
+  (`AgiEnv.set_env_var`, `AgiEnv.read_agilab_path`, `AgiEnv._build_env`, `AgiEnv.log_info`).
+
+- Environment flags (replaces legacy `install_type`):
+  - `env.is_source_env`: true when running from a source checkout.
+  - `env.is_worker_env`: true in worker-only contexts (e.g., `wenv/*_worker`).
+  - `env.is_local_worker`: helper flag for home‑scoped worker layouts.
+
+- App constructors (templates + flight_project) ignore unknown kwargs when constructing
+  their Pydantic `Args` models. This preserves strict validation while making constructors
+  resilient to incidental extras. Configure verbosity via `AgiEnv(verbose=…)` or logging,
+  not via app `Args`.

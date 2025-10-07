@@ -1,0 +1,50 @@
+agi_manager API
+===============
+
+agi_manager
+~~~~~~~~~~~~
+
+.. image:: diagrams/packages_agi_manager.png
+   :width: 400
+   :alt: Packages diagram for agi_manager
+   :align: center
+
+----
+
+.. image:: diagrams/classes_agi_dispatcher.png
+   :width: 400
+   :alt: Classes diagram for agi_dispatcher
+   :align: center
+
+----
+
+.. automodule:: agi_dispatcher
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----
+
+agi_handler
+~~~~~~~~~~~~
+
+.. image:: diagrams/packages_agi_handler.png
+   :width: 400
+   :alt: Packages diagram for agi_handler
+   :align: center
+
+----
+
+.. image:: diagrams/classes_agi_handler.png
+   :width: 400
+   :alt: Classes diagram for agi_handler
+   :align: center
+
+----
+
+.. automodule:: agi_handler
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----

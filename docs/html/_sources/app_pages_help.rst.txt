@@ -1,0 +1,28 @@
+▶️ APPS PAGES
+=============
+
+Introduction
+------------
+View are provided as examples and are decorrelated from the project.
+In fact, when you need to develop a view for your project, you can decide to publish it as
+an Agilag view. For this, you should have some Streamlit knowledge.
+The only link with your project is in ``app_settings.toml``:
+
+.. code-block:: toml
+
+    [pages]
+    pages_modules = [<list of page-module>]
+
+    [<page_module_xxx>]
+    variables = [<list of columns names you want to make available in your pages_modules_xxx>]
+
+Sidebar
+-------
+
+This is a listbox to select project to be loaded from the existing ones.
+
+Main Content Area
+-----------------
+
+Select the pages to see for your app.
+See also **EDIT/APP-SETTINGS/File Editor** to specify the columns you authorize for a specific view.

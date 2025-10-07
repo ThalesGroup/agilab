@@ -1,0 +1,48 @@
+font-weight: 600;
+&.streamlit_code-editor .ace-streamlit-dark.ace_editor {
+  background-color: #0b1220;
+  color: rgb(233, 236, 239);
+}
+&.streamlit_code-editor .ace-streamlit-light.ace_editor {
+  background-color: #f5f7fb;
+  color: rgb(17, 24, 39);
+}
+&.streamlit_code-editor .ace-streamlit-dark .ace_gutter {
+  background: #101726;
+  color: rgba(255, 255, 255, 0.55);
+}
+&.streamlit_code-editor .ace-streamlit-light .ace_gutter {
+  background: #e2e8f0;
+  color: rgba(17, 24, 39, 0.55);
+}
+&.streamlit_code-editor .ace-streamlit-light .ace_marker-layer .ace_selection {
+  background: rgba(13, 71, 161, 0.25);
+}
+&.streamlit_code-editor .ace-streamlit-dark .ace_marker-layer .ace_selection {
+  background: rgba(30, 136, 229, 0.35);
+}
+
+/* Align embedded editor buttons with global theme (stable selectors) */
+.streamlit_code-editor [class*="button-menu__StyledButton"],
+.streamlit_code-editor .with-icon,
+.streamlit_code-editor .always-on {
+  font-weight: 600;
+  color: #4A90E2 !important;
+  background: #FFFFFF !important;
+  border: 1px solid #4A90E2 !important;
+  border-radius: 6px;
+  white-space: nowrap;
+  box-shadow: none !important;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.streamlit_code-editor [class*="button-menu__StyledButton"]:hover,
+.streamlit_code-editor .with-icon:hover,
+.streamlit_code-editor .always-on:hover {
+  background: #4A90E2 !important;
+  color: #FFFFFF !important;
+}
+
+.streamlit_code-editor .with-icon {
+  margin-right: 6px;
+}

@@ -1,0 +1,37 @@
+{
+  "target_args": {
+    "data_uri": "data/sat_trajectory/dataset",
+    "duration_s": 86400,
+    "step_s": 1,
+    "number_of_sat": 25,
+    "input_TLE": "TLE",
+    "input_antenna": "antenna_conf.json",
+    "input_sat": "sat.json"
+  },
+  "workers": {
+    "127.0.0.1": 1
+  },
+  "workers_chunks": [
+    [
+      [
+        [
+          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-1008,53.0544,201.7195,9.57e-05,71.1676,6925.37,1 44714U 19074B   25189.74737478  .00000408  00000+0  46246-4 0  9990,2 44714  53.0544 201.7195 0000957  71.1676 288.9417 15.06393080311983,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,1\n",
+          1
+        ]
+      ]
+    ]
+  ],
+  "workers_tree": [
+    [
+      [
+        [
+          "name,inclination,raan,eccentricity,argp,sma_km,tle_line1,tle_line2,filename,id\nSTARLINK-1008,53.0544,201.7195,9.57e-05,71.1676,6925.37,1 44714U 19074B   25189.74737478  .00000408  00000+0  46246-4 0  9990,2 44714  53.0544 201.7195 0000957  71.1676 288.9417 15.06393080311983,/Users/jpm/data/sat_trajectory/dataset/TLE/Starlink.tle,1\n",
+          1
+        ]
+      ]
+    ]
+  ],
+  "partition_key": "plane",
+  "nb_unit": "files",
+  "weights_unit": "ko"
+}

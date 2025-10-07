@@ -1,0 +1,19 @@
+[[flight]]
+D = "/Users/jpm/export/flight/export.csv"
+Q = "add smoothing of col long with savgol"
+C = "from scipy.signal import savgol_filter\n\n# Assume 'col_long' is the name of the column to be smoothed\ndf['col_long_smoothed'] = savgol_filter(df['col_long'], window_length=5, polyorder=2)\n"
+
+[[flight]]
+D = "/Users/jpm/export/flight/export.csv"
+Q = "add smoothing of col lat with callman filter"
+C = "import pandas as pd\nfrom pykalman import KalmanFilter\n\n# Assuming df is already loaded and 'lat' is the column to be smoothed\nkf = KalmanFilter(initial_state_mean=df['lat'].iloc[0], \n                  n_dim_obs=1)\n\n# Fit the Kalman Filter\nkf = kf.em(df['lat'], n_iter=10)\n\n# Smooth the 'lat' column\n(smoothed_state_means, _) = kf.smooth(df['lat'].values)\n\n# Add the smoothed lat column back to the dataframe\ndf['smoothed_lat'] = smoothed_state_means\n"
+
+[[flight]]
+D = "/Users/jpm/export/flight/export.csv"
+Q = "add day col"
+C = "df['day'] = df['date_column'].dt.day  # Replace 'date_column' with the actual name of your date column\n"
+
+[[flight]]
+D = "/Users/jpm/export/flight/export.csv"
+Q = "add day col"
+C = "df['day'] = df['date_column'].dt.day  # Assuming 'date_column' is the name of the column containing date values"

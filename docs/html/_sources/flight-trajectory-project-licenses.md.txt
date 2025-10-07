@@ -1,0 +1,64 @@
+# Flight-trajectory-project Licenses
+| Package Name | License |
+|--------------|---------|
+| asttokens | APACHE 2.0 |
+| brotli | MIT LICENSE |
+| click | BSD-3-CLAUSE |
+| cloudpickle | BSD LICENSE |
+| cramjam | MIT |
+| cython | APACHE SOFTWARE LICENSE |
+| dask | BSD LICENSE |
+| decorator | BSD LICENSE |
+| distributed | BSD LICENSE |
+| executing | MIT LICENSE |
+| fastparquet | APACHE SOFTWARE LICENSE |
+| fsspec | BSD-3-CLAUSE |
+| geographiclib | MIT |
+| geopy | MIT LICENSE |
+| inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| ipython | BSD LICENSE |
+| ipython-pygments-lexers | BSD LICENSE |
+| jedi | MIT LICENSE |
+| jinja2 | BSD LICENSE |
+| locket | BSD LICENSE |
+| markupsafe | BSD LICENSE |
+| matplotlib-inline | BSD LICENSE |
+| msgpack | APACHE 2.0 |
+| multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| narwhals | MIT LICENSE |
+| numpy | BSD LICENSE |
+| packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| pandas | BSD LICENSE |
+| parso | MIT LICENSE |
+| partd | BSD |
+| pexpect | ISC LICENSE _ISCL_ |
+| plotly | MIT LICENSE |
+| polars | MIT LICENSE |
+| polars-runtime-32 | MIT LICENSE |
+| prompt-toolkit | BSD LICENSE |
+| psutil | BSD LICENSE |
+| ptyprocess | ISC LICENSE _ISCL_ |
+| pure-eval | MIT LICENSE |
+| py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
+| pygments | BSD LICENSE |
+| pyppmd | LGPL-2.1-OR-LATER |
+| python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| python-dotenv | BSD LICENSE |
+| pytz | MIT LICENSE |
+| pyyaml | MIT LICENSE |
+| pyzstd | BSD LICENSE |
+| setuptools | MIT |
+| six | MIT LICENSE |
+| sortedcontainers | APACHE SOFTWARE LICENSE |
+| stack-data | MIT LICENSE |
+| tblib | BSD-2-CLAUSE |
+| texttable | MIT LICENSE |
+| toolz | BSD LICENSE |
+| tornado | APACHE SOFTWARE LICENSE |
+| traitlets | BSD LICENSE |
+| tzdata | APACHE SOFTWARE LICENSE |
+| urllib3 | MIT |
+| wcwidth | MIT LICENSE |
+| zict | BSD LICENSE |

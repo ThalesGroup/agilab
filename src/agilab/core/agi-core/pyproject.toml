@@ -1,0 +1,152 @@
+[project]
+name = "agi-core"
+description = "AGI meta-package that installs agi-env, agi-node, and agi-cluster"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }]
+classifiers = [
+  "Intended Audience :: Developers",
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+]
+
+version = "0.8.5"
+
+# 👇 The whole point of the meta-package:
+dependencies = ["agi-env==0.8.5", "agi-node==0.8.5", "agi-cluster==0.8.5"]
+
+[project.urls]
+Homepage = "https://github.com/ThalesGroup/agilab"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Documentation = "https://thalesgroup.github.io/agilab"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[tool.uv.sources.agi-env]
+    path = "../agi-env"
+    editable = true
+
+[tool.uv.sources.agi-cluster]
+    path = "../agi-cluster"
+    editable = true
+
+[tool.uv.sources.agi-node]
+    path = "../agi-node"
+    editable = true
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# Tell Hatch exactly what to ship (the tiny placeholder pkg).
+packages = ["src/agi_core"]
+
+[tool.hatch.build.targets.sdist]
+# Keep the sdist minimal, too.
+include = [
+  "/src/agi_core",
+  "/pyproject.toml",
+  "/README.md",
+  "/LICENSE*",
+]
+
+[tool.pytest.ini_options]
+# Where your tests live for this project
+testpaths = ["test"]
+
+# Prefer auto so async tests don't need @pytest.mark.asyncio
+asyncio_mode = "auto"
+
+# Quiet known third-party deprecations
+filterwarnings = [
+  "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
+]

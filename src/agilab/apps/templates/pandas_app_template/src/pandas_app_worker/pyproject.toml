@@ -1,0 +1,41 @@
+[project]
+name = "data_app_project"
+version = "0.7.3"
+description = ""
+requires-python = ">=3.11"
+readme = "README.md"
+dependencies = [
+    "numpy",
+    "geopy",
+    "setuptools",
+    "cython",
+    "psutil",
+    "parso",
+    "py7zr",
+    "python-dotenv",
+    "requests",
+    "dask[distributed]",
+    "agi-env",
+    "agi-node",
+]
+
+[[project.authors]]
+name = "Jean-Pierre Morard"
+email = "focus@thalesgroup.com"
+
+[dependency-groups]
+dev = ["black", "pytest", "licensecheck"]
+
+[project.license]
+text = "Thales SIX GTS France SAS"
+
+[tool.mypy]
+mypy_path = ["stubs", ]
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[project.optional-dependencies]
+dag-worker = []
+polars-worker = []
+
+

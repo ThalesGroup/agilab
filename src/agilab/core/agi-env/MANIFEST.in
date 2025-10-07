@@ -1,0 +1,6 @@
+# Include top-level files
+include README.md
+include LICENSE
+include pyproject.toml
+include MANIFEST.in
+recursive-include src/agi_env/resources *

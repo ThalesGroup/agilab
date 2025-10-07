@@ -1,0 +1,41 @@
+
+# MacOS files
+.DS_Store
+
+# Python virtual environments and build artifacts
+.venv/
+dist/
+build/
+.build*
+__pycache__/
+.mypy_cache/
+__pypackages__/
+._*
+
+# Miscellaneous files
+*.lock
+.uv-*
+
+# Egg files and binary distributions
+EGG*
+*.egg*
+*.so
+*.pyd
+*.whl
+*_worker.c
+*_worker.pyx
+coverage.xml
+build.py
+
+# Specific src patterns (adjust if needed)
+src/*-info/
+src/*_worker_*/
+
+# Pytest caches
+.pytest*
+
+# Private app symlinks (resolved at runtime)
+flight_trajectory_project
+link_sim_project
+sat_trajectory_project
+sb3_trainer_project

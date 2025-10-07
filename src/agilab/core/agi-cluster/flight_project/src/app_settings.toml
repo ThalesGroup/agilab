@@ -1,0 +1,27 @@
+[args]
+data_source = "file"
+data_uri = "data/flight/dataset"
+files = "*"
+nfile = 1
+nskip = 0
+nread = 0
+sampling_rate = 1.0
+datemin = "2020-01-01"
+datemax = "2021-01-01"
+output_format = "parquet"
+
+[cluster]
+cluster_enabled = false
+verbose = 1
+cython = false
+pool = false
+rapids = false
+
+[pages]
+view_module = [
+    "view_autoencoder_latenspace",
+    "view_barycentric",
+    "view_maps",
+    "view_maps_3d",
+    "view_maps_network",
+]
