@@ -626,6 +626,10 @@ def create_and_push_tag(tag: str):
 
 # ------------------------- Main -------------------------
 def main():
+    if not TARGET:
+        print("usage: pypi_publish.py --repo {testpypi|pypi} [options]", file=sys.stderr)
+        raise SystemExit("ERROR: --repo is required")
+
     # Auth preflight (best-effort): verify token format and print assumptions
     if TARGET == "pypi":
         print("[preflight] Target: PyPI (batch upload across core + umbrella)")
