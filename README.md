@@ -13,6 +13,11 @@
 # AGILAB Open Source Project
 
 AGILAB [BSD license](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) is a PyCharm‑integrated AI experimentation lab for engineering. It’s designed to help engineers quickly experiment with AI‑driven methods using the provided PyCharm run configurations and workflows. Note: full workflow assumes PyCharm IDE.
+
+Docs publishing
+- The static site is committed under `docs/html` and deployed by GitHub Pages directly (no Sphinx build in CI).
+- To refresh docs quickly, update the HTML in `src/agilab/resources/help/` and run: `rsync -a src/agilab/resources/help/ docs/html/` and commit.
+- The Pages workflow falls back to copying from `src/agilab/resources/help/` if `docs/html` is empty.
 See [documentation](https://thalesgroup.github.io/agilab).
 
 See also: CHANGELOG.md for recent changes.
