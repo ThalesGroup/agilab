@@ -188,7 +188,7 @@ Note: AGILab workflows and this checklist assume PyCharm IDE. Most commands can 
 - GitHub Pages deploys the committed content; CI no longer installs or runs Sphinx.
 - To update docs locally: run `docs/gen_docs.sh`. It builds via Sphinx when a config is present, or syncs `src/agilab/resources/help/` into `docs/html` and ensures an index.
 - The Pages workflow only falls back to copying from `src/agilab/resources/help/` if `docs/html` is empty.
-- Sphinx docs in agilab-apps: from the `agilab-apps` repo root, run `uv run --group sphinx --dev docs/gen-docs.py` to build into `docs/html/`, then commit and push.
+- Sphinx docs in agilab-apps: from that repo, run `uv run --group sphinx --dev docs/gen-docs.py`. If a sibling `agilab` checkout is present, the generator writes directly to `../agilab/docs/html/`; otherwise it builds into `docs/html/` in `agilab-apps`.
 
 **Docs Tooling Details**
 - Diagrams: agilab-apps's generator produces UML via `pyreverse` and Graphviz into `docs/source/diagrams` and includes them in Sphinx output.
