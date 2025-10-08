@@ -212,11 +212,12 @@ Note: AGILab workflows and this checklist assume PyCharm IDE. Most commands can 
 
 **Publishing to PyPI/TestPyPI**
 - Use the Python script directly or the PyCharm run configuration:
-  - CLI (dry run): `uv run python tools/pypi_publish.py --repo testpypi --dry-run [--version X.Y.Z]`
-  - CLI (TestPyPI): `uv run python tools/pypi_publish.py --repo testpypi --version X.Y.Z`
-  - CLI (PyPI): `uv run python tools/pypi_publish.py --repo pypi --version X.Y.Z`
-  - PyCharm: run configuration “pypi publish” (prompts for version/cleanup credentials).
+  - CLI (dry run): `uv run python tools/pypi_publish.py --repo testpypi --dry-run`
+  - CLI (TestPyPI): `uv run python tools/pypi_publish.py --repo testpypi`
+  - CLI (PyPI): `uv run python tools/pypi_publish.py --repo pypi`
+  - PyCharm: run configuration “pypi publish”.
 - Options: `--leave-most-recent`, `--skip-cleanup`, `--cleanup-timeout N`, `--cleanup-username`, `--cleanup-password`, `--twine-username __token__`, `--twine-password`, `--yank-previous`.
+- Cleanup defaults: TestPyPI cleanup is skipped automatically (avoids interactive web login/timeouts). Provide `--cleanup-username/--cleanup-password` or set `PYPI_USERNAME`/`PYPI_CLEANUP_PASSWORD` if you need to prune TestPyPI releases.
 
 ## Progressive test plan
 
