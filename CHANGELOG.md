@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+Maintainer note:
+- Include the Codex CLI version used to prepare the release under a "Tooling" subsection for every entry.
+
 The format loosely follows Keep a Changelog. Dates are in YYYY-MM-DD.
 
 ## 0.7.13 — 2025-10-08
