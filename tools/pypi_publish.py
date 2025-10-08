@@ -435,23 +435,19 @@ def compute_unified_version(core_names: List[str], repo_target: str, base_versio
     collisions: Dict[str, List[str]] = {n: [] for n in core_names}
 
     if base_version:
+        # When a base is provided (e.g., date-based 'YYYY.MM.DD'), use it and
+        # auto-bump with '.postN' if any package already has that exact version.
         provided = base_version
         provided_base = normalize_base(provided)
-        # On PyPI, honor the provided version exactly (no auto-bump)
-        if repo_target == "pypi":
+        existing_by_pkg = {n: pypi_releases(n, repo_target) for n in core_names}
+        provided_in_use = any(provided in rels for rels in existing_by_pkg.values())
+        if not provided_in_use:
             chosen = provided
             base = provided_base
         else:
-            # For TestPyPI (or others), auto-bump if collision exists
-            existing_by_pkg = {n: pypi_releases(n, repo_target) for n in core_names}
-            provided_in_use = any(provided in rels for rels in existing_by_pkg.values())
-            if not provided_in_use:
-                chosen = provided
-                base = provided_base
-            else:
-                # Fall back to next free post from the provided base
-                base = provided_base
-                chosen = next_free_post_for_all(core_names, repo_target, base)
+            # Fall back to next free post from the provided base
+            base = provided_base
+            chosen = next_free_post_for_all(core_names, repo_target, base)
     else:
         base = max_base_across_packages(core_names, repo_target)
         chosen = next_free_post_for_all(core_names, repo_target, base)
@@ -648,7 +644,10 @@ def main():
     core_names = [n for n, _, __ in CORE]
     chosen, collisions = compute_unified_version(core_names, TARGET, BASE_VERSION)
 
+    # Switch to date-based versioning: use UTC date as the base (YYYY.MM.DD)
     date_tag = compute_date_tag()
+    # Recompute chosen version to align with date-based base; auto-bump '.postN' if needed
+    chosen, collisions = compute_unified_version(core_names, TARGET, date_tag)
     print(f"[plan] Unified version: {chosen}")
     print(f"[plan] Tag (UTC): {date_tag}")
     if DRY_RUN:
