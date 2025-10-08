@@ -34,6 +34,7 @@ import subprocess
 import sys
 import urllib.request
 from typing import Dict, List, Tuple
+from datetime import datetime, timezone
 import getpass
 
 # third-party (installed on-demand if missing)
@@ -599,8 +600,30 @@ def restore_symlinks(entries: list[tuple[pathlib.Path, str, bool]]):
             print(f"[symlink] warning: failed to restore {path}: {e}")
 
 # Git tagging when publishing to PyPI
-def create_and_push_tag(version: str):
-    tag = f"v{version}"
+def _tag_exists(tag: str) -> bool:
+    try:
+        subprocess.run(["git", "rev-parse", "-q", "--verify", f"refs/tags/{tag}"], cwd=REPO_ROOT, check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
+def compute_date_tag() -> str:
+    """
+    Return a date-based tag in UTC as YYYY.MM.DD.
+    If that tag already exists, append "-2", "-3", … until unique.
+    """
+    base = datetime.now(timezone.utc).strftime("%Y.%m.%d")
+    tag = base
+    n = 2
+    while _tag_exists(tag):
+        tag = f"{base}-{n}"
+        n += 1
+    return tag
+
+
+def create_and_push_tag(tag: str):
     run(["git", "tag", "-a", tag, "-m", f"Release {tag}"], cwd=REPO_ROOT)
     run(["git", "push", "origin", tag], cwd=REPO_ROOT)
     print(f"[git] created and pushed {tag}")
@@ -625,8 +648,9 @@ def main():
     core_names = [n for n, _, __ in CORE]
     chosen, collisions = compute_unified_version(core_names, TARGET, BASE_VERSION)
 
+    date_tag = compute_date_tag()
     print(f"[plan] Unified version: {chosen}")
-    print(f"[plan] Tag: v{chosen}")
+    print(f"[plan] Tag (UTC): {date_tag}")
     if DRY_RUN:
         print("[dry-run] Collisions that forced bump (per package):")
         for n in core_names:
@@ -696,7 +720,8 @@ def main():
         yank_previous_versions(core_names + [UMBRELLA[0]], TARGET, chosen)
 
     if TARGET == "pypi":
-        create_and_push_tag(chosen)
+        # Use date-based tag in UTC (YYYY.MM.DD[-N])
+        create_and_push_tag(date_tag)
 
 
 def yank_previous_versions(packages: list[str], repo: str, chosen: str):
