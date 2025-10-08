@@ -86,6 +86,7 @@ class WorkDispatcher:
         if base_worker_dir not in sys.path:
             sys.path.insert(0, base_worker_dir)
         target_module = await WorkDispatcher._load_module(
+            env,
             env.target,
             env.target,
             path=env.app_src,
@@ -131,7 +132,7 @@ class WorkDispatcher:
                     return obj.isoformat()
                 raise TypeError(f"Type {type(obj)} not serializable")
 
-            with open("distribution.json", "w") as f:
+            with open(file, "w") as f:
                 json.dump(data, f, default=convert_dates, indent=2)
 
         loaded_workers = {}
@@ -336,6 +337,7 @@ class WorkDispatcher:
 
     @staticmethod
     async def _load_module(
+            env: AgiEnv,
             module: str,
             package: Optional[str] = None,
             path: Optional[Union[str, Path]] = None,
@@ -343,9 +345,10 @@ class WorkDispatcher:
         """load a module
 
         Args:
+          env: the current Agi environment (used for fallback install)
           module: the name of the Agi apps module
-          package: the package name where is the module (Default value = None)
-          path: the path where is the package (Default value = None)
+          package: the package name where the module lives (Default value = None)
+          path: the path where the package lives (Default value = None)
 
         Returns:
           : the instance of the module
@@ -362,8 +365,8 @@ class WorkDispatcher:
 
         except ModuleNotFoundError as e:
             module_to_install = (str(e).replace("No module named ", "").lower().replace("'", ""))
-            app_path = AGI.env.active_app
-            cmd = f"{AGI.env.uv} add --upgrade {module_to_install}"
+            app_path = env.active_app
+            cmd = f"{env.uv} add --upgrade {module_to_install}"
             logging.info(f"{cmd} from {app_path}")
             await AgiEnv.run(cmd, app_path)
-            return await WorkDispatcher._load_module(module, package, path)
+            return await WorkDispatcher._load_module(env, module, package, path)

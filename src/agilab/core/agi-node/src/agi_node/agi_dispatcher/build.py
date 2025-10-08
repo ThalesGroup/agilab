@@ -142,7 +142,7 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
         dest = dest.absolute()
     except FileNotFoundError:
         AgiEnv.logger.error(f"Source path does not exist: {src_abs}")
-        sys.exit(1)
+        raise FileNotFoundError(f"Source path does not exist: {src_abs}")
 
     if not dest.parent.exists():
         AgiEnv.logger.info(f"Creating directory: {dest.parent}")
@@ -155,7 +155,7 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
                 AgiEnv.create_junction_windows(src_abs, dest)
             except Exception as link_err:
                 AgiEnv.logger.error(f"Failed to create link from {src_abs} to {dest}: {link_err}")
-                sys.exit(1)
+                raise
         else:
             try:
                 AgiEnv.create_symlink(src_abs, dest)
@@ -169,7 +169,7 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
                     AgiEnv.logger.info(f"Hard link created: {dest} -> {src_abs}")
                 except Exception as link_err:
                     AgiEnv.logger.error(f"Failed to create link from {src_abs} to {dest}: {link_err}")
-                    sys.exit(1)
+                    raise
     else:
         AgiEnv.logger.debug(f"Link already exists for {dest}")
 
@@ -217,7 +217,7 @@ def main(argv: list[str] | None = None) -> None:
     outdir = opts.build_dir if cmd == "build_ext" else opts.dist_dir
     if not outdir:
         AgiEnv.logger.error("Cannot determine target package name.")
-        sys.exit(1)
+        raise RuntimeError("Cannot determine target package name")
 
     outdir = Path(outdir)
     name = outdir.name.removesuffix("_worker").removesuffix("_project")
@@ -249,12 +249,12 @@ def main(argv: list[str] | None = None) -> None:
     if cmd == 'build_ext':
         if not opts.build_dir:
             AgiEnv.logger.error("build_ext requires --build-dir/-b argument")
-            sys.exit(1)
+            raise ValueError("build_ext requires --build-dir/-b argument")
         try:
             ext_path = truncate_path_at_segment(opts.build_dir)
         except ValueError as e:
             AgiEnv.logger.error(e)
-            sys.exit(1)
+            raise
 
         worker_py = env.worker_path
         worker_pyx = worker_py.with_suffix('.pyx')
