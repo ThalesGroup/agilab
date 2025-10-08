@@ -1,8 +1,9 @@
 # MacOS files
 .DS_Store
 
-.idea/
+.idea/*
 !.idea/runConfigurations/
+!.idea/runConfigurations/**
 .idea.bak/
 agi-space
 
