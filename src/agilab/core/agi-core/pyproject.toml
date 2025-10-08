@@ -16,14 +16,32 @@ classifiers = [
   "Operating System :: POSIX :: Linux",
 ]
 
-version = "0.8.17"
+version = "0.8.23"
 # 👇 The whole point of the meta-package:
-dependencies = ["agi-env==0.8.17", "agi-node==0.8.17", "agi-cluster==0.8.17"]
+dependencies = ["agi-env==0.8.23", "agi-node==0.8.23", "agi-cluster==0.8.23"]
 
 [project.urls]
 Homepage = "https://github.com/ThalesGroup/agilab"
 Issues = "https://github.com/ThalesGroup/agilab/issues"
 Documentation = "https://thalesgroup.github.io/agilab"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
