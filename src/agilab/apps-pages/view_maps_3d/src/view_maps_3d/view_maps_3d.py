@@ -866,38 +866,40 @@ def main():
     """
     try:
         parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
-        parser.add_argument("--active-app", type=str, help="Where you store your apps (default is ./)",
-                            default=None)
+        parser.add_argument("--active-app", dest="active_app", type=str,
+                            help="Active app path (e.g. src/agilab/apps/flight_project)", default=None)
         args, _ = parser.parse_known_args()
 
-        if args.app is None:
+        if args.active_app is None:
             env_app = os.environ.get("AGILAB_APP")
             if env_app:
-                app = Path(env_app).expanduser()
+                active_app = Path(env_app).expanduser()
             else:
-                app = None
-                candidate_file = Path("~/.local/share/agilab/.agi-path").expanduser()
+                active_app = None
+                candidate_file = Path("~/.local/share/agilab/.agilab-path").expanduser()
                 if candidate_file.is_file():
                     with candidate_file.open("r", encoding="utf-8") as f:
                         agilab_path = f.read()
                         before, sep, _ = agilab_path.rpartition(".venv")
                         potential = Path(before) / "apps" / "flight_project"
                         if potential.exists():
-                            app = potential
-                if app is None:
-                    app = _default_app()
+                            active_app = potential
+                if active_app is None:
+                    active_app = _default_app()
         else:
-            app = Path(args.app)
+            active_app = Path(args.active_app)
 
-        if app is None:
+        if active_app is None:
             st.error("Error: Missing mandatory parameter: --active-app")
             sys.exit(1)
 
-        st.session_state["apps_dir"] = str(app.parent)
+        # Short app name
+        app = active_app.name
+        st.session_state["apps_dir"] = str(active_app.parent)
 
         env = AgiEnv(
-            apps_dir=app.parent,
-            app=app.name,
+            apps_dir=active_app.parent,
+            app=app,
             verbose=1,
         )
         env.init_done = True

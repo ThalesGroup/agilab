@@ -43,16 +43,38 @@ from agi_env import AgiEnv
 from agi_env.pagelib import find_files, load_df, render_logo
 
 st.title(":world_map: Maps Network Graph")
+
+# Build env from CLI, env var, or session fallback
 if 'env' not in st.session_state:
-    apps_dir_value = st.session_state.get("apps_dir")
-    env = AgiEnv(
-        apps_dir=Path(apps_dir_value).expanduser() if apps_dir_value else None,
-        verbose=0,
-    )
-    env.init_done = True
-    st.session_state['env'] = env
-    st.session_state['IS_SOURCE_ENV'] = env.is_source_env
-    st.session_state['IS_WORKER_ENV'] = env.is_worker_env
+    import argparse, os
+    parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
+    parser.add_argument("--active-app", dest="active_app", type=str,
+                        help="Active app path (e.g. src/agilab/apps/flight_project)", default=None)
+    args, _ = parser.parse_known_args()
+
+    active_app: Path | None
+    if args.active_app is None:
+        env_app = os.environ.get("AGILAB_APP")
+        active_app = Path(env_app).expanduser() if env_app else None
+    else:
+        active_app = Path(args.active_app)
+
+    if active_app is not None:
+        app = active_app.name
+        env = AgiEnv(apps_dir=active_app.parent, app=app, verbose=0)
+        env.init_done = True
+        st.session_state['env'] = env
+        st.session_state['IS_SOURCE_ENV'] = env.is_source_env
+        st.session_state['IS_WORKER_ENV'] = env.is_worker_env
+        st.session_state['apps_dir'] = str(active_app.parent)
+    else:
+        # Fallback: use session apps_dir only
+        apps_dir_value = st.session_state.get("apps_dir")
+        env = AgiEnv(apps_dir=Path(apps_dir_value).expanduser() if apps_dir_value else None, verbose=0)
+        env.init_done = True
+        st.session_state['env'] = env
+        st.session_state['IS_SOURCE_ENV'] = env.is_source_env
+        st.session_state['IS_WORKER_ENV'] = env.is_worker_env
 else:
     env = st.session_state['env']
 

@@ -220,7 +220,14 @@ def page(env):
 
     # Define a threshold: if a numeric column has fewer unique values than this threshold,
     # treat it as discrete. Adjust this value based on your needs.
-    unique_threshold = 10
+    # Threshold to classify numeric columns as discrete vs continuous
+    unique_threshold = st.sidebar.number_input(
+        "Discrete threshold (unique values <)",
+        min_value=2,
+        max_value=100,
+        value=10,
+        step=1,
+    )
 
     # Loop through numeric columns and classify them based on the unique value count.
     for col in numeric_cols:
