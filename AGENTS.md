@@ -171,6 +171,12 @@ Note: AGILab workflows and this checklist assume PyCharm IDE. Most commands can 
   - use a dedicated service account (no 2FA) only for cleanup operations.
 - Adjust timeout with `--cleanup-timeout` (default 60s) when invoking `tools/pypi_publish.py`.
 
+**Docs Publishing**
+- The published site is committed under `docs/html` (tracked in git).
+- GitHub Pages deploys the committed content; CI no longer installs or runs Sphinx.
+- To update docs locally: `rsync -a src/agilab/resources/help/ docs/html/` and commit the changes.
+- The Pages workflow copies from `src/agilab/resources/help/` only as a fallback when `docs/html` is empty.
+
 ## Progressive test plan
 
 ### Tier A — Quick checks (fast sanity)
