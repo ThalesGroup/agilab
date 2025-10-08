@@ -190,6 +190,17 @@ Note: AGILab workflows and this checklist assume PyCharm IDE. Most commands can 
 - The Pages workflow only falls back to copying from `src/agilab/resources/help/` if `docs/html` is empty.
 - Sphinx docs in agilab-apps: from the `agilab-apps` repo root, run `uv run --group sphinx --dev docs/gen-docs.py` to build into `docs/html/`, then commit and push.
 
+**Docs Tooling Details**
+- Diagrams: agilab-apps's generator produces UML via `pyreverse` and Graphviz into `docs/source/diagrams` and includes them in Sphinx output.
+- License reports: agilab-apps's generator runs `licensecheck` and writes `*-licenses.md` pages under `docs/source` (one per module), included in the build.
+- Stubs: agilab's `docs/gen_docs.sh` generates lightweight `.pyi` stubs under `docs/stubs` for API surfacing in docs.
+- Prerequisites: Graphviz (`dot`) must be installed on the system for diagrams.
+  - macOS: `brew install graphviz`
+  - Ubuntu/Debian: `sudo apt-get update && sudo apt-get install -y graphviz`
+- Troubleshooting:
+  - Missing Python deps (e.g., `tomlkit`, `licensecheck`): run with `uv run --group sphinx --dev docs/gen-docs.py` from agilab-apps.
+  - Missing `dot`: install Graphviz (see above) and ensure `dot` is on PATH.
+
 **CI & Badges**
 - Tests run in a dedicated `ci` workflow; README badges reference the GH Actions status badge.
 - Coverage uploads to Codecov for public reporting; README includes a Codecov badge. No Codecov token required for public repos.
