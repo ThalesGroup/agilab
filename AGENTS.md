@@ -205,6 +205,14 @@ Note: AGILab workflows and this checklist assume PyCharm IDE. Most commands can 
 - Tests run in a dedicated `ci` workflow; README badges reference the GH Actions status badge.
 - Coverage uploads to Codecov for public reporting; README includes a Codecov badge. No Codecov token required for public repos.
 
+**Publishing to PyPI/TestPyPI (Make targets)**
+- Use the Makefile wrappers around `tools/pypi_publish.py`:
+  - `make publish VERSION=0.8.23` (defaults to `REPO=pypi`)
+  - `make publish-test VERSION=0.8.23` (publishes to TestPyPI)
+  - `make publish-dry REPO=testpypi` (no build/upload; shows plan)
+- Optional vars: `LEAVE_MOST_RECENT=1`, `SKIP_CLEANUP=1`, `CLEANUP_TIMEOUT=120`, `CLEANUP_USERNAME`, `CLEANUP_PASSWORD`, `TWINE_USER=__token__`, `TWINE_PASS=…`, `YANK_PREVIOUS=1`.
+- Example: `make publish VERSION=0.8.23 LEAVE_MOST_RECENT=1 CLEANUP_USERNAME=acct CLEANUP_PASSWORD='…'`
+
 ## Progressive test plan
 
 ### Tier A — Quick checks (fast sanity)
