@@ -1,0 +1,93 @@
+# Sb3-trainer-project Licenses
+| Package Name | License |
+|--------------|---------|
+| absl-py | APACHE SOFTWARE LICENSE |
+| aiofiles | APACHE SOFTWARE LICENSE |
+| ale-py | GPL-2.0-ONLY |
+| array-api-compat | MIT |
+| box2d-py | ZLIB_LIBPNG LICENSE |
+| brotli | MIT LICENSE |
+| chex | APACHE SOFTWARE LICENSE |
+| cloudpickle | BSD LICENSE |
+| contourpy | BSD LICENSE |
+| cycler | BSD LICENSE |
+| cython | APACHE SOFTWARE LICENSE |
+| decorator | BSD LICENSE |
+| etils | APACHE SOFTWARE LICENSE |
+| farama-notifications | MIT LICENSE |
+| filelock | THE UNLICENSE _UNLICENSE_ |
+| flax | APACHE SOFTWARE LICENSE |
+| fonttools | MIT |
+| fsspec | BSD-3-CLAUSE |
+| glfw | MIT LICENSE |
+| grpcio | APACHE SOFTWARE LICENSE |
+| gymnasium | MIT LICENSE |
+| humanize | MIT License |
+| imageio | BSD LICENSE |
+| imageio-ffmpeg | BSD LICENSE |
+| importlib-resources | APACHE SOFTWARE LICENSE |
+| inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| jax | APACHE-2.0 |
+| jaxlib | APACHE-2.0 |
+| jinja2 | BSD LICENSE |
+| kiwisolver | BSD LICENSE |
+| markdown | BSD-3-CLAUSE |
+| markdown-it-py | MIT LICENSE |
+| markupsafe | BSD-3-CLAUSE |
+| matplotlib | PYTHON SOFTWARE FOUNDATION LICENSE |
+| mdurl | MIT LICENSE |
+| ml-dtypes | APACHE-2.0 |
+| moviepy | MIT LICENSE |
+| mpmath | BSD LICENSE |
+| msgpack | APACHE 2.0 |
+| mujoco | APACHE-2.0 |
+| multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| nest-asyncio | BSD LICENSE |
+| networkx | BSD LICENSE |
+| numpy | BSD LICENSE |
+| opencv-python | APACHE SOFTWARE LICENSE |
+| opt-einsum | MIT LICENSE |
+| optax | APACHE SOFTWARE LICENSE |
+| orbax-checkpoint | APACHE SOFTWARE LICENSE |
+| packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| pandas | BSD LICENSE |
+| parso | MIT LICENSE |
+| pillow | MIT-CMU |
+| polars | MIT LICENSE |
+| polars-runtime-32 | MIT LICENSE |
+| proglog | MIT |
+| protobuf | 3-CLAUSE BSD LICENSE |
+| psutil | BSD-3-CLAUSE |
+| py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
+| pygame | GNU LIBRARY;; LESSER GENERAL PUBLIC LICENSE _LGPL_ |
+| pygments | BSD LICENSE |
+| pyopengl | BSD LICENSE |
+| pyparsing | MIT |
+| pyppmd | LGPL-2.1-OR-LATER |
+| python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| python-dotenv | BSD LICENSE |
+| pytz | MIT LICENSE |
+| pyyaml | MIT LICENSE |
+| pyzstd | BSD LICENSE |
+| rich | MIT LICENSE |
+| scipy | BSD LICENSE |
+| setuptools | MIT |
+| simplejson | ACADEMIC FREE LICENSE _AFL_;; MIT LICENSE |
+| six | MIT LICENSE |
+| stable-baselines3 | MIT |
+| swig | GNU GENERAL PUBLIC LICENSE V3;; LATER _GPLV3__;; OTHER_PROPRIETARY LICENSE |
+| sympy | BSD LICENSE |
+| tensorboard | APACHE SOFTWARE LICENSE |
+| tensorboard-data-server | APACHE SOFTWARE LICENSE |
+| tensorstore | APACHE SOFTWARE LICENSE |
+| texttable | MIT LICENSE |
+| toolz | BSD LICENSE |
+| torch | BSD LICENSE |
+| tqdm | MIT LICENSE;; MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
+| treescope | APACHE SOFTWARE LICENSE |
+| typing-extensions | PSF-2.0 |
+| tzdata | APACHE SOFTWARE LICENSE |
+| werkzeug | BSD LICENSE |
+| zipp | MIT |
