@@ -196,9 +196,10 @@ def cleanup_leave_latest(packages):
         # - As a last resort, --user sets only username; but without a password pypi-cleanup will prompt and likely fail.
         user_from_pypirc = None
         pwd_from_pypirc = None
-        # Env overrides for cleanup (not used by Twine): allow PYPI_USERNAME/PYPI_PASSWORD
+        # Env overrides for cleanup (not used by Twine): allow PYPI_USERNAME + PYPI_CLEANUP_PASSWORD (preferred)
+        # Back-compat: also accept PYPI_PASSWORD if set
         env_cleanup_user = os.getenv("PYPI_USERNAME")
-        env_cleanup_pass = os.getenv("PYPI_PASSWORD")
+        env_cleanup_pass = os.getenv("PYPI_CLEANUP_PASSWORD") or os.getenv("PYPI_PASSWORD")
         # Ignore placeholder prompts that may leak in from IDE configs
         if env_cleanup_user and env_cleanup_user.startswith("$Prompt:"):
             env_cleanup_user = None
@@ -228,21 +229,13 @@ def cleanup_leave_latest(packages):
                     break
         except Exception:
             pass
-        # On PyPI, prefer username from dedicated cleanup section, else fallback candidates.
-        if TARGET == "pypi":
-            cleanup_user = (
-                (user_from_pypirc if (user_from_pypirc and user_from_pypirc != "__token__") else None)
-                or args.cleanup_username
-                or env_cleanup_user
-                or args.clean_user
-            )
-        else:
-            cleanup_user = (
-                args.cleanup_username
-                or user_from_pypirc
-                or env_cleanup_user
-                or args.clean_user
-            )
+        # Prefer explicit args; skip token placeholders from ~/.pypirc for both PyPI and TestPyPI
+        cleanup_user = (
+            args.cleanup_username
+            or (user_from_pypirc if (user_from_pypirc and user_from_pypirc != "__token__") else None)
+            or env_cleanup_user
+            or args.clean_user
+        )
         cleanup_pass = (
             args.cleanup_password
             or pwd_from_pypirc
