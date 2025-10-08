@@ -62,8 +62,6 @@ def parse_args():
                     help="Interactively delete versions on TestPyPI before publishing.")
     ap.add_argument("--leave-most-recent", dest="clean_leave_latest", action="store_true",
                     help="Delete all published versions for each package except the most recent one on the target repo.")
-    ap.add_argument("--user", "--clean-user", dest="clean_user", default=None,
-                    help="Username for deletion (e.g., TestPyPI account name for interactive login).")
     ap.add_argument("--days", "--clean-days", dest="clean_days", type=int, default=None,
                     help="Only delete releases uploaded in the last N days (omit to consider all).")
     ap.add_argument("--delete-project", "--clean-delete-project", dest="clean_delete_project",
@@ -251,7 +249,6 @@ def cleanup_leave_latest(packages):
             valid_user(args.cleanup_username)
             or valid_user(user_from_pypirc)
             or valid_user(env_cleanup_user)
-            or valid_user(args.clean_user)
         )
         cleanup_pass = (
             valid_pass(args.cleanup_password)
