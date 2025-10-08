@@ -35,7 +35,6 @@ import sys
 import urllib.request
 from typing import Dict, List, Tuple
 from datetime import datetime, timezone
-import getpass
 
 # third-party (installed on-demand if missing)
 try:
@@ -256,27 +255,17 @@ def cleanup_leave_latest(packages):
             or valid_pass(env_cleanup_pass)
         )
 
-        # On PyPI, pypi-cleanup requires account username/password (not API tokens).
-        # Read username from ~/.pypirc when available; prompt only for password when needed.
-        if TARGET == "pypi":
-            # If username is a token placeholder or missing entirely, skip (no interactive username prompt).
-            if not cleanup_user or cleanup_user == "__token__":
-                print("[cleanup] Skipping cleanup on PyPI: no account username available.\n"
-                      "          Options: add a [pypi_cleanup] section with username/password in ~/.pypirc,\n"
-                      "          set --cleanup-username/--cleanup-password, or set PYPI_USERNAME/PYPI_PASSWORD.")
-                return
-            # If password absent or looks like a token, prompt interactively for the account password
-            token_like = cleanup_pass and str(cleanup_pass).startswith("pypi-")
-            if (not cleanup_pass) or token_like:
-                if not sys.stdin.isatty():
-                    print("[cleanup] Skipping cleanup: interactive password prompt unavailable.\n"
-                          "          Provide --cleanup-password or set PYPI_PASSWORD.")
-                    return
-                try:
-                    cleanup_pass = getpass.getpass(f"[cleanup] PyPI password for {cleanup_user}: ")
-                except EOFError:
-                    print("[cleanup] Skipping cleanup: could not read password interactively.")
-                    return
+        # Cleanup login requires a real account username/password (web form).
+        # If we only have an API token, skip gracefully instead of prompting.
+        token_like = cleanup_pass and str(cleanup_pass).startswith("pypi-")
+        if not cleanup_user:
+            print("[cleanup] Skipping cleanup: no cleanup username available.\n"
+                  "          Configure ~/.pypirc with a real account username/password or pass --cleanup-username/--cleanup-password.")
+            return
+        if not cleanup_pass or token_like:
+            print("[cleanup] Skipping cleanup: requires a real account password (pypi-cleanup uses the web login).\n"
+                  "          Provide --cleanup-password/--cleanup-username or set PYPI_CLEANUP_PASSWORD/PYPI_USERNAME.")
+            return
 
         if cleanup_user:
             cmd.extend(["--username", cleanup_user])
