@@ -32,3 +32,58 @@ docs-publish:
 
 docs-all: docs-build docs-sync docs-publish
 
+# -------------------------
+# PyPI publishing wrappers
+# -------------------------
+# Usage examples:
+#   make publish REPO=pypi VERSION=0.8.23 LEAVE_MOST_RECENT=1 CLEANUP_USERNAME=alice CLEANUP_PASSWORD=***
+#   make publish-test VERSION=0.8.23
+#   make publish-dry REPO=testpypi
+
+.PHONY: publish-help publish publish-pypi publish-test publish-testpypi publish-dry
+
+REPO ?= pypi
+VERSION ?=
+LEAVE_MOST_RECENT ?= 1
+SKIP_CLEANUP ?=
+CLEANUP_TIMEOUT ?= 60
+CLEANUP_USERNAME ?=
+CLEANUP_PASSWORD ?=
+TWINE_USER ?=
+TWINE_PASS ?=
+YANK_PREVIOUS ?=
+
+publish-help:
+	@echo "Publish to {testpypi,pypi} via tools/pypi_publish.py"
+	@echo "Vars: REPO=pypi|testpypi VERSION=X.Y.Z[.postN] LEAVE_MOST_RECENT=1| (empty) SKIP_CLEANUP=1 CLEANUP_TIMEOUT=NN"
+	@echo "      CLEANUP_USERNAME=acct CLEANUP_PASSWORD=pass TWINE_USER=__token__ TWINE_PASS=pypi-*** YANK_PREVIOUS=1"
+	@echo "Examples:"
+	@echo "  make publish VERSION=0.8.23 CLEANUP_USERNAME=acct CLEANUP_PASSWORD=pass"
+	@echo "  make publish-test VERSION=0.8.23"
+	@echo "  make publish-dry REPO=testpypi"
+
+publish:
+	@echo "> Publishing to $(REPO) …"
+	@uv run python tools/pypi_publish.py --repo $(REPO) \
+		$(if $(VERSION),--version $(VERSION),) \
+		$(if $(LEAVE_MOST_RECENT),--leave-most-recent,) \
+		$(if $(SKIP_CLEANUP),--skip-cleanup,) \
+		$(if $(CLEANUP_TIMEOUT),--cleanup-timeout $(CLEANUP_TIMEOUT),) \
+		$(if $(CLEANUP_USERNAME),--cleanup-username $(CLEANUP_USERNAME),) \
+		$(if $(CLEANUP_PASSWORD),--cleanup-password $(CLEANUP_PASSWORD),) \
+		$(if $(TWINE_USER),--twine-username $(TWINE_USER),) \
+		$(if $(TWINE_PASS),--twine-password $(TWINE_PASS),) \
+		$(if $(YANK_PREVIOUS),--yank-previous,)
+
+publish-pypi: REPO=pypi
+publish-pypi: publish
+
+publish-test: REPO=testpypi
+publish-test: publish
+
+publish-testpypi: publish-test
+
+publish-dry:
+	@echo "> Dry run to $(REPO) …"
+	@uv run python tools/pypi_publish.py --repo $(REPO) --dry-run \
+		$(if $(VERSION),--version $(VERSION),)
