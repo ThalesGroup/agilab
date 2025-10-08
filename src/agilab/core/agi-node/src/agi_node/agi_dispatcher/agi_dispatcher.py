@@ -86,10 +86,10 @@ class WorkDispatcher:
         if base_worker_dir not in sys.path:
             sys.path.insert(0, base_worker_dir)
         target_module = await WorkDispatcher._load_module(
-            env,
             env.target,
             env.target,
             path=env.app_src,
+            env=env,
         )
         if not target_module:
             raise RuntimeError(f"failed to load {env.target}")
@@ -337,10 +337,10 @@ class WorkDispatcher:
 
     @staticmethod
     async def _load_module(
-            env: AgiEnv,
             module: str,
             package: Optional[str] = None,
             path: Optional[Union[str, Path]] = None,
+            env: Optional[AgiEnv] = None,
     ) -> Any:
         """load a module
 
@@ -365,8 +365,11 @@ class WorkDispatcher:
 
         except ModuleNotFoundError as e:
             module_to_install = (str(e).replace("No module named ", "").lower().replace("'", ""))
+            # Only attempt install if an environment is provided
+            if env is None:
+                raise
             app_path = env.active_app
             cmd = f"{env.uv} add --upgrade {module_to_install}"
             logging.info(f"{cmd} from {app_path}")
             await AgiEnv.run(cmd, app_path)
-            return await WorkDispatcher._load_module(env, module, package, path)
+            return await WorkDispatcher._load_module(module, package, path, env=env)
