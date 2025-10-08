@@ -45,7 +45,7 @@ version = "0.8.23"
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/agi-env"
-Tracker = "https://github.com/ThalesGroup/agilab/issue"
+Tracker = "https://github.com/ThalesGroup/agilab/issues"
 
 
 
