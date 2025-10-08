@@ -1,14 +1,12 @@
-<?xml version='1.0' encoding='utf-8'?>
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="show depencencies" type="PythonConfigurationType" factoryName="Python" folderName="agilab">
+  <configuration default="false" name="show depencencies" type="PythonConfigurationType" factoryName="Python">
     <module name="agilab" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
     <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-        <env name="PYDEVD_USE_FRAME_EVAL" value="NO" />
-        <env name="UV_NO_SYNC" value="1" />
+      <env name="PYTHONUNBUFFERED" value="1 PYDEVD_USE_FRAME_EVAL=NO" />
+      <env name="UV_NO_SYNC" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="SDK_NAME" value="uv (agilab)" />
@@ -27,4 +25,3 @@
     <method v="2" />
   </configuration>
 </component>
-
