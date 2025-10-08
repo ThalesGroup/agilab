@@ -61,8 +61,6 @@ def parse_args():
         # Cleanup & auth options (backward-compatible aliases)
     ap.add_argument("--clean", action="store_true",
                     help="Interactively delete versions on TestPyPI before publishing.")
-    ap.add_argument("--leave-most-recent", dest="clean_leave_latest", action="store_true",
-                    help="Delete all published versions for each package except the most recent one on the target repo.")
     ap.add_argument("--days", "--clean-days", dest="clean_days", type=int, default=None,
                     help="Only delete releases uploaded in the last N days (omit to consider all).")
     ap.add_argument("--delete-project", "--clean-delete-project", dest="clean_delete_project",
@@ -95,6 +93,7 @@ TWINE_PASS: str | None = args.twine_pass
 YANK_PREVIOUS: bool = args.yank_previous
 SKIP_CLEANUP: bool = args.skip_cleanup
 CLEANUP_TIMEOUT: int = max(0, int(getattr(args, "cleanup_timeout", 60) or 0))
+CLEAN_LEAVE_LATEST: bool = bool(args.cleanup_creds or args.clean)
 
 # If a version was provided explicitly, enforce a strict format before proceeding.
 # Accepted: 'X.Y.Z' or 'X.Y.Z.postN' (after stripping an optional leading 'v').
@@ -151,7 +150,7 @@ def run(cmd: List[str], cwd: pathlib.Path | None = None, env: dict | None = None
 
 
 def cleanup_leave_latest(packages):
-    if not args.clean_leave_latest or SKIP_CLEANUP:
+    if SKIP_CLEANUP:
         return
 
     if TARGET == "testpypi":
@@ -651,7 +650,7 @@ def main():
             for n in core_names:
                 hits = collisions[n]
                 print(f"  - {n}: {', '.join(hits) if hits else '(none)'}")
-        elif args.clean_leave_latest:
+        elif CLEAN_LEAVE_LATEST:
             cleanup_leave_latest(core_names + [UMBRELLA[0]])
 
         # Pin internal deps to the chosen version and build each core
@@ -690,7 +689,7 @@ def main():
             print("  ", " ".join(cmd_preview))
             return
 
-        if args.clean_leave_latest and not DRY_RUN:
+        if CLEAN_LEAVE_LATEST and not DRY_RUN:
             cleanup_leave_latest(core_names + [UMBRELLA[0]])
 
         twine_check(all_files)
