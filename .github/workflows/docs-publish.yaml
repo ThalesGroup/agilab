@@ -55,6 +55,13 @@ jobs:
             idx=$(ls docs/html/*index*.html 2>/dev/null | head -n1 || true)
             if [ -n "$idx" ]; then
               cp "$idx" docs/html/index.html
+            else
+              # Create a simple listing index if nothing obvious exists
+              {
+                echo '<html><body><h1>AGILab Documentation</h1><ul>'
+                for f in docs/html/*.html; do bn=$(basename "$f"); echo "<li><a href=\"$bn\">$bn</a></li>"; done
+                echo '</ul></body></html>'
+              } > docs/html/index.html
             fi
           fi
       - name: Upload artifact
