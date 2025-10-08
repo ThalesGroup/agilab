@@ -624,12 +624,12 @@ def main():
             if TWINE_USER:
                 print(f"[preflight] TWINE_USERNAME set: {TWINE_USER}")
             else:
-            print("[preflight] TWINE_USERNAME not set; relying on ~/.pypirc")
-        if TWINE_PASS:
-            shown = (str(TWINE_PASS)[:8] + "…") if len(str(TWINE_PASS)) > 8 else "(short)"
-            print(f"[preflight] TWINE_PASSWORD token prefix: {shown}")
-        print("[preflight] Note: a batch upload of multiple projects to PyPI typically requires an account-wide token.\n"
-              "           If you encounter 403 Forbidden, verify your token scope in PyPI settings.")
+                print("[preflight] TWINE_USERNAME not set; relying on ~/.pypirc")
+            if TWINE_PASS:
+                shown = (str(TWINE_PASS)[:8] + "…") if len(str(TWINE_PASS)) > 8 else "(short)"
+                print(f"[preflight] TWINE_PASSWORD token prefix: {shown}")
+            print("[preflight] Note: a batch upload of multiple projects to PyPI typically requires an account-wide token.\n"
+                  "           If you encounter 403 Forbidden, verify your token scope in PyPI settings.")
 
         # Basic hygiene on names
         sanitize_project_names([p for _, p, _ in CORE])
