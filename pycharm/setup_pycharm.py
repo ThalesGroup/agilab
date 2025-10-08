@@ -556,10 +556,25 @@ class Project:
                 logging.warning("Apps-page directory %s missing; skipping run config generation.", apps_page_dir)
                 continue
 
-            # Build a proper PyCharm XML run config that calls `streamlit run` with the page entry
-            entry_script = self.cfg.ROOT / "src" / self.cfg.PROJECT_NAME / "apps-pages" / name / "src" / name / f"{name}.py"
-            if not entry_script.exists():
-                logging.warning("Entry script missing for %s: %s", name, entry_script)
+            # Build a proper PyCharm XML run config that calls `streamlit run` with the page entry.
+            # Detect the entry script under <apps-pages>/<name>/src/<module>/<module>.py
+            src_dir = apps_page_dir / "src"
+            entry_script = None
+            if src_dir.exists():
+                # pick the first non-hidden directory under src
+                subdirs = [d for d in sorted(src_dir.iterdir()) if d.is_dir() and not d.name.startswith((".", "__"))]
+                if subdirs:
+                    module_dir = subdirs[0]
+                    candidate = module_dir / f"{module_dir.name}.py"
+                    if candidate.exists():
+                        entry_script = candidate
+                    else:
+                        # fallback: any .py under module_dir
+                        py_files = [p for p in module_dir.glob("*.py") if p.is_file()]
+                        if py_files:
+                            entry_script = py_files[0]
+            if entry_script is None or not entry_script.exists():
+                logging.warning("Entry script missing for %s under %s", name, src_dir)
                 continue
 
             cfg_xml = ET.Element("component", {"name": "ProjectRunConfigurationManager"})
