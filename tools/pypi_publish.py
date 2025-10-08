@@ -185,7 +185,7 @@ def cleanup_leave_latest(packages):
         cmd = [
             "pypi-cleanup",
             "--package", pkg,
-            "--leave-most-recent-only",
+            "--leave-most-recent",
             "--do-it",
             "-y",
             "--host", host,
