@@ -641,19 +641,21 @@ def main():
         print("[dry-run] Command:")
         print("  ", " ".join(cmd_preview))
         return
-    twine_check(all_files)
-    twine_upload(all_files, TARGET)
 
-    if TARGET == "pypi":
-        create_and_push_tag(chosen)
-
-    # Post-upload cleanup to ensure only the fresh version remains
+    # Pre-upload cleanup to ensure only the fresh version remains
     if args.clean_leave_latest:
         cleanup_leave_latest(core_names + [UMBRELLA[0]])
+
+    twine_check(all_files)
+    twine_upload(all_files, TARGET)
 
     # Optional: yank previous versions on PyPI to discourage installs of older releases
     if TARGET == "pypi" and YANK_PREVIOUS:
         yank_previous_versions(core_names + [UMBRELLA[0]], TARGET, chosen)
+
+    if TARGET == "pypi":
+        create_and_push_tag(chosen)
+
 
 def yank_previous_versions(packages: list[str], repo: str, chosen: str):
     """Yank previously released versions on PyPI that are older than 'chosen'."""
