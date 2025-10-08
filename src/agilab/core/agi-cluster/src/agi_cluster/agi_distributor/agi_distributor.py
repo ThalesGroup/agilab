@@ -244,14 +244,12 @@ class AGI:
             if isinstance(mode, str):
                 pattern = r"^[dcrp]+$"
                 if not re.fullmatch(pattern, mode.lower()):
-                    logger.error("parameter <mode> must only contain the letters 'd', 'c', 'r', 'p'")
-                    sys.exit(1)
+                    raise ValueError("parameter <mode> must only contain the letters 'd', 'c', 'r', 'p'")
                 AGI._mode = env.mode2int(mode)
             elif isinstance(mode, int):
                 AGI._mode = int(mode)
             else:
-                logger.error("parameter <mode> must be an int, a list of int or a string")
-                sys.exit(1)
+                raise ValueError("parameter <mode> must be an int, a list of int or a string")
 
             AGI._run_types = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
             if AGI._mode:
@@ -863,11 +861,11 @@ class AGI:
                 if pid != current_pid:
                     pids_to_kill.append(pid)
             except Exception:
-                AGI.env.log_warning(f"Could not read PID from {pid_file}, skipping")
+                logger.warning(f"Could not read PID from {pid_file}, skipping")
             try:
                 pid_file.unlink()
             except Exception as e:
-                AGI.env.log_warning(f"Failed to remove pid file {pid_file}: {e}")
+                logger.warning(f"Failed to remove pid file {pid_file}: {e}")
 
         cmds: list[str] = []
         cli_rel = env.wenv_rel.parent / "cli.py"
@@ -978,13 +976,13 @@ class AGI:
                 # Assuming this cleans local dirs once per IP (or should be once per call)
                 AGI._clean_dirs_local()
 
-        AGI._clean_remote_procs()
-        AGI._clean_remote_dirs()
+        await AGI._clean_remote_procs(list_ip=list_ip, force=force)
+        await AGI._clean_remote_dirs(list_ip=list_ip)
 
         return list_ip
 
     @staticmethod
-    async def _clean_remote_procs() -> None:
+    async def _clean_remote_procs(list_ip: Set[str], force: bool = True) -> None:
         tasks = []
         for ip in list_ip:
             if not AgiEnv.is_local(ip):
@@ -994,7 +992,7 @@ class AGI:
             await asyncio.gather(*tasks)
 
     @staticmethod
-    async def _clean_remote_dirs() -> None:
+    async def _clean_remote_dirs(list_ip: Set[str]) -> None:
         tasks = []
         for ip in list_ip:
             tasks.append(asyncio.create_task(AGI._clean_dirs(ip)))
@@ -1117,7 +1115,8 @@ class AGI:
                     uv_is_installed = False
                     # Fallback to Unix installer
                     await AGI.exec_ssh(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
-                    await AGI.exec_ssh(ip, 'source ~/.local/bin/env')
+                    # Rely on PATH export via cmd_prefix for subsequent commands
+                    # await AGI.exec_ssh(ip, 'source ~/.local/bin/env')
                     uv_is_installed = True
 
             if not uv_is_installed or not AgiEnv.check_internet():
@@ -1998,7 +1997,7 @@ class AGI:
             except Exception as e:
                 logger.error("Dask Client instantiation trouble, run aborted due to:")
                 logger.info(e)
-                sys.exit(1)
+                raise RuntimeError("Failed to instantiate Dask Client") from e
 
             AGI._install_done = True
             if AGI._worker_init_error:
@@ -2093,7 +2092,7 @@ class AGI:
                     await asyncio.sleep(3)
                     if time.time() - start > timeout:
                         logger.error(f"Timeout waiting for scheduler workers info.")
-                        sys.exit(1)
+                        raise TimeoutError("Timed out waiting for scheduler workers info")
                     continue
 
                 runners = list(workers_info.keys())
@@ -2112,7 +2111,7 @@ class AGI:
 
                 if time.time() - start > timeout:
                     logger.error("Timeout waiting for all workers. {remaining} workers missing.")
-                    sys.exit(1)
+                    raise TimeoutError("Timed out waiting for all workers to attach")
                 await asyncio.sleep(3)
 
             except Exception as e:
@@ -2210,12 +2209,11 @@ class AGI:
                 python_version = python_dirs[0] + "." + python_dirs[1] + "t"
             else:
                 python_version = python_dirs[0] + "." + python_dirs[1]
-            destination = wenv_abs / f".venv/lib/python{python_version}/site-packages/"
+            destination_dir = wenv_abs / f".venv/lib/python{python_version}/site-packages"
 
-            # Copy the file while preserving metadata.
-            destination_dir = os.path.dirname(destination)
-            os.makedirs(destination_dir, exist_ok=True)  # create directory if missing
-            shutil.copy2(worker_lib, destination)
+            # Copy the file while preserving metadata into the site-packages directory.
+            os.makedirs(destination_dir, exist_ok=True)
+            shutil.copy2(worker_lib, destination_dir / os.path.basename(worker_lib))
             if res != "":
                 logger.info(res)
 
@@ -2243,8 +2241,8 @@ class AGI:
 
         # check first that install is done
         if not (env.wenv_abs / ".venv").exists():
-            logger.info("Worker installlation not found")
-            sys.exit(1)
+            logger.info("Worker installation not found")
+            raise FileNotFoundError("Worker installation (.venv) not found")
 
         pid_file = "dask_worker_0.pid"
         current_pid = os.getpid()
@@ -2696,7 +2694,7 @@ class AGI:
             raise
 
         except asyncssh.PermissionDenied:
-            err_msg = f"Authentication failed for SSH user '{self.user}' on host {ip}."
+            err_msg = f"Authentication failed for SSH user '{env.user}' on host {ip}."
             logger.error(err_msg)
             raise
 
@@ -2735,13 +2733,13 @@ class AGI:
                 if isinstance(stdout, bytes):
                     stdout = stdout.decode('utf-8', errors='replace')
                 if isinstance(stderr, bytes):
-                    stder = stderr.decode('utf-8', errors='replace')
+                    stderr = stderr.decode('utf-8', errors='replace')
                 if stderr:
                     logger.info(f"[{ip}] {stderr.strip()}")
                 if AgiEnv.verbose > 0 or AgiEnv.debug:
                     if stdout:
                         logger.info(f"[{ip}] {stdout.strip()}")
-                return stdout.strip() + "\n" + stderr.strip()
+                return (stdout or '').strip() + "\n" + (stderr or '').strip()
 
         except ConnectionError:
             raise

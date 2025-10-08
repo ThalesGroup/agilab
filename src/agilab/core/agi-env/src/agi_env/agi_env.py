@@ -336,7 +336,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     uv = None
     benchmark = None
     verbose = None
-    verbose = None
     pyvers_worker = None
     logger = None
     out_log = None
@@ -486,7 +485,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             active_app = base_dir / app
 
         if not app.endswith('_project') and not app.endswith('_worker'):
-            raise ValueError(f"{app} must end with '_project'")
+            raise ValueError(f"{app} must end with '_project' or '_worker'")
 
         self.app = app
         try:
@@ -1127,6 +1126,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     def _update_env_file(updates: dict):
         AgiEnv._ensure_defaults()
         env_file = AgiEnv.resources_path / ".env"
+        # Ensure parent directory exists for pre-init usage
+        try:
+            env_file.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
         for k, v in updates.items():
             set_key(str(env_file), k, str(v), quote_mode="never")
 
@@ -1575,7 +1579,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     logger = getattr(AgiEnv, "logger", None)
                     if logger:
                         logger.error("Command failed with exit code %s: %s", returncode, cmd)
-                    sys.exit(returncode)
+                    raise RuntimeError(f"Command failed with exit code {returncode}: {cmd}")
 
                 return "\n".join(result)
             except asyncio.TimeoutError:
@@ -1837,14 +1841,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             if logger:
                 logger.error(f"Error during: {cmd}")
                 logger.error(err)
-            sys.exit(1)
+            raise RuntimeError(f"Subprocess execution error for: {cmd}") from err
 
         rc = proc.returncode
         if rc != 0:
             logger = getattr(AgiEnv, "logger", None)
             if logger:
                 logger.error("Command failed with exit code %s: %s", rc, cmd)
-            sys.exit(rc)
+            raise RuntimeError(f"Command failed with exit code {rc}: {cmd}")
 
         # Preserve original behavior: return last non-empty line (prefer stderr, else stdout)
         def last_non_empty(lines):
@@ -2275,7 +2279,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         # Clear existing folder if not empty to avoid extraction errors on second call
         if dataset.exists() and any(dataset.iterdir()):
             if AgiEnv.verbose > 0:
-                AgiEnv.logger.info("Destination '{dataset}' exists and is not empty. Clearing it before extraction.")
+                AgiEnv.logger.info(f"Destination '{dataset}' exists and is not empty. Clearing it before extraction.")
             shutil.rmtree(dataset)
         dest.mkdir(parents=True, exist_ok=True)
 
@@ -2287,7 +2291,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         except Exception as e:
             AgiEnv.logger.error(f"Failed to extract '{archive_path}': {e}")
             traceback.print_exc()
-            sys.exit(1)
+            raise RuntimeError(f"Extraction failed for '{archive_path}'") from e
 
     @staticmethod
     def check_internet():
