@@ -24,6 +24,12 @@ Note: AGILab workflows and this checklist assume PyCharm IDE. Most commands can 
 > for the user. Hidden fallbacks make behavior hard to reproduce and can mask config
 > or model‑selection mistakes.
 
+> **Installer pip bootstrapping**
+> The end‑user installer now ensures `pip` is available inside the `~/agi-space/.venv` and
+> uses `uv pip` for subsequent installs. If you hit `No module named pip` during end‑user
+> setup, update to the latest scripts and rerun the install; alternatively run
+> `uv run python -m ensurepip --upgrade` once in `~/agi-space`.
+
 > **Private apps auto-link**
 > The installer now creates symlinks to the private app checkout on demand. Keep the
 > private repository at the path recorded in `~/.local/share/agilab/.env` so missing
