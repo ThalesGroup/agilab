@@ -67,10 +67,8 @@ def parse_args():
                     action="store_true",
                     help="Pass --delete-project to pypi-cleanup (destructive: deletes all matched releases).")
     # Dedicated cleanup credentials (PyPI web login requires account password, not API token)
-    ap.add_argument("--cleanup-username", dest="cleanup_username", default=None,
-                    help="pypi-cleanup login (PyPI account username; not __token__).")
-    ap.add_argument("--cleanup-password", dest="cleanup_password", default=None,
-                    help="pypi-cleanup password (PyPI account password; tokens are not accepted by web login).")
+    ap.add_argument("--cleanup", dest="cleanup_creds", default=None,
+                    help="Cleanup login in the form 'username:password' (used by pypi-cleanup web login).")
     ap.add_argument("--skip-cleanup", dest="skip_cleanup", action="store_true",
                     help="Skip pypi-cleanup pruning pre/post upload (avoids 2FA prompts and hangs).")
     ap.add_argument("--cleanup-timeout", dest="cleanup_timeout", type=int, default=60,
@@ -248,13 +246,20 @@ def cleanup_leave_latest(packages):
                 return None
             return val
 
+        cli_user = cli_pass = None
+        if args.cleanup_creds:
+            parts = args.cleanup_creds.split(":", 1)
+            if len(parts) != 2 or not parts[0] or not parts[1]:
+                raise SystemExit("ERROR: --cleanup value must be 'username:password'")
+            cli_user, cli_pass = parts[0], parts[1]
+
         cleanup_user = (
-            valid_user(args.cleanup_username)
+            valid_user(cli_user)
             or valid_user(user_from_pypirc)
             or valid_user(env_cleanup_user)
         )
         cleanup_pass = (
-            valid_pass(args.cleanup_password)
+            valid_pass(cli_pass)
             or valid_pass(pwd_from_pypirc)
             or valid_pass(env_cleanup_pass)
         )

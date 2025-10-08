@@ -216,8 +216,8 @@ Note: AGILab workflows and this checklist assume PyCharm IDE. Most commands can 
   - CLI (TestPyPI): `uv run python tools/pypi_publish.py --repo testpypi`
   - CLI (PyPI): `uv run python tools/pypi_publish.py --repo pypi`
   - PyCharm: run configurations “publish dry-run (testpypi)”, “testpypi publish”, “pypi publish”.
-- Options: `--leave-most-recent`, `--skip-cleanup`, `--cleanup-timeout N`, `--cleanup-password`, `--twine-username __token__`, `--twine-password`, `--yank-previous`.
-- Cleanup defaults: TestPyPI cleanup is skipped automatically (avoids interactive web login/timeouts). To run cleanup, provide a real account password (via `--cleanup-password`, `PYPI_CLEANUP_PASSWORD`, or `~/.pypirc`). Username is read from `~/.pypirc` or `PYPI_USERNAME`.
+- Options: `--leave-most-recent`, `--skip-cleanup`, `--cleanup-timeout N`, `--cleanup username:password`, `--twine-username __token__`, `--twine-password`, `--yank-previous`.
+- Cleanup defaults: TestPyPI cleanup is skipped automatically (avoids interactive web login/timeouts). To run cleanup, provide `--cleanup username:password` (or set `PYPI_USERNAME`/`PYPI_CLEANUP_PASSWORD` / configure `~/.pypirc`). The script reads the username from `~/.pypirc` when available.
 
 ## Progressive test plan
 
