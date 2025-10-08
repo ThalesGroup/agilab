@@ -203,6 +203,8 @@ if [ ! -f pyproject.toml ]; then
     uv init --bare --no-workspace
 fi
 ${UV_PREVIEW[@]} sync
+# Ensure pip is available inside the venv for any tooling that shells out to python -m pip
+${UV_PREVIEW[@]} run python -m ensurepip --upgrade || true
 
 # -----------------------------
 # Installation modes
@@ -232,20 +234,20 @@ case "${SOURCE}" in
     echo "Installing packages from local source tree..."
     for pkg in ${PACKAGES}; do
       if [[ -d "${AGI_INSTALL_PATH}/core/${pkg}" ]]; then
-        ${UV_PREVIEW[@]} run python -m pip install --upgrade --no-deps "${AGI_INSTALL_PATH}/core/${pkg}"
+        ${UV_PREVIEW[@]} pip install --upgrade --no-deps "${AGI_INSTALL_PATH}/core/${pkg}"
       fi
     done
-    ${UV_PREVIEW[@]} run python -m pip install --upgrade --no-deps "${AGI_INSTALL_ROOT}"
+    ${UV_PREVIEW[@]} pip install --upgrade --no-deps "${AGI_INSTALL_ROOT}"
     ;;
 
 
   pypi)
     echo "Installing from PyPI..."
     if [[ -z "${VERSION}" ]]; then
-      ${UV_PREVIEW[@]} run python -m pip install --upgrade ${PACKAGES}
+      ${UV_PREVIEW[@]} pip install --upgrade ${PACKAGES}
     else
       # shellcheck disable=SC2046
-      ${UV_PREVIEW[@]} run python -m pip install --upgrade $(for p in ${PACKAGES}; do printf "%s==%s " "${p}" "${VERSION}"; done)
+      ${UV_PREVIEW[@]} pip install --upgrade $(for p in ${PACKAGES}; do printf "%s==%s " "${p}" "${VERSION}"; done)
     fi
     ;;
 
