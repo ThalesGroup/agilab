@@ -11,8 +11,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Fail if symlinks are present in repo
         run: |
-          set -e
-          if git ls-files -s | awk '$1 ~ /^120000/ {print $4}'; then
-            echo "Symlinks detected in repository. Please remove them." >&2
+          set -euo pipefail
+          # Collect tracked symlinks (mode 120000)
+          SYMLINKS=$(git ls-files -s | awk '$1 ~ /^120000/ {print $4}')
+          if [ -n "$SYMLINKS" ]; then
+            echo "Symlinks detected in repository (tracked files):" >&2
+            echo "$SYMLINKS" >&2
+            echo "Please remove these symlinks or replace with real files." >&2
             exit 1
           fi
