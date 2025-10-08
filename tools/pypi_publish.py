@@ -73,6 +73,13 @@ def parse_args():
                     help="Skip pypi-cleanup pruning pre/post upload (avoids 2FA prompts and hangs).")
     ap.add_argument("--cleanup-timeout", dest="cleanup_timeout", type=int, default=60,
                     help="Timeout in seconds for pypi-cleanup calls (0 disables). Prevents hangs on 2FA prompts.")
+    # Back-compat: accept split credentials as separate flags (used by some IDE run configs)
+    ap.add_argument("--cleanup-username", dest="cleanup_user", default=None,
+                    help="Cleanup web-login username (alias for --cleanup USER:PASS).")
+    ap.add_argument("--cleanup-password", dest="cleanup_pass", default=None,
+                    help="Cleanup web-login password (alias for --cleanup USER:PASS).")
+    ap.add_argument("--reuse-cleanup-for-twine", action="store_true",
+                    help="On TestPyPI, reuse --cleanup username/password for Twine if none were provided.")
     # Unified Twine auth (optional): avoids repeated prompts
     ap.add_argument("--twine-username", dest="twine_user", default=None,
                     help="Twine username to upload to {testpypi,pypi}. Overrides ~/.pypirc if set.")
@@ -93,7 +100,43 @@ TWINE_PASS: str | None = args.twine_pass
 YANK_PREVIOUS: bool = args.yank_previous
 SKIP_CLEANUP: bool = args.skip_cleanup
 CLEANUP_TIMEOUT: int = max(0, int(getattr(args, "cleanup_timeout", 60) or 0))
-CLEAN_LEAVE_LATEST: bool = bool(args.cleanup_creds or args.clean)
+CLEAN_LEAVE_LATEST: bool = bool(args.cleanup_creds or args.cleanup_user or args.cleanup_pass or args.clean)
+
+# Prefill Twine creds from ~/.pypirc if CLI omitted both (prevents repeated prompts)
+def _pypirc_creds(repo: str) -> tuple[str | None, str | None]:
+    try:
+        cfg = configparser.RawConfigParser()
+        cfg.read(pathlib.Path.home() / ".pypirc")
+        if cfg.has_section(repo):
+            return (
+                cfg.get(repo, "username", fallback=None),
+                cfg.get(repo, "password", fallback=None),
+            )
+    except Exception:
+        pass
+    return (None, None)
+
+if not TWINE_USER and not TWINE_PASS:
+    u, p = _pypirc_creds(TARGET)
+    if u and p:
+        TWINE_USER, TWINE_PASS = u, p
+
+# Optional: on TestPyPI, reuse cleanup credentials for Twine if requested and none provided
+def _parse_cleanup_cli_creds() -> tuple[str | None, str | None]:
+    cu = cp = None
+    if getattr(args, "cleanup_creds", None):
+        parts = str(args.cleanup_creds).split(":", 1)
+        if len(parts) == 2 and parts[0] and parts[1]:
+            cu, cp = parts[0], parts[1]
+    if (not cu or not cp) and (getattr(args, "cleanup_user", None) or getattr(args, "cleanup_pass", None)):
+        if getattr(args, "cleanup_user", None) and getattr(args, "cleanup_pass", None):
+            cu, cp = args.cleanup_user, args.cleanup_pass
+    return (cu, cp)
+
+if TARGET == "testpypi" and not (TWINE_USER and TWINE_PASS) and getattr(args, "reuse_cleanup_for_twine", False):
+    cu, cp = _parse_cleanup_cli_creds()
+    if cu and cp:
+        TWINE_USER, TWINE_PASS = cu, cp
 
 # If a version was provided explicitly, enforce a strict format before proceeding.
 # Accepted: 'X.Y.Z' or 'X.Y.Z.postN' (after stripping an optional leading 'v').
@@ -106,10 +149,18 @@ if BASE_VERSION is not None:
 
 # Enforce explicit behavior for Twine auth: both-or-none (fallback to ~/.pypirc when none).
 if (TWINE_USER and not TWINE_PASS) or (TWINE_PASS and not TWINE_USER):
-    raise SystemExit(
-        "[auth] Provide both --twine-username and --twine-password, or neither.\n"
-        "       When neither is provided, twine will read credentials from ~/.pypirc."
-    )
+    # As a last resort, fall back to ~/.pypirc if one of them is missing
+    u2, p2 = _pypirc_creds(TARGET)
+    if not TWINE_USER and u2:
+        TWINE_USER = u2
+    if not TWINE_PASS and p2:
+        TWINE_PASS = p2
+    # If still incomplete, fail fast to avoid multiple interactive prompts later
+    if (TWINE_USER and not TWINE_PASS) or (TWINE_PASS and not TWINE_USER):
+        raise SystemExit(
+            "[auth] Provide both --twine-username and --twine-password, or neither.\n"
+            "       When neither is provided, twine will read credentials from ~/.pypirc."
+        )
 
 # Enforce token auth for PyPI: basic auth is no longer supported.
 if TARGET == "pypi" and TWINE_USER and TWINE_USER != "__token__":
@@ -153,159 +204,140 @@ def cleanup_leave_latest(packages):
     if SKIP_CLEANUP:
         return
 
-    if TARGET == "testpypi":
-        print("[cleanup] Skipping cleanup on TestPyPI to avoid interactive login/timeouts. Use --cleanup-username/--cleanup-password if you need it explicitly.")
-        return
-
+    # Determine host
     host = "https://pypi.org/"
     if TARGET == "testpypi":
         host = "https://test.pypi.org/"
+        # On TestPyPI, skip unless explicit credentials were provided to avoid interactive prompts
+        if not (args.cleanup_creds or (args.cleanup_user and args.cleanup_pass)):
+            print("[cleanup] Skipping cleanup on TestPyPI unless --cleanup user:password is provided (avoids interactive login/timeouts).")
+            return
 
-    for pkg in packages:
+    # Auth strategy for pypi-cleanup:
+    # - PyPI web login used by pypi-cleanup REQUIRES account username+password (API tokens are NOT accepted).
+    # - Prefer explicit --cleanup USER:PASS or --cleanup-username/--cleanup-password when provided.
+    # - Else fall back to ~/.pypirc entries if they contain a real username (not __token__).
+    # - As a last resort, allow environment variables PYPI_USERNAME/PYPI_CLEANUP_PASSWORD.
+    user_from_pypirc = None
+    pwd_from_pypirc = None
+    env_cleanup_user = os.getenv("PYPI_USERNAME")
+    env_cleanup_pass = os.getenv("PYPI_CLEANUP_PASSWORD") or os.getenv("PYPI_PASSWORD")
+    if env_cleanup_user and env_cleanup_user.startswith("$Prompt:"):
+        env_cleanup_user = None
+    if env_cleanup_pass and env_cleanup_pass.startswith("$Prompt:"):
+        env_cleanup_pass = None
+    try:
+        cfg = configparser.RawConfigParser()
+        cfg.read(pathlib.Path.home() / ".pypirc")
+        if cfg.has_section(TARGET):
+            user_from_pypirc = cfg.get(TARGET, "username", fallback=None)
+            pwd_from_pypirc = cfg.get(TARGET, "password", fallback=None)
+        cleanup_sections = [
+            f"{TARGET}_cleanup", f"{TARGET}-cleanup",
+            "pypi_cleanup", "pypi-cleanup",
+        ]
+        for sec in cleanup_sections:
+            if cfg.has_section(sec):
+                cand_user = cfg.get(sec, "username", fallback=None)
+                cand_pass = cfg.get(sec, "password", fallback=None)
+                if cand_user:
+                    user_from_pypirc = cand_user
+                if cand_pass:
+                    pwd_from_pypirc = cand_pass
+                break
+    except Exception:
+        pass
+
+    def valid_user(val: str | None) -> str | None:
+        if not val:
+            return None
+        val = val.strip()
+        if not val or val.startswith("$Prompt:"):
+            return None
+        if val == "__token__":
+            return None
+        return val
+
+    def valid_pass(val: str | None) -> str | None:
+        if not val:
+            return None
+        val = val.strip()
+        if not val or val.startswith("$Prompt:"):
+            return None
+        return val
+
+    cli_user = cli_pass = None
+    if args.cleanup_creds:
+        parts = args.cleanup_creds.split(":", 1)
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            raise SystemExit("ERROR: --cleanup value must be 'username:password'")
+        cli_user, cli_pass = parts[0], parts[1]
+    elif args.cleanup_user or args.cleanup_pass:
+        if not (args.cleanup_user and args.cleanup_pass):
+            raise SystemExit("ERROR: provide both --cleanup-username and --cleanup-password (or use --cleanup USER:PASS)")
+        cli_user, cli_pass = args.cleanup_user, args.cleanup_pass
+
+    cleanup_user = (
+        valid_user(cli_user)
+        or valid_user(user_from_pypirc)
+        or valid_user(env_cleanup_user)
+    )
+    cleanup_pass = (
+        valid_pass(cli_pass)
+        or valid_pass(pwd_from_pypirc)
+        or valid_pass(env_cleanup_pass)
+    )
+
+    token_like = cleanup_pass and str(cleanup_pass).startswith("pypi-")
+    if not cleanup_user:
+        print("[cleanup] Skipping cleanup: no cleanup username available.\n"
+              "          Configure ~/.pypirc with a real account username/password or pass --cleanup user:password.")
+        return
+    if not cleanup_pass or token_like:
+        print("[cleanup] Skipping cleanup: requires a real account password (pypi-cleanup uses the web login).\n"
+              "          Provide --cleanup user:password or set PYPI_CLEANUP_PASSWORD/PYPI_USERNAME.")
+        return
+
+    cleanup_env_base = os.environ.copy()
+    cleanup_env_base["PYPI_USERNAME"] = cleanup_user
+    cleanup_env_base["PYPI_PASSWORD"] = cleanup_pass
+    cleanup_env_base["PYPI_CLEANUP_PASSWORD"] = cleanup_pass
+
+    def run_cleanup(extra_cmd):
         cmd = [
             "pypi-cleanup",
-            "--package", pkg,
-            "--leave-most-recent",
+            "--leave-most-recent-only",
             "--do-it",
             "-y",
             "--host", host,
         ]
-        # Auth strategy for pypi-cleanup:
-        # - PyPI web login used by pypi-cleanup REQUIRES account username+password (API tokens are NOT accepted).
-        # - Prefer explicit --cleanup-username/--cleanup-password when provided.
-        # - Else fall back to ~/.pypirc entries if they contain a real username (not __token__).
-        # - As a last resort, --user sets only username; but without a password pypi-cleanup will prompt and likely fail.
-        user_from_pypirc = None
-        pwd_from_pypirc = None
-        # Env overrides for cleanup (not used by Twine): allow PYPI_USERNAME + PYPI_CLEANUP_PASSWORD (preferred)
-        # Back-compat: also accept PYPI_PASSWORD if set
-        env_cleanup_user = os.getenv("PYPI_USERNAME")
-        env_cleanup_pass = os.getenv("PYPI_CLEANUP_PASSWORD") or os.getenv("PYPI_PASSWORD")
-        # Ignore placeholder prompts that may leak in from IDE configs
-        if env_cleanup_user and env_cleanup_user.startswith("$Prompt:"):
-            env_cleanup_user = None
-        if env_cleanup_pass and env_cleanup_pass.startswith("$Prompt:"):
-            env_cleanup_pass = None
-        try:
-            cfg = configparser.RawConfigParser()
-            cfg.read(pathlib.Path.home() / ".pypirc")
-            if cfg.has_section(TARGET):
-                user_from_pypirc = cfg.get(TARGET, "username", fallback=None)
-                pwd_from_pypirc = cfg.get(TARGET, "password", fallback=None)
-            # Dedicated cleanup section support to avoid breaking Twine token uploads
-            cleanup_sections = [
-                f"{TARGET}_cleanup", f"{TARGET}-cleanup",
-                "pypi_cleanup", "pypi-cleanup",
-            ]
-            for sec in cleanup_sections:
-                if cfg.has_section(sec):
-                    # Use the first matching cleanup section
-                    user_from_pypirc_cleanup = cfg.get(sec, "username", fallback=None)
-                    pwd_from_pypirc_cleanup = cfg.get(sec, "password", fallback=None)
-                    # Override main-section credentials for cleanup purposes only
-                    if user_from_pypirc_cleanup:
-                        user_from_pypirc = user_from_pypirc_cleanup
-                    if pwd_from_pypirc_cleanup:
-                        pwd_from_pypirc = pwd_from_pypirc_cleanup
-                    break
-        except Exception:
-            pass
-        def valid_user(val: str | None) -> str | None:
-            if not val:
-                return None
-            val = val.strip()
-            if not val or val.startswith("$Prompt:"):
-                return None
-            if val == "__token__":
-                return None
-            return val
-
-        def valid_pass(val: str | None) -> str | None:
-            if not val:
-                return None
-            val = val.strip()
-            if not val or val.startswith("$Prompt:"):
-                return None
-            return val
-
-        cli_user = cli_pass = None
-        if args.cleanup_creds:
-            parts = args.cleanup_creds.split(":", 1)
-            if len(parts) != 2 or not parts[0] or not parts[1]:
-                raise SystemExit("ERROR: --cleanup value must be 'username:password'")
-            cli_user, cli_pass = parts[0], parts[1]
-
-        cleanup_user = (
-            valid_user(cli_user)
-            or valid_user(user_from_pypirc)
-            or valid_user(env_cleanup_user)
-        )
-        cleanup_pass = (
-            valid_pass(cli_pass)
-            or valid_pass(pwd_from_pypirc)
-            or valid_pass(env_cleanup_pass)
-        )
-
-        # Cleanup login requires a real account username/password (web form).
-        # If we only have an API token, skip gracefully instead of prompting.
-        token_like = cleanup_pass and str(cleanup_pass).startswith("pypi-")
-        if not cleanup_user:
-            print("[cleanup] Skipping cleanup: no cleanup username available.\n"
-                  "          Configure ~/.pypirc with a real account username/password or pass --cleanup user:password.")
-            return
-        if not cleanup_pass or token_like:
-            print("[cleanup] Skipping cleanup: requires a real account password (pypi-cleanup uses the web login).\n"
-                  "          Provide --cleanup user:password or set PYPI_CLEANUP_PASSWORD/PYPI_USERNAME.")
-            return
-
         if cleanup_user:
             cmd.extend(["--username", cleanup_user])
         if args.clean_days is not None:
             cmd.extend(["--days", str(args.clean_days)])
         if args.clean_delete_project:
             cmd.append("--delete-project")
-        # Do not pass a regex by default; --leave-most-recent-only works across all versions
-        print(f"[cleanup] Keeping only latest release for {pkg} on {TARGET}")
+        cmd.extend(extra_cmd)
+
+        env = cleanup_env_base.copy()
+        print(f"[cleanup] Keeping only latest release for {extra_cmd[-1]} on {TARGET}")
         if VERBOSE:
             cmd.append("-v")
             print("[cleanup] Command:", " ".join(cmd))
-        # Prepare env for non-interactive auth (pypi-cleanup reads PYPI_USERNAME/PYPI_PASSWORD)
-        cleanup_env = {}
-        # Resolve username/password from explicit flags or ~/.pypirc
-        uname = cleanup_user
-        pword = cleanup_pass
-        if uname:
-            cleanup_env["PYPI_USERNAME"] = uname
-        if pword:
-            cleanup_env["PYPI_PASSWORD"] = pword
-        # Allow cleanup to fail without aborting the publish (e.g., 404 already deleted).
-        # Capture output to avoid noisy tracebacks; summarize on failure.
-        # Build subprocess.run kwargs separately; pass 'cmd' as a positional argument
-        run_kwargs = dict(
-            cwd=str(REPO_ROOT),
-            env={**os.environ, **cleanup_env} if cleanup_env else None,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        run_kwargs = dict(cwd=str(REPO_ROOT), env=env)
         if CLEANUP_TIMEOUT:
             run_kwargs["timeout"] = CLEANUP_TIMEOUT
         try:
-            proc = subprocess.run(cmd, **run_kwargs)
+            subprocess.run(cmd, check=True, **run_kwargs)
         except subprocess.TimeoutExpired:
-            print(f"[cleanup] warning: pypi-cleanup timed out after {CLEANUP_TIMEOUT}s for {pkg}; skipping.")
-            return
-        if proc.returncode != 0:
-            hint = ""
-            body = (proc.stdout or "") + "\n" + (proc.stderr or "")
-            if "404" in body:
-                hint = " (HTTP 404)"
-            print(f"[cleanup] warning: pypi-cleanup failed for {pkg}{hint}; continuing.")
-            if VERBOSE:
-                # Print only the last few lines to aid debugging without flooding logs
-                tail = "\n".join([ln for ln in body.splitlines()[-8:]])
-                if tail.strip():
-                    print("[cleanup] tail:\n" + tail)
+            print(f"[cleanup] warning: pypi-cleanup timed out after {CLEANUP_TIMEOUT}s for {extra_cmd[-1]}; skipping.")
+        except subprocess.CalledProcessError as exc:
+            print(f"[cleanup] warning: pypi-cleanup exited with status {exc.returncode} for {extra_cmd[-1]}; continuing.")
+            if not VERBOSE:
+                print("[cleanup] re-run with --verbose to inspect output or run the command manually.")
+
+    for pkg in packages:
+        run_cleanup(["--package", pkg])
 
 def load_doc(p: pathlib.Path):
     return toml_parse(p.read_text(encoding="utf-8"))
@@ -650,8 +682,7 @@ def main():
             for n in core_names:
                 hits = collisions[n]
                 print(f"  - {n}: {', '.join(hits) if hits else '(none)'}")
-        elif CLEAN_LEAVE_LATEST:
-            cleanup_leave_latest(core_names + [UMBRELLA[0]])
+        # Cleanup runs once after builds when publishing (see below).
 
         # Pin internal deps to the chosen version and build each core
         pins = {n: chosen for n, _, __ in CORE}
