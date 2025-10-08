@@ -1,0 +1,29 @@
+<?xml version='1.0' encoding='utf-8'?>
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="mycode_egg gen" type="PythonConfigurationType" factoryName="Python" folderName="mycode_project">
+    <module name="mycode_project" />
+    <option name="ENV_FILES" value="" />
+    <option name="INTERPRETER_OPTIONS" value="" />
+    <option name="PARENT_ENVS" value="true" />
+    <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+        <env name="UV_NO_SYNC" value="1" />
+    </envs>
+    <option name="SDK_HOME" value="" />
+    <option name="SDK_NAME" value="uv (mycode_project)" />
+    <option name="WORKING_DIRECTORY" value="$ProjectFileDir$/src/agilab/apps/mycode_project" />
+    <option name="IS_MODULE_SDK" value="false" />
+    <option name="ADD_CONTENT_ROOTS" value="true" />
+    <option name="ADD_SOURCE_ROOTS" value="true" />
+    <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+    <option name="SCRIPT_NAME" value="" />
+    <option name="MODULE_NAME" value="agi_node.agi_dispatcher.build" />
+    <option name="PARAMETERS" value="--app-path $PROJECT_DIR$/src/agilab/apps/mycode_project bdist_egg --packages &quot;agent_worker, pandas_worker, polars_worker, dag_worker&quot; -d $USER_HOME$/wenv/mycode_worker" />
+    <option name="SHOW_COMMAND_LINE" value="false" />
+    <option name="EMULATE_TERMINAL" value="false" />
+    <option name="MODULE_MODE" value="true" />
+    <option name="REDIRECT_INPUT" value="false" />
+    <option name="INPUT_FILE" value="" />
+    <method v="2" />
+  </configuration>
+</component>
