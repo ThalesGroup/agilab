@@ -147,7 +147,7 @@ JSON_API = {
 def run(cmd: List[str], cwd: pathlib.Path | None = None, env: dict | None = None):
     print("+", " ".join(map(str, cmd)))
     merged_env = os.environ.copy()
-    if parse_argscleanenv:
+    if env:
         merged_env.update(env)
     subprocess.run(cmd, cwd=str(cwd or pathlib.Path.cwd()), check=True, text=True, env=merged_env)
 
