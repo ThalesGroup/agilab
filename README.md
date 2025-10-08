@@ -16,8 +16,8 @@ AGILAB [BSD license](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) is
 
 Docs publishing
 - The static site is committed under `docs/html` and deployed by GitHub Pages directly (no Sphinx build in CI).
-- To refresh docs quickly, update the HTML in `src/agilab/resources/help/` and run: `rsync -a src/agilab/resources/help/ docs/html/` and commit.
-- The Pages workflow falls back to copying from `src/agilab/resources/help/` if `docs/html` is empty.
+- Preferred path: run `docs/gen_docs.sh`. It builds Sphinx if a config exists; otherwise it syncs `src/agilab/resources/help/` into `docs/html` and ensures an `index.html` is present.
+- CI will deploy the committed `docs/html`; if it’s empty, the workflow falls back to copying from `src/agilab/resources/help/`.
 See [documentation](https://thalesgroup.github.io/agilab).
 
 See also: CHANGELOG.md for recent changes.
