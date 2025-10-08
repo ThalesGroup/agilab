@@ -553,7 +553,7 @@ def uv_build_repo_root():
 def dist_files_root() -> List[str]:
     return sorted(glob.glob(str((REPO_ROOT / "dist" / "*").resolve())))
 
-def remove_symlinks_for_umbrella():
+def remove_symlinks_for_umbrella() -> list[tuple[pathlib.Path, str, bool]]:
     """
     Remove only top-level app/page symlinks before building the umbrella wheel.
 
@@ -561,7 +561,10 @@ def remove_symlinks_for_umbrella():
     virtualenvs (e.g., */.venv/bin/python symlinks) or other nested links
     that are already excluded by packaging config. The goal here is to drop
     the immediate app/page placeholders that point outside the tree.
+
+    Returns a list of (path, target, is_dir) entries so we can restore them.
     """
+    removed: list[tuple[pathlib.Path, str, bool]] = []
     for rel in ("src/agilab/apps", "src/agilab/apps-pages"):
         base = REPO_ROOT / rel
         if not base.exists():
@@ -570,11 +573,30 @@ def remove_symlinks_for_umbrella():
             for p in base.iterdir():
                 # Only remove the direct children that are symlinks
                 if p.is_symlink():
+                    try:
+                        target = os.readlink(str(p))
+                    except OSError:
+                        target = ""
+                    is_dir = p.is_dir()
                     print(f"[symlink] removing {p}")
                     p.unlink(missing_ok=True)
+                    removed.append((p, target, is_dir))
         except Exception:
             # Best-effort cleanup; ignore permission or race errors
             pass
+    return removed
+
+def restore_symlinks(entries: list[tuple[pathlib.Path, str, bool]]):
+    for path, target, is_dir in entries:
+        try:
+            if not target:
+                # No stored target; skip restoration
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            os.symlink(target, path, target_is_directory=is_dir)
+            print(f"[symlink] restored {path} -> {target}")
+        except Exception as e:
+            print(f"[symlink] warning: failed to restore {path}: {e}")
 
 # Git tagging when publishing to PyPI
 def create_and_push_tag(version: str):
@@ -627,16 +649,24 @@ def main():
         all_files.extend(files)
 
     # Umbrella package
-    remove_symlinks_for_umbrella()
-    _, umbrella_toml, _ = UMBRELLA
-    # Ensure umbrella version is unified and internal deps are pinned
-    set_project_version(umbrella_toml, chosen)
-    pin_deps(umbrella_toml, pins)
+    removed_symlinks: list[tuple[pathlib.Path, str, bool]] = []
+    try:
+        # Skip symlink removal in dry-run to avoid mutating the working tree
+        if not DRY_RUN:
+            removed_symlinks = remove_symlinks_for_umbrella()
 
-    uv_build_repo_root()
-    root_files = dist_files_root()
-    print(f"Successfully built {', '.join(root_files) if root_files else '(no files)'}")
-    all_files.extend(root_files)
+        _, umbrella_toml, _ = UMBRELLA
+        # Ensure umbrella version is unified and internal deps are pinned
+        set_project_version(umbrella_toml, chosen)
+        pin_deps(umbrella_toml, pins)
+
+        uv_build_repo_root()
+        root_files = dist_files_root()
+        print(f"Successfully built {', '.join(root_files) if root_files else '(no files)'}")
+        all_files.extend(root_files)
+    finally:
+        if removed_symlinks:
+            restore_symlinks(removed_symlinks)
 
     # Single pass metadata check and upload for all artifacts to minimize auth and network roundtrips
     if DRY_RUN:
