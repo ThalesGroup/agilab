@@ -16,7 +16,7 @@
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="$ProjectFileDir$/tools/pypi_publish.py" />
-    <option name="PARAMETERS" value="--repo pypi --leave-most-recent --verbose --version $Prompt:Version$ --cleanup-username $Prompt:Cleanup username$ --cleanup-password $Prompt:Cleanup password$" />
+    <option name="PARAMETERS" value="--repo pypi --leave-most-recent --verbose --cleanup-username $Prompt:Cleanup username$ --cleanup-password $Prompt:Cleanup password$" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />
