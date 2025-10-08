@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format loosely follows Keep a Changelog. Dates are in YYYY-MM-DD.
 
+## 0.7.13 — 2025-10-08
+
+### Changed
+- End‑user installer (`tools/install_enduser.sh`): ensure `pip` is available in the freshly synced venv via `ensurepip`,
+  and switch subsequent package installs to use `uv pip` (avoids "No module named pip").
+- agi-node dispatcher: restore `WorkDispatcher._load_module` backward‑compatible signature; add optional `env` parameter
+  and only attempt dynamic install when provided (prevents API regressions in tests and external callers).
+- Development convenience: track additional PyCharm run configurations for view pages under `.idea/runConfigurations/`.
+
+### Fixed
+- Refresh Launch Matrix and docs references (AGENTS.md) to match new run configuration set.
+
 ## 0.7.12 — 2025-10-07
 
 ### Added
