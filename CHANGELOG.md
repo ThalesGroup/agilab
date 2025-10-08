@@ -13,6 +13,9 @@ The format loosely follows Keep a Changelog. Dates are in YYYY-MM-DD.
   and only attempt dynamic install when provided (prevents API regressions in tests and external callers).
 - Development convenience: track additional PyCharm run configurations for view pages under `.idea/runConfigurations/`.
 
+### Tooling
+- Codex CLI used for this release: `codex-cli 0.45.0`.
+
 ### Fixed
 - Refresh Launch Matrix and docs references (AGENTS.md) to match new run configuration set.
 
