@@ -17,8 +17,9 @@ import xml.etree.ElementTree as ET
 
 
 def parse_run_configs(rc_dir: Path) -> list[tuple[str, str, str, str, str, str, str, str]]:
-    rows: list[tuple[str, str, str, str, str, str, str, str]] = []
-    for f in sorted(rc_dir.glob("*.xml")):
+    rows_map: dict[str, tuple[str, str, str, str, str, str, str, str]] = {}
+    files = sorted(rc_dir.glob("*.xml"), key=lambda p: (p.name.startswith("_"), p.name.lower()))
+    for f in files:
         try:
             tree = ET.parse(f)
         except ET.ParseError:
@@ -46,6 +47,7 @@ def parse_run_configs(rc_dir: Path) -> list[tuple[str, str, str, str, str, str, 
         params = opts.get('PARAMETERS', '')
         workdir = opts.get('WORKING_DIRECTORY', '')
         module_mode = opts.get('MODULE_MODE', 'false') == 'true'
+        module_name = opts.get('MODULE_NAME', '')
 
         # Group heuristics
         group = 'agilab'
@@ -61,16 +63,24 @@ def parse_run_configs(rc_dir: Path) -> list[tuple[str, str, str, str, str, str, 
 
         # How to run
         if module_mode:
-            launcher = 'uv run ' + script
-            cmd = launcher + (' ' + params if params else '')
+            if module_name:
+                launcher = f'uv run {module_name}'
+            else:
+                launcher = 'uv run'
+                if script:
+                    launcher += f' {script}'
+            cmd = launcher + (f' {params}' if params else '')
         else:
             launcher = 'uv run python'
             cmd = launcher + (f" {script}" if script else '') + (f" {params}" if params else '')
         if workdir:
             cmd = f"cd {workdir} && {cmd}"
 
-        rows.append((group, name, script, params, workdir, env_str, cmd, sdk))
+        if name in rows_map:
+            continue
+        rows_map[name] = (group, name, script, params, workdir, env_str, cmd, sdk)
 
+    rows = list(rows_map.values())
     rows.sort(key=lambda r: (r[0], r[1].lower()))
     return rows
 
@@ -124,4 +134,3 @@ def main() -> int:
 
 if __name__ == '__main__':
     raise SystemExit(main())
-
