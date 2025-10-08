@@ -548,11 +548,11 @@ def main():
         """
         try:
             parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
-            parser.add_argument("--active-app", type=str, help="Where you store your apps (default is ./)",
-                                default=None)
+            parser.add_argument("--active-app", dest="active_app", type=str,
+                                help="Active app path (e.g. src/agilab/apps/flight_project)", default=None)
             args, _ = parser.parse_known_args()
 
-            if args.app is None:
+            if args.active_app is None:
                 env_app = os.environ.get("AGILAB_APP")
                 if env_app:
                     app = Path(env_app).expanduser()
@@ -569,7 +569,7 @@ def main():
                     if app is None:
                         app = _default_app()
             else:
-                app = Path(args.app)
+                app = Path(args.active_app)
 
             if app is None:
                 st.error("Error: Missing mandatory parameter: --active-app")
@@ -582,7 +582,7 @@ def main():
 
             env = AgiEnv(
                 apps_dir=app.parent,
-                app=app.name,
+                active_app=app.name,
                 verbose=1,
             )
             env.init_done = True
