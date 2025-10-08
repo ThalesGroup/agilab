@@ -397,7 +397,7 @@ def main():
         st.info(f"active_app: {active_app}")
         env = AgiEnv(
             apps_dir=active_app.parent,
-            active_app=app,
+            app=app,
             verbose=1,
         )
         env.init_done = True
