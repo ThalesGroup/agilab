@@ -68,8 +68,8 @@ dependencies = [
 version = "0.8.23"
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
-Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/agilab/core/agi-cluster"
-Tracker = "https://github.com/ThalesGroup/agilab/issue"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/core/agi-cluster"
+Tracker = "https://github.com/ThalesGroup/agilab/issues"
 
 
 
