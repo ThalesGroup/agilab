@@ -681,7 +681,7 @@ class BaseWorker(abc.ABC):
                     sys.path.insert(0, lib_path)
             else:
                 logging.info(f"warning: no cython library found at {lib_path}")
-                exit(0)
+                raise RuntimeError("Cython mode requested but no compiled library found")
 
 
         try:
@@ -690,7 +690,7 @@ class BaseWorker(abc.ABC):
             workers, workers_plan, workers_plan_metadata = await WorkDispatcher._do_distrib(env, workers, args)
         except Exception as err:
             logging.error(traceback.format_exc())
-            sys.exit(1)
+            raise RuntimeError("Failed to build distribution plan") from err
 
         if mode == 48:
             return workers_plan

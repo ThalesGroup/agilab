@@ -101,7 +101,7 @@ def process_decorators(node, decorator_names, verbose=False):
                     parent.children.pop(index)
                 AgiEnv.log_info(f'Decorator @{name} removed.')
             except ValueError:
-                AgiEnv.log_error(
+                AgiEnv.log_info(
                     f"Decorator @{name} not found in parent's children.")
 
 
