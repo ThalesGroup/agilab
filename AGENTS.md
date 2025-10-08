@@ -174,8 +174,8 @@ Note: AGILab workflows and this checklist assume PyCharm IDE. Most commands can 
 **Docs Publishing**
 - The published site is committed under `docs/html` (tracked in git).
 - GitHub Pages deploys the committed content; CI no longer installs or runs Sphinx.
-- To update docs locally: `rsync -a src/agilab/resources/help/ docs/html/` and commit the changes.
-- The Pages workflow copies from `src/agilab/resources/help/` only as a fallback when `docs/html` is empty.
+- To update docs locally: run `docs/gen_docs.sh`. It builds via Sphinx when a config is present, or syncs `src/agilab/resources/help/` into `docs/html` and ensures an index.
+- The Pages workflow only falls back to copying from `src/agilab/resources/help/` if `docs/html` is empty.
 
 ## Progressive test plan
 
