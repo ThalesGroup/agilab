@@ -1,0 +1,64 @@
+▶️ EXPERIMENT
+============
+
+.. toctree::
+   :hidden:
+
+Sidebar
+-------
+- ``Lab Directory``: choose the module whose lab artefacts you want to work on.
+  The selection points at ``${AGILAB_EXPORT_ABS}/<module>`` and initialises
+  ``lab_steps.toml`` if it does not exist yet.
+- ``Steps``: pick the ``lab_steps`` file relative to the export directory. When
+  you change the selection the assistant reloads the stored conversation.
+- ``DataFrame``: select which CSV (or parquet) is mounted for the assistant. The
+  resolved absolute path lives under ``${AGILAB_EXPORT_ABS}``.
+- ``Import Notebook``: upload an ``.ipynb`` file to seed the conversation when
+  working offline.
+- ``Open MLflow UI``: launches the MLflow dashboard in a new browser tab once
+  ``activate_mlflow`` has started the local tracking server.
+
+Main Content Area
+-----------------
+.. tab-set::
+
+   .. tab-item:: ASSISTANT
+
+      Each lab is organised as a sequence of steps stored in ``lab_steps.toml``.
+      The numbered buttons at the top let you jump between them. Ask questions or
+      describe transformations in the text area—AGILab forwards the prompt to the
+      Responses API together with the selected DataFrame metadata. The code editor
+      reacts to the toolbar actions:
+
+      * ``Save`` keeps the snippet as-is in the current step.
+      * ``Next`` persists the snippet and advances to a fresh step.
+      * ``Remove`` deletes the step from ``lab_steps.toml``.
+      * ``Run`` writes the snippet to ``lab_snippet.py``, executes it and stores any
+        produced dataframe under ``lab_export_out.csv`` so the preview and the
+        Execute/Explore pages can consume the result.
+
+      The assistant automatically reloads the most recent dataframe and shows it below
+      the editor. If nothing has been saved yet, you will see a reminder to run a
+      snippet first.
+
+   .. tab-item:: HISTORY
+
+      Inspect or tweak the raw ``lab_steps.toml`` via the code editor. Saving the
+      file here immediately refreshes the assistant tab.
+
+Regenerate Documentation
+------------------------
+
+After updating this guide (or any docs surfaced in the IDE), rebuild the
+generated site so teammates and CI consume the same content:
+
+.. code-block:: bash
+
+   ./docs/gen_docs.sh
+
+The wrapper guarantees ``uv`` runs ``docs/gen-docs.py`` with the extra build
+dependencies required for Sphinx and stub generation.
+
+.. literalinclude:: ../gen_docs.sh
+   :language: bash
+   :caption: ``docs/gen_docs.sh``

@@ -1,0 +1,28 @@
+▶️ VIEW
+=======
+
+Introduction
+------------
+View are provided as examples and are decorrelated from the project.
+In fact, when you need to develop a view for your project, you can decide to publish it as
+an Agilag view. For this, you should have some Streamlit knowledge.
+The only link with your project is in ``app_settings.toml``:
+
+.. code-block:: toml
+
+    [views]
+    view_module = [<list of view-module>]
+
+    [<view_module_xxx>]
+    variables = [<list of columns names you want to make available in your view_module_xxx>]
+
+Sidebar
+-------
+
+This is a listbox to select a project to be loaded from the existing ones.
+
+Main Content Area
+-----------------
+
+Select the View to see for your project.
+See also **EDIT/APP-SETTINGS/File Editor** to specify the columns you authorize for a specific view.

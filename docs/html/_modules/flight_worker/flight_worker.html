@@ -1,0 +1,704 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>flight_worker.flight_worker &mdash; AGILab 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
+      <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=28052664" />
+
+  
+    <link rel="canonical" href="https://thalesgroup.github.io/agilab/_modules/flight_worker/flight_worker.html" />
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=8d563738"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            AGILab
+              <img src="../../_static/agi_logo.svg" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../quick-start.html">Quick-Start</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../quick-start.html#license">LICENSE</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../quick-start.html#install-agilab">Install Agilab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../quick-start.html#support">Support</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../introduction.html">Introduction</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../introduction.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../introduction.html#purpose"><strong>Purpose</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../introduction.html#target-audience"><strong>Target Audience</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../introduction.html#main-dependencies"><strong>Main Dependencies</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../introduction.html#technologies-selection-criteria"><strong>Technologies Selection Criteria</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../introduction.html#example-aircraft-telecommunication">Example: Aircraft Telecommunication</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../features.html">Features</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../features.html#agi-core">agi-core</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../features.html#agilab">agilab</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Core Topics</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../cluster.html">Cluster</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../cluster-help.html">Cluster Help</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../cluster-help.html#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../cluster-help.html#principle">Principle</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../key-generation.html">Key Generation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#generate-the-keys">1. Generate the keys</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#loading-the-private-key-in-ssh-agent">2. Loading the private key in SSH Agent</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#load-the-private-key">2.1 Load the private key</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#verify-the-key-addition">2.2 Verify the key Addition</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#copy-the-public-key-to-the-server">3. Copy the public key to the server</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#allow-your-key">3.1 Allow your key</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#verification">3.2 Verification</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../key-generation.html#sshd-service">SSHD Service</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../key-generation.html#useful-links">Useful links</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../agilab.html">AGILab</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../edit_help.html">▶️ EDIT</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../edit_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../edit_help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../edit_help.html#support">Support</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../execute_help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../execute_help.html#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../execute_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../execute_help.html#main-content-area">Main Content Area</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../experiment_help.html">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../experiment_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../experiment_help.html#main-content-area">Main Content Area</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../views_help.html">▶️ VIEW</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../views_help.html#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../views_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../views_help.html#main-content-area">Main Content Area</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../framework-api.html">Framework API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../agi-env.html">agi_env API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../agi-env.html#usage-example">Usage Example</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../agi-env.html#instanciation">Instanciation</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../agi-env.html#reference">Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../agi-env.html#agi_env.agi_env.ContentRenamer"><code class="docutils literal notranslate"><span class="pre">ContentRenamer</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../agi-env.html#agi_env.agi_env.normalize_path"><code class="docutils literal notranslate"><span class="pre">normalize_path()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../agi-runner.html">agi_distributor API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../agi-runner.html#usage-example">Usage Example</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#installation">Installation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#update">Update</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#distribute">Distribute</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#run">Run</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../agi-runner.html#reference">Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../agi-runner.html#agi_distributor.agi_distributor.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../workers.html">workers API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../workers.html#workers-reference">Workers Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../workers.html#agent-worker">agent_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../workers.html#dag-worker">dag_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../workers.html#pandas-worker">pandas_worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../workers.html#polars-worker">polars_worker</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../directory-structure.html">Project Files Structure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install-usecase.html">Installation Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../troubleshooting.html">Troubleshooting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#b-pycharm-run-debug-configurations">B - Pycharm Run/Debug configurations:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#d-agilab-run-vs-gui-run">D - agilab_run vs gui_run:</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../troubleshooting.html#known-bugs">Known Bugs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#uv-sync-failed">&lt;UV&gt; Sync Failed</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#dask-debug-issue">&lt;DASK&gt; Debug Issue</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../troubleshooting.html#pycharm-run-debug-configuration-is-broken">&lt;PYCHARM&gt; Run/Debug Configuration is Broken</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">Licenses</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../gui-licenses.html">Gui Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../node-licenses.html">Node Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../env-licenses.html">Env Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../my-code-project-licenses.html">My-code-project Licenses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../flight-project-licenses.html">Flight-project Licenses</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Example Projects</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../my-code-project.html">Example1: Mycode-Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../my-code-project.html#manager">manager:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../my-code-project.html#worker-mycode-worker">worker: mycode_worker</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker"><code class="docutils literal notranslate"><span class="pre">MycodeWorker</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_A"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_A()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_B"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_B()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_C"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_C()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_X"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_X()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_Y"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_Y()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.algo_Z"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.algo_Z()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.build"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.build()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.dask_home</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.do_works"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.env"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.env</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.exec"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.exec_mono_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.exec_multi_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.expand"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.get_logs_and_result()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.get_work"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.get_work()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.is_managed_pc</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.join"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.logs"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.mode"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.new"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.new()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.onerror"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.run"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.share_path"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.start"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.stop"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.t0"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.t0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.topological_sort"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.topological_sort()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.verbose"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.worker"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.worker_id"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.worker_id</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../my-code-project.html#mycode_worker.mycode_worker.MycodeWorker.works"><code class="docutils literal notranslate"><span class="pre">MycodeWorker.works()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../flight-project.html">Example2: Flight-Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../flight-project.html#manager-flight">manager: flight</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight"><code class="docutils literal notranslate"><span class="pre">Flight</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.__init__"><code class="docutils literal notranslate"><span class="pre">Flight.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.build"><code class="docutils literal notranslate"><span class="pre">Flight.build()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.build_distribution"><code class="docutils literal notranslate"><span class="pre">Flight.build_distribution()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.cython_decorators"><code class="docutils literal notranslate"><span class="pre">Flight.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.dask_home"><code class="docutils literal notranslate"><span class="pre">Flight.dask_home</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.data_out"><code class="docutils literal notranslate"><span class="pre">Flight.data_out</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.do_works"><code class="docutils literal notranslate"><span class="pre">Flight.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.env"><code class="docutils literal notranslate"><span class="pre">Flight.env</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.exec"><code class="docutils literal notranslate"><span class="pre">Flight.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.expand"><code class="docutils literal notranslate"><span class="pre">Flight.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.expand_and_join"><code class="docutils literal notranslate"><span class="pre">Flight.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.extract_plane_from_file_name"><code class="docutils literal notranslate"><span class="pre">Flight.extract_plane_from_file_name()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_data_from_files"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_files()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_data_from_hawk"><code class="docutils literal notranslate"><span class="pre">Flight.get_data_from_hawk()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">Flight.get_logs_and_result()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_partition_by_planes"><code class="docutils literal notranslate"><span class="pre">Flight.get_partition_by_planes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.get_worker_info"><code class="docutils literal notranslate"><span class="pre">Flight.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.home_dir"><code class="docutils literal notranslate"><span class="pre">Flight.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">Flight.is_managed_pc</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.ivq_logs"><code class="docutils literal notranslate"><span class="pre">Flight.ivq_logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.join"><code class="docutils literal notranslate"><span class="pre">Flight.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.logs"><code class="docutils literal notranslate"><span class="pre">Flight.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.mode"><code class="docutils literal notranslate"><span class="pre">Flight.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.new"><code class="docutils literal notranslate"><span class="pre">Flight.new()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.onerror"><code class="docutils literal notranslate"><span class="pre">Flight.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.run"><code class="docutils literal notranslate"><span class="pre">Flight.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.share_path"><code class="docutils literal notranslate"><span class="pre">Flight.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.start"><code class="docutils literal notranslate"><span class="pre">Flight.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.stop"><code class="docutils literal notranslate"><span class="pre">Flight.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.t0"><code class="docutils literal notranslate"><span class="pre">Flight.t0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.verbose"><code class="docutils literal notranslate"><span class="pre">Flight.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.worker"><code class="docutils literal notranslate"><span class="pre">Flight.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.Flight.worker_id"><code class="docutils literal notranslate"><span class="pre">Flight.worker_id</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs"><code class="docutils literal notranslate"><span class="pre">FlightArgs</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.__init__"><code class="docutils literal notranslate"><span class="pre">FlightArgs.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.check_date"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_date()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.check_date_order"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_date_order()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.check_valid_regex"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_valid_regex()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.construct"><code class="docutils literal notranslate"><span class="pre">FlightArgs.construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.copy"><code class="docutils literal notranslate"><span class="pre">FlightArgs.copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.data_source"><code class="docutils literal notranslate"><span class="pre">FlightArgs.data_source</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.datemax"><code class="docutils literal notranslate"><span class="pre">FlightArgs.datemax</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.datemin"><code class="docutils literal notranslate"><span class="pre">FlightArgs.datemin</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.dict"><code class="docutils literal notranslate"><span class="pre">FlightArgs.dict()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.files"><code class="docutils literal notranslate"><span class="pre">FlightArgs.files</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.from_orm"><code class="docutils literal notranslate"><span class="pre">FlightArgs.from_orm()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_computed_fields"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_computed_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_config"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_config</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_construct"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_copy"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_dump"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_dump()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_dump_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_dump_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_extra"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_extra</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_fields"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_fields_set"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_fields_set</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_json_schema"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_json_schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_parametrized_name"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_parametrized_name()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_post_init"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_post_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_rebuild"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_rebuild()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_validate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_validate_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.model_validate_strings"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate_strings()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.nfile"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nfile</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.nread"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nread</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.nskip"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nskip</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.output_format"><code class="docutils literal notranslate"><span class="pre">FlightArgs.output_format</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.parse_file"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.parse_obj"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_obj()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.parse_raw"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_raw()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.path"><code class="docutils literal notranslate"><span class="pre">FlightArgs.path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.sampling_rate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.sampling_rate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.schema"><code class="docutils literal notranslate"><span class="pre">FlightArgs.schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.schema_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.schema_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.update_forward_refs"><code class="docutils literal notranslate"><span class="pre">FlightArgs.update_forward_refs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight.flight.FlightArgs.validate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.validate()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../flight-project.html#worker-flight-worker">worker: flight_worker</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker"><code class="docutils literal notranslate"><span class="pre">FlightWorker</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.build"><code class="docutils literal notranslate"><span class="pre">FlightWorker.build()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.calculate_speed"><code class="docutils literal notranslate"><span class="pre">FlightWorker.calculate_speed()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">FlightWorker.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">FlightWorker.dask_home</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.do_works"><code class="docutils literal notranslate"><span class="pre">FlightWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.env"><code class="docutils literal notranslate"><span class="pre">FlightWorker.env</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.exec"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_mono_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">FlightWorker.exec_multi_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.expand"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">FlightWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.get_logs_and_result"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_logs_and_result()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">FlightWorker.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">FlightWorker.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">FlightWorker.is_managed_pc</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.join"><code class="docutils literal notranslate"><span class="pre">FlightWorker.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.logs"><code class="docutils literal notranslate"><span class="pre">FlightWorker.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.mode"><code class="docutils literal notranslate"><span class="pre">FlightWorker.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.new"><code class="docutils literal notranslate"><span class="pre">FlightWorker.new()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.onerror"><code class="docutils literal notranslate"><span class="pre">FlightWorker.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.pool_init"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.pool_vars"><code class="docutils literal notranslate"><span class="pre">FlightWorker.pool_vars</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.preprocess_df"><code class="docutils literal notranslate"><span class="pre">FlightWorker.preprocess_df()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.run"><code class="docutils literal notranslate"><span class="pre">FlightWorker.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.share_path"><code class="docutils literal notranslate"><span class="pre">FlightWorker.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.start"><code class="docutils literal notranslate"><span class="pre">FlightWorker.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.stop"><code class="docutils literal notranslate"><span class="pre">FlightWorker.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.t0"><code class="docutils literal notranslate"><span class="pre">FlightWorker.t0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.verbose"><code class="docutils literal notranslate"><span class="pre">FlightWorker.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.work_done"><code class="docutils literal notranslate"><span class="pre">FlightWorker.work_done()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.work_init"><code class="docutils literal notranslate"><span class="pre">FlightWorker.work_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.work_pool"><code class="docutils literal notranslate"><span class="pre">FlightWorker.work_pool()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.worker"><code class="docutils literal notranslate"><span class="pre">FlightWorker.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.worker_id"><code class="docutils literal notranslate"><span class="pre">FlightWorker.worker_id</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.works"><code class="docutils literal notranslate"><span class="pre">FlightWorker.works()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Hosting Sites</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../agilab-github.html"><strong>Agilab project</strong></a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../agilab-github.html#agilab-components"><strong>Agilab components</strong></a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">AGILab</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">flight_worker.flight_worker</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for flight_worker.flight_worker</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="c1"># https://github.com/cython/cython/wiki/enhancements-compilerdirectives</span>
+<span class="c1"># cython:infer_types True</span>
+<span class="c1"># cython:boundscheck False</span>
+<span class="c1"># cython:cdivision True</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">getpass</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">glob</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">traceback</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span> <span class="k">as</span> <span class="n">dt</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">numpy.linalg</span><span class="w"> </span><span class="kn">import</span> <span class="n">norm</span>  <span class="c1"># Imported norm</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">polars_worker</span><span class="w"> </span><span class="kn">import</span> <span class="n">PolarsWorker</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_dispatcher</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseWorker</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agi_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">normalize_path</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">)</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">geopy.distance</span><span class="w"> </span><span class="kn">import</span> <span class="n">geodesic</span>
+
+
+<div class="viewcode-block" id="FlightWorker">
+<a class="viewcode-back" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">FlightWorker</span><span class="p">(</span><span class="n">PolarsWorker</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Class derived from AgiDataWorker&quot;&quot;&quot;</span>
+
+    <span class="n">pool_vars</span> <span class="o">=</span> <span class="p">{}</span>
+
+<div class="viewcode-block" id="FlightWorker.preprocess_df">
+<a class="viewcode-back" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.preprocess_df">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">preprocess_df</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">df</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Preprocess the DataFrame by parsing the date column and creating</span>
+<span class="sd">        previous coordinate columns. This operation is done once per file.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="c1"># Convert date column from string to datetime only once</span>
+                <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;date&quot;</span><span class="p">)</span>
+                <span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Datetime</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2"> %H:%M:%S&quot;</span><span class="p">)</span>
+                <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;date&quot;</span><span class="p">),</span>
+                <span class="c1"># Create shifted columns for previous latitude and longitude</span>
+                <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;lat&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;prev_lat&quot;</span><span class="p">),</span>
+                <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;long&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;prev_long&quot;</span><span class="p">),</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">df</span></div>
+
+
+<div class="viewcode-block" id="FlightWorker.calculate_speed">
+<a class="viewcode-back" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.calculate_speed">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">calculate_speed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">df</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the speed (in meters) between consecutive coordinate pairs</span>
+<span class="sd">        and add it to the DataFrame under the provided column name.</span>
+<span class="sd">        Assumes that the previous coordinate columns are already present.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="n">pl</span><span class="o">.</span><span class="n">struct</span><span class="p">([</span><span class="s2">&quot;prev_lat&quot;</span><span class="p">,</span> <span class="s2">&quot;prev_long&quot;</span><span class="p">,</span> <span class="s2">&quot;lat&quot;</span><span class="p">,</span> <span class="s2">&quot;long&quot;</span><span class="p">])</span>
+                <span class="o">.</span><span class="n">map_elements</span><span class="p">(</span>
+                    <span class="k">lambda</span> <span class="n">row</span><span class="p">:</span> <span class="p">(</span>
+                        <span class="mi">0</span>
+                        <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;prev_lat&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span>
+                        <span class="k">else</span> <span class="n">geodesic</span><span class="p">(</span>
+                            <span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">&quot;prev_lat&quot;</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;prev_long&quot;</span><span class="p">]),</span>
+                            <span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">&quot;lat&quot;</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;long&quot;</span><span class="p">]),</span>
+                        <span class="p">)</span><span class="o">.</span><span class="n">meters</span>
+                    <span class="p">),</span>
+                    <span class="n">return_dtype</span><span class="o">=</span><span class="n">pl</span><span class="o">.</span><span class="n">Float64</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="n">new_column_name</span><span class="p">),</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">df</span></div>
+
+
+<div class="viewcode-block" id="FlightWorker.start">
+<a class="viewcode-back" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.start">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">start</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize global variables and setup paths.&quot;&quot;&quot;</span>
+        <span class="k">global</span> <span class="n">global_vars</span>
+
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;from: </span><span class="si">{</span><span class="vm">__file__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;nt&quot;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">getpass</span><span class="o">.</span><span class="n">getuser</span><span class="p">()</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;T0&quot;</span><span class="p">):</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s2">&quot;path&quot;</span><span class="p">])</span>
+            <span class="n">parts</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">parts</span>
+            <span class="k">if</span> <span class="s2">&quot;Users&quot;</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">:</span>
+                <span class="n">index</span> <span class="o">=</span> <span class="n">parts</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s2">&quot;Users&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">2</span>
+                <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="o">*</span><span class="n">parts</span><span class="p">[</span><span class="n">index</span><span class="p">:])</span>
+            <span class="n">net_path</span> <span class="o">=</span> <span class="n">normalize_path</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\\\</span><span class="s2">127.0.0.1</span><span class="se">\\</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="c1"># Your NFS account in order to mount it as net drive on Windows</span>
+                <span class="n">cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;net use Z: &quot;</span><span class="si">{</span><span class="n">net_path</span><span class="si">}</span><span class="s1">&quot; /user:your-credentials&#39;</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
+                <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">check</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to map network drive: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Path to database on symlink Path.home()/data(symlink)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">home_rel</span> <span class="o">=</span> <span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="s2">&quot;~/&quot;</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s2">&quot;path&quot;</span><span class="p">])</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">normalize_path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">home_rel</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data_out</span> <span class="o">=</span> <span class="n">normalize_path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">home_rel</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;dataframes&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="s2">&quot;nt&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data_out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;/&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Remove dataframe files from previous run</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="p">,</span> <span class="n">ignore_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">onerror</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">onerror</span><span class="p">)</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error removing directory: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s2">&quot;path&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">path</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Worker #</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_id</span><span class="si">}</span><span class="s2"> dataframe root path = </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;FlightWorker.start on flight_worker </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_id</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span>
+
+        <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="s2">&quot;data_source&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;file&quot;</span><span class="p">:</span>
+            <span class="c1"># Implement your file logic</span>
+            <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Implement your HAWK logic</span>
+            <span class="k">pass</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">pool_vars</span><span class="p">[</span><span class="s2">&quot;args&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pool_vars</span><span class="p">[</span><span class="s2">&quot;verbose&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span>
+        <span class="n">global_vars</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pool_vars</span></div>
+
+
+<div class="viewcode-block" id="FlightWorker.work_init">
+<a class="viewcode-back" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.work_init">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">work_init</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize work by reading from shared space.&quot;&quot;&quot;</span>
+        <span class="k">global</span> <span class="n">global_vars</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="FlightWorker.pool_init">
+<a class="viewcode-back" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.pool_init">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">pool_init</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">worker_vars</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the pool with worker variables.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            worker_vars (dict): Variables specific to the worker.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">global</span> <span class="n">global_vars</span>
+        <span class="n">global_vars</span> <span class="o">=</span> <span class="n">worker_vars</span></div>
+
+
+<div class="viewcode-block" id="FlightWorker.work_pool">
+<a class="viewcode-back" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.work_pool">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">work_pool</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">file</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Parse IVQ log files.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            file (str): The log file to parse.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            pl.DataFrame: Parsed data.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">global</span> <span class="n">global_vars</span>
+
+        <span class="n">args</span> <span class="o">=</span> <span class="n">global_vars</span><span class="p">[</span><span class="s2">&quot;args&quot;</span><span class="p">]</span>
+        <span class="n">verbose</span> <span class="o">=</span> <span class="n">global_vars</span><span class="p">[</span><span class="s2">&quot;verbose&quot;</span><span class="p">]</span>
+        <span class="n">data_source</span> <span class="o">=</span> <span class="n">global_vars</span><span class="p">[</span><span class="s2">&quot;args&quot;</span><span class="p">][</span><span class="s2">&quot;data_source&quot;</span><span class="p">]</span>
+
+        <span class="n">prefix</span> <span class="o">=</span> <span class="s2">&quot;~/&quot;</span>
+        <span class="k">if</span> <span class="n">data_source</span> <span class="o">==</span> <span class="s2">&quot;file&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="s2">&quot;nt&quot;</span><span class="p">:</span>
+                <span class="n">file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">normpath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">prefix</span> <span class="o">+</span> <span class="n">file</span><span class="p">))</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
+                    <span class="s2">&quot;</span><span class="se">\\</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;/&quot;</span>
+                <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">file</span> <span class="o">=</span> <span class="n">normalize_path</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">prefix</span> <span class="o">+</span> <span class="n">file</span><span class="p">))</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">Path</span><span class="p">(</span><span class="n">file</span><span class="p">)</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;FlightWorker.work_pool(</span><span class="si">{</span><span class="n">file</span><span class="si">}</span><span class="s2">)</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Read the CSV file using Polars.</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+
+        <span class="c1"># If the first column is redundant (e.g. named &quot;Unnamed: 0&quot;), drop it.</span>
+        <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span> <span class="ow">and</span> <span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;Unnamed&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;&quot;</span><span class="p">):</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+        <span class="c1"># Preprocess the DataFrame (date parsing, cleaning, etc.)</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">preprocess_df</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+
+        <span class="c1"># Create previous coordinate columns if they are not already present.</span>
+        <span class="c1"># This assumes &quot;lat&quot; and &quot;long&quot; are valid column names.</span>
+        <span class="k">if</span> <span class="s2">&quot;lat&quot;</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span> <span class="ow">and</span> <span class="s2">&quot;long&quot;</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">with_columns</span><span class="p">([</span>
+                <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;lat&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;prev_lat&quot;</span><span class="p">),</span>
+                <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;long&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;prev_long&quot;</span><span class="p">),</span>
+            <span class="p">])</span>
+
+        <span class="c1"># Calculate speed using the existing calculate_speed function.</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">calculate_speed</span><span class="p">(</span><span class="s2">&quot;speed&quot;</span><span class="p">,</span> <span class="n">df</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">df</span></div>
+
+
+<div class="viewcode-block" id="FlightWorker.work_done">
+<a class="viewcode-back" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.work_done">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">work_done</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">worker_df</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Concatenate dataframe if any and save the results.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            worker_df (pl.DataFrame): Output dataframe for one plane.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">worker_df</span><span class="o">.</span><span class="n">is_empty</span><span class="p">():</span>
+            <span class="k">return</span>
+
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1"># Process each plane separately</span>
+        <span class="k">for</span> <span class="n">plane</span> <span class="ow">in</span> <span class="n">worker_df</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;aircraft&quot;</span><span class="p">))</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">to_series</span><span class="p">():</span>
+            <span class="n">plane_df</span> <span class="o">=</span> <span class="n">worker_df</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;aircraft&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="n">plane</span><span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">&quot;date&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Create (or replace) &quot;worker_id&quot; from &quot;aircraft&quot;:</span>
+            <span class="n">plane_df</span> <span class="o">=</span> <span class="n">plane_df</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;aircraft&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;worker_id&quot;</span><span class="p">))</span>
+
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s2">&quot;output_format&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;parquet&quot;</span><span class="p">:</span>
+                    <span class="n">filename</span> <span class="o">=</span> <span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="p">)</span> <span class="o">/</span> <span class="nb">str</span><span class="p">(</span><span class="n">plane</span><span class="p">))</span><span class="o">.</span><span class="n">with_suffix</span><span class="p">(</span><span class="s2">&quot;.parquet&quot;</span><span class="p">)</span>
+                    <span class="c1"># Ensure that the &quot;date&quot; column is present and correctly typed.</span>
+                    <span class="c1"># You might want to cast it to a datetime type if needed.</span>
+                    <span class="n">plane_df</span><span class="o">.</span><span class="n">write_parquet</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">filename</span><span class="p">))</span>
+                <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s2">&quot;output_format&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;csv&quot;</span><span class="p">:</span>
+                    <span class="n">timestamp</span> <span class="o">=</span> <span class="n">dt</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2">_%H-%M-%S&quot;</span><span class="p">)</span>
+                    <span class="n">filename</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">plane</span><span class="p">)</span><span class="o">+</span><span class="s1">&#39;_&#39;</span><span class="o">+</span><span class="n">timestamp</span><span class="si">}</span><span class="s2">.csv&quot;</span>
+                    <span class="n">plane_df</span><span class="o">.</span><span class="n">write_csv</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">filename</span><span class="p">))</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Saved dataframe for plane </span><span class="si">{</span><span class="n">plane</span><span class="si">}</span><span class="s2"> with shape </span><span class="si">{</span><span class="n">plane_df</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> in </span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">())</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error saving dataframe for plane </span><span class="si">{</span><span class="n">plane</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="FlightWorker.stop">
+<a class="viewcode-back" href="../../flight-project.html#flight_worker.flight_worker.FlightWorker.stop">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">stop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Finalize the worker by listing saved dataframes.&quot;&quot;&quot;</span>
+            <span class="n">files</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_out</span><span class="p">,</span> <span class="s2">&quot;**&quot;</span><span class="p">),</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">df_files</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span> <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;\.(csv|parquet)$&quot;</span><span class="p">,</span> <span class="n">f</span><span class="p">)]</span>
+            <span class="n">n_df</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">df_files</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;FlightWorker.worker_end - </span><span class="si">{</span><span class="n">n_df</span><span class="si">}</span><span class="s2"> dataframes:&quot;</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">df_files</span><span class="p">:</span>
+                    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\t</span><span class="s1">&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">f</span><span class="p">)))</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">n_df</span><span class="p">:</span>
+                    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;No dataframe created&quot;</span><span class="p">)</span>
+
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error while trying to find dataframes: </span><span class="si">{</span><span class="n">err</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># call the base class stop()</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, THALES SIX GTS France SAS.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

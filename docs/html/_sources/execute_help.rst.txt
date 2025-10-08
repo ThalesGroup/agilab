@@ -1,0 +1,35 @@
+▶️ EXECUTE
+=========
+
+.. toctree::
+   :hidden:
+
+Introduction
+------------
+The principle is to `INSTALL` once your project, then you can optionally check the `DISTRIBUTE` and then `RUN` it.
+By default, there is always a mode set, but if you don't know which one to use, you can manually remove it from the
+snippet, which will lead to a read in all modes for benchmarking.
+
+Sidebar
+-------
+This is a listbox to select a project to be loaded from the existing ones.
+
+Main Content Area
+-----------------
+.. tab-set::
+
+   .. tab-item:: INSTALL
+
+      Install your application.
+
+   .. tab-item:: DISTRIBUTE
+
+      Distribute your application.
+
+   .. tab-item:: RUN
+
+      Run your application.
+
+   .. tab-item:: EXPORT DATA
+
+      Export your dataframe.
