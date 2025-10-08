@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="sb3_trainer AGI_get_distrib" type="PythonConfigurationType" factoryName="Python" folderName="sb3_trainer_project">
+  <configuration default="false" name="sb3_trainer AGI.get_distrib" type="PythonConfigurationType" factoryName="Python" folderName="sb3_trainer_project">
     <module name="sb3_trainer_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
@@ -16,7 +16,7 @@
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="$ProjectFileDir$/src/agilab/examples/sb3_trainer/AGI_get_distrib_sb3_trainer.py" />
+    <option name="SCRIPT_NAME" value="$ProjectFileDir$/src/agilab/examples/sb3_trainer/AGI.get_distrib_sb3_trainer.py" />
     <option name="PARAMETERS" value="" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
