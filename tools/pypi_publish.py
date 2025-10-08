@@ -173,6 +173,10 @@ def cleanup_leave_latest(packages):
     if not args.clean_leave_latest or SKIP_CLEANUP:
         return
 
+    if TARGET == "testpypi":
+        print("[cleanup] Skipping cleanup on TestPyPI to avoid interactive login/timeouts. Use --cleanup-username/--cleanup-password if you need it explicitly.")
+        return
+
     host = "https://pypi.org/"
     if TARGET == "testpypi":
         host = "https://test.pypi.org/"
