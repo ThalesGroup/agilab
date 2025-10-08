@@ -578,11 +578,13 @@ def main():
             if "coltype" not in st.session_state:
                 st.session_state["coltype"] = var[0]
 
+            # Short app name (e.g., 'flight_project')
+            app = active_app.name
             st.session_state["apps_dir"] = str(active_app.parent)
 
             env = AgiEnv(
                 apps_dir=active_app.parent,
-                active_app=active_app.name,
+                active_app=app,
                 verbose=1,
             )
             env.init_done = True
