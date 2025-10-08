@@ -188,6 +188,7 @@ Note: AGILab workflows and this checklist assume PyCharm IDE. Most commands can 
 - GitHub Pages deploys the committed content; CI no longer installs or runs Sphinx.
 - To update docs locally: run `docs/gen_docs.sh`. It builds via Sphinx when a config is present, or syncs `src/agilab/resources/help/` into `docs/html` and ensures an index.
 - The Pages workflow only falls back to copying from `src/agilab/resources/help/` if `docs/html` is empty.
+- Sphinx docs in agilab-apps: from the `agilab-apps` repo root, run `uv run --group sphinx --dev docs/gen-docs.py` to build into `docs/html/`, then commit and push.
 
 **CI & Badges**
 - Tests run in a dedicated `ci` workflow; README badges reference the GH Actions status badge.
