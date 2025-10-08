@@ -7,7 +7,7 @@ Maintainer note:
 
 The format loosely follows Keep a Changelog. Dates are in YYYY-MM-DD.
 
-## 0.7.13 — 2025-10-08
+## 0.7.17 — 2025-10-08
 
 ### Changed
 - End‑user installer (`tools/install_enduser.sh`): ensure `pip` is available in the freshly synced venv via `ensurepip`,
