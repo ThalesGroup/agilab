@@ -35,6 +35,8 @@ import sys
 import urllib.request
 from typing import Dict, List, Tuple
 from datetime import datetime, timezone
+from tomlkit import parse as toml_parse, dumps as toml_dumps  # type: ignore
+
 
 # third-party (installed on-demand if missing)
 try:
@@ -67,8 +69,10 @@ def parse_args():
                     action="store_true",
                     help="Pass --delete-project to pypi-cleanup (destructive: deletes all matched releases).")
     # Dedicated cleanup credentials (PyPI web login requires account password, not API token)
-    ap.add_argument("--cleanup", dest="cleanup_creds", default=None,
-                    help="Cleanup login in the form 'username:password' (used by pypi-cleanup web login).")
+    ap.add_argument("--cleanup-username", dest="cleanup_username", default=None,
+                    help="pypi-cleanup login (PyPI account username; not __token__).")
+    ap.add_argument("--cleanup-password", dest="cleanup_password", default=None,
+                    help="pypi-cleanup password (PyPI account password; tokens are not accepted by web login).")
     ap.add_argument("--skip-cleanup", dest="skip_cleanup", action="store_true",
                     help="Skip pypi-cleanup pruning pre/post upload (avoids 2FA prompts and hangs).")
     ap.add_argument("--cleanup-timeout", dest="cleanup_timeout", type=int, default=60,
@@ -143,28 +147,9 @@ JSON_API = {
 def run(cmd: List[str], cwd: pathlib.Path | None = None, env: dict | None = None):
     print("+", " ".join(map(str, cmd)))
     merged_env = os.environ.copy()
-    if env:
+    if parse_argscleanenv:
         merged_env.update(env)
     subprocess.run(cmd, cwd=str(cwd or pathlib.Path.cwd()), check=True, text=True, env=merged_env)
-
-def ensure_tools():
-    # tomlkit, uv, twine
-    try:
-        import tomlkit  # noqa: F401
-    except Exception:
-        run([sys.executable, "-m", "pip", "install", "--upgrade", "tomlkit"])
-    for tool in ("uv", "twine", "pypi-cleanup"):
-        try:
-            if tool == "pypi-cleanup":
-                # Avoid printing usage to stdout; just verify it runs
-                subprocess.run([tool, "-h"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            else:
-                run([tool, "--version"])        
-        except Exception:
-            run([sys.executable, "-m", "pip", "install", "--upgrade", tool])
-
-ensure_tools()
-from tomlkit import parse as toml_parse, dumps as toml_dumps  # type: ignore
 
 
 def cleanup_leave_latest(packages):
@@ -246,20 +231,13 @@ def cleanup_leave_latest(packages):
                 return None
             return val
 
-        cli_user = cli_pass = None
-        if args.cleanup_creds:
-            parts = args.cleanup_creds.split(":", 1)
-            if len(parts) != 2 or not parts[0] or not parts[1]:
-                raise SystemExit("ERROR: --cleanup value must be 'username:password'")
-            cli_user, cli_pass = parts[0], parts[1]
-
         cleanup_user = (
-            valid_user(cli_user)
+            valid_user(args.cleanup_username)
             or valid_user(user_from_pypirc)
             or valid_user(env_cleanup_user)
         )
         cleanup_pass = (
-            valid_pass(cli_pass)
+            valid_pass(args.cleanup_password)
             or valid_pass(pwd_from_pypirc)
             or valid_pass(env_cleanup_pass)
         )
@@ -635,60 +613,55 @@ def main():
         print("usage: pypi_publish.py --repo {testpypi|pypi} [options]", file=sys.stderr)
         raise SystemExit("ERROR: --repo is required")
 
-    # Auth preflight (best-effort): verify token format and print assumptions
-    if TARGET == "pypi":
-        print("[preflight] Target: PyPI (batch upload across core + umbrella)")
-        if TWINE_USER:
-            print(f"[preflight] TWINE_USERNAME set: {TWINE_USER}")
-        else:
+    removed_symlinks: list[tuple[pathlib.Path, str, bool]] = []
+    try:
+        if not DRY_RUN:
+            removed_symlinks = remove_symlinks_for_umbrella()
+
+        # Auth preflight (best-effort): verify token format and print assumptions
+        if TARGET == "pypi":
+            print("[preflight] Target: PyPI (batch upload across core + umbrella)")
+            if TWINE_USER:
+                print(f"[preflight] TWINE_USERNAME set: {TWINE_USER}")
+            else:
             print("[preflight] TWINE_USERNAME not set; relying on ~/.pypirc")
         if TWINE_PASS:
             shown = (str(TWINE_PASS)[:8] + "…") if len(str(TWINE_PASS)) > 8 else "(short)"
             print(f"[preflight] TWINE_PASSWORD token prefix: {shown}")
         print("[preflight] Note: a batch upload of multiple projects to PyPI typically requires an account-wide token.\n"
               "           If you encounter 403 Forbidden, verify your token scope in PyPI settings.")
-    # Basic hygiene on names
-    sanitize_project_names([p for _, p, _ in CORE])
 
-    core_names = [n for n, _, __ in CORE]
-    chosen, collisions = compute_unified_version(core_names, TARGET, BASE_VERSION)
+        # Basic hygiene on names
+        sanitize_project_names([p for _, p, _ in CORE])
 
-    # Switch to date-based versioning: use UTC date as the base (YYYY.MM.DD)
-    date_tag = compute_date_tag()
-    # Recompute chosen version to align with date-based base; auto-bump '.postN' if needed
-    chosen, collisions = compute_unified_version(core_names, TARGET, date_tag)
-    print(f"[plan] Unified version: {chosen}")
-    print(f"[plan] Tag (UTC): {date_tag}")
-    if DRY_RUN:
-        print("[dry-run] Collisions that forced bump (per package):")
-        for n in core_names:
-            hits = collisions[n]
-            print(f"  - {n}: {', '.join(hits) if hits else '(none)'}")
-    else:
-        # Pre-upload cleanup (prune older releases). On PyPI, this will remove all but the current most-recent.
-        # A second pass runs post-upload to ensure only the newly published version remains.
-        cleanup_leave_latest(core_names + [UMBRELLA[0]])
+        core_names = [n for n, _, __ in CORE]
 
-    # Pin internal deps to the chosen version and build each core
-    pins = {n: chosen for n, _, __ in CORE}
-    all_files: List[str] = []
-    for name, toml, project in CORE:
-        set_project_version(toml, chosen)
-        pin_deps(toml, pins)
-        uv_build_project(project)
-        files = dist_files(project)
-        print(f"Successfully built {', '.join(files) if files else '(no files)'}")
-        all_files.extend(files)
+        # Switch to date-based versioning: use UTC date as the base (YYYY.MM.DD)
+        date_tag = compute_date_tag()
+        chosen, collisions = compute_unified_version(core_names, TARGET, date_tag)
+        print(f"[plan] Unified version: {chosen}")
+        print(f"[plan] Tag (UTC): {date_tag}")
+        if DRY_RUN:
+            print("[dry-run] Collisions that forced bump (per package):")
+            for n in core_names:
+                hits = collisions[n]
+                print(f"  - {n}: {', '.join(hits) if hits else '(none)'}")
+        elif args.clean_leave_latest:
+            cleanup_leave_latest(core_names + [UMBRELLA[0]])
 
-    # Umbrella package
-    removed_symlinks: list[tuple[pathlib.Path, str, bool]] = []
-    try:
-        # Skip symlink removal in dry-run to avoid mutating the working tree
-        if not DRY_RUN:
-            removed_symlinks = remove_symlinks_for_umbrella()
+        # Pin internal deps to the chosen version and build each core
+        pins = {n: chosen for n, _, __ in CORE}
+        all_files: List[str] = []
+        for name, toml, project in CORE:
+            set_project_version(toml, chosen)
+            pin_deps(toml, pins)
+            uv_build_project(project)
+            files = dist_files(project)
+            print(f"Successfully built {', '.join(files) if files else '(no files)'}")
+            all_files.extend(files)
 
+        # Umbrella package
         _, umbrella_toml, _ = UMBRELLA
-        # Ensure umbrella version is unified and internal deps are pinned
         set_project_version(umbrella_toml, chosen)
         pin_deps(umbrella_toml, pins)
 
@@ -696,40 +669,36 @@ def main():
         root_files = dist_files_root()
         print(f"Successfully built {', '.join(root_files) if root_files else '(no files)'}")
         all_files.extend(root_files)
+
+        # Single pass metadata check and upload for all artifacts to minimize auth and network roundtrips
+        if DRY_RUN:
+            print("[dry-run] Artifacts that would be uploaded in a single twine call:")
+            for f in all_files:
+                print(f"  - {f}")
+            cmd_preview = ["twine", "upload", "--non-interactive", "--skip-existing", "-r", TARGET]
+            if TWINE_USER:
+                cmd_preview += ["-u", TWINE_USER]
+            if TWINE_PASS:
+                cmd_preview += ["-p", "******"]
+            cmd_preview += all_files
+            print("[dry-run] Command:")
+            print("  ", " ".join(cmd_preview))
+            return
+
+        if args.clean_leave_latest and not DRY_RUN:
+            cleanup_leave_latest(core_names + [UMBRELLA[0]])
+
+        twine_check(all_files)
+        twine_upload(all_files, TARGET)
+
+        if TARGET == "pypi" and YANK_PREVIOUS:
+            yank_previous_versions(core_names + [UMBRELLA[0]], TARGET, chosen)
+
+        if TARGET == "pypi":
+            create_and_push_tag(date_tag)
     finally:
         if removed_symlinks:
             restore_symlinks(removed_symlinks)
-
-    # Single pass metadata check and upload for all artifacts to minimize auth and network roundtrips
-    if DRY_RUN:
-        print("[dry-run] Artifacts that would be uploaded in a single twine call:")
-        for f in all_files:
-            print(f"  - {f}")
-        # Show the exact command (masking password if provided)
-        cmd_preview = ["twine", "upload", "--non-interactive", "--skip-existing", "-r", TARGET]
-        if TWINE_USER:
-            cmd_preview += ["-u", TWINE_USER]
-        if TWINE_PASS:
-            cmd_preview += ["-p", "******"]
-        cmd_preview += all_files
-        print("[dry-run] Command:")
-        print("  ", " ".join(cmd_preview))
-        return
-
-    # Pre-upload cleanup to ensure only the fresh version remains
-    if args.clean_leave_latest:
-        cleanup_leave_latest(core_names + [UMBRELLA[0]])
-
-    twine_check(all_files)
-    twine_upload(all_files, TARGET)
-
-    # Optional: yank previous versions on PyPI to discourage installs of older releases
-    if TARGET == "pypi" and YANK_PREVIOUS:
-        yank_previous_versions(core_names + [UMBRELLA[0]], TARGET, chosen)
-
-    if TARGET == "pypi":
-        # Use date-based tag in UTC (YYYY.MM.DD[-N])
-        create_and_push_tag(date_tag)
 
 
 def yank_previous_versions(packages: list[str], repo: str, chosen: str):
