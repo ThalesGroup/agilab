@@ -229,17 +229,34 @@ def cleanup_leave_latest(packages):
                     break
         except Exception:
             pass
-        # Prefer explicit args; skip token placeholders from ~/.pypirc for both PyPI and TestPyPI
+        def valid_user(val: str | None) -> str | None:
+            if not val:
+                return None
+            val = val.strip()
+            if not val or val.startswith("$Prompt:"):
+                return None
+            if val == "__token__":
+                return None
+            return val
+
+        def valid_pass(val: str | None) -> str | None:
+            if not val:
+                return None
+            val = val.strip()
+            if not val or val.startswith("$Prompt:"):
+                return None
+            return val
+
         cleanup_user = (
-            args.cleanup_username
-            or (user_from_pypirc if (user_from_pypirc and user_from_pypirc != "__token__") else None)
-            or env_cleanup_user
-            or args.clean_user
+            valid_user(args.cleanup_username)
+            or valid_user(user_from_pypirc)
+            or valid_user(env_cleanup_user)
+            or valid_user(args.clean_user)
         )
         cleanup_pass = (
-            args.cleanup_password
-            or pwd_from_pypirc
-            or env_cleanup_pass
+            valid_pass(args.cleanup_password)
+            or valid_pass(pwd_from_pypirc)
+            or valid_pass(env_cleanup_pass)
         )
 
         # On PyPI, pypi-cleanup requires account username/password (not API tokens).
