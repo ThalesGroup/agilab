@@ -367,9 +367,9 @@ def main():
         if args.active_app is None:
             env_app = os.environ.get("AGILAB_APP")
             if env_app:
-                app = Path(env_app).expanduser()
+                active_app = Path(env_app).expanduser()
             else:
-                app = None
+                active_app = None
                 candidate_file = Path("~/.local/share/agilab/.agilab-path").expanduser()
                 if candidate_file.is_file():
                     with candidate_file.open("r", encoding="utf-8") as f:
@@ -377,25 +377,25 @@ def main():
                         before, sep, _ = agilab_path.rpartition(".venv")
                         potential = Path(before) / "apps" / "flight_project"
                         if potential.exists():
-                            app = potential
-                if app is None:
-                    app = _default_app()
+                            active_app = potential
+                if active_app is None:
+                    active_app = _default_app()
         else:
-            app = Path(args.active_app)
+            active_app = Path(args.active_app)
 
-        if app is None:
+        if active_app is None:
             st.error("Error: Missing mandatory parameter: --active-app")
             sys.exit(1)
 
         if "coltype" not in st.session_state:
             st.session_state["coltype"] = var[0]
 
-        st.session_state["apps_dir"] = str(app.parent)
+        st.session_state["apps_dir"] = str(active_app.parent)
 
-        st.info(f"app: {app}")
+        st.info(f"active_app: {active_app}")
         env = AgiEnv(
-            apps_dir=app.parent,
-            active_app=app.name,
+            apps_dir=active_app.parent,
+            active_app=active_app.name,
             verbose=1,
         )
         env.init_done = True
