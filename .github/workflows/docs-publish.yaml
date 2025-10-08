@@ -35,6 +35,37 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test dependencies for badges
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest pytest-cov genbadge[coverage] pytest-local-badge
+      - name: Run tests (smoke) and generate reports for badges
+        run: |
+          set -e
+          mkdir -p test-results
+          # Do not fail the docs deployment if tests fail; we still want to publish docs
+          pytest -q --maxfail=1 --disable-warnings \
+            --cov=agilab --cov-report=xml:coverage.xml \
+            --junitxml=test-results/junit.xml || true
+      - name: Generate badges (tests.svg, coverage.svg)
+        run: |
+          set -e
+          mkdir -p docs/html
+          if [ -f coverage.xml ]; then
+            python -m genbadge coverage -i coverage.xml -o docs/html/coverage.svg || true
+          fi
+          if [ -f test-results/junit.xml ]; then
+            python -m genbadge tests -i test-results/junit.xml -o docs/html/tests.svg || true
+          else
+            # Fallback neutral tests badge
+            cat > docs/html/tests.svg <<'SVG'
+            <svg xmlns="http://www.w3.org/2000/svg" width="100" height="20"><rect rx="3" width="100" height="20" fill="#555"/><rect rx="3" x="50" width="50" height="20" fill="#9f9f9f"/><g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11"><text x="25" y="14">tests</text><text x="75" y="14">unknown</text></g></svg>
+SVG
+          fi
       - name: Use committed docs/html (no build)
         run: |
           set -euo pipefail
