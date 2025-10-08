@@ -205,6 +205,11 @@ Note: AGILab workflows and this checklist assume PyCharm IDE. Most commands can 
 - Tests run in a dedicated `ci` workflow; README badges reference the GH Actions status badge.
 - Coverage uploads to Codecov for public reporting; README includes a Codecov badge. No Codecov token required for public repos.
 
+**Tagging**
+- Git tags now use a date-based scheme in UTC: `YYYY.MM.DD` (e.g., `2025.10.08`).
+- If multiple tags are created on the same day, a numeric suffix is appended (e.g., `2025.10.08-2`).
+- Package versions are independent and continue to follow PEP 440.
+
 **Publishing to PyPI/TestPyPI**
 - Use the Python script directly or the PyCharm run configuration:
   - CLI (dry run): `uv run python tools/pypi_publish.py --repo testpypi --dry-run [--version X.Y.Z]`

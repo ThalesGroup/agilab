@@ -1,51 +1,12 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+This changelog has been reset to reflect the new tag convention.
 
-Maintainer note:
-- Include the Codex CLI version used to prepare the release under a "Tooling" subsection for every entry.
+Starting 2025‑10‑08, Git tags follow the format `YYYY.MM.DD` (UTC). Package
+versions (PEP 440) remain unchanged and may continue to use semantic versions.
 
-The format loosely follows Keep a Changelog. Dates are in YYYY-MM-DD.
-
-## 0.7.18 — 2025-10-08
-
-### Changed
-- End‑user installer (`tools/install_enduser.sh`): ensure `pip` is available in the freshly synced venv via `ensurepip`,
-  and switch subsequent package installs to use `uv pip` (avoids "No module named pip").
-- agi-node dispatcher: restore `WorkDispatcher._load_module` backward‑compatible signature; add optional `env` parameter
-  and only attempt dynamic install when provided (prevents API regressions in tests and external callers).
-- Development convenience: track additional PyCharm run configurations for view pages under `.idea/runConfigurations/`.
-
-### Tooling
-- Codex CLI used for this release: `codex-cli 0.45.0`.
-
-### Fixed
-- Refresh Launch Matrix and docs references (AGENTS.md) to match new run configuration set.
-
-## 0.7.17 — 2025-10-07
-
-### Added
-- Streamlit UI banner when no `OPENAI_API_KEY` is present (non-blocking, informational).
-- EXPERIMENT page prompts for missing OpenAI API key with an option to save to `~/.agilab/.env`.
-- PyPI/TestPyPI publisher improvements:
-  - Unified Twine auth flags: `--twine-username`, `--twine-password` (prompt once if omitted).
-  - Batch metadata check and single `twine upload` for all artifacts to reduce prompts and network roundtrips.
-  - `--dry-run` now builds artifacts and prints the exact upload command (password masked) and artifact list.
-- README and Quick Start docs updated:
-  - `uvx -p 3.13 agilab` quick-run flow.
-  - Managed workspace steps (without API key requirement in examples).
-  - Publish instructions for TestPyPI/PyPI (dry-run, unified auth, batch upload).
-
-### Changed
-- CLI (`agilab` entry): SSH credentials and OpenAI API key are optional at launch. Flags are passed through when provided.
-- Streamlit entrypoint (`AGILAB.py`): OpenAI API key help text clarifies that it is optional and can be provided via `OPENAI_API_KEY`.
-- Docs generator (external docs repo): hardened to skip missing app directories, use project venv for Sphinx, and tolerate missing optional extensions.
-
-### Removed
-- Hard failure on missing `OPENAI_API_KEY` at app launch.
-- Legacy per-package upload loop in publisher in favor of one batched upload.
-
-### Notes / Migration
-- Some pages (e.g., EXPERIMENT) still require an OpenAI API key to function. They now prompt inline rather than failing.
-- The installer still accepts `--openai-api-key`; its behavior is unchanged unless explicitly requested.
-- For publishing, you can continue to rely on `~/.pypirc`. The new auth flags override it when provided.
+## 2025.10.08
+- Switch to date‑based Git tags (`YYYY.MM.DD` in UTC), with automatic de‑dupe (`-2`, `-3`, …) if the same day is tagged multiple times.
+- PyPI publish: only remove top‑level app/page symlinks during umbrella build; restore them afterwards; skip removal in `--dry-run`.
+- Docs: Sphinx site built in `agilab-apps` and committed under `agilab/docs/html`; Pages deploy serves committed content.
+- CI: tests/coverage decoupled from docs deploy; badges use GitHub Actions and Codecov.
