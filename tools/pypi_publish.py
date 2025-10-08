@@ -35,8 +35,6 @@ import sys
 import urllib.request
 from typing import Dict, List, Tuple
 from datetime import datetime, timezone
-from tomlkit import parse as toml_parse, dumps as toml_dumps  # type: ignore
-
 
 # third-party (installed on-demand if missing)
 try:
@@ -150,6 +148,25 @@ def run(cmd: List[str], cwd: pathlib.Path | None = None, env: dict | None = None
     if env:
         merged_env.update(env)
     subprocess.run(cmd, cwd=str(cwd or pathlib.Path.cwd()), check=True, text=True, env=merged_env)
+
+def ensure_tools():
+    # tomlkit, uv, twine
+    try:
+        import tomlkit  # noqa: F401
+    except Exception:
+        run([sys.executable, "-m", "pip", "install", "--upgrade", "tomlkit"])
+    for tool in ("uv", "twine", "pypi-cleanup"):
+        try:
+            if tool == "pypi-cleanup":
+                # Avoid printing usage to stdout; just verify it runs
+                subprocess.run([tool, "-h"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                run([tool, "--version"])        
+        except Exception:
+            run([sys.executable, "-m", "pip", "install", "--upgrade", tool])
+
+ensure_tools()
+from tomlkit import parse as toml_parse, dumps as toml_dumps  # type: ignore
 
 
 def cleanup_leave_latest(packages):
@@ -609,9 +626,6 @@ def create_and_push_tag(tag: str):
 
 # ------------------------- Main -------------------------
 def main():
-    if not TARGET:
-        raise SystemExit("ERROR: --repo {testpypi|pypi} is required")
-
     # Auth preflight (best-effort): verify token format and print assumptions
     if TARGET == "pypi":
         print("[preflight] Target: PyPI (batch upload across core + umbrella)")
