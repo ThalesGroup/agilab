@@ -556,71 +556,60 @@ class Project:
                 logging.warning("Apps-page directory %s missing; skipping run config generation.", apps_page_dir)
                 continue
 
-            normalized = self._normalized_config_suffix(name)
-            config_path = self.cfg.RUN_CONFIGS_DIR / f"_pages_run_{normalized}.py"
-            script_contents = textwrap.dedent(
-                f"""#!/usr/bin/env python3
-\"\"\"Auto-generated runner for apps-page '{name}'.\"\"\"
+            # Build a proper PyCharm XML run config that calls `streamlit run` with the page entry
+            entry_script = self.cfg.ROOT / "src" / self.cfg.PROJECT_NAME / "apps-pages" / name / "src" / name / f"{name}.py"
+            if not entry_script.exists():
+                logging.warning("Entry script missing for %s: %s", name, entry_script)
+                continue
 
-from __future__ import annotations
+            cfg_xml = ET.Element("component", {"name": "ProjectRunConfigurationManager"})
+            configuration = ET.SubElement(cfg_xml, "configuration", {
+                "default": "false",
+                "name": name,
+                "type": "PythonConfigurationType",
+                "factoryName": "Python",
+                "folderName": folder_name,
+            })
+            ET.SubElement(configuration, "module", {"name": name})
+            ET.SubElement(configuration, "option", {"name": "ENV_FILES", "value": ""})
+            ET.SubElement(configuration, "option", {"name": "INTERPRETER_OPTIONS", "value": ""})
+            ET.SubElement(configuration, "option", {"name": "PARENT_ENVS", "value": "true"})
+            envs = ET.SubElement(configuration, "envs")
+            ET.SubElement(envs, "env", {"name": "PYTHONUNBUFFERED", "value": "1"})
+            ET.SubElement(envs, "env", {"name": "UV_NO_SYNC", "value": "1"})
+            # Prefer a per-page SDK if present, otherwise fall back to project SDK
+            sdk_name = f"uv ({name})"
+            ET.SubElement(configuration, "option", {"name": "SDK_HOME", "value": ""})
+            ET.SubElement(configuration, "option", {"name": "SDK_NAME", "value": sdk_name})
+            ET.SubElement(configuration, "option", {"name": "WORKING_DIRECTORY", "value": ""})
+            ET.SubElement(configuration, "option", {"name": "IS_MODULE_SDK", "value": "false"})
+            ET.SubElement(configuration, "option", {"name": "ADD_CONTENT_ROOTS", "value": "true"})
+            ET.SubElement(configuration, "option", {"name": "ADD_SOURCE_ROOTS", "value": "true"})
+            ET.SubElement(configuration, "EXTENSION", {"ID": "PythonCoverageRunConfigurationExtension", "runner": "coverage.py"})
+            # Run streamlit as module
+            ET.SubElement(configuration, "option", {"name": "SCRIPT_NAME", "value": ""})
+            ET.SubElement(configuration, "option", {"name": "MODULE_NAME", "value": "streamlit"})
+            # Default active-app if available
+            active_app_arg = self.cfg.ROOT / "src" / self.cfg.PROJECT_NAME / "apps"
+            default_app = None
+            if active_app_arg.exists():
+                for candidate in sorted(active_app_arg.iterdir()):
+                    if candidate.is_dir() and candidate.name.endswith("_project"):
+                        default_app = candidate
+                        break
+            params = f"run $ProjectFileDir$/{entry_script.relative_to(self.cfg.ROOT).as_posix()} -- --active-app $ProjectFileDir$/{default_app.relative_to(self.cfg.ROOT).as_posix()}" if default_app else \
+                     f"run $ProjectFileDir$/{entry_script.relative_to(self.cfg.ROOT).as_posix()}"
+            ET.SubElement(configuration, "option", {"name": "PARAMETERS", "value": params})
+            ET.SubElement(configuration, "option", {"name": "SHOW_COMMAND_LINE", "value": "false"})
+            ET.SubElement(configuration, "option", {"name": "EMULATE_TERMINAL", "value": "false"})
+            ET.SubElement(configuration, "option", {"name": "MODULE_MODE", "value": "true"})
+            ET.SubElement(configuration, "option", {"name": "REDIRECT_INPUT", "value": "false"})
+            ET.SubElement(configuration, "option", {"name": "INPUT_FILE", "value": ""})
+            ET.SubElement(configuration, "method", {"v": "2"})
 
-import os
-import subprocess
-import sys
-from pathlib import Path
-from typing import Dict
-
-PROJECT_DIR = Path(__file__).resolve().parents[2]
-PROJECT_SRC = PROJECT_DIR / "src"
-PAGE_DIR = PROJECT_SRC / "{self.cfg.PROJECT_NAME}" / "apps-pages" / "{name}"
-ENTRY_SCRIPT = PAGE_DIR / "src" / "{name}" / "{name}.py"
-DEFAULT_ACTIVE_APP = Path(r"{str(default_active_app) if default_active_app else ''}") if {str(bool(default_active_app))} else None
-PYTHON_CANDIDATES = (
-    PAGE_DIR / ".venv" / "bin" / "python3.exe",
-    PAGE_DIR / ".venv" / "bin" / "python3",
-    PAGE_DIR / ".venv" / "bin" / "python",
-    PAGE_DIR / ".venv" / "Scripts" / "python.exe",
-    PAGE_DIR / ".venv" / "Scripts" / "python3.exe",
-)
-
-
-def _select_python() -> str:
-    for candidate in PYTHON_CANDIDATES:
-        if candidate.exists():
-            return str(candidate)
-    return sys.executable
-
-
-def _enhance_pythonpath(env: Dict[str, str]) -> None:
-    extra_paths = [str(PROJECT_SRC), str(PROJECT_DIR)]
-    existing = env.get("PYTHONPATH")
-    if existing:
-        env["PYTHONPATH"] = os.pathsep.join(extra_paths + [existing])
-    else:
-        env["PYTHONPATH"] = os.pathsep.join(extra_paths)
-
-
-def main() -> None:
-    env = os.environ.copy()
-    env.setdefault("PYTHONUNBUFFERED", "1")
-    env.setdefault("UV_NO_SYNC", "1")
-    _enhance_pythonpath(env)
-    env.setdefault("AGILAB_INSTALL_TYPE", "1")
-    if DEFAULT_ACTIVE_APP is not None:
-        env.setdefault("AGILAB_ACTIVE_APP", str(DEFAULT_ACTIVE_APP))
-
-    cmd = [_select_python(), "-m", "streamlit", "run", str(ENTRY_SCRIPT)]
-    subprocess.run(cmd, check=True, cwd=PROJECT_DIR, env=env)
-
-
-if __name__ == "__main__":
-    main()
-"""
-            ).strip() + "\n"
-
-            config_path.write_text(script_contents, encoding="utf-8")
-            os.chmod(config_path, 0o755)
-            logging.info(f"Run script for apps-page '{name}' written to {config_path}")
+            out_path = self.cfg.RUN_CONFIGS_DIR / f"{name}.xml"
+            write_xml(ET.ElementTree(cfg_xml), out_path)
+            logging.info("Run configuration XML written: %s", out_path)
 
     def python_terminal_settings(self):
         term_cfg = self.cfg.IDEA_DIR / "python-terminal.xml"
