@@ -554,15 +554,27 @@ def dist_files_root() -> List[str]:
     return sorted(glob.glob(str((REPO_ROOT / "dist" / "*").resolve())))
 
 def remove_symlinks_for_umbrella():
-    # Avoid bundling symlinks that may point outside the project
+    """
+    Remove only top-level app/page symlinks before building the umbrella wheel.
+
+    We intentionally avoid a recursive scan so we don't touch user-local
+    virtualenvs (e.g., */.venv/bin/python symlinks) or other nested links
+    that are already excluded by packaging config. The goal here is to drop
+    the immediate app/page placeholders that point outside the tree.
+    """
     for rel in ("src/agilab/apps", "src/agilab/apps-pages"):
         base = REPO_ROOT / rel
         if not base.exists():
             continue
-        for p in base.rglob("*"):
-            if p.is_symlink():
-                print(f"[symlink] removing {p}")
-                p.unlink(missing_ok=True)
+        try:
+            for p in base.iterdir():
+                # Only remove the direct children that are symlinks
+                if p.is_symlink():
+                    print(f"[symlink] removing {p}")
+                    p.unlink(missing_ok=True)
+        except Exception:
+            # Best-effort cleanup; ignore permission or race errors
+            pass
 
 # Git tagging when publishing to PyPI
 def create_and_push_tag(version: str):
