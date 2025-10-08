@@ -41,8 +41,8 @@ src/*-info/
 
 .coverage*
 
-# Built documentation
-docs/html/
+# Built documentation (tracked in repo)
+# docs/html/
 
 # Python bytecode
 *.pyc
