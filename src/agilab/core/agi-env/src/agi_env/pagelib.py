@@ -1358,6 +1358,40 @@ def activate_mlflow(env=None):
         st.session_state["mlflow_port"] = port
     except RuntimeError as e:
         st.error(f"Failed to start the server: {e}")
+
+
+def activate_gpt_oss(env=None):
+    """Spin up a local GPT-OSS responses server (stub backend) if available."""
+
+    if not env:
+        return False
+
+    if st.session_state.get("gpt_oss_server_started"):
+        return True
+
+    try:
+        import gpt_oss  # noqa: F401
+    except ImportError:
+        st.warning("Install `gpt-oss` (`pip install gpt-oss`) to enable the offline assistant.")
+        return False
+
+    port = get_random_port()
+    while is_port_in_use(port):
+        port = get_random_port()
+
+    cmd = f"uv -q run python -m gpt_oss.responses_api.serve --inference-backend stub --port {port}"
+    try:
+        subproc(cmd, os.getcwd())
+    except RuntimeError as e:
+        st.error(f"Failed to start GPT-OSS server: {e}")
+        return False
+
+    endpoint = f"http://127.0.0.1:{port}/v1/responses"
+    st.session_state["gpt_oss_server_started"] = True
+    st.session_state["gpt_oss_port"] = port
+    st.session_state["gpt_oss_endpoint"] = endpoint
+    env.envars["GPT_OSS_ENDPOINT"] = endpoint
+    return True
 def _focus_existing_docs_tab(target_url: str) -> bool:
     """Best-effort attempt to focus an existing docs tab instead of opening a new one."""
     if sys.platform != "darwin":

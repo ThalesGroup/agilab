@@ -15,6 +15,7 @@ import tomli_w      # For writing TOML files
 from code_editor import code_editor
 from agi_env.pagelib import (
     activate_mlflow,
+    activate_gpt_oss,
     find_files,
     run_lab,
     load_df,
@@ -853,6 +854,42 @@ def mlflow_controls() -> None:
         st.sidebar.error("MLflow UI server is not running. Please start it from Edit.")
 
 
+def gpt_oss_controls(env: AgiEnv) -> None:
+    """Ensure GPT-OSS responses service is reachable and provide quick controls."""
+    if st.session_state.get("lab_llm_provider") != "gpt-oss":
+        return
+
+    endpoint = (
+        st.session_state.get("gpt_oss_endpoint")
+        or env.envars.get("GPT_OSS_ENDPOINT")
+        or os.getenv("GPT_OSS_ENDPOINT", "")
+    )
+    auto_local = endpoint.startswith("http://127.0.0.1") or endpoint.startswith("http://localhost")
+
+    if auto_local and not st.session_state.get("gpt_oss_server_started"):
+        if activate_gpt_oss(env):
+            endpoint = st.session_state.get("gpt_oss_endpoint", endpoint)
+
+    if st.session_state.get("gpt_oss_server_started"):
+        endpoint = st.session_state.get("gpt_oss_endpoint", endpoint)
+        st.sidebar.success(f"GPT-OSS server running at {endpoint}")
+        return
+
+    if st.sidebar.button("Start GPT-OSS server", key="gpt_oss_start_btn"):
+        if activate_gpt_oss(env):
+            endpoint = st.session_state.get("gpt_oss_endpoint", endpoint)
+            st.sidebar.success(f"GPT-OSS server running at {endpoint}")
+            return
+
+    if endpoint:
+        st.sidebar.info(f"Using GPT-OSS endpoint: {endpoint}")
+    else:
+        st.sidebar.warning(
+            "Configure a GPT-OSS endpoint or install the package with `pip install gpt-oss` "
+            "to start a local server."
+        )
+
+
 def display_lab_tab(
     lab_dir: Path,
     index_page_str: str,
@@ -1036,6 +1073,7 @@ def page() -> None:
         st.stop()
 
     mlflow_controls()
+    gpt_oss_controls(env)
 
     lab_tab, history_tab = st.tabs(["ASSISTANT", "HISTORY"])
     with lab_tab:
