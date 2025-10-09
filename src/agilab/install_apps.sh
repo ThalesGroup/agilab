@@ -199,7 +199,14 @@ PY
     public_templates_dir="$AGILAB_PUBLIC/apps/templates"
     if [[ -d "$public_templates_dir" ]]; then
       mkdir -p apps
-      if [[ -e "$private_templates_dir" && ! -L "$private_templates_dir" ]]; then
+      if [[ -L "$private_templates_dir" ]]; then
+        link_target="$(readlink "$private_templates_dir")"
+        # Normalize relative targets so we can safely compare paths
+        if [[ "$link_target" != "$public_templates_dir" ]]; then
+          echo -e "${YELLOW}Removing stale templates symlink -> ${link_target}.${NC}"
+          rm -f -- "$private_templates_dir"
+        fi
+      elif [[ -e "$private_templates_dir" ]]; then
         echo -e "${YELLOW}Replacing private templates directory with symlink -> ${public_templates_dir}.${NC}"
         rm -rf -- "$private_templates_dir"
       fi
