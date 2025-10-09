@@ -22,6 +22,31 @@ warn() {
     echo -e "${YELLOW}Warning:${NC} $*"
 }
 
+install_offline_extra() {
+    local pyver="${AGI_PYTHON_VERSION:-}"
+    local major minor patch
+    IFS='.' read -r major minor patch <<< "$pyver"
+    if [[ -z "$major" || -z "$minor" ]]; then
+        warn "Could not parse Python version '$pyver'; skipping GPT-OSS offline assistant installation."
+        return
+    fi
+
+    if (( major > 3 || (major == 3 && minor >= 12) )); then
+        if $UV pip show gpt-oss >/dev/null 2>&1; then
+            echo -e "${GREEN}GPT-OSS already installed; skipping offline assistant setup.${NC}"
+            return
+        fi
+        echo -e "${BLUE}Installing GPT-OSS offline assistant dependencies...${NC}"
+        if $UV pip install ".[offline]" >/dev/null 2>&1; then
+            echo -e "${GREEN}GPT-OSS offline assistant installed.${NC}"
+        else
+            warn "Unable to install GPT-OSS (pip install .[offline]). Install it manually when Python >=3.12 is available."
+        fi
+    else
+        warn "Skipping GPT-OSS offline assistant (requires Python >=3.12)."
+    fi
+}
+
 # Prevent Running as Root
 if [[ "$EUID" -eq 0 ]]; then
     echo -e "${RED}Error: This script should not be run as root. Please run as a regular user.${NC}"
@@ -353,5 +378,6 @@ else
   install_pycharm_script
   refresh_launch_matrix
   install_enduser
+  install_offline_extra
   echo -e "${GREEN}Installation complete!${NC}"
 fi
