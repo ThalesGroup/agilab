@@ -1200,7 +1200,7 @@ if __name__ == "__main__":
             )
 
         load_clicked = load_col.button(
-            "Load Data",
+            "LOAD dataframe",
             key="load_data_main",
             type="primary",
             use_container_width=True,
@@ -1302,7 +1302,7 @@ if __name__ == "__main__":
             with action_col_stats:
                 stats_clicked = st.button("Stats Report", key="stats_report_main", type="primary", use_container_width=True)
             with action_col_export:
-                export_clicked = st.button("Export DF", key="export_df_main", type="primary", use_container_width=True)
+                export_clicked = st.button("Export dataframe", key="export_df_main", type="primary", use_container_width=True, help="Save the current run output to export/export.csv so Experiment/Explore can load it.")
 
             if stats_clicked:
                 profile_file = st.session_state.profile_report_file
@@ -1331,7 +1331,7 @@ if __name__ == "__main__":
         st.session_state.df_cols = []
         st.session_state.selected_cols = []
         st.session_state.check_all = False
-        st.info("No data loaded yet. Click 'Load Data' above to populate it before export.")
+        st.info("No data loaded yet. Click 'LOAD dataframe' above to populate it before export.")
 
 # ===========================
 # Main Entry Point
