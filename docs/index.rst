@@ -4,6 +4,12 @@ AGILab Documentation
 Welcome to the AGILab framework documentation.
 You’ll find everything from quickstarts to API references, as well as example projects.
 
+Audience profiles
+-----------------
+
+- **End users** install and launch packaged apps with ``uvx`` or the generated shell wrappers under ``tools/run_configs/``—no repository checkout or IDE required.
+- **Developers** clone the repository, regenerate run configurations (``python3 tools/generate_runconfig_scripts.py``), and extend apps or the core framework.
+
 Shell wrappers for run configs
 ------------------------------
 
