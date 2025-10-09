@@ -18,6 +18,10 @@ BLUE='\033[1;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+warn() {
+    echo -e "${YELLOW}Warning:${NC} $*"
+}
+
 # Prevent Running as Root
 if [[ "$EUID" -eq 0 ]]; then
     echo -e "${RED}Error: This script should not be run as root. Please run as a regular user.${NC}"
@@ -104,7 +108,7 @@ set_locale() {
 install_dependencies() {
     echo -e "${BLUE}Step: Installing system dependencies...${NC}"
     read -rp "Do you want to install system dependencies? (y/N): " confirm
-    [[ "$confirm" =~ ^[Yy]$ ]] || { echo -e "${YELLOW}Skipping dependency installation.${NC}"; return; }
+    [[ "$confirm" =~ ^[Yy]$ ]] || { warn "Skipping dependency installation."; return; }
 
     if ! command -v uv > /dev/null 2>&1; then
         echo -e "${GREEN}Installing uv...${NC}"
@@ -312,7 +316,7 @@ install_enduser() {
 install_pycharm_script() {
     rm -f .idea/workspace.xml
     echo -e "${BLUE}Patching PyCharm workspace.xml interpreter settings...${NC}"
-    $UV run -p "$AGI_PYTHON_VERSION" python pycharm/setup_pycharm.py || echo -e "${YELLOW}pycharm/install-apps-script.py failed or not found; continuing.${NC}"
+    $UV run -p "$AGI_PYTHON_VERSION" python pycharm/setup_pycharm.py || warn "pycharm/install-apps-script.py failed or not found; continuing."
 }
 
 refresh_launch_matrix() {
@@ -322,9 +326,9 @@ refresh_launch_matrix() {
         # Best-effort; do not fail install if this step errors
         $UV run -p "$AGI_PYTHON_VERSION" python tools/refresh_launch_matrix.py --inplace \
           && echo -e "${GREEN}Launch Matrix updated in AGENTS.md.${NC}" \
-          || echo -e "${YELLOW}Launch Matrix refresh skipped (tooling not available).${NC}"
+          || warn "Launch Matrix refresh skipped (tooling not available)."
     else
-        echo -e "${YELLOW}No tools/refresh_launch_matrix.py found; skipping matrix refresh.${NC}"
+        warn "No tools/refresh_launch_matrix.py found; skipping matrix refresh."
     fi
     popd > /dev/null || true
 }
@@ -342,7 +346,7 @@ update_environment
 install_core
 write_env_values
 if ! install_apps; then
-  echo -e "${YELLOW}install_apps failed; continuing with PyCharm setup.${NC}"
+  warn "install_apps failed; continuing with PyCharm setup."
   install_pycharm_script # needed to investigate with pycharm why previous script has failed
   refresh_launch_matrix
 else
