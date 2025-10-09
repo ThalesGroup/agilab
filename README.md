@@ -38,6 +38,17 @@ uvx -p 3.13 agilab
 > **Note**
 > This `uvx` invocation is meant for demos or smoke tests. Any changes you make inside the cached package will be overwritten on the next run. For development, clone the repository or use a virtual environment.
 
+### Offline assistant (GPT-OSS)
+
+Prefer to stay offline? Start a local GPT-OSS responses server and switch the “Assistant engine” selector (in the Experiment page sidebar) to *GPT-OSS (local)*:
+
+```bash
+python -m pip install gpt-oss
+python -m gpt_oss.responses_api.serve --inference-backend stub --port 8000
+```
+
+Update the endpoint field if you expose the server on a different port. When GPT-OSS is selected the Experiment page calls the local Responses API instead of OpenAI.
+
 Managed workspace (project folder):
 
 ```bash
