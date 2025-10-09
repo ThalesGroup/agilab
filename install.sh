@@ -32,18 +32,84 @@ install_offline_extra() {
     fi
 
     if (( major > 3 || (major == 3 && minor >= 12) )); then
-        if $UV pip show gpt-oss >/dev/null 2>&1; then
-            echo -e "${GREEN}GPT-OSS already installed; skipping offline assistant setup.${NC}"
-            return
-        fi
-        echo -e "${BLUE}Installing GPT-OSS offline assistant dependencies...${NC}"
+        echo -e "${BLUE}Installing offline assistant dependencies (GPT-OSS + mistral:instruct)...${NC}"
         if $UV pip install ".[offline]" >/dev/null 2>&1; then
-            echo -e "${GREEN}GPT-OSS offline assistant installed.${NC}"
+            echo -e "${GREEN}Offline assistant packages installed.${NC}"
         else
-            warn "Unable to install GPT-OSS (pip install .[offline]). Install it manually when Python >=3.12 is available."
+            warn "Unable to install offline extras (pip install .[offline]). Install them manually when Python >=3.12 is available."
         fi
+        local ensure_specs=("transformers>=4.57.0" "torch>=2.8.0" "accelerate>=0.34.2" "universal-offline-ai-chatbot>=0.1.0")
+        for spec in "${ensure_specs[@]}"; do
+            local pkg="${spec%%>=*}"
+            if ! $UV pip show "${pkg}" >/dev/null 2>&1; then
+                if $UV pip install "${spec}" >/dev/null 2>&1; then
+                    echo -e "${GREEN}Installed ${spec} for offline assistant support.${NC}"
+                else
+                    warn "Failed to install ${spec}. Install it manually if you plan to use the ${pkg} backend."
+                fi
+            fi
+        done
     else
         warn "Skipping GPT-OSS offline assistant (requires Python >=3.12)."
+    fi
+}
+
+setup_mistral_offline() {
+    echo -e "${BLUE}Configuring local Mistral assistant (Ollama)...${NC}"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        if ! command -v ollama >/dev/null 2>&1; then
+            if command -v brew >/dev/null 2>&1; then
+                echo -e "${BLUE}Installing Ollama via Homebrew...${NC}"
+                brew install --cask ollama || warn "Failed to install Ollama via Homebrew. Install it manually from https://ollama.com."
+            else
+                warn "Homebrew not found; install Ollama manually from https://ollama.com."
+                return
+            fi
+        fi
+
+        # Start Ollama as a launch agent if possible
+        if command -v brew >/dev/null 2>&1; then
+            brew services start ollama >/dev/null 2>&1 || true
+        fi
+
+        mkdir -p "$HOME/log"
+        # Pull the mistral:instruct model in the background (can be large)
+        if command -v ollama >/dev/null 2>&1; then
+            echo -e "${BLUE}Starting model download: mistral:instruct (running in background)...${NC}"
+            nohup ollama pull mistral:instruct > "$HOME/log/ollama_pull_mistral.log" 2>&1 &
+            echo $! > "$HOME/log/ollama_pull_mistral.pid"
+            echo -e "${GREEN}Pull started. Monitor: tail -f $HOME/log/ollama_pull_mistral.log${NC}"
+        fi
+    elif [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "linux"* ]]; then
+        # Linux path: use official installer
+        if ! command -v ollama >/dev/null 2>&1; then
+            echo -e "${BLUE}Installing Ollama (Linux)...${NC}"
+            if curl -fsSL https://ollama.com/install.sh | sh; then
+                echo -e "${GREEN}Ollama installed.${NC}"
+            else
+                warn "Failed to install Ollama via script. Install manually from https://ollama.com."
+                return
+            fi
+        fi
+
+        # Try to start Ollama
+        if command -v systemctl >/dev/null 2>&1; then
+            sudo systemctl enable --now ollama >/dev/null 2>&1 || true
+        fi
+        # Fallback to foreground server in background
+        if ! curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+            nohup ollama serve > "$HOME/log/ollama_serve.log" 2>&1 &
+            sleep 2
+        fi
+
+        mkdir -p "$HOME/log"
+        echo -e "${BLUE}Starting model download: mistral:instruct (running in background)...${NC}"
+        nohup ollama pull mistral:instruct > "$HOME/log/ollama_pull_mistral.log" 2>&1 &
+        echo $! > "$HOME/log/ollama_pull_mistral.pid"
+        echo -e "${GREEN}Pull started. Monitor: tail -f $HOME/log/ollama_pull_mistral.log${NC}"
+    else
+        # Unsupported OS automation
+        warn "Automatic Ollama setup is available for macOS and Linux. Install Ollama and pull 'mistral:instruct' manually."
     fi
 }
 
@@ -379,5 +445,6 @@ else
   refresh_launch_matrix
   install_enduser
   install_offline_extra
+  setup_mistral_offline
   echo -e "${GREEN}Installation complete!${NC}"
 fi
