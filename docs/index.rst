@@ -63,8 +63,8 @@ The command emits executable scripts under ``tools/run_configs/<group>/`` (``agi
          <text class="subtitle" x="120" y="58" text-anchor="middle">Args settings, forms, install.py</text>
          <text class="subtitle" x="40" y="94">• Pydantic args model</text>
          <text class="subtitle" x="40" y="116">• `app_settings.toml` binding</text>
-         <text class="subtitle" x="40" y="138">• Packages curated templates</text>
-       </g>
+       <text class="subtitle" x="40" y="138">• Packages curated templates</text>
+      </g>
 
        <!-- Streamlit pages -->
        <g transform="translate(360,70)">
@@ -74,8 +74,8 @@ The command emits executable scripts under ``tools/run_configs/<group>/`` (``agi
          <text class="subtitle" x="120" y="58" text-anchor="middle">Data viz + controls per page</text>
          <text class="subtitle" x="40" y="94">• `apps-pages/` bundle</text>
          <text class="subtitle" x="40" y="116">• Independent requirements</text>
-         <text class="subtitle" x="40" y="138">• Publishes dashboards/UI</text>
-       </g>
+        <text class="subtitle" x="40" y="138">• Publishes dashboards/UI</text>
+      </g>
 
        <!-- Workers -->
        <g transform="translate(640,60)">
@@ -104,10 +104,17 @@ The command emits executable scripts under ``tools/run_configs/<group>/`` (``agi
        <line x1="320" y1="145" x2="360" y2="145" stroke="#1f2937" stroke-width="2.5" marker-end="url(#arrowhead)" />
        <text class="subtitle" x="340" y="134" text-anchor="middle">Install</text>
 
-       <line x1="600" y1="145" x2="640" y2="145" stroke="#1f2937" stroke-width="2.5" marker-end="url(#arrowhead)" />
-       <text class="subtitle" x="620" y="134" text-anchor="middle">Distribute</text>
-     </svg>
-   </section>
+      <line x1="600" y1="145" x2="640" y2="145" stroke="#1f2937" stroke-width="2.5" marker-end="url(#arrowhead)" />
+      <text class="subtitle" x="620" y="134" text-anchor="middle">Distribute</text>
+
+      <!-- Assistant providers -->
+      <g transform="translate(160,210)">
+        <rect x="0" y="0" width="640" height="58" rx="14" fill="#fff" stroke="#cbd5f5" stroke-width="1.2" />
+        <text class="title" x="20" y="27">Assistant</text>
+        <text class="subtitle" x="20" y="47">Toggle between OpenAI (online) and GPT-OSS (offline). When GPT-OSS is installed locally the sidebar auto-starts a stub server for you.</text>
+      </g>
+    </svg>
+  </section>
 
 Roadmap
 -------
