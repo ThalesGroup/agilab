@@ -1,3 +1,13 @@
+# SPDX-License-Identifier: BSD-3-Clause AND MIT
+#
+# Portions of this file are adapted from “barviz / barviz-mod”
+#   Copyright (c) 2022 Jean-Luc Parouty
+#   Licensed under the MIT License (see LICENSES/LICENSE-MIT-barviz-mod)
+#
+# Additional modifications:
+#   Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS FRANCE SAS
+#   Licensed under the BSD 3-Clause License (see LICENSE)
+#
 # BSD 3-Clause License
 #
 # Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS FRANCE SAS
@@ -23,6 +33,7 @@ from barviz import Simplex, Collection, Scrawler, Attributes
 from math import sqrt, cos, sin
 import streamlit as st
 from sklearn.preprocessing import StandardScaler
+from scipy.signal import savgol_filter
 import argparse
 
 
@@ -220,6 +231,39 @@ def __normalize_data(data):
     data = data.fillna(0)
     normalized_data = pd.DataFrame(scaler.fit_transform(data), columns=data.columns)
     return normalized_data
+
+
+def _maybe_smooth_long_column(df: pd.DataFrame) -> None:
+    """
+    Apply a Savitzky-Golay filter to the 'long' column when sufficient data exists.
+    """
+    if "long" not in df.columns:
+        return
+
+    long_numeric = pd.to_numeric(df["long"], errors="coerce")
+    valid_mask = long_numeric.notna()
+    valid_count = int(valid_mask.sum())
+    if valid_count < 5:
+        return
+
+    # Choose an odd window length no larger than 21 and not exceeding valid_count
+    window_length = min(21, valid_count if valid_count % 2 else valid_count - 1)
+    if window_length < 5:
+        window_length = 5
+    if window_length > valid_count:
+        window_length = valid_count if valid_count % 2 else valid_count - 1
+    if window_length < 3:
+        return
+
+    polyorder = 2 if window_length > 3 else 1
+
+    try:
+        smoothed_values = savgol_filter(long_numeric[valid_mask], window_length=window_length, polyorder=polyorder)
+    except ValueError:
+        # Fall back to no smoothing if the parameters are incompatible
+        return
+
+    df.loc[valid_mask, "long"] = smoothed_values
 
 
 def __bary_visualisation(df, selected_format, selected_name, selected_x1, selected_x2, color=None):
@@ -439,6 +483,8 @@ def page(env):
             )
             if lines >= 0:
                 st.session_state.loaded_df = st.session_state.loaded_df.iloc[:lines, :]
+
+            _maybe_smooth_long_column(st.session_state.loaded_df)
 
             if "project" in st.session_state:
                 st.markdown(f"{env.target} worker arguments:")

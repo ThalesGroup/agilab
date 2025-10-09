@@ -151,7 +151,13 @@ dev = [
 ]
 
 [project.optional-dependencies]
-offline = ["gpt-oss>=0.0.8; python_version >= '3.12'"]
+offline = [
+    "gpt-oss>=0.0.8; python_version >= '3.12'",
+    "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'",
+    "transformers>=4.57.0; python_version >= '3.12'",
+    "torch>=2.8.0; python_version >= '3.12'",
+    "accelerate>=0.34.2; python_version >= '3.12'",
+]
 
 [tool.uv.extra-build-dependencies]
 htmlmin = ["legacy-cgi"]

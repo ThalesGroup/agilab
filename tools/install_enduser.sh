@@ -2,6 +2,9 @@
 set -euo pipefail
 
 UV_PREVIEW=(uv --preview-features extra-build-dependencies)
+warn() {
+  echo "[warn] $*" >&2
+}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # -----------------------------
@@ -325,6 +328,50 @@ PY
     ;;
 esac
 
+install_offline_assistant() {
+  local python_bin="${VENV}/bin/python"
+  if [[ ! -x "${python_bin}" ]]; then
+    warn "Skipping GPT-OSS install; missing interpreter at ${python_bin}"
+    return
+  fi
+
+  local pyver major minor _
+  pyver="$("${python_bin}" - <<'PY'
+import sys
+print(".".join(map(str, sys.version_info[:3])))
+PY
+)"
+
+  IFS='.' read -r major minor _ <<< "${pyver}"
+  if [[ -z "${major:-}" || -z "${minor:-}" ]]; then
+    warn "Could not determine Python version; skipping GPT-OSS install"
+    return
+  fi
+
+  if (( major > 3 || (major == 3 && minor >= 12) )); then
+    echo "Installing GPT-OSS offline assistant dependencies..."
+    if "${python_bin}" -m pip install --upgrade "agilab[offline]"; then
+      echo "GPT-OSS offline assistant base packages installed."
+    else
+      warn "Unable to install GPT-OSS automatically. Run 'pip install agilab[offline]' manually once Python >=3.12 is available."
+    fi
+    local ensure_specs=("transformers>=4.57.0" "torch>=2.8.0" "accelerate>=0.34.2")
+    for spec in "${ensure_specs[@]}"; do
+      local pkg="${spec%%>=*}"
+      if ! "${python_bin}" -m pip show "${pkg}" >/dev/null 2>&1; then
+        if "${python_bin}" -m pip install --upgrade "${spec}"; then
+          echo "[info] Installed ${spec} for GPT-OSS backend support."
+        else
+          warn "Failed to install ${spec}. Install it manually if you plan to use the ${pkg} backend."
+        fi
+      fi
+    done
+  else
+    warn "Skipping GPT-OSS offline assistant (requires Python >=3.12; detected ${pyver})."
+  fi
+}
+
+install_offline_assistant
 popd >/dev/null
 
 # Some uv operations materialize helper folders inside the venv root when
