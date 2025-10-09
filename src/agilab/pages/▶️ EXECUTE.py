@@ -1315,7 +1315,7 @@ if __name__ == "__main__":
             if export_clicked:
                 target_path = st.session_state.df_export_file
                 if not st.session_state.selected_cols:
-        st.warning("No columns selected for export.")
+                    st.warning("No columns selected for export.")
                 elif not target_path:
                     st.warning("Please provide a filename for the export.")
                 else:
