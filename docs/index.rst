@@ -4,6 +4,15 @@ AGILab Documentation
 Welcome to the AGILab framework documentation.
 You’ll find everything from quickstarts to API references, as well as example projects.
 
+Shell wrappers for run configs
+------------------------------
+
+If you want to run the IDE workflows from a terminal, regenerate the shell wrappers with::
+
+   python3 tools/generate_runconfig_scripts.py
+
+The command emits executable scripts under ``tools/run_configs/``; each one mirrors a PyCharm run configuration (working directory, environment variables, and ``uv`` invocation).
+
 .. raw:: html
 
    <section class="agilab-teaser" style="margin: 2rem 0; overflow: visible;">
