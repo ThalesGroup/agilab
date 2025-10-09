@@ -289,6 +289,24 @@ def cleanup_leave_latest(packages):
     )
 
     token_like = cleanup_pass and str(cleanup_pass).startswith("pypi-")
+    # Guardrails: prevent common mistakes that lead to silent no-ops
+    #  - Using a project/package name (e.g., 'agilab') instead of your PyPI account username
+    #  - Using an API token as the "username" (cleanup requires web-login password)
+    def _looks_like_project(u: str | None) -> bool:
+        if not u:
+            return False
+        u_norm = u.strip().lower()
+        # Known packages in this repo + umbrella name
+        known = {"agilab", "agi-env", "agi-node", "agi-cluster", "agi-core"}
+        return u_norm in known
+
+    if _looks_like_project(cleanup_user):
+        print(
+            "[cleanup] Refusing to use a project name ('%s') as cleanup username.\n"
+            "          Provide your PyPI account username with --cleanup USER:PASS or --cleanup-username/--cleanup-password."
+            % cleanup_user
+        )
+        return
     if not cleanup_user:
         print("[cleanup] Skipping cleanup: no cleanup username available.\n"
               "          Configure ~/.pypirc with a real account username/password or pass --cleanup user:password.")
