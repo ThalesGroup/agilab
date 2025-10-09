@@ -1070,7 +1070,7 @@ def page() -> None:
     if not df_file or not Path(df_file).exists():
         st.info(
             f"No dataframe exported for {lab_dir.name}. "
-            "Run a job on the Execute page and click “Export dataframe” to produce export/export.csv."
+            "Go to Execute, click “LOAD dataframe”, then “EXPORT dataframe” to produce export/export.csv."
         )
         st.stop()
 
