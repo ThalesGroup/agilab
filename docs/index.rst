@@ -13,11 +13,6 @@ If you want to run the IDE workflows from a terminal, regenerate the shell wrapp
 
 The command emits executable scripts under ``tools/run_configs/<group>/`` (``agilab``, ``apps``, ``components``); each one mirrors a PyCharm run configuration (working directory, environment variables, and ``uv`` invocation).
 
-Roadmap
--------
-
-The current delivery plan is summarised in the lightweight `roadmap page <roadmap.html>`_. It highlights the IDE-neutral tooling work, the scripted run-config wrappers, and the next documentation milestones.
-
 .. raw:: html
 
    <section class="agilab-teaser" style="margin: 2rem 0; overflow: visible;">
