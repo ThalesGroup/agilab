@@ -48,6 +48,7 @@ python -m gpt_oss.responses_api.serve --inference-backend stub --port 8000
 ```
 
 Update the endpoint field if you expose the server on a different port. When GPT-OSS is selected the Experiment page calls the local Responses API instead of OpenAI.
+When the package is installed and the endpoint targets ``localhost``, the sidebar automatically launches a stub GPT-OSS server the first time you switch to *GPT-OSS (local)*.
 
 Managed workspace (project folder):
 
