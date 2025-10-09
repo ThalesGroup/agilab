@@ -150,6 +150,9 @@ dev = [
     "pypi-cleanup",
 ]
 
+[project.optional-dependencies]
+offline = ["gpt-oss>=0.0.8"]
+
 [tool.uv.extra-build-dependencies]
 htmlmin = ["legacy-cgi"]
 ydata-profiling = ["standard-imghdr"]
