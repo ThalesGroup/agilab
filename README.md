@@ -22,6 +22,11 @@ See [documentation](https://thalesgroup.github.io/agilab).
 
 See also: CHANGELOG.md for recent changes.
 
+## Audience profiles
+
+- **End users** install and launch packaged apps with `uvx` or the generated shell wrappers in `tools/run_configs/`; no repository checkout or IDE is required.
+- **Developers** clone this repository to build apps, regenerate run configurations (`python3 tools/generate_runconfig_scripts.py`), and extend the framework.
+
 ## Install and Execution for end users
 
 Quick run (no setup):
