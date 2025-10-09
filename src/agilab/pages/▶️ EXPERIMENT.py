@@ -1029,7 +1029,7 @@ def page() -> None:
 
     df_file = st.session_state.get("df_file")
     if not df_file or not Path(df_file).exists():
-        st.info(f"No DataFrame found in {lab_dir}")
+        st.info(f"No dataframe exported for {lab_dir.name}")
         st.stop()
 
     mlflow_controls()
