@@ -20,7 +20,7 @@ If you want to run the IDE workflows from a terminal, regenerate the shell wrapp
 The command emits executable scripts under ``tools/run_configs/<group>/`` (``agilab``, ``apps``, ``components``); each one mirrors a PyCharm run configuration (working directory, environment variables, and ``uv`` invocation).
 
 .. note::
-   ``uvx -p 3.13 agilab`` is perfect for demos or quick checks, but edits made inside the cached package are not persisted. For development work, clone the repo or use a dedicated virtual environment. To stay offline, start a GPT-OSS responses server with ``python -m gpt_oss.responses_api.serve --inference-backend stub --port 8000`` and switch the Experiment sidebar to *GPT-OSS (local)*.
+   ``uvx -p 3.13 agilab`` is perfect for demos or quick checks, but edits made inside the cached package are not persisted. For development work, clone the repo or use a dedicated virtual environment. To stay offline, start a GPT-OSS responses server with ``python -m gpt_oss.responses_api.serve --inference-backend stub --port 8000`` and switch the Experiment sidebar to *GPT-OSS (local)*. When the package is installed and the endpoint targets ``localhost``, the sidebar auto-starts the stub server for you.
 
 .. raw:: html
 
