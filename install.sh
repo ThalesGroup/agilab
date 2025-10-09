@@ -113,6 +113,40 @@ setup_mistral_offline() {
     fi
 }
 
+seed_mistral_pdfs() {
+    echo -e "${BLUE}Seeding sample PDFs for mistral:instruct (optional)...${NC}"
+    local dest="$HOME/.agilab/mistral_offline/data"
+    mkdir -p "$dest"
+
+    # Prefer curated path under resources/mistral_offline/data
+    local src1="$AGI_INSTALL_PATH/src/agilab/core/agi-env/src/agi_env/resources/mistral_offline/data"
+    # Fallback to older stash path under resources/.agilab/pdfs
+    local src2="$AGI_INSTALL_PATH/src/agilab/core/agi-env/src/agi_env/resources/.agilab/pdfs"
+
+    local copied=0
+    if [[ -d "$src1" ]]; then
+        # Copy top-level PDFs
+        if compgen -G "$src1/*.pdf" > /dev/null; then
+            cp -f "$src1"/*.pdf "$dest"/ && copied=1
+        fi
+        # Copy nested PDFs
+        find "$src1" -type f -iname "*.pdf" -exec cp -f {} "$dest"/ \; && copied=1
+    fi
+
+    if [[ $copied -eq 0 && -d "$src2" ]]; then
+        if compgen -G "$src2/*.pdf" > /dev/null; then
+            cp -f "$src2"/*.pdf "$dest"/ && copied=1
+        fi
+        find "$src2" -type f -iname "*.pdf" -exec cp -f {} "$dest"/ \; && copied=1
+    fi
+
+    if [[ $copied -eq 1 ]]; then
+        echo -e "${GREEN}Seeded PDFs into $dest${NC}"
+    else
+        warn "No sample PDFs found in resources; skipping seeding."
+    fi
+}
+
 # Prevent Running as Root
 if [[ "$EUID" -eq 0 ]]; then
     echo -e "${RED}Error: This script should not be run as root. Please run as a regular user.${NC}"
@@ -445,6 +479,7 @@ else
   refresh_launch_matrix
   install_enduser
   install_offline_extra
+  seed_mistral_pdfs
   setup_mistral_offline
   echo -e "${GREEN}Installation complete!${NC}"
 fi

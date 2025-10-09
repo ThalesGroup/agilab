@@ -36,10 +36,7 @@ The Experiment page ships with three assistants:
 - **GPT-OSS (offline)** — local responses API with stub, transformers, or custom backends.
 - **mistral:instruct (local)** — local Mistral assistant powered by ``universal-offline-ai-chatbot``; build a FAISS index from your PDFs.
 
-.. raw:: html
-
-   <section class="agilab-teaser" style="margin: 2rem 0;">
-     <svg viewBox="0 0 960 340" width="100%" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="agilab-architecture-title" style="display:block;max-width:100%;height:auto;shape-rendering:geometricPrecision;text-rendering:optimizeLegibility;overflow:visible;">
+..
        <title id="agilab-architecture-title">AGILab app architecture: manager venv, Streamlit pages venv, worker venvs for cluster deployment</title>
        <defs>
          <linearGradient id="teaser-bg" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -67,7 +64,7 @@ The Experiment page ships with three assistants:
            .subtitle { font-size: 13px; fill: #334155; }
          </style>
        </defs>
-       <rect x="0" y="0" width="960" height="340" rx="26" fill="url(#teaser-bg)" />
+       <rect x="0" y="0" width="960" height="360" rx="26" fill="url(#teaser-bg)" />
 
        <!-- Manager venv -->
        <g transform="translate(80,70)">
@@ -128,8 +125,7 @@ The Experiment page ships with three assistants:
         <text class="subtitle" x="24" y="58">Toggle between OpenAI (online) and GPT-OSS (offline stub/transformers backends).</text>
         <text class="subtitle" x="24" y="78">mistral:instruct (local) adds a Mistral-based offline assistant backed by universal-offline-ai-chatbot.</text>
       </g>
-    </svg>
-  </section>
+..
 
 Roadmap
 -------
