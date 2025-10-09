@@ -4,9 +4,13 @@ import json
 import webbrowser
 from pathlib import Path
 import importlib
+import importlib.metadata as importlib_metadata
+import sys
+import sysconfig
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
+import re
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
 import tomli        # For reading TOML files
@@ -91,6 +95,7 @@ def load_last_step(
     index_page: str,
 ) -> None:
     """Load the last step for a module into session state."""
+    details_store = st.session_state.setdefault(f"{index_page}__details", {})
     all_steps = load_all_steps(module_dir, steps_file, index_page)
     if all_steps:
         last_step = len(all_steps) - 1
@@ -100,7 +105,8 @@ def load_last_step(
             d = entry.get("D", "")
             q = entry.get("Q", "")
             c = entry.get("C", "")
-            st.session_state[index_page][1:5] = [d, q, c, ""]
+            detail = details_store.get(current_step, "")
+            st.session_state[index_page][1:5] = [d, q, c, detail]
             # Drive the text area via session state, using a revisioned key to control remounts
             q_rev = st.session_state.get(f"{index_page}__q_rev", 0)
             prompt_key = f"{index_page}_q__{q_rev}"
@@ -115,12 +121,12 @@ def load_last_step(
 
 def clean_query(index_page: str) -> None:
     """Reset the query fields in session state."""
-    st.session_state[index_page][1:-1] = [
-        st.session_state.get("df_file", "") or "",
-        "",
-        "",
-        "",
-    ]
+    df_value = st.session_state.get("df_file", "") or ""
+    st.session_state[index_page][1:-1] = [df_value, "", "", ""]
+    details_store = st.session_state.setdefault(f"{index_page}__details", {})
+    current_step = st.session_state[index_page][0] if index_page in st.session_state else None
+    if current_step is not None:
+        details_store.pop(current_step, None)
 
 
 @st.cache_data(show_spinner=False)
@@ -173,20 +179,36 @@ def on_query_change(
     df_file: Path,
     index_page: str,
     env: AgiEnv,
+    provider_snapshot: str,
 ) -> None:
     """Handle the query action when user input changes."""
+    current_provider = st.session_state.get(
+        "lab_llm_provider",
+        env.envars.get("LAB_LLM_PROVIDER", "openai"),
+    )
+    if provider_snapshot and provider_snapshot != current_provider:
+        # Provider changed between the widget render and callback; skip the stale request.
+        return
+
     try:
         if st.session_state.get(request_key):
             answer = ask_gpt(
                 st.session_state[request_key], df_file, index_page, env.envars
             )
+            detail = answer[3] if len(answer) > 3 else ""
+            details_key = f"{index_page}__details"
+            details_store = st.session_state.setdefault(details_key, {})
+            if detail:
+                details_store[step] = detail
+            else:
+                details_store.pop(step, None)
             nstep, entry = save_step(module, answer, step, 0, steps_file)
             st.session_state[index_page][0] = step
             # Deterministic mapping to D/Q/C slots
             d = entry.get("D", "")
             q = entry.get("Q", "")
             c = entry.get("C", "")
-            st.session_state[index_page][1:5] = [d, q, c, ""]
+            st.session_state[index_page][1:5] = [d, q, c, detail or ""]
             st.session_state[f"{index_page}_q"] = q
             st.session_state[index_page][-1] = nstep
         st.session_state.pop(f"{index_page}_a_{step}", None)
@@ -196,17 +218,105 @@ def on_query_change(
 
 
 def extract_code(gpt_message: str) -> Tuple[str, str]:
-    """Extract Python code and details from GPT message."""
-    if gpt_message:
-        parts = gpt_message.split("```")
-        code = ""
-        if len(parts) > 1:
-            code = parts[1].replace("`", "").strip()
-            if code.startswith("python"):
-                code = code[6:].strip()
-        detail = parts[2] if len(parts) > 2 else ""
-        return code, detail
-    return "", ""
+    """Extract Python code (if any) and supporting detail from a GPT message."""
+    if not gpt_message:
+        return "", ""
+
+    text = str(gpt_message).strip()
+    if not text:
+        return "", ""
+
+    parts = text.split("```")
+    if len(parts) > 1:
+        prefix = parts[0].strip()
+        code_block = parts[1]
+        suffix = "```".join(parts[2:]).strip()
+
+        language_line, newline, body = code_block.partition("\n")
+        lang = language_line.strip().lower()
+        if newline:
+            code_content = body
+            language_hint = lang
+        else:
+            code_content = code_block
+            language_hint = ""
+
+        if language_hint in {"python", "py"}:
+            code = code_content
+        else:
+            code = code_block
+
+        detail_parts: List[str] = []
+        if prefix:
+            detail_parts.append(prefix)
+        if suffix:
+            detail_parts.append(suffix)
+
+        detail = "\n\n".join(detail_parts).strip()
+        return code.strip(), detail
+
+    return "", text
+
+
+def _normalize_identifier(raw: str, fallback: str = "value") -> str:
+    """Return a snake_case identifier safe for column names."""
+
+    cleaned = re.sub(r"[^0-9a-zA-Z_]+", "_", raw or "")
+    cleaned = re.sub(r"_+", "_", cleaned).strip("_")
+    if not cleaned:
+        return fallback
+    if cleaned[0].isdigit():
+        cleaned = f"_{cleaned}"
+    return cleaned.lower()
+
+
+def _synthesize_stub_response(question: str) -> str:
+    """Generate a deterministic response when the GPT-OSS stub backend is active."""
+
+    normalized = (question or "").lower()
+    if not normalized:
+        return (
+            "The GPT-OSS stub backend only confirms connectivity. Set the backend to 'transformers' or "
+            "point the endpoint to a real GPT-OSS deployment for code completions."
+        )
+
+    if "savgol" in normalized or "savitzky" in normalized:
+        match = re.search(r"(?:col(?:umn)?|field|series)\s+([\w-]+)", normalized)
+        column_raw = match.group(1) if match else "value"
+        column = _normalize_identifier(column_raw)
+        window_match = re.search(r"(?:window|kernel)(?:\s+(?:length|size))?\s+(\d+)", normalized)
+        window_length = max(int(window_match.group(1)), 5) if window_match else 7
+        if window_length % 2 == 0:
+            window_length += 1
+        return (
+            f"Apply a Savitzky-Golay filter to the `{column}` column and store the result in a new series.\n"
+            "```python\n"
+            "from scipy.signal import savgol_filter\n\n"
+            f"column = '{column}'\n"
+            "if column not in df.columns:\n"
+            "    raise KeyError(f\"Column '{column}' not found in dataframe\")\n\n"
+            f"window_length = {window_length}  # must be odd and >= 5\n"
+            "polyorder = 2\n"
+            "if window_length >= len(df):\n"
+            "    window_length = len(df) - 1 if len(df) % 2 == 0 else len(df)\n"
+            "    window_length = max(window_length, 5)\n"
+            "    if window_length % 2 == 0:\n"
+            "        window_length -= 1\n\n"
+            "df[f\"{column}_smooth\"] = savgol_filter(\n"
+            "    df[column].to_numpy(),\n"
+            "    window_length=window_length,\n"
+            "    polyorder=polyorder,\n"
+            "    mode='interp',\n"
+            ")\n"
+            "```\n"
+            "Adjust `polyorder` or `window_length` to control the amount of smoothing. Install SciPy with "
+            "`pip install scipy` if the import fails."
+        )
+
+    return (
+        "The GPT-OSS stub backend is only for smoke tests and responds with canned data. Use the sidebar to "
+        "select a real backend (e.g. transformers) and provide a model checkpoint for usable completions."
+    )
 
 
 def _format_for_responses(conversation: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -283,6 +393,47 @@ def _response_to_text(response: Any) -> str:
 
 
 DEFAULT_GPT_OSS_ENDPOINT = "http://127.0.0.1:8000/v1/responses"
+UOAIC_PROVIDER = "universal-offline-ai-chatbot"
+UOAIC_DATA_ENV = "UOAIC_DATA_PATH"
+UOAIC_DB_ENV = "UOAIC_DB_PATH"
+UOAIC_DEFAULT_DB_DIRNAME = "vectorstore/db_faiss"
+UOAIC_RUNTIME_KEY = "uoaic_runtime"
+UOAIC_DATA_STATE_KEY = "uoaic_data_path"
+UOAIC_DB_STATE_KEY = "uoaic_db_path"
+UOAIC_REBUILD_FLAG_KEY = "uoaic_rebuild_requested"
+DEFAULT_UOAIC_BASE = Path.home() / ".agilab" / "mistral_offline"
+_HF_TOKEN_ENV_KEYS = ("HF_TOKEN", "HUGGINGFACEHUB_API_TOKEN")
+_API_KEY_PATTERNS = [
+    re.compile(r"(sk-[A-Za-z0-9]{4,})([A-Za-z0-9\-*_]{8,})"),
+    re.compile(r"(sk-proj-[A-Za-z0-9]{4,})([A-Za-z0-9\-*_]{8,})"),
+]
+
+
+def _redact_sensitive(text: str) -> str:
+    """Mask API keys or similar secrets present in provider error messages."""
+    if not text:
+        return text
+    redacted = str(text)
+    for pattern in _API_KEY_PATTERNS:
+        redacted = pattern.sub(lambda m: f"{m.group(1)}…", redacted)
+    return redacted
+
+
+def _is_placeholder_api_key(key: Optional[str]) -> bool:
+    """Heuristic to detect missing or redacted API key strings."""
+    if not key:
+        return True
+    value = key.strip()
+    if not value:
+        return True
+    if len(value) < 20:
+        return True
+    CHECK_MARKERS = ("***", "…", "xxx", "xxxxx", "YOUR-API-KEY", "YOUR_API_KEY")
+    upper_value = value.upper()
+    for marker in CHECK_MARKERS:
+        if marker in value or marker in upper_value:
+            return True
+    return False
 
 
 def _normalize_gpt_oss_endpoint(raw_endpoint: Optional[str]) -> str:
@@ -341,7 +492,7 @@ def chat_offline(
     prompt: List[Dict[str, str]],
     envars: Dict[str, str],
 ) -> str:
-    """Call a local GPT-OSS Responses API endpoint."""
+    """Call the GPT-OSS Responses API endpoint configured for offline use."""
 
     try:
         import requests  # type: ignore
@@ -401,7 +552,325 @@ def chat_offline(
                             chunks.append(str(part.get("text")))
             text = "\n".join(chunks).strip()
 
-    return text.strip()
+    text = text.strip()
+    backend_hint = (
+        st.session_state.get("gpt_oss_backend_active")
+        or st.session_state.get("gpt_oss_backend")
+        or envars.get("GPT_OSS_BACKEND")
+        or os.getenv("GPT_OSS_BACKEND")
+        or "stub"
+    ).lower()
+    if backend_hint == "stub" and (not text or "2 + 2 = 4" in text):
+        return _synthesize_stub_response(input_request)
+
+    return text
+
+
+def _format_uoaic_question(prompt: List[Dict[str, str]], question: str) -> str:
+    """Flatten the conversation history into a single query string."""
+    lines: List[str] = []
+    for item in prompt or []:
+        content = item.get("content", "")
+        if isinstance(content, list):
+            content = "\n".join(str(part) for part in content)
+        text = str(content).strip()
+        if not text:
+            continue
+        role = str(item.get("role", "")).lower()
+        if role == "user":
+            prefix = "User"
+        elif role == "assistant":
+            prefix = "Assistant"
+        elif role == "system":
+            prefix = "System"
+        else:
+            prefix = role.title() if role else "Assistant"
+        lines.append(f"{prefix}: {text}")
+    lines.append(f"User: {question}")
+    return "\n".join(lines).strip()
+
+
+def _normalize_user_path(raw_path: str) -> str:
+    """Return a normalised absolute path string for user provided input."""
+    raw = (raw_path or "").strip()
+    if not raw:
+        return ""
+    candidate = Path(raw).expanduser()
+    try:
+        resolved = candidate.resolve()
+    except (OSError, RuntimeError):
+        # Fall back to absolute without resolving symlinks if the path is missing.
+        resolved = candidate.absolute()
+    return normalize_path(resolved)
+
+
+def _resolve_uoaic_path(raw_path: str, env: Optional[AgiEnv]) -> Path:
+    """Resolve user-supplied paths relative to AGILab export directory when needed."""
+    path_str = (raw_path or "").strip()
+    if not path_str:
+        raise ValueError("Path is empty.")
+    candidate = Path(path_str).expanduser()
+    if not candidate.is_absolute():
+        base: Optional[Path] = None
+        if env is not None:
+            try:
+                base = Path(env.AGILAB_EXPORT_ABS)
+            except Exception:  # pragma: no cover - defensive
+                base = None
+        if base is None:
+            base = Path.cwd()
+        candidate = (base / candidate).resolve()
+    else:
+        candidate = candidate.resolve()
+    return candidate
+
+
+def _load_uoaic_modules():
+    """Import the Universal Offline AI Chatbot helpers with detailed diagnostics."""
+
+    try:
+        importlib_metadata.distribution("universal-offline-ai-chatbot")
+    except importlib_metadata.PackageNotFoundError as exc:
+        st.error(
+            "Install `universal-offline-ai-chatbot` (e.g. `uv pip install \"agilab[offline]\"`) "
+            "to enable the mistral:instruct assistant."
+        )
+        raise JumpToMain(exc)
+
+    dist = importlib_metadata.distribution("universal-offline-ai-chatbot")
+    site_root = Path(dist.locate_file(""))
+    if site_root.is_file():
+        site_root = site_root.parent
+    candidate_dirs = {
+        site_root,
+        site_root.parent if site_root.name.endswith(".dist-info") else site_root,
+        (site_root.parent if site_root.name.endswith(".dist-info") else site_root) / "src",
+    }
+    for path in candidate_dirs:
+        if path and path.exists():
+            str_path = str(path.resolve())
+            if str_path not in sys.path:
+                sys.path.append(str_path)
+
+    module_names = (
+        "src.chunker",
+        "src.embedding",
+        "src.loader",
+        "src.model_loader",
+        "src.prompts",
+        "src.qa_chain",
+        "src.vectorstore",
+    )
+
+    imported_modules: List[Any] = []
+    for name in module_names:
+        try:
+            imported_modules.append(importlib.import_module(name))
+        except ImportError as exc:
+            # Fallback: load the module directly from files inside the wheel
+            short = name.split(".")[-1]
+            file_path: Optional[Path] = None
+            files = getattr(dist, "files", None)
+            if files:
+                for entry in files:
+                    if str(entry).replace("\\", "/").endswith(f"src/{short}.py"):
+                        file_path = Path(dist.locate_file(entry))
+                        break
+            if not file_path:
+                try:
+                    rec = dist.read_text("RECORD") or ""
+                except Exception:
+                    rec = ""
+                for line in rec.splitlines():
+                    if line.startswith("src/") and line.endswith(".py") and line.split(",",1)[0].endswith(f"src/{short}.py"):
+                        rel = line.split(",", 1)[0]
+                        file_path = Path(dist.locate_file(rel))
+                        break
+
+            if file_path and file_path.exists():
+                alias = f"uoaic_{short}"
+                try:
+                    spec = importlib.util.spec_from_file_location(alias, str(file_path))
+                    if spec and spec.loader:
+                        module = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(module)
+                        imported_modules.append(module)
+                        continue
+                except Exception as ex2:
+                    # Fall through to messaging below
+                    pass
+
+            missing = getattr(exc, "name", "") or ""
+            if missing and missing != name:
+                st.error(
+                    f"Missing dependency `{missing}` required by universal-offline-ai-chatbot. "
+                    "Install the offline extras with `uv pip install \"agilab[offline]\"` or "
+                    "`uv pip install universal-offline-ai-chatbot`."
+                )
+            else:
+                st.error(
+                    "Failed to load Universal Offline AI Chatbot module files. Ensure the package is installed in "
+                    "the same environment running Streamlit. You can force a reinstall with "
+                    "`uv pip install --force-reinstall universal-offline-ai-chatbot`."
+                )
+            raise JumpToMain(exc) from exc
+
+    return tuple(imported_modules)
+
+
+def _ensure_uoaic_runtime(envars: Dict[str, str]) -> Dict[str, Any]:
+    """Initialise or reuse the Universal Offline AI Chatbot QA chain."""
+    env: Optional[AgiEnv] = st.session_state.get("env")
+
+    data_path_raw = (
+        st.session_state.get(UOAIC_DATA_STATE_KEY)
+        or envars.get(UOAIC_DATA_ENV)
+        or os.getenv(UOAIC_DATA_ENV, "")
+    )
+    if not data_path_raw:
+        st.error("Configure the Universal Offline data directory in the sidebar to enable this provider.")
+        raise JumpToMain(ValueError("Missing Universal Offline data directory"))
+
+    try:
+        data_path = _resolve_uoaic_path(data_path_raw, env)
+    except Exception as exc:
+        st.error(f"Invalid Universal Offline data directory: {exc}")
+        raise JumpToMain(exc)
+
+    normalized_data = normalize_path(data_path)
+    st.session_state[UOAIC_DATA_STATE_KEY] = normalized_data
+    envars[UOAIC_DATA_ENV] = normalized_data
+
+    db_path_raw = (
+        st.session_state.get(UOAIC_DB_STATE_KEY)
+        or envars.get(UOAIC_DB_ENV)
+        or os.getenv(UOAIC_DB_ENV, "")
+    )
+    if not db_path_raw:
+        db_path_raw = normalize_path(Path(data_path) / UOAIC_DEFAULT_DB_DIRNAME)
+
+    try:
+        db_path = _resolve_uoaic_path(db_path_raw, env)
+    except Exception as exc:
+        st.error(f"Invalid Universal Offline vector store directory: {exc}")
+        raise JumpToMain(exc)
+
+    normalized_db = normalize_path(db_path)
+    st.session_state[UOAIC_DB_STATE_KEY] = normalized_db
+    envars[UOAIC_DB_ENV] = normalized_db
+
+    runtime = st.session_state.get(UOAIC_RUNTIME_KEY)
+    if runtime and runtime.get("data_path") == normalized_data and runtime.get("db_path") == normalized_db:
+        return runtime
+
+    rebuild_requested = bool(st.session_state.pop(UOAIC_REBUILD_FLAG_KEY, False))
+
+    chunker, embedding, loader, model_loader, prompts, qa_chain, vectorstore = _load_uoaic_modules()
+
+    try:
+        embedding_model = embedding.get_embedding_model()
+    except Exception as exc:
+        st.error(f"Failed to load the embedding model for Universal Offline AI Chatbot: {exc}")
+        raise JumpToMain(exc)
+
+    db_directory = Path(db_path)
+    if rebuild_requested or not db_directory.exists():
+        with st.spinner("Building Universal Offline AI Chatbot knowledge base…"):
+            try:
+                documents = loader.load_pdf_files(str(data_path))
+            except Exception as exc:
+                st.error(f"Unable to load PDF documents from {data_path}: {exc}")
+                raise JumpToMain(exc)
+
+            if not documents:
+                st.error(f"No PDF documents found in {data_path}. Add PDFs and rebuild the index.")
+                raise JumpToMain(ValueError("Universal Offline data directory is empty"))
+
+            try:
+                chunks = chunker.create_chunks(documents)
+                db_directory.parent.mkdir(parents=True, exist_ok=True)
+                vectorstore.build_vector_db(chunks, embedding_model, str(db_path))
+            except Exception as exc:
+                st.error(f"Failed to build the Universal Offline vector store: {exc}")
+                raise JumpToMain(exc)
+
+    with st.spinner("Loading Universal Offline AI Chatbot artifacts…"):
+        try:
+            db = vectorstore.load_vector_db(str(db_path), embedding_model)
+        except Exception as exc:
+            st.error(f"Failed to load the Universal Offline vector store at {db_path}: {exc}")
+            raise JumpToMain(exc)
+
+        try:
+            llm = model_loader.load_llm()
+        except Exception as exc:
+            st.error(f"Failed to load the local Ollama model used by Universal Offline AI Chatbot: {exc}")
+            raise JumpToMain(exc)
+
+        prompt_template = prompts.set_custom_prompt(prompts.CUSTOM_PROMPT_TEMPLATE)
+        try:
+            chain = qa_chain.setup_qa_chain(llm, db, prompt_template)
+        except Exception as exc:
+            st.error(f"Failed to initialise the Universal Offline AI Chatbot chain: {exc}")
+            raise JumpToMain(exc)
+
+    runtime = {
+        "data_path": normalized_data,
+        "db_path": normalized_db,
+        "chain": chain,
+        "embedding_model": embedding_model,
+        "vector_store": db,
+        "llm": llm,
+        "prompt": prompt_template,
+    }
+    st.session_state[UOAIC_RUNTIME_KEY] = runtime
+    return runtime
+
+
+def chat_universal_offline(
+    input_request: str,
+    prompt: List[Dict[str, str]],
+    envars: Dict[str, str],
+) -> str:
+    """Invoke the Universal Offline AI Chatbot pipeline for the current query."""
+    runtime = _ensure_uoaic_runtime(envars)
+    chain = runtime["chain"]
+    query_text = _format_uoaic_question(prompt, input_request) or input_request
+
+    try:
+        response = chain.invoke({"query": query_text})
+    except Exception as exc:
+        st.error(f"Universal Offline AI Chatbot invocation failed: {exc}")
+        raise JumpToMain(exc)
+
+    answer = ""
+    sources: List[str] = []
+
+    if isinstance(response, dict):
+        answer = response.get("result") or response.get("answer") or ""
+        source_documents = response.get("source_documents") or []
+        for doc in source_documents:
+            metadata = getattr(doc, "metadata", {}) if hasattr(doc, "metadata") else {}
+            if isinstance(metadata, dict):
+                source = metadata.get("source") or metadata.get("file") or metadata.get("path")
+                page = metadata.get("page") or metadata.get("page_number")
+                if source:
+                    if page is not None:
+                        sources.append(f"{source} (page {page})")
+                    else:
+                        sources.append(str(source))
+    else:
+        answer = str(response)
+
+    answer_text = str(answer).strip()
+    if sources:
+        sources_block = "\n".join(f"- {entry}" for entry in sources)
+        if answer_text:
+            answer_text = f"{answer_text}\n\nSources:\n{sources_block}"
+        else:
+            answer_text = f"Sources:\n{sources_block}"
+
+    return answer_text
 
 
 def chat_online(
@@ -448,6 +917,13 @@ def chat_online(
                 st.success("API key saved to ~/.agilab/.env")
             except Exception as e:
                 st.warning(f"Could not persist API key: {e}")
+    if _is_placeholder_api_key(api_key):
+        st.info(
+            "OpenAI API key appears to be a placeholder or redacted. Update `OPENAI_API_KEY`"
+            " in your environment or secrets, then rerun the request."
+        )
+        raise JumpToMain(ValueError("OpenAI API key unavailable"))
+
     model_name = envars.get("OPENAI_MODEL", "gpt-4o-mini")
 
     # Strict system to force fenced Python code
@@ -471,12 +947,18 @@ def chat_online(
         resp = client.chat.completions.create(model=model_name, messages=messages)
         return resp.choices[0].message.content or ""
     except openai.OpenAIError as e:
-        st.error(f"OpenAI API error: {e}")
-        logger.error(f"OpenAI error: {e}")
+        msg = _redact_sensitive(str(e))
+        status = getattr(e, "status_code", None)
+        if status == 401 or "invalid_api_key" in str(e):
+            st.info("OpenAI API key invalid or missing. Update `OPENAI_API_KEY` and rerun.")
+        else:
+            st.error(f"OpenAI API error: {msg}")
+        logger.error(f"OpenAI error: {msg}")
         raise JumpToMain(e)
     except Exception as e:
-        st.error(f"Error: {e}")
-        logger.error(f"General error in chat_online: {e}")
+        msg = _redact_sensitive(str(e))
+        st.error(f"Error: {msg}")
+        logger.error(f"General error in chat_online: {msg}")
         raise JumpToMain(e)
 
 
@@ -494,11 +976,17 @@ def ask_gpt(
     )
     if provider == "gpt-oss":
         result = chat_offline(question, prompt, envars)
+    elif provider == UOAIC_PROVIDER:
+        result = chat_universal_offline(question, prompt, envars)
     else:
         result = chat_online(question, prompt, envars)
-    code, message = extract_code(result)
-    # Preserve Q even if result is empty so UI doesn't blank the prompt
-    return [df_file, question, code, message] if result else [df_file, question, None, None]
+
+    if not result:
+        return [df_file, question, None, None]
+
+    code, detail = extract_code(result)
+    detail = detail or ("" if code else result.strip())
+    return [df_file, question, code.strip() if code else "", detail]
 
 
 def is_query_valid(query: Any) -> bool:
@@ -536,11 +1024,20 @@ def remove_step(
     steps = get_steps_dict(module, steps_file)
     nsteps = len(steps.get(str(module), []))
     index_step = int(step)
+    details_key = f"{index_page}__details"
+    details_store = st.session_state.setdefault(details_key, {})
     if 0 <= index_step < nsteps:
         del steps[str(module)][index_step]
         nsteps -= 1
         st.session_state[index_page][0] = max(0, nsteps - 1)
         st.session_state[index_page][-1] = nsteps
+        shifted: Dict[int, str] = {}
+        for idx, text in details_store.items():
+            if idx < index_step:
+                shifted[idx] = text
+            elif idx > index_step:
+                shifted[idx - 1] = text
+        st.session_state[details_key] = shifted
     else:
         st.session_state[index_page][0] = 0
 
@@ -726,22 +1223,25 @@ def sidebar_controls() -> None:
     provider_options = {
         "OpenAI (online)": "openai",
         "GPT-OSS (local)": "gpt-oss",
+        "mistral:instruct (local)": UOAIC_PROVIDER,
     }
-    current_provider = st.session_state.get(
-        "lab_llm_provider",
-        env.envars.get("LAB_LLM_PROVIDER", "openai"),
-    )
+    stored_provider = st.session_state.get("lab_llm_provider")
+    current_provider = stored_provider or env.envars.get("LAB_LLM_PROVIDER", "openai")
     provider_labels = list(provider_options.keys())
     provider_to_label = {v: k for k, v in provider_options.items()}
     current_label = provider_to_label.get(current_provider, provider_labels[0])
+    current_index = provider_labels.index(current_label) if current_label in provider_labels else 0
     selected_label = st.sidebar.selectbox(
         "Assistant engine",
         provider_labels,
-        index=provider_labels.index(current_label),
+        index=current_index,
     )
     selected_provider = provider_options[selected_label]
+    previous_provider = st.session_state.get("lab_llm_provider")
     st.session_state["lab_llm_provider"] = selected_provider
     env.envars["LAB_LLM_PROVIDER"] = selected_provider
+    if previous_provider != selected_provider and previous_provider == UOAIC_PROVIDER:
+        st.session_state.pop(UOAIC_RUNTIME_KEY, None)
 
     if selected_provider == "gpt-oss":
         default_endpoint = (
@@ -864,6 +1364,69 @@ def gpt_oss_controls(env: AgiEnv) -> None:
         or env.envars.get("GPT_OSS_ENDPOINT")
         or os.getenv("GPT_OSS_ENDPOINT", "")
     )
+    backend_choices = ["stub", "transformers", "metal", "triton", "ollama", "vllm"]
+    backend_default = (
+        st.session_state.get("gpt_oss_backend")
+        or env.envars.get("GPT_OSS_BACKEND")
+        or os.getenv("GPT_OSS_BACKEND")
+        or "stub"
+    )
+    if backend_default not in backend_choices:
+        backend_choices = [backend_default] + [opt for opt in backend_choices if opt != backend_default]
+    backend = st.sidebar.selectbox(
+        "GPT-OSS backend",
+        backend_choices,
+        index=backend_choices.index(backend_default if backend_default in backend_choices else backend_choices[0]),
+        help="Select the inference backend for a local GPT-OSS server. "
+             "Use 'transformers' for Hugging Face checkpoints or leave on 'stub' for a mock service.",
+    )
+    st.session_state["gpt_oss_backend"] = backend
+    env.envars["GPT_OSS_BACKEND"] = backend
+    if st.session_state.get("gpt_oss_server_started") and st.session_state.get("gpt_oss_backend_active") not in (None, backend):
+        st.sidebar.warning("Restart GPT-OSS server to apply the new backend.")
+
+    checkpoint_default = (
+        st.session_state.get("gpt_oss_checkpoint")
+        or env.envars.get("GPT_OSS_CHECKPOINT")
+        or os.getenv("GPT_OSS_CHECKPOINT")
+        or ("gpt2" if backend == "transformers" else "")
+    )
+    checkpoint = st.sidebar.text_input(
+        "GPT-OSS checkpoint / model",
+        value=checkpoint_default,
+        help="Provide a Hugging Face model ID or local checkpoint path when using a local backend.",
+    ).strip()
+    if checkpoint:
+        st.session_state["gpt_oss_checkpoint"] = checkpoint
+        env.envars["GPT_OSS_CHECKPOINT"] = checkpoint
+    else:
+        st.session_state.pop("gpt_oss_checkpoint", None)
+        env.envars.pop("GPT_OSS_CHECKPOINT", None)
+
+    extra_args_default = (
+        st.session_state.get("gpt_oss_extra_args")
+        or env.envars.get("GPT_OSS_EXTRA_ARGS")
+        or os.getenv("GPT_OSS_EXTRA_ARGS")
+        or ""
+    )
+    extra_args = st.sidebar.text_input(
+        "GPT-OSS extra flags",
+        value=extra_args_default,
+        help="Optional additional flags appended to the launch command (e.g. `--temperature 0.1`).",
+    ).strip()
+    if extra_args:
+        st.session_state["gpt_oss_extra_args"] = extra_args
+        env.envars["GPT_OSS_EXTRA_ARGS"] = extra_args
+    else:
+        st.session_state.pop("gpt_oss_extra_args", None)
+        env.envars.pop("GPT_OSS_EXTRA_ARGS", None)
+
+    if st.session_state.get("gpt_oss_server_started"):
+        active_checkpoint = st.session_state.get("gpt_oss_checkpoint_active", "")
+        active_extra = st.session_state.get("gpt_oss_extra_args_active", "")
+        if checkpoint != active_checkpoint or extra_args != active_extra:
+            st.sidebar.warning("Restart GPT-OSS server to apply updated checkpoint or flags.")
+
     auto_local = endpoint.startswith("http://127.0.0.1") or endpoint.startswith("http://localhost")
 
     autostart_failed = st.session_state.get("gpt_oss_autostart_failed")
@@ -874,13 +1437,15 @@ def gpt_oss_controls(env: AgiEnv) -> None:
 
     if st.session_state.get("gpt_oss_server_started"):
         endpoint = st.session_state.get("gpt_oss_endpoint", endpoint)
-        st.sidebar.success(f"GPT-OSS server running at {endpoint}")
+        backend_active = st.session_state.get("gpt_oss_backend_active", backend)
+        st.sidebar.success(f"GPT-OSS server running ({backend_active}) at {endpoint}")
         return
 
     if st.sidebar.button("Start GPT-OSS server", key="gpt_oss_start_btn"):
         if activate_gpt_oss(env):
             endpoint = st.session_state.get("gpt_oss_endpoint", endpoint)
-            st.sidebar.success(f"GPT-OSS server running at {endpoint}")
+            backend_active = st.session_state.get("gpt_oss_backend_active", backend)
+            st.sidebar.success(f"GPT-OSS server running ({backend_active}) at {endpoint}")
             return
 
     if endpoint:
@@ -890,6 +1455,97 @@ def gpt_oss_controls(env: AgiEnv) -> None:
             "Configure a GPT-OSS endpoint or install the package with `pip install gpt-oss` "
             "to start a local server."
         )
+
+
+def universal_offline_controls(env: AgiEnv) -> None:
+    """Provide configuration helpers for the Universal Offline AI Chatbot provider."""
+    if st.session_state.get("lab_llm_provider") != UOAIC_PROVIDER:
+        return
+
+    default_data_path = DEFAULT_UOAIC_BASE / "data"
+    data_default = (
+        st.session_state.get(UOAIC_DATA_STATE_KEY)
+        or env.envars.get(UOAIC_DATA_ENV)
+        or os.getenv(UOAIC_DATA_ENV, "")
+    )
+    if not data_default:
+        try:
+            default_data_path.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        data_default = normalize_path(default_data_path)
+    data_input = st.sidebar.text_input(
+        "Universal Offline data directory",
+        value=data_default,
+        help="Path containing the PDF documents to index for the Universal Offline AI Chatbot.",
+    ).strip()
+    if not data_input:
+        data_input = data_default
+    if data_input:
+        normalized_data = _normalize_user_path(data_input)
+        if normalized_data:
+            changed = normalized_data != st.session_state.get(UOAIC_DATA_STATE_KEY)
+            st.session_state[UOAIC_DATA_STATE_KEY] = normalized_data
+            env.envars[UOAIC_DATA_ENV] = normalized_data
+            if changed:
+                st.session_state.pop(UOAIC_RUNTIME_KEY, None)
+        else:
+            st.sidebar.warning("Provide a valid data directory for the Universal Offline AI Chatbot.")
+    else:
+        st.session_state.pop(UOAIC_DATA_STATE_KEY, None)
+        env.envars.pop(UOAIC_DATA_ENV, None)
+
+    default_db_path = DEFAULT_UOAIC_BASE / "vectorstore" / "db_faiss"
+    db_default = (
+        st.session_state.get(UOAIC_DB_STATE_KEY)
+        or env.envars.get(UOAIC_DB_ENV)
+        or os.getenv(UOAIC_DB_ENV, "")
+    )
+    if not db_default:
+        try:
+            default_db_path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        db_default = normalize_path(default_db_path)
+
+    db_input = st.sidebar.text_input(
+        "Universal Offline vector store directory",
+        value=db_default,
+        help="Location for the FAISS vector store (defaults to `<data>/vectorstore/db_faiss`).",
+    ).strip()
+    if not db_input:
+        db_input = db_default
+    if db_input:
+        normalized_db = _normalize_user_path(db_input)
+        if normalized_db:
+            changed = normalized_db != st.session_state.get(UOAIC_DB_STATE_KEY)
+            st.session_state[UOAIC_DB_STATE_KEY] = normalized_db
+            env.envars[UOAIC_DB_ENV] = normalized_db
+            if changed:
+                st.session_state.pop(UOAIC_RUNTIME_KEY, None)
+        else:
+            st.sidebar.warning("Provide a valid directory for the Universal Offline vector store.")
+    else:
+        st.session_state.pop(UOAIC_DB_STATE_KEY, None)
+        env.envars.pop(UOAIC_DB_ENV, None)
+
+    if not any(os.getenv(k) for k in _HF_TOKEN_ENV_KEYS):
+        st.sidebar.info(
+            "Set `HF_TOKEN` (or `HUGGINGFACEHUB_API_TOKEN`) so the embedding model can download once."
+        )
+
+    if st.sidebar.button("Rebuild Universal Offline knowledge base", key="uoaic_rebuild_btn"):
+        if not st.session_state.get(UOAIC_DATA_STATE_KEY):
+            st.sidebar.error("Set the data directory before rebuilding the Universal Offline knowledge base.")
+            return
+        st.session_state[UOAIC_REBUILD_FLAG_KEY] = True
+        try:
+            with st.spinner("Rebuilding Universal Offline AI Chatbot knowledge base…"):
+                _ensure_uoaic_runtime(env.envars)
+        except JumpToMain:
+            # Errors are already surfaced via st.error in the helper.
+            return
+        st.sidebar.success("Universal Offline knowledge base updated.")
 
 
 def display_lab_tab(
@@ -925,27 +1581,63 @@ def display_lab_tab(
         "Ask chatGPT:",
         key=prompt_key,
         on_change=on_query_change,
-        args=(prompt_key, lab_dir, step, steps_file, st.session_state.df_file, index_page_str, env),
+        args=(
+            prompt_key,
+            lab_dir,
+            step,
+            steps_file,
+            st.session_state.df_file,
+            index_page_str,
+            env,
+            st.session_state.get("lab_llm_provider", env.envars.get("LAB_LLM_PROVIDER", "openai")),
+        ),
         placeholder="Enter your snippet in natural language",
         label_visibility="collapsed",
     )
 
     code_for_editor = (query[3] or "")
-    if code_for_editor:
-        # Remount editor only when content actually changes
-        rev = f"{step}-{len(code_for_editor)}"
-        editor_key = f"{index_page_str}a{rev}"
-        snippet_dict = code_editor(
-            code_for_editor if code_for_editor.endswith("\n") else code_for_editor + "\n",
-            height=(min(30, len(code_for_editor)) if code_for_editor else 100),
-            theme="contrast",
-            buttons=get_custom_buttons(),
-            info=get_info_bar(),
-            component_props=get_css_text(),
-            props={"style": {"borderRadius": "0px 0px 8px 8px"}},
-            key=editor_key,
-        )
-        if snippet_dict["type"] == "remove":
+    detail_text = ""
+    if len(query) > 4 and query[4]:
+        detail_text = str(query[4]).strip()
+
+    if detail_text:
+        if code_for_editor:
+            with st.expander("Assistant notes", expanded=False):
+                st.markdown(detail_text)
+        else:
+            st.info(detail_text)
+
+    remove_col, editor_col = st.columns((1, 11))
+
+    with remove_col:
+        disabled = st.session_state[index_page_str][-1] <= 0
+        if st.button("🗑️", key=f"{index_page_str}_remove_step", disabled=disabled, help="Delete this step"):
+            query[-1] = remove_step(lab_dir, str(step), steps_file, index_page_str)
+            st.session_state[f"{index_page_str}__clear_q"] = True
+            st.session_state[f"{index_page_str}__force_blank_q"] = True
+            st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
+            st.rerun()
+            return
+
+    with editor_col:
+        snippet_dict: Optional[Dict[str, Any]] = None
+        if code_for_editor:
+            # Remount editor only when content actually changes
+            rev = f"{step}-{len(code_for_editor)}"
+            editor_key = f"{index_page_str}a{rev}"
+            snippet_dict = code_editor(
+                code_for_editor if code_for_editor.endswith("\n") else code_for_editor + "\n",
+                height=(min(30, len(code_for_editor)) if code_for_editor else 100),
+                theme="contrast",
+                buttons=get_custom_buttons(),
+                info=get_info_bar(),
+                component_props=get_css_text(),
+                props={"style": {"borderRadius": "0px 0px 8px 8px"}},
+                key=editor_key,
+            )
+
+        action = snippet_dict.get("type") if snippet_dict else None
+        if action == "remove":
             if st.session_state[index_page_str][-1] > 0:
                 query[-1] = remove_step(lab_dir, str(step), steps_file, index_page_str)
                 # Request prompt clear and refresh to reflect removed step state
@@ -954,10 +1646,10 @@ def display_lab_tab(
                 st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
                 st.rerun()
                 return
-        elif snippet_dict["type"] == "save":
+        elif action == "save":
             query[3] = snippet_dict["text"]
             save_query(lab_dir, query, steps_file)
-        elif snippet_dict["type"] == "next":
+        elif action == "next":
             query[3] = snippet_dict["text"]
             # Save current step
             save_query(lab_dir, query, steps_file)
@@ -978,7 +1670,7 @@ def display_lab_tab(
             # Force UI to refresh and load the newly selected step
             st.rerun()
             return
-        elif snippet_dict["type"] == "run":
+        elif action == "run":
             query[3] = snippet_dict["text"]
             save_query(lab_dir, query, steps_file)
             if query[3] and not st.session_state.get("step_checked", False):
@@ -1058,6 +1750,7 @@ def page() -> None:
 
     nsteps = len(get_steps_list(lab_dir, steps_file))
     st.session_state.setdefault(index_page_str, [nsteps, "", "", "", "", nsteps])
+    st.session_state.setdefault(f"{index_page_str}__details", {})
 
     module_path = st.session_state["module_path"]
     # If a prompt clear was requested, clear the current revisioned key before loading the step
@@ -1076,6 +1769,7 @@ def page() -> None:
 
     mlflow_controls()
     gpt_oss_controls(env)
+    universal_offline_controls(env)
 
     lab_tab, history_tab = st.tabs(["ASSISTANT", "HISTORY"])
     with lab_tab:

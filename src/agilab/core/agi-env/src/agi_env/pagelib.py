@@ -29,6 +29,7 @@ from typing import Dict, Optional
 import sys
 import logging
 import webbrowser
+import shlex
 try:
     # Python 3.8+
     from importlib import metadata as _importlib_metadata  # type: ignore
@@ -1377,11 +1378,58 @@ def activate_gpt_oss(env=None):
         st.session_state["gpt_oss_autostart_failed"] = True
         return False
 
+    backend = (
+        st.session_state.get("gpt_oss_backend")
+        or env.envars.get("GPT_OSS_BACKEND")
+        or os.getenv("GPT_OSS_BACKEND")
+        or "stub"
+    ).strip() or "stub"
+    checkpoint = (
+        st.session_state.get("gpt_oss_checkpoint")
+        or env.envars.get("GPT_OSS_CHECKPOINT")
+        or os.getenv("GPT_OSS_CHECKPOINT")
+        or ("gpt2" if backend == "transformers" else "")
+    ).strip()
+    extra_args = (
+        st.session_state.get("gpt_oss_extra_args")
+        or env.envars.get("GPT_OSS_EXTRA_ARGS")
+        or os.getenv("GPT_OSS_EXTRA_ARGS")
+        or ""
+    ).strip()
+    python_exec = (
+        env.envars.get("GPT_OSS_PYTHON")
+        or os.getenv("GPT_OSS_PYTHON")
+        or sys.executable
+    )
+    requires_checkpoint = backend in {"transformers", "metal", "triton", "vllm"}
+    if requires_checkpoint and not checkpoint:
+        st.warning(
+            "GPT-OSS backend requires a checkpoint. Set `GPT_OSS_CHECKPOINT` in the sidebar or environment."
+        )
+        st.session_state["gpt_oss_autostart_failed"] = True
+        return False
+
+    env.envars["GPT_OSS_BACKEND"] = backend
+    if checkpoint:
+        env.envars["GPT_OSS_CHECKPOINT"] = checkpoint
+    elif "GPT_OSS_CHECKPOINT" in env.envars:
+        del env.envars["GPT_OSS_CHECKPOINT"]
+    if extra_args:
+        env.envars["GPT_OSS_EXTRA_ARGS"] = extra_args
+
     port = get_random_port()
     while is_port_in_use(port):
         port = get_random_port()
 
-    cmd = f"uv -q run python -m gpt_oss.responses_api.serve --inference-backend stub --port {port}"
+    cmd = (
+        f"{shlex.quote(python_exec)} -m gpt_oss.responses_api.serve "
+        f"--inference-backend {shlex.quote(backend)} --port {int(port)}"
+    )
+    if checkpoint and backend != "stub":
+        cmd += f" --checkpoint {shlex.quote(checkpoint)}"
+    if extra_args:
+        cmd = f"{cmd} {extra_args}"
+
     try:
         subproc(cmd, os.getcwd())
     except RuntimeError as e:
@@ -1393,6 +1441,15 @@ def activate_gpt_oss(env=None):
     st.session_state["gpt_oss_port"] = port
     st.session_state["gpt_oss_endpoint"] = endpoint
     env.envars["GPT_OSS_ENDPOINT"] = endpoint
+    st.session_state["gpt_oss_backend_active"] = backend
+    if checkpoint:
+        st.session_state["gpt_oss_checkpoint_active"] = checkpoint
+    else:
+        st.session_state.pop("gpt_oss_checkpoint_active", None)
+    if extra_args:
+        st.session_state["gpt_oss_extra_args_active"] = extra_args
+    else:
+        st.session_state.pop("gpt_oss_extra_args_active", None)
     st.session_state.pop("gpt_oss_autostart_failed", None)
     return True
 def _focus_existing_docs_tab(target_url: str) -> bool:

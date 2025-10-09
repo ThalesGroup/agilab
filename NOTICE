@@ -1,0 +1,6 @@
+AGILab incorporates third-party components under their respective licenses.
+
+- Portions of `src/agilab/apps-pages/view_barycentric/src/view_barycentric/view_barycentric.py`
+  are adapted from “barviz / barviz-mod” by Jean-Luc Parouty (MIT License).
+  Source: https://gricad-gitlab.univ-grenoble-alpes.fr/pjluc/barviz-mod
+  License text: see LICENSES/LICENSE-MIT-barviz-mod

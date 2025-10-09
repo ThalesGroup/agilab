@@ -12,7 +12,7 @@
 
 # AGILAB Open Source Project
 
-AGILAB [BSD license](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) is an AI experimentation lab for engineering teams. It helps you move from notebooks to production with CLI tooling, optional IDE run configurations, and packaged workers. IDE integrations remain available for teams that rely on them, but they are no longer required.
+AGILAB [BSD license](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) is an MLOps toolchain for engineering, powered by the OpenAI API, local GPT-OSS, local Mistral-Instruct, and MLflow. It helps you move from notebooks to production with CLI tooling, optional IDE run configurations, and packaged workers. IDE integrations remain available for teams that rely on them, but they are no longer required.
 
 Docs publishing
 - The static site is committed under `docs/html` and deployed by GitHub Pages directly (no Sphinx build in CI).
@@ -43,12 +43,13 @@ uvx -p 3.13 agilab
 Prefer to stay offline? Start a local GPT-OSS responses server and switch the “Assistant engine” selector (in the Experiment page sidebar) to *GPT-OSS (local)*:
 
 ```bash
-python -m pip install gpt-oss
-python -m gpt_oss.responses_api.serve --inference-backend stub --port 8000
+python -m pip install "agilab[offline]"
+python -m pip install transformers torch accelerate  # installs the local backends used by GPT-OSS
+python -m gpt_oss.responses_api.serve --inference-backend transformers --checkpoint gpt2 --port 8000
 ```
 
-Update the endpoint field if you expose the server on a different port. When GPT-OSS is selected the Experiment page calls the local Responses API instead of OpenAI.
-When the package is installed and the endpoint targets ``localhost``, the sidebar automatically launches a stub GPT-OSS server the first time you switch to *GPT-OSS (local)*.
+Update the endpoint field if you expose the server on a different port. The sidebar now lets you pick the GPT-OSS backend (stub, transformers, ollama, …), checkpoint, and extra launch flags; the app persists the values in `env.envars`. The default *stub* backend is only a connectivity check and returns canned responses—switch to `transformers` (or another real backend) to receive model-generated code.
+When GPT-OSS is installed and the endpoint targets ``localhost``, the sidebar automatically launches a local server the first time you switch to *GPT-OSS (local)* using the configured backend.
 
 Managed workspace (project folder):
 
@@ -103,6 +104,12 @@ powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key "sk-
 cd agilab/src/agilab
 uv run agilab
 ```
+
+## Credits
+
+- Portions of `src/agilab/apps-pages/view_barycentric/src/view_barycentric/view_barycentric.py`
+  are adapted from Jean-Luc Parouty’s “barviz / barviz-mod” project (MIT License).
+  See `NOTICE` and `LICENSES/LICENSE-MIT-barviz-mod` for details.
 
 ## Notes for developers
 

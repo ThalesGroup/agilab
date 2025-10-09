@@ -20,12 +20,26 @@ If you want to run the IDE workflows from a terminal, regenerate the shell wrapp
 The command emits executable scripts under ``tools/run_configs/<group>/`` (``agilab``, ``apps``, ``components``); each one mirrors a PyCharm run configuration (working directory, environment variables, and ``uv`` invocation).
 
 .. note::
-   ``uvx -p 3.13 agilab`` is perfect for demos or quick checks, but edits made inside the cached package are not persisted. For development work, clone the repo or use a dedicated virtual environment. To stay offline, start a GPT-OSS responses server with ``python -m gpt_oss.responses_api.serve --inference-backend stub --port 8000`` and switch the Experiment sidebar to *GPT-OSS (local)*. When the package is installed and the endpoint targets ``localhost``, the sidebar auto-starts the stub server for you.
+   ``uvx -p 3.13 agilab`` is perfect for demos or quick checks, but edits made inside the cached package are not persisted. For development work, clone the repo or use a dedicated virtual environment. For offline workflows pick one of the bundled providers:
+
+   - Launch a GPT-OSS responses server with ``python -m gpt_oss.responses_api.serve --inference-backend stub --port 8000`` and switch the Experiment sidebar to *GPT-OSS (local)*.
+   - Install ``universal-offline-ai-chatbot`` (Mistral-based) and point the Experiment sidebar to your PDF corpus to enable the *mistral:instruct (local)* provider.
+
+   When GPT-OSS is installed and the endpoint targets ``localhost``, the sidebar auto-starts the stub server for you.
+
+Assistant providers
+-------------------
+
+The Experiment page ships with three assistants:
+
+- **OpenAI (online)** — default cloud models via your API key.
+- **GPT-OSS (offline)** — local responses API with stub, transformers, or custom backends.
+- **mistral:instruct (local)** — local Mistral assistant powered by ``universal-offline-ai-chatbot``; build a FAISS index from your PDFs.
 
 .. raw:: html
 
    <section class="agilab-teaser" style="margin: 2rem 0;">
-     <svg viewBox="0 0 960 260" width="100%" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="agilab-architecture-title" style="display:block;max-width:100%;height:auto;shape-rendering:geometricPrecision;text-rendering:optimizeLegibility;overflow:visible;">
+     <svg viewBox="0 0 960 340" width="100%" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="agilab-architecture-title" style="display:block;max-width:100%;height:auto;shape-rendering:geometricPrecision;text-rendering:optimizeLegibility;overflow:visible;">
        <title id="agilab-architecture-title">AGILab app architecture: manager venv, Streamlit pages venv, worker venvs for cluster deployment</title>
        <defs>
          <linearGradient id="teaser-bg" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -53,7 +67,7 @@ The command emits executable scripts under ``tools/run_configs/<group>/`` (``agi
            .subtitle { font-size: 13px; fill: #334155; }
          </style>
        </defs>
-       <rect x="0" y="0" width="960" height="260" rx="26" fill="url(#teaser-bg)" />
+       <rect x="0" y="0" width="960" height="340" rx="26" fill="url(#teaser-bg)" />
 
        <!-- Manager venv -->
        <g transform="translate(80,70)">
@@ -108,10 +122,11 @@ The command emits executable scripts under ``tools/run_configs/<group>/`` (``agi
       <text class="subtitle" x="620" y="134" text-anchor="middle">Distribute</text>
 
       <!-- Assistant providers -->
-      <g transform="translate(160,210)">
-        <rect x="0" y="0" width="640" height="58" rx="14" fill="#fff" stroke="#cbd5f5" stroke-width="1.2" />
-        <text class="title" x="20" y="27">Assistant</text>
-        <text class="subtitle" x="20" y="47">Toggle between OpenAI (online) and GPT-OSS (offline). When GPT-OSS is installed locally the sidebar auto-starts a stub server for you.</text>
+      <g transform="translate(160,230)">
+        <rect x="0" y="0" width="640" height="100" rx="14" fill="#fff" stroke="#cbd5f5" stroke-width="1.2" />
+        <text class="title" x="24" y="32">Assistant</text>
+        <text class="subtitle" x="24" y="58">Toggle between OpenAI (online) and GPT-OSS (offline stub/transformers backends).</text>
+        <text class="subtitle" x="24" y="78">mistral:instruct (local) adds a Mistral-based offline assistant backed by universal-offline-ai-chatbot.</text>
       </g>
     </svg>
   </section>
