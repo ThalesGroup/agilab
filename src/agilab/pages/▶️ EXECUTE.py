@@ -1015,7 +1015,7 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())"""
             st.code(cmd, language="python")
-            if st.button("CHECK DISTRIBUTE", key="preview_btn", type="primary",
+            if st.button("CHECK distribute", key="preview_btn", type="primary",
                          help="Run the snippet and display your distribution tree"):
                 st.session_state.preview_tree = True
                 with st.expander("Orchestration log", expanded=False):
@@ -1200,7 +1200,7 @@ if __name__ == "__main__":
             )
 
         load_clicked = load_col.button(
-            "LOAD Dataframe",
+            "LOAD dataframe",
             key="load_data_main",
             type="primary",
             use_container_width=True,
@@ -1300,9 +1300,9 @@ if __name__ == "__main__":
 
             action_col_stats, action_col_export = st.columns([1, 1])
             with action_col_stats:
-                stats_clicked = st.button("Stats Report", key="stats_report_main", type="primary", use_container_width=True)
+                stats_clicked = st.button("STATS report", key="stats_report_main", type="primary", use_container_width=True)
             with action_col_export:
-                export_clicked = st.button("Export dataframe", key="export_df_main", type="primary", use_container_width=True, help="Save the current run output to export/export.csv so Experiment/Explore can load it.")
+                export_clicked = st.button("EXPORT dataframe", key="export_df_main", type="primary", use_container_width=True, help="Save the current run output to export/export.csv so Experiment/Explore can load it.")
 
             if stats_clicked:
                 profile_file = st.session_state.profile_report_file
@@ -1331,7 +1331,7 @@ if __name__ == "__main__":
         st.session_state.df_cols = []
         st.session_state.selected_cols = []
         st.session_state.check_all = False
-        st.info("No data loaded yet. Click 'LOAD Dataframe' above to populate it before export.")
+        st.info("No data loaded yet. Click 'LOAD dataframe' above to populate it before export.")
 
 # ===========================
 # Main Entry Point
