@@ -19,6 +19,9 @@ If you want to run the IDE workflows from a terminal, regenerate the shell wrapp
 
 The command emits executable scripts under ``tools/run_configs/<group>/`` (``agilab``, ``apps``, ``components``); each one mirrors a PyCharm run configuration (working directory, environment variables, and ``uv`` invocation).
 
+.. note::
+   ``uvx -p 3.13 agilab`` is perfect for demos or quick checks, but edits made inside the cached package are not persisted. For development work, clone the repo or use a dedicated virtual environment.
+
 .. raw:: html
 
    <section class="agilab-teaser" style="margin: 2rem 0; overflow: visible;">

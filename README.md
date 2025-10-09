@@ -35,6 +35,9 @@ Quick run (no setup):
 uvx -p 3.13 agilab
 ```
 
+> **Note**
+> This `uvx` invocation is meant for demos or smoke tests. Any changes you make inside the cached package will be overwritten on the next run. For development, clone the repository or use a virtual environment.
+
 Managed workspace (project folder):
 
 ```bash
