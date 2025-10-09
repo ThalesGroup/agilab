@@ -305,6 +305,14 @@
 <h1>AGILab Documentation<a class="headerlink" href="#agilab-documentation" title="Link to this heading"></a></h1>
 <p>Welcome to the AGILab framework documentation.
 You’ll find everything from quickstarts to API references, as well as example projects.</p>
+<section id="shell-wrappers-for-run-configs">
+<h2>Shell wrappers for run configs<a class="headerlink" href="#shell-wrappers-for-run-configs" title="Link to this heading"></a></h2>
+<p>Mirror any PyCharm run configuration from the command line by regenerating the helper scripts:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>python3 tools/generate_runconfig_scripts.py
+</pre></div>
+</div>
+<p>The command creates executable wrappers in <code class="docutils literal notranslate"><span class="pre">tools/run_configs/</span></code>, including the right environment variables, working directory, and <code class="docutils literal notranslate"><span class="pre">uv</span></code> invocation.</p>
+</section>
 <section class="agilab-teaser" style="margin: 2rem 0; overflow: visible;">
 <svg viewBox="0 0 920 280" width="100%" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="agilab-teaser-title" style="display:block;max-width:100%;height:auto;shape-rendering:geometricPrecision;">
   <title id="agilab-teaser-title">AGILab accelerates the path from notebooks to scalable apps and coordinated delivery</title>
