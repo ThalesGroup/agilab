@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>AGILab Roadmap</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      margin: 0 auto;
+      max-width: 860px;
+      padding: 2.5rem 1.25rem 3rem;
+      color: #1f2933;
+    }
+    h1, h2, h3 {
+      color: #111827;
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 2.2rem;
+    }
+    h2 {
+      margin-top: 2rem;
+      font-size: 1.6rem;
+    }
+    h3 {
+      margin-top: 1.6rem;
+      font-size: 1.25rem;
+    }
+    ul {
+      padding-left: 1.4rem;
+    }
+    code {
+      background: #f3f4f6;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.92rem;
+    }
+    .pill {
+      display: inline-block;
+      padding: 0.15rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      vertical-align: middle;
+    }
+    .status-shipped {
+      background: rgba(16, 185, 129, 0.1);
+      color: #047857;
+    }
+    .status-beta {
+      background: rgba(59, 130, 246, 0.12);
+      color: #1d4ed8;
+    }
+    .status-planned {
+      background: rgba(234, 179, 8, 0.15);
+      color: #92400e;
+    }
+    footer {
+      margin-top: 3rem;
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <h1>AGILab Roadmap</h1>
+  <p>This roadmap highlights recently shipped capabilities and the next updates planned for the AGILab toolchain. It is intentionally concise so engineers can skim what changed without reading the full changelog.</p>
+
+  <h2>✅ Recently Shipped</h2>
+  <h3>IDE-independent launch scripts <span class="pill status-shipped">shipped</span></h3>
+  <ul>
+    <li><strong>CLI wrappers:</strong> Every run configuration now has a generated shell script under <code>tools/run_configs/</code> grouped by <code>agilab</code>, <code>apps</code>, and <code>components</code>.</li>
+    <li><strong>Regeneration:</strong> Keep scripts up to date with <code>python3 tools/generate_runconfig_scripts.py</code>.</li>
+    <li><strong>Docs:</strong> README and docs index explain how to use the wrappers, reinforcing that AGILab no longer requires PyCharm.</li>
+  </ul>
+
+  <h3>Environment neutrality <span class="pill status-shipped">shipped</span></h3>
+  <ul>
+    <li><strong>README refresh:</strong> Messaging now reflects that IDE integrations are optional and highlights CLI-first workflows.</li>
+    <li><strong>Scripting cleanup:</strong> Generator normalises environment variables and working directories so scripts run identically to IDE launches.</li>
+  </ul>
+
+  <h2>🛠️ In Progress</h2>
+  <h3>Docs alignment <span class="pill status-beta">beta</span></h3>
+  <ul>
+    <li>Move remaining help topics into the static site so the CLI + shell script workflow is documented end-to-end.</li>
+    <li>Add quick links from the docs homepage to the new <code>tools/run_configs/&lt;group&gt;/</code> directory layout.</li>
+  </ul>
+
+  <h2>🔭 Upcoming</h2>
+  <h3>Unified installer UX <span class="pill status-planned">planned</span></h3>
+  <ul>
+    <li>Blend the CLI wrappers with a guided setup script that walks engineers through running smoke tests for any app bundle.</li>
+    <li>Offer optional prompts to copy private datasets (e.g. flight, sat trajectories) into the correct <code>wenv</code> folders.</li>
+  </ul>
+
+  <h3>Continuous documentation build <span class="pill status-planned">planned</span></h3>
+  <ul>
+    <li>Restore an automated docs build so commits to <code>docs/</code> are rendered without manual sync steps.</li>
+    <li>Publish the run-configuration matrix to the site directly, using <code>tools/refresh_launch_matrix.py</code> output.</li>
+  </ul>
+
+  <footer>
+    Last updated: 2025-10-09 &nbsp;•&nbsp; Source: <code>docs/html/roadmap.html</code>
+  </footer>
+</body>
+</html>
