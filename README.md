@@ -47,7 +47,7 @@ Every PyCharm run configuration now has a matching shell script under `tools/run
 python3 tools/generate_runconfig_scripts.py
 ```
 
-Each script exports the same environment variables, switches to the correct working directory, and executes the underlying `uv` command, so you can launch flows without opening the IDE.
+The generator groups scripts under `tools/run_configs/<group>/` (`agilab`, `apps`, `components`). Each wrapper exports the same environment variables, switches to the correct working directory, and executes the underlying `uv` command—no IDE required.
 
 ## Install for developers
 
