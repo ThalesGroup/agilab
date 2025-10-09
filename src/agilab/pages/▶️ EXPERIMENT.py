@@ -281,6 +281,128 @@ def _response_to_text(response: Any) -> str:
     return ""
 
 
+DEFAULT_GPT_OSS_ENDPOINT = "http://127.0.0.1:8000/v1/responses"
+
+
+def _normalize_gpt_oss_endpoint(raw_endpoint: Optional[str]) -> str:
+    endpoint = (raw_endpoint or "").strip()
+    if not endpoint:
+        return DEFAULT_GPT_OSS_ENDPOINT
+    if endpoint.endswith("/responses"):
+        return endpoint
+    if endpoint.rstrip("/").endswith("/v1"):
+        return endpoint.rstrip("/") + "/responses"
+    if endpoint.endswith("/"):
+        return endpoint + "v1/responses"
+    return endpoint + "/v1/responses"
+
+
+def _prompt_to_gpt_oss_messages(prompt: List[Dict[str, str]], question: str) -> Tuple[Optional[str], List[Dict[str, Any]]]:
+    instructions: List[str] = []
+    history: List[Dict[str, Any]] = []
+    for item in prompt or []:
+        role = str(item.get("role", "assistant")).lower()
+        content = item.get("content", "")
+        if isinstance(content, list):  # handle pre_prompt lists
+            content = "\n".join(str(part) for part in content)
+        text = str(content)
+        if not text.strip():
+            continue
+        if role == "system":
+            instructions.append(text)
+            continue
+        content_type = "input_text" if role == "user" else "output_text"
+        if role not in {"assistant", "user"}:
+            role = "assistant"
+            content_type = "text"
+        history.append(
+            {
+                "type": "message",
+                "role": role,
+                "content": [{"type": content_type, "text": text}],
+            }
+        )
+
+    history.append(
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": question}],
+        }
+    )
+
+    instructions_text = "\n\n".join(part for part in instructions if part.strip()) or None
+    return instructions_text, history
+
+
+def chat_offline(
+    input_request: str,
+    prompt: List[Dict[str, str]],
+    envars: Dict[str, str],
+) -> str:
+    """Call a local GPT-OSS Responses API endpoint."""
+
+    try:
+        import requests  # type: ignore
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        st.error("`requests` is required for GPT-OSS offline mode. Install it with `pip install requests`." )
+        raise JumpToMain(exc)
+
+    endpoint = _normalize_gpt_oss_endpoint(
+        envars.get("GPT_OSS_ENDPOINT")
+        or os.getenv("GPT_OSS_ENDPOINT")
+        or st.session_state.get("gpt_oss_endpoint")
+    )
+    envars["GPT_OSS_ENDPOINT"] = endpoint
+
+    instructions, items = _prompt_to_gpt_oss_messages(prompt, input_request)
+    payload: Dict[str, Any] = {
+        "model": envars.get("GPT_OSS_MODEL", "gpt-oss-120b"),
+        "input": items,
+        "temperature": float(envars.get("GPT_OSS_TEMPERATURE", 0.0) or 0.0),
+        "stream": False,
+        "reasoning": {"effort": envars.get("GPT_OSS_REASONING", "low")},
+    }
+    if instructions:
+        payload["instructions"] = instructions
+
+    timeout = float(envars.get("GPT_OSS_TIMEOUT", 60))
+    try:
+        response = requests.post(endpoint, json=payload, timeout=timeout)
+        response.raise_for_status()
+        data = response.json()
+    except requests.exceptions.RequestException as exc:
+        st.error(
+            "Failed to reach GPT-OSS at {endpoint}. Start it with `python -m gpt_oss.responses_api.serve --inference-backend stub --port 8000` or configure `GPT_OSS_ENDPOINT`.".format(
+                endpoint=endpoint
+            )
+        )
+        raise JumpToMain(exc)
+    except ValueError as exc:
+        st.error("GPT-OSS returned an invalid JSON payload.")
+        raise JumpToMain(exc)
+
+    # The Responses API returns a dictionary; reuse helper to extract text.
+    text = ""
+    if isinstance(data, dict):
+        try:
+            from gpt_oss.responses_api.types import ResponseObject
+
+            text = _response_to_text(ResponseObject.model_validate(data))
+        except Exception:
+            # Best-effort extraction for plain dicts.
+            output = data.get("output", []) if isinstance(data, dict) else []
+            chunks = []
+            for item in output:
+                if isinstance(item, dict) and item.get("type") == "message":
+                    for part in item.get("content", []) or []:
+                        if isinstance(part, dict) and part.get("text"):
+                            chunks.append(str(part.get("text")))
+            text = "\n".join(chunks).strip()
+
+    return text.strip()
+
+
 def chat_online(
     input_request: str,
     prompt: List[Dict[str, str]],
@@ -365,7 +487,14 @@ def ask_gpt(
 ) -> List[Any]:
     """Send a question to GPT and get the response."""
     prompt = st.session_state.get("lab_prompt", [])
-    result = chat_online(question, prompt, envars)
+    provider = st.session_state.get(
+        "lab_llm_provider",
+        envars.get("LAB_LLM_PROVIDER", "openai"),
+    )
+    if provider == "gpt-oss":
+        result = chat_offline(question, prompt, envars)
+    else:
+        result = chat_online(question, prompt, envars)
     code, message = extract_code(result)
     # Preserve Q even if result is empty so UI doesn't blank the prompt
     return [df_file, question, code, message] if result else [df_file, question, None, None]
@@ -592,6 +721,42 @@ def sidebar_controls() -> None:
     env: AgiEnv = st.session_state["env"]
     Agi_export_abs = Path(env.AGILAB_EXPORT_ABS)
     modules = st.session_state.get("modules", scan_dir(Agi_export_abs))
+
+    provider_options = {
+        "OpenAI (online)": "openai",
+        "GPT-OSS (local)": "gpt-oss",
+    }
+    current_provider = st.session_state.get(
+        "lab_llm_provider",
+        env.envars.get("LAB_LLM_PROVIDER", "openai"),
+    )
+    provider_labels = list(provider_options.keys())
+    provider_to_label = {v: k for k, v in provider_options.items()}
+    current_label = provider_to_label.get(current_provider, provider_labels[0])
+    selected_label = st.sidebar.selectbox(
+        "Assistant engine",
+        provider_labels,
+        index=provider_labels.index(current_label),
+    )
+    selected_provider = provider_options[selected_label]
+    st.session_state["lab_llm_provider"] = selected_provider
+    env.envars["LAB_LLM_PROVIDER"] = selected_provider
+
+    if selected_provider == "gpt-oss":
+        default_endpoint = (
+            st.session_state.get("gpt_oss_endpoint")
+            or env.envars.get("GPT_OSS_ENDPOINT")
+            or os.getenv("GPT_OSS_ENDPOINT", "http://127.0.0.1:8000")
+        )
+        endpoint = st.sidebar.text_input(
+            "GPT-OSS endpoint",
+            value=default_endpoint,
+            help="Point to a running GPT-OSS responses API (e.g. start with `python -m gpt_oss.responses_api.serve --inference-backend stub --port 8000`).",
+        ).strip() or default_endpoint
+        st.session_state["gpt_oss_endpoint"] = endpoint
+        env.envars["GPT_OSS_ENDPOINT"] = endpoint
+    else:
+        st.session_state.pop("gpt_oss_endpoint", None)
 
     st.session_state["lab_dir"] = st.sidebar.selectbox(
         "Lab Directory",
