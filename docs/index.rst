@@ -11,7 +11,7 @@ If you want to run the IDE workflows from a terminal, regenerate the shell wrapp
 
    python3 tools/generate_runconfig_scripts.py
 
-The command emits executable scripts under ``tools/run_configs/``; each one mirrors a PyCharm run configuration (working directory, environment variables, and ``uv`` invocation).
+The command emits executable scripts under ``tools/run_configs/<group>/`` (``agilab``, ``apps``, ``components``); each one mirrors a PyCharm run configuration (working directory, environment variables, and ``uv`` invocation).
 
 .. raw:: html
 
