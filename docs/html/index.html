@@ -325,45 +325,85 @@ You’ll find everything from quickstarts to API references, as well as example 
 <h2>Roadmap<a class="headerlink" href="#roadmap" title="Link to this heading"></a></h2>
 <p>Keep an eye on the <a class="reference external" href="roadmap.html">roadmap</a> for recently shipped features and upcoming milestones.&nbsp;It highlights the IDE-neutral tooling, shell wrappers, dataset recovery automation, and planned documentation updates.</p>
 </section>
-<section class="agilab-teaser" style="margin: 2rem 0; padding: 2rem; border-radius: 18px; background: linear-gradient(135deg, #eef2ff 0%, #ecfdf5 100%); box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);">
-  <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: stretch;">
-    <div style="flex: 1 1 260px; min-width: 240px;">
-      <h2 style="margin: 0 0 0.6rem; font-size: 1.75rem; color: #111827;">From idea to deployed flow in minutes</h2>
-      <p style="margin: 0; color: #334155;">AGILab packages notebooks as reproducible apps, bundles private assets, and ships ready-to-run workers.</p>
-    </div>
-    <div style="flex: 1 1 220px; min-width: 220px; display: flex; flex-direction: column; gap: 1rem;">
-      <div style="background: rgba(59, 130, 246, 0.12); border-radius: 14px; padding: 1rem 1.2rem;">
-        <h3 style="margin: 0 0 0.4rem; font-size: 1.1rem; color: #1d4ed8;">End users</h3>
-        <ul style="margin: 0; padding-left: 1.1rem; color: #1e293b;">
-          <li>Install with <code>uvx</code> or the generated shell wrappers.</li>
-          <li>Launch curated flows with bundled data checkpoints.</li>
-        </ul>
-      </div>
-      <div style="background: rgba(16, 185, 129, 0.15); border-radius: 14px; padding: 1rem 1.2rem;">
-        <h3 style="margin: 0 0 0.4rem; font-size: 1.1rem; color: #047857;">Developers</h3>
-        <ul style="margin: 0; padding-left: 1.1rem; color: #14532d;">
-          <li>Clone the repo, regenerate run configs, adapt workers.</li>
-          <li>Package private datasets with the shared installer.</li>
-        </ul>
-      </div>
-    </div>
-    <div style="flex: 1 1 220px; min-width: 220px; display: flex; flex-direction: column; gap: 1rem;">
-      <div style="background: rgba(251, 191, 36, 0.18); border-radius: 14px; padding: 1rem 1.2rem;">
-        <h3 style="margin: 0 0 0.4rem; font-size: 1.1rem; color: #b45309;">Ops &amp; support</h3>
-        <ul style="margin: 0; padding-left: 1.1rem; color: #78350f;">
-          <li>Use consistent run-command wrappers for troubleshooting.</li>
-          <li>Restore datasets and verify installations with automated tests.</li>
-        </ul>
-      </div>
-      <div style="background: rgba(99, 102, 241, 0.14); border-radius: 14px; padding: 1rem 1.2rem;">
-        <h3 style="margin: 0 0 0.4rem; font-size: 1.1rem; color: #312e81;">Highlights</h3>
-        <ul style="margin: 0; padding-left: 1.1rem; color: #312e81;">
-          <li>IDE optional &mdash; CLI-first workflow.</li>
-          <li>Shared build scripts across apps and components.</li>
-        </ul>
-      </div>
-    </div>
-  </div>
+<section class="agilab-teaser" style="margin: 2rem 0;">
+  <svg viewBox="0 0 960 260" width="100%" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="agilab-architecture-title" style="display:block;max-width:100%;height:auto;shape-rendering:geometricPrecision;text-rendering:optimizeLegibility;overflow:visible;">
+    <title id="agilab-architecture-title">AGILab app architecture: manager venv, Streamlit pages venv, worker venvs for cluster deployment</title>
+    <defs>
+      <linearGradient id="teaser-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#eef2ff" />
+        <stop offset="100%" stop-color="#ecfdf4" />
+      </linearGradient>
+      <linearGradient id="manager-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#bfdbfe" />
+        <stop offset="100%" stop-color="#93c5fd" />
+      </linearGradient>
+      <linearGradient id="pages-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#c7f9cc" />
+        <stop offset="100%" stop-color="#6ee7b7" />
+      </linearGradient>
+      <linearGradient id="workers-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#ede9fe" />
+        <stop offset="100%" stop-color="#a78bfa" />
+      </linearGradient>
+      <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+        <polygon points="0 0, 10 3.5, 0 7" fill="#1f2937" />
+      </marker>
+      <style>
+        text { font-family: "Segoe UI", Roboto, sans-serif; fill: #0f172a; }
+        .title { font-weight: 600; font-size: 18px; }
+        .subtitle { font-size: 13px; fill: #334155; }
+      </style>
+    </defs>
+    <rect x="0" y="0" width="960" height="260" rx="26" fill="url(#teaser-bg)" />
+
+    <g transform="translate(80,70)">
+      <rect x="0" y="0" width="240" height="150" rx="18" fill="url(#manager-grad)" opacity="0.95" />
+      <rect x="18" y="54" width="204" height="72" rx="12" fill="#e0edfb" />
+      <text class="title" x="120" y="32" text-anchor="middle">App manager <tspan fill="#0f766e">venv</tspan></text>
+      <text class="subtitle" x="120" y="58" text-anchor="middle">Args settings, forms, install.py</text>
+      <text class="subtitle" x="40" y="94">• Pydantic args model</text>
+      <text class="subtitle" x="40" y="116">• `app_settings.toml` binding</text>
+      <text class="subtitle" x="40" y="138">• Packages curated templates</text>
+    </g>
+
+    <g transform="translate(360,70)">
+      <rect x="0" y="0" width="240" height="150" rx="18" fill="url(#pages-grad)" opacity="0.95" />
+      <rect x="18" y="54" width="204" height="72" rx="12" fill="#d9fde9" />
+      <text class="title" x="120" y="32" text-anchor="middle">Pages (Streamlit) <tspan fill="#0f766e">venv</tspan></text>
+      <text class="subtitle" x="120" y="58" text-anchor="middle">Data viz + controls per page</text>
+      <text class="subtitle" x="40" y="94">• `apps-pages/` bundle</text>
+      <text class="subtitle" x="40" y="116">• Independent requirements</text>
+      <text class="subtitle" x="40" y="138">• Publishes dashboards/UI</text>
+    </g>
+
+    <g transform="translate(640,60)">
+      <rect x="0" y="0" width="250" height="170" rx="18" fill="url(#workers-grad)" opacity="0.95" />
+      <text class="title" x="125" y="32" text-anchor="middle">Workers fleet <tspan fill="#0f766e">venvs</tspan></text>
+      <text class="subtitle" x="125" y="58" text-anchor="middle">Packaged for cluster deployment</text>
+      <g transform="translate(25,78)">
+        <rect x="0" y="0" width="70" height="52" rx="10" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.6" />
+        <text class="subtitle" x="35" y="24" text-anchor="middle">pandas</text>
+        <text class="subtitle" x="35" y="42" text-anchor="middle">worker</text>
+      </g>
+      <g transform="translate(95,78)">
+        <rect x="0" y="0" width="70" height="52" rx="10" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.6" />
+        <text class="subtitle" x="35" y="24" text-anchor="middle">polars</text>
+        <text class="subtitle" x="35" y="42" text-anchor="middle">worker</text>
+      </g>
+      <g transform="translate(165,78)">
+        <rect x="0" y="0" width="70" height="52" rx="10" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.6" />
+        <text class="subtitle" x="35" y="24" text-anchor="middle">dag</text>
+        <text class="subtitle" x="35" y="42" text-anchor="middle">worker</text>
+      </g>
+      <text class="subtitle" x="125" y="148" text-anchor="middle">Deployed via `agi_node.agi_dispatcher.build`</text>
+    </g>
+
+    <line x1="320" y1="145" x2="360" y2="145" stroke="#1f2937" stroke-width="2.5" marker-end="url(#arrowhead)" />
+    <text class="subtitle" x="340" y="134" text-anchor="middle">Install</text>
+
+    <line x1="600" y1="145" x2="640" y2="145" stroke="#1f2937" stroke-width="2.5" marker-end="url(#arrowhead)" />
+    <text class="subtitle" x="620" y="134" text-anchor="middle">Distribute</text>
+  </svg>
 </section>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
