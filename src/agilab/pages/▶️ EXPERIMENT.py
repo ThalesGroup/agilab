@@ -866,7 +866,9 @@ def gpt_oss_controls(env: AgiEnv) -> None:
     )
     auto_local = endpoint.startswith("http://127.0.0.1") or endpoint.startswith("http://localhost")
 
-    if auto_local and not st.session_state.get("gpt_oss_server_started"):
+    autostart_failed = st.session_state.get("gpt_oss_autostart_failed")
+
+    if auto_local and not st.session_state.get("gpt_oss_server_started") and not autostart_failed:
         if activate_gpt_oss(env):
             endpoint = st.session_state.get("gpt_oss_endpoint", endpoint)
 

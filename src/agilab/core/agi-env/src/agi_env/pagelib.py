@@ -1369,10 +1369,12 @@ def activate_gpt_oss(env=None):
     if st.session_state.get("gpt_oss_server_started"):
         return True
 
+    st.session_state.pop("gpt_oss_autostart_failed", None)
     try:
         import gpt_oss  # noqa: F401
     except ImportError:
         st.warning("Install `gpt-oss` (`pip install gpt-oss`) to enable the offline assistant.")
+        st.session_state["gpt_oss_autostart_failed"] = True
         return False
 
     port = get_random_port()
@@ -1391,6 +1393,7 @@ def activate_gpt_oss(env=None):
     st.session_state["gpt_oss_port"] = port
     st.session_state["gpt_oss_endpoint"] = endpoint
     env.envars["GPT_OSS_ENDPOINT"] = endpoint
+    st.session_state.pop("gpt_oss_autostart_failed", None)
     return True
 def _focus_existing_docs_tab(target_url: str) -> bool:
     """Best-effort attempt to focus an existing docs tab instead of opening a new one."""
