@@ -72,9 +72,14 @@ The command emits executable scripts under ``tools/run_configs/<group>/`` (``agi
          <path d="M-24 10 h48" stroke="#7c3aed" stroke-width="6" stroke-linecap="round" />
          <text class="teaser-title" text-anchor="middle" y="110" font-family="Segoe UI, Roboto, sans-serif" font-size="18" font-weight="600" fill="#111827">Standardize</text>
          <text class="teaser-sub" text-anchor="middle" y="134" font-family="Segoe UI, Roboto, sans-serif" font-size="14" fill="#4b5563">Data + algorithm ops unified</text>
-       </g>
-     </svg>
+     </g>
+    </svg>
    </section>
+
+Roadmap
+-------
+
+The current delivery plan is summarised in the lightweight `roadmap page <roadmap.html>`_. It highlights the IDE-neutral tooling work, scripted run-config wrappers, dataset recovery automation, and the documentation milestones that are in progress.
 
 .. toctree::
    :maxdepth: 2
