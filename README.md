@@ -12,7 +12,7 @@
 
 # AGILAB Open Source Project
 
-AGILAB [BSD license](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) is an AI experimentation lab for engineering teams. It helps you move from notebooks to production with CLI tooling, optional IDE run configurations, and packaged workers. IDE integrations remain available for teams that rely on them, but they are no longer required.
+AGILAB [BSD license](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) is an AI experimentation lab for engineering teams. It helps you move from notebooks to production with CLI tooling, optional IDE run configurations, and packaged workers. PyCharm integrations remain available, but they are no longer required.
 
 Docs publishing
 - The static site is committed under `docs/html` and deployed by GitHub Pages directly (no Sphinx build in CI).
@@ -41,7 +41,7 @@ uv run agilab
 
 ### CLI wrappers for run configurations
 
-Every IDE run configuration now has a matching shell script under `tools/run_configs/`. Regenerate them at any time with:
+Every PyCharm run configuration now has a matching shell script under `tools/run_configs/`. Regenerate them at any time with:
 
 ```bash
 python3 tools/generate_runconfig_scripts.py
