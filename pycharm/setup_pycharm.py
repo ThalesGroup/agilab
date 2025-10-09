@@ -146,10 +146,17 @@ def content_url_for(cfg: Config, dir_path: Path) -> str:
 # ================= JdkTable Class =================
 
 class JdkTable:
-    def __init__(self, sdk_type: str):
+    def __init__(self, sdk_type: str, project_root: Path):
         self.sdk_type = sdk_type
+        self.project_root = project_root.resolve()
         self.jb_dirs = self.__jetbrains_dir()
         self.jdk_tables = self.__get_jdk_tables()
+        home_prefix = str(Path.home())
+        if str(self.project_root).startswith(home_prefix):
+            self._project_macro = str(self.project_root).replace(home_prefix, "$USER_HOME$")
+        else:
+            self._project_macro = self.project_root.as_posix()
+        self._old_project_macro = "$USER_HOME$/agilab"
 
     def __jetbrains_dir(self) -> List[Path]:
         home = Path.home()
@@ -196,6 +203,17 @@ class JdkTable:
         self.__ensure_component(root)
         return ET.ElementTree(root)
 
+    def __fix_legacy_macros(self, target: ET.Element) -> bool:
+        changed = False
+        if self._old_project_macro == self._project_macro:
+            return False
+        for el in target.iter():
+            for attr, val in list(el.attrib.items()):
+                if isinstance(val, str) and self._old_project_macro in val:
+                    el.set(attr, val.replace(self._old_project_macro, self._project_macro))
+                    changed = True
+        return changed
+
     def set_associated_project(self, name: str, home: Path) -> None:
         changed_any = False
         for jdk_table in self.jdk_tables:
@@ -206,7 +224,9 @@ class JdkTable:
 
             target = None
             project_dir = str(Path(home).parent.parent.parent)
-            project_dir.replace(str(Path.home()), "$USER_HOME$")
+            home_prefix = str(Path.home())
+            if project_dir.startswith(home_prefix):
+                project_dir = project_dir.replace(home_prefix, "$USER_HOME$")
 
             for jdk in comp.findall("jdk"):
                 jdk_name = jdk.find("name")
@@ -221,6 +241,8 @@ class JdkTable:
                     if add_el.get("ASSOCIATED_PROJECT_PATH") != project_dir:
                         add_el.set("ASSOCIATED_PROJECT_PATH", project_dir)
                         changed = True
+                if self.__fix_legacy_macros(target):
+                    changed = True
             if changed:
                 write_xml(tree, jdk_table)
                 changed_any = True
@@ -239,7 +261,9 @@ class JdkTable:
 
             target = None
             project_dir = str(home.parents[2])
-            project_dir.replace(str(Path.home()), "$USER_HOME$")
+            home_prefix = str(Path.home())
+            if project_dir.startswith(home_prefix):
+                project_dir = project_dir.replace(home_prefix, "$USER_HOME$")
 
             for jdk in comp.findall("jdk"):
                 jdk_name = jdk.find("name")
@@ -263,6 +287,8 @@ class JdkTable:
                 ET.SubElement(add_el, "setting", {"name": "FLAVOR_DATA", "value": "{}"})
 
                 self.__ensure_roots(target)
+                if self.__fix_legacy_macros(target):
+                    changed = True
 
                 changed = True
             else:
@@ -311,6 +337,8 @@ class JdkTable:
                             el.set("value", "{}")
 
                 self.__ensure_roots(target)
+                if self.__fix_legacy_macros(target):
+                    changed = True
 
             if changed:
                 write_xml(tree, jdk_table)
@@ -545,7 +573,7 @@ def main():
         write_xml(tree, cfg.MODULES)
 
     model = Project(cfg)
-    jdk_table = JdkTable(cfg.PROJECT_SDK_TYPE)
+    jdk_table = JdkTable(cfg.PROJECT_SDK_TYPE, cfg.ROOT)
 
     root_py = venv_python_for(cfg.ROOT)
     if root_py:
