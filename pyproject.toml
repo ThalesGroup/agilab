@@ -151,7 +151,7 @@ dev = [
 ]
 
 [project.optional-dependencies]
-offline = ["gpt-oss>=0.0.8"]
+offline = ["gpt-oss>=0.0.8; python_version >= '3.12'"]
 
 [tool.uv.extra-build-dependencies]
 htmlmin = ["legacy-cgi"]
