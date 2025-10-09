@@ -1200,7 +1200,7 @@ if __name__ == "__main__":
             )
 
         load_clicked = load_col.button(
-            "LOAD dataframe",
+            "LOAD Dataframe",
             key="load_data_main",
             type="primary",
             use_container_width=True,
@@ -1331,7 +1331,7 @@ if __name__ == "__main__":
         st.session_state.df_cols = []
         st.session_state.selected_cols = []
         st.session_state.check_all = False
-        st.info("No data loaded yet. Click 'LOAD dataframe' above to populate it before export.")
+        st.info("No data loaded yet. Click 'LOAD Dataframe' above to populate it before export.")
 
 # ===========================
 # Main Entry Point
