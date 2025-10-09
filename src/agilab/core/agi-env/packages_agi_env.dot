@@ -1,0 +1,11 @@
+digraph "packages_agi_env" {
+rankdir=BT
+charset="utf-8"
+"agilab.core.agi-env.src.agi_env" [color="#77AADD", label=<agilab.core.agi-env.src.agi_env>, shape="box", style="filled"];
+"agilab.core.agi-env.src.agi_env.agi_env" [color="#77AADD", label=<agilab.core.agi-env.src.agi_env.agi_env>, shape="box", style="filled"];
+"agilab.core.agi-env.src.agi_env.agi_logger" [color="#77AADD", label=<agilab.core.agi-env.src.agi_env.agi_logger>, shape="box", style="filled"];
+"agilab.core.agi-env.src.agi_env.app_args" [color="#77AADD", label=<agilab.core.agi-env.src.agi_env.app_args>, shape="box", style="filled"];
+"agilab.core.agi-env.src.agi_env.pagelib" [color="#77AADD", label=<agilab.core.agi-env.src.agi_env.pagelib>, shape="box", style="filled"];
+"agilab.core.agi-env.src.agi_env.streamlit_args" [color="#77AADD", label=<agilab.core.agi-env.src.agi_env.streamlit_args>, shape="box", style="filled"];
+"agilab.core.agi-env.src.agi_env" -> "agilab.core.agi-env.src.agi_env" [arrowhead="open", arrowtail="none"];
+}
