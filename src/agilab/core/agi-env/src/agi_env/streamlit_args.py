@@ -157,6 +157,9 @@ def persist_args(
         args_module.dump_args(parsed, settings_path, section=section)
         st.session_state.app_settings[section] = payload
         st.session_state.is_args_from_ui = True
+        env = st.session_state.get("env")
+        if env is not None and hasattr(env, "app"):
+            st.session_state["args_project"] = env.app
 
 
 try:  # lazy import to avoid mandatory dependency where unused

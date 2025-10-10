@@ -239,6 +239,7 @@ def initialize_app_settings(args_override=None):
     if args_override is not None:
         app_settings["args"] = args_override
     st.session_state.app_settings = app_settings
+    st.session_state["args_project"] = env.app
 
 def filter_warning_messages(log: str) -> str:
     """
@@ -805,17 +806,27 @@ async def page():
     select_project(projects, current_project)
     project_changed = st.session_state.pop("project_changed", False)
     if project_changed or env.app != previous_project:
+        app_settings_snapshot = st.session_state.get("app_settings", {})
         st.session_state.pop("cluster_enabled", None)
         st.session_state.pop("cluster_scheduler_value", None)
-        st.session_state.pop("deploy_expanded", None)
+        st.session_state.pop(f"deploy_expanded_{previous_project}", None)
+        st.session_state.pop(f"optimize_expanded_{previous_project}", None)
+        st.session_state.pop("app_settings", None)
+        st.session_state.pop("args_project", None)
+        st.session_state["args_serialized"] = ""
+        st.session_state["run_log_cache"] = ""
+        st.session_state.pop("_benchmark_expand", None)
+        st.session_state.pop("benchmark", None)
         args_override = None
-        if st.session_state.get("is_args_from_ui"):
-            app_settings = st.session_state.get("app_settings", {})
-            state_args = app_settings.get("args") if isinstance(app_settings, dict) else None
+        if st.session_state.get("is_args_from_ui") and st.session_state.get("args_project") == previous_project:
+            state_args = app_settings_snapshot.get("args") if isinstance(app_settings_snapshot, dict) else None
             if state_args:
                 args_override = state_args
-            st.session_state["is_args_from_ui"] = False
-        st.session_state.pop("app_settings", None)
+        st.session_state.pop("is_args_from_ui", None)
+        try:
+            load_distribution.clear()
+        except Exception:
+            pass
         initialize_app_settings(args_override=args_override)
         st.rerun()
 
@@ -1125,7 +1136,12 @@ if __name__ == "__main__":
     if show_run:
         st.session_state.setdefault("run_log_cache", "")
         cmd = None
-        with st.expander("Optimize execution", expanded=False):
+        optimize_state_key = f"optimize_expanded_{env.app}"
+        with st.expander(
+            "Optimize execution",
+            expanded=st.session_state.get(optimize_state_key, False),
+        ):
+            st.session_state[optimize_state_key] = True
             st.session_state.setdefault("benchmark", False)
             if st.session_state.pop("benchmark_reset_pending", False):
                 st.session_state["benchmark"] = False
