@@ -87,6 +87,11 @@ def parse_args():
                     help="Twine password/token. If omitted but username is set, you will be prompted once.")
     ap.add_argument("--yank-previous", action="store_true",
                     help="On PyPI, yank previously released versions (older than the chosen version) after a successful upload.")
+    # Repo state management (opt-in)
+    ap.add_argument("--git-commit-version", action="store_true",
+                    help="After successful upload, git add and commit all edited pyproject.toml files with the chosen version.")
+    ap.add_argument("--git-reset-on-failure", action="store_true",
+                    help="If a failure occurs after editing pyproject.toml files, reset them with 'git checkout --'.")
     return ap.parse_args()
 
 args = parse_args()
@@ -175,6 +180,16 @@ if TARGET == "pypi" and TWINE_PASS and not str(TWINE_PASS).startswith("pypi-"):
 
 # ------------------------- Repo layout -------------------------
 REPO_ROOT = pathlib.Path.cwd().resolve()
+
+# Optional git integration flags
+GIT_COMMIT_VERSION: bool = False
+GIT_RESET_ON_FAILURE: bool = False
+try:
+    # args is defined above; guard in case of import-time usage
+    GIT_COMMIT_VERSION = bool(getattr(args, "git_commit_version", False))
+    GIT_RESET_ON_FAILURE = bool(getattr(args, "git_reset_on_failure", False))
+except Exception:
+    pass
 
 # Core packages: (name, pyproject.toml, project_dir)
 CORE: List[Tuple[str, pathlib.Path, pathlib.Path]] = [
@@ -576,6 +591,29 @@ def twine_upload(files: List[str], repo: str):
     cmd.extend(files)
     run(cmd, cwd=REPO_ROOT, env=upload_env)
 
+def git_paths_to_commit() -> list[str]:
+    paths = [str(t) for _, t, __ in CORE] + [str(UMBRELLA[1])]
+    return [p for p in paths if pathlib.Path(p).exists()]
+
+def git_commit_version(chosen_version: str):
+    files = git_paths_to_commit()
+    if not files:
+        print("[git] nothing to commit")
+        return
+    run(["git", "add", *files], cwd=REPO_ROOT)
+    run(["git", "commit", "-m", f"chore(release): bump version to {chosen_version}"], cwd=REPO_ROOT)
+    print(f"[git] committed version bump to {chosen_version}")
+
+def git_reset_pyprojects():
+    files = git_paths_to_commit()
+    if not files:
+        return
+    try:
+        run(["git", "checkout", "--", *files], cwd=REPO_ROOT)
+        print("[git] reset pyproject.toml edits")
+    except Exception as e:
+        print(f"[git] warning: could not reset pyproject.toml files: {e}")
+
 # Umbrella
 def uv_build_repo_root():
     for sub in ("dist", "build"):
@@ -749,9 +787,16 @@ def main():
 
         if TARGET == "pypi":
             create_and_push_tag(date_tag)
+        # Commit after successful upload if requested
+        if GIT_COMMIT_VERSION:
+            git_commit_version(chosen)
     finally:
         if removed_symlinks:
             restore_symlinks(removed_symlinks)
+        # Optionally reset edits to pyproject on failure or when requested
+        # We don't have exception context here reliably; honor explicit flag to keep repo clean.
+        if GIT_RESET_ON_FAILURE and not DRY_RUN:
+            git_reset_pyprojects()
 
 
 def yank_previous_versions(packages: list[str], repo: str, chosen: str):

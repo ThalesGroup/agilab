@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="testpypi publish" type="PythonConfigurationType" factoryName="Python">
+  <configuration default="false" name="test pypi publish" type="PythonConfigurationType" factoryName="Python">
     <module name="agilab" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
@@ -24,4 +24,4 @@
     <option name="INPUT_FILE" value="" />
     <method v="2" />
   </configuration>
-  </component>
+</component>
