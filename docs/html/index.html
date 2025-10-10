@@ -308,19 +308,19 @@ You’ll find everything from quickstarts to API references, as well as example 
 <section id="audience-profiles">
 <h2>Audience profiles<a class="headerlink" href="#audience-profiles" title="Link to this heading"></a></h2>
 <ul class="simple">
-<li><p><strong>End users</strong> install and launch packaged apps with <code class="docutils literal notranslate"><span class="pre">uvx</span></code> or the generated shell wrappers under <code class="docutils literal notranslate"><span class="pre">tools/run_configs/</span></code>&mdash;no repository checkout or IDE required.</p></li>
-<li><p><strong>Developers</strong> clone the repository, regenerate run configurations (<code class="docutils literal notranslate"><span class="pre">python3</span> <span class="pre">tools/generate_runconfig_scripts.py</span></code>), and extend apps or the core framework.</p></li>
+<li><p><strong>End users</strong> run AGILab as a packaged IDE (Streamlit UI) via the installer’s entry points—no repository checkout or terminal wrappers required. <code class="docutils literal notranslate"><span class="pre">uvx</span></code> is for demos/quick checks only.</p></li>
+<li><p><strong>Developers</strong> clone the repository, use PyCharm run configurations (or generate terminal wrappers with <code class="docutils literal notranslate"><span class="pre">python3</span> <span class="pre">tools/generate_runconfig_scripts.py</span></code>), and extend apps or the core framework.</p></li>
 </ul>
 </section>
 <section id="shell-wrappers-for-run-configs">
-<h2>Shell wrappers for run configs<a class="headerlink" href="#shell-wrappers-for-run-configs" title="Link to this heading"></a></h2>
-<p>Mirror any PyCharm run configuration from the command line by regenerating the helper scripts:</p>
+<h2>Shell wrappers for developers<a class="headerlink" href="#shell-wrappers-for-run-configs" title="Link to this heading"></a></h2>
+<p>Developers who prefer a terminal can mirror PyCharm run configurations by regenerating shell wrappers with:</p>
 <div class="highlight-none notranslate"><div class="highlight"><pre><span></span>python3 tools/generate_runconfig_scripts.py
 </pre></div>
 </div>
-<p>The command creates executable wrappers in <code class="docutils literal notranslate"><span class="pre">tools/run_configs/&lt;group&gt;/</span></code> (<code class="docutils literal notranslate"><span class="pre">agilab</span></code>, <code class="docutils literal notranslate"><span class="pre">apps</span></code>, <code class="docutils literal notranslate"><span class="pre">components</span></code>), including the right environment variables, working directory, and <code class="docutils literal notranslate"><span class="pre">uv</span></code> invocation.</p>
+<p>This emits executable scripts under <code class="docutils literal notranslate"><span class="pre">tools/run_configs/&lt;group&gt;/</span></code> (<code class="docutils literal notranslate"><span class="pre">agilab</span></code>, <code class="docutils literal notranslate"><span class="pre">apps</span></code>, <code class="docutils literal notranslate"><span class="pre">components</span></code>); each mirrors a PyCharm run configuration (working directory, environment variables, and <code class="docutils literal notranslate"><span class="pre">uv</span></code> invocation).</p>
 </section>
-<div class="admonition note"><p class="admonition-title">Note</p><p>The “uvx -p 3.13 agilab” command is ideal for demos or quick checks, but edits made inside the cached package are not persisted. For development work, clone the repo or use a dedicated virtual environment. For offline workflows pick one of the bundled providers:</p>
+<div class="admonition note"><p class="admonition-title">Note</p><p>The “uvx -p 3.13 agilab” command is intended for demos or quick checks only; edits made inside the cached package are not persisted. For development work, clone the repo or use a dedicated virtual environment. For offline workflows pick one of the bundled providers:</p>
 <ul>
 <li>Launch a GPT-OSS responses server with <code>python -m gpt_oss.responses_api.serve --inference-backend stub --port 8000</code> and switch the Experiment sidebar to <em>GPT-OSS (local)</em>.</li>
 <li>Install <code>universal-offline-ai-chatbot</code> (Mistral-based) and point the Experiment sidebar to your PDF corpus to enable the <em>mistral:instruct (local)</em> provider.</li>
