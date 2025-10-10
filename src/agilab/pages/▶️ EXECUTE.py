@@ -400,10 +400,6 @@ def render_cluster_settings_ui():
     default_cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
     if "cluster_enabled" not in st.session_state:
         st.session_state["cluster_enabled"] = default_cluster_enabled
-    else:
-        stored_value = st.session_state.get("cluster_enabled")
-        if stored_value not in (True, False):
-            st.session_state["cluster_enabled"] = default_cluster_enabled
 
     cluster_enabled = st.toggle(
         "Enable Cluster",
@@ -411,9 +407,7 @@ def render_cluster_settings_ui():
         key="cluster_enabled",
         help="Enable cluster: provide a scheduler IP and workers configuration."
     )
-    new_cluster_state = bool(cluster_enabled)
-    cluster_params["cluster_enabled"] = new_cluster_state
-    st.session_state["cluster_enabled"] = new_cluster_state
+    cluster_params["cluster_enabled"] = bool(cluster_enabled)
 
     if cluster_enabled:
         scheduler_value = cluster_params.get("scheduler", "")
