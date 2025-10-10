@@ -1,7 +1,19 @@
 AGILab Documentation
 =====================
 
-Welcome to the AGILab framework documentation.
+Welcome to AGILab
+-----------------
+
+AGILab lets teams go beyond notebooks by building runnable apps.
+
+- Build from experiments to apps: turn notebook logic into packaged, runnable applications with standard inputs/outputs, controls, and visualizations.
+- Unified app experience: a consistent UI layer makes apps easy to use, test, and maintain.
+- App store + scale-out: apps are orchestrable on a cluster for scalability, enabling seamless distribution and repeatable runs.
+- Cross‑app reuse with apps‑pages: share UI pages and development effort across apps to avoid duplication and speed iteration.
+- Shared dataframes: exchange tabular data between apps to compose workflows without brittle file hand‑offs.
+- Experiment at speed: track, compare, and reproduce algorithm variants with MLflow built into the flow.
+- Assisted by Generative AI: online (OpenAI) and offline (Mistral/GPT‑OSS) assistants help with iteration, debugging, and documentation.
+
 You’ll find everything from quickstarts to API references, as well as example projects.
 
 Audience profiles
