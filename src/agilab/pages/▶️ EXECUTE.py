@@ -806,6 +806,8 @@ async def page():
     previous_project = current_project
     select_project(projects, current_project)
     if st.session_state.pop("project_changed", False) or env.app != previous_project:
+        st.session_state.pop("cluster_enabled", None)
+        st.session_state.pop("cluster_scheduler_value", None)
         args_override = None
         if st.session_state.get("is_args_from_ui"):
             app_settings = st.session_state.get("app_settings", {})
