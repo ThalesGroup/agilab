@@ -11,7 +11,7 @@ Building robust models from data requires close collaboration between domain exp
 
 AGILab is a multi-project data science solution designed to manage projects using template-based frameworks. It also serves as a first step towards an experimental Python IDE for data science applied to engineering.
 
-**Remark**: Historically agilab has been develop as a playground for agi-core, so to benefit from agi cluster automation functionality all you need is agi-core and agi-env, meaning you can use agi-core in for example in a notebook without graphic interface.
+
 
 **Purpose**
 -----------
