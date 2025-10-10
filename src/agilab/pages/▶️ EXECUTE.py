@@ -117,6 +117,10 @@ def display_log(stdout, stderr):
 def parse_benchmark(benchmark_str):
     """
     Parse a benchmark string into a dictionary.
+
+    This function converts a benchmark string that may have unquoted numeric keys and
+    single quotes into a valid JSON string and then parses it into a dictionary.
+    Numeric keys are converted to integers.
     """
     if not isinstance(benchmark_str, str):
         raise ValueError("Input must be a string.")
@@ -392,27 +396,23 @@ def render_cluster_settings_ui():
         )
         cluster_params[param] = updated_value
 
-    # -------- FIX: per-project cluster toggle seeded from TOML
+    # -------- per-project cluster toggle seeded from TOML; do not pass value= while also using session_state
     cluster_enabled_key = f"cluster_enabled__{env.app}"
     if cluster_enabled_key not in st.session_state:
         st.session_state[cluster_enabled_key] = bool(cluster_params.get("cluster_enabled", False))
-
     cluster_enabled = st.toggle(
         "Enable Cluster",
-        value=st.session_state[cluster_enabled_key],
         key=cluster_enabled_key,
         help="Enable cluster: provide a scheduler IP and workers configuration."
     )
     cluster_params["cluster_enabled"] = bool(cluster_enabled)
 
-    # ------- Do NOT pop scheduler/workers when disabled. Keep persisted.
-
+    # Keep scheduler/workers persisted even if disabled (don’t pop them)
     if cluster_enabled:
-        # ------- per-project widget key & seeding so TOML reflects immediately
+        # per-project widget key & seeding; do not also pass value=
         scheduler_widget_key = f"cluster_scheduler__{env.app}"
         if scheduler_widget_key not in st.session_state:
             st.session_state[scheduler_widget_key] = cluster_params.get("scheduler", "")
-
         scheduler_input = st.text_input(
             "Scheduler IP Address",
             key=scheduler_widget_key,
@@ -426,42 +426,19 @@ def render_cluster_settings_ui():
 
         workers_widget_key = f"cluster_workers__{env.app}"
         workers_dict = cluster_params.get("workers", {})
-        workers_value = json.dumps(workers_dict, indent=2) if isinstance(workers_dict, dict) else "{}"
+        if workers_widget_key not in st.session_state:
+            st.session_state[workers_widget_key] = json.dumps(workers_dict, indent=2) if isinstance(workers_dict, dict) else "{}"
         workers_input = st.text_area(
             "Workers Configuration",
-            value=workers_value if workers_widget_key not in st.session_state else st.session_state[workers_widget_key],
+            key=workers_widget_key,
             placeholder='e.g., {"192.168.0.1": 2, "192.168.0.2": 3}',
             help="Provide a dictionary of worker IP addresses and capacities.",
-            key=workers_widget_key
         )
         if workers_input:
             workers = parse_and_validate_workers(workers_input)
             if workers:
                 cluster_params["workers"] = workers
 
-    st.session_state.dask = cluster_enabled
-    benchmark_enabled = st.session_state.get("benchmark", False)
-
-    run_mode_label = [
-        "0: python", "1: pool of process", "2: cython", "3: pool and cython",
-        "4: dask", "5: dask and pool", "6: dask and cython", "7: dask and pool and cython",
-        "8: rapids", "9: rapids and pool", "10: rapids and cython", "11: rapids and pool and cython",
-        "12: rapids and dask", "13: rapids and dask and pool", "14: rapids and dask and cython",
-        "15: rapids and dask and pool and cython"
-    ]
-
-    if benchmark_enabled:
-        st.session_state["mode"] = None
-        st.info("Run mode benchmark (all modes)")
-    else:
-        mode_value = (
-            int(cluster_params.get("pool", False))
-            + int(cluster_params.get("cython", False)) * 2
-            + int(cluster_enabled) * 4
-            + int(cluster_params.get("rapids", False)) * 8
-        )
-        st.session_state["mode"] = mode_value
-        st.info(f"Run mode {run_mode_label[mode_value]}")
     st.session_state.app_settings["cluster"] = cluster_params
 
     # Persist to TOML
@@ -926,7 +903,7 @@ APP = "{env.app}"
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
     res = await AGI.install(app_env, 
-                            modes_enabled={st.session_state.mode},
+                            modes_enabled={st.session_state.get('mode', None)},
                             scheduler={scheduler}, 
                             workers={workers})
     print(res)
@@ -1112,7 +1089,9 @@ if __name__ == "__main__":
                                         idx = workers.index(selected_worker)
                                         new_work_plan_metadata[idx].append(chunk)
                                         new_work_plan[idx].append(files)
-                            data = load_distribution(dist_tree_path)[0]
+                            # Read & update the original JSON dict (avoid writing to the workers list)
+                            with open(dist_tree_path, "r") as f:
+                                data = json.load(f)
                             data["target_args"] = st.session_state.app_settings["args"]
                             data["work_plan_metadata"] = new_work_plan_metadata
                             data["work_plan"] = new_work_plan
@@ -1127,11 +1106,9 @@ if __name__ == "__main__":
         st.session_state.setdefault("run_log_cache", "")
         cmd = None
         optimize_state_key = f"optimize_expanded_{env.app}"
-        with st.expander(
-            "Optimize execution",
-            expanded=st.session_state.get(optimize_state_key, False),
-        ):
+        with st.expander("Optimize execution", expanded=st.session_state.get(optimize_state_key, False)):
             st.session_state[optimize_state_key] = True
+            # Benchmark toggle
             st.session_state.setdefault("benchmark", False)
             if st.session_state.pop("benchmark_reset_pending", False):
                 st.session_state["benchmark"] = False
@@ -1140,13 +1117,42 @@ if __name__ == "__main__":
                 key="benchmark",
                 help="Run the snippet once per mode and report timings for each path",
             )
-            if benchmark_enabled:
-                st.session_state["mode"] = None
 
+            # ---- Compute run_mode exactly once (single source of truth)
             cluster_params = st.session_state.app_settings["cluster"]
-            enabled = cluster_params.get("cluster_enabled", False)
-            scheduler = f'"{cluster_params.get("scheduler")}"' if enabled else "None"
-            workers = str(cluster_params.get("workers")) if enabled else "None"
+            cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
+
+            def _compute_mode():
+                # 0/1 pool + 0/2 cython + 0/4 dask + 0/8 rapids
+                return (
+                    int(cluster_params.get("pool", False))
+                    + int(cluster_params.get("cython", False)) * 2
+                    + int(cluster_enabled) * 4
+                    + int(cluster_params.get("rapids", False)) * 8
+                )
+
+            if benchmark_enabled:
+                run_mode = None
+                info_label = "Run mode benchmark (all modes)"
+            else:
+                run_mode = _compute_mode()
+                run_mode_label = [
+                    "0: python", "1: pool of process", "2: cython", "3: pool and cython",
+                    "4: dask", "5: dask and pool", "6: dask and cython", "7: dask and pool and cython",
+                    "8: rapids", "9: rapids and pool", "10: rapids and cython", "11: rapids and pool and cython",
+                    "12: rapids and dask", "13: rapids and dask and pool", "14: rapids and dask and cython",
+                    "15: rapids and dask and pool and cython"
+                ]
+                info_label = f"Run mode {run_mode_label[run_mode]}"
+
+            # Keep session_state in sync (for any other code that reads it)
+            st.session_state["mode"] = run_mode
+            st.info(info_label)
+
+            verbose = cluster_params.get('verbose', 1)
+            enabled = cluster_enabled
+            scheduler = f'"{cluster_params.get("scheduler")}"' if enabled and cluster_params.get("scheduler") else "None"
+            workers = str(cluster_params.get("workers")) if enabled and cluster_params.get("workers") else "None"
             cmd = f"""
 import asyncio
 from agi_cluster.agi_distributor import AGI
@@ -1158,7 +1164,7 @@ APP = "{env.app}"
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
     res = await AGI.run(app_env, 
-                        mode={st.session_state["mode"]}, 
+                        mode={run_mode if run_mode is not None else "None"}, 
                         scheduler={scheduler}, 
                         workers={workers}, 
                         {st.session_state.args_serialized})
@@ -1171,7 +1177,7 @@ if __name__ == "__main__":
 
             expand_benchmark = st.session_state.pop("_benchmark_expand", False)
             with st.expander("Benchmark results", expanded=expand_benchmark):
-                if not st.session_state.get('mode'):
+                if run_mode is None:
                     try:
                         if env.benchmark.exists():
                             with open(env.benchmark, "r") as f:
@@ -1199,7 +1205,6 @@ if __name__ == "__main__":
                                 st.dataframe(df_nonempty)
                         else:
                             st.error("program abort before all mode have been run")
-                            st.session_state['mode'] = 0
                             st.session_state['benchmark_reset_pending'] = True
 
                     except json.JSONDecodeError as e:
