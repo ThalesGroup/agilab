@@ -1129,19 +1129,19 @@ def handle_project_selection():
 def _expander_icon(label: str) -> str:
     """Return an emoji prefix based on the expander name."""
     mapping = {
-        "PYTHON‑ENV": "⚙️",
+        "PYTHON-ENV": "⚙️",
         "PYTHON-ENV-EXTRA": "⚙️",
         "LOGS": "⚙️",
-        "APP‑SETTINGS": "🔧",
-        "EXPORT‑APP‑FILTER": "🔧",
+        "APP-SETTINGS": "🔧",
+        "EXPORT-APP-FILTER": "🔧",
         "README": "📘",
-        "APP‑ARGS": "📘",
-        "APP-ARGS‑FORM": "📘",
-        "PRE‑PROMPT": "🧠",
+        "APP-ARGS": "📘",
+        "APP-ARGS-FORM": "📘",
+        "PRE-PROMPT": "🧠",
         "MANAGER": "💻",
         "WORKER": "💻",
     }
-    normalized = label.strip().upper()
+    normalized = label.strip().upper().replace("‑", "-")
     for key, icon in mapping.items():
         if normalized.startswith(key):
             return icon
