@@ -358,22 +358,22 @@ class WorkDispatcher:
         logging.info(f"import {module} from {package} located in {path}")
         if path:
             try:
-            candidate = Path(path)
-            if candidate.is_file():
-                candidate = candidate.parent
-            candidate = candidate.resolve()
-            # Ensure both src path and repository root are in sys.path
-            paths_to_add = [candidate]
-            repo_root = candidate.parent.parent if candidate.name == "src" else None
-            if repo_root:
-                paths_to_add.append(repo_root)
-            for entry in paths_to_add:
-                try:
-                    entry_str = str(entry)
-                    if entry_str not in sys.path:
-                        sys.path.insert(0, entry_str)
-                except Exception:
-                    pass
+                candidate = Path(path)
+                if candidate.is_file():
+                    candidate = candidate.parent
+                candidate = candidate.resolve()
+                # Ensure both src path and repository root are in sys.path
+                paths_to_add = [candidate]
+                repo_root = candidate.parent.parent if candidate.name == "src" else None
+                if repo_root:
+                    paths_to_add.append(repo_root)
+                for entry in paths_to_add:
+                    try:
+                        entry_str = str(entry)
+                        if entry_str not in sys.path:
+                            sys.path.insert(0, entry_str)
+                    except Exception:
+                        pass
             except Exception:
                 pass
 
