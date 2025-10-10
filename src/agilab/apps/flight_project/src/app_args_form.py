@@ -189,3 +189,4 @@ else:
         dump_args_to_toml(parsed_args, settings_path)
         st.session_state.app_settings["args"] = payload
         st.session_state.is_args_from_ui = True
+        st.session_state["args_project"] = env.app
