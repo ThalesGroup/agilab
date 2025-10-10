@@ -1134,10 +1134,10 @@ def _expander_icon(label: str) -> str:
         "LOGS": "⚙️",
         "APP-SETTINGS": "🔧",
         "EXPORT-APP-FILTER": "🔧",
+        "PRE-PROMPT": "🔧",
         "README": "📘",
         "APP-ARGS": "💻",
         "APP-ARGS-FORM": "💻",
-        "PRE-PROMPT": "🧠",
         "MANAGER": "💻",
         "WORKER": "💻",
     }
