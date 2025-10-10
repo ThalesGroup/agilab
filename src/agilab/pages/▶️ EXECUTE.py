@@ -411,7 +411,9 @@ def render_cluster_settings_ui():
     cluster_params["cluster_enabled"] = bool(cluster_enabled)
 
     if cluster_enabled:
-        scheduler_value = cluster_params.get("scheduler", "")
+        scheduler_value = st.session_state.get("cluster_scheduler_value")
+        if scheduler_value is None:
+            scheduler_value = cluster_params.get("scheduler", "")
         scheduler_input = st.text_input(
             "Scheduler IP Address",
             value=scheduler_value,
@@ -423,6 +425,7 @@ def render_cluster_settings_ui():
             scheduler = parse_and_validate_scheduler(scheduler_input)
             if scheduler:
                 cluster_params["scheduler"] = scheduler
+                st.session_state["cluster_scheduler_value"] = scheduler
 
         workers_dict = cluster_params.get("workers", {})
         workers_value = json.dumps(workers_dict, indent=2) if isinstance(workers_dict, dict) else "{}"
