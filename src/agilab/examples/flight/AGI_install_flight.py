@@ -1,10 +1,10 @@
 
 import asyncio
 from agi_cluster.agi_distributor import AGI
-from agi_env import AgiEnv, normalize_path
+from agi_env import AgiEnv
 from pathlib import Path
 
-APPS_DIR = "/Users/example/agilab/src/agilab/apps"
+APPS_DIR = str(Path(__file__).resolve().parents[3] / "apps")
 APP = "flight_project"
 
 async def main():
