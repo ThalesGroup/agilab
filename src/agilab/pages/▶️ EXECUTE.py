@@ -397,7 +397,7 @@ def render_cluster_settings_ui():
         cluster_params[param] = updated_value
 
     cluster_enabled = st.toggle(
-        "Enable Cluster",
+        "Cluster",
         value=cluster_params.get("cluster_enabled", False),
         key="cluster_enabled",
         help="Enable cluster: provide a scheduler IP and workers configuration."
