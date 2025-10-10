@@ -341,6 +341,7 @@ class WorkDispatcher:
             package: Optional[str] = None,
             path: Optional[Union[str, Path]] = None,
             env: Optional[AgiEnv] = None,
+            attempted_install: bool = False,
     ) -> Any:
         """load a module
 
@@ -355,6 +356,18 @@ class WorkDispatcher:
 
         """
         logging.info(f"import {module} from {package} located in {path}")
+        if path:
+            try:
+                candidate = Path(path)
+                if candidate.is_file():
+                    candidate = candidate.parent
+                candidate = candidate.resolve()
+                candidate_str = str(candidate)
+                if candidate_str not in sys.path:
+                    sys.path.insert(0, candidate_str)
+            except Exception:
+                pass
+
         try:
             if package:
                 # Import module from a package
@@ -366,10 +379,16 @@ class WorkDispatcher:
         except ModuleNotFoundError as e:
             module_to_install = (str(e).replace("No module named ", "").lower().replace("'", ""))
             # Only attempt install if an environment is provided
-            if env is None:
+            if env is None or attempted_install:
                 raise
             app_path = env.active_app
             cmd = f"{env.uv} add --upgrade {module_to_install}"
             logging.info(f"{cmd} from {app_path}")
             await AgiEnv.run(cmd, app_path)
-            return await WorkDispatcher._load_module(module, package, path, env=env)
+            return await WorkDispatcher._load_module(
+                module,
+                package,
+                path,
+                env=env,
+                attempted_install=True,
+            )
