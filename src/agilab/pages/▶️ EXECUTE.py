@@ -237,7 +237,8 @@ def initialize_app_settings():
 
     cluster_settings = app_settings.setdefault("cluster", {})
     st.session_state.app_settings = app_settings
-    st.session_state["cluster_enabled"] = bool(cluster_settings.get("cluster_enabled", False))
+    if "cluster_enabled" not in st.session_state:
+        st.session_state["cluster_enabled"] = bool(cluster_settings.get("cluster_enabled", False))
 
 def filter_warning_messages(log: str) -> str:
     """
@@ -467,6 +468,10 @@ def render_cluster_settings_ui():
 
     with open(env.app_settings_file, "wb") as file:
         tomli_w.dump(st.session_state.app_settings, file)
+    try:
+        load_toml_file.clear()
+    except Exception:
+        pass
 
 def toggle_select_all():
     if st.session_state.check_all:
