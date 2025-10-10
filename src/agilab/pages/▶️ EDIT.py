@@ -1106,10 +1106,10 @@ def handle_project_selection():
     sections = [
         ("PYTHON‑ENV", lambda: _render_python_env(env)),
         ("PYTHON-ENV-EXTRA", lambda: _render_uv_env(env)),
-        ("MANAGER",    lambda: _render_manager(env)),
-        ("WORKER",     lambda: _render_worker(env)),
         ("EXPORT‑APP‑FILTER", lambda: _render_gitignore(env)),
         ("APP‑SETTINGS",      lambda: _render_app_settings(env)),
+        ("MANAGER",    lambda: _render_manager(env)),
+        ("WORKER",     lambda: _render_worker(env)),
         ("README",            lambda: _render_readme(env)),
         ("APP‑ARGS",          lambda: _render_app_args_module(env)),
         ("APP-ARGS‑FORM",           lambda: _render_args_ui(env)),
