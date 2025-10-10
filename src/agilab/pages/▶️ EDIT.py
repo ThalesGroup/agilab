@@ -1108,11 +1108,11 @@ def handle_project_selection():
         ("PYTHON-ENV-EXTRA", lambda: _render_uv_env(env)),
         ("EXPORT‑APP‑FILTER", lambda: _render_gitignore(env)),
         ("APP‑SETTINGS",      lambda: _render_app_settings(env)),
-        ("MANAGER",    lambda: _render_manager(env)),
-        ("WORKER",     lambda: _render_worker(env)),
         ("README",            lambda: _render_readme(env)),
+        ("MANAGER",           lambda: _render_manager(env)),
+        ("WORKER",            lambda: _render_worker(env)),
         ("APP‑ARGS",          lambda: _render_app_args_module(env)),
-        ("APP-ARGS‑FORM",           lambda: _render_args_ui(env)),
+        ("APP-ARGS‑FORM",     lambda: _render_args_ui(env)),
         ("PRE‑PROMPT",        lambda: _render_pre_prompt(env)),
     ]
 
