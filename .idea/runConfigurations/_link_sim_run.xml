@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="link_sim AGI_run" type="PythonConfigurationType" factoryName="Python" folderName="link_sim_project">
+  <configuration default="false" name="link_sim AGI run" type="PythonConfigurationType" factoryName="Python" folderName="link_sim_project">
     <module name="link_sim_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />

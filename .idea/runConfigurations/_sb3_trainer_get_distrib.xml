@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="sb3_trainer AGI_get_distrib" type="PythonConfigurationType" factoryName="Python" folderName="sb3_trainer_project">
+  <configuration default="false" name="sb3_trainer AGI get distrib" type="PythonConfigurationType" factoryName="Python" folderName="sb3_trainer_project">
     <module name="sb3_trainer_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
