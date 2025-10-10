@@ -12,7 +12,7 @@ AGILab lets teams go beyond notebooks by building runnable apps.
 - Cross‑app reuse with apps‑pages: share UI pages and development effort across apps to avoid duplication and speed iteration.
 - Shared dataframes: exchange tabular data between apps to compose workflows without brittle file hand‑offs.
 - Experiment at speed: track, compare, and reproduce algorithm variants with MLflow built into the flow.
-- Assisted by Generative AI: online (OpenAI) and offline (Mistral/GPT‑OSS) assistants help with iteration, debugging, and documentation.
+- Assisted by Generative AI: seamless integration with OpenAI API (online), GPT‑OSS (local), and Mistral‑instruct (local) to assist iteration, debugging, and documentation.
 
 You’ll find everything from quickstarts to API references, as well as example projects.
 
@@ -46,12 +46,12 @@ Assistant providers
 The Experiment page ships with three assistants:
 
 - **OpenAI (online)** — default cloud models via your API key.
-- **GPT-OSS (offline)** — local responses API with stub, transformers, or custom backends.
-- **mistral:instruct (local)** — local Mistral assistant powered by ``universal-offline-ai-chatbot``; build a FAISS index from your PDFs.
+- **GPT-OSS (local)** — local responses API with stub, transformers, or custom backends.
+- **Mistral-instruct (local)** — local Mistral assistant powered by ``universal-offline-ai-chatbot``; build a FAISS index from your PDFs.
 
 .. admonition:: AGILab: from notebooks to apps
 
-   MLOps toolchain with OpenAI API, GPT‑OSS, mistral:instruct, and MLflow.
+   MLOps toolchain with OpenAI API, GPT‑OSS, Mistral-instruct, and MLflow.
 
 Roadmap
 -------
