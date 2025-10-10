@@ -806,13 +806,15 @@ async def page():
     if st.session_state.pop("project_changed", False) or env.app != previous_project:
         st.session_state.pop("cluster_enabled", None)
         st.session_state.pop("cluster_scheduler_value", None)
+        st.session_state.pop("deploy_expanded", None)
         args_override = None
         if st.session_state.get("is_args_from_ui"):
             app_settings = st.session_state.get("app_settings", {})
             state_args = app_settings.get("args") if isinstance(app_settings, dict) else None
             if state_args:
                 args_override = state_args
-            args_override = st.session_state.get("app_settings", {}).get("args")
+            st.session_state["is_args_from_ui"] = False
+        st.session_state.pop("app_settings", None)
         initialize_app_settings(args_override=args_override)
         st.rerun()
 
@@ -894,7 +896,11 @@ async def page():
     st.session_state["_verbose_user_override"] = selected_verbose_int != 1
 
     verbose = cluster_params.get('verbose', 1)
-    with st.expander("Do deployment", expanded=False):
+    with st.expander(
+        "Do deployment",
+        expanded=st.session_state.get("deploy_expanded", False),
+    ):
+        st.session_state["deploy_expanded"] = True
         render_cluster_settings_ui()
         cluster_params = st.session_state.app_settings["cluster"]
         verbose = cluster_params.get('verbose', 1)
