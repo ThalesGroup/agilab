@@ -62,7 +62,7 @@ def display_landing_page(resources_path: Path):
       <li><strong>Engineering AI Enabler</strong>: Feature Engineering.</li>
       <li><strong>Availability</strong>: Works online and in standalone mode.</li>
       <li><strong>Enhanced Deployment Productivity</strong>: Automates virtual environment deployment.</li>
-      <li><strong>Enhanced Coding Productivity</strong>: Seamless integration with openai-api.</li>
+      <li><strong>Assisted by Generative AI</strong>: Seamless integration with OpenAI API (online), GPT-OSS (local), and Mistral-instruct (local).</li>
       <li><strong>Enhanced Scalability</strong>: Distributes both data and algorithms on a cluster.</li>
       <li><strong>User-Friendly Interface for Data Science</strong>: Integration of Jupyter-ai and ML Flow.</li>
       <li><strong>Advanced Execution Tools</strong>: Enables Map Reduce and Direct Acyclic Graph Orchestration.</li>
@@ -70,12 +70,7 @@ def display_landing_page(resources_path: Path):
     <p>
       With AGILAB, there’s no need for additional integration—our all-in-one framework is ready to deploy, enabling you to focus on innovation rather than setup.
     </p>
-    <div class="uvp-highlight">
-      <strong>Tips:</strong>
-       <ul>
-         To benefit from AGI cluster automation functionality, all you need is <strong>agi-core</strong>. This means you can remove the lab and view directories. Historically, AGILAB was developed as a playground for agi-core.
-       </ul>
-    </div>
+    
     """
     st.markdown(md_content, unsafe_allow_html=True)
 
