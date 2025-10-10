@@ -823,11 +823,20 @@ def run_agi(code, path="."):
 
     # Find all matches in the code
     matches = re.findall(pattern, code)
-    snippet_file = os.path.join(
-        env.runenv, f"{matches[0]}-{env.target}.py"
-    )
+    if not matches:
+        st.warning("Could not determine snippet name from code.")
+        return None
+
+    snippet_name = matches[0]
+    snippet_prefix = re.sub(r"[^0-9A-Za-z_]+", "_", str(snippet_name)).strip("_") or "AGI_unknown_command"
+    target_slug = re.sub(r"[^0-9A-Za-z_]+", "_", str(env.target)).strip("_") or "unknown_app_name"
+
+    runenv_path = Path(env.runenv)
+    runenv_path.mkdir(parents=True, exist_ok=True)
+    snippet_file = runenv_path / f"{snippet_prefix}_{target_slug}.py"
     with open(snippet_file, "w") as file:
         file.write(code)
+
     if (path == env.env_root) or (env.app_abs / ".venv").exists():
         return run_with_output(env, f"uv -q run python {snippet_file}", path)
     else:
