@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="{APP} AGI_run" type="PythonConfigurationType" factoryName="Python" folderName="{APP}_project">
+  <configuration default="false" name="{APP} AGI run" type="PythonConfigurationType" factoryName="Python" folderName="{APP}_project">
     <module name="{APP}_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />

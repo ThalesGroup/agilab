@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="flight AGI_install" type="PythonConfigurationType" factoryName="Python" folderName="flight_project">
+  <configuration default="false" name="flight AGI install" type="PythonConfigurationType" factoryName="Python" folderName="flight_project">
     <module name="agi-cluster" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
