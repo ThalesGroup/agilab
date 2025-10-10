@@ -202,7 +202,7 @@ def parse_and_validate_workers(workers_input):
             return {"127.0.0.1": 1}
     return workers or {"127.0.0.1": 1}
 
-def initialize_app_settings():
+def initialize_app_settings(args_override=None):
     env = st.session_state["env"]
 
     file_settings = load_toml_file(env.app_settings_file)
@@ -236,6 +236,8 @@ def initialize_app_settings():
         app_settings.setdefault("args", {})
 
     cluster_settings = app_settings.setdefault("cluster", {})
+    if args_override is not None:
+        app_settings["args"] = args_override
     st.session_state.app_settings = app_settings
     if "cluster_enabled" not in st.session_state:
         st.session_state["cluster_enabled"] = bool(cluster_settings.get("cluster_enabled", False))
@@ -803,7 +805,14 @@ async def page():
     previous_project = current_project
     select_project(projects, current_project)
     if st.session_state.pop("project_changed", False) or env.app != previous_project:
-        initialize_app_settings()
+        args_override = None
+        if st.session_state.get("is_args_from_ui"):
+            app_settings = st.session_state.get("app_settings", {})
+            state_args = app_settings.get("args") if isinstance(app_settings, dict) else None
+            if state_args:
+                args_override = state_args
+            args_override = st.session_state.get("app_settings", {}).get("args")
+        initialize_app_settings(args_override=args_override)
         st.rerun()
 
     module = env.target
