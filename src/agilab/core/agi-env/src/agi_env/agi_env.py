@@ -1700,7 +1700,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         snippet_name = matches[0]
         is_install_snippet = "install" in snippet_name.lower()
 
-        snippet_file = Path(self.runenv) / "{}_{}.py".format(
+        runenv_path = Path(self.runenv)
+        runenv_path.mkdir(parents=True, exist_ok=True)
+
+        snippet_file = runenv_path / "{}_{}.py".format(
             re.sub(r"[^0-9A-Za-z_]+", "_", str(snippet_name)).strip("_") or "AGI.unknown_command",
             re.sub(r"[^0-9A-Za-z_]+", "_", str(self.target)).strip("_") or "unknown_app_name")
         with open(snippet_file, "w") as file:
