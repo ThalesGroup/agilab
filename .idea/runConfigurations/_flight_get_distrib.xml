@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="flight AGI_get_distrib" type="PythonConfigurationType" factoryName="Python" folderName="flight_project">
+  <configuration default="false" name="flight AGI get distrib" type="PythonConfigurationType" factoryName="Python" folderName="flight_project">
     <module name="flight_project" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
