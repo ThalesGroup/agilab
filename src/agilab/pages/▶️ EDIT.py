@@ -1104,16 +1104,16 @@ def handle_project_selection():
 
     # Define each section as (label, render‑fn)
     sections = [
+        ("README", lambda: _render_readme(env)),
         ("PYTHON‑ENV", lambda: _render_python_env(env)),
         ("PYTHON-ENV-EXTRA", lambda: _render_uv_env(env)),
         ("EXPORT‑APP‑FILTER", lambda: _render_gitignore(env)),
-        ("APP‑SETTINGS",      lambda: _render_app_settings(env)),
-        ("README",            lambda: _render_readme(env)),
+        ("PRE‑PROMPT",        lambda: _render_pre_prompt(env)),
+        ("APP‑SETTINGS", lambda: _render_app_settings(env)),
+        ("APP‑ARGS", lambda: _render_app_args_module(env)),
+        ("APP-ARGS‑FORM", lambda: _render_args_ui(env)),
         ("MANAGER",           lambda: _render_manager(env)),
         ("WORKER",            lambda: _render_worker(env)),
-        ("APP‑ARGS",          lambda: _render_app_args_module(env)),
-        ("APP-ARGS‑FORM",     lambda: _render_args_ui(env)),
-        ("PRE‑PROMPT",        lambda: _render_pre_prompt(env)),
     ]
 
     for label, render_fn in sections:
@@ -1129,15 +1129,15 @@ def handle_project_selection():
 def _expander_icon(label: str) -> str:
     """Return an emoji prefix based on the expander name."""
     mapping = {
+        "README": "📘",
         "PYTHON-ENV": "⚙️",
         "PYTHON-ENV-EXTRA": "⚙️",
         "LOGS": "⚙️",
+        "PRE-PROMPT": "️⚙️",
+        "EXPORT-APP-FILTER": "⚙️",
         "APP-SETTINGS": "🔧",
-        "EXPORT-APP-FILTER": "🔧",
-        "PRE-PROMPT": "🔧",
-        "README": "📘",
-        "APP-ARGS": "🐍",
-        "APP-ARGS-FORM": "🐍",
+        "APP-ARGS": "🔧",
+        "APP-ARGS-FORM": "🔧",
         "MANAGER": "🐍",
         "WORKER": "🐍",
     }
