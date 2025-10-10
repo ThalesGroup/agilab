@@ -95,7 +95,6 @@ def display_log(stdout, stderr):
         stdout = st.session_state["log_text"]
 
     # Strip ANSI color codes from both stdout and stderr
-    # Strip ANSI color codes before any processing
     clean_stdout = strip_ansi(stdout or "")
     clean_stderr = strip_ansi(stderr or "")
 
@@ -118,19 +117,6 @@ def display_log(stdout, stderr):
 def parse_benchmark(benchmark_str):
     """
     Parse a benchmark string into a dictionary.
-
-    This function converts a benchmark string that may have unquoted numeric keys and
-    single quotes into a valid JSON string and then parses it into a dictionary.
-    Numeric keys are converted to integers.
-
-    Args:
-        benchmark_str (str): The benchmark string to parse.
-
-    Returns:
-        dict: A dictionary with numeric keys as integers.
-
-    Raises:
-        ValueError: If the input is not a string or the benchmark string cannot be parsed.
     """
     if not isinstance(benchmark_str, str):
         raise ValueError("Input must be a string.")
@@ -147,7 +133,6 @@ def parse_benchmark(benchmark_str):
     except json.JSONDecodeError as e:
         raise ValueError("Invalid benchmark string. Failed to decode JSON.") from e
 
-    # Convert keys that represent numbers to integers, leave others as-is
     def try_int(key):
         return int(key) if key.isdigit() else key
 
@@ -166,6 +151,9 @@ def safe_eval(expression, expected_type, error_message):
         return None
 
 def parse_and_validate_scheduler(scheduler_input):
+    """
+    Accept IP or IP:PORT. Validate IP via env.is_valid_ip(host) and optional numeric port.
+    """
     apps_dir_value = st.session_state.get("apps_dir")
     env = st.session_state.setdefault(
         "env",
@@ -174,12 +162,17 @@ def parse_and_validate_scheduler(scheduler_input):
             verbose=0,
         ),
     )
-    scheduler = scheduler_input.strip()
+    scheduler = (scheduler_input or "").strip()
     if not scheduler:
-        st.error("Scheduler must be provided as a valid IP address.")
+        st.error("Scheduler must be provided as a valid IP address (optionally with :PORT).")
         return None
-    if not env.is_valid_ip(scheduler):
-        st.error(f"The scheduler IP address '{scheduler}' is invalid.")
+
+    host, sep, port = scheduler.partition(":")
+    if not env.is_valid_ip(host):
+        st.error(f"The scheduler host '{scheduler}' is invalid. Expect IP or IP:PORT.")
+        return None
+    if sep and (not port.isdigit() or not (0 < int(port) < 65536)):
+        st.error(f"The scheduler port in '{scheduler}' is invalid.")
         return None
     return scheduler
 
@@ -399,49 +392,52 @@ def render_cluster_settings_ui():
         )
         cluster_params[param] = updated_value
 
-    default_cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
+    # -------- FIX: per-project cluster toggle seeded from TOML
+    cluster_enabled_key = f"cluster_enabled__{env.app}"
+    if cluster_enabled_key not in st.session_state:
+        st.session_state[cluster_enabled_key] = bool(cluster_params.get("cluster_enabled", False))
 
     cluster_enabled = st.toggle(
         "Enable Cluster",
-        value=cluster_params.get("cluster_enabled", False),
-        key="cluster_enabled",
+        value=st.session_state[cluster_enabled_key],
+        key=cluster_enabled_key,
         help="Enable cluster: provide a scheduler IP and workers configuration."
     )
     cluster_params["cluster_enabled"] = bool(cluster_enabled)
 
+    # ------- Do NOT pop scheduler/workers when disabled. Keep persisted.
+
     if cluster_enabled:
-        scheduler_value = st.session_state.get("cluster_scheduler_value")
-        if scheduler_value is None:
-            scheduler_value = cluster_params.get("scheduler", "")
+        # ------- per-project widget key & seeding so TOML reflects immediately
+        scheduler_widget_key = f"cluster_scheduler__{env.app}"
+        if scheduler_widget_key not in st.session_state:
+            st.session_state[scheduler_widget_key] = cluster_params.get("scheduler", "")
+
         scheduler_input = st.text_input(
             "Scheduler IP Address",
-            value=scheduler_value,
-            placeholder="e.g., 192.168.0.100",
-            help="Provide a scheduler IP address.",
-            key="cluster_scheduler"
+            key=scheduler_widget_key,
+            placeholder="e.g., 192.168.0.100 or 192.168.0.100:8786",
+            help="Provide a scheduler IP address (optionally with :PORT).",
         )
         if scheduler_input:
             scheduler = parse_and_validate_scheduler(scheduler_input)
             if scheduler:
                 cluster_params["scheduler"] = scheduler
-                st.session_state["cluster_scheduler_value"] = scheduler
 
+        workers_widget_key = f"cluster_workers__{env.app}"
         workers_dict = cluster_params.get("workers", {})
         workers_value = json.dumps(workers_dict, indent=2) if isinstance(workers_dict, dict) else "{}"
         workers_input = st.text_area(
             "Workers Configuration",
-            value=workers_value,
+            value=workers_value if workers_widget_key not in st.session_state else st.session_state[workers_widget_key],
             placeholder='e.g., {"192.168.0.1": 2, "192.168.0.2": 3}',
             help="Provide a dictionary of worker IP addresses and capacities.",
-            key="cluster_workers"
+            key=workers_widget_key
         )
         if workers_input:
             workers = parse_and_validate_workers(workers_input)
             if workers:
                 cluster_params["workers"] = workers
-    else:
-        cluster_params.pop("scheduler", None)
-        cluster_params.pop("workers", None)
 
     st.session_state.dask = cluster_enabled
     benchmark_enabled = st.session_state.get("benchmark", False)
@@ -468,6 +464,7 @@ def render_cluster_settings_ui():
         st.info(f"Run mode {run_mode_label[mode_value]}")
     st.session_state.app_settings["cluster"] = cluster_params
 
+    # Persist to TOML
     with open(env.app_settings_file, "wb") as file:
         tomli_w.dump(st.session_state.app_settings, file)
     try:
@@ -518,7 +515,6 @@ def _draw_distribution(graph, partition_key, show_leaf_list, title):
     ax = plt.gca()
     for node in graph.nodes():
         x, y = pos[node]
-        data = graph.nodes[node]
         # Rotate leaf labels if present
         if show_leaf_list and node in leaf_nodes:
             rotation, fontsize = 90, 7
@@ -575,7 +571,6 @@ def _extract_chunk_info(chunk, partition_key, weights_key):
     if isinstance(chunk, (tuple, list)):
         if not chunk:
             return "unknown", 1
-        # Handle cases like [(partition, size)]
         if len(chunk) == 1 and isinstance(chunk[0], (tuple, list)):
             chunk = chunk[0]
         if chunk and isinstance(chunk[0], dict):
@@ -603,12 +598,10 @@ def show_tree(workers, work_plan_metadata, work_plan, partition_key, weights_key
     total_per_host = defaultdict(int)
     workers_works = defaultdict(list)
 
-    # Build workload mapping
     for worker, chunks, files_list in zip(workers, work_plan_metadata, work_plan):
         ip = worker.split("-")[0]
         for chunk, files in zip(chunks, files_list):
             partition, size = _extract_chunk_info(chunk, partition_key, weights_key)
-            # Normalize size
             if isinstance(size, numbers.Number):
                 size_processed = size
             else:
@@ -627,28 +620,23 @@ def show_tree(workers, work_plan_metadata, work_plan, partition_key, weights_key
         st.warning("No workers with assigned chunks found.")
         return
 
-    # Determine minimum for relative weights
     min_size = min(sum(sz for _, sz, _, _ in w) for w in workers_works.values())
     graph = nx.Graph()
 
-    # Populate nodes and edges
     for worker, works in workers_works.items():
         try:
             ip, wnum = worker.split("-")
         except ValueError:
             st.error(f"Worker identifier '{worker}' is not in the expected 'ip-number' format.")
             continue
-        # Host node
         host_load = round(100 * total_per_host[ip] / total) if total else 0
         host_node = f"{ip}\n{host_load}%"
         graph.add_node(host_node, level=0)
-        # Worker node
         wsize = sum(sz for _, sz, _, _ in works)
         wload = round(100 * wsize / total) if total else 0
         worker_node = f"{wnum}\n{ip}\n{wload}%"
         graph.add_node(worker_node, level=1)
         graph.add_edge(host_node, worker_node, weight=round(wsize / min_size, 1))
-        # Partition and leaves
         for partition, sz, nfiles, files in works:
             part_node = f"{partition}\n{nfiles} {weights_key}"
             graph.add_node(part_node, level=2)
@@ -794,7 +782,6 @@ async def page():
         "_experiment_reload_required": False,
     }
 
-
     init_session_state(defaults)
     projects = env.projects
     current_project = env.app
@@ -807,8 +794,12 @@ async def page():
     project_changed = st.session_state.pop("project_changed", False)
     if project_changed or env.app != previous_project:
         app_settings_snapshot = st.session_state.get("app_settings", {})
+        # Clear generic & per-project keys to prevent bleed-through
         st.session_state.pop("cluster_enabled", None)
-        st.session_state.pop("cluster_scheduler_value", None)
+        st.session_state.pop(f"cluster_enabled__{previous_project}", None)
+        st.session_state.pop(f"cluster_scheduler__{previous_project}", None)
+        st.session_state.pop(f"cluster_workers__{previous_project}", None)
+        st.session_state.pop("cluster_scheduler_value", None)  # legacy
         st.session_state.pop(f"deploy_expanded_{previous_project}", None)
         st.session_state.pop(f"optimize_expanded_{previous_project}", None)
         st.session_state.pop("app_settings", None)
@@ -987,9 +978,8 @@ if __name__ == "__main__":
                         display_log(st.session_state.get("log_text", ""), stderr)
                     if not stderr:
                         st.success("Cluster installation completed.")
-                        # 👇 Auto-enable the RUN section after install
-                        st.session_state["SET ARGS"] = True  # reveals the "SET ARGS" expander
-                        st.session_state["show_run"] = True  # reveal the RUN section
+                        st.session_state["SET ARGS"] = True
+                        st.session_state["show_run"] = True
                         st.rerun()
 
     # ------------------
@@ -1190,15 +1180,12 @@ if __name__ == "__main__":
                             # Pull out a date if present, so it doesn't break the DF shape
                             date_value = str(raw.pop("date", "") or "").strip()
 
-                            # Keep your original layout
                             benchmark_df = pd.DataFrame.from_dict(raw, orient='index')
 
-                            # Only display if there's real content (not all-NaN rows/cols)
                             df_nonempty = benchmark_df.dropna(how='all')
                             if not df_nonempty.empty:
                                 df_nonempty = df_nonempty.loc[:, df_nonempty.notna().any(axis=0)]
                             if not df_nonempty.empty and df_nonempty.shape[1] > 0:
-                                # If no date in JSON, try file mtime; otherwise skip date
                                 if not date_value:
                                     try:
                                         ts = os.path.getmtime(env.benchmark)
@@ -1210,7 +1197,6 @@ if __name__ == "__main__":
                                     st.caption(f"Benchmark date: {date_value}")
 
                                 st.dataframe(df_nonempty)
-                            # else: don't display anything if table is effectively empty
                         else:
                             st.error("program abort before all mode have been run")
                             st.session_state['mode'] = 0
