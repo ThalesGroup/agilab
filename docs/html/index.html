@@ -320,8 +320,9 @@
 <section id="audience-profiles">
 <h2>Audience profiles<a class="headerlink" href="#audience-profiles" title="Link to this heading"></a></h2>
 <ul class="simple">
-<li><p><strong>End users</strong> run AGILab as a packaged IDE (Streamlit UI) via the installer’s entry points—no repository checkout or terminal wrappers required. <code class="docutils literal notranslate"><span class="pre">uvx</span></code> is for demos/quick checks only.</p></li>
-<li><p><strong>Developers</strong> clone the repository, use PyCharm run configurations (or generate terminal wrappers with <code class="docutils literal notranslate"><span class="pre">python3</span> <span class="pre">tools/generate_runconfig_scripts.py</span></code>), and extend apps or the core framework.</p></li>
+<li><p><strong>Managers</strong> run packaged demos via the IDE entry points or demo commands to quickly evaluate AGILab flows (read-only usage).</p></li>
+<li><p><strong>End users</strong> clone the repository and customize existing apps (configs, workers, small UI tweaks) to fit their use case—no need to modify the core framework. <code class="docutils literal notranslate"><span class="pre">uvx</span></code> is for demos/quick checks only.</p></li>
+<li><p><strong>Developers</strong> extend the framework: create new apps, add apps-pages (e.g., new views), workers, and deeper changes. Use PyCharm run configurations (or generate terminal wrappers with <code class="docutils literal notranslate"><span class="pre">python3</span> <span class="pre">tools/generate_runconfig_scripts.py</span></code>).</p></li>
 </ul>
 </section>
 <section id="shell-wrappers-for-run-configs">
