@@ -276,8 +276,10 @@ class BaseWorker(abc.ABC):
                 BaseWorker._worker,
                 getattr(worker_inst, "_mode", None),
             )
-            if hasattr(worker_inst, "start"):
-                worker_inst.start()
+            method = getattr(worker_inst, "start", None)
+            base_method = BaseWorker.start
+            if method and method is not base_method:
+                method()
         except Exception:  # pragma: no cover - log and rethrow for visibility
             logging.error("Worker start hook failed:\n%s", traceback.format_exc())
             raise
