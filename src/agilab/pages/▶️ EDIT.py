@@ -1117,10 +1117,32 @@ def handle_project_selection():
     ]
 
     for label, render_fn in sections:
-        with st.expander(label, expanded=False):
+        icon = _expander_icon(label)
+        title = f"{icon} {label}" if icon else label
+        with st.expander(title, expanded=False):
             render_fn()
 
 
+
+
+
+def _expander_icon(label: str) -> str:
+    """Return an emoji prefix based on the expander name."""
+    mapping = {
+        "PYTHON‑ENV": "🛠️",
+        "LOGS": "🛠️",
+        "EXPORT‑APP‑FILTER": "🔐",
+        "APP‑SETTINGS": "🔧",
+        "README": "📘",
+        "APP‑ARGS": "📘",
+        "APP-ARGS‑FORM": "📘",
+        "PRE‑PROMPT": "🧠",
+    }
+    normalized = label.strip().upper()
+    for key, icon in mapping.items():
+        if normalized.startswith(key):
+            return icon
+    return ""
 
 # helper functions
 
