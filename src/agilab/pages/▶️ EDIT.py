@@ -1129,14 +1129,17 @@ def handle_project_selection():
 def _expander_icon(label: str) -> str:
     """Return an emoji prefix based on the expander name."""
     mapping = {
-        "PYTHON‑ENV": "🛠️",
-        "LOGS": "🛠️",
-        "EXPORT‑APP‑FILTER": "🔐",
+        "PYTHON‑ENV": "⚙️",
+        "PYTHON-ENV-EXTRA": "⚙️",
+        "LOGS": "⚙️",
         "APP‑SETTINGS": "🔧",
+        "EXPORT‑APP‑FILTER": "🔧",
         "README": "📘",
         "APP‑ARGS": "📘",
         "APP-ARGS‑FORM": "📘",
         "PRE‑PROMPT": "🧠",
+        "MANAGER": "💻",
+        "WORKER": "💻",
     }
     normalized = label.strip().upper()
     for key, icon in mapping.items():
@@ -1255,16 +1258,37 @@ def _render_args_ui(env):
         st.warning("Args UI snippet file not found.")
 
 def _render_pre_prompt(env):
-    pre_prompt_file = env.app_src / "pre_prompt.json"
-    if pre_prompt_file.exists():
-        with open(pre_prompt_file, "r", encoding="utf-8") as f:
+    global comp_props, ace_props
+    candidates = [
+        env.app_src / "pre_prompt.json",
+        env.app_src / "app_arg_prompt.json",
+        env.app_src / "app_args_prompt.json",
+    ]
+    target = next((p for p in candidates if p.exists()), None)
+    if not target:
+        st.warning("No pre_prompt/app_arg prompt file found.")
+        return
+
+    with open(target, "r", encoding="utf-8") as f:
+        try:
             pre_prompt_content = json.load(f)
-        pre_prompt_str = json.dumps(pre_prompt_content, indent=4)
-        render_code_editor(
-            pre_prompt_file, pre_prompt_str, "json", "st", comp_props, ace_props
-        )
-    else:
-        st.warning("pre_prompt file not found.")
+            pre_prompt_str = json.dumps(pre_prompt_content, indent=4)
+            language = "json"
+        except json.JSONDecodeError:
+            f.seek(0)
+            pre_prompt_str = f.read()
+            language = "markdown"
+
+    ace = {**ace_props, "language": language}
+
+    render_code_editor(
+        target,
+        pre_prompt_str,
+        language,
+        "st",
+        comp_props,
+        ace,
+    )
 
 def handle_project_creation():
     """
