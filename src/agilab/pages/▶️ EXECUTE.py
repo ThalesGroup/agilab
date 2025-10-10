@@ -436,12 +436,8 @@ def render_cluster_settings_ui():
         cluster_params.pop("workers", None)
 
     st.session_state.dask = cluster_enabled
-    st.session_state["mode"] = (
-        int(cluster_params.get("pool", False))
-        + int(cluster_params.get("cython", False)) * 2
-        + int(cluster_enabled) * 4
-        + int(cluster_params.get("rapids", False)) * 8
-    )
+    benchmark_enabled = st.session_state.get("benchmark", False)
+
     run_mode_label = [
         "0: python", "1: pool of process", "2: cython", "3: pool and cython",
         "4: dask", "5: dask and pool", "6: dask and cython", "7: dask and pool and cython",
@@ -449,7 +445,19 @@ def render_cluster_settings_ui():
         "12: rapids and dask", "13: rapids and dask and pool", "14: rapids and dask and cython",
         "15: rapids and dask and pool and cython"
     ]
-    st.info(f"Run mode {run_mode_label[st.session_state['mode']]}")
+
+    if benchmark_enabled:
+        st.session_state["mode"] = None
+        st.info("Run mode benchmark (all modes)")
+    else:
+        mode_value = (
+            int(cluster_params.get("pool", False))
+            + int(cluster_params.get("cython", False)) * 2
+            + int(cluster_enabled) * 4
+            + int(cluster_params.get("rapids", False)) * 8
+        )
+        st.session_state["mode"] = mode_value
+        st.info(f"Run mode {run_mode_label[mode_value]}")
     st.session_state.app_settings["cluster"] = cluster_params
 
     with open(env.app_settings_file, "wb") as file:
@@ -1130,7 +1138,8 @@ if __name__ == "__main__":
     asyncio.run(main())"""
             st.code(cmd, language="python")
 
-            with st.expander("Benchmark results", expanded=False):
+            expand_benchmark = st.session_state.pop("_benchmark_expand", False)
+            with st.expander("Benchmark results", expanded=expand_benchmark):
                 if not st.session_state.get('mode'):
                     try:
                         if env.benchmark.exists():
@@ -1228,6 +1237,9 @@ if __name__ == "__main__":
             with run_log_expander:
                 run_log_placeholder.empty()
                 display_log(st.session_state["run_log_cache"], stderr)
+                if st.session_state.get("benchmark"):
+                    st.session_state["_benchmark_expand"] = True
+                    st.rerun()
 
     df_preview = st.session_state.get("loaded_df")
     if isinstance(df_preview, pd.DataFrame) and not df_preview.empty:
