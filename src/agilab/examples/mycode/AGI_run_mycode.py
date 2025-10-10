@@ -1,21 +1,18 @@
 
 import asyncio
-from pathlib import Path
-
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
-APPS_DIR = Path(__file__).resolve().parents[3] / "apps"
+APPS_DIR = "/Users/example/PycharmProjects/agilab/src/agilab/apps"
 APP = "mycode_project"
 
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose=1)
-    res = await AGI.run(
-        app_env,
-        mode=0,
-        scheduler=None,
-        workers=None,
-    )
+    res = await AGI.run(app_env, 
+                        mode=4, 
+                        scheduler="None", 
+                        workers={'127.0.0.1': 1}, 
+                        )
     print(res)
     return res
 
