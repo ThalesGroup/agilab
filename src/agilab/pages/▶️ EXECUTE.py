@@ -33,7 +33,7 @@ from agi_env.pagelib import (
     cached_load_df, inject_theme
 )
 
-from agi_env import AgiEnv, normalize_path
+from agi_env import AgiEnv
 
 # ===========================
 # Session State Initialization
@@ -880,7 +880,7 @@ async def page():
             cmd = f"""
 import asyncio
 from agi_cluster.agi_distributor import AGI
-from agi_env import AgiEnv, normalize_path
+from agi_env import AgiEnv
 from pathlib import Path
 
 APPS_DIR = "{env.apps_dir}"
@@ -997,7 +997,7 @@ if __name__ == "__main__":
             cmd = f"""
 import asyncio
 from agi_cluster.agi_distributor import AGI
-from agi_env import AgiEnv, normalize_path
+from agi_env import AgiEnv
 from pathlib import Path
 
 APPS_DIR = "{env.apps_dir}"
@@ -1110,7 +1110,7 @@ if __name__ == "__main__":
             cmd = f"""
 import asyncio
 from agi_cluster.agi_distributor import AGI
-from agi_env import AgiEnv, normalize_path
+from agi_env import AgiEnv
 from pathlib import Path
 
 APPS_DIR = "{env.apps_dir}"
