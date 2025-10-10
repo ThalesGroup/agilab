@@ -412,6 +412,7 @@ def render_cluster_settings_ui():
         help="Enable cluster: provide a scheduler IP and workers configuration."
     )
     cluster_params["cluster_enabled"] = bool(cluster_enabled)
+    st.session_state["cluster_enabled"] = bool(cluster_enabled)
 
     if cluster_enabled:
         scheduler_value = cluster_params.get("scheduler", "")
