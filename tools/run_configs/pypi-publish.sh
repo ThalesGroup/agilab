@@ -5,4 +5,4 @@ set -euo pipefail
 cd /Users/jpm/PycharmProjects/agilab
 export PYTHONUNBUFFERED='1 PYDEVD_USE_FRAME_EVAL=NO'
 export UV_NO_SYNC=1
-uv run python /Users/jpm/PycharmProjects/agilab/tools/pypi_publish.py --repo pypi --leave-most-recent --verbose --cleanup $Prompt:Cleanup credentials$
+uv run python /Users/jpm/PycharmProjects/agilab/tools/pypi_publish.py --repo pypi --leave-most-recent --verbose --git-commit-version --git-reset-on-failure --cleanup $Prompt:Cleanup credentials$
