@@ -235,8 +235,9 @@ def initialize_app_settings():
     else:
         app_settings.setdefault("args", {})
 
-    app_settings.setdefault("cluster", {})
+    cluster_settings = app_settings.setdefault("cluster", {})
     st.session_state.app_settings = app_settings
+    st.session_state["cluster_enabled"] = bool(cluster_settings.get("cluster_enabled", False))
 
 def filter_warning_messages(log: str) -> str:
     """
@@ -396,13 +397,21 @@ def render_cluster_settings_ui():
         )
         cluster_params[param] = updated_value
 
+    default_cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
+    if "cluster_enabled" not in st.session_state:
+        st.session_state["cluster_enabled"] = default_cluster_enabled
+    else:
+        stored_value = st.session_state.get("cluster_enabled")
+        if stored_value not in (True, False):
+            st.session_state["cluster_enabled"] = default_cluster_enabled
+
     cluster_enabled = st.toggle(
-        "Cluster",
-        value=cluster_params.get("cluster_enabled", False),
+        "Enable Cluster",
+        value=st.session_state.get("cluster_enabled", default_cluster_enabled),
         key="cluster_enabled",
         help="Enable cluster: provide a scheduler IP and workers configuration."
     )
-    cluster_params["cluster_enabled"] = cluster_enabled
+    cluster_params["cluster_enabled"] = bool(cluster_enabled)
 
     if cluster_enabled:
         scheduler_value = cluster_params.get("scheduler", "")
