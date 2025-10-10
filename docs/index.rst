@@ -7,20 +7,21 @@ You’ll find everything from quickstarts to API references, as well as example 
 Audience profiles
 -----------------
 
-- **End users** install and launch packaged apps with ``uvx`` or the generated shell wrappers under ``tools/run_configs/``—no repository checkout or IDE required.
-- **Developers** clone the repository, regenerate run configurations (``python3 tools/generate_runconfig_scripts.py``), and extend apps or the core framework.
+- **Managers** run packaged demos via the IDE entry points or demo commands to quickly evaluate AGILab flows (read‑only usage).
+- **End users** clone the repository and customize existing apps (configs, workers, small UI tweaks) to fit their use case—no need to modify the core framework. ``uvx`` is for demos/quick checks only and not recommended for regular use.
+- **Developers** extend the framework: create new apps, add apps‑pages (e.g., new views), workers, and deeper changes. Use PyCharm run configurations (or generate terminal wrappers with ``python3 tools/generate_runconfig_scripts.py``).
 
-Shell wrappers for run configs
-------------------------------
+Shell wrappers for developers
+----------------------------
 
-If you want to run the IDE workflows from a terminal, regenerate the shell wrappers with::
+Developers who prefer a terminal can mirror PyCharm run configurations by regenerating shell wrappers with::
 
    python3 tools/generate_runconfig_scripts.py
 
-The command emits executable scripts under ``tools/run_configs/<group>/`` (``agilab``, ``apps``, ``components``); each one mirrors a PyCharm run configuration (working directory, environment variables, and ``uv`` invocation).
+This emits executable scripts under ``tools/run_configs/<group>/`` (``agilab``, ``apps``, ``components``); each mirrors a PyCharm run configuration (working directory, environment variables, and ``uv`` invocation).
 
 .. note::
-   ``uvx -p 3.13 agilab`` is perfect for demos or quick checks, but edits made inside the cached package are not persisted. For development work, clone the repo or use a dedicated virtual environment. For offline workflows pick one of the bundled providers:
+   ``uvx -p 3.13 agilab`` is intended for demos or quick checks only; edits made inside the cached package are not persisted. For development work, clone the repo or use a dedicated virtual environment. For offline workflows pick one of the bundled providers:
 
    - Launch a GPT-OSS responses server with ``python -m gpt_oss.responses_api.serve --inference-backend stub --port 8000`` and switch the Experiment sidebar to *GPT-OSS (local)*.
    - Install ``universal-offline-ai-chatbot`` (Mistral-based) and point the Experiment sidebar to your PDF corpus to enable the *mistral:instruct (local)* provider.
