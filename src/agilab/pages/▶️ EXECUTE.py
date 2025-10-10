@@ -400,6 +400,8 @@ def render_cluster_settings_ui():
         )
         cluster_params[param] = updated_value
 
+    default_cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
+
     cluster_enabled = st.toggle(
         "Enable Cluster",
         value=st.session_state.get("cluster_enabled", default_cluster_enabled),
