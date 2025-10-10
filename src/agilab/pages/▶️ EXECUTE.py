@@ -803,7 +803,8 @@ async def page():
         current_project = projects[0] if projects else None
     previous_project = current_project
     select_project(projects, current_project)
-    if st.session_state.pop("project_changed", False) or env.app != previous_project:
+    project_changed = st.session_state.pop("project_changed", False)
+    if project_changed or env.app != previous_project:
         st.session_state.pop("cluster_enabled", None)
         st.session_state.pop("cluster_scheduler_value", None)
         st.session_state.pop("deploy_expanded", None)
@@ -896,11 +897,12 @@ async def page():
     st.session_state["_verbose_user_override"] = selected_verbose_int != 1
 
     verbose = cluster_params.get('verbose', 1)
+    deploy_state_key = f"deploy_expanded_{env.app}"
     with st.expander(
         "Do deployment",
-        expanded=st.session_state.get("deploy_expanded", False),
+        expanded=st.session_state.get(deploy_state_key, False),
     ):
-        st.session_state["deploy_expanded"] = True
+        st.session_state[deploy_state_key] = True
         render_cluster_settings_ui()
         cluster_params = st.session_state.app_settings["cluster"]
         verbose = cluster_params.get('verbose', 1)
