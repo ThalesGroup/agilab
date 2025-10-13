@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="link_sim AGI install" type="PythonConfigurationType" factoryName="Python" folderName="link_sim_project">
+  <configuration default="false" name="link_sim install" type="PythonConfigurationType" factoryName="Python" folderName="link_sim_project">
     <module name="agi-cluster" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />

@@ -12,11 +12,14 @@ output_format = "parquet"
 
 [cluster]
 verbose = 1
-cython = false
-pool = false
-rapids = false
+cython = true
+pool = true
+rapids = true
 cluster_enabled = true
-scheduler = "127.0.0.1"
+scheduler = "192.168.20.111"
 
 [cluster.workers]
-"127.0.0.1" = 1
+"192.168.20.130" = 1
+
+[pages]
+view_module = []
