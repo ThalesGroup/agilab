@@ -1630,14 +1630,18 @@ class AGI:
         cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.active_app}'"
         await AgiEnv.run(cmd, wenv_abs)
 
-        # Post-install script
+        # dataset
         dest = wenv_abs / "src" / env.target_worker
         os.makedirs(dest, exist_ok=True)
-        shutil.copy2(env.post_install, dest)
         src = env.dataset_archive
         if src.exists():
             os.makedirs(env.home_abs / env.data_rel / "dataset", exist_ok=True)
             shutil.copy2(src, dest)
+
+        # Post-install script
+        os.makedirs(env.home_abs / env.post_install_rel.parent, exist_ok=True)
+        shutil.copy2(env.post_install, env.home_abs / env.post_install_rel)
+
         python_bin = wenv_abs / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         cmd = (
             f"{shlex.quote(str(python_bin))} {shlex.quote(str(env.home_abs / env.post_install_rel))} "
