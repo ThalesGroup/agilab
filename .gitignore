@@ -4,6 +4,7 @@
 .idea/*
 !.idea/runConfigurations/
 !.idea/runConfigurations/**
+.idea/runConfigurations/_*.xml
 .idea.bak/
 agi-space
 
