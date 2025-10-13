@@ -1638,6 +1638,11 @@ class AGI:
             os.makedirs(env.home_abs / env.data_rel / "dataset", exist_ok=True)
             shutil.copy2(src, dest)
 
+        # Post-install script
+        dest = env.home_abs / env.post_install_rel
+        os.makedirs(dest.parent, exist_ok=True)
+        shutil.copy2(env.post_install, dest)
+
         python_bin = wenv_abs / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         cmd = (
             f"{shlex.quote(str(python_bin))} {shlex.quote(str(env.home_abs / env.post_install_rel))} "
