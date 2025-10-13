@@ -16,8 +16,8 @@
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="$USER_HOME$/wenv/mycode_worker/src/mycode_worker/post_install.py" />
-    <option name="PARAMETERS" value="$ProjectFileDir$/src/agilab/apps/mycode_project 1 $USER_HOME$/data/mycode" />
+    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/post_install.py" />
+    <option name="PARAMETERS" value="$ProjectFileDir$/src/agilab/apps/mycode_project $USER_HOME$/data/mycode" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />

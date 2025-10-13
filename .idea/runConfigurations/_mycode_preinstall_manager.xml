@@ -6,8 +6,8 @@
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
     <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-        <env name="UV_NO_SYNC" value="1" />
+      <env name="PYTHONUNBUFFERED" value="1" />
+      <env name="UV_NO_SYNC" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="SDK_NAME" value="uv (mycode_project)" />
@@ -16,7 +16,7 @@
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/agilab/apps/mycode_project/src/mycode_worker/pre_install.py" />
+    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/pre_install.py" />
     <option name="PARAMETERS" value="remove_decorators --verbose --worker_path $USER_HOME$/wenv/mycode_worker/src/mycode_worker/mycode_worker.py" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />
