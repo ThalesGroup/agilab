@@ -658,6 +658,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.wenv_abs = wenv_abs
         os.makedirs(self.wenv_abs, exist_ok=True)
 
+        self.pre_install =  self.node_src / "agi_node/agi_dispatcher/pre_install.py"
+        self.post_install_rel = self.wenv_rel / "src/agi_node/agi_dispatcher/post_install.py"
+        self.post_install =  self.node_src / "agi_node/agi_dispatcher/post_install.py"
+
         dist_abs = wenv_abs / 'dist'
         dist = normalize_path(dist_abs)
         if not dist in sys.path:
@@ -689,7 +693,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
         self.uvproject = self.active_app / "uv_config.toml"
         self.dataset_archive = self.worker_path.parent / "dataset.7z"
-        self.post_install_rel = worker_src / target_worker / "post_install.py"
 
         src_path = normalize_path(self.app_src)
         if not src_path in sys.path:
@@ -702,7 +705,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
                 self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
                 self.dataset_archive = self.worker_path.parent / "dataset.7z"
-                self.post_install_rel = worker_src / target_worker / "post_install.py"
+                #self.post_install_rel = self.active_app / "agi_dispatcher/post_install.py"
             else:
                 packaged_app = self.agilab_src / "apps" / self.app
                 if not self.is_worker_env and packaged_app.exists():
@@ -756,7 +759,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
                     self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
                     self.dataset_archive = self.worker_path.parent / "dataset.7z"
-                    self.post_install_rel = worker_src / target_worker / "post_install.py"
+                    #self.post_install_rel = self.active_app / "agi_dispatcher/post_install.py"
                 elif self.is_worker_env:
                     AgiEnv.logger.info(
                         "Worker sources not found (is_worker_env=True) at %s", self.worker_path
@@ -771,17 +774,18 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         pythonpath_entries = self._collect_pythonpath_entries()
         self._configure_pythonpath(pythonpath_entries)
 
-        self.pre_install, self.pre_install_is_default = _select_hook(
-            self.worker_path.parent / "pre_install.py",
-            "pre_install.py",
-            "pre_install",
-        )
 
-        self.post_install, self.post_install_is_default = _select_hook(
-            self.worker_path.parent / "post_install.py",
-            "post_install.py",
-            "post_install",
-        )
+        # self.pre_install, self.pre_install_is_default = _select_hook(
+        #     self.pre_install_rel,
+        #     "pre_install.py",
+        #     "pre_install",
+        # )
+        #
+        # self.post_install, self.post_install_is_default = _select_hook(
+        #     self.post_install_rel,
+        #     "post_install.py",
+        #     "post_install",
+        # )
 
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.13")
 
