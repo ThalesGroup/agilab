@@ -9,9 +9,9 @@ APP = "flight_project"
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose=1)
     res = await AGI.install(app_env, 
-                            modes_enabled=4,
-                            scheduler="127.0.0.1", 
-                            workers={'127.0.0.1': 1})
+                            modes_enabled=None,
+                            scheduler="192.168.20.111", 
+                            workers={'192.168.20.130': 1})
     print(res)
     return res
 
