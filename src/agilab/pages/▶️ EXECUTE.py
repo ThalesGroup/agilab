@@ -438,7 +438,33 @@ def render_cluster_settings_ui():
             workers = parse_and_validate_workers(workers_input)
             if workers:
                 cluster_params["workers"] = workers
+    else:
+        cluster_params.pop("scheduler", None)
+        cluster_params.pop("workers", None)
 
+    st.session_state.dask = cluster_enabled
+    benchmark_enabled = st.session_state.get("benchmark", False)
+
+    run_mode_label = [
+        "0: python", "1: pool of process", "2: cython", "3: pool and cython",
+        "4: dask", "5: dask and pool", "6: dask and cython", "7: dask and pool and cython",
+        "8: rapids", "9: rapids and pool", "10: rapids and cython", "11: rapids and pool and cython",
+        "12: rapids and dask", "13: rapids and dask and pool", "14: rapids and dask and cython",
+        "15: rapids and dask and pool and cython"
+    ]
+
+    if benchmark_enabled:
+        st.session_state["mode"] = None
+        st.info("Run mode benchmark (all modes)")
+    else:
+        mode_value = (
+            int(cluster_params.get("pool", False))
+            + int(cluster_params.get("cython", False)) * 2
+            + int(cluster_enabled) * 4
+            + int(cluster_params.get("rapids", False)) * 8
+        )
+        st.session_state["mode"] = mode_value
+        st.info(f"Run mode {run_mode_label[mode_value]}")
     st.session_state.app_settings["cluster"] = cluster_params
 
     # Persist to TOML
