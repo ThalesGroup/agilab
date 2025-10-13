@@ -903,7 +903,7 @@ APP = "{env.app}"
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
     res = await AGI.install(app_env, 
-                            modes_enabled={st.session_state.get('mode', 0)},
+                            modes_enabled={st.session_state.mode},
                             scheduler={scheduler}, 
                             workers={workers})
     print(res)
