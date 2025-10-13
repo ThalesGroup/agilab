@@ -28,8 +28,13 @@ $env:AGI_PYTHON_VERSION = $env:AGI_PYTHON_VERSION -replace '^([0-9]+\.[0-9]+\.[0
 
 $UvPreviewArgs = @("--preview-features", "extra-build-dependencies")
 function Invoke-UvPreview {
-    param([string[]]$Args)
-    & uv @UvPreviewArgs @Args
+    param([string[]]$MoreArgs)
+
+    $allArgs = @()
+    $allArgs += $UvPreviewArgs
+    if ($MoreArgs) { $allArgs += $MoreArgs }
+
+    & uv @allArgs
 }
 
 function Install-ModulePath {
@@ -45,6 +50,11 @@ function Install-ModulePath {
     foreach ($pkg in $ExtraInstalls) {
         Invoke-UvPreview @("pip", "install", "-e", $pkg)
     }
+
+    if (Test-Path "test") {
+        uv run -p $env:AGI_PYTHON_VERSION  --no-sync --preview-features python-upgrade -m pytest
+    } 
+
     Pop-Location
 }
 
@@ -70,4 +80,4 @@ Invoke-UvPreview @("pip", "install", "-e", "src/agilab/core/agi-core")
 Pop-Location
 
 Write-Host "Checking installation..." -ForegroundColor Green
-uv run -p $env:AGI_PYTHON_VERSION --project agi-cluster python app_test.py
+uv run -p $env:AGI_PYTHON_VERSION  --no-sync --preview-features python-upgrade -m pytest
