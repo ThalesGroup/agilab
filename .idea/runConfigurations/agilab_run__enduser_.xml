@@ -5,8 +5,8 @@
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
     <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-        <env name="UV_NO_SYNC" value="1" />
+      <env name="PYTHONUNBUFFERED" value="1" />
+      <env name="UV_NO_SYNC" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="SDK_NAME" value="uv (agi-space)" />
@@ -16,7 +16,7 @@
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="streamlit" />
-    <option name="PARAMETERS" value="run .venv/lib/python3.13/site-packages/agilab/AGILAB.py -- --openai-api-key &quot;your-key&quot; --install 0" />
+    <option name="PARAMETERS" value="run .venv/lib/python3.13/site-packages/agilab/AGILAB.py -- --openai-api-key &quot;your-key&quot;" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="true" />

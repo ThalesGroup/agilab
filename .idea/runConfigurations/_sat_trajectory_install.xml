@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="sat_trajectory AGI install" type="PythonConfigurationType" factoryName="Python" folderName="sat_trajectory_project">
+  <configuration default="false" name="sat_trajectory install" type="PythonConfigurationType" factoryName="Python" folderName="sat_trajectory_project">
     <module name="agi-cluster" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />

@@ -521,7 +521,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.node_root = core_root / pkg_dirs["node"]
             self.core_root = core_root / pkg_dirs["core"]
             self.cluster_root = core_root / pkg_dirs["cluster"]
-            self.cli = core_root / "agi-cluster/src/agi_cluster/agi_distributor/cli.py"
+            self.cli = core_root / "agi-node/src/agi_node/agi_dispatcher/cli.py"
         else:
             self.agilab_src = agilab_pkg_dir
             self.env_root = _package_dir("agi_env")
@@ -536,7 +536,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 # In minimal worker environments, agi_cluster may be absent; fall back near env/core
                 self.cluster_root = self.core_root
             try:
-                cli_spec = importlib.util.find_spec("agi_cluster.agi_distributor.cli")
+                cli_spec = importlib.util.find_spec("agi_node.agi_dispatcher.cli")
             except ModuleNotFoundError:
                 cli_spec = None
             self.cli = Path(cli_spec.origin) if cli_spec and getattr(cli_spec, "origin", None) else self.cluster_root / "agi_distributor/cli.py"
@@ -659,8 +659,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         os.makedirs(self.wenv_abs, exist_ok=True)
 
         self.pre_install =  self.node_src / "agi_node/agi_dispatcher/pre_install.py"
-        self.post_install_rel = self.wenv_rel / "src/agi_dispatcher/post_install.py"
-        self.post_install =  self.node_src / "agi_node/agi_dispatcher/post_install.py"
+        self.post_install = self.node_src / "agi_node/agi_dispatcher/post_install.py"
+        self.post_install_rel =   "agi_node/agi_dispatcher/post_install.py"
 
         dist_abs = wenv_abs / 'dist'
         dist = normalize_path(dist_abs)
