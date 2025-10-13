@@ -47,6 +47,8 @@ def main(argv: list[str] | None = None) -> int:
 
     env = _build_env(app_arg)
     archive = app_arg / "src" / app_arg.name.replace("project", "worker") / "dataset.7z"
+    print("archive:", archive)
+    print("destination", dest_arg)
     env.unzip_data(archive, dest_arg)
     return 0
 
