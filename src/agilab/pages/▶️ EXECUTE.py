@@ -903,7 +903,7 @@ APP = "{env.app}"
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
     res = await AGI.install(app_env, 
-                            modes_enabled={st.session_state.get('mode', None)},
+                            modes_enabled={st.session_state.get('mode', 0)},
                             scheduler={scheduler}, 
                             workers={workers})
     print(res)
@@ -1221,7 +1221,7 @@ if __name__ == "__main__":
 
         run_col, load_col = st.columns(2)
         run_clicked = False
-        run_label = "RUN BENCHMARK" if st.session_state.get("benchmark") else "EXECUTE"
+        run_label = "RUN benchmark" if st.session_state.get("benchmark") else "EXECUTE"
         if cmd:
             run_clicked = run_col.button(
                 run_label,
