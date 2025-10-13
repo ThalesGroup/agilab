@@ -309,6 +309,7 @@ def main(argv: list[str] | None = None) -> None:
         if sys.platform.startswith("win") and env.pyvers_worker[-1] == "t":
             define_macros.append(("Py_GIL_DISABLED", "1"))
 
+        os.makedirs(Path() /"Modules/_hacl", exist_ok=True)
         mod = Extension(
             name=f"{worker_module}_cy",
             sources=[str(src_rel)],
