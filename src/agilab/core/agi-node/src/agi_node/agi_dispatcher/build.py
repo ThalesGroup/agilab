@@ -130,13 +130,17 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
     pck_src = pck.replace('.', '/')            # -> Path("agi-core")/"workers"/"node"
     # extract "core" from "agi-core"
     pck_root = pck.split('.')[0]
-    src_abs = env.node_root / "src/agi_node" / pck_src
+    node_path = Path("src/agi_node")
+    src_abs = env.node_root / node_path / pck_src
     if pck_root == "agi_env":
         src_abs = env.env_src / pck_src
+        dest = Path("src") / pck_src
     elif pck_root == env.target_worker:
         src_abs = env.app_src / pck_src
+        dest = Path("src") / pck_src
+    else:
+        dest = node_path / pck_src
 
-    dest = Path('src') / pck_src
     created_links: list[Path] = []
     try:
         dest = dest.absolute()
