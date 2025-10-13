@@ -43,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
     dest_arg = args[1] if len(args) == 2 else None
 
     env = _build_env(app_arg)
-    archive = Path(__file__).parent / "dataset.7z"
+    archive = app_arg / "src" / app_arg.name.replace("project", "worker") / "dataset.7z"
     env.unzip_data(archive, dest_arg)
     return 0
 
