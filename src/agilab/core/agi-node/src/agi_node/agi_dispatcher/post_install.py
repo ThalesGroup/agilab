@@ -38,8 +38,11 @@ def main(argv: list[str] | None = None) -> int:
     if len(args) not in (1, 2):
         _usage()
         return 1
+    if args[0][0]  != "/":
+        app_arg = Path("wenv").expanduser() / args[0]
+    else:
+        app_arg = Path(args[0]).expanduser()
 
-    app_arg = Path(args[0]).expanduser()
     dest_arg = args[1] if len(args) == 2 else None
 
     env = _build_env(app_arg)
