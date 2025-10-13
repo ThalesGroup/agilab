@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="{APP} AGI install" type="PythonConfigurationType" factoryName="Python" folderName="{APP}_project">
+  <configuration default="false" name="{APP} install" type="PythonConfigurationType" factoryName="Python" folderName="{APP}_project">
     <module name="agi-cluster" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
