@@ -875,7 +875,7 @@ class AGI:
 
         if env.is_local(ip):
             if not (cli_abs).exists():
-                shutil.copy(env.cluster_root / "src/agi_cluster/agi_distributor/cli.py", cli_abs)
+                shutil.copy(env.cluster_pck / "agi_distributor/cli.py", cli_abs)
             if force:
                 cmd = f"{kill_prefix} '{cli_abs}' kill"
                 cmds.append(cmd)
@@ -887,7 +887,7 @@ class AGI:
         last_res = None
         for cmd in cmds:
             # choose working directory based on local vs remote
-            cwd = env.cluster_root if ip == localhost else str(env.wenv_abs)
+            cwd = env.agi_cluster if ip == localhost else str(env.wenv_abs)
             if env.is_local(ip):
                 if env.debug:
                     sys.argv = cmd.split('python ')[1].split(" ")
@@ -1131,7 +1131,7 @@ class AGI:
             await AGI.exec_ssh(ip, cmd)
 
             await AGI.exec_ssh(ip, f"{uv} python install {pyvers_worker}")
-            await AGI.send_files(env, ip, [env.cluster_root / "src/agi_cluster/agi_distributor/cli.py"],
+            await AGI.send_files(env, ip, [env.cluster_src / "agi_distributor/cli.py"],
                                  wenv_rel.parent)
 
             # cmd = f"{uv} run --no-sync python {cli} platform"
@@ -1230,6 +1230,8 @@ class AGI:
         dependency_info: dict[str, dict[str, Any]] = {}
         dep_versions: dict[str, str] = {}
         worker_pyprojects: set[str] = set()
+        # in case of core src has changed
+        AGI._build_lib_local()
 
         def _cleanup_editable(site_packages: Path) -> None:
             patterns = (
@@ -1380,12 +1382,12 @@ class AGI:
             env_project = (
                 repo_env_project
                 if repo_env_project and repo_env_project.exists()
-                else env.env_root
+                else env.agi_env
             )
             node_project = (
                 repo_node_project
                 if repo_node_project and repo_node_project.exists()
-                else env.node_root
+                else env.agi_node
             )
             core_project = (
                 repo_core_project
@@ -1420,8 +1422,8 @@ class AGI:
                 except FileNotFoundError:
                     continue
         else:
-            env_project = env.env_root
-            node_project = env.node_root
+            env_project = env.agi_env
+            node_project = env.agi_node
             core_project = None
             cluster_project = None
             agilab_project = None
@@ -1489,7 +1491,7 @@ class AGI:
 
             resources_src = env_project / 'src/agi_env/resources'
             if not resources_src.exists():
-                resources_src = env.env_root / 'resources'
+                resources_src = env.env_pck / 'resources'
             manager_resources = app_path / 'agilab/core/agi-env/src/agi_env/resources'
             if resources_src.exists():
                 manager_resources.parent.mkdir(parents=True, exist_ok=True)
@@ -1497,7 +1499,7 @@ class AGI:
                     shutil.rmtree(manager_resources)
                 shutil.copytree(resources_src, manager_resources, dirs_exist_ok=True)
 
-            site_packages_manager = env.env_root.parent
+            site_packages_manager = env.env_pck.parent
             _cleanup_editable(site_packages_manager)
 
             if dependency_info:
@@ -1509,11 +1511,11 @@ class AGI:
                         logger.debug("Dependency %s not installed in manager environment", meta['name'])
 
         if env.is_source_env:
-            cmd = f"{uv} pip install -e '{env.env_root}'"
+            cmd = f"{uv} pip install -e '{env.agi_env}'"
             await AgiEnv.run(cmd, app_path)
-            cmd = f"{uv} pip install -e '{env.node_root}'"
+            cmd = f"{uv} pip install -e '{env.agi_node}'"
             await AgiEnv.run(cmd, app_path)
-            cmd = f"{uv} pip install -e '{env.cluster_root}'"
+            cmd = f"{uv} pip install -e '{env.agi_cluster}'"
             await AgiEnv.run(cmd, app_path)
             cmd = f"{uv} pip install -e ."
             await AgiEnv.run(cmd, app_path)
@@ -1563,7 +1565,7 @@ class AGI:
 
             worker_resources_src = env_project / 'src/agi_env/resources'
             if not worker_resources_src.exists():
-                worker_resources_src = env.env_root / 'resources'
+                worker_resources_src = env.env_pck / 'resources'
             resources_dest = wenv_abs / 'agilab/core/agi-env/src/agi_env/resources'
             resources_dest.parent.mkdir(parents=True, exist_ok=True)
             if resources_dest.exists():
@@ -1599,7 +1601,7 @@ class AGI:
 
         else:
             # build agi_env*.whl
-            menv = env.env_root
+            menv = env.agi_env
             cmd = f"{uv} --project '{menv}' build --wheel"
             await AgiEnv.run(cmd, menv)
             src = menv / "dist"
@@ -1609,11 +1611,11 @@ class AGI:
             except StopIteration:
                 raise RuntimeError(cmd)
 
-            cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.env_root}'"
+            cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.agi_env}'"
             await AgiEnv.run(cmd, wenv_abs)
 
             # build agi_node*.whl
-            menv = env.node_root
+            menv = env.agi_node
             cmd = f"{uv} --project '{menv}' build --wheel"
             await AgiEnv.run(cmd, menv)
             src = menv / "dist"
@@ -1623,7 +1625,7 @@ class AGI:
             except StopIteration:
                 raise RuntimeError(cmd)
 
-            cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.node_root}'"
+            cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.agi_node}'"
             await AgiEnv.run(cmd, wenv_abs)
 
         # Install the app sources into the worker venv using the absolute app path
@@ -1685,14 +1687,14 @@ class AGI:
             raise FileNotFoundError(f"no existing egg file in {wenv_abs / env.app}*")
 
         # build agi_env*.whl
-        wenv = env.env_root / 'dist'
+        wenv = env.agi_env / 'dist'
         try:
             env_whl = next(iter(wenv.glob("agi_env*.whl")))
         except StopIteration:
             raise FileNotFoundError(f"no existing whl file in {wenv / "agi_env*"}")
 
-        # # build agi_env*.whl
-        wenv = env.node_root / 'dist'
+        # build agi_node*.whl
+        wenv = env.agi_node / 'dist'
         try:
             node_whl = next(iter(wenv.glob("agi_node*.whl")))
         except StopIteration:
@@ -1774,7 +1776,7 @@ class AGI:
         for module in AGI._module_to_clean:
             cmd = f"{env.uv} pip uninstall {module} -y"
             logger.info(f"Executing: {cmd}")
-            await AgiEnv.run(cmd, AGI.env.env_root)
+            await AgiEnv.run(cmd, AGI.env.agi_env)
         AGI._module_to_clean.clear()
 
     @staticmethod
@@ -1945,7 +1947,7 @@ class AGI:
 
             # Clean worker
             for ip in list(AGI._workers):
-                await AGI.send_file(env, ip, env.cluster_root / "src/agi_cluster/agi_distributor/cli.py",
+                await AGI.send_file(env, ip, env.cluster_pck / "agi_distributor/cli.py",
                                     cli_rel.parent)
                 hw_rapids_capable = env.envars.get(ip, None)
                 if not hw_rapids_capable or hw_rapids_capable == "no_rapids_hw":
@@ -2069,8 +2071,6 @@ class AGI:
         await AGI._sync(timeout=AGI._TIMEOUT)
 
         if not AGI._mode_auto or (AGI._mode_auto and AGI._mode == 0):
-            # in case of core src has changed
-            AGI._build_lib_local()
             await AGI._build_lib_remote()
             if AGI._mode & AGI.DASK_MODE:
                 # load lib
