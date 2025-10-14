@@ -536,10 +536,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 # In minimal worker environments, agi_cluster may be absent; fall back near env/core
                 self.cluster_root = self.core_root
             try:
-                cli_spec = importlib.util.find_spec("agi_node.agi_dispatcher.cli")
+                cli_spec = importlib.util.find_spec("agi_cluster.agi_distributor.cli")
             except ModuleNotFoundError:
                 cli_spec = None
-            self.cli = Path(cli_spec.origin) if cli_spec and getattr(cli_spec, "origin", None) else self.cluster_root / "agi_distributor/cli.py"
+            self.cli = Path(cli_spec.origin) if cli_spec and getattr(cli_spec, "origin", None) else self.cluster_root / "agi_dispatcher/cli.py"
 
         resolve = self._resolve_package_root
         self.env_src = resolve(self.env_root)
