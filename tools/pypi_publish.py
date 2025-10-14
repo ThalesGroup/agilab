@@ -601,42 +601,80 @@ def git_paths_to_commit() -> list[str]:
     root = REPO_ROOT
     return [str(p) for p in Path(root).rglob("pyproject.toml") if ".git" not in p.parts]
 
-def git_commit_version(chosen: str) -> None:
+def git_commit_version(chosen_version: str):
     """
-    Commit the version bump / metadata changes after a successful publish.
+    Commit version/metadata changes in curated pyproject.toml files.
 
-    `chosen` should be the final version string you just published
-    (e.g. '2025.10.14.post2') so we can include it in the commit message.
+    Safety:
+    - Only considers the curated set from git_paths_to_commit()
+    - Intersects that set with Git's *tracked* files (git ls-files)
+    - Clears assume-unchanged / skip-worktree so Git notices edits
+    - Does nothing (and cleans index) if no actual changes are staged
     """
-    files = git_paths_to_commit()
-    if not files:
-        print("[git] Nothing to commit: no pyproject.toml files found in scope.")
+    all_candidates = git_paths_to_commit()
+    if not all_candidates:
+        print("[git] nothing to commit (no pyproject.toml files found in scope)")
         return
 
-    # Ensure git notices changes even if files were marked assume-unchanged or skip-worktree
+    # Convert absolute paths to repo-relative for ls-files comparison
+    repo_str = str(REPO_ROOT)
+    rel_candidates = [
+        (p if not p.startswith(repo_str) else p[len(repo_str) + 1 :])
+        for p in all_candidates
+    ]
+
+    # Ask Git which of those are tracked
     try:
-        run(["git", "update-index", "--no-assume-unchanged", "--no-skip-worktree", *files], cwd=REPO_ROOT)
+        # 'git ls-files -- <list>' prints only tracked paths that match
+        out = run(["git", "ls-files", "--"] + rel_candidates, cwd=REPO_ROOT)
+        # Our run() prints and then executes; capture is via exceptions only – so call again to capture stdout
+        cp = subprocess.run(
+            ["git", "ls-files", "--"] + rel_candidates,
+            cwd=str(REPO_ROOT),
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        tracked_rel = [line.strip() for line in cp.stdout.splitlines() if line.strip()]
     except Exception as e:
-        # Not fatal; continue
+        print(f"[git] WARN: ls-files failed ({e}); falling back to all candidates")
+        tracked_rel = rel_candidates
+
+    if not tracked_rel:
+        print("[git] nothing to commit (none of the curated pyproject.toml are tracked)")
+        return
+
+    # Clear index hints so Git notices changes even if files were marked H/S
+    try:
+        run(["git", "update-index", "--no-assume-unchanged", "--no-skip-worktree", "--"] + tracked_rel, cwd=REPO_ROOT)
+    except Exception as e:
         print(f"[git] WARN: update-index best-effort failed: {e}")
 
-    # Force-add (in case ignore rules cover *.toml)
-    run(["git", "add", "-f", *files], cwd=REPO_ROOT)
+    # Stage only the tracked curated files
+    run(["git", "add", "--"] + tracked_rel, cwd=REPO_ROOT)
 
-    # If nothing is actually staged, keep index clean and exit quietly
-    staged = run(["git", "diff", "--cached", "--name-only", "--"] + files, cwd=REPO_ROOT).stdout.strip()
+    # If nothing is actually staged, reset and exit quietly
+    cp = subprocess.run(
+        ["git", "diff", "--cached", "--name-only", "--"] + tracked_rel,
+        cwd=str(REPO_ROOT),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    staged = [s for s in cp.stdout.splitlines() if s.endswith("pyproject.toml")]
     if not staged:
-        # Unstage anything we touched just in case
+        # Keep the index clean in case add touched something without changes
         try:
-            run(["git", "reset", "--quiet", "--"] + files, cwd=REPO_ROOT)
+            run(["git", "reset", "--quiet", "--"] + tracked_rel, cwd=REPO_ROOT)
         except Exception:
             pass
         print("[git] No pyproject.toml changes to commit.")
         return
 
-    msg = f"chore(publish): update pyproject.toml after publishing {chosen}"
-    run(["git", "commit", "-m", msg], cwd=REPO_ROOT)
-    print("[git] Committed pyproject.toml updates.")
+    # Commit (preserve your message style)
+    run(["git", "commit", "-m", f"chore(release): bump version to {chosen_version}"], cwd=REPO_ROOT)
+    print(f"[git] committed version bump to {chosen_version}")
+
 
 def git_reset_pyprojects():
     files = git_paths_to_commit()
