@@ -131,8 +131,8 @@ def prepare_for_cython(args):
     """
     Prepares the worker source file for Cython by removing specified decorators.
     """
-    worker_path = Path(args.worker_path)
-    cython_src = worker_path.with_suffix(args.cython_target_src_ext)
+    worker_path = Path.home() / args.worker_path
+    cython_src = Path.home() / worker_path.with_suffix(args.cython_target_src_ext)
     with open(cython_src, 'r') as file:
         source = file.read()
     modified_source = remove_decorators(source, verbose=args.verbose)
