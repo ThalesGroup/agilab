@@ -416,7 +416,11 @@ def pypi_releases(name: str, repo_target: str) -> set[str]:
     try:
         with urllib.request.urlopen(url, timeout=10) as r:
             data = json.load(r) or {}
-        rels = set((data.get("releases") or {}).keys())
+        rels = set()
+        for ver, files in (data.get("releases") or {}).items():
+            # keep versions that still have files and at least one non-yanked file
+            if files and any(not f.get("yanked", False) for f in files):
+                rels.add(ver)
         return rels
     except Exception:
         return set()
