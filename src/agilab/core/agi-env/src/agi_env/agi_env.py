@@ -521,7 +521,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.node_root = core_root / pkg_dirs["node"]
             self.core_root = core_root / pkg_dirs["core"]
             self.cluster_root = core_root / pkg_dirs["cluster"]
-            self.cli = core_root / "agi-cluster/src/agi_cluster/agi_distributor/cli.py"
+            self.cli = core_root / "agi_cluster/agi_distributor/cli.py"
         else:
             self.agilab_src = agilab_pkg_dir
             self.env_root = _package_dir("agi_env")
