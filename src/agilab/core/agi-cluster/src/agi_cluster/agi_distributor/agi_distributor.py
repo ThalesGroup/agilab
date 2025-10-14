@@ -1752,19 +1752,15 @@ class AGI:
         await AGI.exec_ssh(ip, cmd)
 
         # build target_worker lib from src/
-        module = getattr(env, "setup_app_module", "agi_node.agi_dispatcher.build")
-        project_arg = shlex.quote(str(wenv_rel))
-        app_arg = f"--app-path {project_arg}"
-        module_cmd = f"python -m {module}"
         if env.verbose > 1:
             cmd = (
-                f"{uv} --project {project_arg} run --no-sync -p {pyvers} "
-                f"{module_cmd} {app_arg} build_ext -b {project_arg}"
+                f"{uv} --project {project_arg} run --no-sync -p {pyvers} python -m "
+                f"agi_node.agi_dispatcher.build  --app-path  '{wenv_rel}' build_ext -b {project_arg}"
             )
         else:
             cmd = (
-                f"{uv} --project {project_arg} run --no-sync -p {pyvers} "
-                f"{module_cmd} {app_arg} -q build_ext -b {project_arg}"
+                f"{uv} --project {project_arg} run --no-sync -p {pyvers} python -m "
+                f"agi_node.agi_dispatcher.build --app-path '{wenv_rel}' -q build_ext -b {project_arg}"
             )
         await AGI.exec_ssh(ip, cmd)
 
