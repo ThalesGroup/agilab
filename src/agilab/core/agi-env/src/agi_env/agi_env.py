@@ -509,53 +509,57 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         if self.is_source_env:
             pkg_dirs = {
-                "env": "agi-env",
-                "node": "agi-node",
-                "core": "agi-core",
-                "cluster": "agi-cluster",
+                "env": "agi-env/src/agi_env",
+                "node": "agi-node/src/agi_node",
+                "core": "agi-core/src/agi_core",
+                "cluster": "agi-cluster/src/agi_cluster",
             }
             # Force source layout to the repo checkout when available
-            self.agilab_src = repo_agilab_dir
-            core_root = self.agilab_src / "core"
-            self.env_root = core_root / pkg_dirs["env"]
-            self.node_root = core_root / pkg_dirs["node"]
-            self.core_root = core_root / pkg_dirs["core"]
-            self.cluster_root = core_root / pkg_dirs["cluster"]
-            self.cli = core_root / "agi_cluster/agi_distributor/cli.py"
+            self.agilab_pck = repo_agilab_dir
+            core_root = self.agilab_pck / "core"
+            self.env_pck = core_root / pkg_dirs["env"]
+            self.node_pck = core_root / pkg_dirs["node"]
+            self.core_pck = core_root / pkg_dirs["core"]
+            self.cluster_pck = core_root / pkg_dirs["cluster"]
+            self.cli = self.cluster_pck / "agi_distributor/cli.py"
         else:
-            self.agilab_src = agilab_pkg_dir
-            self.env_root = _package_dir("agi_env")
-            self.node_root = _package_dir("agi_node")
+            self.agilab_pck = agilab_pkg_dir
+            self.env_pck = _package_dir("agi_env")
+            self.node_pck = _package_dir("agi_node")
             try:
-                self.core_root = _package_dir("agi_core")
+                self.core_pck = _package_dir("agi_core")
             except ModuleNotFoundError:
-                self.core_root = Path(_package_dir("agi_env")).parent
+                self.core_pck = Path(_package_dir("agi_env")).parent
             try:
-                self.cluster_root = _package_dir("agi_cluster")
+                self.cluster_pck = _package_dir("agi_cluster")
             except ModuleNotFoundError:
                 # In minimal worker environments, agi_cluster may be absent; fall back near env/core
-                self.cluster_root = self.core_root
+                self.cluster_pck = self.core_root
             try:
                 cli_spec = importlib.util.find_spec("agi_cluster.agi_distributor.cli")
             except ModuleNotFoundError:
                 cli_spec = None
-            self.cli = Path(cli_spec.origin) if cli_spec and getattr(cli_spec, "origin", None) else self.cluster_root / "agi_distributor/cli.py"
+            self.cli = Path(cli_spec.origin) if cli_spec and getattr(cli_spec, "origin", None) else self.cluster_pck / "agi_distributor/cli.py"
 
-        resolve = self._resolve_package_root
-        self.env_src = resolve(self.env_root)
-        self.node_src = resolve(self.node_root)
-        self.core_src = resolve(self.core_root)
-        self.cluster_src = resolve(self.cluster_root)
+        resolve = self._resolve_package
+        self.env_pck = resolve(self.env_pck)
+        self.node_pck = resolve(self.node_pck)
+        self.core_pck = resolve(self.core_pck)
+        self.cluster_pck = resolve(self.cluster_pck)
+        self.agi_env = self.env_pck.parents[1]
+        self.agi_node = self.node_pck.parents[1]
+        self.agi_core = self.core_pck.parents[1]
+        self.agi_cluster = self.cluster_pck.parents[1]
 
         if self.is_source_env:
             resource_candidates = [
-                self.agilab_src / "resources",
-                self.agilab_src / "agilab/resources",
+                self.agilab_pck / "resources",
+                self.agilab_pck / "agilab/resources",
             ]
         else:
             resource_candidates = [
-                self.agilab_src / "resources",
-                self.agilab_src / "agilab/resources",
+                self.agilab_pck / "resources",
+                self.agilab_pck / "agilab/resources",
             ]
         for candidate in resource_candidates:
             if candidate.exists():
@@ -564,7 +568,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         else:
             self.st_resources = resource_candidates[-1]
 
-        apps_root = self.agilab_src / "apps"
+        apps_root = self.agilab_pck / "apps"
         if (not self.is_source_env) and (not self.is_worker_env):
             os.makedirs(apps_dir, exist_ok=True)
 
@@ -636,7 +640,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     self.copy_existing_projects(apps_root, apps_dir)
 
 
-        resources_root = self.env_root / ("src/agi_env" if self.is_source_env else "")
+        resources_root = self.env_pck if self.is_source_env else ""
         if not self.is_worker_env:
             self._init_resources(resources_root / self._agi_resources)
         self.TABLE_MAX_ROWS = int(envars.get("TABLE_MAX_ROWS", 1000))
@@ -658,8 +662,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.wenv_abs = wenv_abs
         os.makedirs(self.wenv_abs, exist_ok=True)
 
-        self.pre_install =  self.node_src / "agi_dispatcher/pre_install.py"
-        self.post_install = self.node_src / "agi_dispatcher/post_install.py"
+        self.pre_install =  self.node_pck / "agi_dispatcher/pre_install.py"
+        self.post_install = self.node_pck / "agi_dispatcher/post_install.py"
         self.post_install_rel =   "agi_node.agi_dispatcher.post_install"
 
         dist_abs = wenv_abs / 'dist'
@@ -671,12 +675,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.manager_pyproject = self.active_app / "pyproject.toml"
         self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
         self.manager_path = self.app_src / target / f"{target}.py"
-        is_local_worker = self.has_agilab_anywhere_under_home(self.agilab_src)
+        is_local_worker = self.has_agilab_anywhere_under_home(self.agilab_pck)
         worker_src = self.wenv_rel / 'src'
 
         if self.is_worker_env and not is_local_worker:
-            app = self.agilab_src
-            self.app_src = self.agilab_src / "src"
+            app = self.agilab_pck
+            self.app_src = self.agilab_pck / "src"
             self.worker_path = worker_src / target_worker / f"{target_worker}.py"
 
             self.manager_path = worker_src / target / f"{target}.py"
@@ -696,9 +700,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
                 self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
                 self.dataset_archive = self.worker_path.parent / "dataset.7z"
-                #self.post_install_rel = self.active_app / "agi_dispatcher/post_install.py"
             else:
-                packaged_app = self.agilab_src / "apps" / self.app
+                packaged_app = self.agilab_pck / "apps" / self.app
                 if not self.is_worker_env and packaged_app.exists():
                     try:
                         shutil.copytree(
@@ -750,7 +753,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
                     self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
                     self.dataset_archive = self.worker_path.parent / "dataset.7z"
-                    #self.post_install_rel = self.active_app / "agi_dispatcher/post_install.py"
                 elif self.is_worker_env:
                     AgiEnv.logger.info(
                         "Worker sources not found (is_worker_env=True) at %s", self.worker_path
@@ -815,7 +817,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         self.projects = self.get_projects(self.apps_dir)
         if not self.projects:
-            AgiEnv.logger.info(f"Could not find any target project app in {self.agilab_src / 'apps'}.")
+            AgiEnv.logger.info(f"Could not find any target project app in {self.agilab_pck / 'apps'}.")
 
         self.setup_app = self.active_app / "build.py"
         self.setup_app_module = "agi_node.agi_dispatcher.build"
@@ -831,7 +833,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             raise ValueError(f"Invalid scheduler IP address: {self.scheduler_ip}")
 
         if self.is_source_env:
-            self.help_path = str(self.agilab_src / "../docs/html")
+            self.help_path = str(self.agilab_pck / "../docs/html")
         else:
             self.help_path = "https://thalesgroup.github.io/agilab"
         self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", home_abs / "data"))
@@ -844,8 +846,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         # Populate examples/apps in standard environments
         if True:
             examples_candidates = [
-                self.agilab_src / "agilab/examples",
-                self.agilab_src / "examples",
+                self.agilab_pck / "agilab/examples",
+                self.agilab_pck / "examples",
             ]
             for candidate in examples_candidates:
                 if candidate.exists():
@@ -865,7 +867,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
 
     @staticmethod
-    def _resolve_package_root(root: Path) -> Path:
+    def _resolve_package(root: Path) -> Path:
         """Return the ``src`` directory for a package when present.
 
         Many AGILab components follow the ``src/`` layout; when that folder is
@@ -907,14 +909,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             return path
 
         candidates = [
-            import_root(self.env_src.parent),
-            import_root(self.node_src.parent),
-            import_root(self.core_src.parent),
-            import_root(self.cluster_src.parent),
+            import_root(self.env_pck.parent),
+            import_root(self.node_pck.parent),
+            import_root(self.core_pck.parent),
+            import_root(self.cluster_pck.parent),
             self.dist_abs,
             self.app_src,
             self.wenv_abs / "src",
-            self.agilab_src / "agilab",
+            self.agilab_pck / "agilab",
         ]
         return self._dedupe_paths(candidates)
 
@@ -1349,8 +1351,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if pages_override:
             pages_root = Path(pages_override).expanduser()
         else:
-            candidates = [self.agilab_src / "agilab/apps-pages",
-                          self.agilab_src / "apps-pages"]
+            candidates = [self.agilab_pck / "agilab/apps-pages",
+                          self.agilab_pck / "apps-pages"]
             repo_hint = self.read_agilab_path()
             if repo_hint:
                 repo_hint = Path(repo_hint)
@@ -1362,7 +1364,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.AGILAB_PAGES_ABS = pages_root
         if not self.AGILAB_PAGES_ABS.exists():
             AgiEnv.logger.info(f"AGILAB_PAGES_ABS missing: {self.AGILAB_PAGES_ABS}")
-        self.copilot_file = self.agilab_src / "agi_codex.py"
+        self.copilot_file = self.agilab_pck / "agi_codex.py"
 
 
     @staticmethod
@@ -1415,7 +1417,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         self.gitignore_file = self.active_app / ".gitignore"
         dest = self.resources_path
-        src = self.agilab_src / "resources"
+        src = self.agilab_pck / "resources"
         if src.exists():
             for file in src.iterdir():
                 if not file.is_file():
@@ -1424,7 +1426,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 if dest_file.exists():
                     continue
                 shutil.copy2(file, dest_file)
-        # shutil.copytree(self.agilab_src / "resources", dest, dirs_exist_ok=True)
+        # shutil.copytree(self.agilab_pck / "resources", dest, dirs_exist_ok=True)
 
 
     @staticmethod
