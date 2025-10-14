@@ -534,7 +534,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 self.cluster_pck = _package_dir("agi_cluster")
             except ModuleNotFoundError:
                 # In minimal worker environments, agi_cluster may be absent; fall back near env/core
-                self.cluster_pck = self.core_root
+                self.cluster_pck = self.core_pck
             try:
                 cli_spec = importlib.util.find_spec("agi_cluster.agi_distributor.cli")
             except ModuleNotFoundError:
@@ -753,10 +753,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
                     self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
                     self.dataset_archive = self.worker_path.parent / "dataset.7z"
-                elif self.is_worker_env:
-                    AgiEnv.logger.info(
-                        "Worker sources not found (is_worker_env=True) at %s", self.worker_path
-                    )
+                #elif self.is_worker_env:
+                #    AgiEnv.logger.info(
+                #        "Worker sources not found (is_worker_env=True) at %s", self.worker_path
+                #    )
 
         self.apps_dir = apps_dir
         distribution_tree = self.wenv_abs / "distribution_tree.json"
