@@ -322,9 +322,9 @@ if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir | Out
 $LogFile = Join-Path $LogDir ("install_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
 Start-Transcript -Path $LogFile
 
-# Get-ChildItem -Recurse -Directory | Where-Object {
-#     $_.Name -match '\.venv|uv.lock|build|dist|.*egg-info'
-# } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+Get-ChildItem -Recurse -Directory | Where-Object {
+    $_.Name -match '\.venv|uv.lock|build|dist|.*egg-info'
+} | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
 if (-not $Offline)
 {
