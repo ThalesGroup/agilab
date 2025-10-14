@@ -316,7 +316,7 @@ popd >/dev/null
 
 # --- Final Message -----------------------------------------------------------
 if (( status == 0 )); then
-  ln -s "examples" {$AGILAB_PRIVATE}/docs/source
+  ln -s "examples" "${AGILAB_PRIVATE}/docs/source"
   echo -e "${GREEN}Installation of apps complete!${NC}"
 else
   echo -e "${YELLOW}Installation finished with some errors (status=$status).${NC}"
