@@ -131,7 +131,7 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
     # extract "core" from "agi-core"
     pck_root = pck.split('.')[0]
     node_path = Path("src/agi_node")
-    src_abs = env.node_root / node_path / pck_src
+    src_abs = env.agi_node / node_path / pck_src
     if pck_root == "agi_env":
         src_abs = env.env_src / pck_src
         dest = Path("src") / pck_src
