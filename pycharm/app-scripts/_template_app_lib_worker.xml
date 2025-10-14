@@ -16,11 +16,11 @@
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/build.py" />
+    <option name="SCRIPT_NAME" value="agi_node.agi_dispatcher.build" />
     <option name="PARAMETERS" value="--app-path $USER_HOME$/wenv/{APP}_worker build_ext --packages &quot;dag_worker, pandas_worker, polars_worker, agent_worker&quot; -b $USER_HOME$/wenv/{APP}_worker" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
-    <option name="MODULE_MODE" value="false" />
+    <option name="MODULE_MODE" value="yes" />
     <option name="REDIRECT_INPUT" value="false" />
     <option name="INPUT_FILE" value="" />
     <method v="2" />
