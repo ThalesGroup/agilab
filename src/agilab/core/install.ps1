@@ -51,24 +51,21 @@ function Install-ModulePath {
         Invoke-UvPreview @("pip", "install", "-e", $pkg)
     }
 
-    if (Test-Path "test") {
-        uv run -p $env:AGI_PYTHON_VERSION  --no-sync --preview-features python-upgrade -m pytest
-    } 
-
     Pop-Location
 }
 
 Write-Host "Installing framework from $(Get-Location)..." -ForegroundColor Blue
 Write-Host "Python Version: $env:AGI_PYTHON_VERSION" -ForegroundColor Blue
 
-Write-Host "Installing agi-cluster..." -ForegroundColor Blue
-Install-ModulePath "agi-cluster" @("../agi-node", "../agi-env")
+Write-Host "Installing agi-env..." -ForegroundColor Blue
+Install-ModulePath "agi-env"
 
 Write-Host "Installing agi-node..." -ForegroundColor Blue
 Install-ModulePath "agi-node" @("../agi-env")
 
-Write-Host "Installing agi-env..." -ForegroundColor Blue
-Install-ModulePath "agi-env"
+Write-Host "Installing agi-cluster..." -ForegroundColor Blue
+Install-ModulePath "agi-cluster" @("../agi-node", "../agi-env")
+
 
 Write-Host "Installing agilab..." -ForegroundColor Blue
 Push-Location (Resolve-Path "..\..\..")
@@ -80,4 +77,4 @@ Invoke-UvPreview @("pip", "install", "-e", "src/agilab/core/agi-core")
 Pop-Location
 
 Write-Host "Checking installation..." -ForegroundColor Green
-uv run -p $env:AGI_PYTHON_VERSION  --no-sync --preview-features python-upgrade -m pytest
+uv run --project .\agi-cluser -p $env:AGI_PYTHON_VERSION --no-sync python -m pytest

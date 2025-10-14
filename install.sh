@@ -387,7 +387,7 @@ install_core() {
 
     echo -e "${BLUE}Installing Framework...${NC}"
     pushd "$framework_dir" > /dev/null
-      ./install.sh "$framework_dir"
+    ./install.sh "$framework_dir"
     popd  > /dev/null
 }
 
