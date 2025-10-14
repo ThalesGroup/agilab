@@ -1131,7 +1131,7 @@ class AGI:
             await AGI.exec_ssh(ip, cmd)
 
             await AGI.exec_ssh(ip, f"{uv} python install {pyvers_worker}")
-            await AGI.send_files(env, ip, [env.cluster_src / "agi_distributor/cli.py"],
+            await AGI.send_files(env, ip, [env.cluster_pck / "agi_distributor/cli.py"],
                                  wenv_rel.parent)
 
             # cmd = f"{uv} run --no-sync python {cli} platform"
