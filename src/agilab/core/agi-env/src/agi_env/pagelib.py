@@ -61,6 +61,15 @@ custom_css = (
 )
 
 
+def is_valid_ip(ip: str) -> bool:
+    """Return ``True`` when ``ip`` is a syntactically valid IPv4 address."""
+
+    pattern = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
+    if pattern.match(ip):
+        parts = ip.split(".")
+        return all(0 <= int(part) <= 255 for part in parts)
+    return False
+
 class JumpToMain(Exception):
     """
     Custom exception to jump back to the main execution flow.

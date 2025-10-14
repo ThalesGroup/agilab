@@ -30,7 +30,7 @@ import streamlit as st
 # Project Libraries:
 from agi_env.pagelib import (
     get_about_content, render_logo, activate_mlflow, save_csv, init_custom_ui, select_project, open_new_tab,
-    cached_load_df, inject_theme
+    cached_load_df, inject_theme, is_valid_ip
 )
 
 from agi_env import AgiEnv
@@ -154,25 +154,13 @@ def safe_eval(expression, expected_type, error_message):
         st.error(error_message)
         return None
 
-def parse_and_validate_scheduler(scheduler_input):
+def parse_and_validate_scheduler(scheduler):
     """
-    Accept IP or IP:PORT. Validate IP via env.is_valid_ip(host) and optional numeric port.
+    Accept IP or IP:PORT. Validate IP via is_valid_ip(host) and optional numeric port.
     """
-    apps_dir_value = st.session_state.get("apps_dir")
-    env = st.session_state.setdefault(
-        "env",
-        AgiEnv(
-            apps_dir=Path(apps_dir_value).expanduser() if apps_dir_value else None,
-            verbose=0,
-        ),
-    )
-    scheduler = (scheduler_input or "").strip()
-    if not scheduler:
-        st.error("Scheduler must be provided as a valid IP address (optionally with :PORT).")
-        return None
 
     host, sep, port = scheduler.partition(":")
-    if not env.is_valid_ip(host):
+    if not is_valid_ip(host):
         st.error(f"The scheduler host '{scheduler}' is invalid. Expect IP or IP:PORT.")
         return None
     if sep and (not port.isdigit() or not (0 < int(port) < 65536)):
@@ -188,7 +176,7 @@ def parse_and_validate_workers(workers_input):
         error_message="Workers must be provided as a dictionary of IP addresses and capacities (e.g., {'192.168.0.1': 2})."
     )
     if workers is not None:
-        invalid_ips = [ip for ip in workers.keys() if not env.is_valid_ip(ip)]
+        invalid_ips = [ip for ip in workers.keys() if not is_valid_ip(ip)]
         if invalid_ips:
             st.error(f"The following worker IPs are invalid: {', '.join(invalid_ips)}")
             return {"127.0.0.1": 1}
