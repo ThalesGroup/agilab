@@ -82,7 +82,7 @@ class WorkDispatcher:
     @staticmethod
     async def _do_distrib(env, workers, args):
         """Build the distribution plan for ``env`` given worker layout and args."""
-        base_worker_dir = str(env.cluster_root / "src")
+        base_worker_dir = str(env.agi_cluster / "src")
         if base_worker_dir not in sys.path:
             sys.path.insert(0, base_worker_dir)
         target_module = await WorkDispatcher._load_module(

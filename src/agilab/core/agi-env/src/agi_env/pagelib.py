@@ -123,10 +123,10 @@ _LAST_DOCS_URL: Optional[str] = None
 def _resolve_docs_path(env, html_file: str) -> Path | None:
     """Return the first docs HTML path that exists for the requested file."""
     candidates = [
-        env.agilab_src.parent / "docs" / "build",
-        env.agilab_src.parent / "docs" / "html",
-        env.agilab_src / "docs" / "build",
-        env.agilab_src / "docs" / "html",
+        env.agilab_pck.parent / "docs" / "build",
+        env.agilab_pck.parent / "docs" / "html",
+        env.agilab_pck / "docs" / "build",
+        env.agilab_pck / "docs" / "html",
     ]
 
     for base in candidates:
@@ -134,7 +134,7 @@ def _resolve_docs_path(env, html_file: str) -> Path | None:
         if candidate.exists():
             return candidate
 
-    docs_root = env.agilab_src.parent / "docs"
+    docs_root = env.agilab_pck.parent / "docs"
     if docs_root.exists():
         matches = list(docs_root.rglob(html_file))
         if matches:
@@ -846,7 +846,7 @@ def run_agi(code, path="."):
     with open(snippet_file, "w") as file:
         file.write(code)
 
-    if (path == env.env_root) or (env.app_abs / ".venv").exists():
+    if (path == env.agi_env) or (env.app_abs / ".venv").exists():
         return run_with_output(env, f"uv -q run python {snippet_file}", path)
     else:
         st.info("Please do an install first")
