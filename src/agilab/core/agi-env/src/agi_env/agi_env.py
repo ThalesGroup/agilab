@@ -680,15 +680,15 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.worker_path = worker_src / target_worker / f"{target_worker}.py"
 
             self.manager_path = worker_src / target / f"{target}.py"
-            self.setup_core = worker_src / "agi_node/agi_dispatcher/build.py"
-        elif not self.is_source_env:
-            build_spec = importlib.util.find_spec("agi_node.agi_dispatcher.build")
-            if build_spec and build_spec.origin:
-                self.setup_core = Path(build_spec.origin)
-            else:
-                self.setup_core = self.node_root / "agi_dispatcher/build.py"
-        else:
-            self.setup_core = self.node_root / "src/agi_node/agi_dispatcher/build.py"
+        #    self.setup_core = worker_src / "agi_node/agi_dispatcher/build.py"
+        #elif not self.is_source_env:
+        #    build_spec = importlib.util.find_spec("agi_node.agi_dispatcher.build")
+        #    if build_spec and build_spec.origin:
+        #        self.setup_core = Path(build_spec.origin)
+        #    else:
+        #        self.setup_core = self.node_root / "agi_dispatcher/build.py"
+        #else:
+        #    self.setup_core = self.node_root / "src/agi_node/agi_dispatcher/build.py"
 
         self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
         self.uvproject = self.active_app / "uv_config.toml"
