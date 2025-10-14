@@ -658,8 +658,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.wenv_abs = wenv_abs
         os.makedirs(self.wenv_abs, exist_ok=True)
 
-        self.pre_install =  self.node_src / "agi_node/agi_dispatcher/pre_install.py"
-        self.post_install = self.node_src / "agi_node/agi_dispatcher/post_install.py"
+        self.pre_install =  self.node_src / "agi_dispatcher/pre_install.py"
+        self.post_install = self.node_src / "agi_dispatcher/post_install.py"
         self.post_install_rel =   "agi_node.agi_dispatcher.post_install"
 
         dist_abs = wenv_abs / 'dist'

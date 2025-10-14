@@ -1754,13 +1754,13 @@ class AGI:
         # build target_worker lib from src/
         if env.verbose > 1:
             cmd = (
-                f"{uv} --project {project_arg} run --no-sync -p {pyvers} python -m "
-                f"agi_node.agi_dispatcher.build  --app-path  '{wenv_rel}' build_ext -b {project_arg}"
+                f"{uv} --project '{wenv_rel}' run --no-sync -p {pyvers} python -m "
+                f"agi_node.agi_dispatcher.build  --app-path  '{wenv_rel}' build_ext -b '{wenv_rel}'"
             )
         else:
             cmd = (
-                f"{uv} --project {project_arg} run --no-sync -p {pyvers} python -m "
-                f"agi_node.agi_dispatcher.build --app-path '{wenv_rel}' -q build_ext -b {project_arg}"
+                f"{uv} --project '{wenv_rel}' run --no-sync -p {pyvers} python -m "
+                f"agi_node.agi_dispatcher.build --app-path '{wenv_rel}' -q build_ext -b '{wenv_rel}'"
             )
         await AGI.exec_ssh(ip, cmd)
 

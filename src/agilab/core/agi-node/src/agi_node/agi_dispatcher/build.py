@@ -371,8 +371,8 @@ def main(argv: list[str] | None = None) -> None:
 
         worker_py = dest_src / worker_module / f"{worker_module}.py"
         cmd = (
-            f"uv -q run python \"{env.pre_install}\" remove_decorators "
-            f"--worker_path \"{env.worker_path}\" --verbose"
+            f"uv -q run python -m agi_node.agi_dispatcher.pre_install remove_decorators "
+            f"--worker_path '{env.worker_path}' --verbose"
         )
         AgiEnv.logger.info(f"Stripping decorators via:\n  {cmd}")
         os.system(cmd)
