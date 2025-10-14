@@ -1748,7 +1748,7 @@ class AGI:
         await AGI.exec_ssh(ip, cmd)
 
         # Post-install script
-        cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {env.post_install_rel} {wenv_rel.stem} {env.data_rel}"
+        cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python -m {env.post_install_rel} {wenv_rel.stem} {env.data_rel}"
         await AGI.exec_ssh(ip, cmd)
 
         # build target_worker lib from src/
