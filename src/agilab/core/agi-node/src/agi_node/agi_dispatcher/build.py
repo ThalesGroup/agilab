@@ -133,7 +133,7 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
     node_path = Path("src/agi_node")
     src_abs = env.agi_node / node_path / pck_src
     if pck_root == "agi_env":
-        src_abs = env.env_src / pck_src
+        src_abs = env.agi_env / pck_src
         dest = Path("src") / pck_src
     elif pck_root == env.target_worker:
         src_abs = env.app_src / pck_src

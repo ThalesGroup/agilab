@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
         _usage()
         return 1
     if args[0][0]  != "/":
-        app_arg = Path("wenv").expanduser() / args[0]
+        app_arg = Path.home() / "wenv" / args[0]
     else:
         app_arg = Path(args[0]).expanduser()
 
