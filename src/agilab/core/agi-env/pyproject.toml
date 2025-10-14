@@ -41,11 +41,12 @@ dependencies = [
     "numba"
 ]
 
-version = "2025.10.14"
+version = "2025.10.14-4"
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/agi-env"
 Tracker = "https://github.com/ThalesGroup/agilab/issues"
+
 
 
 
