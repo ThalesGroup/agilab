@@ -521,7 +521,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.node_root = core_root / pkg_dirs["node"]
             self.core_root = core_root / pkg_dirs["core"]
             self.cluster_root = core_root / pkg_dirs["cluster"]
-            self.cli = core_root / "agi-node/src/agi_node/agi_dispatcher/cli.py"
+            self.cli = core_root / "agi-cluster/src/agi_cluster/agi_distributor/cli.py"
         else:
             self.agilab_src = agilab_pkg_dir
             self.env_root = _package_dir("agi_env")
@@ -539,7 +539,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 cli_spec = importlib.util.find_spec("agi_cluster.agi_distributor.cli")
             except ModuleNotFoundError:
                 cli_spec = None
-            self.cli = Path(cli_spec.origin) if cli_spec and getattr(cli_spec, "origin", None) else self.cluster_root / "agi_dispatcher/cli.py"
+            self.cli = Path(cli_spec.origin) if cli_spec and getattr(cli_spec, "origin", None) else self.cluster_root / "agi_distributor/cli.py"
 
         resolve = self._resolve_package_root
         self.env_src = resolve(self.env_root)
