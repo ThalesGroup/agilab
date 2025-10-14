@@ -774,19 +774,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         pythonpath_entries = self._collect_pythonpath_entries()
         self._configure_pythonpath(pythonpath_entries)
 
-
-        # self.pre_install, self.pre_install_is_default = _select_hook(
-        #     self.pre_install_rel,
-        #     "pre_install.py",
-        #     "pre_install",
-        # )
-        #
-        # self.post_install, self.post_install_is_default = _select_hook(
-        #     self.post_install_rel,
-        #     "post_install.py",
-        #     "post_install",
-        # )
-
         self.python_version = envars.get("AGI_PYTHON_VERSION", "3.13")
 
         self.pyvers_worker = self.python_version
