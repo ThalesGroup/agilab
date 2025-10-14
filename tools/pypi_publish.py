@@ -595,18 +595,48 @@ def twine_upload(files: List[str], repo: str):
     cmd.extend(files)
     run(cmd, cwd=REPO_ROOT, env=upload_env)
 
+# Alternative: commit *every* pyproject.toml in the repo.
+from pathlib import Path
 def git_paths_to_commit() -> list[str]:
-    paths = [str(t) for _, t, __ in CORE] + [str(UMBRELLA[1])]
-    return [p for p in paths if pathlib.Path(p).exists()]
+    root = REPO_ROOT
+    return [str(p) for p in Path(root).rglob("pyproject.toml") if ".git" not in p.parts]
 
-def git_commit_version(chosen_version: str):
+def git_commit_version(chosen: str) -> None:
+    """
+    Commit the version bump / metadata changes after a successful publish.
+
+    `chosen` should be the final version string you just published
+    (e.g. '2025.10.14.post2') so we can include it in the commit message.
+    """
     files = git_paths_to_commit()
     if not files:
-        print("[git] nothing to commit")
+        print("[git] Nothing to commit: no pyproject.toml files found in scope.")
         return
-    run(["git", "add", *files], cwd=REPO_ROOT)
-    run(["git", "commit", "-m", f"chore(release): bump version to {chosen_version}"], cwd=REPO_ROOT)
-    print(f"[git] committed version bump to {chosen_version}")
+
+    # Ensure git notices changes even if files were marked assume-unchanged or skip-worktree
+    try:
+        run(["git", "update-index", "--no-assume-unchanged", "--no-skip-worktree", *files], cwd=REPO_ROOT)
+    except Exception as e:
+        # Not fatal; continue
+        print(f"[git] WARN: update-index best-effort failed: {e}")
+
+    # Force-add (in case ignore rules cover *.toml)
+    run(["git", "add", "-f", *files], cwd=REPO_ROOT)
+
+    # If nothing is actually staged, keep index clean and exit quietly
+    staged = run(["git", "diff", "--cached", "--name-only", "--"] + files, cwd=REPO_ROOT).stdout.strip()
+    if not staged:
+        # Unstage anything we touched just in case
+        try:
+            run(["git", "reset", "--quiet", "--"] + files, cwd=REPO_ROOT)
+        except Exception:
+            pass
+        print("[git] No pyproject.toml changes to commit.")
+        return
+
+    msg = f"chore(publish): update pyproject.toml after publishing {chosen}"
+    run(["git", "commit", "-m", msg], cwd=REPO_ROOT)
+    print("[git] Committed pyproject.toml updates.")
 
 def git_reset_pyprojects():
     files = git_paths_to_commit()
@@ -791,9 +821,13 @@ def main():
 
         if TARGET == "pypi":
             create_and_push_tag(date_tag)
-        # Commit after successful upload if requested
-        if GIT_COMMIT_VERSION:
-            git_commit_version(chosen)
+        # Always try to commit pyproject.toml changes after a successful publish
+        try:
+            git_commit_version(chosen)  # 'chosen' is your final version string
+        except Exception as e:
+            # Do not fail the publish if commit fails; just warn
+            print(f"[git] WARN: commit step failed: {e}")
+
     finally:
         if removed_symlinks:
             restore_symlinks(removed_symlinks)
