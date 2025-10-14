@@ -680,15 +680,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.worker_path = worker_src / target_worker / f"{target_worker}.py"
 
             self.manager_path = worker_src / target / f"{target}.py"
-        #    self.setup_core = worker_src / "agi_node/agi_dispatcher/build.py"
-        #elif not self.is_source_env:
-        #    build_spec = importlib.util.find_spec("agi_node.agi_dispatcher.build")
-        #    if build_spec and build_spec.origin:
-        #        self.setup_core = Path(build_spec.origin)
-        #    else:
-        #        self.setup_core = self.node_root / "agi_dispatcher/build.py"
-        #else:
-        #    self.setup_core = self.node_root / "src/agi_node/agi_dispatcher/build.py"
 
         self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
         self.uvproject = self.active_app / "uv_config.toml"
@@ -881,7 +872,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         missing the package root itself is returned.
         """
 
-        src_dir = root / "src"
+        src_dir = root / "src" / root.name.replace("-", "_")
         return src_dir if src_dir.exists() else root
 
     def _get_private_apps_root(self) -> Path | None:
@@ -916,10 +907,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             return path
 
         candidates = [
-            import_root(Path(self.env_src)),
-            import_root(Path(self.node_src)),
-            import_root(Path(self.core_src)),
-            import_root(Path(self.cluster_src)),
+            import_root(self.env_src.parent),
+            import_root(self.node_src.parent),
+            import_root(self.core_src.parent),
+            import_root(self.cluster_src.parent),
             self.dist_abs,
             self.app_src,
             self.wenv_abs / "src",
