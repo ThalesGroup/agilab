@@ -105,6 +105,8 @@ setup_mistral_offline() {
         mkdir -p "$HOME/log"
         echo -e "${BLUE}Starting model download: mistral:instruct (running in background)...${NC}"
         nohup ollama pull mistral:instruct > "$HOME/log/ollama_pull_mistral.log" 2>&1 &
+        nohup ollama pull gpt-oss:20b > "$HOME/log/ollama_pull_gpt-oss.log" 2>&1 &
+
         echo $! > "$HOME/log/ollama_pull_mistral.pid"
         echo -e "${GREEN}Pull started. Monitor: tail -f $HOME/log/ollama_pull_mistral.log${NC}"
     else
