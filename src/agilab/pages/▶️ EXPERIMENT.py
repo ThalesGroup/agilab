@@ -150,6 +150,7 @@ def _persist_env_var(name: str, value: str) -> None:
 def _prompt_for_openai_api_key(message: str) -> None:
     """Prompt for a missing OpenAI API key and optionally persist it."""
     st.warning(message)
+    st.session_state.pop("experiment_openai_api_key", None)
     with st.form("experiment_missing_openai_api_key"):
         new_key = st.text_input("OpenAI API key", type="password", help="Paste a valid OpenAI API token.")
         save_profile = st.checkbox("Save to ~/.agilab/.env", value=True)
@@ -169,6 +170,7 @@ def _prompt_for_openai_api_key(message: str) -> None:
             env_obj = st.session_state.get("env")
             if getattr(env_obj, "envars", None) is not None:
                 env_obj.envars["OPENAI_API_KEY"] = cleaned
+            st.session_state["experiment_openai_api_key"] = cleaned
             if save_profile:
                 try:
                     _persist_env_var("OPENAI_API_KEY", cleaned)
@@ -935,7 +937,8 @@ def chat_online(
 
     import openai
 
-    api_key = envars.get("OPENAI_API_KEY", "")
+    cached_key = st.session_state.get("experiment_openai_api_key")
+    api_key = cached_key or envars.get("OPENAI_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
         st.warning("OpenAI API key is required to use this page. Enter it below to continue.")
         entered = st.text_input("OpenAI API key", value="", type="password", key="experiment_openai_key")
@@ -958,6 +961,7 @@ def chat_online(
         env_obj = st.session_state.get("env")
         if getattr(env_obj, "envars", None) is not None:
             env_obj.envars["OPENAI_API_KEY"] = api_key
+        st.session_state["experiment_openai_api_key"] = api_key
         # Optionally persist to ~/.agilab/.env
         if save_profile:
             try:
@@ -965,6 +969,8 @@ def chat_online(
                 st.success("API key saved to ~/.agilab/.env")
             except Exception as e:
                 st.warning(f"Could not persist API key: {e}")
+    else:
+        st.session_state["experiment_openai_api_key"] = api_key
     if _is_placeholder_api_key(api_key):
         _prompt_for_openai_api_key(
             "OpenAI API key appears to be a placeholder or redacted. Supply a valid key to continue."
