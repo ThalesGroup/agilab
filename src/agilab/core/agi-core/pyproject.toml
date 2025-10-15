@@ -15,9 +15,7 @@ classifiers = [
   "Operating System :: Microsoft :: Windows",
   "Operating System :: POSIX :: Linux",
 ]
-
-version = "2025.10.15"
-# 👇 The whole point of the meta-package:
+version = "2025.10.15.post2"
 dependencies = ["agi-env==2025.10.15", "agi-node==2025.10.15", "agi-cluster==2025.10.15"]
 
 [project.urls]
