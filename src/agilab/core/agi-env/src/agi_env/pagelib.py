@@ -1022,6 +1022,11 @@ def save_csv(df, path: Path, sep=",") -> bool:
     path.parent.mkdir(parents=True, exist_ok=True)
     if df.shape[1] > 0:
         df.to_csv(path, sep=sep, index=False)
+        # Bust cached directory listings so dependent pages (Experiment, Explore) pick up new exports immediately.
+        try:
+            find_files.clear()
+        except Exception:
+            pass
         return True
     return False
 
