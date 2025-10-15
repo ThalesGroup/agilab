@@ -74,22 +74,6 @@ def read_pyproject(pyproject: Path) -> dict:
         raise RuntimeError("tomllib/tomli is required (use Python 3.11+ or `pip install tomli`).")
     return tomllib.loads(pyproject.read_text(encoding="utf-8"))
 
-def _section_span(src: str, header: str) -> tuple[int, int] | None:
-    """
-    Return (start, end) character indices of a TOML section like [project] or [tool.poetry].
-    The end is right before the next [<section>] or EOF.
-    """
-    # Find the header line
-    pattern = re.compile(rf"(?m)^\\s*\\[{re.escape(header)}\\]\\s*$")
-    m = pattern.search(src)
-    if not m:
-        return None
-    start = m.end()
-    # Find next section header
-    next_hdr = re.compile(r"(?m)^\\s*\\[[^\\]]+\\]\\s*$")
-    m2 = next_hdr.search(src, pos=start)
-    end = m2.start() if m2 else len(src)
-    return (start, end)
 
 def _replace_key_in_span(src: str, span: tuple[int, int], key: str, new_value: str) -> tuple[str, bool]:
     """
@@ -112,44 +96,39 @@ def _replace_key_in_span(src: str, span: tuple[int, int], key: str, new_value: s
     new_block = key_re.sub(new_line, block, count=1)
     return src[:s] + new_block + src[e:], True
 
-def write_version(pyproject: Path, new_version: str) -> None:
-    """
-    Update version in [project] or [tool.poetry].
-    If [project].dynamic includes 'version', we refuse to edit and explain how to proceed.
-    """
-    src = pyproject.read_text(encoding="utf-8")
 
-    # If version is dynamic, bail with helpful message
-    try:
-        meta = read_pyproject(pyproject)
-        proj = meta.get("project") or {}
-        if isinstance(proj.get("dynamic"), list) and "version" in proj.get("dynamic", []):
-            raise RuntimeError(
-                f"{pyproject} uses dynamic versioning ([project].dynamic). "
-                "Auto-bump cannot edit it. Use SCM/ENV (e.g., SETUPTOOLS_SCM_PRETEND_VERSION) "
-                "or set a static [project].version."
-            )
-    except Exception:
-        # parsing errors handled later by replace attempts
-        pass
+def _section_span(src: str, header: str):
+    m = re.search(rf"(?m)^\s*\[{re.escape(header)}\]\s*$", src)
+    if not m:
+        return None
+    start = m.end()
+    m2 = re.search(r"(?m)^\s*\[[^\]]+\]\s*$", src[start:])
+    end = start + m2.start() if m2 else len(src)
+    return start, end
 
-    # Try [project] first
-    span = _section_span(src, "project")
-    if span:
-        new_src, replaced = _replace_key_in_span(src, span, "version", new_version)
-        if replaced:
-            pyproject.write_text(new_src, encoding="utf-8")
-            return
+def _replace_key_in_span(src: str, span, key: str, new_value: str):
+    s, e = span
+    block = src[s:e]
+    # version = "..."   or   version = '...'   (allow trailing comments)
+    pat = re.compile(rf'(?m)^\s*{re.escape(key)}\s*=\s*([\'"])(?P<val>.*?)\1\s*(?P<c>#.*)?$')
+    m = pat.search(block)
+    if not m:
+        return src, False
+    q = m.group(1); c = m.group('c') or ''
+    newline = f'{key} = {q}{new_value}{q}{c}'
+    new_block = pat.sub(newline, block, count=1)
+    return src[:s] + new_block + src[e:], True
 
-    # Then try [tool.poetry]
-    span = _section_span(src, "tool.poetry")
-    if span:
-        new_src, replaced = _replace_key_in_span(src, span, "version", new_version)
-        if replaced:
-            pyproject.write_text(new_src, encoding="utf-8")
-            return
-
-    raise RuntimeError(f"Could not update version in {pyproject}")
+def write_version(pyproject_path: Path, new_version: str) -> None:
+    src = pyproject_path.read_text(encoding="utf-8")
+    for section in ("project", "tool.poetry"):
+        span = _section_span(src, section)
+        if span:
+            src2, ok = _replace_key_in_span(src, span, "version", new_version)
+            if ok:
+                pyproject_path.write_text(src2, encoding="utf-8")
+                return
+    raise RuntimeError(f"Could not update version in {pyproject_path}")
 
 # --------------------------- Version bump ----------------------------------
 def fetch_pypi_versions(dist_name: str, timeout: float = 10.0) -> Set[str]:
