@@ -1,4 +1,5 @@
 [project]
+version = "2025.10.15.post4"
 name = "agi-cluster"
 description = "agi-cluster a framework for AGI"
 requires-python = ">=3.11"
@@ -64,94 +65,11 @@ dependencies = [
     "wheel",
     "cmake>=3.29",
 ]
-version = "2025.10.15.post2"
+
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/core/agi-cluster"
 Tracker = "https://github.com/ThalesGroup/agilab/issues"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 [dependency-groups]

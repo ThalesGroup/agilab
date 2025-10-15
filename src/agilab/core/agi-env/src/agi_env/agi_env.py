@@ -369,7 +369,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 app = str(val) if val is not None else None
 
         def _resolve_install_type(apps_dir: str | None,
-                                  agilab_src: Path,
+                                  agilab_pck: Path,
                                   envars: dict | None) -> int:
             """Infer install type without requiring an explicit argument.
 
@@ -379,7 +379,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             2. when no ``apps_dir`` is provided, assume a worker-only environment (type 2);
             3. otherwise rely on the directory layout to distinguish source checkouts (type 1)
                from packaged installs (type 0), falling back to the legacy heuristic based on
-               ``agilab_src`` when needed.
+               ``agilab_pck`` when needed.
             """
             try:
                 # Heuristic: if apps_dir is not provided (BaseWorker.new) or it resides inside a worker env folder (wenv/*_worker),
@@ -448,7 +448,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         else:
             agilab_pkg_dir = repo_agilab_dir
         agilab_pkg_dir = agilab_pkg_dir.resolve()
-        agilab_src = agilab_pkg_dir.parent.resolve()
+        agilab_pck = agilab_pkg_dir.parent.resolve()
         markers = {"site-packages", "dist-packages"}
         is_agilab_installed = any(part in markers for part in agilab_pkg_dir.parts) or any(
             part.startswith(".venv") for part in agilab_pkg_dir.parts
@@ -461,14 +461,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             except FileNotFoundError:
                 pass
 
-        install_type = _resolve_install_type(apps_dir, agilab_src, self.envars)
+        install_type = _resolve_install_type(apps_dir, agilab_pck, self.envars)
 
         # Default apps_dir for non-worker envs when not provided
         if not self.is_worker_env and apps_dir is None:
             try:
-                apps_dir = (agilab_src / "apps").resolve()
+                apps_dir = (agilab_pck / "apps").resolve()
             except Exception:
-                apps_dir = agilab_src / "apps"
+                apps_dir = agilab_pck / "apps"
 
         if self.is_worker_env:
             if not app:
