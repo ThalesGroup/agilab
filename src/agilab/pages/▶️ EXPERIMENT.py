@@ -150,9 +150,14 @@ def _persist_env_var(name: str, value: str) -> None:
 def _prompt_for_openai_api_key(message: str) -> None:
     """Prompt for a missing OpenAI API key and optionally persist it."""
     st.warning(message)
-    st.session_state.pop("experiment_openai_api_key", None)
+    default_val = st.session_state.get("experiment_openai_api_key", "")
     with st.form("experiment_missing_openai_api_key"):
-        new_key = st.text_input("OpenAI API key", type="password", help="Paste a valid OpenAI API token.")
+        new_key = st.text_input(
+            "OpenAI API key",
+            value=default_val,
+            type="password",
+            help="Paste a valid OpenAI API token.",
+        )
         save_profile = st.checkbox("Save to ~/.agilab/.env", value=True)
         submitted = st.form_submit_button("Update key")
 
@@ -182,6 +187,17 @@ def _prompt_for_openai_api_key(message: str) -> None:
             st.rerun()
 
     st.stop()
+
+
+def _ensure_cached_api_key(envars: Dict[str, str]) -> str:
+    """Return a cached OpenAI key, seeding session state from env/os if missing."""
+    cached = st.session_state.get("experiment_openai_api_key")
+    if cached:
+        return cached
+    candidate = envars.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
+    if candidate:
+        st.session_state["experiment_openai_api_key"] = candidate
+    return candidate
 
 
 @st.cache_data(show_spinner=False)
@@ -937,8 +953,7 @@ def chat_online(
 
     import openai
 
-    cached_key = st.session_state.get("experiment_openai_api_key")
-    api_key = cached_key or envars.get("OPENAI_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
+    api_key = _ensure_cached_api_key(envars)
     if not api_key:
         st.warning("OpenAI API key is required to use this page. Enter it below to continue.")
         entered = st.text_input("OpenAI API key", value="", type="password", key="experiment_openai_key")
@@ -1789,6 +1804,10 @@ def page() -> None:
         st.rerun()
 
     env: AgiEnv = st.session_state["env"]
+    if "experiment_openai_api_key" not in st.session_state:
+        seed_key = env.envars.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
+        if seed_key:
+            st.session_state["experiment_openai_api_key"] = seed_key
 
     with open(Path(env.app_src) / "pre_prompt.json") as f:
         st.session_state["lab_prompt"] = json.load(f)
