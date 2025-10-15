@@ -1339,6 +1339,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         self.CLUSTER_CREDENTIALS = envars.get("CLUSTER_CREDENTIALS", None)
         self.OPENAI_API_KEY = envars.get("OPENAI_API_KEY", None)
+        self.OPENAI_MODEL = envars.get("OPENAI_MODEL", 'gpt-4o-mini')
         AGILAB_LOG_ABS = Path(envars.get("AGI_LOG_DIR", self.home_abs / "log"))
         if not AGILAB_LOG_ABS.exists():
             AGILAB_LOG_ABS.mkdir(parents=True)
