@@ -208,6 +208,7 @@ Note: AGILab workflows and this checklist assume PyCharm IDE. Most commands can 
 - PyCharm: run configurations “publish dry-run (testpypi)”, “testpypi publish”, “pypi publish”.
 - PyPI direct (no IDE): `uv run tools/pypi_publish.py --repo pypi --purge-after --username "<pypi-user>" --password "<pypi-pass>" --git-commit-version --retries 2` (expects `~/.pypirc` to mirror the current repo content so token-based logins keep working).
 - Cleanup-only (with OTP prompt): `uv run tools/pypi_publish.py --repo pypi --cleanup-only --username "<pypi-user>" --password "<pypi-pass>"` and enter the 2FA code when PyPI asks.
+- Developer refresh tip: after merging or bumping package code, run `uv tool update agilab agi-env agi-node agi-core agi-cluster` so `uvx` pulls the latest CLI entry points.
 - Options: `--leave-most-recent`, `--skip-cleanup`, `--cleanup-timeout N`, `--cleanup username:password`, `--twine-username __token__`, `--twine-password`, `--yank-previous`.
 - Cleanup defaults: TestPyPI cleanup is skipped automatically (avoids interactive web login/timeouts). To run cleanup, provide `--cleanup username:password` (or set `PYPI_USERNAME`/`PYPI_CLEANUP_PASSWORD` / configure `~/.pypirc`). The script reads the username from `~/.pypirc` when available.
 
