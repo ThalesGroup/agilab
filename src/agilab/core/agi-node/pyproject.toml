@@ -57,11 +57,23 @@ dependencies = [
     "cmake>=3.29",
 ]
 
-version = "2025.10.14-9"
+version = "2025.10.15"
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/core/agi-node"
 Tracker = "https://github.com/ThalesGroup/agilab/issues"
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
