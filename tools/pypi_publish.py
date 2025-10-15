@@ -78,25 +78,32 @@ def read_pyproject(pyproject: Path) -> dict:
         raise RuntimeError("tomllib/tomli is required (use Python 3.11+ or `pip install tomli`).")
     return tomllib.loads(pyproject.read_text(encoding="utf-8"))
 
-_SECTION_RE = re.compile(r'(?m)^\s*\[(?P<hdr>[^\]]+)\]\s*$')
-_NEXT_SECTION_RE = _SECTION_RE  # same pattern; used to find the next header
-_VERSION_LINE_RE = re.compile(r'(?m)^\s*version\s*=\s*([\'"])(?P<val>.*?)\1\s*(#.*)?$')
+import re
+from pathlib import Path
+
+_VERSION_LINE = re.compile(
+    r"""(?mx)
+    ^(?P<indent>[ \t]*)               # keep original indentation
+    version\s*=\s*(['"])(?P<val>.*?)\1   # version = "..."
+    (?P<trail>[ \t]*#.*)?             # optional trailing comment
+    (?P<eol>\r?\n|\r)?$               # capture the line ending (if any)
+    """
+)
 
 def _section_span(src: str, header: str):
-    """Return (start, end) slice of the section's content (after the header line)."""
-    m = re.search(rf'(?m)^\s*\[{re.escape(header)}\]\s*$', src)
+    m = re.search(rf"(?m)^\s*\[{re.escape(header)}\]\s*$", src)
     if not m:
         return None
     start = m.end()
-    m2 = _NEXT_SECTION_RE.search(src, start)
-    end = m2.start() if m2 else len(src)
+    m2 = re.search(r"(?m)^\s*\[[^\]]+\]\s*$", src[start:])
+    end = start + (m2.start() if m2 else len(src))
     return start, end
 
 def _replace_or_insert_version_in(src: str, header: str, new_version: str):
     """
-    In section [header], replace `version = ...` line with a clean one.
-    If not present, insert a new `version = "<new>"` as the FIRST key in that section.
-    Returns (new_src, changed: bool).
+    Replace the version line in [header] preserving indent and EOL.
+    If no version line, insert a new one at the top of the section
+    using the section's first detected EOL (default '\n').
     """
     span = _section_span(src, header)
     if not span:
@@ -104,27 +111,44 @@ def _replace_or_insert_version_in(src: str, header: str, new_version: str):
 
     s, e = span
     block = src[s:e]
-    # Try replace
-    if _VERSION_LINE_RE.search(block):
-        new_block = _VERSION_LINE_RE.sub(f'version = "{new_version}"', block, count=1)
-        return src[:s] + new_block + src[e:], True
-
-    # Insert at top of section (preserve leading blank lines)
-    # Find first non-empty line within block to place version before it
     lines = block.splitlines(keepends=True)
+
+    # Detect predominant EOL in this section; default to '\n'
+    default_eol = "\n"
+    for L in lines:
+        if L.endswith("\r\n"):
+            default_eol = "\r\n"; break
+        if L.endswith("\n"):
+            default_eol = "\n"
+
+    # Try replacement
+    for i, L in enumerate(lines):
+        m = _VERSION_LINE.match(L)
+        if not m:
+            continue
+        indent = m.group("indent") or ""
+        eol = m.group("eol") or default_eol
+        # write a clean line; we intentionally drop any trailing inline comment on version
+        lines[i] = f'{indent}version = "{new_version}"{eol}'
+        new_block = "".join(lines)
+        out = src[:s] + new_block + src[e:]
+        # ensure file ends with a newline
+        if not out.endswith(("\r\n", "\n", "\r")):
+            out += default_eol
+        return out, True
+
+    # No version line -> insert one at the first non-empty line (or start)
     insert_at = 0
     while insert_at < len(lines) and lines[insert_at].strip() == "":
         insert_at += 1
-    lines.insert(insert_at, f'version = "{new_version}"\n')
+    lines.insert(insert_at, f'version = "{new_version}"{default_eol}')
     new_block = "".join(lines)
-    return src[:s] + new_block + src[e:], True
+    out = src[:s] + new_block + src[e:]
+    if not out.endswith(("\r\n", "\n", "\r")):
+        out += default_eol
+    return out, True
 
 def write_version(pyproject: Path, new_version: str) -> None:
-    """
-    Robust version setter:
-    - prefer [project], then [tool.poetry]
-    - replace existing line, else insert one
-    """
     src = pyproject.read_text(encoding="utf-8")
     for section in ("project", "tool.poetry"):
         src2, changed = _replace_or_insert_version_in(src, section, new_version)
@@ -133,17 +157,6 @@ def write_version(pyproject: Path, new_version: str) -> None:
             return
     raise RuntimeError(f"Could not update version in {pyproject}")
 
-# --------------------------- Version bump ----------------------------------
-def fetch_pypi_versions(dist_name: str, timeout: float = 10.0) -> Set[str]:
-    url = PYPI_API_JSON.format(name=dist_name)
-    try:
-        with urllib.request.urlopen(url, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            return set(data.get("releases", {}).keys())
-    except urllib.error.HTTPError as e:
-        return set() if e.code == 404 else set()
-    except Exception:
-        return set()
 
 def next_post_version(base_version: str, existing: Set[str]) -> str:
     m = POST_RE.match(base_version)
@@ -189,25 +202,26 @@ def clean_artifacts(root: Path) -> None:
     for egg in root.rglob("*.egg-info"):
         remove_path(egg)
 
-# def build(root: Path, python_bin: str, dist: str = "both") -> list[Path]:
-#     # Prevent local build.py shadowing & call PyPA build with explicit source="."
-#     code = (
-#         "import sys, os, runpy\n"
-#         "if sys.path and sys.path[0] == '': sys.path.pop(0)\n"
-#         "args = []\n"
-#         "d = os.environ.get('AGI_BUILD_DIST')\n"
-#         "if d in ('sdist','wheel'):\n"
-#         "    args.append('--' + d)\n"
-#         "# argv[0] is program name; positional source dir is '.'\n"
-#         "sys.argv = ['pypa-build-shim'] + args + ['.']\n"
-#         "runpy.run_module('build.__main__', run_name='__main__')\n"
-#     )
-#     env = dict(os.environ)
-#     env['AGI_BUILD_DIST'] = dist
-#     run([python_bin, '-c', code], cwd=root, env=env)
-#
-#     dist_dir = root / 'dist'
-#     return sorted(dist_dir.glob('*')) if dist_dir.exists() else []
+
+def build(root: Path, python_bin: str, dist: str = "both") -> list[Path]:
+    # Prevent local build.py shadowing & call PyPA build with explicit source="."
+    code = (
+        "import sys, os, runpy\n"
+        "if sys.path and sys.path[0] == '': sys.path.pop(0)\n"
+        "args = []\n"
+        "d = os.environ.get('AGI_BUILD_DIST')\n"
+        "if d in ('sdist','wheel'):\n"
+        "    args.append('--' + d)\n"
+        "# argv[0] is program name; positional source dir is '.'\n"
+        "sys.argv = ['pypa-build-shim'] + args + ['.']\n"
+        "runpy.run_module('build.__main__', run_name='__main__')\n"
+    )
+    env = dict(os.environ)
+    env['AGI_BUILD_DIST'] = dist
+    run([python_bin, '-c', code], cwd=root, env=env)
+
+    dist_dir = root / 'dist'
+    return sorted(dist_dir.glob('*')) if dist_dir.exists() else []
 
 
 
