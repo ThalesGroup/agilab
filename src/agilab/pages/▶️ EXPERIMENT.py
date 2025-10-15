@@ -129,6 +129,57 @@ def clean_query(index_page: str) -> None:
         details_store.pop(current_step, None)
 
 
+def _persist_env_var(name: str, value: str) -> None:
+    """Persist a key/value pair under ~/.agilab/.env, replacing prior entries."""
+    from pathlib import Path
+
+    env_dir = Path.home() / ".agilab"
+    env_dir.mkdir(parents=True, exist_ok=True)
+    env_file = env_dir / ".env"
+    lines: List[str] = []
+    if env_file.exists():
+        lines = [
+            line
+            for line in env_file.read_text(encoding="utf-8").splitlines()
+            if not line.strip().startswith(f"{name}=")
+        ]
+    lines.append(f'{name}="{value}"')
+    env_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _prompt_for_openai_api_key(message: str) -> None:
+    """Prompt for a missing OpenAI API key and optionally persist it."""
+    st.warning(message)
+    with st.form("experiment_missing_openai_api_key"):
+        new_key = st.text_input("OpenAI API key", type="password", help="Paste a valid OpenAI API token.")
+        save_profile = st.checkbox("Save to ~/.agilab/.env", value=True)
+        submitted = st.form_submit_button("Update key")
+
+    if submitted:
+        cleaned = new_key.strip()
+        if not cleaned:
+            st.error("API key cannot be empty.")
+        else:
+            try:
+                from agi_env import AgiEnv
+
+                AgiEnv.set_env_var("OPENAI_API_KEY", cleaned)
+            except Exception:
+                pass
+            if save_profile:
+                try:
+                    _persist_env_var("OPENAI_API_KEY", cleaned)
+                    st.success("API key saved to ~/.agilab/.env")
+                except Exception as exc:
+                    st.warning(f"Could not persist API key: {exc}")
+            else:
+                st.success("API key updated for this session.")
+            st.session_state["_experiment_reload_required"] = True
+            st.rerun()
+
+    st.stop()
+
+
 @st.cache_data(show_spinner=False)
 def _read_steps(steps_file: Path, module_key: str, mtime_ns: int) -> List[Dict[str, Any]]:
     """Read steps for a specific module key from a TOML file.
@@ -898,29 +949,20 @@ def chat_online(
         envars["OPENAI_API_KEY"] = api_key
         try:
             from agi_env import AgiEnv
+
             AgiEnv.set_env_var("OPENAI_API_KEY", api_key)
         except Exception:
             pass
         # Optionally persist to ~/.agilab/.env
         if save_profile:
             try:
-                from pathlib import Path
-                env_dir = Path.home() / ".agilab"
-                env_dir.mkdir(parents=True, exist_ok=True)
-                env_file = env_dir / ".env"
-                existing = []
-                if env_file.exists():
-                    existing = env_file.read_text().splitlines()
-                    existing = [line for line in existing if not line.strip().startswith("OPENAI_API_KEY=")]
-                existing.append(f'OPENAI_API_KEY="{api_key}"')
-                env_file.write_text("\n".join(existing) + "\n", encoding="utf-8")
+                _persist_env_var("OPENAI_API_KEY", api_key)
                 st.success("API key saved to ~/.agilab/.env")
             except Exception as e:
                 st.warning(f"Could not persist API key: {e}")
     if _is_placeholder_api_key(api_key):
-        st.info(
-            "OpenAI API key appears to be a placeholder or redacted. Update `OPENAI_API_KEY`"
-            " in your environment or secrets, then rerun the request."
+        _prompt_for_openai_api_key(
+            "OpenAI API key appears to be a placeholder or redacted. Supply a valid key to continue."
         )
         raise JumpToMain(ValueError("OpenAI API key unavailable"))
 
@@ -950,7 +992,7 @@ def chat_online(
         msg = _redact_sensitive(str(e))
         status = getattr(e, "status_code", None)
         if status == 401 or "invalid_api_key" in str(e):
-            st.info("OpenAI API key invalid or missing. Update `OPENAI_API_KEY` and rerun.")
+            _prompt_for_openai_api_key("OpenAI API key invalid or missing. Enter a valid key to continue.")
         else:
             st.error(f"OpenAI API error: {msg}")
         logger.error(f"OpenAI error: {msg}")
