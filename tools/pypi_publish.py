@@ -58,6 +58,10 @@ _ensure_pkgs()
 from tomlkit import parse as toml_parse, dumps as toml_dumps  # type: ignore
 from packaging.version import Version, InvalidVersion  # type: ignore
 
+# upload-state flags (set by twine_upload)
+UPLOAD_COLLISION_DETECTED: bool = False
+UPLOAD_SUCCESS_COUNT: int = 0
+
 
 # ---------- CLI ----------
 def parse_args() -> argparse.Namespace:
@@ -232,8 +236,11 @@ def pypi_releases(name: str, repo_target: str) -> set[str]:
         with urllib.request.urlopen(url, timeout=10) as r:
             data = json.load(r) or {}
         return set((data.get("releases") or {}).keys())
-    except Exception:
-        return set()
+    except Exception as e:
+        # Do NOT silently ignore; this commonly leads to version collisions later.
+        print(f"[warn] Could not fetch releases for {name} from {url}: {e}")
+        # Return a sentinel to force a .postN bump downstream
+        return {"0.0.0.post0"}
 
 
 def split_base_and_post(ver: str) -> Tuple[str, int | None]:
@@ -440,22 +447,40 @@ def twine_check(files: List[str]):
 
 
 def twine_upload(files: List[str], repo: str, skip_existing: bool, retries: int):
+    global UPLOAD_COLLISION_DETECTED, UPLOAD_SUCCESS_COUNT
     if not files:
         raise SystemExit("No artifacts to upload")
     print(f"+ twine upload -r {repo} ({len(files)} files)")
-    cmd = [sys.executable, "-m", "twine", "upload", "--non-interactive", "-r", repo]
+    base_cmd = [sys.executable, "-m", "twine", "upload", "--non-interactive", "-r", repo]
     if skip_existing:
-        cmd.append("--skip-existing")
-    # NOTE: twine auth from ~/.pypirc; we deliberately do NOT pass username/password from CLI.
-    # If you need to force via env, export TWINE_USERNAME/TWINE_PASSWORD outside this script.
-    for attempt in range(1, int(retries) + 1):
-        try:
-            run(cmd + files, cwd=REPO_ROOT)
-            return
-        except subprocess.CalledProcessError:
-            if attempt >= retries:
-                raise
-            print(f"[upload] error (attempt {attempt}/{retries}); retrying...")
+        base_cmd.append("--skip-existing")
+    for f in files:
+        cmd = base_cmd + [f]
+        fname = os.path.basename(f)
+        for attempt in range(1, int(retries) + 1):
+            try:
+                # capture output to detect Warehouse-specific messages
+                proc = subprocess.run(
+                    cmd, cwd=str(REPO_ROOT), check=True, text=True,
+                    capture_output=True, env=os.environ.copy()
+                )
+                # success
+                UPLOAD_SUCCESS_COUNT += 1
+                break
+            except subprocess.CalledProcessError as exc:
+                stderr = (exc.stderr or "") + ""
+                already_used = "This filename has already been used" in stderr
+                if already_used:
+                    UPLOAD_COLLISION_DETECTED = True
+                    if skip_existing:
+                        print(f"[upload] skipped existing (already on server): {fname}")
+                        break  # treat as a skip
+                if attempt >= retries:
+                    # show stderr once at the end
+                    if stderr.strip():
+                        print(stderr)
+                    raise
+                print(f"[upload] error on {fname} (attempt {attempt}/{retries}); retrying...")
 
 
 # ---------- Cleanup/Purge (web login) ----------
@@ -709,6 +734,31 @@ def main():
         # Twine
         twine_check(all_files)
         twine_upload(all_files, cfg.repo, cfg.skip_existing, cfg.retries)
+        # Auto-bump fallback: if every artifact was a reuse collision, bump to next .postN, rebuild, and retry once
+        if not cfg.dry_run and UPLOAD_COLLISION_DETECTED and UPLOAD_SUCCESS_COUNT == 0:
+            print('[auto-bump] upload collision detected; bumping to next .postN and retrying upload...')
+            # compute next free post based on the originally chosen base
+            base_only = normalize_base(chosen)
+            chosen2 = next_free_post_for_all(core_names, cfg.repo, base_only)
+            # apply new version to all, rebuild, and retry upload
+            pins2 = {n: chosen2 for n, _, __ in CORE}
+            all_files2: List[str] = []
+            for name, toml, project in CORE:
+                set_version_in_pyproject(toml, chosen2)
+                pin_internal_deps(toml, pins2)
+                uv_build_project(project, cfg.dist)
+                all_files2.extend(dist_files(project))
+            # umbrella
+            _, umbrella_toml, _ = UMBRELLA
+            set_version_in_pyproject(umbrella_toml, chosen2)
+            pin_internal_deps(umbrella_toml, pins2)
+            uv_build_repo_root(cfg.dist)
+            all_files2.extend(dist_files_root())
+            twine_check(all_files2)
+            # reset flags and re-upload
+            globals()['UPLOAD_COLLISION_DETECTED'] = False
+            globals()['UPLOAD_SUCCESS_COUNT'] = 0
+            twine_upload(all_files2, cfg.repo, cfg.skip_existing, cfg.retries)
 
         # Yank (optional, PyPI only)
         if cfg.yank_previous:
