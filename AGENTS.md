@@ -8,6 +8,12 @@ same instructions.
 
 Note: AGILab workflows and this checklist assume PyCharm IDE. Most commands can be run manually, but the recommended path is via PyCharm run configurations.
 
+> **uv everywhere**
+> Always invoke Python entry points through `uv` (for example, `uv run python …` or `uv run streamlit …`) so dependencies resolve against the managed environments that ship with the project.
+
+> **CLI wrappers stay synced**
+> Whenever `.idea/runConfigurations/*.xml` changes, immediately regenerate `tools/run_configs/` via `uv run python tools/generate_runconfig_scripts.py` and commit the result so CLI launchers match the IDE.
+
 > **Tip**
 > Update this document whenever a run config, environment variable, or Streamlit
 > control changes. CI, reviewers, and support rely on it for reproduction steps.
@@ -198,50 +204,52 @@ Note: AGILab workflows and this checklist assume PyCharm IDE. Most commands can 
 - Use the Python script directly or the PyCharm run configuration:
   - CLI (dry run): `uv run python tools/pypi_publish.py --repo testpypi --dry-run`
   - CLI (TestPyPI): `uv run python tools/pypi_publish.py --repo testpypi`
-  - CLI (PyPI): `uv run python tools/pypi_publish.py --repo pypi`
-  - PyCharm: run configurations “publish dry-run (testpypi)”, “testpypi publish”, “pypi publish”.
+- CLI (PyPI): `uv run python tools/pypi_publish.py --repo pypi`
+- PyCharm: run configurations “publish dry-run (testpypi)”, “testpypi publish”, “pypi publish”.
+- PyPI direct (no IDE): `uv run tools/pypi_publish.py --repo pypi --purge-after --username "<pypi-user>" --password "<pypi-pass>" --git-commit-version --retries 2` (expects `~/.pypirc` to mirror the current repo content so token-based logins keep working).
+- Cleanup-only (with OTP prompt): `uv run tools/pypi_publish.py --repo pypi --cleanup-only --username "<pypi-user>" --password "<pypi-pass>"` and enter the 2FA code when PyPI asks.
 - Options: `--leave-most-recent`, `--skip-cleanup`, `--cleanup-timeout N`, `--cleanup username:password`, `--twine-username __token__`, `--twine-password`, `--yank-previous`.
 - Cleanup defaults: TestPyPI cleanup is skipped automatically (avoids interactive web login/timeouts). To run cleanup, provide `--cleanup username:password` (or set `PYPI_USERNAME`/`PYPI_CLEANUP_PASSWORD` / configure `~/.pypirc`). The script reads the username from `~/.pypirc` when available.
 
 ## Progressive test plan
 
 ### Tier A — Quick checks (fast sanity)
-- UI smoke: `cd $ProjectFileDir$ && uv run streamlit run src/agilab/AGILAB.py -- --install-type 1 --openai-api-key "your-key" --apps-dir src/agilab/apps` (agilab run dev)
+- UI smoke: `cd $ProjectFileDir$ && uv run streamlit run src/agilab/AGILAB.py -- --openai-api-key "your-key" --apps-dir src/agilab/apps` (agilab run dev)
 - Dependencies: `cd $ProjectFileDir$ && uv run python tools/show_dependencies.py --repo testpypi`
 - App skeleton: `uv run python src/agilab/apps/$Prompt:Enter app manager name:flight$_project/app_test.py`
 
 ### Tier B — Component/app flows
 - Flight: run → test manager/worker → distribute → call → pre/postinstall
-  - `cd src/agilab/apps/flight_project && uv run python ../../snippets/AGI.run_flight.py`
+  - `cd src/agilab/apps/flight_project && uv run python ../../examples/flight/AGI_run_flight.py`
   - `cd src/agilab/apps/flight_project && uv run python test/_test_flight_manager.py`
   - `cd src/agilab/apps/flight_project && uv run python test/_test_flight_worker.py`
-  - `cd src/agilab/snippets && uv run python AGI.get_distrib_flight.py`
+  - `cd src/agilab/examples/flight && uv run python AGI_get_distrib_flight.py`
   - `cd src/agilab/apps/flight_project && uv run python test/_test_call_worker.py`
-  - `cd src/agilab/apps/flight_project && uv run python src/flight_worker/pre_install.py remove_decorators --verbose --worker_path $USER_HOME$/wenv/flight_worker/src/flight_worker/flight_worker.py`
-  - `cd src/agilab/apps/flight_project && uv run python $USER_HOME$/wenv/flight_worker/src/flight_worker/post_install.py src/agilab/apps/flight_project 1 $USER_HOME$/data/flight`
+  - `cd src/agilab/apps/flight_project && uv run python ../../core/agi-node/src/agi_node/agi_dispatcher/pre_install.py remove_decorators --verbose --worker_path $USER_HOME$/wenv/flight_worker/src/flight_worker/flight_worker.py`
+  - `cd src/agilab/apps/flight_project && uv run python ../../core/agi-node/src/agi_node/agi_dispatcher/post_install.py src/agilab/apps/flight_project $USER_HOME$/data/flight`
 - Link model:
-  - `cd src/agilab/apps/example_app_project && uv run python ../../snippets/AGI.run_example_app.py`
+  - `cd src/agilab/apps/example_app_project && uv run python ../../examples/example_app/AGI_run_example_app.py`
   - `cd src/agilab/apps/example_app_project && uv run python test/_test_example_app_manager.py`
   - `cd src/agilab/apps/example_app_project && uv run python test/_test_example_worker.py`
-  - `cd src/agilab/snippets && uv run python AGI.get_distrib_example_app.py`
+  - `cd src/agilab/examples/example_app && uv run python AGI_get_distrib_example_app.py`
   - `cd src/agilab/apps/example_app_project && uv run python test/_test_call_worker.py`
 - MyCode:
-  - `cd src/agilab/apps/mycode_project && uv run python ../../snippets/AGI.run_mycode.py`
+  - `cd src/agilab/apps/mycode_project && uv run python ../../examples/mycode/AGI_run_mycode.py`
   - `cd src/agilab/apps/mycode_project && uv run python test/_test_mycode_manager.py`
   - `cd src/agilab/apps/mycode_project && uv run python test/_test_mycode_worker.py`
-  - `cd src/agilab/snippets && uv run python AGI.get_distrib_mycode.py`
+  - `cd src/agilab/examples/mycode && uv run python AGI_get_distrib_mycode.py`
   - `cd src/agilab/apps/mycode_project && uv run python test/_test_call_worker.py`
 - Example App:
-  - `cd src/agilab/apps/example_app_project && uv run python ../../snippets/AGI.run_example_app.py`
+  - `cd src/agilab/apps/example_app_project && uv run python ../../examples/example_app/AGI_run_example_app.py`
   - `cd src/agilab/apps/example_app_project && uv run python test/_test_example_app_manager.py`
   - `cd src/agilab/apps/example_app_project && uv run python test/_test_example_worker.py`
-  - `cd src/agilab/snippets && uv run python AGI.get_distrib_example_app.py`
+  - `cd src/agilab/examples/example_app && uv run python AGI_get_distrib_example_app.py`
   - `cd src/agilab/apps/example_app_project && uv run python test/_test_call_worker.py`
 - Sb3Trainer:
-  - `cd src/agilab/apps/example_app_project && uv run python ../../snippets/AGI.run_example_app.py`
+  - `cd src/agilab/apps/example_app_project && uv run python ../../examples/example_app/AGI_run_example_app.py`
   - `cd src/agilab/apps/example_app_project && uv run python test/_test_example_app_manager.py`
   - `cd src/agilab/apps/example_app_project && uv run python test/_test_example_worker.py`
-  - `cd src/agilab/snippets && uv run python AGI.get_distrib_example_app.py`
+  - `cd src/agilab/examples/example_app && uv run python AGI_get_distrib_example_app.py`
   - `cd src/agilab/apps/example_app_project && uv run python test/_test_call_worker.py`
 - FireDucks worker (core):
   - `cd src/agilab/core/agi-cluster && uv run pytest src/agilab/core/test/test_fireducks_worker.py`
@@ -300,7 +308,7 @@ by parsing .idea/runConfigurations/*.xml:
 ### Regenerate run configs (step-by-step)
 
 1. Update templates (if needed)
-   - Edit `pycharm/app_scripts/_template_app_*.xml` to reflect new script names/paths (e.g., `AGI.get_distrib_*`).
+   - Edit `pycharm/app_scripts/_template_app_*.xml` to reflect new script names/paths (e.g., `AGI_get_distrib_*`).
 
 2. Sync PyCharm modules + registered SDKs
    - `uv run python pycharm/setup_pycharm.py`
@@ -317,7 +325,10 @@ by parsing .idea/runConfigurations/*.xml:
    - Inspect `.idea/runConfigurations/*.xml` for updated `SCRIPT_NAME`, names, and `folderName` grouping.
 
 5) Refresh the Run Matrix in this doc
-   - Use the snippet under “How to refresh this matrix” to re-print rows and paste in place.
+   - `uv run python tools/refresh_launch_matrix.py --inplace`
+
+6) Rebuild the CLI wrappers
+   - `uv run python tools/generate_runconfig_scripts.py`
 
 ---
 
