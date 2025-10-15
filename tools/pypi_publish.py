@@ -78,35 +78,57 @@ def read_pyproject(pyproject: Path) -> dict:
         raise RuntimeError("tomllib/tomli is required (use Python 3.11+ or `pip install tomli`).")
     return tomllib.loads(pyproject.read_text(encoding="utf-8"))
 
-def _section_span(src: str, header: str) -> tuple[int, int] | None:
-    pattern = re.compile(rf"(?m)^\\s*\\[{re.escape(header)}\\]\\s*$")
-    m = pattern.search(src)
-    if not m: return None
-    start = m.end()
-    next_hdr = re.compile(r"(?m)^\\s*\\[[^\\]]+\\]\\s*$")
-    m2 = next_hdr.search(src, pos=start)
-    end = m2.start() if m2 else len(src)
-    return (start, end)
+_SECTION_RE = re.compile(r'(?m)^\s*\[(?P<hdr>[^\]]+)\]\s*$')
+_NEXT_SECTION_RE = _SECTION_RE  # same pattern; used to find the next header
+_VERSION_LINE_RE = re.compile(r'(?m)^\s*version\s*=\s*([\'"])(?P<val>.*?)\1\s*(#.*)?$')
 
-def _replace_key_in_span(src: str, span: tuple[int, int], key: str, new_value: str) -> tuple[str, bool]:
+def _section_span(src: str, header: str):
+    """Return (start, end) slice of the section's content (after the header line)."""
+    m = re.search(rf'(?m)^\s*\[{re.escape(header)}\]\s*$', src)
+    if not m:
+        return None
+    start = m.end()
+    m2 = _NEXT_SECTION_RE.search(src, start)
+    end = m2.start() if m2 else len(src)
+    return start, end
+
+def _replace_or_insert_version_in(src: str, header: str, new_version: str):
+    """
+    In section [header], replace `version = ...` line with a clean one.
+    If not present, insert a new `version = "<new>"` as the FIRST key in that section.
+    Returns (new_src, changed: bool).
+    """
+    span = _section_span(src, header)
+    if not span:
+        return src, False
+
     s, e = span
     block = src[s:e]
-    pat = re.compile(rf'(?m)^\\s*{re.escape(key)}\\s*=\\s*([\\\'"])(?P<val>.*?)\\1\\s*(#.*)?$')
-    m = pat.search(block)
-    if not m: return src, False
-    q = m.group(1)
-    newline = f'{key} = {q}{new_value}{q}'
-    new_block = pat.sub(newline, block, count=1)
+    # Try replace
+    if _VERSION_LINE_RE.search(block):
+        new_block = _VERSION_LINE_RE.sub(f'version = "{new_version}"', block, count=1)
+        return src[:s] + new_block + src[e:], True
+
+    # Insert at top of section (preserve leading blank lines)
+    # Find first non-empty line within block to place version before it
+    lines = block.splitlines(keepends=True)
+    insert_at = 0
+    while insert_at < len(lines) and lines[insert_at].strip() == "":
+        insert_at += 1
+    lines.insert(insert_at, f'version = "{new_version}"\n')
+    new_block = "".join(lines)
     return src[:s] + new_block + src[e:], True
 
 def write_version(pyproject: Path, new_version: str) -> None:
+    """
+    Robust version setter:
+    - prefer [project], then [tool.poetry]
+    - replace existing line, else insert one
+    """
     src = pyproject.read_text(encoding="utf-8")
     for section in ("project", "tool.poetry"):
-        span = _section_span(src, section)
-        if not span:
-            continue
-        src2, ok = _replace_key_in_span(src, span, "version", new_version)
-        if ok:
+        src2, changed = _replace_or_insert_version_in(src, section, new_version)
+        if changed:
             pyproject.write_text(src2, encoding="utf-8")
             return
     raise RuntimeError(f"Could not update version in {pyproject}")
@@ -167,25 +189,25 @@ def clean_artifacts(root: Path) -> None:
     for egg in root.rglob("*.egg-info"):
         remove_path(egg)
 
-def build(root: Path, python_bin: str, dist: str = "both") -> list[Path]:
-    # Prevent local build.py shadowing & call PyPA build with explicit source="."
-    code = (
-        "import sys, os, runpy\n"
-        "if sys.path and sys.path[0] == '': sys.path.pop(0)\n"
-        "args = []\n"
-        "d = os.environ.get('AGI_BUILD_DIST')\n"
-        "if d in ('sdist','wheel'):\n"
-        "    args.append('--' + d)\n"
-        "# argv[0] is program name; positional source dir is '.'\n"
-        "sys.argv = ['pypa-build-shim'] + args + ['.']\n"
-        "runpy.run_module('build.__main__', run_name='__main__')\n"
-    )
-    env = dict(os.environ)
-    env['AGI_BUILD_DIST'] = dist
-    run([python_bin, '-c', code], cwd=root, env=env)
-
-    dist_dir = root / 'dist'
-    return sorted(dist_dir.glob('*')) if dist_dir.exists() else []
+# def build(root: Path, python_bin: str, dist: str = "both") -> list[Path]:
+#     # Prevent local build.py shadowing & call PyPA build with explicit source="."
+#     code = (
+#         "import sys, os, runpy\n"
+#         "if sys.path and sys.path[0] == '': sys.path.pop(0)\n"
+#         "args = []\n"
+#         "d = os.environ.get('AGI_BUILD_DIST')\n"
+#         "if d in ('sdist','wheel'):\n"
+#         "    args.append('--' + d)\n"
+#         "# argv[0] is program name; positional source dir is '.'\n"
+#         "sys.argv = ['pypa-build-shim'] + args + ['.']\n"
+#         "runpy.run_module('build.__main__', run_name='__main__')\n"
+#     )
+#     env = dict(os.environ)
+#     env['AGI_BUILD_DIST'] = dist
+#     run([python_bin, '-c', code], cwd=root, env=env)
+#
+#     dist_dir = root / 'dist'
+#     return sorted(dist_dir.glob('*')) if dist_dir.exists() else []
 
 
 
