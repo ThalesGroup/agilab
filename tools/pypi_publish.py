@@ -2,13 +2,13 @@
 """
 pypi_publish.py — build & upload multiple packages to (Test)PyPI
 - Auto `.postN` bump if version already exists on PyPI.
+- Robust version editing:
+    * Updates `version` in either `[project]` (PEP 621) or `[tool.poetry]`
+    * Handles single/double quotes and trailing comments
+    * Replaces only within the matched section
 - Optional yanking via Twine (guarded).
 - Symlink restore, dotenv, retries, verbose logging.
-- Cleanup controls: --no-clean, --cleanup-only, --purge-after, --purge-on-fail.
-- Credentials regression fix:
-    * Accept --username/--password flags (kept for compatibility; safe even with --cleanup-only).
-    * Also passthrough unknown args to Twine (e.g., --repository-url) without argparse errors.
-    * Password set via env (TWINE_PASSWORD) to avoid echoing secrets.
+- Cleanup controls and credential flags (incl. parse-known passthrough).
 """
 from __future__ import annotations
 
@@ -74,16 +74,82 @@ def read_pyproject(pyproject: Path) -> dict:
         raise RuntimeError("tomllib/tomli is required (use Python 3.11+ or `pip install tomli`).")
     return tomllib.loads(pyproject.read_text(encoding="utf-8"))
 
+def _section_span(src: str, header: str) -> tuple[int, int] | None:
+    """
+    Return (start, end) character indices of a TOML section like [project] or [tool.poetry].
+    The end is right before the next [<section>] or EOF.
+    """
+    # Find the header line
+    pattern = re.compile(rf"(?m)^\\s*\\[{re.escape(header)}\\]\\s*$")
+    m = pattern.search(src)
+    if not m:
+        return None
+    start = m.end()
+    # Find next section header
+    next_hdr = re.compile(r"(?m)^\\s*\\[[^\\]]+\\]\\s*$")
+    m2 = next_hdr.search(src, pos=start)
+    end = m2.start() if m2 else len(src)
+    return (start, end)
+
+def _replace_key_in_span(src: str, span: tuple[int, int], key: str, new_value: str) -> tuple[str, bool]:
+    """
+    Replace `key = "<...>"` within the span. Supports single/double quotes and trailing comments.
+    Returns (new_src, replaced?).
+    """
+    s, e = span
+    block = src[s:e]
+    # match: key = '...' or "..." with optional spaces and trailing comment
+    key_re = re.compile(
+        rf"(?m)^\\s*{re.escape(key)}\\s*=\\s*(['\\\"])"
+        rf"(?P<val>.*?)\\1\\s*(?P<comment>#.*)?$"
+    )
+    m = key_re.search(block)
+    if not m:
+        return src, False
+    quote = m.group(1)
+    comment = m.group('comment') or ""
+    new_line = f"{key} = {quote}{new_value}{quote}{comment}"
+    new_block = key_re.sub(new_line, block, count=1)
+    return src[:s] + new_block + src[e:], True
+
 def write_version(pyproject: Path, new_version: str) -> None:
+    """
+    Update version in [project] or [tool.poetry].
+    If [project].dynamic includes 'version', we refuse to edit and explain how to proceed.
+    """
     src = pyproject.read_text(encoding="utf-8")
-    pattern = r"(?ms)(^\\s*\\[project\\]\\s.*?^\\s*version\\s*=\\s*\\\")([^\\\"]+)(\\\"\\s*$)"
-    new_src, n = re.subn(pattern, r"\\1" + re.escape(new_version) + r"\\3", src)
-    if n == 0:
-        pattern2 = r'(?m)^\\s*version\\s*=\\s*"(.*?)"\\s*$'
-        new_src, n = re.subn(pattern2, f'version = "{new_version}"', src, count=1)
-    if n == 0:
-        raise RuntimeError(f"Could not update version in {pyproject}")
-    pyproject.write_text(new_src, encoding="utf-8")
+
+    # If version is dynamic, bail with helpful message
+    try:
+        meta = read_pyproject(pyproject)
+        proj = meta.get("project") or {}
+        if isinstance(proj.get("dynamic"), list) and "version" in proj.get("dynamic", []):
+            raise RuntimeError(
+                f"{pyproject} uses dynamic versioning ([project].dynamic). "
+                "Auto-bump cannot edit it. Use SCM/ENV (e.g., SETUPTOOLS_SCM_PRETEND_VERSION) "
+                "or set a static [project].version."
+            )
+    except Exception:
+        # parsing errors handled later by replace attempts
+        pass
+
+    # Try [project] first
+    span = _section_span(src, "project")
+    if span:
+        new_src, replaced = _replace_key_in_span(src, span, "version", new_version)
+        if replaced:
+            pyproject.write_text(new_src, encoding="utf-8")
+            return
+
+    # Then try [tool.poetry]
+    span = _section_span(src, "tool.poetry")
+    if span:
+        new_src, replaced = _replace_key_in_span(src, span, "version", new_version)
+        if replaced:
+            pyproject.write_text(new_src, encoding="utf-8")
+            return
+
+    raise RuntimeError(f"Could not update version in {pyproject}")
 
 # --------------------------- Version bump ----------------------------------
 def fetch_pypi_versions(dist_name: str, timeout: float = 10.0) -> Set[str]:
@@ -122,11 +188,13 @@ def next_post_version(base_version: str, existing: Set[str]) -> str:
 
 def ensure_unique_version(pyproject: Path, *, require_network: bool = False) -> tuple[str, str]:
     meta = read_pyproject(pyproject)
-    project = meta.get("project") or {}
-    name = project.get("name")
-    version = project.get("version")
+    project = (meta.get("project") or {}) or (meta.get("tool", {}).get("poetry") or {})
+    # poetic fallback for name
+    name = (meta.get("project") or {}).get("name") or (meta.get("tool", {}).get("poetry") or {}).get("name")
+    version = (meta.get("project") or {}).get("version") or (meta.get("tool", {}).get("poetry") or {}).get("version")
     if not name or not version:
-        raise RuntimeError(f"[project].name and [project].version must be set in {pyproject}")
+        raise RuntimeError(f"[project]/[tool.poetry] name and version must be set in {pyproject}")
+
     existing = fetch_pypi_versions(name)
     if require_network and not existing:
         raise RuntimeError("PyPI availability check required but no data returned. Is the network blocked?")
@@ -170,7 +238,6 @@ def upload(files: Iterable[Path], python_bin: str, repo: str, *, skip_existing: 
         cmd.append("--skip-existing")
     cmd.extend(str(p) for p in files)
 
-    # prepare environment with credentials (avoid echoing password on CLI)
     child_env = dict(os.environ)
     if twine_username:
         child_env["TWINE_USERNAME"] = twine_username
@@ -251,7 +318,7 @@ class Config:
     twine_password: str | None
 
 def parse_args(argv: Sequence[str]) -> tuple[Config, list[str]]:
-    ap = argparse.ArgumentParser(description="Build & upload packages with auto .postN; optional yank & cleanup.")
+    ap = argparse.ArgumentParser(description="Build & upload packages with auto .postN; robust version edit; optional yank & cleanup.")
     ap.add_argument("--repo", default=os.environ.get("TARGET") or os.environ.get("PYPI_REPOSITORY") or "pypi",
                     help="Twine repo (pypi | testpypi | alias in ~/.pypirc).")
     ap.add_argument("--python", dest="python_bin", default=sys.executable, help="Python interpreter.")
@@ -283,7 +350,6 @@ def parse_args(argv: Sequence[str]) -> tuple[Config, list[str]]:
     ap.add_argument("--password", "-p", default=os.environ.get("TWINE_PASSWORD"),
                     help="Twine password (defaults to env TWINE_PASSWORD).")
 
-    # accept unknown args to passthrough to Twine (e.g., --repository-url)
     ns, unknown = ap.parse_known_args(argv)
 
     if ns.dotenv:
@@ -299,9 +365,7 @@ def parse_args(argv: Sequence[str]) -> tuple[Config, list[str]]:
                 print(f"[symlink] cannot parse {p}: {e}")
 
     twine_opts = list(shlex.split(ns.twine_opts)) if ns.twine_opts else []
-    # pass unknown CLI fragments through to twine too
-    twine_opts.extend(unknown)
-
+    twine_opts.extend(unknown)  # passthrough unknown flags to Twine
     roots = tuple(Path(r).resolve() for r in ns.roots)
 
     global log
@@ -355,7 +419,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     all_artifacts: List[Path] = []
     top_pyproj = (cfg.package_roots[-1] / "pyproject.toml")
     top_meta = read_pyproject(top_pyproj) if top_pyproj.exists() else {}
-    top_name = (top_meta.get("project") or {}).get("name")
+    top_name = (top_meta.get("project") or {}).get("name") or (top_meta.get("tool", {}).get("poetry") or {}).get("name")
 
     try:
         if cfg.yank_now and cfg.yank_version:
