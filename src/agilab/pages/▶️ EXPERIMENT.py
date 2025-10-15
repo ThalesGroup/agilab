@@ -166,6 +166,9 @@ def _prompt_for_openai_api_key(message: str) -> None:
                 AgiEnv.set_env_var("OPENAI_API_KEY", cleaned)
             except Exception:
                 pass
+            env_obj = st.session_state.get("env")
+            if getattr(env_obj, "envars", None) is not None:
+                env_obj.envars["OPENAI_API_KEY"] = cleaned
             if save_profile:
                 try:
                     _persist_env_var("OPENAI_API_KEY", cleaned)
@@ -174,7 +177,6 @@ def _prompt_for_openai_api_key(message: str) -> None:
                     st.warning(f"Could not persist API key: {exc}")
             else:
                 st.success("API key updated for this session.")
-            st.session_state["_experiment_reload_required"] = True
             st.rerun()
 
     st.stop()
@@ -953,6 +955,9 @@ def chat_online(
             AgiEnv.set_env_var("OPENAI_API_KEY", api_key)
         except Exception:
             pass
+        env_obj = st.session_state.get("env")
+        if getattr(env_obj, "envars", None) is not None:
+            env_obj.envars["OPENAI_API_KEY"] = api_key
         # Optionally persist to ~/.agilab/.env
         if save_profile:
             try:
