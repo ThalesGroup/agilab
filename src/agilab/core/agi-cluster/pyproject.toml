@@ -64,8 +64,7 @@ dependencies = [
     "wheel",
     "cmake>=3.29",
 ]
-
-version = "2025.10.15"
+version = "2025.10.15.post2"
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/core/agi-cluster"
