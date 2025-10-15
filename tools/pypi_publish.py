@@ -168,23 +168,25 @@ def clean_artifacts(root: Path) -> None:
         remove_path(egg)
 
 def build(root: Path, python_bin: str, dist: str = "both") -> list[Path]:
-    # Avoid local build.py shadowing by importing the PyPA 'build' module after removing CWD from sys.path.
+    # Prevent local build.py shadowing & call PyPA build with explicit source="."
     code = (
         "import sys, os, runpy\n"
-        "sys.path.pop(0)\n"                             # remove CWD so a local build.py can't shadow PyPA build
+        "if sys.path and sys.path[0] == '': sys.path.pop(0)\n"
         "args = []\n"
         "d = os.environ.get('AGI_BUILD_DIST')\n"
         "if d in ('sdist','wheel'):\n"
         "    args.append('--' + d)\n"
-        "sys.argv = ['-m', 'build'] + args\n"
+        "# argv[0] is program name; positional source dir is '.'\n"
+        "sys.argv = ['pypa-build-shim'] + args + ['.']\n"
         "runpy.run_module('build.__main__', run_name='__main__')\n"
     )
     env = dict(os.environ)
     env['AGI_BUILD_DIST'] = dist
-    run([python_bin, "-c", code], cwd=root, env=env)
+    run([python_bin, '-c', code], cwd=root, env=env)
 
-    dist_dir = root / "dist"
-    return sorted(dist_dir.glob("*")) if dist_dir.exists() else []
+    dist_dir = root / 'dist'
+    return sorted(dist_dir.glob('*')) if dist_dir.exists() else []
+
 
 
 # --------------------------- Upload (auth via ~/.pypirc) -------------------
