@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """
 pypi_publish.py — build & upload multiple packages to (Test)PyPI
-- Auto `.postN` bump if version already exists on PyPI.
-- Robust version editing:
-    * Updates `version` in either `[project]` (PEP 621) or `[tool.poetry]`
-    * Handles single/double quotes and trailing comments
-    * Replaces only within the matched section
-- Optional yanking via Twine (guarded).
-- Symlink restore, dotenv, retries, verbose logging.
-- Cleanup controls and credential flags (incl. parse-known passthrough).
+
+Key points for credentials behavior (per JPM request):
+  - Accept --username/--password flags, but **ignore them** in all modes.
+  - Always rely on ~/.pypirc (or TWINE_* env provided externally) for auth.
+  - This applies to normal runs, --cleanup-only, and purge flags (--purge-after/--purge-on-fail).
+
+Other features:
+  - Auto `.postN` bump if the version already exists on PyPI.
+  - Robust version editing for [project] and [tool.poetry].
+  - Symlink restore, dotenv loading, retries, verbose logging.
+  - Cleanup controls: --no-clean, --cleanup-only, --purge-after, --purge-on-fail.
+  - Pass-through of unknown args to Twine (e.g., --repository-url).
 """
 from __future__ import annotations
 
@@ -74,61 +78,38 @@ def read_pyproject(pyproject: Path) -> dict:
         raise RuntimeError("tomllib/tomli is required (use Python 3.11+ or `pip install tomli`).")
     return tomllib.loads(pyproject.read_text(encoding="utf-8"))
 
+def _section_span(src: str, header: str) -> tuple[int, int] | None:
+    pattern = re.compile(rf"(?m)^\\s*\\[{re.escape(header)}\\]\\s*$")
+    m = pattern.search(src)
+    if not m: return None
+    start = m.end()
+    next_hdr = re.compile(r"(?m)^\\s*\\[[^\\]]+\\]\\s*$")
+    m2 = next_hdr.search(src, pos=start)
+    end = m2.start() if m2 else len(src)
+    return (start, end)
 
 def _replace_key_in_span(src: str, span: tuple[int, int], key: str, new_value: str) -> tuple[str, bool]:
-    """
-    Replace `key = "<...>"` within the span. Supports single/double quotes and trailing comments.
-    Returns (new_src, replaced?).
-    """
     s, e = span
     block = src[s:e]
-    # match: key = '...' or "..." with optional spaces and trailing comment
-    key_re = re.compile(
-        rf"(?m)^\\s*{re.escape(key)}\\s*=\\s*(['\\\"])"
-        rf"(?P<val>.*?)\\1\\s*(?P<comment>#.*)?$"
-    )
-    m = key_re.search(block)
-    if not m:
-        return src, False
-    quote = m.group(1)
-    comment = m.group('comment') or ""
-    new_line = f"{key} = {quote}{new_value}{quote}{comment}"
-    new_block = key_re.sub(new_line, block, count=1)
-    return src[:s] + new_block + src[e:], True
-
-
-def _section_span(src: str, header: str):
-    m = re.search(rf"(?m)^\s*\[{re.escape(header)}\]\s*$", src)
-    if not m:
-        return None
-    start = m.end()
-    m2 = re.search(r"(?m)^\s*\[[^\]]+\]\s*$", src[start:])
-    end = start + m2.start() if m2 else len(src)
-    return start, end
-
-def _replace_key_in_span(src: str, span, key: str, new_value: str):
-    s, e = span
-    block = src[s:e]
-    # version = "..."   or   version = '...'   (allow trailing comments)
-    pat = re.compile(rf'(?m)^\s*{re.escape(key)}\s*=\s*([\'"])(?P<val>.*?)\1\s*(?P<c>#.*)?$')
+    pat = re.compile(rf'(?m)^\\s*{re.escape(key)}\\s*=\\s*([\\\'"])(?P<val>.*?)\\1\\s*(#.*)?$')
     m = pat.search(block)
-    if not m:
-        return src, False
-    q = m.group(1); c = m.group('c') or ''
-    newline = f'{key} = {q}{new_value}{q}{c}'
+    if not m: return src, False
+    q = m.group(1)
+    newline = f'{key} = {q}{new_value}{q}'
     new_block = pat.sub(newline, block, count=1)
     return src[:s] + new_block + src[e:], True
 
-def write_version(pyproject_path: Path, new_version: str) -> None:
-    src = pyproject_path.read_text(encoding="utf-8")
+def write_version(pyproject: Path, new_version: str) -> None:
+    src = pyproject.read_text(encoding="utf-8")
     for section in ("project", "tool.poetry"):
         span = _section_span(src, section)
-        if span:
-            src2, ok = _replace_key_in_span(src, span, "version", new_version)
-            if ok:
-                pyproject_path.write_text(src2, encoding="utf-8")
-                return
-    raise RuntimeError(f"Could not update version in {pyproject_path}")
+        if not span:
+            continue
+        src2, ok = _replace_key_in_span(src, span, "version", new_version)
+        if ok:
+            pyproject.write_text(src2, encoding="utf-8")
+            return
+    raise RuntimeError(f"Could not update version in {pyproject}")
 
 # --------------------------- Version bump ----------------------------------
 def fetch_pypi_versions(dist_name: str, timeout: float = 10.0) -> Set[str]:
@@ -144,36 +125,26 @@ def fetch_pypi_versions(dist_name: str, timeout: float = 10.0) -> Set[str]:
 
 def next_post_version(base_version: str, existing: Set[str]) -> str:
     m = POST_RE.match(base_version)
-    if not m:
-        return base_version
-    base = m.group("base")
-    cur_post = int(m.group("n") or 0)
+    if not m: return base_version
+    base = m.group("base"); cur_post = int(m.group("n") or 0)
     exact_exists = base_version in existing
-    max_post = -1
-    base_plain_exists = False
+    max_post = -1; base_plain_exists = False
     for v in existing:
         mv = POST_RE.match(v)
-        if not mv or mv.group("base") != base:
-            continue
-        if mv.group("n") is None:
-            base_plain_exists = True
-        else:
-            max_post = max(max_post, int(mv.group("n")))
-    if exact_exists:
-        return f"{base}.post{max(cur_post, max_post) + 1}"
-    if cur_post == 0 and base_plain_exists:
-        return f"{base}.post{(max_post + 1) if max_post >= 0 else 1}"
+        if not mv or mv.group("base") != base: continue
+        if mv.group("n") is None: base_plain_exists = True
+        else: max_post = max(max_post, int(mv.group("n")))
+    if exact_exists: return f"{base}.post{max(cur_post, max_post) + 1}"
+    if cur_post == 0 and base_plain_exists: return f"{base}.post{(max_post + 1) if max_post >= 0 else 1}"
     return base_version
 
 def ensure_unique_version(pyproject: Path, *, require_network: bool = False) -> tuple[str, str]:
     meta = read_pyproject(pyproject)
-    project = (meta.get("project") or {}) or (meta.get("tool", {}).get("poetry") or {})
-    # poetic fallback for name
-    name = (meta.get("project") or {}).get("name") or (meta.get("tool", {}).get("poetry") or {}).get("name")
-    version = (meta.get("project") or {}).get("version") or (meta.get("tool", {}).get("poetry") or {}).get("version")
+    project = meta.get("project") or {}
+    name = project.get("name") or ((meta.get("tool") or {}).get("poetry") or {}).get("name")
+    version = project.get("version") or ((meta.get("tool") or {}).get("poetry") or {}).get("version")
     if not name or not version:
         raise RuntimeError(f"[project]/[tool.poetry] name and version must be set in {pyproject}")
-
     existing = fetch_pypi_versions(name)
     if require_network and not existing:
         raise RuntimeError("PyPI availability check required but no data returned. Is the network blocked?")
@@ -196,49 +167,44 @@ def clean_artifacts(root: Path) -> None:
     for egg in root.rglob("*.egg-info"):
         remove_path(egg)
 
-def build(root: Path, python_bin: str, dist: str = "both", extra_env: dict | None = None) -> list[Path]:
-    # Use a tiny shim that pops cwd from sys.path before importing PyPA build
-    code = [
-        "import sys, runpy",
-        "sys.path.pop(0)",             # remove cwd so local build.py can't shadow
-        "runpy.run_module('build.__main__', run_name='__main__')",
-    ]
-    cmd = [python_bin, "-c", ";".join(code)]
-    if dist in ("sdist", "wheel"):
-        # forward the flag through env var that PyPA build respects (or just do both and let --sdist/--wheel be CLI)
-        cmd += ["--" + dist]
+def build(root: Path, python_bin: str, dist: str = "both") -> list[Path]:
+    # Avoid local build.py shadowing by importing the PyPA 'build' module after removing CWD from sys.path.
+    code = (
+        "import sys, os, runpy\n"
+        "sys.path.pop(0)\n"                             # remove CWD so a local build.py can't shadow PyPA build
+        "args = []\n"
+        "d = os.environ.get('AGI_BUILD_DIST')\n"
+        "if d in ('sdist','wheel'):\n"
+        "    args.append('--' + d)\n"
+        "sys.argv = ['-m', 'build'] + args\n"
+        "runpy.run_module('build.__main__', run_name='__main__')\n"
+    )
     env = dict(os.environ)
-    if extra_env:
-        env.update(extra_env)
-    run(cmd, cwd=root, env=env)
+    env['AGI_BUILD_DIST'] = dist
+    run([python_bin, "-c", code], cwd=root, env=env)
 
     dist_dir = root / "dist"
     return sorted(dist_dir.glob("*")) if dist_dir.exists() else []
 
 
-# --------------------------- Upload & Yank ---------------------------------
+# --------------------------- Upload (auth via ~/.pypirc) -------------------
 def upload(files: Iterable[Path], python_bin: str, repo: str, *, skip_existing: bool = True,
-           retries: int = 1, twine_opts: Sequence[str] = (), twine_username: str | None = None,
-           twine_password: str | None = None) -> None:
+           retries: int = 1, twine_opts: Sequence[str] = ()) -> None:
     files = list(files)
     if not files:
         log.info("[upload] nothing to upload")
         return
+
     cmd = [python_bin, "-m", "twine", "upload", "--non-interactive", "-r", repo, *twine_opts]
     if skip_existing:
         cmd.append("--skip-existing")
     cmd.extend(str(p) for p in files)
 
-    child_env = dict(os.environ)
-    if twine_username:
-        child_env["TWINE_USERNAME"] = twine_username
-    if twine_password:
-        child_env["TWINE_PASSWORD"] = twine_password
-
+    # Do NOT inject credentials here; rely on ~/.pypirc or external env
     attempt = 0
     while True:
         try:
-            run(cmd, env=child_env)
+            run(cmd)  # env untouched
             return
         except subprocess.CalledProcessError:
             if attempt >= retries:
@@ -248,19 +214,7 @@ def upload(files: Iterable[Path], python_bin: str, repo: str, *, skip_existing: 
             log.info(f"[upload] error (attempt {attempt}/{retries}); retrying in {wait}s...")
             time.sleep(wait)
 
-def yank(dist_name: str, version: str, reason: str, *, python_bin: str, repo: str,
-         twine_username: str | None = None, twine_password: str | None = None) -> None:
-    cmd = [python_bin, "-m", "twine", "yank", "-r", repo, dist_name, version]
-    if reason:
-        cmd += ["--reason", reason]
-    child_env = dict(os.environ)
-    if twine_username:
-        child_env["TWINE_USERNAME"] = twine_username
-    if twine_password:
-        child_env["TWINE_PASSWORD"] = twine_password
-    run(cmd, env=child_env)
-
-# --------------------------- Symlinks --------------------------------------
+# --------------------------- Symlinks & dotenv -----------------------------
 def restore_symlinks(mapping: Dict[str, str]) -> None:
     for link, target in mapping.items():
         link_p, target_p = Path(link), Path(target)
@@ -273,7 +227,6 @@ def restore_symlinks(mapping: Dict[str, str]) -> None:
         except Exception as exc:
             log.info(f"[symlink] failed {link} -> {target}: {exc}")
 
-# --------------------------- .env loader -----------------------------------
 def load_dotenv(dotenv_path: Path) -> None:
     if not dotenv_path.exists():
         return
@@ -301,15 +254,12 @@ class Config:
     cleanup_only: bool
     purge_after: bool
     purge_on_fail: bool
-    yank_version: str
-    yank_reason: str
-    yank_now: bool
-    yank_allow_prod: bool
-    twine_username: str | None
-    twine_password: str | None
+    # parsed but intentionally unused (accepted & ignored)
+    username: str | None
+    password: str | None
 
 def parse_args(argv: Sequence[str]) -> tuple[Config, list[str]]:
-    ap = argparse.ArgumentParser(description="Build & upload packages with auto .postN; robust version edit; optional yank & cleanup.")
+    ap = argparse.ArgumentParser(description="Build & upload packages with automatic .postN bump (auth via ~/.pypirc).")
     ap.add_argument("--repo", default=os.environ.get("TARGET") or os.environ.get("PYPI_REPOSITORY") or "pypi",
                     help="Twine repo (pypi | testpypi | alias in ~/.pypirc).")
     ap.add_argument("--python", dest="python_bin", default=sys.executable, help="Python interpreter.")
@@ -329,18 +279,11 @@ def parse_args(argv: Sequence[str]) -> tuple[Config, list[str]]:
     ap.add_argument("--purge-after", action="store_true", help="Remove built artifacts after successful upload.")
     ap.add_argument("--purge-on-fail", action="store_true", help="Also purge artifacts if the process fails.")
 
-    # yank options
-    ap.add_argument("--yank-version", default="", help="Yank this VERSION via twine after (or before) upload.")
-    ap.add_argument("--yank-reason", default="", help="Reason string to include with the yank.")
-    ap.add_argument("--yank-now", action="store_true", help="Perform yank before upload (advanced).")
-    ap.add_argument("--yank-allow-prod", action="store_true", help="Allow yanking on 'pypi' (safeguard off).")
+    # credentials (accepted but intentionally ignored)
+    ap.add_argument("--username", "-u", default=None, help="Ignored. Auth is taken from ~/.pypirc or env.")
+    ap.add_argument("--password", "-p", default=None, help="Ignored. Auth is taken from ~/.pypirc or env.")
 
-    # credentials (compat)
-    ap.add_argument("--username", "-u", default=os.environ.get("TWINE_USERNAME"),
-                    help="Twine username (defaults to env TWINE_USERNAME).")
-    ap.add_argument("--password", "-p", default=os.environ.get("TWINE_PASSWORD"),
-                    help="Twine password (defaults to env TWINE_PASSWORD).")
-
+    # accept unknown args to passthrough to Twine (e.g., --repository-url)
     ns, unknown = ap.parse_known_args(argv)
 
     if ns.dotenv:
@@ -356,7 +299,9 @@ def parse_args(argv: Sequence[str]) -> tuple[Config, list[str]]:
                 print(f"[symlink] cannot parse {p}: {e}")
 
     twine_opts = list(shlex.split(ns.twine_opts)) if ns.twine_opts else []
-    twine_opts.extend(unknown)  # passthrough unknown flags to Twine
+    # pass unknown CLI fragments through to twine
+    twine_opts.extend(unknown)
+
     roots = tuple(Path(r).resolve() for r in ns.roots)
 
     global log
@@ -377,12 +322,8 @@ def parse_args(argv: Sequence[str]) -> tuple[Config, list[str]]:
         cleanup_only=bool(ns.cleanup_only),
         purge_after=bool(ns.purge_after),
         purge_on_fail=bool(ns.purge_on_fail),
-        yank_version=ns.yank_version.strip(),
-        yank_reason=ns.yank_reason,
-        yank_now=bool(ns.yank_now),
-        yank_allow_prod=bool(ns.yank_allow_prod),
-        twine_username=ns.username,
-        twine_password=ns.password,
+        username=ns.username,  # parsed, ignored
+        password=ns.password,  # parsed, ignored
     )
     return cfg, unknown
 
@@ -396,9 +337,6 @@ def main(argv: Sequence[str] | None = None) -> None:
     log.info(f"[config] repo={cfg.repo} python={cfg.python_bin} dist={cfg.dist} "
              f"skip_existing={cfg.skip_existing} retries={cfg.retries} clean={cfg.do_clean}")
 
-    if cfg.yank_version and cfg.repo == "pypi" and not cfg.yank_allow_prod:
-        raise SystemExit("Refusing to yank on 'pypi' without --yank-allow-prod")
-
     if cfg.symlink_map:
         restore_symlinks(cfg.symlink_map)
 
@@ -408,21 +346,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         return
 
     all_artifacts: List[Path] = []
-    top_pyproj = (cfg.package_roots[-1] / "pyproject.toml")
-    top_meta = read_pyproject(top_pyproj) if top_pyproj.exists() else {}
-    top_name = (top_meta.get("project") or {}).get("name") or (top_meta.get("tool", {}).get("poetry") or {}).get("name")
-
     try:
-        if cfg.yank_now and cfg.yank_version:
-            if not top_name:
-                raise SystemExit("Cannot yank: top-level package name not found in pyproject.toml")
-            yank(top_name, cfg.yank_version, cfg.yank_reason, python_bin=cfg.python_bin, repo=cfg.repo,
-                 twine_username=cfg.twine_username, twine_password=cfg.twine_password)
-
         for root in cfg.package_roots:
             pyproj = root / "pyproject.toml"
             if not pyproj.exists():
                 raise FileNotFoundError(f"Missing pyproject.toml: {pyproj}")
+
             ensure_unique_version(pyproj, require_network=cfg.strict_online)
             if cfg.do_clean:
                 clean_artifacts(root)
@@ -438,15 +367,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             skip_existing=cfg.skip_existing,
             retries=cfg.retries,
             twine_opts=cfg.twine_opts,
-            twine_username=cfg.twine_username,
-            twine_password=cfg.twine_password,
         )
-
-        if (not cfg.yank_now) and cfg.yank_version:
-            if not top_name:
-                raise SystemExit("Cannot yank: top-level package name not found in pyproject.toml")
-            yank(top_name, cfg.yank_version, cfg.yank_reason, python_bin=cfg.python_bin, repo=cfg.repo,
-                 twine_username=cfg.twine_username, twine_password=cfg.twine_password)
 
         if cfg.purge_after:
             _purge_all(cfg.package_roots)
