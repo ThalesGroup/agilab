@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-pypi_publish.py — build & upload multiple packages to (Test)PyPI.
+pypi_publish.py — build & upload multiple packages to (Test)PyPI
 
-Consistency & behavior:
-  - Local build.py is kept intact. We avoid shadowing by running PyPA's build via run_module and explicit argv.
-  - Version bump: reads [project] or [tool.poetry], auto-appends .postN if version exists on PyPI.
-    * Replaces the version line preserving indentation and EOL; inserts if missing.
-  - Credentials: --username/--password are accepted but IGNORED. Auth comes from ~/.pypirc or external TWINE_* env.
-  - Cleanup: --no-clean, --cleanup-only, --purge-after, --purge-on-fail.
-  - Unknown CLI args are passed to Twine (e.g., --repository-url).
+Key points for credentials behavior (per JPM request):
+  - Accept --username/--password flags, but **ignore them** in all modes.
+  - Always rely on ~/.pypirc (or TWINE_* env provided externally) for auth.
+  - This applies to normal runs, --cleanup-only, and purge flags (--purge-after/--purge-on-fail).
 
-Usage example:
-  uv run tools/pypi_publish.py --repo pypi --purge-after --username anything --password anything
+Other features:
+  - Auto `.postN` bump if the version already exists on PyPI.
+  - Robust version editing for [project] and [tool.poetry].
+  - Symlink restore, dotenv loading, retries, verbose logging.
+  - Cleanup controls: --no-clean, --cleanup-only, --purge-after, --purge-on-fail.
+  - Pass-through of unknown args to Twine (e.g., --repository-url).
 """
-
 from __future__ import annotations
 
 import argparse
@@ -30,8 +30,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Sequence, Set, Tuple, Dict
 
-# ---------- Config ----------
+# --------------------------- TOML loader -----------------------------------
+try:
+    import tomllib  # Python 3.11+
+except Exception:  # pragma: no cover
+    tomllib = None
+    try:
+        import tomli as tomllib  # type: ignore
+    except Exception:
+        pass
 
+# --------------------------- Constants -------------------------------------
 DEFAULT_PACKAGE_ROOTS = [
     "src/agilab/core/agi-env",
     "src/agilab/core/agi-node",
@@ -41,112 +50,68 @@ DEFAULT_PACKAGE_ROOTS = [
 ]
 
 PYPI_API_JSON = "https://pypi.org/pypi/{name}/json"
+POST_RE = re.compile(r"^(?P<base>.+?)(?:\\.post(?P<n>\\d+))?$")
 
-# ---------- TOML loader ----------
-try:
-    import tomllib  # Python 3.11+
-except Exception:
-    tomllib = None
-    try:
-        import tomli as tomllib  # type: ignore
-    except Exception:
-        pass
-if tomllib is None:
-    raise SystemExit("tomllib/tomli is required (use Python 3.11+ or `pip install tomli`).")
-
-# ---------- Logging ----------
+# --------------------------- Logging ---------------------------------------
 class Logger:
     def __init__(self, verbose: bool = False) -> None:
         self.verbose = verbose
+
     def info(self, msg: str) -> None:
         print(msg)
+
     def debug(self, msg: str) -> None:
         if self.verbose:
             print(msg)
 
-log = Logger(False)
+log = Logger(verbose=False)
 
-# ---------- Subprocess ----------
+# --------------------------- Subprocess ------------------------------------
 def run(cmd: Sequence[str] | str, *, cwd: Path | None = None, env: dict | None = None) -> None:
     display = cmd if isinstance(cmd, str) else " ".join(shlex.quote(c) for c in cmd)
     log.info(f"+ {display}")
     subprocess.run(cmd, check=True, text=True, cwd=str(cwd) if cwd else None, env=(env or os.environ))
 
-# ---------- TOML helpers & version editing ----------
-_VERSION_LINE = re.compile(
-    r'^(?P<indent>[ \t]*)'           # indentation
-    r'version\s*=\s*'                # key =
-    r'([\'"])(?P<val>.*?)\2'         # quoted value, backref closes the quote
-    r'(?P<trail>[ \t]*#.*)?'         # optional trailing comment
-    r'(?P<eol>\r?\n|\r)?$',          # captured EOL (if present)
-    re.M,
-)
-
-def _read_pyproject(pyproject: Path) -> dict:
+# --------------------------- TOML helpers ----------------------------------
+def read_pyproject(pyproject: Path) -> dict:
+    if not tomllib:
+        raise RuntimeError("tomllib/tomli is required (use Python 3.11+ or `pip install tomli`).")
     return tomllib.loads(pyproject.read_text(encoding="utf-8"))
 
 def _section_span(src: str, header: str) -> tuple[int, int] | None:
-    m = re.search(rf"(?m)^\s*\[{re.escape(header)}\]\s*$", src)
-    if not m:
-        return None
+    pattern = re.compile(rf"(?m)^\\s*\\[{re.escape(header)}\\]\\s*$")
+    m = pattern.search(src)
+    if not m: return None
     start = m.end()
-    m2 = re.search(r"(?m)^\s*\[[^\]]+\]\s*$", src[start:])
-    end = start + (m2.start() if m2 else len(src))
-    return start, end
+    next_hdr = re.compile(r"(?m)^\\s*\\[[^\\]]+\\]\\s*$")
+    m2 = next_hdr.search(src, pos=start)
+    end = m2.start() if m2 else len(src)
+    return (start, end)
 
-def _replace_or_insert_version_in(src: str, header: str, new_version: str) -> tuple[str, bool]:
-    span = _section_span(src, header)
-    if not span:
-        return src, False
+def _replace_key_in_span(src: str, span: tuple[int, int], key: str, new_value: str) -> tuple[str, bool]:
     s, e = span
     block = src[s:e]
-    lines = block.splitlines(keepends=True)
-
-    # Detect dominant EOL (default to '\n')
-    default_eol = "\n"
-    for L in lines:
-        if L.endswith("\r\n"):
-            default_eol = "\r\n"; break
-        if L.endswith("\n"):
-            default_eol = "\n"
-
-    # Try replacement first
-    for i, L in enumerate(lines):
-        m = _VERSION_LINE.match(L)
-        if not m:
-            continue
-        indent = m.group("indent") or ""
-        eol = m.group("eol") or default_eol
-        lines[i] = f'{indent}version = "{new_version}"{eol}'
-        new_block = "".join(lines)
-        out = src[:s] + new_block + src[e:]
-        if not out.endswith(("\r\n", "\n", "\r")):
-            out += default_eol
-        return out, True
-
-    # Insert at top (before first non-empty line)
-    insert_at = 0
-    while insert_at < len(lines) and lines[insert_at].strip() == "":
-        insert_at += 1
-    lines.insert(insert_at, f'version = "{new_version}"{default_eol}')
-    new_block = "".join(lines)
-    out = src[:s] + new_block + src[e:]
-    if not out.endswith(("\r\n", "\n", "\r")):
-        out += default_eol
-    return out, True
+    pat = re.compile(rf'(?m)^\\s*{re.escape(key)}\\s*=\\s*([\\\'"])(?P<val>.*?)\\1\\s*(#.*)?$')
+    m = pat.search(block)
+    if not m: return src, False
+    q = m.group(1)
+    newline = f'{key} = {q}{new_value}{q}'
+    new_block = pat.sub(newline, block, count=1)
+    return src[:s] + new_block + src[e:], True
 
 def write_version(pyproject: Path, new_version: str) -> None:
     src = pyproject.read_text(encoding="utf-8")
     for section in ("project", "tool.poetry"):
-        src2, changed = _replace_or_insert_version_in(src, section, new_version)
-        if changed:
+        span = _section_span(src, section)
+        if not span:
+            continue
+        src2, ok = _replace_key_in_span(src, span, "version", new_version)
+        if ok:
             pyproject.write_text(src2, encoding="utf-8")
             return
     raise RuntimeError(f"Could not update version in {pyproject}")
 
-# ---------- PyPI version helpers ----------
-_POST_RE = re.compile(r"^(?P<base>.+?)(?:\.post(?P<n>\d+))?$")
-
+# --------------------------- Version bump ----------------------------------
 def fetch_pypi_versions(dist_name: str, timeout: float = 10.0) -> Set[str]:
     url = PYPI_API_JSON.format(name=dist_name)
     try:
@@ -158,43 +123,32 @@ def fetch_pypi_versions(dist_name: str, timeout: float = 10.0) -> Set[str]:
     except Exception:
         return set()
 
-def _next_post_version(base_version: str, existing: Set[str]) -> str:
-    m = _POST_RE.match(base_version)
-    if not m:
-        return base_version
-    base = m.group("base")
-    cur_post = int(m.group("n") or 0)
+def next_post_version(base_version: str, existing: Set[str]) -> str:
+    m = POST_RE.match(base_version)
+    if not m: return base_version
+    base = m.group("base"); cur_post = int(m.group("n") or 0)
     exact_exists = base_version in existing
-
-    max_post = -1
-    base_plain_exists = False
+    max_post = -1; base_plain_exists = False
     for v in existing:
-        mv = _POST_RE.match(v)
-        if not mv or mv.group("base") != base:
-            continue
-        if mv.group("n") is None:
-            base_plain_exists = True
-        else:
-            max_post = max(max_post, int(mv.group("n")))
-
-    if exact_exists:
-        return f"{base}.post{max(cur_post, max_post) + 1}"
-    if cur_post == 0 and base_plain_exists:
-        return f"{base}.post{(max_post + 1) if max_post >= 0 else 1}"
+        mv = POST_RE.match(v)
+        if not mv or mv.group("base") != base: continue
+        if mv.group("n") is None: base_plain_exists = True
+        else: max_post = max(max_post, int(mv.group("n")))
+    if exact_exists: return f"{base}.post{max(cur_post, max_post) + 1}"
+    if cur_post == 0 and base_plain_exists: return f"{base}.post{(max_post + 1) if max_post >= 0 else 1}"
     return base_version
 
 def ensure_unique_version(pyproject: Path, *, require_network: bool = False) -> tuple[str, str]:
-    meta = _read_pyproject(pyproject)
+    meta = read_pyproject(pyproject)
     project = meta.get("project") or {}
-    poetry  = (meta.get("tool") or {}).get("poetry") or {}
-    name = project.get("name") or poetry.get("name")
-    version = project.get("version") or poetry.get("version")
+    name = project.get("name") or ((meta.get("tool") or {}).get("poetry") or {}).get("name")
+    version = project.get("version") or ((meta.get("tool") or {}).get("poetry") or {}).get("version")
     if not name or not version:
         raise RuntimeError(f"[project]/[tool.poetry] name and version must be set in {pyproject}")
     existing = fetch_pypi_versions(name)
     if require_network and not existing:
-        raise RuntimeError("PyPI availability check required but returned no data (network?).")
-    final = _next_post_version(version, existing)
+        raise RuntimeError("PyPI availability check required but no data returned. Is the network blocked?")
+    final = next_post_version(version, existing)
     if final != version:
         write_version(pyproject, final)
         log.info(f"[version] {name}: {version} -> {final} (auto .post bump)")
@@ -202,57 +156,53 @@ def ensure_unique_version(pyproject: Path, *, require_network: bool = False) -> 
         log.debug(f"[version] {name}: {version} (unchanged)")
     return name, final
 
-# ---------- Cleanup ----------
-def _rm_rf(p: Path) -> None:
+# --------------------------- Housekeeping ----------------------------------
+def remove_path(p: Path) -> None:
     if p.exists():
         run(["rm", "-rf", str(p)])
 
 def clean_artifacts(root: Path) -> None:
-    _rm_rf(root / "dist")
-    _rm_rf(root / "build")
+    remove_path(root / "dist")
+    remove_path(root / "build")
     for egg in root.rglob("*.egg-info"):
-        _rm_rf(egg)
+        remove_path(egg)
 
-# ---------- Build (keeps local build.py, avoids shadowing) ----------
-def pep517_build(root: Path, python_bin: str, dist: str = "both") -> list[Path]:
-    """
-    Invoke PyPA 'build' for `root`, ensuring:
-      - We don't import a local build.py (remove empty path entry from sys.path[0]).
-      - Explicit positional source dir is '.'.
-    """
-    code = (
-        "import sys, os, runpy\n"
-        "if sys.path and sys.path[0] == '': sys.path.pop(0)\n"
-        "args = []\n"
-        "d = os.environ.get('AGI_BUILD_DIST')\n"
-        "if d in ('sdist','wheel'):\n"
-        "    args.append('--' + d)\n"
-        "sys.argv = ['pypa-build-shim'] + args + ['.']\n"
-        "runpy.run_module('build.__main__', run_name='__main__')\n"
-    )
+def build(root: Path, python_bin: str, dist: str = "both") -> list[Path]:
+    # Avoid local build.py shadowing: import PEP 517 'build' as a module after removing cwd from sys.path
+    code = [
+        "import sys, runpy",
+        "sys.path.pop(0)",
+        "args = []",
+        "import os",
+        "dist = os.environ.get('AGI_BUILD_DIST')",
+        "if dist in ('sdist','wheel'): args.append('--'+dist)",
+        "sys.argv = ['-m','build'] + args",
+        "runpy.run_module('build.__main__', run_name='__main__')",
+    ]
     env = dict(os.environ)
-    env['AGI_BUILD_DIST'] = dist
-    run([python_bin, "-c", code], cwd=root, env=env)
-
+    env["AGI_BUILD_DIST"] = dist
+    run([python_bin, "-c", ";".join(code)], cwd=root, env=env)
     dist_dir = root / "dist"
     return sorted(dist_dir.glob("*")) if dist_dir.exists() else []
 
-# ---------- Upload (auth from ~/.pypirc or external env) ----------
-def twine_upload(files: Iterable[Path], python_bin: str, repo: str, *, skip_existing: bool = True,
-                 retries: int = 1, twine_opts: Sequence[str] = ()) -> None:
+# --------------------------- Upload (auth via ~/.pypirc) -------------------
+def upload(files: Iterable[Path], python_bin: str, repo: str, *, skip_existing: bool = True,
+           retries: int = 1, twine_opts: Sequence[str] = ()) -> None:
     files = list(files)
     if not files:
         log.info("[upload] nothing to upload")
         return
+
     cmd = [python_bin, "-m", "twine", "upload", "--non-interactive", "-r", repo, *twine_opts]
     if skip_existing:
         cmd.append("--skip-existing")
     cmd.extend(str(p) for p in files)
 
+    # Do NOT inject credentials here; rely on ~/.pypirc or external env
     attempt = 0
     while True:
         try:
-            run(cmd)  # rely on ~/.pypirc or externally provided env
+            run(cmd)  # env untouched
             return
         except subprocess.CalledProcessError:
             if attempt >= retries:
@@ -262,7 +212,7 @@ def twine_upload(files: Iterable[Path], python_bin: str, repo: str, *, skip_exis
             log.info(f"[upload] error (attempt {attempt}/{retries}); retrying in {wait}s...")
             time.sleep(wait)
 
-# ---------- Symlinks & dotenv ----------
+# --------------------------- Symlinks & dotenv -----------------------------
 def restore_symlinks(mapping: Dict[str, str]) -> None:
     for link, target in mapping.items():
         link_p, target_p = Path(link), Path(target)
@@ -285,7 +235,7 @@ def load_dotenv(dotenv_path: Path) -> None:
         k, v = line.split("=", 1)
         os.environ.setdefault(k.strip(), v.strip())
 
-# ---------- CLI ----------
+# --------------------------- Config / CLI ----------------------------------
 @dataclass(frozen=True)
 class Config:
     package_roots: tuple[Path, ...]
@@ -302,8 +252,9 @@ class Config:
     cleanup_only: bool
     purge_after: bool
     purge_on_fail: bool
-    username: str | None  # parsed, ignored
-    password: str | None  # parsed, ignored
+    # parsed but intentionally unused (accepted & ignored)
+    username: str | None
+    password: str | None
 
 def parse_args(argv: Sequence[str]) -> tuple[Config, list[str]]:
     ap = argparse.ArgumentParser(description="Build & upload packages with automatic .postN bump (auth via ~/.pypirc).")
@@ -330,6 +281,7 @@ def parse_args(argv: Sequence[str]) -> tuple[Config, list[str]]:
     ap.add_argument("--username", "-u", default=None, help="Ignored. Auth is taken from ~/.pypirc or env.")
     ap.add_argument("--password", "-p", default=None, help="Ignored. Auth is taken from ~/.pypirc or env.")
 
+    # accept unknown args to passthrough to Twine (e.g., --repository-url)
     ns, unknown = ap.parse_known_args(argv)
 
     if ns.dotenv:
@@ -345,7 +297,8 @@ def parse_args(argv: Sequence[str]) -> tuple[Config, list[str]]:
                 print(f"[symlink] cannot parse {p}: {e}")
 
     twine_opts = list(shlex.split(ns.twine_opts)) if ns.twine_opts else []
-    twine_opts.extend(unknown)  # passthrough to twine
+    # pass unknown CLI fragments through to twine
+    twine_opts.extend(unknown)
 
     roots = tuple(Path(r).resolve() for r in ns.roots)
 
@@ -367,18 +320,18 @@ def parse_args(argv: Sequence[str]) -> tuple[Config, list[str]]:
         cleanup_only=bool(ns.cleanup_only),
         purge_after=bool(ns.purge_after),
         purge_on_fail=bool(ns.purge_on_fail),
-        username=ns.username,
-        password=ns.password,
+        username=ns.username,  # parsed, ignored
+        password=ns.password,  # parsed, ignored
     )
     return cfg, unknown
 
-# ---------- Main ----------
+# --------------------------- Main ------------------------------------------
 def _purge_all(package_roots: tuple[Path, ...]) -> None:
     for root in package_roots:
         clean_artifacts(root)
 
 def main(argv: Sequence[str] | None = None) -> None:
-    cfg, _unknown = parse_args(sys.argv[1:] if argv is None else argv)
+    cfg, _unknown = parse_args(argv or sys.argv[1:])
     log.info(f"[config] repo={cfg.repo} python={cfg.python_bin} dist={cfg.dist} "
              f"skip_existing={cfg.skip_existing} retries={cfg.retries} clean={cfg.do_clean}")
 
@@ -400,12 +353,12 @@ def main(argv: Sequence[str] | None = None) -> None:
             ensure_unique_version(pyproj, require_network=cfg.strict_online)
             if cfg.do_clean:
                 clean_artifacts(root)
-            artifacts = pep517_build(root, cfg.python_bin, dist=cfg.dist)
+            artifacts = build(root, cfg.python_bin, dist=cfg.dist)
             if not artifacts:
                 log.info(f"[build] no artifacts found in {root}/dist")
             all_artifacts.extend(artifacts)
 
-        twine_upload(
+        upload(
             all_artifacts,
             cfg.python_bin,
             cfg.repo,
@@ -416,7 +369,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
         if cfg.purge_after:
             _purge_all(cfg.package_roots)
-            log.info("[cleanup] purged artifacts after upload]")
+            log.info("[cleanup] purged artifacts after upload")
 
         log.info("[done]")
     except Exception:
