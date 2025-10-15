@@ -1,389 +1,736 @@
 #!/usr/bin/env python3
-"""
-pypi_publish.py — build & upload multiple packages to (Test)PyPI
+# -*- coding: utf-8 -*-
 
-Key points for credentials behavior (per JPM request):
-  - Accept --username/--password flags, but **ignore them** in all modes.
-  - Always rely on ~/.pypirc (or TWINE_* env provided externally) for auth.
-  - This applies to normal runs, --cleanup-only, and purge flags (--purge-after/--purge-on-fail).
-
-Other features:
-  - Auto `.postN` bump if the version already exists on PyPI.
-  - Robust version editing for [project] and [tool.poetry].
-  - Symlink restore, dotenv loading, retries, verbose logging.
-  - Cleanup controls: --no-clean, --cleanup-only, --purge-after, --purge-on-fail.
-  - Pass-through of unknown args to Twine (e.g., --repository-url).
 """
+agilab local publisher for TestPyPI / PyPI using ~/.pypirc.
+
+Highlights
+- Builds with uv (wheels and/or sdists). No pep517 shim.
+- Unified version for all core packages + umbrella. If busy, auto-bumps .postN.
+- Robust pyproject.toml editing with tomlkit (preserves formatting, trailing newline).
+- Twine auth from ~/.pypirc; CLI --username/--password are ONLY for cleanup/purge.
+- Optional purge/cleanup (web login flow) before/after using pypi-cleanup.
+- Optional yank previous versions on PyPI.
+- Optional git tag (date-based) and commit of version bumps.
+
+Typical:
+  uv run tools/pypi_publish.py --repo testpypi
+  uv run tools/pypi_publish.py --repo pypi --purge-after \
+      --username <cleanup-user> --password <cleanup-pass>
+
+Notes
+- PyPI upload requires API token via ~/.pypirc (__token__/pypi-...). We do NOT take token via CLI.
+- Cleanup/purge uses PyPI web login and needs real account USER/PASS (not token).
+"""
+
 from __future__ import annotations
 
 import argparse
+import configparser
+import glob
 import json
 import os
+import pathlib
 import re
-import shlex
+import shutil
 import subprocess
 import sys
-import time
-import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Iterable, List, Sequence, Set, Tuple, Dict
+from datetime import datetime, timezone
+from typing import Dict, List, Tuple
 
-# --------------------------- TOML loader -----------------------------------
-try:
-    import tomllib  # Python 3.11+
-except Exception:  # pragma: no cover
-    tomllib = None
+# third-party bootstrap (install if missing)
+def _ensure_pkgs():
+    need = []
     try:
-        import tomli as tomllib  # type: ignore
+        import tomlkit  # type: ignore
     except Exception:
-        pass
-
-# --------------------------- Constants -------------------------------------
-DEFAULT_PACKAGE_ROOTS = [
-    "src/agilab/core/agi-env",
-    "src/agilab/core/agi-node",
-    "src/agilab/core/agi-cluster",
-    "src/agilab/core/agi-core",
-    ".",  # meta-package (agilab)
-]
-
-PYPI_API_JSON = "https://pypi.org/pypi/{name}/json"
-POST_RE = re.compile(r"^(?P<base>.+?)(?:\\.post(?P<n>\\d+))?$")
-
-# --------------------------- Logging ---------------------------------------
-class Logger:
-    def __init__(self, verbose: bool = False) -> None:
-        self.verbose = verbose
-
-    def info(self, msg: str) -> None:
-        print(msg)
-
-    def debug(self, msg: str) -> None:
-        if self.verbose:
-            print(msg)
-
-log = Logger(verbose=False)
-
-# --------------------------- Subprocess ------------------------------------
-def run(cmd: Sequence[str] | str, *, cwd: Path | None = None, env: dict | None = None) -> None:
-    display = cmd if isinstance(cmd, str) else " ".join(shlex.quote(c) for c in cmd)
-    log.info(f"+ {display}")
-    subprocess.run(cmd, check=True, text=True, cwd=str(cwd) if cwd else None, env=(env or os.environ))
-
-# --------------------------- TOML helpers ----------------------------------
-def read_pyproject(pyproject: Path) -> dict:
-    if not tomllib:
-        raise RuntimeError("tomllib/tomli is required (use Python 3.11+ or `pip install tomli`).")
-    return tomllib.loads(pyproject.read_text(encoding="utf-8"))
-
-def _section_span(src: str, header: str) -> tuple[int, int] | None:
-    pattern = re.compile(rf"(?m)^\\s*\\[{re.escape(header)}\\]\\s*$")
-    m = pattern.search(src)
-    if not m: return None
-    start = m.end()
-    next_hdr = re.compile(r"(?m)^\\s*\\[[^\\]]+\\]\\s*$")
-    m2 = next_hdr.search(src, pos=start)
-    end = m2.start() if m2 else len(src)
-    return (start, end)
-
-def _replace_key_in_span(src: str, span: tuple[int, int], key: str, new_value: str) -> tuple[str, bool]:
-    s, e = span
-    block = src[s:e]
-    pat = re.compile(rf'(?m)^\\s*{re.escape(key)}\\s*=\\s*([\\\'"])(?P<val>.*?)\\1\\s*(#.*)?$')
-    m = pat.search(block)
-    if not m: return src, False
-    q = m.group(1)
-    newline = f'{key} = {q}{new_value}{q}'
-    new_block = pat.sub(newline, block, count=1)
-    return src[:s] + new_block + src[e:], True
-
-def write_version(pyproject: Path, new_version: str) -> None:
-    src = pyproject.read_text(encoding="utf-8")
-    for section in ("project", "tool.poetry"):
-        span = _section_span(src, section)
-        if not span:
-            continue
-        src2, ok = _replace_key_in_span(src, span, "version", new_version)
-        if ok:
-            pyproject.write_text(src2, encoding="utf-8")
-            return
-    raise RuntimeError(f"Could not update version in {pyproject}")
-
-# --------------------------- Version bump ----------------------------------
-def fetch_pypi_versions(dist_name: str, timeout: float = 10.0) -> Set[str]:
-    url = PYPI_API_JSON.format(name=dist_name)
+        need.append("tomlkit")
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            return set(data.get("releases", {}).keys())
-    except urllib.error.HTTPError as e:
-        return set() if e.code == 404 else set()
+        import packaging  # type: ignore
     except Exception:
-        return set()
+        need.append("packaging")
+    if need:
+        subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", *need], check=True)
 
-def next_post_version(base_version: str, existing: Set[str]) -> str:
-    m = POST_RE.match(base_version)
-    if not m: return base_version
-    base = m.group("base"); cur_post = int(m.group("n") or 0)
-    exact_exists = base_version in existing
-    max_post = -1; base_plain_exists = False
-    for v in existing:
-        mv = POST_RE.match(v)
-        if not mv or mv.group("base") != base: continue
-        if mv.group("n") is None: base_plain_exists = True
-        else: max_post = max(max_post, int(mv.group("n")))
-    if exact_exists: return f"{base}.post{max(cur_post, max_post) + 1}"
-    if cur_post == 0 and base_plain_exists: return f"{base}.post{(max_post + 1) if max_post >= 0 else 1}"
-    return base_version
+_ensure_pkgs()
+from tomlkit import parse as toml_parse, dumps as toml_dumps  # type: ignore
+from packaging.version import Version, InvalidVersion  # type: ignore
 
-def ensure_unique_version(pyproject: Path, *, require_network: bool = False) -> tuple[str, str]:
-    meta = read_pyproject(pyproject)
-    project = meta.get("project") or {}
-    name = project.get("name") or ((meta.get("tool") or {}).get("poetry") or {}).get("name")
-    version = project.get("version") or ((meta.get("tool") or {}).get("poetry") or {}).get("version")
-    if not name or not version:
-        raise RuntimeError(f"[project]/[tool.poetry] name and version must be set in {pyproject}")
-    existing = fetch_pypi_versions(name)
-    if require_network and not existing:
-        raise RuntimeError("PyPI availability check required but no data returned. Is the network blocked?")
-    final = next_post_version(version, existing)
-    if final != version:
-        write_version(pyproject, final)
-        log.info(f"[version] {name}: {version} -> {final} (auto .post bump)")
-    else:
-        log.debug(f"[version] {name}: {version} (unchanged)")
-    return name, final
 
-# --------------------------- Housekeeping ----------------------------------
-def remove_path(p: Path) -> None:
-    if p.exists():
-        run(["rm", "-rf", str(p)])
+# ---------- CLI ----------
+def parse_args() -> argparse.Namespace:
+    ap = argparse.ArgumentParser(description="Publish agilab wheels/sdists to (Test)PyPI using ~/.pypirc")
 
-def clean_artifacts(root: Path) -> None:
-    remove_path(root / "dist")
-    remove_path(root / "build")
-    for egg in root.rglob("*.egg-info"):
-        remove_path(egg)
+    # Destination
+    ap.add_argument("--repo", choices=["testpypi", "pypi"], required=True, help="Target repo section in ~/.pypirc")
 
-def build(root: Path, python_bin: str, dist: str = "both") -> list[Path]:
-    # Avoid local build.py shadowing: import PEP 517 'build' as a module after removing cwd from sys.path
-    code = [
-        "import sys, runpy",
-        "sys.path.pop(0)",
-        "args = []",
-        "import os",
-        "dist = os.environ.get('AGI_BUILD_DIST')",
-        "if dist in ('sdist','wheel'): args.append('--'+dist)",
-        "sys.argv = ['-m','build'] + args",
-        "runpy.run_module('build.__main__', run_name='__main__')",
-    ]
-    env = dict(os.environ)
-    env["AGI_BUILD_DIST"] = dist
-    run([python_bin, "-c", ";".join(code)], cwd=root, env=env)
-    dist_dir = root / "dist"
-    return sorted(dist_dir.glob("*")) if dist_dir.exists() else []
+    # Build selection
+    ap.add_argument("--dist", choices=["wheel", "sdist", "both"], default="both", help="What to build with uv (default: both)")
 
-# --------------------------- Upload (auth via ~/.pypirc) -------------------
-def upload(files: Iterable[Path], python_bin: str, repo: str, *, skip_existing: bool = True,
-           retries: int = 1, twine_opts: Sequence[str] = ()) -> None:
-    files = list(files)
-    if not files:
-        log.info("[upload] nothing to upload")
-        return
+    # Behavior
+    ap.add_argument("--skip-existing", action="store_true", default=True, help="Twine skip-existing (default on)")
+    ap.add_argument("--retries", type=int, default=1, help="Twine upload retries (default: 1)")
+    ap.add_argument("--dry-run", action="store_true", help="Plan only; print decisions and exit before build/upload")
+    ap.add_argument("--verbose", action="store_true", help="Verbose logging for cleanup")
 
-    cmd = [python_bin, "-m", "twine", "upload", "--non-interactive", "-r", repo, *twine_opts]
-    if skip_existing:
-        cmd.append("--skip-existing")
-    cmd.extend(str(p) for p in files)
+    # Version control
+    ap.add_argument("--version", help="Explicit version 'X.Y.Z[.postN]'. If omitted, base=UTC YYYY.MM.DD then .postN chosen")
 
-    # Do NOT inject credentials here; rely on ~/.pypirc or external env
-    attempt = 0
-    while True:
-        try:
-            run(cmd)  # env untouched
-            return
-        except subprocess.CalledProcessError:
-            if attempt >= retries:
-                raise
-            attempt += 1
-            wait = min(8 * attempt, 30)
-            log.info(f"[upload] error (attempt {attempt}/{retries}); retrying in {wait}s...")
-            time.sleep(wait)
+    # Cleanup / purge (web login)
+    ap.add_argument("--purge-before", action="store_true", help="Run cleanup before upload (leave most recent only)")
+    ap.add_argument("--purge-after", action="store_true", help="Run cleanup after upload (leave most recent only)")
+    ap.add_argument("--cleanup-only", action="store_true", help="Only cleanup; no build/upload")
+    ap.add_argument("--days", type=int, default=None, help="Cleanup: only delete releases in the last N days")
+    ap.add_argument("--delete-project", action="store_true", help="Cleanup: pass --delete-project (dangerous)")
+    # IMPORTANT: The following two are ONLY for cleanup/purge (not for twine)
+    ap.add_argument("--username", help="Cleanup/Purge web-login username (NOT used for twine)")
+    ap.add_argument("--password", help="Cleanup/Purge web-login password (NOT used for twine)")
+    ap.add_argument("--cleanup-timeout", type=int, default=60, help="Cleanup timeout seconds (0 disables)")
+    ap.add_argument("--skip-cleanup", action="store_true", help="Disable cleanup entirely")
 
-# --------------------------- Symlinks & dotenv -----------------------------
-def restore_symlinks(mapping: Dict[str, str]) -> None:
-    for link, target in mapping.items():
-        link_p, target_p = Path(link), Path(target)
-        try:
-            if link_p.exists() or link_p.is_symlink():
-                link_p.unlink()
-            link_p.parent.mkdir(parents=True, exist_ok=True)
-            link_p.symlink_to(target_p)
-            log.info(f"[symlink] restored {link} -> {target}")
-        except Exception as exc:
-            log.info(f"[symlink] failed {link} -> {target}: {exc}")
+    # Yank
+    ap.add_argument("--yank-previous", action="store_true", help="On PyPI, yank versions older than the chosen version")
 
-def load_dotenv(dotenv_path: Path) -> None:
-    if not dotenv_path.exists():
-        return
-    for line in dotenv_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, v = line.split("=", 1)
-        os.environ.setdefault(k.strip(), v.strip())
+    # Git
+    ap.add_argument("--git-tag", action="store_true", help="Create & push date tag (vYYYY.MM.DD[-N]) on PyPI")
+    ap.add_argument("--git-commit-version", action="store_true", help="git add/commit pyproject version bumps")
+    ap.add_argument("--git-reset-on-failure", action="store_true", help="On failure, git checkout -- pyproject files")
 
-# --------------------------- Config / CLI ----------------------------------
-@dataclass(frozen=True)
-class Config:
-    package_roots: tuple[Path, ...]
-    python_bin: str
+    # Preflight
+    ap.add_argument("--no-pypirc-check", dest="pypirc_check", action="store_false", help="Skip ~/.pypirc preflight")
+
+    return ap.parse_args()
+
+
+@dataclass
+class Cfg:
     repo: str
     dist: str
     skip_existing: bool
     retries: int
-    strict_online: bool
-    twine_opts: tuple[str, ...]
-    symlink_map: Dict[str, str]
+    dry_run: bool
     verbose: bool
-    do_clean: bool
-    cleanup_only: bool
+    version: str | None
+    purge_before: bool
     purge_after: bool
-    purge_on_fail: bool
-    # parsed but intentionally unused (accepted & ignored)
-    username: str | None
-    password: str | None
+    cleanup_only: bool
+    clean_days: int | None
+    clean_delete_project: bool
+    cleanup_user: str | None
+    cleanup_pass: str | None
+    cleanup_timeout: int
+    skip_cleanup: bool
+    yank_previous: bool
+    git_tag: bool
+    git_commit_version: bool
+    git_reset_on_failure: bool
+    pypirc_check: bool
 
-def parse_args(argv: Sequence[str]) -> tuple[Config, list[str]]:
-    ap = argparse.ArgumentParser(description="Build & upload packages with automatic .postN bump (auth via ~/.pypirc).")
-    ap.add_argument("--repo", default=os.environ.get("TARGET") or os.environ.get("PYPI_REPOSITORY") or "pypi",
-                    help="Twine repo (pypi | testpypi | alias in ~/.pypirc).")
-    ap.add_argument("--python", dest="python_bin", default=sys.executable, help="Python interpreter.")
-    ap.add_argument("--dist", choices=["both", "sdist", "wheel"], default="both", help="Artifacts to build.")
-    ap.add_argument("--no-skip-existing", action="store_true", help="Do not pass --skip-existing to twine.")
-    ap.add_argument("--retries", type=int, default=1, help="Upload retries on error (default: 1).")
-    ap.add_argument("--strict-online", action="store_true", help="Fail if PyPI check cannot be performed.")
-    ap.add_argument("--twine-opts", default="", help="Extra args passed to twine (quoted string).")
-    ap.add_argument("--symlinks", default="", help="JSON file of symlink mapping to restore before build.")
-    ap.add_argument("--dotenv", default="", help="Load environment variables from a .env file.")
-    ap.add_argument("-v", "--verbose", action="store_true", help="Verbose logging.")
-    ap.add_argument("roots", nargs="*", default=DEFAULT_PACKAGE_ROOTS, help="Package roots with pyproject.toml")
 
-    # cleanup options
-    ap.add_argument("--no-clean", action="store_true", help="Skip pre-build cleanup of dist/build/*.egg-info.")
-    ap.add_argument("--cleanup-only", action="store_true", help="Only clean artifacts and exit (no build/upload).")
-    ap.add_argument("--purge-after", action="store_true", help="Remove built artifacts after successful upload.")
-    ap.add_argument("--purge-on-fail", action="store_true", help="Also purge artifacts if the process fails.")
-
-    # credentials (accepted but intentionally ignored)
-    ap.add_argument("--username", "-u", default=None, help="Ignored. Auth is taken from ~/.pypirc or env.")
-    ap.add_argument("--password", "-p", default=None, help="Ignored. Auth is taken from ~/.pypirc or env.")
-
-    # accept unknown args to passthrough to Twine (e.g., --repository-url)
-    ns, unknown = ap.parse_known_args(argv)
-
-    if ns.dotenv:
-        load_dotenv(Path(ns.dotenv))
-
-    symlink_map: Dict[str, str] = {}
-    if ns.symlinks:
-        p = Path(ns.symlinks)
-        if p.exists():
-            try:
-                symlink_map = json.loads(p.read_text(encoding="utf-8"))
-            except Exception as e:
-                print(f"[symlink] cannot parse {p}: {e}")
-
-    twine_opts = list(shlex.split(ns.twine_opts)) if ns.twine_opts else []
-    # pass unknown CLI fragments through to twine
-    twine_opts.extend(unknown)
-
-    roots = tuple(Path(r).resolve() for r in ns.roots)
-
-    global log
-    log = Logger(verbose=bool(ns.verbose))
-
-    cfg = Config(
-        package_roots=roots,
-        python_bin=ns.python_bin,
-        repo=ns.repo,
-        dist=ns.dist,
-        skip_existing=not ns.no_skip_existing,
-        retries=max(0, ns.retries),
-        strict_online=bool(ns.strict_online),
-        twine_opts=tuple(twine_opts),
-        symlink_map=symlink_map,
-        verbose=bool(ns.verbose),
-        do_clean=not bool(ns.no_clean),
-        cleanup_only=bool(ns.cleanup_only),
-        purge_after=bool(ns.purge_after),
-        purge_on_fail=bool(ns.purge_on_fail),
-        username=ns.username,  # parsed, ignored
-        password=ns.password,  # parsed, ignored
+def make_cfg(args: argparse.Namespace) -> Cfg:
+    return Cfg(
+        repo=args.repo,
+        dist=args.dist,
+        skip_existing=bool(args.skip_existing),
+        retries=int(args.retries),
+        dry_run=bool(args.dry_run),
+        verbose=bool(args.verbose),
+        version=args.version.strip().lstrip("v") if args.version else None,
+        purge_before=bool(args.purge_before),
+        purge_after=bool(args.purge_after),
+        cleanup_only=bool(args.cleanup_only),
+        clean_days=args.days,
+        clean_delete_project=bool(args.delete_project),
+        cleanup_user=args.username,
+        cleanup_pass=args.password,
+        cleanup_timeout=max(0, int(args.cleanup_timeout or 0)),
+        skip_cleanup=bool(args.skip_cleanup),
+        yank_previous=bool(args.yank_previous),
+        git_tag=bool(args.git_tag),
+        git_commit_version=bool(args.git_commit_version),
+        git_reset_on_failure=bool(args.git_reset_on_failure),
+        pypirc_check=bool(getattr(args, "pypirc_check", True)),
     )
-    return cfg, unknown
 
-# --------------------------- Main ------------------------------------------
-def _purge_all(package_roots: tuple[Path, ...]) -> None:
-    for root in package_roots:
-        clean_artifacts(root)
 
-def main(argv: Sequence[str] | None = None) -> None:
-    cfg, _unknown = parse_args(argv or sys.argv[1:])
-    log.info(f"[config] repo={cfg.repo} python={cfg.python_bin} dist={cfg.dist} "
-             f"skip_existing={cfg.skip_existing} retries={cfg.retries} clean={cfg.do_clean}")
+# ---------- Repo layout (agilab) ----------
+REPO_ROOT = pathlib.Path.cwd().resolve()
 
-    if cfg.symlink_map:
-        restore_symlinks(cfg.symlink_map)
+CORE: List[Tuple[str, pathlib.Path, pathlib.Path]] = [
+    ("agi-env",     REPO_ROOT / "src/agilab/core/agi-env/pyproject.toml",     REPO_ROOT / "src/agilab/core/agi-env"),
+    ("agi-node",    REPO_ROOT / "src/agilab/core/agi-node/pyproject.toml",    REPO_ROOT / "src/agilab/core/agi-node"),
+    ("agi-cluster", REPO_ROOT / "src/agilab/core/agi-cluster/pyproject.toml", REPO_ROOT / "src/agilab/core/agi-cluster"),
+    ("agi-core",    REPO_ROOT / "src/agilab/core/agi-core/pyproject.toml",    REPO_ROOT / "src/agilab/core/agi-core"),
+]
+UMBRELLA = ("agilab", REPO_ROOT / "pyproject.toml", REPO_ROOT)
 
-    if cfg.cleanup_only:
-        _purge_all(cfg.package_roots)
-        log.info("[cleanup] completed (cleanup-only)")
+PYPI_JSON = {
+    "testpypi": "https://test.pypi.org/pypi/{name}/json",
+    "pypi":     "https://pypi.org/pypi/{name}/json",
+}
+
+
+# ---------- Utils ----------
+def run(cmd: List[str], cwd: pathlib.Path | None = None, env: dict | None = None, timeout: int | None = None):
+    print("+", " ".join(map(str, cmd)))
+    merged = os.environ.copy()
+    if env:
+        merged.update(env)
+    subprocess.run(cmd, cwd=str(cwd or REPO_ROOT), check=True, text=True, env=merged, timeout=timeout)
+
+
+def assert_pypirc_has(repo_name: str):
+    p = pathlib.Path.home() / ".pypirc"
+    if not p.exists():
+        sys.exit(f"ERROR: {p} not found. Create it with a [{repo_name}] section.")
+    cfg = configparser.RawConfigParser()
+    cfg.read(p)
+    if not cfg.has_section(repo_name):
+        sys.exit(f"ERROR: {p} missing section [{repo_name}]. Add it to use --repo {repo_name}.")
+
+
+def load_doc(p: pathlib.Path):
+    return toml_parse(p.read_text(encoding="utf-8"))
+
+
+def save_doc(p: pathlib.Path, doc):
+    out = toml_dumps(doc)
+    # Keep trailing newline if original had it (nice for diffs)
+    raw = p.read_text(encoding="utf-8") if p.exists() else ""
+    if raw.endswith("\n") and not out.endswith("\n"):
+        out += "\n"
+    p.write_text(out, encoding="utf-8")
+
+
+_name_pat = re.compile(r'^[A-Za-z0-9_.-]+')
+def clean_name(name: str) -> str:
+    m = _name_pat.match(str(name))
+    return m.group(0) if m else str(name)
+
+
+def sanitize_project_names(paths: List[pathlib.Path]):
+    for p in paths:
+        if not p.exists():
+            continue
+        doc = load_doc(p)
+        proj = doc.get("project") or {}
+        raw = str(proj.get("name", ""))
+        cleaned = clean_name(raw)
+        if raw and raw != cleaned:
+            proj["name"] = cleaned
+            doc["project"] = proj
+            save_doc(p, doc)
+            print(f"[fix] {p.relative_to(REPO_ROOT)}: '{raw}' -> '{cleaned}'")
+
+
+# ---------- Version work ----------
+def pypi_releases(name: str, repo_target: str) -> set[str]:
+    url = PYPI_JSON[repo_target].format(name=name)
+    try:
+        with urllib.request.urlopen(url, timeout=10) as r:
+            data = json.load(r) or {}
+        return set((data.get("releases") or {}).keys())
+    except Exception:
+        return set()
+
+
+def split_base_and_post(ver: str) -> Tuple[str, int | None]:
+    m = re.match(r"^(.*?)(?:\.post(\d+))?$", ver)
+    if not m:
+        return ver, None
+    base, postn = m.groups()
+    return base, (int(postn) if postn is not None else None)
+
+
+def normalize_base(v: str) -> str:
+    base, _ = split_base_and_post(v)
+    return base
+
+
+def safe_ver(x: str) -> Version:
+    try:
+        return Version(x)
+    except InvalidVersion:
+        return Version("0")
+
+
+def max_base_across_packages(package_names: List[str], repo_target: str) -> str:
+    all_versions = set()
+    for n in package_names:
+        all_versions |= pypi_releases(n, repo_target)
+    if not all_versions:
+        return datetime.now(timezone.utc).strftime("%Y.%m.%d")  # seed by date
+    bases = {normalize_base(v) for v in all_versions if v}
+    return max(bases, key=safe_ver)
+
+
+def next_free_post_for_all(package_names: List[str], repo_target: str, base: str) -> str:
+    per_pkg = {n: pypi_releases(n, repo_target) for n in package_names}
+
+    # start beyond current max .post across all pkgs
+    k_start = 1
+    for releases in per_pkg.values():
+        max_post = 0
+        if base in releases:
+            max_post = 0
+        for v in releases:
+            b, post = split_base_and_post(v)
+            if b == base and post is not None and post > max_post:
+                max_post = post
+        k_start = max(k_start, max_post + 1)
+
+    k = k_start
+    while True:
+        cand = f"{base}.post{k}"
+        if all(cand not in per_pkg[n] for n in package_names):
+            return cand
+        k += 1
+
+
+def compute_unified_version(core_names: List[str], repo_target: str, base_version: str | None) -> Tuple[str, Dict[str, List[str]]]:
+    collisions: Dict[str, List[str]] = {n: [] for n in core_names}
+
+    if base_version:
+        provided = base_version
+        provided_base = normalize_base(provided)
+        existing_by_pkg = {n: pypi_releases(n, repo_target) for n in core_names}
+        provided_in_use = any(provided in rels for rels in existing_by_pkg.values())
+        if not provided_in_use:
+            chosen = provided
+            base = provided_base
+        else:
+            base = provided_base
+            chosen = next_free_post_for_all(core_names, repo_target, base)
+    else:
+        base = datetime.now(timezone.utc).strftime("%Y.%m.%d")
+        # if no releases at all, still .post1 to keep everything uniform
+        chosen = next_free_post_for_all(core_names, repo_target, base)
+
+    # report collisions that influenced bump
+    for n in core_names:
+        rels = pypi_releases(n, repo_target)
+        hits: List[str] = []
+        if base in rels:
+            hits.append(base)
+        for v in rels:
+            b, post = split_base_and_post(v)
+            if b == base and v != base and safe_ver(v) < safe_ver(chosen):
+                hits.append(v)
+        collisions[n] = sorted(set(hits), key=safe_ver)
+
+    return chosen, collisions
+
+
+# ---------- TOML ops ----------
+def set_version_in_pyproject(pyproject_path: str | pathlib.Path, new_version: str) -> None:
+    """
+    Robustly set [project].version using tomlkit (preserves formatting/comments/EOL).
+    If missing, insert after 'name' if present, else at top of [project].
+    """
+    p = pathlib.Path(pyproject_path)
+    if not p.exists():
+        raise RuntimeError(f"pyproject not found: {p}")
+
+    raw = p.read_text(encoding="utf-8")
+    try:
+        doc = toml_parse(raw)
+    except Exception as e:
+        raise RuntimeError(f"Failed to parse TOML in {p}: {e}")
+
+    if "project" not in doc:
+        raise RuntimeError(f"[project] section not found in {p}")
+    proj = doc["project"]
+
+    if "version" in proj:
+        proj["version"] = str(new_version)
+    else:
+        # Insert after 'name' if exists for nicer ordering
+        try:
+            keys = list(proj.keys())
+            if "name" in proj:
+                idx = keys.index("name") + 1
+            else:
+                idx = 0
+            proj.insert(idx, "version", str(new_version))
+        except Exception:
+            proj["version"] = str(new_version)
+
+    doc["project"] = proj
+    save_doc(p, doc)
+
+
+def pin_internal_deps(pyproject_path: pathlib.Path, pins: Dict[str, str]) -> bool:
+    if not pyproject_path.exists():
+        return False
+    doc = load_doc(pyproject_path)
+    proj = doc.get("project") or {}
+    changed = False
+
+    def _pin_seq(seq):
+        nonlocal changed
+        out = []
+        for dep in seq:
+            s = str(dep)
+            parts = s.split(";", 1)
+            left, marker = parts[0].strip(), (";" + parts[1] if len(parts) == 2 else "")
+            m = re.match(r"^([A-Za-z0-9_.-]+)(\[[^\]]+\])?", left)
+            if m:
+                pkg, extras = m.group(1), (m.group(2) or "")
+                if pkg in pins:
+                    s = f"{pkg}{extras}=={pins[pkg]}{marker}"
+                    changed = True
+            out.append(s)
+        return out
+
+    if "dependencies" in proj and proj["dependencies"] is not None:
+        proj["dependencies"] = _pin_seq(proj["dependencies"])
+    if "optional-dependencies" in proj and proj["optional-dependencies"] is not None:
+        for g, arr in list(proj["optional-dependencies"].items()):
+            proj["optional-dependencies"][g] = _pin_seq(arr)
+
+    if changed:
+        doc["project"] = proj
+        save_doc(pyproject_path, doc)
+    return changed
+
+
+# ---------- Build ----------
+def uv_build_project(project_dir: pathlib.Path, dist_kind: str):
+    # clean
+    for sub in ("dist", "build"):
+        d = project_dir / sub
+        if d.exists():
+            shutil.rmtree(d)
+    for egg in project_dir.rglob("*.egg-info"):
+        shutil.rmtree(egg, ignore_errors=True)
+
+    # build with uv
+    if dist_kind in ("wheel", "both"):
+        run(["uv", "build", "--project", str(project_dir), "--wheel"], cwd=project_dir)
+    if dist_kind in ("sdist", "both"):
+        run(["uv", "build", "--project", str(project_dir), "--sdist"], cwd=project_dir)
+
+
+def uv_build_repo_root(dist_kind: str):
+    for sub in ("dist", "build"):
+        d = REPO_ROOT / sub
+        if d.exists():
+            shutil.rmtree(d)
+    if dist_kind in ("wheel", "both"):
+        run(["uv", "build", "--wheel"], cwd=REPO_ROOT)
+    if dist_kind in ("sdist", "both"):
+        run(["uv", "build", "--sdist"], cwd=REPO_ROOT)
+
+
+def dist_files(project_dir: pathlib.Path) -> List[str]:
+    return sorted(glob.glob(str((project_dir / "dist" / "*").resolve())))
+
+
+def dist_files_root() -> List[str]:
+    return sorted(glob.glob(str((REPO_ROOT / "dist" / "*").resolve())))
+
+
+# ---------- Twine ----------
+def twine_check(files: List[str]):
+    if not files:
+        raise SystemExit("No artifacts to check")
+    run([sys.executable, "-m", "twine", "check", *files], cwd=REPO_ROOT)
+
+
+def twine_upload(files: List[str], repo: str, skip_existing: bool, retries: int):
+    if not files:
+        raise SystemExit("No artifacts to upload")
+    print(f"+ twine upload -r {repo} ({len(files)} files)")
+    cmd = [sys.executable, "-m", "twine", "upload", "--non-interactive", "-r", repo]
+    if skip_existing:
+        cmd.append("--skip-existing")
+    # NOTE: twine auth from ~/.pypirc; we deliberately do NOT pass username/password from CLI.
+    # If you need to force via env, export TWINE_USERNAME/TWINE_PASSWORD outside this script.
+    for attempt in range(1, int(retries) + 1):
+        try:
+            run(cmd + files, cwd=REPO_ROOT)
+            return
+        except subprocess.CalledProcessError:
+            if attempt >= retries:
+                raise
+            print(f"[upload] error (attempt {attempt}/{retries}); retrying...")
+
+
+# ---------- Cleanup/Purge (web login) ----------
+def cleanup_leave_latest(cfg: Cfg, packages: list[str]):
+    if cfg.skip_cleanup:
         return
 
-    all_artifacts: List[Path] = []
+    host = "https://pypi.org/"
+    if cfg.repo == "testpypi":
+        host = "https://test.pypi.org/"
+
+    # username/password precedence: CLI only
+    cleanup_user = (cfg.cleanup_user or "").strip() or None
+    cleanup_pass = (cfg.cleanup_pass or "").strip() or None
+
+    if not cleanup_user or not cleanup_pass:
+        print("[cleanup] Skipping: requires --username and --password (web login), tokens won't work here.")
+        return
+    if cleanup_user == "__token__" or str(cleanup_pass).startswith("pypi-"):
+        print("[cleanup] Skipping: cleanup needs real account credentials (not API token).")
+        return
+
+    def run_cleanup(package: str):
+        cmd = [
+            "pypi-cleanup",
+            "--leave-most-recent-only",
+            "--do-it",
+            "-y",
+            "--host", host,
+            "--package", package,
+            "--username", cleanup_user,
+        ]
+        if cfg.clean_days is not None:
+            cmd.extend(["--days", str(cfg.clean_days)])
+        if cfg.clean_delete_project:
+            cmd.append("--delete-project")
+        if cfg.verbose:
+            cmd.append("-v")
+
+        print(f"[cleanup] Keeping only latest release for {package} on {cfg.repo}")
+        try:
+            run(cmd, cwd=REPO_ROOT, env={
+                "PYPI_USERNAME": cleanup_user,
+                "PYPI_PASSWORD": cleanup_pass,
+                "PYPI_CLEANUP_PASSWORD": cleanup_pass,
+            }, timeout=(cfg.cleanup_timeout or None))
+        except subprocess.TimeoutExpired:
+            print(f"[cleanup] warning: timed out after {cfg.cleanup_timeout}s for {package}; skipping.")
+        except subprocess.CalledProcessError as exc:
+            print(f"[cleanup] warning: pypi-cleanup exited with status {exc.returncode} for {package}; continuing.")
+
+    for pkg in packages:
+        run_cleanup(pkg)
+
+
+# ---------- Yank ----------
+def yank_previous_versions(cfg: Cfg, packages: list[str], chosen: str):
+    if cfg.repo != "pypi":
+        return
+    print(f"[yank] Attempting to yank versions older than {chosen} on {cfg.repo}")
+    for name in packages:
+        rels = sorted(pypi_releases(name, cfg.repo), key=safe_ver)
+        for v in rels:
+            if safe_ver(v) < safe_ver(chosen):
+                cmd = [sys.executable, "-m", "twine", "yank", "-r", cfg.repo, name, v, "-y"]
+                try:
+                    run(cmd, cwd=REPO_ROOT)
+                    print(f"[yank] Yanked {name} {v}")
+                except Exception as e:
+                    print(f"[yank] warning: could not yank {name} {v}: {e}")
+
+
+# ---------- Symlink handling (umbrella) ----------
+def remove_symlinks_for_umbrella() -> list[tuple[pathlib.Path, str, bool]]:
+    """
+    Remove only top-level symlinks under src/agilab/apps and src/agilab/apps-pages.
+    Return list to restore (path, target, is_dir).
+    """
+    removed: list[tuple[pathlib.Path, str, bool]] = []
+    for rel in ("src/agilab/apps", "src/agilab/apps-pages"):
+        base = REPO_ROOT / rel
+        if not base.exists():
+            continue
+        try:
+            for p in base.iterdir():
+                if p.is_symlink():
+                    try:
+                        target = os.readlink(str(p))
+                    except OSError:
+                        target = ""
+                    is_dir = p.is_dir()
+                    print(f"[symlink] removing {p}")
+                    p.unlink(missing_ok=True)
+                    removed.append((p, target, is_dir))
+        except Exception:
+            pass
+    return removed
+
+
+def restore_symlinks(entries: list[tuple[pathlib.Path, str, bool]]):
+    for path, target, is_dir in entries:
+        try:
+            if not target:
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            os.symlink(target, path, target_is_directory=is_dir)
+            print(f"[symlink] restored {path} -> {target}")
+        except Exception as e:
+            print(f"[symlink] warning: failed to restore {path}: {e}")
+
+
+# ---------- Git ----------
+def _tag_exists(tag: str) -> bool:
     try:
-        for root in cfg.package_roots:
-            pyproj = root / "pyproject.toml"
-            if not pyproj.exists():
-                raise FileNotFoundError(f"Missing pyproject.toml: {pyproj}")
+        subprocess.run(["git", "rev-parse", "-q", "--verify", f"refs/tags/{tag}"], cwd=REPO_ROOT,
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except subprocess.CalledProcessError:
+        return False
 
-            ensure_unique_version(pyproj, require_network=cfg.strict_online)
-            if cfg.do_clean:
-                clean_artifacts(root)
-            artifacts = build(root, cfg.python_bin, dist=cfg.dist)
-            if not artifacts:
-                log.info(f"[build] no artifacts found in {root}/dist")
-            all_artifacts.extend(artifacts)
 
-        upload(
-            all_artifacts,
-            cfg.python_bin,
-            cfg.repo,
-            skip_existing=cfg.skip_existing,
-            retries=cfg.retries,
-            twine_opts=cfg.twine_opts,
-        )
+def compute_date_tag() -> str:
+    base = datetime.now(timezone.utc).strftime("%Y.%m.%d")
+    tag = base
+    n = 2
+    while _tag_exists(f"v{tag}"):
+        tag = f"{base}-{n}"
+        n += 1
+    return tag
 
+
+def create_and_push_tag(tag: str):
+    run(["git", "tag", "-a", f"v{tag}", "-m", f"Release {tag}"], cwd=REPO_ROOT)
+    run(["git", "push", "origin", f"v{tag}"], cwd=REPO_ROOT)
+    print(f"[git] created and pushed v{tag}")
+
+
+def git_paths_to_commit() -> list[str]:
+    paths = [str(t) for _, t, __ in CORE] + [str(UMBRELLA[1])]
+    return [p for p in paths if pathlib.Path(p).exists()]
+
+
+def git_commit_version(chosen_version: str):
+    files = git_paths_to_commit()
+    if not files:
+        print("[git] nothing to commit")
+        return
+    run(["git", "add", *files], cwd=REPO_ROOT)
+    run(["git", "commit", "-m", f"chore(release): bump version to {chosen_version}"], cwd=REPO_ROOT)
+    print(f"[git] committed version bump to {chosen_version}")
+
+
+def git_reset_pyprojects():
+    files = git_paths_to_commit()
+    if not files:
+        return
+    try:
+        run(["git", "checkout", "--", *files], cwd=REPO_ROOT)
+        print("[git] reset pyproject.toml edits")
+    except Exception as e:
+        print(f"[git] warning: could not reset pyproject.toml files: {e}")
+
+
+# ---------- Main ----------
+def main():
+    args = parse_args()
+    cfg = make_cfg(args)
+
+    print(f"[config] repo={cfg.repo} python={sys.executable} dist={cfg.dist} "
+          f"skip_existing={cfg.skip_existing} retries={cfg.retries} clean={not cfg.skip_cleanup}")
+
+    if cfg.pypirc_check:
+        assert_pypirc_has(cfg.repo)
+
+    # Validate explicit version if provided
+    if cfg.version is not None and not re.fullmatch(r"\d+\.\d+\.\d+(?:\.post\d+)?", cfg.version):
+        raise SystemExit("ERROR: Invalid --version format. Use X.Y.Z or X.Y.Z.postN")
+
+    removed_symlinks: list[tuple[pathlib.Path, str, bool]] = []
+    try:
+        if not cfg.dry_run:
+            removed_symlinks = remove_symlinks_for_umbrella()
+
+        # Name hygiene
+        sanitize_project_names([p for _, p, _ in CORE])
+
+        core_names = [n for n, _, __ in CORE]
+
+        # Choose unified version
+        base = cfg.version or datetime.now(timezone.utc).strftime("%Y.%m.%d")
+        chosen, collisions = compute_unified_version(core_names + [UMBRELLA[0]], cfg.repo, base)
+
+        print(f"[plan] Unified version: {chosen}")
+        date_tag = normalize_base(chosen)  # date base (YYYY.MM.DD)
+        print(f"[plan] Tag base (UTC): {date_tag}")
+        if cfg.dry_run:
+            print("[dry-run] Collisions per package:")
+            for n in core_names + [UMBRELLA[0]]:
+                hits = collisions.get(n) or []
+                print(f"  - {n}: {', '.join(hits) if hits else '(none)'}")
+
+        # Cleanup-only path
+        if cfg.cleanup_only:
+            packages = core_names + [UMBRELLA[0]]
+            cleanup_leave_latest(cfg, packages)
+            return
+
+        # Optional purge BEFORE
+        if cfg.purge_before:
+            cleanup_leave_latest(cfg, core_names + [UMBRELLA[0]])
+
+        # Apply version + pin internal deps, then build
+        pins = {n: chosen for n, _, __ in CORE}
+        all_files: List[str] = []
+
+        # core
+        for name, toml, project in CORE:
+            try:
+                set_version_in_pyproject(toml, chosen)
+            except Exception as e:
+                raise SystemExit(f"fatal: Could not update version in {toml}\n{e}")
+            pin_internal_deps(toml, pins)
+            if not cfg.dry_run:
+                uv_build_project(project, cfg.dist)
+            files = dist_files(project)
+            if files:
+                print(f"[build] {name}: {', '.join(files)}")
+            all_files.extend(files)
+
+        # umbrella
+        _, umbrella_toml, _ = UMBRELLA
+        try:
+            set_version_in_pyproject(umbrella_toml, chosen)
+        except Exception as e:
+            raise SystemExit(f"fatal: Could not update version in {umbrella_toml}\n{e}")
+        pin_internal_deps(umbrella_toml, pins)
+        if not cfg.dry_run:
+            uv_build_repo_root(cfg.dist)
+        root_files = dist_files_root()
+        if root_files:
+            print(f"[build] umbrella: {', '.join(root_files)}")
+        all_files.extend(root_files)
+
+        # Dry-run end
+        if cfg.dry_run:
+            print("[dry-run] Would twine check & upload:")
+            for f in all_files:
+                print("  -", f)
+            return
+
+        # Twine
+        twine_check(all_files)
+        twine_upload(all_files, cfg.repo, cfg.skip_existing, cfg.retries)
+
+        # Yank (optional, PyPI only)
+        if cfg.yank_previous:
+            yank_previous_versions(cfg, core_names + [UMBRELLA[0]], chosen)
+
+        # Purge AFTER (optional)
         if cfg.purge_after:
-            _purge_all(cfg.package_roots)
-            log.info("[cleanup] purged artifacts after upload")
+            cleanup_leave_latest(cfg, core_names + [UMBRELLA[0]])
 
-        log.info("[done]")
-    except Exception:
-        if cfg.purge_on_fail:
-            _purge_all(cfg.package_roots)
-            log.info("[cleanup] purged artifacts due to failure (--purge-on-fail)")
-        raise
+        # Git tag/commit (optional)
+        if cfg.repo == "pypi" and cfg.git_tag:
+            tag = compute_date_tag()  # resolves collisions with existing tags
+            create_and_push_tag(tag)
+        if cfg.git_commit_version:
+            git_commit_version(chosen)
+
+    finally:
+        if removed_symlinks:
+            restore_symlinks(removed_symlinks)
+        if cfg.git_reset_on_failure and not cfg.dry_run:
+            git_reset_pyprojects()
+
 
 if __name__ == "__main__":
-    try:
-        main()
-    except subprocess.CalledProcessError as e:
-        sys.stderr.write(str(e) + "\\n")
-        sys.exit(e.returncode)
-    except Exception as e:
-        sys.stderr.write(f"fatal: {e}\\n")
-        sys.exit(1)
+    main()
