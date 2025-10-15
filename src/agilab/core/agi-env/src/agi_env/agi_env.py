@@ -1068,6 +1068,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         dst_apps.mkdir(parents=True, exist_ok=True)
 
+        AgiEnv.logger.info(f"copy_existing_projects src={src_apps.resolve()} dst={dst_apps.resolve()}")
+        candidates = [p for p in src_apps.rglob("*_project") if p.is_dir()]
+        AgiEnv.logger.info(
+            "Matched projects: " + ", ".join(str(p.relative_to(src_apps)) for p in candidates) or "<none>")
+
         # match every nested directory ending with "_project"
         for item in src_apps.rglob("*_project"):
             if not item.is_dir():
