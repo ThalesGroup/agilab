@@ -24,8 +24,10 @@ See also: CHANGELOG.md for recent changes.
 
 ## Audience profiles
 
-- **End users** install and launch packaged apps with `uvx` or the generated shell wrappers in `tools/run_configs/`; no repository checkout or IDE is required.
-- **Developers** clone this repository to build apps, regenerate run configurations (`python3 tools/generate_runconfig_scripts.py`), and extend the framework.
+- **Manager** launch `uvx agilab`; no repository checkout or IDE is required.
+- **End users** create a uv workspace and launch `uv run agilab` ; no repository checkout or IDE is required.
+- **Developers** clone this repository and launch install.sh; an Pycharm IDE is strongly recommended. 
+see below for more details 
 
 ## Install and Execution for end users
 

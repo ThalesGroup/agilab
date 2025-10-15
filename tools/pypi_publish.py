@@ -451,37 +451,44 @@ def twine_upload(files: List[str], repo: str, skip_existing: bool, retries: int)
     if not files:
         raise SystemExit("No artifacts to upload")
     print(f"+ twine upload -r {repo} ({len(files)} files)")
-    base_cmd = [sys.executable, "-m", "twine", "upload", "--non-interactive", "-r", repo]
+    base_cmd = [sys.executable, "-m", "twine", "upload", "--non-interactive", "-r", repo, "--verbose"]
     if skip_existing:
         base_cmd.append("--skip-existing")
+
+    def _is_reuse_output(s: str) -> bool:
+        s = (s or "").lower()
+        keys = [
+            "this filename has already been used",
+            "file name has already been used",
+            "file already exists",
+            "filename already exists",
+            "400 bad request",
+            "409 conflict",
+        ]
+        return any(k in s for k in keys)
+
     for f in files:
         cmd = base_cmd + [f]
         fname = os.path.basename(f)
         for attempt in range(1, int(retries) + 1):
-            try:
-                # capture output to detect Warehouse-specific messages
-                proc = subprocess.run(
-                    cmd, cwd=str(REPO_ROOT), check=True, text=True,
-                    capture_output=True, env=os.environ.copy()
-                )
-                # success
+            proc = subprocess.run(
+                cmd, cwd=str(REPO_ROOT), text=True, capture_output=True, env=os.environ.copy()
+            )
+            out = (proc.stdout or "") + (proc.stderr or "")
+            if proc.returncode == 0:
                 UPLOAD_SUCCESS_COUNT += 1
                 break
-            except subprocess.CalledProcessError as exc:
-                stderr = (exc.stderr or "") + ""
-                already_used = "This filename has already been used" in stderr
-                if already_used:
-                    UPLOAD_COLLISION_DETECTED = True
-                    if skip_existing:
-                        print(f"[upload] skipped existing (already on server): {fname}")
-                        break  # treat as a skip
-                if attempt >= retries:
-                    # show stderr once at the end
-                    if stderr.strip():
-                        print(stderr)
-                    raise
-                print(f"[upload] error on {fname} (attempt {attempt}/{retries}); retrying...")
-
+            # returncode != 0
+            if skip_existing and _is_reuse_output(out):
+                UPLOAD_COLLISION_DETECTED = True
+                print(f"[upload] skipped existing (already on server): {fname}")
+                # continue with next file without failing
+                break
+            if attempt >= retries:
+                if out.strip():
+                    print(out)
+                raise subprocess.CalledProcessError(proc.returncode, cmd, output=proc.stdout, stderr=proc.stderr)
+            print(f"[upload] error on {fname} (attempt {attempt}/{retries}); retrying...")
 
 # ---------- Cleanup/Purge (web login) ----------
 def cleanup_leave_latest(cfg: Cfg, packages: list[str]):
