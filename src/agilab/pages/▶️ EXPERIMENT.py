@@ -150,7 +150,7 @@ def _persist_env_var(name: str, value: str) -> None:
 def _prompt_for_openai_api_key(message: str) -> None:
     """Prompt for a missing OpenAI API key and optionally persist it."""
     st.warning(message)
-    default_val = st.session_state.get("experiment_openai_api_key", "")
+    default_val = st.session_state.get("openai_api_key", "")
     with st.form("experiment_missing_openai_api_key"):
         new_key = st.text_input(
             "OpenAI API key",
@@ -175,7 +175,7 @@ def _prompt_for_openai_api_key(message: str) -> None:
             env_obj = st.session_state.get("env")
             if getattr(env_obj, "envars", None) is not None:
                 env_obj.envars["OPENAI_API_KEY"] = cleaned
-            st.session_state["experiment_openai_api_key"] = cleaned
+            st.session_state["openai_api_key"] = cleaned
             if save_profile:
                 try:
                     _persist_env_var("OPENAI_API_KEY", cleaned)
@@ -189,14 +189,122 @@ def _prompt_for_openai_api_key(message: str) -> None:
     st.stop()
 
 
+def _make_openai_client_and_model(envars: Dict[str, str], api_key: str):
+    """
+    Returns (client, model_name, is_azure). Supports:
+      - OpenAI (api.openai.com)
+      - Azure OpenAI (AZURE_OPENAI_ENDPOINT / AZURE_OPENAI_API_KEY / AZURE_OPENAI_API_VERSION)
+      - Proxies/gateways via OPENAI_BASE_URL
+    """
+    import os
+    from typing import Tuple
+
+    # Inputs from env or envars
+    base_url = (
+        envars.get("OPENAI_BASE_URL")
+        or os.getenv("OPENAI_BASE_URL")               # common proxy var
+        or os.getenv("OPENAI_API_BASE")               # legacy
+        or ""
+    )
+
+    azure_endpoint = (
+        envars.get("AZURE_OPENAI_ENDPOINT")
+        or os.getenv("AZURE_OPENAI_ENDPOINT")
+        or ""
+    )
+    azure_version = (
+        envars.get("AZURE_OPENAI_API_VERSION")
+        or os.getenv("AZURE_OPENAI_API_VERSION")
+        or "2024-06-01"  # safe default as of 2025
+    )
+    # Model/deployment name
+    model_name = (
+        envars.get("OPENAI_MODEL")
+        or os.getenv("OPENAI_MODEL")
+        or os.getenv("AZURE_OPENAI_DEPLOYMENT")  # for Azure deployments
+        or "gpt-4o-mini"
+    )
+
+    # Detect Azure vs OpenAI
+    is_azure = bool(azure_endpoint) or bool(os.getenv("OPENAI_API_TYPE") == "azure") or bool(os.getenv("AZURE_OPENAI_API_KEY"))
+
+    # Build client
+    try:
+        import openai
+        # Prefer new SDK “OpenAI/AzureOpenAI” if present
+        try:
+            from openai import OpenAI as OpenAIClient
+        except Exception:
+            OpenAIClient = getattr(openai, "OpenAI", None)
+
+        # Azure path
+        if is_azure:
+            try:
+                from openai import AzureOpenAI
+            except Exception:
+                AzureOpenAI = None
+
+            if AzureOpenAI is not None:
+                client = AzureOpenAI(
+                    api_key=api_key,
+                    azure_endpoint=azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT"),
+                    api_version=azure_version,
+                )
+                # For Azure, `model_name` must be the DEPLOYMENT name
+                model_name = (
+                    os.getenv("AZURE_OPENAI_DEPLOYMENT")
+                    or envars.get("AZURE_OPENAI_DEPLOYMENT")
+                    or model_name
+                )
+                return client, model_name, True
+            else:
+                # Fallback with base_url if azure client symbol isn’t available
+                # Many gateways expose OpenAI-compatible endpoints at a base_url.
+                endpoint = azure_endpoint.rstrip("/") + "/openai/deployments"
+                # If no direct compat layer, still attempt with base_url if provided
+                client = OpenAIClient(api_key=api_key, base_url=base_url or None) if OpenAIClient else None
+                return client, model_name, True
+
+        # Non-Azure path (OpenAI or proxy)
+        if OpenAIClient:
+            client_kwargs = {"api_key": api_key}
+            if base_url:
+                client_kwargs["base_url"] = base_url
+            client = OpenAIClient(**client_kwargs)
+            return client, model_name, False
+
+        # Old SDK fallback
+        openai.api_key = api_key
+        if base_url:
+            # Old SDK uses `openai.api_base`
+            openai.api_base = base_url
+        return openai, model_name, False
+
+    except Exception as e:
+        # Bubble up; caller handles a graceful error message.
+        raise
+
+
 def _ensure_cached_api_key(envars: Dict[str, str]) -> str:
-    """Return a cached OpenAI key, seeding session state from env/os if missing."""
-    cached = st.session_state.get("experiment_openai_api_key")
+    """Seed from session, secrets, env, and Azure if present."""
+    cached = st.session_state.get("openai_api_key")
     if cached:
         return cached
-    candidate = envars.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
+
+    secret = ""
+    try:
+        secret = st.secrets.get("OPENAI_API_KEY", "")
+    except Exception:
+        pass
+
+    candidate = (
+        secret
+        or envars.get("OPENAI_API_KEY")
+        or os.environ.get("OPENAI_API_KEY", "")
+        or os.environ.get("AZURE_OPENAI_API_KEY", "")  # Azure fallback
+    )
     if candidate:
-        st.session_state["experiment_openai_api_key"] = candidate
+        st.session_state["openai_api_key"] = candidate
     return candidate
 
 
@@ -491,19 +599,22 @@ def _redact_sensitive(text: str) -> str:
 
 
 def _is_placeholder_api_key(key: Optional[str]) -> bool:
-    """Heuristic to detect missing or redacted API key strings."""
+    """True only when clearly missing or visibly redacted."""
     if not key:
         return True
-    value = key.strip()
-    if not value:
+    v = str(key).strip()
+    if not v:
         return True
-    if len(value) < 20:
+
+    # Only reject obvious redactions/placeholders
+    # Keep this extremely conservative to avoid false positives.
+    U = v.upper()
+    if "***" in v or "…" in v:
         return True
-    CHECK_MARKERS = ("***", "…", "xxx", "xxxxx", "YOUR-API-KEY", "YOUR_API_KEY")
-    upper_value = value.upper()
-    for marker in CHECK_MARKERS:
-        if marker in value or marker in upper_value:
-            return True
+    if "YOUR-API-KEY" in U or "YOUR_API_KEY" in U:
+        return True
+
+    # Do NOT check prefixes or length; accept Azure / proxy / org-scoped formats.
     return False
 
 
@@ -949,52 +1060,21 @@ def chat_online(
     prompt: List[Dict[str, str]],
     envars: Dict[str, str],
 ) -> str:
-    """Minimal, robust Chat Completions call to get fenced Python code."""
-
+    """Robust Chat Completions call: OpenAI, Azure OpenAI, or proxy base_url."""
     import openai
 
     api_key = _ensure_cached_api_key(envars)
-    if not api_key:
-        st.warning("OpenAI API key is required to use this page. Enter it below to continue.")
-        entered = st.text_input("OpenAI API key", value="", type="password", key="experiment_openai_key")
-        save_profile = st.checkbox("Save to profile (~/.agilab/.env)", value=True, key="experiment_save_openai_key")
-        submit = st.button("Use API key", key="experiment_submit_openai_key")
-        if not submit:
-            st.stop()
-        api_key = (entered or "").strip()
-        if not api_key:
-            st.error("Please enter a valid API key.")
-            st.stop()
-        # Persist for the current session/runtime
-        envars["OPENAI_API_KEY"] = api_key
-        try:
-            from agi_env import AgiEnv
-
-            AgiEnv.set_env_var("OPENAI_API_KEY", api_key)
-        except Exception:
-            pass
-        env_obj = st.session_state.get("env")
-        if getattr(env_obj, "envars", None) is not None:
-            env_obj.envars["OPENAI_API_KEY"] = api_key
-        st.session_state["experiment_openai_api_key"] = api_key
-        # Optionally persist to ~/.agilab/.env
-        if save_profile:
-            try:
-                _persist_env_var("OPENAI_API_KEY", api_key)
-                st.success("API key saved to ~/.agilab/.env")
-            except Exception as e:
-                st.warning(f"Could not persist API key: {e}")
-    else:
-        st.session_state["experiment_openai_api_key"] = api_key
-    if _is_placeholder_api_key(api_key):
+    if not api_key or _is_placeholder_api_key(api_key):
         _prompt_for_openai_api_key(
-            "OpenAI API key appears to be a placeholder or redacted. Supply a valid key to continue."
+            "OpenAI API key appears missing or redacted. Supply a valid key to continue."
         )
         raise JumpToMain(ValueError("OpenAI API key unavailable"))
 
-    model_name = envars.get("OPENAI_MODEL", "gpt-4o-mini")
+    # Persist to session + envars to survive reruns
+    st.session_state["openai_api_key"] = api_key
+    envars["OPENAI_API_KEY"] = api_key
 
-    # Strict system to force fenced Python code
+    # Build messages
     system_msg = {
         "role": "system",
         "content": (
@@ -1010,22 +1090,51 @@ def chat_online(
             messages.append({"role": role, "content": content})
     messages.append({"role": "user", "content": input_request})
 
+    # Create client (supports OpenAI/Azure/proxy)
     try:
-        client = openai.OpenAI(api_key=api_key)
-        resp = client.chat.completions.create(model=model_name, messages=messages)
-        return resp.choices[0].message.content or ""
-    except openai.OpenAIError as e:
-        msg = _redact_sensitive(str(e))
-        status = getattr(e, "status_code", None)
-        if status == 401 or "invalid_api_key" in str(e):
-            _prompt_for_openai_api_key("OpenAI API key invalid or missing. Enter a valid key to continue.")
+        client, model_name, is_azure = _make_openai_client_and_model(envars, api_key)
+    except Exception as e:
+        st.error("Failed to initialise OpenAI/Azure client. Check your SDK install and environment variables.")
+        logger.error(f"Client init error: {_redact_sensitive(str(e))}")
+        raise JumpToMain(e)
+
+    # Call – support new and old SDKs
+    try:
+        # New-style client returns objects; old SDK returns dicts
+        if hasattr(client, "chat") and hasattr(client.chat, "completions"):
+            resp = client.chat.completions.create(model=model_name, messages=messages)
+            content = resp.choices[0].message.content
         else:
-            st.error(f"OpenAI API error: {msg}")
+            # Old SDK (module-style)
+            resp = client.ChatCompletion.create(model=model_name, messages=messages)
+            content = resp["choices"][0]["message"]["content"]
+
+        return content or ""
+
+    except openai.OpenAIError as e:
+        # Don’t re-prompt for key here; surface the *actual* problem.
+        msg = _redact_sensitive(str(e))
+        status = getattr(e, "status_code", None) or getattr(e, "status", None)
+        if status in (401, 403):
+            # Most common causes:
+            # - Azure key used without proper Azure endpoint/version/deployment
+            # - Wrong org / no access to model
+            # - Proxy/base_url misconfigured
+            st.error(
+                "Authentication/authorization failed.\n\n"
+                "Common causes:\n"
+                "• Using an **Azure OpenAI** key but missing `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_API_VERSION` / deployment name.\n"
+                "• Using a **gateway/proxy** but missing `OPENAI_BASE_URL`.\n"
+                "• The key doesn’t have access to the requested model/deployment.\n\n"
+                f"Details: {msg}"
+            )
+        else:
+            st.error(f"OpenAI/Azure error: {msg}")
         logger.error(f"OpenAI error: {msg}")
         raise JumpToMain(e)
     except Exception as e:
         msg = _redact_sensitive(str(e))
-        st.error(f"Error: {msg}")
+        st.error(f"Unexpected client error: {msg}")
         logger.error(f"General error in chat_online: {msg}")
         raise JumpToMain(e)
 
@@ -1804,10 +1913,10 @@ def page() -> None:
         st.rerun()
 
     env: AgiEnv = st.session_state["env"]
-    if "experiment_openai_api_key" not in st.session_state:
+    if "openai_api_key" not in st.session_state:
         seed_key = env.envars.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
         if seed_key:
-            st.session_state["experiment_openai_api_key"] = seed_key
+            st.session_state["openai_api_key"] = seed_key
 
     with open(Path(env.app_src) / "pre_prompt.json") as f:
         st.session_state["lab_prompt"] = json.load(f)
