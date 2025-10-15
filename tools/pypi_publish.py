@@ -196,13 +196,25 @@ def clean_artifacts(root: Path) -> None:
     for egg in root.rglob("*.egg-info"):
         remove_path(egg)
 
-def build(root: Path, python_bin: str, dist: str = "both") -> list[Path]:
-    cmd = [python_bin, "-m", "build"]
+def build(root: Path, python_bin: str, dist: str = "both", extra_env: dict | None = None) -> list[Path]:
+    # Use a tiny shim that pops cwd from sys.path before importing PyPA build
+    code = [
+        "import sys, runpy",
+        "sys.path.pop(0)",             # remove cwd so local build.py can't shadow
+        "runpy.run_module('build.__main__', run_name='__main__')",
+    ]
+    cmd = [python_bin, "-c", ";".join(code)]
     if dist in ("sdist", "wheel"):
-        cmd.append(f"--{dist}")
-    run(cmd, cwd=root)
+        # forward the flag through env var that PyPA build respects (or just do both and let --sdist/--wheel be CLI)
+        cmd += ["--" + dist]
+    env = dict(os.environ)
+    if extra_env:
+        env.update(extra_env)
+    run(cmd, cwd=root, env=env)
+
     dist_dir = root / "dist"
     return sorted(dist_dir.glob("*")) if dist_dir.exists() else []
+
 
 # --------------------------- Upload & Yank ---------------------------------
 def upload(files: Iterable[Path], python_bin: str, repo: str, *, skip_existing: bool = True,
