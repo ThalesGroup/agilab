@@ -1,4 +1,5 @@
 [project]
+version = "2025.10.15.post4"
 name = "agi-env"
 description = "AGI Env"
 requires-python = ">=3.11"
@@ -40,89 +41,10 @@ dependencies = [
     "cmake>=3.29",
     "numba"
 ]
-version = "2025.10.15.post2"
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/agi-env"
 Tracker = "https://github.com/ThalesGroup/agilab/issues"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 [dependency-groups]
