@@ -238,7 +238,7 @@ def _read_version_from_pyproject(env) -> str | None:
     try:
         if tomli is None:
             return None
-        root = getattr(env, "agilab_src", None)
+        root = getattr(env, "agilab_pck", None)
         py_paths: list[Path] = []
         if root:
             py_paths.append(Path(root) / "pyproject.toml")
@@ -289,7 +289,7 @@ def _detect_agilab_version(env) -> str:
             # Append a dev suffix with git metadata when available
             suffix = ""
             try:
-                repo = Path(getattr(env, "agilab_src", "."))
+                repo = Path(getattr(env, "agilab_pck", "."))
                 # Short SHA
                 sha = subprocess.run(
                     ["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
@@ -419,7 +419,7 @@ def get_templates():
     if templates_root.exists():
         candidates.extend(p.name for p in templates_root.iterdir() if p.is_dir())
 
-    agilab_templates = getattr(env, "agilab_src", None)
+    agilab_templates = getattr(env, "agilab_pck", None)
     if agilab_templates:
         agilab_templates = Path(agilab_templates) / "agilab/templates"
         if agilab_templates.exists():

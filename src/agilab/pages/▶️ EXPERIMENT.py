@@ -1804,7 +1804,7 @@ def main() -> None:
         inject_theme(env.st_resources)
 
         st.session_state.setdefault("steps_file_name", STEPS_FILE_NAME)
-        st.session_state.setdefault("help_path", Path(env.agilab_src) / "gui/help")
+        st.session_state.setdefault("help_path", Path(env.agilab_pck) / "gui/help")
         st.session_state.setdefault("projects", env.apps_dir)
         st.session_state.setdefault("snippet_file", Path(env.AGILAB_LOG_ABS) / "lab_snippet.py")
         st.session_state.setdefault("server_started", False)
