@@ -582,7 +582,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
             if link_source is not None and link_source.exists():
                 for src_app in link_source.glob("*_project"):
-                    dest_app = apps_dir / src_app
+                    dest_app = apps_dir / src_app.relative_to(link_source)
                     # Avoid creating self-referential symlinks when the public
                     # destination already resides inside the private tree.
                     if dest_app.resolve(strict=False) == src_app.resolve():
