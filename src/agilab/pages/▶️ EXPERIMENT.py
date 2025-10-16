@@ -1833,39 +1833,39 @@ def display_lab_tab(
         save_query(lab_dir, query, steps_file)
     elif action == "next":
         query[3] = snippet_dict["text"]
-            # Save current step
-            save_query(lab_dir, query, steps_file)
-            current_idx = int(query[0])
-            nsteps_now = int(query[-1] or 0)
-            # If we were on the last step, append a new blank step so the new button renders
-            if current_idx >= max(0, nsteps_now - 1):
-                new_nsteps, _ = save_step(lab_dir, ["", "", ""], current_idx + 1, nsteps_now, steps_file)
-                query[-1] = new_nsteps
-            # Advance to next step index if possible
-            if query[0] < query[-1]:
-                query[0] = current_idx + 1
-                clean_query(index_page_str)
-            # Request prompt clear on next run and bump revision so the widget remounts blank
-            st.session_state[f"{index_page_str}__clear_q"] = True
-            st.session_state[f"{index_page_str}__force_blank_q"] = True
-            st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
-            # Force UI to refresh and load the newly selected step
-            st.rerun()
-            return
-        elif action == "run":
-            query[3] = snippet_dict["text"]
-            save_query(lab_dir, query, steps_file)
-            if query[3] and not st.session_state.get("step_checked", False):
-                run_lab(
-                    query[1:-2],
-                    st.session_state["snippet_file"],
-                    env.copilot_file,
-                )
-                if isinstance(st.session_state.get("data"), pd.DataFrame) and not st.session_state["data"].empty:
-                    export_target = st.session_state.get("df_file_out", "")
-                    if save_csv(st.session_state["data"], export_target):
-                        st.session_state["df_file_in"] = export_target
-                        st.session_state["step_checked"] = True
+        # Save current step
+        save_query(lab_dir, query, steps_file)
+        current_idx = int(query[0])
+        nsteps_now = int(query[-1] or 0)
+        # If we were on the last step, append a new blank step so the new button renders
+        if current_idx >= max(0, nsteps_now - 1):
+            new_nsteps, _ = save_step(lab_dir, ["", "", ""], current_idx + 1, nsteps_now, steps_file)
+            query[-1] = new_nsteps
+        # Advance to next step index if possible
+        if query[0] < query[-1]:
+            query[0] = current_idx + 1
+            clean_query(index_page_str)
+        # Request prompt clear on next run and bump revision so the widget remounts blank
+        st.session_state[f"{index_page_str}__clear_q"] = True
+        st.session_state[f"{index_page_str}__force_blank_q"] = True
+        st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
+        # Force UI to refresh and load the newly selected step
+        st.rerun()
+        return
+    elif action == "run":
+        query[3] = snippet_dict["text"]
+        save_query(lab_dir, query, steps_file)
+        if query[3] and not st.session_state.get("step_checked", False):
+            run_lab(
+                query[1:-2],
+                st.session_state["snippet_file"],
+                env.copilot_file,
+            )
+            if isinstance(st.session_state.get("data"), pd.DataFrame) and not st.session_state["data"].empty:
+                export_target = st.session_state.get("df_file_out", "")
+                if save_csv(st.session_state["data"], export_target):
+                    st.session_state["df_file_in"] = export_target
+                    st.session_state["step_checked"] = True
 
     if st.session_state.pop("_experiment_reload_required", False):
         st.session_state.pop("loaded_df", None)
