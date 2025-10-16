@@ -4,110 +4,78 @@
   <meta charset="utf-8" />
   <title>AGILab Roadmap</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="AGILab roadmap: upcoming features, priorities, and how to contribute." />
   <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      line-height: 1.6;
-      margin: 0 auto;
-      max-width: 860px;
-      padding: 2.5rem 1.25rem 3rem;
-      color: #1f2933;
-    }
-    h1, h2, h3 {
-      color: #111827;
-    }
-    h1 {
-      margin-top: 0;
-      font-size: 2.2rem;
-    }
-    h2 {
-      margin-top: 2rem;
-      font-size: 1.6rem;
-    }
-    h3 {
-      margin-top: 1.6rem;
-      font-size: 1.25rem;
-    }
-    ul {
-      padding-left: 1.4rem;
-    }
-    code {
-      background: #f3f4f6;
-      padding: 0.2rem 0.4rem;
-      border-radius: 4px;
-      font-size: 0.92rem;
-    }
-    .pill {
-      display: inline-block;
-      padding: 0.15rem 0.6rem;
-      border-radius: 999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-      vertical-align: middle;
-    }
-    .status-shipped {
-      background: rgba(16, 185, 129, 0.1);
-      color: #047857;
-    }
-    .status-beta {
-      background: rgba(59, 130, 246, 0.12);
-      color: #1d4ed8;
-    }
-    .status-planned {
-      background: rgba(234, 179, 8, 0.15);
-      color: #92400e;
-    }
-    footer {
-      margin-top: 3rem;
-      font-size: 0.85rem;
-      color: #6b7280;
-    }
+    body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0 1.2rem 3rem; color: #222; }
+    header { position: sticky; top: 0; background: #fff; padding: 1rem 0 0.4rem; border-bottom: 1px solid #eee; margin-bottom: 1.2rem; }
+    h1 { margin: 0.2rem 0 0.4rem; font-size: 1.8rem; display: inline-flex; align-items: center; gap: 0.6rem; }
+    .badge-new { display: inline-block; padding: 0.18rem 0.5rem; font-size: 0.8rem; font-weight: 700; color: #fff; background: #e91e63; border-radius: 999px; letter-spacing: 0.02em; }
+    .lead { color: #444; margin: 0.2rem 0 0.8rem; }
+    h2 { margin-top: 1.6rem; font-size: 1.2rem; color: #111; }
+    ul { margin: 0.4rem 0 0.8rem 1.2rem; }
+    li { margin: 0.25rem 0; }
+    .callout { border: 1px solid #f2a3bc; background: #fff0f5; padding: 0.8rem; border-radius: 8px; }
+    .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .card { border: 1px solid #eee; border-radius: 10px; padding: 0.8rem 1rem; }
+    .small { font-size: 0.92rem; color: #555; }
+    code { background: #f6f8fa; padding: 0.05rem 0.35rem; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.92rem; }
+    a { color: #0b74de; text-decoration: none; }
+    a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
-  <h1>AGILab Roadmap</h1>
-  <p>This roadmap highlights recently shipped capabilities and the next updates planned for the AGILab toolchain. It is intentionally concise so engineers can skim what changed without reading the full changelog.</p>
+  <header>
+    <h1>
+      AGILab Roadmap
+      <span class="badge-new">NEW</span>
+    </h1>
+    <p class="lead">What we’re building next, why it matters, and how you can help.</p>
+  </header>
 
-  <h2>✅ Recently Shipped</h2>
+  <section class="callout">
+    <strong>We’re looking for volunteers</strong> to accelerate a few high‑impact items below (CLI/Docker, local‑model backend, demo apps, docs).
+    If you’re interested, open a GitHub issue titled <code>[Volunteer]</code> or email <a href="mailto:focus@thalesgroup.com">focus@thalesgroup.com</a> with a quick note on the area you’d like to help.
+  </section>
 
-  <h3>IDE-independent launch scripts <span class="pill status-shipped">shipped</span></h3>
+  <h2>Now (high priority)</h2>
   <ul>
-    <li><strong>CLI wrappers:</strong> Every run configuration now ships with a generated shell script in <code>tools/run_configs/</code>.</li>
-    <li><strong>Regeneration:</strong> Keep scripts up to date with <code>python3 tools/generate_runconfig_scripts.py</code>.</li>
-    <li><strong>Messaging:</strong> README and docs highlight that AGILab workflows no longer depend on PyCharm.</li>
+    <li><strong>CLI + Docker Quickstart</strong> (no‑IDE path): one‑liner install; <code>uv run agilab</code> to launch Streamlit and run a sample flow.</li>
+    <li><strong>Public demos</strong>: 1–2 lightweight Streamlit apps with tiny datasets, deployed for instant try‑outs.</li>
+    <li><strong>Local model support</strong>: optional backend via Ollama/vLLM; <em>offline mode</em> switch for air‑gapped use.</li>
+    <li><strong>Docs landing page</strong>: 5‑minute Quickstart, screenshots/GIFs, live demo links, clear CTAs.</li>
   </ul>
 
-  <h3>Dataset recovery flow <span class="pill status-shipped">shipped</span></h3>
+  <h2>Next</h2>
   <ul>
-    <li>Flight, sat trajectory, link sim, and other private workers now restore their <code>dataset.7z</code>/<code>fulldataset.7z</code> artifacts automatically from backup when the installer runs.</li>
-    <li>Installer warns in yellow when optional steps, such as bootstrap dependencies, are skipped.</li>
+    <li><strong>Plugin / App template</strong>: minimal, documented skeleton with a <code>gen app</code> command.</li>
+    <li><strong>Support matrix</strong>: tested OS/Python versions, prebuilt wheels for heavy deps, slimmer environments.</li>
+    <li><strong>Security & Compliance</strong>: data‑flow notes, dependency license scan <span class="small">(already implemented via docs generator; run <code>uv run --group sphinx --dev docs/gen-docs.py</code> in <code>agilab-apps</code>)</span>, SBOM, toggles for telemetry.</li>
+    <li><strong>Docs consolidation</strong>: unify scattered help into a cohesive site (Guides, How‑tos, Reference).</li>
   </ul>
 
-  <h2>🛠️ In Progress</h2>
-
-  <h3>Docs alignment <span class="pill status-beta">beta</span></h3>
+  <h2>Later</h2>
   <ul>
-    <li>Move the remaining help topics into the static docs so CLI + shell-script workflows are documented end-to-end.</li>
-    <li>Add quick links from the docs homepage to the new roadmap and tooling sections.</li>
+    <li><strong>Cloud runners</strong>: optional remote execution for heavier jobs.</li>
+    <li><strong>Artifacts registry</strong>: externalize large datasets/models; fetch on demand; Git LFS optional.</li>
+    <li><strong>Benchmarks</strong>: repeatable example workloads with performance baselines.</li>
   </ul>
 
-  <h2>🔭 Upcoming</h2>
+  <h2>How to contribute (quick)</h2>
+  <div class="grid">
+    <div class="card">
+      <strong>Pick a ticket</strong>
+      <p class="small">Grab an issue labeled <code>good first issue</code> or open <code>[Proposal]</code> for new ideas.</p>
+    </div>
+    <div class="card">
+      <strong>Show a demo</strong>
+      <p class="small">Add a tiny dataset + app. Target &lt;30s to first result and 3 steps max.</p>
+    </div>
+    <div class="card">
+      <strong>Docs & examples</strong>
+      <p class="small">Improve onboarding: screenshots, GIFs, “Why AGILab vs. X?”, troubleshooting snippets.</p>
+    </div>
+  </div>
 
-  <h3>Unified installer UX <span class="pill status-planned">planned</span></h3>
-  <ul>
-    <li>Blend the CLI wrappers with a guided setup script that walks engineers through running smoke tests for any app bundle.</li>
-    <li>Offer optional prompts to copy private datasets (flight, sat trajectories, link sim) into the correct <code>wenv</code> folders.</li>
-  </ul>
-
-  <h3>Continuous documentation build <span class="pill status-planned">planned</span></h3>
-  <ul>
-    <li>Restore an automated docs build so commits to <code>docs/</code> are rendered without manual sync steps.</li>
-    <li>Publish the run configuration matrix to the site directly via <code>tools/refresh_launch_matrix.py</code>.</li>
-  </ul>
-
-  <footer>
-    Last updated: 2025-10-09 &nbsp;•&nbsp; Source: <code>docs/html/roadmap.html</code>
-  </footer>
+  <p class="small">Have feedback? Open an issue or email <a href="mailto:focus@thalesgroup.com">focus@thalesgroup.com</a>.</p>
 </body>
 </html>
