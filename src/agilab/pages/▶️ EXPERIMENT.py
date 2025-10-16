@@ -1735,7 +1735,25 @@ def display_lab_tab(
     """Display the ASSISTANT tab with steps and query input."""
     query = st.session_state[index_page_str]
     step = query[0]
-    st.markdown(f"<h3 style='font-size:16px;'>Step {step + 1}</h3>", unsafe_allow_html=True)
+    step_count = st.session_state[index_page_str][-1]
+    header_col, action_col = st.columns((20, 1))
+    with header_col:
+        st.markdown(f"<h3 style='font-size:16px;'>Step {step + 1}</h3>", unsafe_allow_html=True)
+    with action_col:
+        delete_clicked = st.button(
+            "🗑️",
+            key=f"{index_page_str}_remove_step",
+            disabled=step_count <= 0,
+            help="Delete this step",
+        )
+
+    if delete_clicked:
+        query[-1] = remove_step(lab_dir, str(step), steps_file, index_page_str)
+        st.session_state[f"{index_page_str}__clear_q"] = True
+        st.session_state[f"{index_page_str}__force_blank_q"] = True
+        st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
+        st.rerun()
+        return
 
     if query[-1]:
         cols = st.columns(BUTTONS_PER_LINE)
@@ -1784,50 +1802,37 @@ def display_lab_tab(
         else:
             st.info(detail_text)
 
-    remove_col, editor_col = st.columns((1, 11))
+    snippet_dict: Optional[Dict[str, Any]] = None
+    if code_for_editor:
+        # Remount editor only when content actually changes
+        rev = f"{step}-{len(code_for_editor)}"
+        editor_key = f"{index_page_str}a{rev}"
+        snippet_dict = code_editor(
+            code_for_editor if code_for_editor.endswith("\n") else code_for_editor + "\n",
+            height=(min(30, len(code_for_editor)) if code_for_editor else 100),
+            theme="contrast",
+            buttons=get_custom_buttons(),
+            info=get_info_bar(),
+            component_props=get_css_text(),
+            props={"style": {"borderRadius": "0px 0px 8px 8px"}},
+            key=editor_key,
+        )
 
-    with remove_col:
-        disabled = st.session_state[index_page_str][-1] <= 0
-        if st.button("🗑️", key=f"{index_page_str}_remove_step", disabled=disabled, help="Delete this step"):
+    action = snippet_dict.get("type") if snippet_dict else None
+    if action == "remove":
+        if st.session_state[index_page_str][-1] > 0:
             query[-1] = remove_step(lab_dir, str(step), steps_file, index_page_str)
+            # Request prompt clear and refresh to reflect removed step state
             st.session_state[f"{index_page_str}__clear_q"] = True
             st.session_state[f"{index_page_str}__force_blank_q"] = True
             st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
             st.rerun()
             return
-
-    with editor_col:
-        snippet_dict: Optional[Dict[str, Any]] = None
-        if code_for_editor:
-            # Remount editor only when content actually changes
-            rev = f"{step}-{len(code_for_editor)}"
-            editor_key = f"{index_page_str}a{rev}"
-            snippet_dict = code_editor(
-                code_for_editor if code_for_editor.endswith("\n") else code_for_editor + "\n",
-                height=(min(30, len(code_for_editor)) if code_for_editor else 100),
-                theme="contrast",
-                buttons=get_custom_buttons(),
-                info=get_info_bar(),
-                component_props=get_css_text(),
-                props={"style": {"borderRadius": "0px 0px 8px 8px"}},
-                key=editor_key,
-            )
-
-        action = snippet_dict.get("type") if snippet_dict else None
-        if action == "remove":
-            if st.session_state[index_page_str][-1] > 0:
-                query[-1] = remove_step(lab_dir, str(step), steps_file, index_page_str)
-                # Request prompt clear and refresh to reflect removed step state
-                st.session_state[f"{index_page_str}__clear_q"] = True
-                st.session_state[f"{index_page_str}__force_blank_q"] = True
-                st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
-                st.rerun()
-                return
-        elif action == "save":
-            query[3] = snippet_dict["text"]
-            save_query(lab_dir, query, steps_file)
-        elif action == "next":
-            query[3] = snippet_dict["text"]
+    elif action == "save":
+        query[3] = snippet_dict["text"]
+        save_query(lab_dir, query, steps_file)
+    elif action == "next":
+        query[3] = snippet_dict["text"]
             # Save current step
             save_query(lab_dir, query, steps_file)
             current_idx = int(query[0])
