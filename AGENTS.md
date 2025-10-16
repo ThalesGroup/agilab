@@ -40,6 +40,10 @@ Use this runbook whenever you:
 - **Runtime isolation**: Anything launched from `~/agi-space` must assume the upstream
   `~/agilab` checkout is absent. Agents can only reference packaged assets inside the
   virtual environment—never repository-relative paths.
+- **Config preservation**: Run `tools/preserve_app_configs.sh lock` to keep local edits
+  to any `app_args_form.py`, `app_settings.toml`, or `pre_prompt.json` under
+  `src/agilab/apps/` out of commits and
+  pushes. Invoke `unlock` when you intentionally want to share updates.
 - **Shared build tooling**: All packaging routes through
   `python -m agi_node.agi_dispatcher.build --app-path …`. Per-app `build.py` helpers
   are deprecated.
@@ -53,6 +57,14 @@ Use this runbook whenever you:
 - **App constructor kwargs**: App constructors ignore unknown kwargs when building
   their Pydantic `Args` models. Keep runtime verbosity and logging decisions in
   `AgiEnv(verbose=…)` or logging configs, not app `Args`.
+
+## GPT-OSS helpers
+
+- Launch the local Responses API with `uv run python tools/launch_gpt_oss.py`. Defaults keep the server on `127.0.0.1:8000` using the `gpt-oss-120b` checkpoint and the `transformers` backend. Pass `--print-only` to inspect the command or append extra arguments after `--`.
+- Configure environment overrides (`GPT_OSS_MODEL`, `GPT_OSS_ENDPOINT`, `GPT_OSS_BACKEND`, `GPT_OSS_PORT`, `GPT_OSS_WORKDIR`) before invoking the launcher when you need alternate checkpoints or ports.
+- Condense long task descriptions via `uv run python tools/gpt_oss_prompt_helper.py --prompt "..."` or pipe text through stdin. The helper calls GPT-OSS, stores the summary under `~/.cache/agilab/gpt_oss_prompt_cache.json`, and reuses cached briefs until `--force-refresh` is provided.
+- Set `GPT_OSS_CACHE` to move the cache file, `--no-cache` to bypass writes, and `--show-metadata` to display latency and token usage. Cached runs are tagged with the model and endpoint that produced the summary.
+- Use the `./lq` wrapper for quick one-liners (`./lq "Summarise …"`). Prepend options (e.g. `./lq --force-refresh -- "Prompt"`) or run it with no arguments to read from stdin. Add the repo root to your `PATH` if you want `lq` available globally.
 
 ---
 
