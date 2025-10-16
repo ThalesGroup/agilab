@@ -42,8 +42,14 @@ Use this runbook whenever you:
   virtual environment—never repository-relative paths.
 - **Config preservation**: Run `tools/preserve_app_configs.sh lock` to keep local edits
   to any `app_args_form.py`, `app_settings.toml`, or `pre_prompt.json` under
-  `src/agilab/apps/` out of commits and
-  pushes. Invoke `unlock` when you intentionally want to share updates.
+  `src/agilab/apps/` out of commits and pushes. Invoke `unlock` when you intentionally
+  want to share updates.
+- **Model defaults**: `agi_env.defaults` centralises the fallback OpenAI model. Set
+  `AGILAB_DEFAULT_OPENAI_MODEL` to override globally without editing code; individual
+  runs can still pass `OPENAI_MODEL`.
+- **History metadata**: `lab_steps.toml` now records an `M` field for each step so the
+  saved history shows which model produced the snippet. Older automations should ignore
+  unknown keys.
 - **Shared build tooling**: All packaging routes through
   `python -m agi_node.agi_dispatcher.build --app-path …`. Per-app `build.py` helpers
   are deprecated.

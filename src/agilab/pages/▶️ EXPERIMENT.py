@@ -35,6 +35,7 @@ from agi_env.pagelib import (
     inject_theme,
 )
 from agi_env import AgiEnv, normalize_path
+from agi_env.defaults import get_default_openai_model
 
 # Constants
 STEPS_FILE_NAME = "lab_steps.toml"
@@ -80,7 +81,6 @@ def on_step_change(
     st.session_state.step_checked = False
     # Schedule prompt clear and blank on next render; bump input revision to remount widget
     st.session_state[f"{index_page}__clear_q"] = True
-    st.session_state[f"{index_page}__force_blank_q"] = True
     st.session_state[f"{index_page}__q_rev"] = st.session_state.get(f"{index_page}__q_rev", 0) + 1
     # Drop any existing editor instance state for this step (best-effort)
     st.session_state.pop(f"{index_page}_a_{index_step}", None)
@@ -104,9 +104,10 @@ def load_last_step(
             entry = all_steps[current_step] or {}
             d = entry.get("D", "")
             q = entry.get("Q", "")
+            m = entry.get("M", "")
             c = entry.get("C", "")
             detail = details_store.get(current_step, "")
-            st.session_state[index_page][1:5] = [d, q, c, detail]
+            st.session_state[index_page][1:6] = [d, q, m, c, detail]
             # Drive the text area via session state, using a revisioned key to control remounts
             q_rev = st.session_state.get(f"{index_page}__q_rev", 0)
             prompt_key = f"{index_page}_q__{q_rev}"
@@ -122,7 +123,7 @@ def load_last_step(
 def clean_query(index_page: str) -> None:
     """Reset the query fields in session state."""
     df_value = st.session_state.get("df_file", "") or ""
-    st.session_state[index_page][1:-1] = [df_value, "", "", ""]
+    st.session_state[index_page][1:-1] = [df_value, "", "", "", ""]
     details_store = st.session_state.setdefault(f"{index_page}__details", {})
     current_step = st.session_state[index_page][0] if index_page in st.session_state else None
     if current_step is not None:
@@ -222,7 +223,7 @@ def _make_openai_client_and_model(envars: Dict[str, str], api_key: str):
         envars.get("OPENAI_MODEL")
         or os.getenv("OPENAI_MODEL")
         or os.getenv("AZURE_OPENAI_DEPLOYMENT")  # for Azure deployments
-        or "gpt-4o-mini"
+        or get_default_openai_model()
     )
 
     # Detect Azure vs OpenAI
@@ -374,7 +375,8 @@ def on_query_change(
             answer = ask_gpt(
                 st.session_state[request_key], df_file, index_page, env.envars
             )
-            detail = answer[3] if len(answer) > 3 else ""
+            detail = answer[4] if len(answer) > 4 else ""
+            model_label = answer[2] if len(answer) > 2 else ""
             details_key = f"{index_page}__details"
             details_store = st.session_state.setdefault(details_key, {})
             if detail:
@@ -383,11 +385,12 @@ def on_query_change(
                 details_store.pop(step, None)
             nstep, entry = save_step(module, answer, step, 0, steps_file)
             st.session_state[index_page][0] = step
-            # Deterministic mapping to D/Q/C slots
+            # Deterministic mapping to D/Q/M/C slots
             d = entry.get("D", "")
             q = entry.get("Q", "")
             c = entry.get("C", "")
-            st.session_state[index_page][1:5] = [d, q, c, detail or ""]
+            m = entry.get("M", model_label)
+            st.session_state[index_page][1:6] = [d, q, m, c, detail or ""]
             st.session_state[f"{index_page}_q"] = q
             st.session_state[index_page][-1] = nstep
         st.session_state.pop(f"{index_page}_a_{step}", None)
@@ -673,7 +676,7 @@ def chat_offline(
     input_request: str,
     prompt: List[Dict[str, str]],
     envars: Dict[str, str],
-) -> str:
+) -> Tuple[str, str]:
     """Call the GPT-OSS Responses API endpoint configured for offline use."""
 
     try:
@@ -701,6 +704,7 @@ def chat_offline(
         payload["instructions"] = instructions
 
     timeout = float(envars.get("GPT_OSS_TIMEOUT", 60))
+    model_name = str(payload.get("model", ""))
     try:
         response = requests.post(endpoint, json=payload, timeout=timeout)
         response.raise_for_status()
@@ -743,9 +747,9 @@ def chat_offline(
         or "stub"
     ).lower()
     if backend_hint == "stub" and (not text or "2 + 2 = 4" in text):
-        return _synthesize_stub_response(input_request)
+        return _synthesize_stub_response(input_request), model_name
 
-    return text
+    return text, model_name
 
 
 def _format_uoaic_question(prompt: List[Dict[str, str]], question: str) -> str:
@@ -989,6 +993,15 @@ def _ensure_uoaic_runtime(envars: Dict[str, str]) -> Dict[str, Any]:
             st.error(f"Failed to load the local Ollama model used by Universal Offline AI Chatbot: {exc}")
             raise JumpToMain(exc)
 
+        model_label = ""
+        for attr in ("model_name", "model", "model_id", "model_path", "name"):
+            value = getattr(llm, attr, None)
+            if value:
+                model_label = str(value)
+                break
+        if not model_label:
+            model_label = str(envars.get("UOAIC_MODEL") or "universal-offline")
+
         prompt_template = prompts.set_custom_prompt(prompts.CUSTOM_PROMPT_TEMPLATE)
         try:
             chain = qa_chain.setup_qa_chain(llm, db, prompt_template)
@@ -1004,6 +1017,7 @@ def _ensure_uoaic_runtime(envars: Dict[str, str]) -> Dict[str, Any]:
         "vector_store": db,
         "llm": llm,
         "prompt": prompt_template,
+        "model_label": model_label,
     }
     st.session_state[UOAIC_RUNTIME_KEY] = runtime
     return runtime
@@ -1013,10 +1027,11 @@ def chat_universal_offline(
     input_request: str,
     prompt: List[Dict[str, str]],
     envars: Dict[str, str],
-) -> str:
+) -> Tuple[str, str]:
     """Invoke the Universal Offline AI Chatbot pipeline for the current query."""
     runtime = _ensure_uoaic_runtime(envars)
     chain = runtime["chain"]
+    model_label = runtime.get("model_label") or str(envars.get("UOAIC_MODEL") or "universal-offline")
     query_text = _format_uoaic_question(prompt, input_request) or input_request
 
     try:
@@ -1052,14 +1067,14 @@ def chat_universal_offline(
         else:
             answer_text = f"Sources:\n{sources_block}"
 
-    return answer_text
+    return answer_text, model_label
 
 
 def chat_online(
     input_request: str,
     prompt: List[Dict[str, str]],
     envars: Dict[str, str],
-) -> str:
+) -> Tuple[str, str]:
     """Robust Chat Completions call: OpenAI, Azure OpenAI, or proxy base_url."""
     import openai
 
@@ -1109,7 +1124,7 @@ def chat_online(
             resp = client.ChatCompletion.create(model=model_name, messages=messages)
             content = resp["choices"][0]["message"]["content"]
 
-        return content or ""
+        return content or "", str(model_name)
 
     except openai.OpenAIError as e:
         # Don’t re-prompt for key here; surface the *actual* problem.
@@ -1151,19 +1166,27 @@ def ask_gpt(
         "lab_llm_provider",
         envars.get("LAB_LLM_PROVIDER", "openai"),
     )
+    model_label = ""
     if provider == "gpt-oss":
-        result = chat_offline(question, prompt, envars)
+        result, model_label = chat_offline(question, prompt, envars)
     elif provider == UOAIC_PROVIDER:
-        result = chat_universal_offline(question, prompt, envars)
+        result, model_label = chat_universal_offline(question, prompt, envars)
     else:
-        result = chat_online(question, prompt, envars)
+        result, model_label = chat_online(question, prompt, envars)
 
+    model_label = str(model_label or "")
     if not result:
-        return [df_file, question, None, None]
+        return [df_file, question, model_label, "", ""]
 
     code, detail = extract_code(result)
     detail = detail or ("" if code else result.strip())
-    return [df_file, question, code.strip() if code else "", detail]
+    return [
+        df_file,
+        question,
+        model_label,
+        code.strip() if code else "",
+        detail,
+    ]
 
 
 def is_query_valid(query: Any) -> bool:
@@ -1254,8 +1277,8 @@ def toml_to_notebook(toml_data: Dict[str, Any], toml_path: Path) -> None:
 def save_query(module: Union[str, Path], query: List[Any], steps_file: Path) -> None:
     """Save the query to the steps file if valid."""
     if is_query_valid(query):
-        # Persist only D, Q, and C
-        query[-1], _ = save_step(module, query[1:4], query[0], query[-1], steps_file)
+        # Persist only D, Q, M, and C
+        query[-1], _ = save_step(module, query[1:5], query[0], query[-1], steps_file)
     export_df()
 
 
@@ -1267,8 +1290,8 @@ def save_step(
     steps_file: Path,
 ) -> Tuple[int, Dict[str, Any]]:
     """Save a step in the steps file."""
-    # Persist only D, Q, and C
-    fields = ["D", "Q", "C"]
+    # Persist only D, Q, M, and C
+    fields = ["D", "Q", "M", "C"]
     entry = {field: (query[i] if i < len(query) else "") for i, field in enumerate(fields)}
     # Normalize types
     try:
@@ -1317,7 +1340,7 @@ def on_nb_change(
     env: AgiEnv,
 ) -> None:
     """Handle notebook interaction and run notebook if possible."""
-    save_step(module, query[1:4], query[0], query[-1], file_step_path)
+    save_step(module, query[1:5], query[0], query[-1], file_step_path)
     project_path = env.apps_dir / project
     if notebook_file.exists():
         cmd = f"uv -q run jupyter notebook {notebook_file}"
@@ -1772,6 +1795,10 @@ def display_lab_tab(
     q_rev = st.session_state.get(f"{index_page_str}__q_rev", 0)
     prompt_key = f"{index_page_str}_q__{q_rev}"
 
+    active_model = str(query[3] or "").strip()
+    if active_model:
+        st.caption(f"Model: `{active_model}`")
+
     st.text_area(
         "Ask chatGPT:",
         key=prompt_key,
@@ -1790,10 +1817,10 @@ def display_lab_tab(
         label_visibility="collapsed",
     )
 
-    code_for_editor = (query[3] or "")
+    code_for_editor = (query[4] or "")
     detail_text = ""
-    if len(query) > 4 and query[4]:
-        detail_text = str(query[4]).strip()
+    if len(query) > 5 and query[5]:
+        detail_text = str(query[5]).strip()
 
     if detail_text:
         if code_for_editor:
@@ -1829,17 +1856,17 @@ def display_lab_tab(
             st.rerun()
             return
     elif action == "save":
-        query[3] = snippet_dict["text"]
+        query[4] = snippet_dict["text"]
         save_query(lab_dir, query, steps_file)
     elif action == "next":
-        query[3] = snippet_dict["text"]
+        query[4] = snippet_dict["text"]
         # Save current step
         save_query(lab_dir, query, steps_file)
         current_idx = int(query[0])
         nsteps_now = int(query[-1] or 0)
         # If we were on the last step, append a new blank step so the new button renders
         if current_idx >= max(0, nsteps_now - 1):
-            new_nsteps, _ = save_step(lab_dir, ["", "", ""], current_idx + 1, nsteps_now, steps_file)
+            new_nsteps, _ = save_step(lab_dir, ["", "", "", ""], current_idx + 1, nsteps_now, steps_file)
             query[-1] = new_nsteps
         # Advance to next step index if possible
         if query[0] < query[-1]:
@@ -1853,11 +1880,11 @@ def display_lab_tab(
         st.rerun()
         return
     elif action == "run":
-        query[3] = snippet_dict["text"]
+        query[4] = snippet_dict["text"]
         save_query(lab_dir, query, steps_file)
-        if query[3] and not st.session_state.get("step_checked", False):
+        if query[4] and not st.session_state.get("step_checked", False):
             run_lab(
-                query[1:-2],
+                [query[1], query[2], query[4]],
                 st.session_state["snippet_file"],
                 env.copilot_file,
             )
@@ -1935,7 +1962,7 @@ def page() -> None:
     steps_file.parent.mkdir(parents=True, exist_ok=True)
 
     nsteps = len(get_steps_list(lab_dir, steps_file))
-    st.session_state.setdefault(index_page_str, [nsteps, "", "", "", "", nsteps])
+    st.session_state.setdefault(index_page_str, [nsteps, "", "", "", "", "", nsteps])
     st.session_state.setdefault(f"{index_page_str}__details", {})
 
     module_path = st.session_state["module_path"]

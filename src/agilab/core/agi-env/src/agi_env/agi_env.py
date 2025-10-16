@@ -28,7 +28,6 @@ Notes on singleton and pre‑init behavior
   hard failures when the shared logger/environment has not been configured yet.
   Logging in that mode is best‑effort and may fall back to ``print``.
 """
-import shlex
 try:
     from IPython.core.ultratb import FormattedTB
 except Exception:  # Optional dependency; fallback if absent
@@ -38,6 +37,7 @@ import asyncio
 import getpass
 import os
 import re
+import shlex
 import shutil
 import psutil
 import socket
@@ -63,6 +63,7 @@ import importlib.resources as importlib_resources
 from concurrent.futures import ThreadPoolExecutor
 from threading import RLock
 from agi_env.agi_logger import AgiLogger
+from agi_env.defaults import get_default_openai_model
 import inspect as _inspect
 if FormattedTB is not None:
     # Get constructor parameters of FormattedTB
@@ -1339,7 +1340,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         self.CLUSTER_CREDENTIALS = envars.get("CLUSTER_CREDENTIALS", None)
         self.OPENAI_API_KEY = envars.get("OPENAI_API_KEY", None)
-        self.OPENAI_MODEL = envars.get("OPENAI_MODEL", 'gpt-4o-mini')
+        self.OPENAI_MODEL = envars.get("OPENAI_MODEL") or get_default_openai_model()
         AGILAB_LOG_ABS = Path(envars.get("AGI_LOG_DIR", self.home_abs / "log"))
         if not AGILAB_LOG_ABS.exists():
             AGILAB_LOG_ABS.mkdir(parents=True)
