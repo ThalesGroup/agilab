@@ -1,0 +1,42 @@
+{
+  "target_args": {
+    "data_source": "file",
+    "data_uri": "data/flight/dataset",
+    "files": "csv/*",
+    "nfile": 1,
+    "nskip": 0,
+    "nread": 0,
+    "sampling_rate": 10.0,
+    "datemin": "2020-01-01",
+    "datemax": "2021-01-01",
+    "output_format": "csv"
+  },
+  "workers": {
+    "127.0.0.1": 1
+  },
+  "work_plan_metadata": [
+    [
+      [
+        61,
+        2.222
+      ],
+      [
+        60,
+        0.727
+      ]
+    ]
+  ],
+  "work_plan": [
+    [
+      [
+        "data/flight/dataset/csv/61_6101.csv"
+      ],
+      [
+        "data/flight/dataset/csv/60_6003.csv"
+      ]
+    ]
+  ],
+  "partition_key": "plane",
+  "nb_unit": "files",
+  "weights_unit": "ko"
+}
