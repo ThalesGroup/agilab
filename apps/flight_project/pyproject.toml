@@ -1,0 +1,120 @@
+
+[project]
+name = "flight_project"
+version = "2025.10.15"
+description = "flight_project is an example of data project"
+requires-python = ">=3.11"
+readme = "README.md"
+authors = [
+    { name = "Jean-Pierre Morard", email = "focus@thalesgroup.com" }
+]
+dependencies = [
+    "numpy",
+    "geopy",
+    "setuptools",
+    "cython",
+    "parso",
+    "py7zr",
+    "python-dotenv",
+    "fastparquet",
+    "ipython",
+    "polars",
+    "psutil",
+    "scipy",
+    "astor",
+    "asyncssh",
+    "build",
+    "cmake>=3.29",
+    "geojson",
+    "humanize",
+    "jupyter-ai[all]",
+    "keras",
+    "matplotlib",
+    "mlflow",
+    "networkx",
+    "numba",
+    "numpy>=1.14.1",
+    "openai",
+    "pathspec",
+    "pip",
+    "plotly",
+    "seaborn",
+    "scipy==1.15.2",
+    "streamlit",
+    "streamlit-modal",
+    "streamlit_code_editor",
+    "streamlit_extras",
+    "tomli",
+    "tomli_w",
+    "twine",
+    "watchdog",
+    "wheel",
+    "legacy-cgi",
+    "standard-imghdr",
+    "pydantic",
+    "tomlkit",
+    "scikit-learn",
+    "msgpack",
+    "dask[distributed]",
+    "typing-inspection>=0.4.1",
+    "pandas",
+    "jupyter",
+    "mypy",
+    "requests",
+    "scp",
+]
+
+[project.license]
+text = "Thales SIX GTS France SAS"
+
+[project.optional-dependencies]
+polars-worker = []
+
+
+[dependency-groups]
+dev = [
+    "black",
+    "pytest",
+    "pytest-cov",
+    "pytest-local-badge",
+    "pytest-asyncio",
+    "licensecheck",
+    "flight_project",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv.sources.flight_project]
+workspace = true
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+flight_project = [
+    "**/*.ipynb",
+    "**/*.json",
+    "**/*.toml",
+]
+
+[tool.mypy]
+mypy_path = [
+    "stubs",
+]
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+# Where your tests live for this project
+testpaths = ["test"]
+
+# Prefer auto so async tests don't need @pytest.mark.asyncio
+asyncio_mode = "auto"
+
+# Quiet known third-party deprecations
+filterwarnings = [
+    "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
+    "ignore:.*Theme names and color schemes are lowercase in IPython 9.0.*:DeprecationWarning:IPython\\.core\\.ultratb",
+]
