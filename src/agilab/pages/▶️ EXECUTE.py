@@ -936,7 +936,7 @@ if __name__ == "__main__":
             if st.button("INSTALL", key="install_btn", type="primary",
                          help="Run the install snippet to set up your .venv for Manager and Worker"):
                 clear_log()
-                venv = env.cluster_root if (env.is_source_env or env.is_worker_env) else env.active_app.parents[1]
+                venv = env.agi_cluster if (env.is_source_env or env.is_worker_env) else env.active_app.parents[1]
                 install_command = cmd.replace("asyncio.run(main())", env.snippet_tail)
                 context_lines = [
                     "=== Install request ===",
