@@ -24,7 +24,44 @@ keywords = [
     "dataset", "load balancing", "gen ai", "copilot", "agi",
     "pycharm", "datascience"
 ]
-dependencies = ["astor", "asyncssh", "build", "cmake>=3.29", "fastparquet", "geojson", "humanize", "jupyter-ai[all]", "keras", "matplotlib", "mlflow", "networkx", "numba", "numpy>=1.14.1", "openai", "pathspec", "pip", "plotly", "polars", "py7zr", "seaborn", "setuptools", "scipy==1.15.2", "streamlit", "streamlit-modal", "streamlit_code_editor", "streamlit_extras", "tomli", "tomli_w", "twine", "watchdog", "wheel", "agi-core==2025.10.09", "legacy-cgi; python_version >= '3.13'", "standard-imghdr; python_version >= '3.13'"]
+dependencies = [
+    "astor",
+    "asyncssh",
+    "build",
+    "cmake>=3.29",
+    "fastparquet",
+    "geojson",
+    "humanize",
+    "jupyter-ai[all]",
+    "keras",
+    "matplotlib",
+    "mlflow",
+    "networkx",
+    "numba",
+    "numpy>=1.14.1",
+    "openai",
+    "pathspec",
+    "pip",
+    "plotly",
+    "polars",
+    "py7zr",
+    "seaborn",
+    "setuptools",
+    "scipy==1.15.2",
+    "streamlit",
+    "streamlit-modal",
+    "streamlit_code_editor",
+    "streamlit_extras",
+    "tomli",
+    "tomli_w",
+    "twine",
+    "watchdog",
+    "wheel",
+    "agi-core==2025.10.09",
+    "legacy-cgi; python_version >= '3.13'",
+    "standard-imghdr; python_version >= '3.13'",
+    "ansi2html>=1.9.2",
+]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
