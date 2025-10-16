@@ -12,7 +12,7 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """Cluster workplan utilities for distributing AGILab workloads."""
 import traceback
-from typing import Tuple, Set  # Ajoute Tuple et Set
+from typing import List, Optional, Tuple, Set  # Ajoute Tuple et Set
 from IPython.lib import backgroundjobs as bg
 import asyncio
 import getpass
@@ -290,16 +290,20 @@ class AGI:
                 return
 
             except ConnectionError as e:
-                logger.error(f"failed to connect \n{e}")
-                return
+                message = str(e).strip() or "Failed to connect to remote host."
+                logger.info(message)
+                print(message, file=sys.stderr, flush=True)
+                return {"status": "error", "message": message, "kind": "connection"}
 
             except ModuleNotFoundError as e:
                 logger.error(f"failed to load module \n{e}")
                 return
 
             except Exception as err:
-                logger.error(f"Unhandled exception in AGI.run: {err}", exc_info=True)
-                logger.info(traceback.format_exc())
+                message = _format_exception_chain(err)
+                logger.error(f"Unhandled exception in AGI.run: {message}")
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug("Traceback:\n%s", traceback.format_exc())
 
     @staticmethod
     async def serve(
@@ -1103,6 +1107,8 @@ class AGI:
             try:
                 await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} --version")
                 await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} self update")
+            except ConnectionError:
+                raise
             except Exception:
                 uv_is_installed = False
                 # Try Windows installer
@@ -1111,6 +1117,8 @@ class AGI:
                                        'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"'
                                        )
                     uv_is_installed = True
+                except ConnectionError:
+                    raise
                 except Exception:
                     uv_is_installed = False
                     # Fallback to Unix installer
@@ -2691,35 +2699,47 @@ class AGI:
 
         except asyncio.TimeoutError:
             err_msg = f"Connection to {ip} timed out after {timeout_sec} seconds."
-            logger.error(err_msg)
-            raise
+            logger.warning(err_msg)
+            raise ConnectionError(err_msg) from None
 
         except asyncssh.PermissionDenied:
             err_msg = f"Authentication failed for SSH user '{env.user}' on host {ip}."
             logger.error(err_msg)
-            raise
+            raise ConnectionError(err_msg) from None
 
         except OSError as e:
-            if e.errno == errno.EHOSTUNREACH:
+            original = str(e).strip() or repr(e)
+            if e.errno in {
+                errno.EHOSTUNREACH,
+                errno.ENETUNREACH,
+                getattr(errno, "EHOSTDOWN", None),
+                getattr(errno, "ENETDOWN", None),
+                getattr(errno, "ETIMEDOUT", None),
+            }:
                 err_msg = (
                     f"Unable to connect to {ip} on SSH port 22. "
                     "Please check that the device is powered on, network cable connected, and SSH service running."
                 )
-                raise ConnectionError(err_msg)
-            elif e.errno in (errno.EACCES, errno.ECONNREFUSED):
-                logger.error(str(e))
+                if original:
+                    err_msg = f"{err_msg} (details: {original})"
+                logger.info(err_msg)
             else:
-                logger.error(str(e))
-            raise
+                err_msg = original
+                logger.error(err_msg)
+            raise ConnectionError(err_msg) from None
 
         except asyncssh.Error as e:
-            logger.error(e.command if hasattr(e, 'command') else "No command attribute")
-            logger.error(e)
-            raise
+            base_msg = str(e).strip() or repr(e)
+            cmd = getattr(e, "command", None)
+            if cmd:
+                logger.error(cmd)
+            logger.error(base_msg)
+            raise ConnectionError(base_msg) from None
 
         except Exception as e:
-            logger.error(f"Unexpected error while connecting to {ip}: {e}")
-            raise
+            err_msg = f"Unexpected error while connecting to {ip}: {e}"
+            logger.error(err_msg)
+            raise ConnectionError(err_msg) from None
 
     @staticmethod
     async def exec_ssh(ip: str, cmd: str) -> str:
@@ -2756,8 +2776,10 @@ class AGI:
             raise
 
         except (asyncssh.Error, OSError) as e:
-            logger.error(e)
-            raise
+            msg = str(e).strip() or repr(e)
+            friendly = f"Connection to {ip} failed: {msg}"
+            logger.info(friendly)
+            raise ConnectionError(friendly) from None
 
     @staticmethod
     async def exec_ssh_async(ip: str, cmd: str) -> str:
@@ -2791,3 +2813,30 @@ class AGI:
             conn.close()
             await conn.wait_closed()
         AGI._ssh_connections.clear()
+
+
+def _format_exception_chain(exc: BaseException) -> str:
+    """Return a compact representation of the exception chain, capturing root causes."""
+    messages: List[str] = []
+    visited = set()
+    current: Optional[BaseException] = exc
+
+    while current and id(current) not in visited:
+        visited.add(id(current))
+        tb_exc = traceback.TracebackException.from_exception(current)
+        text = "".join(tb_exc.format_exception_only()).strip()
+        if not text:
+            text = f"{current.__class__.__name__}: {current}"
+        if text and text not in messages:
+            messages.append(text)
+
+        if current.__cause__ is not None:
+            current = current.__cause__
+        elif current.__context__ is not None and not getattr(current, "__suppress_context__", False):
+            current = current.__context__
+        else:
+            break
+
+    if not messages:
+        return str(exc).strip() or repr(exc)
+    return " -> ".join(messages)
