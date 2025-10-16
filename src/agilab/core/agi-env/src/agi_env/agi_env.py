@@ -1648,7 +1648,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     continue
                 safe = text.encode(enc, errors="replace").decode(enc)
                 plain = AgiLogger.decolorize(safe)
-                msg = strip_time_level_prefix(plain)
+                msg = strip_time_level_prefix(safe)
                 try:
                     callback(msg, extra={"subprocess": True})
                 except TypeError:
