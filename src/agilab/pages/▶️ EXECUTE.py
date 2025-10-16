@@ -24,6 +24,7 @@ from collections import defaultdict
 import tomli         # For reading TOML files
 import tomli_w       # For writing TOML files
 import pandas as pd
+from ansi2html import Ansi2HTMLConverter
 # Theme configuration
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
@@ -34,6 +35,8 @@ from agi_env.pagelib import (
 )
 
 from agi_env import AgiEnv
+
+
 
 # ===========================
 # Session State Initialization
@@ -57,62 +60,79 @@ def clear_log():
     """
     st.session_state["log_text"] = ""
 
+_ansi_conv = Ansi2HTMLConverter(inline=True)
+
+import re
+import streamlit as st
+from ansi2html import Ansi2HTMLConverter
+
+_ansi_conv = Ansi2HTMLConverter(inline=True)
+
+def ansi_to_html_block(ansi_text: str) -> str:
+    """Convert ANSI or \\e[...] colored text to a styled HTML <div> block."""
+    if not ansi_text:
+        return ""
+    ansi_text = re.sub(r'\\e\[(?=\d)', '\x1b[', ansi_text)
+    html_body = _ansi_conv.convert(ansi_text, full=False)
+    html_body = html_body.replace("\n", "<br>")
+    return f"""
+<div style="
+  padding:12px;
+  border-radius:8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.4;
+  max-height: 500px;
+  overflow-y: auto;
+  white-space: pre;
+">{html_body}</div>
+"""
+
 def update_log(live_log_placeholder, message, max_lines=1000):
-    """
-    Append a cleaned message to the accumulated log and update the live display.
-    Keeps only the last max_lines lines in the log.
-    """
     if "log_text" not in st.session_state:
         st.session_state["log_text"] = ""
 
-    clean_msg = strip_ansi(message).rstrip()
-    if clean_msg:
-        st.session_state["log_text"] += clean_msg + "\n"
+    if message:
+        message = re.sub(r'\\e\[(?=\d)', '\x1b[', message)
 
-    # Keep only last max_lines lines to avoid huge memory/logs
+    st.session_state["log_text"] += (message or "") + "\n"
+
     lines = st.session_state["log_text"].splitlines()
     if len(lines) > max_lines:
-        lines = lines[-max_lines:]
-        st.session_state["log_text"] = "\n".join(lines) + "\n"
+        st.session_state["log_text"] = "\n".join(lines[-max_lines:]) + "\n"
 
-    # Calculate height in pixels roughly: 20px per line, capped at 500px
-    height_px = min(20 * len(lines), 500)
+    raw_text = st.session_state["log_text"]
+    has_ansi = "\x1b[" in raw_text
 
-    live_log_placeholder.code(st.session_state["log_text"], language="python", height=height_px)
-
-
-
-def strip_ansi(text: str) -> str:
-    if not text:
-        return ""
-    ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
-    return ansi_escape.sub('', text)
-
+    if has_ansi:
+        html_block = ansi_to_html_block(raw_text)
+        live_log_placeholder.markdown(html_block, unsafe_allow_html=True)
+    else:
+        height_px = min(20 * max(1, len(lines)), 500)
+        live_log_placeholder.markdown(raw_text)
 
 def display_log(stdout, stderr):
     # Use cached log if stdout empty
     if not stdout.strip() and "log_text" in st.session_state:
         stdout = st.session_state["log_text"]
 
-    # Strip ANSI color codes from both stdout and stderr
-    # Strip ANSI color codes before any processing
-    clean_stdout = strip_ansi(stdout or "")
-    clean_stderr = strip_ansi(stderr or "")
-
     # Clean up extra blank lines
-    clean_stdout = "\n".join(line for line in clean_stdout.splitlines() if line.strip())
-    clean_stderr = "\n".join(line for line in clean_stderr.splitlines() if line.strip())
+    clean_stdout = "\n".join(line for line in stdout.splitlines() if line.strip())
+    clean_stderr = "\n".join(line for line in stderr.splitlines() if line.strip())
 
     combined = "\n".join([clean_stdout, clean_stderr]).strip()
 
     if "warning:" in combined.lower():
         st.warning("Warnings occurred during cluster installation:")
-        st.code(combined, language="python", height=400)
+        colored_combined = ansi_to_html_block(combined)
+        st.markdown(colored_combined, unsafe_allow_html=True)
     elif clean_stderr:
         st.error("Errors occurred during cluster installation:")
-        st.code(clean_stderr, language="python", height=400)
+        colored_errors = ansi_to_html_block(clean_stderr)
+        st.markdown(colored_errors, unsafe_allow_html=True)
     else:
-        st.code(clean_stdout or "No logs available", language="python", height=400)
+        colored_out = ansi_to_html_block(clean_stdout or "No logs available")
+        st.markdown(colored_out, unsafe_allow_html=True)
 
 
 def parse_benchmark(benchmark_str):
@@ -950,7 +970,8 @@ if __name__ == "__main__":
                 log_placeholder = st.empty()
                 existing_log = st.session_state.get("log_text", "").strip()
                 if existing_log:
-                    log_placeholder.code(existing_log, language="python")
+                    colored_logs = ansi_to_html_block(existing_log)
+                    log_placeholder.markdown(colored_logs, unsafe_allow_html=True)
             if st.button("INSTALL", key="install_btn", type="primary",
                          help="Run the install snippet to set up your .venv for Manager and Worker"):
                 clear_log()
@@ -1226,7 +1247,7 @@ if __name__ == "__main__":
             run_log_expander = st.expander("Run logs", expanded=False)
             with run_log_expander:
                 run_log_placeholder = st.empty()
-                run_log_placeholder.code(existing_run_log, language="python")
+                run_log_placeholder.code(existing_run_log)
 
         run_col, load_col = st.columns(2)
         run_clicked = False
