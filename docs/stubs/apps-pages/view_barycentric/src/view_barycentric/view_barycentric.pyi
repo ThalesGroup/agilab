@@ -10,6 +10,7 @@ from barviz import Simplex, Collection, Scrawler, Attributes
 from math import sqrt, cos, sin
 import streamlit as st
 from sklearn.preprocessing import StandardScaler
+from scipy.signal import savgol_filter
 import argparse
 from agi_env import AgiEnv
 from agi_env.pagelib import sidebar_views, find_files, load_df, on_project_change, select_project, JumpToMain, update_datadir, \
@@ -32,6 +33,8 @@ class ModifiedSimplex(Simplex):
     def __create_simplex_points(self, *args: Any, **kwargs: Any) -> Any: ...
 
 def __normalize_data(*args: Any, **kwargs: Any) -> Any: ...
+
+def _maybe_smooth_long_column(*args: Any, **kwargs: Any) -> Any: ...
 
 def __bary_visualisation(*args: Any, **kwargs: Any) -> Any: ...
 

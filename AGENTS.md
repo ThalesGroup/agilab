@@ -1,73 +1,86 @@
-# AGILab Run & Troubleshooting Checklist
+# AGILab Agent Runbook
 
-Use this runbook to launch, validate, and troubleshoot AGILab flows from a single
-place. The sections mirror the IDE run configurations so you can copy commands
-directly into a shell or Streamlit page. After changing anything under
-`.idea/runConfigurations`, regenerate the table below so everyone executes the
-same instructions.
+AGILab ships with a curated set of run configurations, CLI wrappers, and automation
+scripts that let GPT-5 Codex and human operators work from the same playbook. This
+document mirrors the Spec Kit style guide so every agent—manual or autonomous—follows
+consistent launch, validation, and troubleshooting steps.
 
-Note: AGILab workflows and this checklist assume PyCharm IDE. Most commands can be run manually, but the recommended path is via PyCharm run configurations.
+Use this runbook whenever you:
+- Launch Streamlit or CLI flows from PyCharm run configurations.
+- Regenerate agent/CLI wrappers after editing `.idea/runConfigurations`.
+- Diagnose install or cluster issues reported by AGI agents or end users.
 
-> **uv everywhere**
-> Always invoke Python entry points through `uv` (for example, `uv run python …` or `uv run streamlit …`) so dependencies resolve against the managed environments that ship with the project.
+> **Keep this file current.** Update it alongside any run configuration,
+> environment variable, or Streamlit change. CI, support, reviewers, and downstream
+> agents rely on it for reproducible workflows.
 
-> **CLI wrappers stay synced**
-> Whenever `.idea/runConfigurations/*.xml` changes, immediately regenerate `tools/run_configs/` via `uv run python tools/generate_runconfig_scripts.py` and commit the result so CLI launchers match the IDE.
+---
 
-> **Tip**
-> Update this document whenever a run config, environment variable, or Streamlit
-> control changes. CI, reviewers, and support rely on it for reproduction steps.
->
-> **Model compatibility check**
-> When reviewing or updating flows with GPT-5 Codex agents, confirm they do **not** rely on
-> deprecated Streamlit APIs such as `st.experimental_rerun()`. Upgrade callers to the
-> supported replacement (`st.rerun`) before merging.
+## General practices
 
-> **No silent fallbacks**
-> Avoid introducing automatic client/API fallbacks (e.g., silently switching between
-> `chat.completions` and `responses`, or altering parameter names at runtime). Prefer
-> detecting model capability up-front and failing fast with a clear, actionable error
-> for the user. Hidden fallbacks make behavior hard to reproduce and can mask config
-> or model‑selection mistakes.
+- **uv everywhere**: Invoke Python entry points through `uv` (`uv run python …`,
+  `uv run streamlit …`) so dependencies resolve inside the managed environments that
+  ship with AGILab.
+- **Run config parity**: After touching `.idea/runConfigurations/*.xml`, regenerate
+  the CLI wrappers with `uv run python tools/generate_runconfig_scripts.py` and commit
+  the results (`tools/run_configs/`).
+- **Model compatibility**: When working with GPT-5 Codex agents, confirm no new code
+  calls deprecated Streamlit APIs like `st.experimental_rerun()`. Always migrate to
+  `st.rerun` before merging.
+- **No silent fallbacks**: Do not introduce automatic API client fallbacks
+  (`chat.completions` ↔ `responses`, runtime parameter rewrites, etc.). Detect missing
+  capabilities up-front and fail with a clear, actionable error.
+- **Installer hygiene**: The end-user installer guarantees `pip` inside
+  `~/agi-space/.venv` and uses `uv pip` afterwards. If an install reports
+  `No module named pip`, rerun the latest installer or execute
+  `uv run python -m ensurepip --upgrade` once in `~/agi-space`.
+- **Private app symlinks**: Keep private repositories at the path recorded in
+  `~/.local/share/agilab/.env`. The installer auto-creates symlinks so missing workers
+  resolve without manual action.
+- **Runtime isolation**: Anything launched from `~/agi-space` must assume the upstream
+  `~/agilab` checkout is absent. Agents can only reference packaged assets inside the
+  virtual environment—never repository-relative paths.
+- **Shared build tooling**: All packaging routes through
+  `python -m agi_node.agi_dispatcher.build --app-path …`. Per-app `build.py` helpers
+  are deprecated.
+- **Hook consolidation**: Worker `pre_install`/`post_install` logic lives in
+  `agi_node.agi_dispatcher.{pre_install,post_install}`. Add lightweight wrappers near
+  the worker if custom behavior is required.
+- **AgiEnv lifecycle**: `AgiEnv` is a singleton. Treat instance attributes as the
+  source of truth. Helpers like `set_env_var`, `read_agilab_path`, `_build_env`, and
+  `log_info` are pre-init safe; avoid relying on class attributes before instantiating
+  `AgiEnv()`.
+- **App constructor kwargs**: App constructors ignore unknown kwargs when building
+  their Pydantic `Args` models. Keep runtime verbosity and logging decisions in
+  `AgiEnv(verbose=…)` or logging configs, not app `Args`.
 
-> **Installer pip bootstrapping**
-> The end‑user installer now ensures `pip` is available inside the `~/agi-space/.venv` and
-> uses `uv pip` for subsequent installs. If you hit `No module named pip` during end‑user
-> setup, update to the latest scripts and rerun the install; alternatively run
-> `uv run python -m ensurepip --upgrade` once in `~/agi-space`.
+---
 
-> **Private apps auto-link**
-> The installer now creates symlinks to the private app checkout on demand. Keep the
-> private repository at the path recorded in `~/.local/share/agilab/.env` so missing
-> workers are resolved automatically.
+## Agent workflows and maintenance
 
-> **Runtime isolation reminder**
-> When you launch flows inside `~/agi-space`, assume the upstream `~/agilab` checkout is
-> absent. Agents and scripts must rely solely on the packaged assets inside the virtual
-> environment; never reference repository-relative paths at runtime.
+### 1. Update or add run configurations
+1. Edit the PyCharm run configuration (`.idea/runConfigurations/*.xml`).
+2. Regenerate CLI wrappers: `uv run python tools/generate_runconfig_scripts.py`.
+3. Verify the generated scripts under `tools/run_configs/` and commit the changes.
+4. Update the launch matrix in this document when new configs appear.
 
-> **Shared build module**
-> All packaging invocations go through `python -m agi_node.agi_dispatcher.build --app-path …`.
-> References to per-app `build.py` helpers are obsolete.
+### 2. Launch flows
+- **PyCharm (recommended)**: Use the run configurations defined in the launch matrix.
+- **CLI mirror**: Copy the `How to run` command from the matrix into a shell for quick
+  reproduction outside the IDE.
+- **Streamlit UI**: Use Streamlit commands from the matrix to align with agent-driven
+  flows.
 
-> **Pre/Post install hooks**
-> Worker `pre_install`/`post_install` logic lives in the shared
-> `agi_node.agi_dispatcher.{pre_install,post_install}` modules. Packaging invokes
-> them automatically via `python -m …`. If an app needs custom behavior, drop a
-> small wrapper alongside the worker that imports and extends the shared module.
+### 3. Troubleshoot installs and cluster runs
+1. Re-run the relevant config while tailing logs via the Streamlit expander or CLI.
+2. Check for connectivity issues (e.g., unreachable SSH hosts): the orchestrator emits
+  concise warnings without full tracebacks.
+3. Confirm `uv` executables exist on remote hosts before reattempting distributed
+  installs.
+4. Document fixes or new failure modes in this runbook so future agents can respond
+  consistently.
 
-> **AgiEnv singleton + pre‑init**
-> `AgiEnv` is a true singleton. Instance attributes are the source of truth; class
-> attribute reads proxy to the singleton when it exists. Some helpers (`set_env_var`,
-> `read_agilab_path`, `_build_env`, `log_info`) are pre‑init safe and avoid hard failures
-> if called before the environment is bootstrapped. Do not rely on class attributes being
-> populated before creating `AgiEnv()`.
-
-> **App constructor kwargs**
-> App constructors now ignore unknown kwargs when building their Pydantic `Args` models
-> (templates + flight_project). This preserves strict validation while making constructors
-> resilient to incidental extras. Prefer passing runtime verbosity to `AgiEnv(verbose=…)`
-> or your logging config, not app `Args`.
+---
 
 <details>
 <summary><strong>Launch matrix (auto-sorted from .idea/runConfigurations)</strong></summary>
