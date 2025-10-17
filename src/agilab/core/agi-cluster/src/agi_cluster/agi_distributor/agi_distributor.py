@@ -17,6 +17,7 @@ from IPython.lib import backgroundjobs as bg
 import asyncio
 import getpass
 import io
+import platform
 import os
 import pickle
 import random
@@ -1135,8 +1136,7 @@ class AGI:
             cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
             uv = cmd_prefix + env.uv
 
-            cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
-            await AGI.exec_ssh(ip, cmd)
+            await AGI._ensure_remote_dir(ip, dist_rel)
 
             await AGI.exec_ssh(ip, f"{uv} python install {pyvers_worker}")
             await AGI.send_files(env, ip, [env.cluster_pck / "agi_distributor/cli.py"],
@@ -1684,8 +1684,7 @@ class AGI:
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         uv = cmd_prefix + env.uv_worker
 
-        cmd = f"{uv} run -p {pyvers} python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
-        await AGI.exec_ssh(ip, cmd)
+        await AGI._ensure_remote_dir(ip, dist_rel)
 
         # Then send the files to the remote directory
         try:
@@ -1986,8 +1985,7 @@ class AGI:
                     logger.info(result)
             else:
                 # Create remote directory
-                cmd = f"{env.uv} run --no-sync python -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
-                await AGI.exec_ssh(AGI._scheduler_ip, cmd)
+                await AGI._ensure_remote_dir(AGI._scheduler_ip, wenv_rel)
 
                 toml_wenv = wenv_rel / "pyproject.toml"
                 await AGI.send_file(AGI._scheduler_ip, toml_local, toml_wenv)
@@ -2019,6 +2017,7 @@ class AGI:
     @staticmethod
     async def _detect_export_cmd(ip: str) -> Optional[str]:
         if AgiEnv.is_local(ip):
+            AgiEnv.set_env_var(f"{ip}_OS_ID", platform.system())
             return AgiEnv.export_local_bin
 
         # probe remote OS via SSH
@@ -2026,11 +2025,35 @@ class AGI:
             os_id = await AGI.exec_ssh(ip, "uname -s")
         except Exception:
             os_id = ''
+        os_id = os_id.strip()
+        AgiEnv.set_env_var(f"{ip}_OS_ID", os_id)
 
         if any(x in os_id for x in ('Linux', 'Darwin', 'BSD')):
             return 'export PATH="~/.local/bin:$PATH";'
         else:
             return ""  # 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
+
+    @staticmethod
+    async def _ensure_remote_dir(ip: str, rel_path: Path) -> None:
+        """Ensure that ``rel_path`` exists on the given host."""
+        env = AGI.env
+
+        if env.is_local(ip):
+            target = env.home_abs / rel_path
+            target.mkdir(parents=True, exist_ok=True)
+            return
+
+        cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
+        os_id = (env.envars.get(f"{ip}_OS_ID") or "").upper()
+        path_str = str(rel_path).replace("\\", "/")
+
+        if "WIN" in os_id or "MINGW" in os_id:  # Windows hosts
+            win_path = str(rel_path).replace("/", "\\")
+            cmd = f'{cmd_prefix}powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path \"{win_path}\""'
+        else:  # POSIX hosts
+            cmd = f'{cmd_prefix}mkdir -p "{path_str}"'
+
+        await AGI.exec_ssh(ip, cmd)
 
     @staticmethod
     async def _start(scheduler: Optional[str]) -> bool:
