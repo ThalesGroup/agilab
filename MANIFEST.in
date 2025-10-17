@@ -6,6 +6,8 @@ graft src/resources
 prune build
 prune dist
 prune .idea
+prune src/agilab/apps/*/build
+prune src/agilab/apps/*/dist
 
 # Exclude any files inside ANY directory named ".venv" (any depth)
 global-exclude **/.venv/**
@@ -13,4 +15,3 @@ global-exclude **/__pycache__/**
 global-exclude **/.pytest_cache/**
 global-exclude **/node_modules/**
 global-exclude **/*~ **/*.py[cod] **/.DS_Store
-

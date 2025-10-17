@@ -1,4 +1,5 @@
 [project]
+version = "2025.10.17"
 name = "agi-node"
 description = "agi-node the local code for AGI framework"
 requires-python = ">=3.11"
@@ -57,50 +58,10 @@ dependencies = [
     "cmake>=3.29",
 ]
 
-version = "2025.10.09"
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/core/agi-node"
 Tracker = "https://github.com/ThalesGroup/agilab/issues"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
