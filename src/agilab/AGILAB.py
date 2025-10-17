@@ -103,7 +103,7 @@ def page(env):
     st.markdown(
         f"""
     <div class='footer' style="display: flex; justify-content: flex-end;">
-        <span>&copy; 2020-{current_year} Thales SIX GTS. All rights reserved.</span>
+        <span>&copy; 2020-{current_year} Thales SIX GTS. Licensed under the BSD 3-Clause License.</span>
     </div>
     """,
         unsafe_allow_html=True,
