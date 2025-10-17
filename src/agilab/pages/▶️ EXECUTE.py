@@ -68,12 +68,15 @@ ANSI_ESCAPE_RE = re.compile(r"\x1B[@-_][0-?]*[ -/]*[@-~]")
 
 
 def strip_ansi(text: str) -> str:
-    return ANSI_ESCAPE_RE.sub("", text or "")
+    if not text:
+        return ''
+    return ANSI_ESCAPE_RE.sub('', text)
 
 def ansi_to_html_block(ansi_text: str) -> str:
     """Convert ANSI or \\e[...] colored text to a styled HTML <div> block."""
     if not ansi_text:
         return ""
+    ansi_text = ansi_text.replace("\r", "")
     ansi_text = re.sub(r'\\e\[(?=\d)', '\x1b[', ansi_text)
     html_body = _ansi_conv.convert(ansi_text, full=False)
     html_body = html_body.replace("\n", "<br>")
@@ -95,6 +98,7 @@ def update_log(live_log_placeholder, message, max_lines=1000):
         st.session_state["log_text"] = ""
 
     if message:
+        message = message.replace("\r", "")
         message = re.sub(r'\\e\[(?=\d)', '\x1b[', message)
 
     st.session_state["log_text"] += (message or "") + "\n"
@@ -117,8 +121,8 @@ def display_log(stdout, stderr):
     # Use cached log if stdout empty
     if not stdout.strip() and "log_text" in st.session_state:
         stdout = st.session_state["log_text"]
-    raw_stdout = stdout or ""
-    raw_stderr = stderr or ""
+    raw_stdout = (stdout or '').replace('\r', '')
+    raw_stderr = (stderr or '').replace('\r', '')
 
     plain_stdout = strip_ansi(raw_stdout)
     plain_stderr = strip_ansi(raw_stderr)
