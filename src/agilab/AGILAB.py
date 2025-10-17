@@ -1,6 +1,6 @@
 # BSD 3-Clause License
 # Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
-# Licensed under the BSD 3-Clause License. See LICENSE for details.
+# All rights reserved.
 # Co-author: Codex 0.42.0
 """Streamlit entry point for the AGILab interactive lab."""
 import os
@@ -103,7 +103,7 @@ def page(env):
     st.markdown(
         f"""
     <div class='footer' style="display: flex; justify-content: flex-end;">
-        <span>&copy; 2020-{current_year} Thales SIX GTS. Licensed under the BSD 3-Clause License.</span>
+        <span>&copy; 2020-{current_year} Thales SIX GTS. All rights reserved.</span>
     </div>
     """,
         unsafe_allow_html=True,
