@@ -130,13 +130,17 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
     pck_src = pck.replace('.', '/')            # -> Path("agi-core")/"workers"/"node"
     # extract "core" from "agi-core"
     pck_root = pck.split('.')[0]
-    src_abs = env.node_root / "src/agi_node" / pck_src
+    node_path = Path("src/agi_node")
+    src_abs = env.agi_node / node_path / pck_src
     if pck_root == "agi_env":
-        src_abs = env.env_src / pck_src
+        src_abs = env.agi_env / pck_src
+        dest = Path("src") / pck_src
     elif pck_root == env.target_worker:
         src_abs = env.app_src / pck_src
+        dest = Path("src") / pck_src
+    else:
+        dest = node_path / pck_src
 
-    dest = Path('src') / pck_src
     created_links: list[Path] = []
     try:
         dest = dest.absolute()
@@ -305,6 +309,7 @@ def main(argv: list[str] | None = None) -> None:
         if sys.platform.startswith("win") and env.pyvers_worker[-1] == "t":
             define_macros.append(("Py_GIL_DISABLED", "1"))
 
+        os.makedirs(Path() /"Modules/_hacl", exist_ok=True)
         mod = Extension(
             name=f"{worker_module}_cy",
             sources=[str(src_rel)],
@@ -366,8 +371,8 @@ def main(argv: list[str] | None = None) -> None:
 
         worker_py = dest_src / worker_module / f"{worker_module}.py"
         cmd = (
-            f"uv -q run python \"{env.pre_install}\" remove_decorators "
-            f"--worker_path \"{env.worker_path}\" --verbose"
+            f"uv -q run python -m agi_node.agi_dispatcher.pre_install remove_decorators "
+            f"--worker_path '{env.worker_path}' --verbose"
         )
         AgiEnv.logger.info(f"Stripping decorators via:\n  {cmd}")
         os.system(cmd)

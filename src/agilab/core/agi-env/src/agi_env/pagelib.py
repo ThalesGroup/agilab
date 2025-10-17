@@ -61,6 +61,15 @@ custom_css = (
 )
 
 
+def is_valid_ip(ip: str) -> bool:
+    """Return ``True`` when ``ip`` is a syntactically valid IPv4 address."""
+
+    pattern = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
+    if pattern.match(ip):
+        parts = ip.split(".")
+        return all(0 <= int(part) <= 255 for part in parts)
+    return False
+
 class JumpToMain(Exception):
     """
     Custom exception to jump back to the main execution flow.
@@ -114,10 +123,10 @@ _LAST_DOCS_URL: Optional[str] = None
 def _resolve_docs_path(env, html_file: str) -> Path | None:
     """Return the first docs HTML path that exists for the requested file."""
     candidates = [
-        env.agilab_src.parent / "docs" / "build",
-        env.agilab_src.parent / "docs" / "html",
-        env.agilab_src / "docs" / "build",
-        env.agilab_src / "docs" / "html",
+        env.agilab_pck.parent / "docs" / "build",
+        env.agilab_pck.parent / "docs" / "html",
+        env.agilab_pck / "docs" / "build",
+        env.agilab_pck / "docs" / "html",
     ]
 
     for base in candidates:
@@ -125,7 +134,7 @@ def _resolve_docs_path(env, html_file: str) -> Path | None:
         if candidate.exists():
             return candidate
 
-    docs_root = env.agilab_src.parent / "docs"
+    docs_root = env.agilab_pck.parent / "docs"
     if docs_root.exists():
         matches = list(docs_root.rglob(html_file))
         if matches:
@@ -229,7 +238,7 @@ def _read_version_from_pyproject(env) -> str | None:
     try:
         if tomli is None:
             return None
-        root = getattr(env, "agilab_src", None)
+        root = getattr(env, "agilab_pck", None)
         py_paths: list[Path] = []
         if root:
             py_paths.append(Path(root) / "pyproject.toml")
@@ -280,7 +289,7 @@ def _detect_agilab_version(env) -> str:
             # Append a dev suffix with git metadata when available
             suffix = ""
             try:
-                repo = Path(getattr(env, "agilab_src", "."))
+                repo = Path(getattr(env, "agilab_pck", "."))
                 # Short SHA
                 sha = subprocess.run(
                     ["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
@@ -410,7 +419,7 @@ def get_templates():
     if templates_root.exists():
         candidates.extend(p.name for p in templates_root.iterdir() if p.is_dir())
 
-    agilab_templates = getattr(env, "agilab_src", None)
+    agilab_templates = getattr(env, "agilab_pck", None)
     if agilab_templates:
         agilab_templates = Path(agilab_templates) / "agilab/templates"
         if agilab_templates.exists():
@@ -837,7 +846,7 @@ def run_agi(code, path="."):
     with open(snippet_file, "w") as file:
         file.write(code)
 
-    if (path == env.env_root) or (env.app_abs / ".venv").exists():
+    if (path == env.agi_env) or (env.app_abs / ".venv").exists():
         return run_with_output(env, f"uv -q run python {snippet_file}", path)
     else:
         st.info("Please do an install first")
@@ -931,13 +940,14 @@ def load_df(path: Path, nrows=None, with_index=True):
 
     if path.is_dir():
         # Collect all CSV and Parquet files in the directory
-        files = list(path.rglob("*.csv")) + list(path.rglob("*.parquet"))
+        files = list(path.rglob("*.parquet")) + list(path.rglob("*.csv")) + list(path.rglob("*.json"))
         if not files:
             return None
 
-        # Separate Parquet and CSV files
+        # Separate Parquet, CSV, and JSON files
         parquet_files = [f for f in files if f.suffix == ".parquet"]
         csv_files = [f for f in files if f.suffix == ".csv"]
+        json_files = [f for f in files if f.suffix == ".json"]
 
         if parquet_files:
             # Concatenate all Parquet files with a default RangeIndex.
@@ -948,11 +958,18 @@ def load_df(path: Path, nrows=None, with_index=True):
                 pd.read_csv(f, nrows=nrows, encoding="utf-8", index_col=None)
                 for f in csv_files
             ], ignore_index=True)
+        elif json_files:
+            df = pd.concat([
+                pd.read_json(f, orient="records")
+                for f in json_files
+            ], ignore_index=True)
     elif path.is_file():
         if path.suffix == ".csv":
             df = pd.read_csv(path, nrows=nrows, encoding="utf-8", index_col=None)
         elif path.suffix == ".parquet":
             df = pd.read_parquet(path)
+        elif path.suffix == ".json":
+            df = pd.read_json(path, orient="records")
         else:
             return None
     else:
@@ -1013,6 +1030,11 @@ def save_csv(df, path: Path, sep=",") -> bool:
     path.parent.mkdir(parents=True, exist_ok=True)
     if df.shape[1] > 0:
         df.to_csv(path, sep=sep, index=False)
+        # Bust cached directory listings so dependent pages (Experiment, Explore) pick up new exports immediately.
+        try:
+            find_files.clear()
+        except Exception:
+            pass
         return True
     return False
 

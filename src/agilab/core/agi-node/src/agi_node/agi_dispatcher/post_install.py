@@ -38,12 +38,17 @@ def main(argv: list[str] | None = None) -> int:
     if len(args) not in (1, 2):
         _usage()
         return 1
+    if args[0][0]  != "/":
+        app_arg = Path.home() / "wenv" / args[0]
+    else:
+        app_arg = Path(args[0]).expanduser()
 
-    app_arg = Path(args[0]).expanduser()
     dest_arg = args[1] if len(args) == 2 else None
 
     env = _build_env(app_arg)
-    archive = Path(__file__).parent / "dataset.7z"
+    archive = app_arg / "src" / app_arg.name.replace("project", "worker") / "dataset.7z"
+    print("archive:", archive)
+    print("destination", dest_arg)
     env.unzip_data(archive, dest_arg)
     return 0
 

@@ -146,7 +146,7 @@ def main():
                                 default=None)
             parser.add_argument("--openai-api-key", type=str, help="OpenAI API key (optional; can also use OPENAI_API_KEY)", default=None)
             parser.add_argument("--apps-dir", type=str, help="Where you store your apps (default is ./)",
-                                default="apps")
+                                default=None)
 
             args, _ = parser.parse_known_args()
 

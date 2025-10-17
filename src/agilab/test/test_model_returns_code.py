@@ -1,7 +1,10 @@
 import os
 import re
 from pathlib import Path
+
 import pytest
+
+from agi_env.defaults import get_default_openai_model
 
 
 def _extract_fenced_code(text: str) -> str:
@@ -54,7 +57,7 @@ def test_model_returns_fenced_python_code_for_savgol():
     except Exception as exc:  # pragma: no cover - optional dependency in CI
         pytest.skip(f"openai SDK not available: {exc}")
 
-    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    model = os.getenv("OPENAI_MODEL") or get_default_openai_model()
 
     client = openai.OpenAI(api_key=api_key)
 

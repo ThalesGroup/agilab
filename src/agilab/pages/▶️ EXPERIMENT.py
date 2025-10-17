@@ -35,6 +35,7 @@ from agi_env.pagelib import (
     inject_theme,
 )
 from agi_env import AgiEnv, normalize_path
+from agi_env.defaults import get_default_openai_model
 
 # Constants
 STEPS_FILE_NAME = "lab_steps.toml"
@@ -80,7 +81,6 @@ def on_step_change(
     st.session_state.step_checked = False
     # Schedule prompt clear and blank on next render; bump input revision to remount widget
     st.session_state[f"{index_page}__clear_q"] = True
-    st.session_state[f"{index_page}__force_blank_q"] = True
     st.session_state[f"{index_page}__q_rev"] = st.session_state.get(f"{index_page}__q_rev", 0) + 1
     # Drop any existing editor instance state for this step (best-effort)
     st.session_state.pop(f"{index_page}_a_{index_step}", None)
@@ -104,9 +104,10 @@ def load_last_step(
             entry = all_steps[current_step] or {}
             d = entry.get("D", "")
             q = entry.get("Q", "")
+            m = entry.get("M", "")
             c = entry.get("C", "")
             detail = details_store.get(current_step, "")
-            st.session_state[index_page][1:5] = [d, q, c, detail]
+            st.session_state[index_page][1:6] = [d, q, m, c, detail]
             # Drive the text area via session state, using a revisioned key to control remounts
             q_rev = st.session_state.get(f"{index_page}__q_rev", 0)
             prompt_key = f"{index_page}_q__{q_rev}"
@@ -122,11 +123,190 @@ def load_last_step(
 def clean_query(index_page: str) -> None:
     """Reset the query fields in session state."""
     df_value = st.session_state.get("df_file", "") or ""
-    st.session_state[index_page][1:-1] = [df_value, "", "", ""]
+    st.session_state[index_page][1:-1] = [df_value, "", "", "", ""]
     details_store = st.session_state.setdefault(f"{index_page}__details", {})
     current_step = st.session_state[index_page][0] if index_page in st.session_state else None
     if current_step is not None:
         details_store.pop(current_step, None)
+
+
+def _persist_env_var(name: str, value: str) -> None:
+    """Persist a key/value pair under ~/.agilab/.env, replacing prior entries."""
+    from pathlib import Path
+
+    env_dir = Path.home() / ".agilab"
+    env_dir.mkdir(parents=True, exist_ok=True)
+    env_file = env_dir / ".env"
+    lines: List[str] = []
+    if env_file.exists():
+        lines = [
+            line
+            for line in env_file.read_text(encoding="utf-8").splitlines()
+            if not line.strip().startswith(f"{name}=")
+        ]
+    lines.append(f'{name}="{value}"')
+    env_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _prompt_for_openai_api_key(message: str) -> None:
+    """Prompt for a missing OpenAI API key and optionally persist it."""
+    st.warning(message)
+    default_val = st.session_state.get("openai_api_key", "")
+    with st.form("experiment_missing_openai_api_key"):
+        new_key = st.text_input(
+            "OpenAI API key",
+            value=default_val,
+            type="password",
+            help="Paste a valid OpenAI API token.",
+        )
+        save_profile = st.checkbox("Save to ~/.agilab/.env", value=True)
+        submitted = st.form_submit_button("Update key")
+
+    if submitted:
+        cleaned = new_key.strip()
+        if not cleaned:
+            st.error("API key cannot be empty.")
+        else:
+            try:
+                from agi_env import AgiEnv
+
+                AgiEnv.set_env_var("OPENAI_API_KEY", cleaned)
+            except Exception:
+                pass
+            env_obj = st.session_state.get("env")
+            if getattr(env_obj, "envars", None) is not None:
+                env_obj.envars["OPENAI_API_KEY"] = cleaned
+            st.session_state["openai_api_key"] = cleaned
+            if save_profile:
+                try:
+                    _persist_env_var("OPENAI_API_KEY", cleaned)
+                    st.success("API key saved to ~/.agilab/.env")
+                except Exception as exc:
+                    st.warning(f"Could not persist API key: {exc}")
+            else:
+                st.success("API key updated for this session.")
+            st.rerun()
+
+    st.stop()
+
+
+def _make_openai_client_and_model(envars: Dict[str, str], api_key: str):
+    """
+    Returns (client, model_name, is_azure). Supports:
+      - OpenAI (api.openai.com)
+      - Azure OpenAI (AZURE_OPENAI_ENDPOINT / AZURE_OPENAI_API_KEY / AZURE_OPENAI_API_VERSION)
+      - Proxies/gateways via OPENAI_BASE_URL
+    """
+    import os
+    from typing import Tuple
+
+    # Inputs from env or envars
+    base_url = (
+        envars.get("OPENAI_BASE_URL")
+        or os.getenv("OPENAI_BASE_URL")               # common proxy var
+        or os.getenv("OPENAI_API_BASE")               # legacy
+        or ""
+    )
+
+    azure_endpoint = (
+        envars.get("AZURE_OPENAI_ENDPOINT")
+        or os.getenv("AZURE_OPENAI_ENDPOINT")
+        or ""
+    )
+    azure_version = (
+        envars.get("AZURE_OPENAI_API_VERSION")
+        or os.getenv("AZURE_OPENAI_API_VERSION")
+        or "2024-06-01"  # safe default as of 2025
+    )
+    # Model/deployment name
+    model_name = (
+        envars.get("OPENAI_MODEL")
+        or os.getenv("OPENAI_MODEL")
+        or os.getenv("AZURE_OPENAI_DEPLOYMENT")  # for Azure deployments
+        or get_default_openai_model()
+    )
+
+    # Detect Azure vs OpenAI
+    is_azure = bool(azure_endpoint) or bool(os.getenv("OPENAI_API_TYPE") == "azure") or bool(os.getenv("AZURE_OPENAI_API_KEY"))
+
+    # Build client
+    try:
+        import openai
+        # Prefer new SDK “OpenAI/AzureOpenAI” if present
+        try:
+            from openai import OpenAI as OpenAIClient
+        except Exception:
+            OpenAIClient = getattr(openai, "OpenAI", None)
+
+        # Azure path
+        if is_azure:
+            try:
+                from openai import AzureOpenAI
+            except Exception:
+                AzureOpenAI = None
+
+            if AzureOpenAI is not None:
+                client = AzureOpenAI(
+                    api_key=api_key,
+                    azure_endpoint=azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT"),
+                    api_version=azure_version,
+                )
+                # For Azure, `model_name` must be the DEPLOYMENT name
+                model_name = (
+                    os.getenv("AZURE_OPENAI_DEPLOYMENT")
+                    or envars.get("AZURE_OPENAI_DEPLOYMENT")
+                    or model_name
+                )
+                return client, model_name, True
+            else:
+                # Fallback with base_url if azure client symbol isn’t available
+                # Many gateways expose OpenAI-compatible endpoints at a base_url.
+                endpoint = azure_endpoint.rstrip("/") + "/openai/deployments"
+                # If no direct compat layer, still attempt with base_url if provided
+                client = OpenAIClient(api_key=api_key, base_url=base_url or None) if OpenAIClient else None
+                return client, model_name, True
+
+        # Non-Azure path (OpenAI or proxy)
+        if OpenAIClient:
+            client_kwargs = {"api_key": api_key}
+            if base_url:
+                client_kwargs["base_url"] = base_url
+            client = OpenAIClient(**client_kwargs)
+            return client, model_name, False
+
+        # Old SDK fallback
+        openai.api_key = api_key
+        if base_url:
+            # Old SDK uses `openai.api_base`
+            openai.api_base = base_url
+        return openai, model_name, False
+
+    except Exception as e:
+        # Bubble up; caller handles a graceful error message.
+        raise
+
+
+def _ensure_cached_api_key(envars: Dict[str, str]) -> str:
+    """Seed from session, secrets, env, and Azure if present."""
+    cached = st.session_state.get("openai_api_key")
+    if cached:
+        return cached
+
+    secret = ""
+    try:
+        secret = st.secrets.get("OPENAI_API_KEY", "")
+    except Exception:
+        pass
+
+    candidate = (
+        secret
+        or envars.get("OPENAI_API_KEY")
+        or os.environ.get("OPENAI_API_KEY", "")
+        or os.environ.get("AZURE_OPENAI_API_KEY", "")  # Azure fallback
+    )
+    if candidate:
+        st.session_state["openai_api_key"] = candidate
+    return candidate
 
 
 @st.cache_data(show_spinner=False)
@@ -195,7 +375,8 @@ def on_query_change(
             answer = ask_gpt(
                 st.session_state[request_key], df_file, index_page, env.envars
             )
-            detail = answer[3] if len(answer) > 3 else ""
+            detail = answer[4] if len(answer) > 4 else ""
+            model_label = answer[2] if len(answer) > 2 else ""
             details_key = f"{index_page}__details"
             details_store = st.session_state.setdefault(details_key, {})
             if detail:
@@ -204,11 +385,12 @@ def on_query_change(
                 details_store.pop(step, None)
             nstep, entry = save_step(module, answer, step, 0, steps_file)
             st.session_state[index_page][0] = step
-            # Deterministic mapping to D/Q/C slots
+            # Deterministic mapping to D/Q/M/C slots
             d = entry.get("D", "")
             q = entry.get("Q", "")
             c = entry.get("C", "")
-            st.session_state[index_page][1:5] = [d, q, c, detail or ""]
+            m = entry.get("M", model_label)
+            st.session_state[index_page][1:6] = [d, q, m, c, detail or ""]
             st.session_state[f"{index_page}_q"] = q
             st.session_state[index_page][-1] = nstep
         st.session_state.pop(f"{index_page}_a_{step}", None)
@@ -420,19 +602,22 @@ def _redact_sensitive(text: str) -> str:
 
 
 def _is_placeholder_api_key(key: Optional[str]) -> bool:
-    """Heuristic to detect missing or redacted API key strings."""
+    """True only when clearly missing or visibly redacted."""
     if not key:
         return True
-    value = key.strip()
-    if not value:
+    v = str(key).strip()
+    if not v:
         return True
-    if len(value) < 20:
+
+    # Only reject obvious redactions/placeholders
+    # Keep this extremely conservative to avoid false positives.
+    U = v.upper()
+    if "***" in v or "…" in v:
         return True
-    CHECK_MARKERS = ("***", "…", "xxx", "xxxxx", "YOUR-API-KEY", "YOUR_API_KEY")
-    upper_value = value.upper()
-    for marker in CHECK_MARKERS:
-        if marker in value or marker in upper_value:
-            return True
+    if "YOUR-API-KEY" in U or "YOUR_API_KEY" in U:
+        return True
+
+    # Do NOT check prefixes or length; accept Azure / proxy / org-scoped formats.
     return False
 
 
@@ -491,7 +676,7 @@ def chat_offline(
     input_request: str,
     prompt: List[Dict[str, str]],
     envars: Dict[str, str],
-) -> str:
+) -> Tuple[str, str]:
     """Call the GPT-OSS Responses API endpoint configured for offline use."""
 
     try:
@@ -519,6 +704,7 @@ def chat_offline(
         payload["instructions"] = instructions
 
     timeout = float(envars.get("GPT_OSS_TIMEOUT", 60))
+    model_name = str(payload.get("model", ""))
     try:
         response = requests.post(endpoint, json=payload, timeout=timeout)
         response.raise_for_status()
@@ -561,9 +747,9 @@ def chat_offline(
         or "stub"
     ).lower()
     if backend_hint == "stub" and (not text or "2 + 2 = 4" in text):
-        return _synthesize_stub_response(input_request)
+        return _synthesize_stub_response(input_request), model_name
 
-    return text
+    return text, model_name
 
 
 def _format_uoaic_question(prompt: List[Dict[str, str]], question: str) -> str:
@@ -807,6 +993,15 @@ def _ensure_uoaic_runtime(envars: Dict[str, str]) -> Dict[str, Any]:
             st.error(f"Failed to load the local Ollama model used by Universal Offline AI Chatbot: {exc}")
             raise JumpToMain(exc)
 
+        model_label = ""
+        for attr in ("model_name", "model", "model_id", "model_path", "name"):
+            value = getattr(llm, attr, None)
+            if value:
+                model_label = str(value)
+                break
+        if not model_label:
+            model_label = str(envars.get("UOAIC_MODEL") or "universal-offline")
+
         prompt_template = prompts.set_custom_prompt(prompts.CUSTOM_PROMPT_TEMPLATE)
         try:
             chain = qa_chain.setup_qa_chain(llm, db, prompt_template)
@@ -822,6 +1017,7 @@ def _ensure_uoaic_runtime(envars: Dict[str, str]) -> Dict[str, Any]:
         "vector_store": db,
         "llm": llm,
         "prompt": prompt_template,
+        "model_label": model_label,
     }
     st.session_state[UOAIC_RUNTIME_KEY] = runtime
     return runtime
@@ -831,10 +1027,11 @@ def chat_universal_offline(
     input_request: str,
     prompt: List[Dict[str, str]],
     envars: Dict[str, str],
-) -> str:
+) -> Tuple[str, str]:
     """Invoke the Universal Offline AI Chatbot pipeline for the current query."""
     runtime = _ensure_uoaic_runtime(envars)
     chain = runtime["chain"]
+    model_label = runtime.get("model_label") or str(envars.get("UOAIC_MODEL") or "universal-offline")
     query_text = _format_uoaic_question(prompt, input_request) or input_request
 
     try:
@@ -870,63 +1067,29 @@ def chat_universal_offline(
         else:
             answer_text = f"Sources:\n{sources_block}"
 
-    return answer_text
+    return answer_text, model_label
 
 
 def chat_online(
     input_request: str,
     prompt: List[Dict[str, str]],
     envars: Dict[str, str],
-) -> str:
-    """Minimal, robust Chat Completions call to get fenced Python code."""
-
+) -> Tuple[str, str]:
+    """Robust Chat Completions call: OpenAI, Azure OpenAI, or proxy base_url."""
     import openai
 
-    api_key = envars.get("OPENAI_API_KEY", "")
-    if not api_key:
-        st.warning("OpenAI API key is required to use this page. Enter it below to continue.")
-        entered = st.text_input("OpenAI API key", value="", type="password", key="experiment_openai_key")
-        save_profile = st.checkbox("Save to profile (~/.agilab/.env)", value=True, key="experiment_save_openai_key")
-        submit = st.button("Use API key", key="experiment_submit_openai_key")
-        if not submit:
-            st.stop()
-        api_key = (entered or "").strip()
-        if not api_key:
-            st.error("Please enter a valid API key.")
-            st.stop()
-        # Persist for the current session/runtime
-        envars["OPENAI_API_KEY"] = api_key
-        try:
-            from agi_env import AgiEnv
-            AgiEnv.set_env_var("OPENAI_API_KEY", api_key)
-        except Exception:
-            pass
-        # Optionally persist to ~/.agilab/.env
-        if save_profile:
-            try:
-                from pathlib import Path
-                env_dir = Path.home() / ".agilab"
-                env_dir.mkdir(parents=True, exist_ok=True)
-                env_file = env_dir / ".env"
-                existing = []
-                if env_file.exists():
-                    existing = env_file.read_text().splitlines()
-                    existing = [line for line in existing if not line.strip().startswith("OPENAI_API_KEY=")]
-                existing.append(f'OPENAI_API_KEY="{api_key}"')
-                env_file.write_text("\n".join(existing) + "\n", encoding="utf-8")
-                st.success("API key saved to ~/.agilab/.env")
-            except Exception as e:
-                st.warning(f"Could not persist API key: {e}")
-    if _is_placeholder_api_key(api_key):
-        st.info(
-            "OpenAI API key appears to be a placeholder or redacted. Update `OPENAI_API_KEY`"
-            " in your environment or secrets, then rerun the request."
+    api_key = _ensure_cached_api_key(envars)
+    if not api_key or _is_placeholder_api_key(api_key):
+        _prompt_for_openai_api_key(
+            "OpenAI API key appears missing or redacted. Supply a valid key to continue."
         )
         raise JumpToMain(ValueError("OpenAI API key unavailable"))
 
-    model_name = envars.get("OPENAI_MODEL", "gpt-4o-mini")
+    # Persist to session + envars to survive reruns
+    st.session_state["openai_api_key"] = api_key
+    envars["OPENAI_API_KEY"] = api_key
 
-    # Strict system to force fenced Python code
+    # Build messages
     system_msg = {
         "role": "system",
         "content": (
@@ -942,22 +1105,51 @@ def chat_online(
             messages.append({"role": role, "content": content})
     messages.append({"role": "user", "content": input_request})
 
+    # Create client (supports OpenAI/Azure/proxy)
     try:
-        client = openai.OpenAI(api_key=api_key)
-        resp = client.chat.completions.create(model=model_name, messages=messages)
-        return resp.choices[0].message.content or ""
-    except openai.OpenAIError as e:
-        msg = _redact_sensitive(str(e))
-        status = getattr(e, "status_code", None)
-        if status == 401 or "invalid_api_key" in str(e):
-            st.info("OpenAI API key invalid or missing. Update `OPENAI_API_KEY` and rerun.")
+        client, model_name, is_azure = _make_openai_client_and_model(envars, api_key)
+    except Exception as e:
+        st.error("Failed to initialise OpenAI/Azure client. Check your SDK install and environment variables.")
+        logger.error(f"Client init error: {_redact_sensitive(str(e))}")
+        raise JumpToMain(e)
+
+    # Call – support new and old SDKs
+    try:
+        # New-style client returns objects; old SDK returns dicts
+        if hasattr(client, "chat") and hasattr(client.chat, "completions"):
+            resp = client.chat.completions.create(model=model_name, messages=messages)
+            content = resp.choices[0].message.content
         else:
-            st.error(f"OpenAI API error: {msg}")
+            # Old SDK (module-style)
+            resp = client.ChatCompletion.create(model=model_name, messages=messages)
+            content = resp["choices"][0]["message"]["content"]
+
+        return content or "", str(model_name)
+
+    except openai.OpenAIError as e:
+        # Don’t re-prompt for key here; surface the *actual* problem.
+        msg = _redact_sensitive(str(e))
+        status = getattr(e, "status_code", None) or getattr(e, "status", None)
+        if status in (401, 403):
+            # Most common causes:
+            # - Azure key used without proper Azure endpoint/version/deployment
+            # - Wrong org / no access to model
+            # - Proxy/base_url misconfigured
+            st.error(
+                "Authentication/authorization failed.\n\n"
+                "Common causes:\n"
+                "• Using an **Azure OpenAI** key but missing `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_API_VERSION` / deployment name.\n"
+                "• Using a **gateway/proxy** but missing `OPENAI_BASE_URL`.\n"
+                "• The key doesn’t have access to the requested model/deployment.\n\n"
+                f"Details: {msg}"
+            )
+        else:
+            st.error(f"OpenAI/Azure error: {msg}")
         logger.error(f"OpenAI error: {msg}")
         raise JumpToMain(e)
     except Exception as e:
         msg = _redact_sensitive(str(e))
-        st.error(f"Error: {msg}")
+        st.error(f"Unexpected client error: {msg}")
         logger.error(f"General error in chat_online: {msg}")
         raise JumpToMain(e)
 
@@ -974,19 +1166,27 @@ def ask_gpt(
         "lab_llm_provider",
         envars.get("LAB_LLM_PROVIDER", "openai"),
     )
+    model_label = ""
     if provider == "gpt-oss":
-        result = chat_offline(question, prompt, envars)
+        result, model_label = chat_offline(question, prompt, envars)
     elif provider == UOAIC_PROVIDER:
-        result = chat_universal_offline(question, prompt, envars)
+        result, model_label = chat_universal_offline(question, prompt, envars)
     else:
-        result = chat_online(question, prompt, envars)
+        result, model_label = chat_online(question, prompt, envars)
 
+    model_label = str(model_label or "")
     if not result:
-        return [df_file, question, None, None]
+        return [df_file, question, model_label, "", ""]
 
     code, detail = extract_code(result)
     detail = detail or ("" if code else result.strip())
-    return [df_file, question, code.strip() if code else "", detail]
+    return [
+        df_file,
+        question,
+        model_label,
+        code.strip() if code else "",
+        detail,
+    ]
 
 
 def is_query_valid(query: Any) -> bool:
@@ -1077,8 +1277,8 @@ def toml_to_notebook(toml_data: Dict[str, Any], toml_path: Path) -> None:
 def save_query(module: Union[str, Path], query: List[Any], steps_file: Path) -> None:
     """Save the query to the steps file if valid."""
     if is_query_valid(query):
-        # Persist only D, Q, and C
-        query[-1], _ = save_step(module, query[1:4], query[0], query[-1], steps_file)
+        # Persist only D, Q, M, and C
+        query[-1], _ = save_step(module, query[1:5], query[0], query[-1], steps_file)
     export_df()
 
 
@@ -1090,8 +1290,8 @@ def save_step(
     steps_file: Path,
 ) -> Tuple[int, Dict[str, Any]]:
     """Save a step in the steps file."""
-    # Persist only D, Q, and C
-    fields = ["D", "Q", "C"]
+    # Persist only D, Q, M, and C
+    fields = ["D", "Q", "M", "C"]
     entry = {field: (query[i] if i < len(query) else "") for i, field in enumerate(fields)}
     # Normalize types
     try:
@@ -1140,7 +1340,7 @@ def on_nb_change(
     env: AgiEnv,
 ) -> None:
     """Handle notebook interaction and run notebook if possible."""
-    save_step(module, query[1:4], query[0], query[-1], file_step_path)
+    save_step(module, query[1:5], query[0], query[-1], file_step_path)
     project_path = env.apps_dir / project
     if notebook_file.exists():
         cmd = f"uv -q run jupyter notebook {notebook_file}"
@@ -1558,7 +1758,25 @@ def display_lab_tab(
     """Display the ASSISTANT tab with steps and query input."""
     query = st.session_state[index_page_str]
     step = query[0]
-    st.markdown(f"<h3 style='font-size:16px;'>Step {step + 1}</h3>", unsafe_allow_html=True)
+    step_count = st.session_state[index_page_str][-1]
+    header_col, action_col = st.columns((20, 1))
+    with header_col:
+        st.markdown(f"<h3 style='font-size:16px;'>Step {step + 1}</h3>", unsafe_allow_html=True)
+    with action_col:
+        delete_clicked = st.button(
+            "🗑️",
+            key=f"{index_page_str}_remove_step",
+            disabled=step_count <= 0,
+            help="Delete this step",
+        )
+
+    if delete_clicked:
+        query[-1] = remove_step(lab_dir, str(step), steps_file, index_page_str)
+        st.session_state[f"{index_page_str}__clear_q"] = True
+        st.session_state[f"{index_page_str}__force_blank_q"] = True
+        st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
+        st.rerun()
+        return
 
     if query[-1]:
         cols = st.columns(BUTTONS_PER_LINE)
@@ -1576,6 +1794,10 @@ def display_lab_tab(
     # Compute a revisioned key for the prompt to allow forced remount/clear
     q_rev = st.session_state.get(f"{index_page_str}__q_rev", 0)
     prompt_key = f"{index_page_str}_q__{q_rev}"
+
+    active_model = str(query[3] or "").strip()
+    if active_model:
+        st.caption(f"Model: `{active_model}`")
 
     st.text_area(
         "Ask chatGPT:",
@@ -1595,10 +1817,10 @@ def display_lab_tab(
         label_visibility="collapsed",
     )
 
-    code_for_editor = (query[3] or "")
+    code_for_editor = (query[4] or "")
     detail_text = ""
-    if len(query) > 4 and query[4]:
-        detail_text = str(query[4]).strip()
+    if len(query) > 5 and query[5]:
+        detail_text = str(query[5]).strip()
 
     if detail_text:
         if code_for_editor:
@@ -1607,83 +1829,70 @@ def display_lab_tab(
         else:
             st.info(detail_text)
 
-    remove_col, editor_col = st.columns((1, 11))
+    snippet_dict: Optional[Dict[str, Any]] = None
+    if code_for_editor:
+        # Remount editor only when content actually changes
+        rev = f"{step}-{len(code_for_editor)}"
+        editor_key = f"{index_page_str}a{rev}"
+        snippet_dict = code_editor(
+            code_for_editor if code_for_editor.endswith("\n") else code_for_editor + "\n",
+            height=(min(30, len(code_for_editor)) if code_for_editor else 100),
+            theme="contrast",
+            buttons=get_custom_buttons(),
+            info=get_info_bar(),
+            component_props=get_css_text(),
+            props={"style": {"borderRadius": "0px 0px 8px 8px"}},
+            key=editor_key,
+        )
 
-    with remove_col:
-        disabled = st.session_state[index_page_str][-1] <= 0
-        if st.button("🗑️", key=f"{index_page_str}_remove_step", disabled=disabled, help="Delete this step"):
+    action = snippet_dict.get("type") if snippet_dict else None
+    if action == "remove":
+        if st.session_state[index_page_str][-1] > 0:
             query[-1] = remove_step(lab_dir, str(step), steps_file, index_page_str)
+            # Request prompt clear and refresh to reflect removed step state
             st.session_state[f"{index_page_str}__clear_q"] = True
             st.session_state[f"{index_page_str}__force_blank_q"] = True
             st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
             st.rerun()
             return
-
-    with editor_col:
-        snippet_dict: Optional[Dict[str, Any]] = None
-        if code_for_editor:
-            # Remount editor only when content actually changes
-            rev = f"{step}-{len(code_for_editor)}"
-            editor_key = f"{index_page_str}a{rev}"
-            snippet_dict = code_editor(
-                code_for_editor if code_for_editor.endswith("\n") else code_for_editor + "\n",
-                height=(min(30, len(code_for_editor)) if code_for_editor else 100),
-                theme="contrast",
-                buttons=get_custom_buttons(),
-                info=get_info_bar(),
-                component_props=get_css_text(),
-                props={"style": {"borderRadius": "0px 0px 8px 8px"}},
-                key=editor_key,
+    elif action == "save":
+        query[4] = snippet_dict["text"]
+        save_query(lab_dir, query, steps_file)
+    elif action == "next":
+        query[4] = snippet_dict["text"]
+        # Save current step
+        save_query(lab_dir, query, steps_file)
+        current_idx = int(query[0])
+        nsteps_now = int(query[-1] or 0)
+        # If we were on the last step, append a new blank step so the new button renders
+        if current_idx >= max(0, nsteps_now - 1):
+            new_nsteps, _ = save_step(lab_dir, ["", "", "", ""], current_idx + 1, nsteps_now, steps_file)
+            query[-1] = new_nsteps
+        # Advance to next step index if possible
+        if query[0] < query[-1]:
+            query[0] = current_idx + 1
+            clean_query(index_page_str)
+        # Request prompt clear on next run and bump revision so the widget remounts blank
+        st.session_state[f"{index_page_str}__clear_q"] = True
+        st.session_state[f"{index_page_str}__force_blank_q"] = True
+        st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
+        # Force UI to refresh and load the newly selected step
+        st.rerun()
+        return
+    elif action == "run":
+        query[4] = snippet_dict["text"]
+        save_query(lab_dir, query, steps_file)
+        if query[4] and not st.session_state.get("step_checked", False):
+            run_lab(
+                [query[1], query[2], query[4]],
+                st.session_state["snippet_file"],
+                env.copilot_file,
             )
-
-        action = snippet_dict.get("type") if snippet_dict else None
-        if action == "remove":
-            if st.session_state[index_page_str][-1] > 0:
-                query[-1] = remove_step(lab_dir, str(step), steps_file, index_page_str)
-                # Request prompt clear and refresh to reflect removed step state
-                st.session_state[f"{index_page_str}__clear_q"] = True
-                st.session_state[f"{index_page_str}__force_blank_q"] = True
-                st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
-                st.rerun()
-                return
-        elif action == "save":
-            query[3] = snippet_dict["text"]
-            save_query(lab_dir, query, steps_file)
-        elif action == "next":
-            query[3] = snippet_dict["text"]
-            # Save current step
-            save_query(lab_dir, query, steps_file)
-            current_idx = int(query[0])
-            nsteps_now = int(query[-1] or 0)
-            # If we were on the last step, append a new blank step so the new button renders
-            if current_idx >= max(0, nsteps_now - 1):
-                new_nsteps, _ = save_step(lab_dir, ["", "", ""], current_idx + 1, nsteps_now, steps_file)
-                query[-1] = new_nsteps
-            # Advance to next step index if possible
-            if query[0] < query[-1]:
-                query[0] = current_idx + 1
-                clean_query(index_page_str)
-            # Request prompt clear on next run and bump revision so the widget remounts blank
-            st.session_state[f"{index_page_str}__clear_q"] = True
-            st.session_state[f"{index_page_str}__force_blank_q"] = True
-            st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
-            # Force UI to refresh and load the newly selected step
-            st.rerun()
-            return
-        elif action == "run":
-            query[3] = snippet_dict["text"]
-            save_query(lab_dir, query, steps_file)
-            if query[3] and not st.session_state.get("step_checked", False):
-                run_lab(
-                    query[1:-2],
-                    st.session_state["snippet_file"],
-                    env.copilot_file,
-                )
-                if isinstance(st.session_state.get("data"), pd.DataFrame) and not st.session_state["data"].empty:
-                    export_target = st.session_state.get("df_file_out", "")
-                    if save_csv(st.session_state["data"], export_target):
-                        st.session_state["df_file_in"] = export_target
-                        st.session_state["step_checked"] = True
+            if isinstance(st.session_state.get("data"), pd.DataFrame) and not st.session_state["data"].empty:
+                export_target = st.session_state.get("df_file_out", "")
+                if save_csv(st.session_state["data"], export_target):
+                    st.session_state["df_file_in"] = export_target
+                    st.session_state["step_checked"] = True
 
     if st.session_state.pop("_experiment_reload_required", False):
         st.session_state.pop("loaded_df", None)
@@ -1736,6 +1945,10 @@ def page() -> None:
         st.rerun()
 
     env: AgiEnv = st.session_state["env"]
+    if "openai_api_key" not in st.session_state:
+        seed_key = env.envars.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
+        if seed_key:
+            st.session_state["openai_api_key"] = seed_key
 
     with open(Path(env.app_src) / "pre_prompt.json") as f:
         st.session_state["lab_prompt"] = json.load(f)
@@ -1749,7 +1962,7 @@ def page() -> None:
     steps_file.parent.mkdir(parents=True, exist_ok=True)
 
     nsteps = len(get_steps_list(lab_dir, steps_file))
-    st.session_state.setdefault(index_page_str, [nsteps, "", "", "", "", nsteps])
+    st.session_state.setdefault(index_page_str, [nsteps, "", "", "", "", "", nsteps])
     st.session_state.setdefault(f"{index_page_str}__details", {})
 
     module_path = st.session_state["module_path"]
@@ -1804,7 +2017,7 @@ def main() -> None:
         inject_theme(env.st_resources)
 
         st.session_state.setdefault("steps_file_name", STEPS_FILE_NAME)
-        st.session_state.setdefault("help_path", Path(env.agilab_src) / "gui/help")
+        st.session_state.setdefault("help_path", Path(env.agilab_pck) / "gui/help")
         st.session_state.setdefault("projects", env.apps_dir)
         st.session_state.setdefault("snippet_file", Path(env.AGILAB_LOG_ABS) / "lab_snippet.py")
         st.session_state.setdefault("server_started", False)
