@@ -940,13 +940,14 @@ def load_df(path: Path, nrows=None, with_index=True):
 
     if path.is_dir():
         # Collect all CSV and Parquet files in the directory
-        files = list(path.rglob("*.csv")) + list(path.rglob("*.parquet"))
+        files = list(path.rglob("*.parquet")) + list(path.rglob("*.csv")) + list(path.rglob("*.json"))
         if not files:
             return None
 
-        # Separate Parquet and CSV files
+        # Separate Parquet, CSV, and JSON files
         parquet_files = [f for f in files if f.suffix == ".parquet"]
         csv_files = [f for f in files if f.suffix == ".csv"]
+        json_files = [f for f in files if f.suffix == ".json"]
 
         if parquet_files:
             # Concatenate all Parquet files with a default RangeIndex.
@@ -957,11 +958,18 @@ def load_df(path: Path, nrows=None, with_index=True):
                 pd.read_csv(f, nrows=nrows, encoding="utf-8", index_col=None)
                 for f in csv_files
             ], ignore_index=True)
+        elif json_files:
+            df = pd.concat([
+                pd.read_json(f, orient="records")
+                for f in json_files
+            ], ignore_index=True)
     elif path.is_file():
         if path.suffix == ".csv":
             df = pd.read_csv(path, nrows=nrows, encoding="utf-8", index_col=None)
         elif path.suffix == ".parquet":
             df = pd.read_parquet(path)
+        elif path.suffix == ".json":
+            df = pd.read_json(path, orient="records")
         else:
             return None
     else:
