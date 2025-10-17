@@ -17,7 +17,6 @@ from IPython.lib import backgroundjobs as bg
 import asyncio
 import getpass
 import io
-import platform
 import os
 import pickle
 import random
@@ -29,7 +28,7 @@ import shlex
 import time
 import warnings
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import timedelta
 from ipaddress import ip_address as is_ip
 from pathlib import Path
 from tempfile import gettempdir
@@ -1136,15 +1135,12 @@ class AGI:
             cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
             uv = cmd_prefix + env.uv
 
-            await AGI._ensure_remote_dir(ip, dist_rel)
+            cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
+            await AGI.exec_ssh(ip, cmd)
 
-            trace_log = wenv_rel.parent / "agi_install_trace.log"
-            await AGI._remote_trace(ip, f"Installing Python runtime {pyvers_worker}", rel_path=trace_log)
             await AGI.exec_ssh(ip, f"{uv} python install {pyvers_worker}")
-            await AGI._remote_trace(ip, "uv python install completed", rel_path=trace_log)
             await AGI.send_files(env, ip, [env.cluster_pck / "agi_distributor/cli.py"],
                                  wenv_rel.parent)
-            await AGI._remote_trace(ip, "cli.py transferred", rel_path=trace_log)
 
             # cmd = f"{uv} run --no-sync python {cli} platform"
             # res =  await AGI.exec_ssh(ip, cmd)
@@ -1688,7 +1684,8 @@ class AGI:
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         uv = cmd_prefix + env.uv_worker
 
-        await AGI._ensure_remote_dir(ip, dist_rel)
+        cmd = f"{uv} run -p {pyvers} python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
+        await AGI.exec_ssh(ip, cmd)
 
         # Then send the files to the remote directory
         try:
@@ -1736,7 +1733,6 @@ class AGI:
         cli = env.wenv_rel.parent / "cli.py"
         cmd = f"{uv} run -p {pyvers} python  {cli} unzip {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
-        await AGI._remote_trace(ip, f"Remote project init: {rel_path}", rel_path=rel_path.parent / "agi_install_trace.log")
 
         #############
         # install env
@@ -1990,7 +1986,8 @@ class AGI:
                     logger.info(result)
             else:
                 # Create remote directory
-                await AGI._ensure_remote_dir(AGI._scheduler_ip, wenv_rel)
+                cmd = f"{env.uv} run --no-sync python -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
+                await AGI.exec_ssh(AGI._scheduler_ip, cmd)
 
                 toml_wenv = wenv_rel / "pyproject.toml"
                 await AGI.send_file(AGI._scheduler_ip, toml_local, toml_wenv)
@@ -2022,7 +2019,6 @@ class AGI:
     @staticmethod
     async def _detect_export_cmd(ip: str) -> Optional[str]:
         if AgiEnv.is_local(ip):
-            AgiEnv.set_env_var(f"{ip}_OS_ID", platform.system())
             return AgiEnv.export_local_bin
 
         # probe remote OS via SSH
@@ -2030,70 +2026,11 @@ class AGI:
             os_id = await AGI.exec_ssh(ip, "uname -s")
         except Exception:
             os_id = ''
-        os_id = os_id.strip()
-        AgiEnv.set_env_var(f"{ip}_OS_ID", os_id)
 
         if any(x in os_id for x in ('Linux', 'Darwin', 'BSD')):
             return 'export PATH="~/.local/bin:$PATH";'
         else:
             return ""  # 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
-
-    @staticmethod
-    async def _ensure_remote_dir(ip: str, rel_path: Path) -> None:
-        """Ensure that ``rel_path`` exists on the given host."""
-        env = AGI.env
-
-        if env.is_local(ip):
-            target = env.home_abs / rel_path
-            target.mkdir(parents=True, exist_ok=True)
-            return
-
-        cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-        os_id = (env.envars.get(f"{ip}_OS_ID") or "").upper()
-        path_str = str(rel_path).replace("\\", "/")
-
-        if "WIN" in os_id or "MINGW" in os_id:  # Windows hosts
-            win_path = str(rel_path).replace("/", "\\")
-            cmd = f'{cmd_prefix}powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path \"{win_path}\""'
-        else:  # POSIX hosts
-            cmd = f'{cmd_prefix}mkdir -p "{path_str}"'
-
-        await AGI.exec_ssh(ip, cmd)
-        await AGI._remote_trace(ip, f"mkdir ensured {rel_path}", rel_path=rel_path.parent / "agi_install_trace.log")
-
-    @staticmethod
-    async def _remote_trace(ip: str, message: str, rel_path: Path | None = None) -> None:
-        """Append a trace message on the target host to help post-mortem debugging."""
-        env = AGI.env
-        timestamp = datetime.now().isoformat(timespec="seconds")
-        rel_path = (rel_path or Path("agi_install_trace.log"))
-        if env.is_local(ip):
-            target = env.home_abs / rel_path
-            target.parent.mkdir(parents=True, exist_ok=True)
-            with target.open("a", encoding="utf-8") as fh:
-                fh.write(f"{timestamp} {message}\n")
-            return
-
-        cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-        os_id = (env.envars.get(f"{ip}_OS_ID") or "").upper()
-        safe_message = message.replace('"', '\"')
-        if "WIN" in os_id or "MINGW" in os_id:
-            trace_path = str(rel_path).replace("/", "\\")
-            cmd = (
-                f'{cmd_prefix}powershell -NoProfile -Command '
-                f'"& {{ $msg = \"{timestamp} {safe_message}\"; '
-                f'Add-Content -Force -Path \"{trace_path}\" -Value $msg }}"'
-            )
-        else:
-            trace_path = str(rel_path).replace("\\", "/")
-            cmd = f'{cmd_prefix}printf "%s\\n" "{timestamp} {safe_message}" >> "{trace_path}"'
-
-        try:
-            await AGI.exec_ssh(ip, cmd)
-        except Exception:
-            # Tracing should not fail the deployment: ignore errors silently
-            pass
-        await AGI._remote_trace(ip, f"Ensured directory {rel_path}", rel_path=rel_path.parent / "agi_install_trace.log")
 
     @staticmethod
     async def _start(scheduler: Optional[str]) -> bool:
