@@ -1117,6 +1117,14 @@ if __name__ == "__main__":
     # RUN Section
     # ------------------
     if show_run:
+        # Reset run log state when switching between projects so the expander starts closed
+        prev_app_key = "execute_prev_app"
+        if st.session_state.get(prev_app_key) != env.app:
+            st.session_state[prev_app_key] = env.app
+            st.session_state["run_log_cache"] = ""
+            st.session_state.pop("log_text", None)
+            st.session_state.pop("_benchmark_expand", None)
+            st.session_state.pop("_force_export_open", None)
         st.session_state.setdefault("run_log_cache", "")
         cmd = None
         optimize_state_key = f"optimize_expanded_{env.app}"
