@@ -1,5 +1,5 @@
 [project]
-version = "2025.10.09"
+version = "2025.10.17"
 name = "agilab"
 description = "AGILAB is a PyCharm‑integrated AI experimentation lab for engineering (requires PyCharm for full workflow)"
 requires-python = ">=3.11"
@@ -25,6 +25,7 @@ keywords = [
     "pycharm", "datascience"
 ]
 dependencies = [
+    "ansi2html>=1.9.2",
     "astor",
     "asyncssh",
     "build",
@@ -44,10 +45,11 @@ dependencies = [
     "pip",
     "plotly",
     "polars",
+    "pulp",
     "py7zr",
+    "scipy==1.15.2",
     "seaborn",
     "setuptools",
-    "scipy==1.15.2",
     "streamlit",
     "streamlit-modal",
     "streamlit_code_editor",
@@ -57,10 +59,9 @@ dependencies = [
     "twine",
     "watchdog",
     "wheel",
-    "agi-core==2025.10.09",
+    "agi-core==2025.10.17",
     "legacy-cgi; python_version >= '3.13'",
     "standard-imghdr; python_version >= '3.13'",
-    "ansi2html>=1.9.2",
 ]
 
 [project.urls]
@@ -73,7 +74,6 @@ agilab = "agilab.lab_run:main"
 
 [project.optional-dependencies]
 offline = ["gpt-oss>=0.0.8; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'", "transformers>=4.57.0; python_version >= '3.12'", "torch>=2.8.0; python_version >= '3.12'", "accelerate>=0.34.2; python_version >= '3.12'"]
-
 
 [dependency-groups]
 dev = [

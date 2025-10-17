@@ -50,6 +50,7 @@ declare -a PRIVATE_APPS=(
   example_app_project
   example_app_project
   example_app_project
+  example_app_project
 )
 
 # (macOS-safe helpers remain below)
