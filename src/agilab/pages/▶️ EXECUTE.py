@@ -890,12 +890,7 @@ async def page():
     st.session_state["_verbose_user_override"] = selected_verbose_int != 1
 
     verbose = cluster_params.get('verbose', 1)
-    deploy_state_key = f"deploy_expanded_{env.app}"
-    with st.expander(
-        "Do deployment",
-        expanded=st.session_state.get(deploy_state_key, False),
-    ):
-        st.session_state[deploy_state_key] = True
+    with st.expander("Do deployment"):
         render_cluster_settings_ui()
         cluster_params = st.session_state.app_settings["cluster"]
         verbose = cluster_params.get('verbose', 1)
@@ -1127,9 +1122,7 @@ if __name__ == "__main__":
             st.session_state.pop("_force_export_open", None)
         st.session_state.setdefault("run_log_cache", "")
         cmd = None
-        optimize_state_key = f"optimize_expanded_{env.app}"
-        with st.expander("Optimize execution", expanded=st.session_state.get(optimize_state_key, False)):
-            st.session_state[optimize_state_key] = True
+        with st.expander("Optimize execution"):
             # Benchmark toggle
             st.session_state.setdefault("benchmark", False)
             if st.session_state.pop("benchmark_reset_pending", False):
