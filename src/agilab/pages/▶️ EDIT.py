@@ -1327,7 +1327,7 @@ def handle_project_creation():
         # verify
         if (env.apps_dir / new_name).exists():
             st.success(f"Project '{new_name}' created.")
-            env.change_active_app(new_name)
+            env.change_app(new_name)
             st.session_state["switch_to_edit"] = True
             time.sleep(1.5)
             st.rerun()
@@ -1402,7 +1402,7 @@ def handle_project_rename():
                 pass
 
             st.success(f"Project renamed: '{current}' → '{new_name}'")
-            env.change_active_app(new_name)
+            env.change_app(new_name)
             st.session_state["switch_to_edit"] = True
             st.rerun()
         else:
@@ -1489,7 +1489,7 @@ def handle_project_import():
         if import_clicked:
             if not target_dir.exists():
                 import_project(selected_archive, st.session_state["clean_import"])
-                env.change_active_app(import_target)
+                env.change_app(import_target)
             else:
                 overwrite_modal.open()
 
@@ -1503,7 +1503,7 @@ def handle_project_import():
                     try:
                         shutil.rmtree(target_dir)
                         import_project(selected_archive, st.session_state["clean_import"])
-                        env.change_active_app(import_target)
+                        env.change_app(import_target)
                         overwrite_modal.close()
                     except PermissionError:
                         st.error(f"Project '{import_target}' is not removable.")
