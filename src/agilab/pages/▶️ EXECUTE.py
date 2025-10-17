@@ -24,7 +24,10 @@ from collections import defaultdict
 import tomli         # For reading TOML files
 import tomli_w       # For writing TOML files
 import pandas as pd
-from ansi2html import Ansi2HTMLConverter
+try:
+    from ansi2html import Ansi2HTMLConverter
+except ImportError as exc:
+    raise ImportError("ansi2html package is required. Reinstall AGILab or install ansi2html>=1.9.2.") from exc
 # Theme configuration
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
