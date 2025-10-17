@@ -2155,6 +2155,18 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             dst = dest_dir / new_rel
             dst.parent.mkdir(parents=True, exist_ok=True)
 
+            if item.is_symlink():
+                try:
+                    target = os.readlink(item)
+                except OSError:
+                    # Fallback to absolute path if readlink fails
+                    target = str(item.resolve())
+                try:
+                    os.symlink(target, dst, target_is_directory=item.is_dir())
+                except FileExistsError:
+                    pass
+                continue
+
             if item.is_dir():
                 if item.name == ".venv":
                     # Keep virtual env directory as a symlink
