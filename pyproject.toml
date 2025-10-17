@@ -1,5 +1,5 @@
 [project]
-version = "2025.10.17.post4"
+version = "2025.10.17.post5"
 name = "agilab"
 description = "AGILAB is a PyCharm‑integrated AI experimentation lab for engineering (requires PyCharm for full workflow)"
 requires-python = ">=3.11"
@@ -36,6 +36,8 @@ agilab = "agilab.lab_run:main"
 
 [project.optional-dependencies]
 offline = ["gpt-oss>=0.0.8; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'", "transformers>=4.57.0; python_version >= '3.12'", "torch>=2.8.0; python_version >= '3.12'", "accelerate>=0.34.2; python_version >= '3.12'"]
+
+
 
 
 
