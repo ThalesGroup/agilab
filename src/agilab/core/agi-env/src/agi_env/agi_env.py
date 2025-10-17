@@ -1,7 +1,7 @@
 # BSD 3-Clause License
 #
 # Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
-# Licensed under the BSD 3-Clause License. See LICENSE for details.
+# All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 #
@@ -45,7 +45,6 @@ import subprocess
 import sys
 import traceback
 from functools import lru_cache
-
 from pathlib import Path, PureWindowsPath, PurePosixPath
 import tempfile
 from dotenv import dotenv_values, set_key
