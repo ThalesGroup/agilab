@@ -12,7 +12,7 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """Cluster workplan utilities for distributing AGILab workloads."""
 import traceback
-from typing import Tuple, Set  # Ajoute Tuple et Set
+from typing import List, Optional, Tuple, Set  # Ajoute Tuple et Set
 from IPython.lib import backgroundjobs as bg
 import asyncio
 import getpass
@@ -290,16 +290,20 @@ class AGI:
                 return
 
             except ConnectionError as e:
-                logger.error(f"failed to connect \n{e}")
-                return
+                message = str(e).strip() or "Failed to connect to remote host."
+                logger.info(message)
+                print(message, file=sys.stderr, flush=True)
+                return {"status": "error", "message": message, "kind": "connection"}
 
             except ModuleNotFoundError as e:
                 logger.error(f"failed to load module \n{e}")
                 return
 
             except Exception as err:
-                logger.error(f"Unhandled exception in AGI.run: {err}", exc_info=True)
-                logger.info(traceback.format_exc())
+                message = _format_exception_chain(err)
+                logger.error(f"Unhandled exception in AGI.run: {message}")
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug("Traceback:\n%s", traceback.format_exc())
 
     @staticmethod
     async def serve(
@@ -875,7 +879,7 @@ class AGI:
 
         if env.is_local(ip):
             if not (cli_abs).exists():
-                shutil.copy(env.cluster_root / "src/agi_cluster/agi_distributor/cli.py", cli_abs)
+                shutil.copy(env.cluster_pck / "agi_distributor/cli.py", cli_abs)
             if force:
                 cmd = f"{kill_prefix} '{cli_abs}' kill"
                 cmds.append(cmd)
@@ -887,7 +891,7 @@ class AGI:
         last_res = None
         for cmd in cmds:
             # choose working directory based on local vs remote
-            cwd = env.cluster_root if ip == localhost else str(env.wenv_abs)
+            cwd = env.agi_cluster if ip == localhost else str(env.wenv_abs)
             if env.is_local(ip):
                 if env.debug:
                     sys.argv = cmd.split('python ')[1].split(" ")
@@ -1103,6 +1107,8 @@ class AGI:
             try:
                 await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} --version")
                 await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} self update")
+            except ConnectionError:
+                raise
             except Exception:
                 uv_is_installed = False
                 # Try Windows installer
@@ -1111,6 +1117,8 @@ class AGI:
                                        'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"'
                                        )
                     uv_is_installed = True
+                except ConnectionError:
+                    raise
                 except Exception:
                     uv_is_installed = False
                     # Fallback to Unix installer
@@ -1131,7 +1139,7 @@ class AGI:
             await AGI.exec_ssh(ip, cmd)
 
             await AGI.exec_ssh(ip, f"{uv} python install {pyvers_worker}")
-            await AGI.send_files(env, ip, [env.cluster_root / "src/agi_cluster/agi_distributor/cli.py"],
+            await AGI.send_files(env, ip, [env.cluster_pck / "agi_distributor/cli.py"],
                                  wenv_rel.parent)
 
             # cmd = f"{uv} run --no-sync python {cli} platform"
@@ -1230,6 +1238,8 @@ class AGI:
         dependency_info: dict[str, dict[str, Any]] = {}
         dep_versions: dict[str, str] = {}
         worker_pyprojects: set[str] = set()
+        # in case of core src has changed
+        AGI._build_lib_local()
 
         def _cleanup_editable(site_packages: Path) -> None:
             patterns = (
@@ -1380,12 +1390,12 @@ class AGI:
             env_project = (
                 repo_env_project
                 if repo_env_project and repo_env_project.exists()
-                else env.env_root
+                else env.agi_env
             )
             node_project = (
                 repo_node_project
                 if repo_node_project and repo_node_project.exists()
-                else env.node_root
+                else env.agi_node
             )
             core_project = (
                 repo_core_project
@@ -1420,8 +1430,8 @@ class AGI:
                 except FileNotFoundError:
                     continue
         else:
-            env_project = env.env_root
-            node_project = env.node_root
+            env_project = env.agi_env
+            node_project = env.agi_node
             core_project = None
             cluster_project = None
             agilab_project = None
@@ -1489,7 +1499,7 @@ class AGI:
 
             resources_src = env_project / 'src/agi_env/resources'
             if not resources_src.exists():
-                resources_src = env.env_root / 'resources'
+                resources_src = env.env_pck / 'resources'
             manager_resources = app_path / 'agilab/core/agi-env/src/agi_env/resources'
             if resources_src.exists():
                 manager_resources.parent.mkdir(parents=True, exist_ok=True)
@@ -1497,7 +1507,7 @@ class AGI:
                     shutil.rmtree(manager_resources)
                 shutil.copytree(resources_src, manager_resources, dirs_exist_ok=True)
 
-            site_packages_manager = env.env_root.parent
+            site_packages_manager = env.env_pck.parent
             _cleanup_editable(site_packages_manager)
 
             if dependency_info:
@@ -1509,11 +1519,11 @@ class AGI:
                         logger.debug("Dependency %s not installed in manager environment", meta['name'])
 
         if env.is_source_env:
-            cmd = f"{uv} pip install -e '{env.env_root}'"
+            cmd = f"{uv} pip install -e '{env.agi_env}'"
             await AgiEnv.run(cmd, app_path)
-            cmd = f"{uv} pip install -e '{env.node_root}'"
+            cmd = f"{uv} pip install -e '{env.agi_node}'"
             await AgiEnv.run(cmd, app_path)
-            cmd = f"{uv} pip install -e '{env.cluster_root}'"
+            cmd = f"{uv} pip install -e '{env.agi_cluster}'"
             await AgiEnv.run(cmd, app_path)
             cmd = f"{uv} pip install -e ."
             await AgiEnv.run(cmd, app_path)
@@ -1563,7 +1573,7 @@ class AGI:
 
             worker_resources_src = env_project / 'src/agi_env/resources'
             if not worker_resources_src.exists():
-                worker_resources_src = env.env_root / 'resources'
+                worker_resources_src = env.env_pck / 'resources'
             resources_dest = wenv_abs / 'agilab/core/agi-env/src/agi_env/resources'
             resources_dest.parent.mkdir(parents=True, exist_ok=True)
             if resources_dest.exists():
@@ -1599,7 +1609,7 @@ class AGI:
 
         else:
             # build agi_env*.whl
-            menv = env.env_root
+            menv = env.agi_env
             cmd = f"{uv} --project '{menv}' build --wheel"
             await AgiEnv.run(cmd, menv)
             src = menv / "dist"
@@ -1609,11 +1619,11 @@ class AGI:
             except StopIteration:
                 raise RuntimeError(cmd)
 
-            cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.env_root}'"
+            cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.agi_env}'"
             await AgiEnv.run(cmd, wenv_abs)
 
             # build agi_node*.whl
-            menv = env.node_root
+            menv = env.agi_node
             cmd = f"{uv} --project '{menv}' build --wheel"
             await AgiEnv.run(cmd, menv)
             src = menv / "dist"
@@ -1623,28 +1633,33 @@ class AGI:
             except StopIteration:
                 raise RuntimeError(cmd)
 
-            cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.node_root}'"
+            cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.agi_node}'"
             await AgiEnv.run(cmd, wenv_abs)
 
         # Install the app sources into the worker venv using the absolute app path
         cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.active_app}'"
         await AgiEnv.run(cmd, wenv_abs)
 
-        # Post-install script
+        # dataset
         dest = wenv_abs / "src" / env.target_worker
         os.makedirs(dest, exist_ok=True)
-        shutil.copy2(env.post_install, dest)
         src = env.dataset_archive
         if src.exists():
             os.makedirs(env.home_abs / env.data_rel / "dataset", exist_ok=True)
             shutil.copy2(src, dest)
-        python_bin = wenv_abs / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-        cmd = (
-            f"{shlex.quote(str(python_bin))} {shlex.quote(str(env.home_abs / env.post_install_rel))} "
-            f"{shlex.quote(str(env.app))} "
-            f"{shlex.quote(str(env.data_rel))}"
-        )
-        await AgiEnv.run(cmd, wenv_abs)
+
+        # # Post-install script
+        # dest = env.home_abs / env.post_install_rel
+        # os.makedirs(dest.parent, exist_ok=True)
+        # shutil.copy2(env.post_install, dest)
+        #
+        # python_bin = wenv_abs / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        # cmd = (
+        #     f"{shlex.quote(str(python_bin))} {shlex.quote(str(dest))} "
+        #     f"{shlex.quote(str(env.app))} "
+        #     f"{shlex.quote(str(env.data_rel))}"
+        # )
+        # await AgiEnv.run(cmd, wenv_abs)
 
         # Build target_worker lib local
         await AGI._build_lib_local()
@@ -1680,14 +1695,14 @@ class AGI:
             raise FileNotFoundError(f"no existing egg file in {wenv_abs / env.app}*")
 
         # build agi_env*.whl
-        wenv = env.env_root / 'dist'
+        wenv = env.agi_env / 'dist'
         try:
             env_whl = next(iter(wenv.glob("agi_env*.whl")))
         except StopIteration:
             raise FileNotFoundError(f"no existing whl file in {wenv / "agi_env*"}")
 
-        # # build agi_env*.whl
-        wenv = env.node_root / 'dist'
+        # build agi_node*.whl
+        wenv = env.agi_node / 'dist'
         try:
             node_whl = next(iter(wenv.glob("agi_node*.whl")))
         except StopIteration:
@@ -1743,23 +1758,19 @@ class AGI:
         await AGI.exec_ssh(ip, cmd)
 
         # Post-install script
-        cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python {env.post_install_rel} {wenv_rel.stem} 2 {env.data_rel}"
+        cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python -m {env.post_install_rel} {wenv_rel.stem} {env.data_rel}"
         await AGI.exec_ssh(ip, cmd)
 
         # build target_worker lib from src/
-        module = getattr(env, "setup_app_module", "agi_node.agi_dispatcher.build")
-        project_arg = shlex.quote(str(wenv_rel))
-        app_arg = f"--app-path {project_arg}"
-        module_cmd = f"python -m {module}"
         if env.verbose > 1:
             cmd = (
-                f"{uv} --project {project_arg} run --no-sync -p {pyvers} "
-                f"{module_cmd} {app_arg} build_ext -b {project_arg}"
+                f"{uv} --project '{wenv_rel}' run --no-sync -p {pyvers} python -m "
+                f"agi_node.agi_dispatcher.build  --app-path  '{wenv_rel}' build_ext -b '{wenv_rel}'"
             )
         else:
             cmd = (
-                f"{uv} --project {project_arg} run --no-sync -p {pyvers} "
-                f"{module_cmd} {app_arg} -q build_ext -b {project_arg}"
+                f"{uv} --project '{wenv_rel}' run --no-sync -p {pyvers} python -m "
+                f"agi_node.agi_dispatcher.build --app-path '{wenv_rel}' -q build_ext -b '{wenv_rel}'"
             )
         await AGI.exec_ssh(ip, cmd)
 
@@ -1773,7 +1784,7 @@ class AGI:
         for module in AGI._module_to_clean:
             cmd = f"{env.uv} pip uninstall {module} -y"
             logger.info(f"Executing: {cmd}")
-            await AgiEnv.run(cmd, AGI.env.env_root)
+            await AgiEnv.run(cmd, AGI.env.agi_env)
         AGI._module_to_clean.clear()
 
     @staticmethod
@@ -1944,7 +1955,7 @@ class AGI:
 
             # Clean worker
             for ip in list(AGI._workers):
-                await AGI.send_file(env, ip, env.cluster_root / "src/agi_cluster/agi_distributor/cli.py",
+                await AGI.send_file(env, ip, env.cluster_pck / "agi_distributor/cli.py",
                                     cli_rel.parent)
                 hw_rapids_capable = env.envars.get(ip, None)
                 if not hw_rapids_capable or hw_rapids_capable == "no_rapids_hw":
@@ -2068,8 +2079,6 @@ class AGI:
         await AGI._sync(timeout=AGI._TIMEOUT)
 
         if not AGI._mode_auto or (AGI._mode_auto and AGI._mode == 0):
-            # in case of core src has changed
-            AGI._build_lib_local()
             await AGI._build_lib_remote()
             if AGI._mode & AGI.DASK_MODE:
                 # load lib
@@ -2690,35 +2699,47 @@ class AGI:
 
         except asyncio.TimeoutError:
             err_msg = f"Connection to {ip} timed out after {timeout_sec} seconds."
-            logger.error(err_msg)
-            raise
+            logger.warning(err_msg)
+            raise ConnectionError(err_msg) from None
 
         except asyncssh.PermissionDenied:
             err_msg = f"Authentication failed for SSH user '{env.user}' on host {ip}."
             logger.error(err_msg)
-            raise
+            raise ConnectionError(err_msg) from None
 
         except OSError as e:
-            if e.errno == errno.EHOSTUNREACH:
+            original = str(e).strip() or repr(e)
+            if e.errno in {
+                errno.EHOSTUNREACH,
+                errno.ENETUNREACH,
+                getattr(errno, "EHOSTDOWN", None),
+                getattr(errno, "ENETDOWN", None),
+                getattr(errno, "ETIMEDOUT", None),
+            }:
                 err_msg = (
                     f"Unable to connect to {ip} on SSH port 22. "
                     "Please check that the device is powered on, network cable connected, and SSH service running."
                 )
-                raise ConnectionError(err_msg)
-            elif e.errno in (errno.EACCES, errno.ECONNREFUSED):
-                logger.error(str(e))
+                if original:
+                    err_msg = f"{err_msg} (details: {original})"
+                logger.info(err_msg)
             else:
-                logger.error(str(e))
-            raise
+                err_msg = original
+                logger.error(err_msg)
+            raise ConnectionError(err_msg) from None
 
         except asyncssh.Error as e:
-            logger.error(e.command if hasattr(e, 'command') else "No command attribute")
-            logger.error(e)
-            raise
+            base_msg = str(e).strip() or repr(e)
+            cmd = getattr(e, "command", None)
+            if cmd:
+                logger.error(cmd)
+            logger.error(base_msg)
+            raise ConnectionError(base_msg) from None
 
         except Exception as e:
-            logger.error(f"Unexpected error while connecting to {ip}: {e}")
-            raise
+            err_msg = f"Unexpected error while connecting to {ip}: {e}"
+            logger.error(err_msg)
+            raise ConnectionError(err_msg) from None
 
     @staticmethod
     async def exec_ssh(ip: str, cmd: str) -> str:
@@ -2755,8 +2776,10 @@ class AGI:
             raise
 
         except (asyncssh.Error, OSError) as e:
-            logger.error(e)
-            raise
+            msg = str(e).strip() or repr(e)
+            friendly = f"Connection to {ip} failed: {msg}"
+            logger.info(friendly)
+            raise ConnectionError(friendly) from None
 
     @staticmethod
     async def exec_ssh_async(ip: str, cmd: str) -> str:
@@ -2790,3 +2813,30 @@ class AGI:
             conn.close()
             await conn.wait_closed()
         AGI._ssh_connections.clear()
+
+
+def _format_exception_chain(exc: BaseException) -> str:
+    """Return a compact representation of the exception chain, capturing root causes."""
+    messages: List[str] = []
+    visited = set()
+    current: Optional[BaseException] = exc
+
+    while current and id(current) not in visited:
+        visited.add(id(current))
+        tb_exc = traceback.TracebackException.from_exception(current)
+        text = "".join(tb_exc.format_exception_only()).strip()
+        if not text:
+            text = f"{current.__class__.__name__}: {current}"
+        if text and text not in messages:
+            messages.append(text)
+
+        if current.__cause__ is not None:
+            current = current.__cause__
+        elif current.__context__ is not None and not getattr(current, "__suppress_context__", False):
+            current = current.__context__
+        else:
+            break
+
+    if not messages:
+        return str(exc).strip() or repr(exc)
+    return " -> ".join(messages)
