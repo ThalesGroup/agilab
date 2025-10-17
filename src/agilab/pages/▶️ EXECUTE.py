@@ -24,19 +24,16 @@ from collections import defaultdict
 import tomli         # For reading TOML files
 import tomli_w       # For writing TOML files
 import pandas as pd
-from ansi2html import Ansi2HTMLConverter
 # Theme configuration
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 import streamlit as st
 # Project Libraries:
 from agi_env.pagelib import (
     get_about_content, render_logo, activate_mlflow, save_csv, init_custom_ui, select_project, open_new_tab,
-    cached_load_df, inject_theme
+    cached_load_df, inject_theme, is_valid_ip
 )
 
 from agi_env import AgiEnv
-
-
 
 # ===========================
 # Session State Initialization
@@ -60,79 +57,61 @@ def clear_log():
     """
     st.session_state["log_text"] = ""
 
-_ansi_conv = Ansi2HTMLConverter(inline=True)
-
-import re
-import streamlit as st
-from ansi2html import Ansi2HTMLConverter
-
-_ansi_conv = Ansi2HTMLConverter(inline=True)
-
-def ansi_to_html_block(ansi_text: str) -> str:
-    """Convert ANSI or \\e[...] colored text to a styled HTML <div> block."""
-    if not ansi_text:
-        return ""
-    ansi_text = re.sub(r'\\e\[(?=\d)', '\x1b[', ansi_text)
-    html_body = _ansi_conv.convert(ansi_text, full=False)
-    html_body = html_body.replace("\n", "<br>")
-    return f"""
-<div style="
-  padding:12px;
-  border-radius:8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 13px;
-  line-height: 1.4;
-  max-height: 500px;
-  overflow-y: auto;
-  white-space: pre;
-">{html_body}</div>
-"""
-
 def update_log(live_log_placeholder, message, max_lines=1000):
+    """
+    Append a cleaned message to the accumulated log and update the live display.
+    Keeps only the last max_lines lines in the log.
+    """
     if "log_text" not in st.session_state:
         st.session_state["log_text"] = ""
 
-    if message:
-        message = re.sub(r'\\e\[(?=\d)', '\x1b[', message)
+    clean_msg = strip_ansi(message).rstrip()
+    if clean_msg:
+        st.session_state["log_text"] += clean_msg + "\n"
 
-    st.session_state["log_text"] += (message or "") + "\n"
-
+    # Keep only last max_lines lines to avoid huge memory/logs
     lines = st.session_state["log_text"].splitlines()
     if len(lines) > max_lines:
-        st.session_state["log_text"] = "\n".join(lines[-max_lines:]) + "\n"
+        lines = lines[-max_lines:]
+        st.session_state["log_text"] = "\n".join(lines) + "\n"
 
-    raw_text = st.session_state["log_text"]
-    has_ansi = "\x1b[" in raw_text
+    # Calculate height in pixels roughly: 20px per line, capped at 500px
+    height_px = min(20 * len(lines), 500)
 
-    if has_ansi:
-        html_block = ansi_to_html_block(raw_text)
-        live_log_placeholder.markdown(html_block, unsafe_allow_html=True)
-    else:
-        height_px = min(20 * max(1, len(lines)), 500)
-        live_log_placeholder.markdown(raw_text)
+    live_log_placeholder.code(st.session_state["log_text"], language="python", height=height_px)
+
+
+
+def strip_ansi(text: str) -> str:
+    if not text:
+        return ""
+    ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
+    return ansi_escape.sub('', text)
+
 
 def display_log(stdout, stderr):
     # Use cached log if stdout empty
     if not stdout.strip() and "log_text" in st.session_state:
         stdout = st.session_state["log_text"]
 
+    # Strip ANSI color codes from both stdout and stderr
+    clean_stdout = strip_ansi(stdout or "")
+    clean_stderr = strip_ansi(stderr or "")
+
     # Clean up extra blank lines
-    clean_stdout = "\n".join(line for line in stdout.splitlines() if line.strip())
-    clean_stderr = "\n".join(line for line in stderr.splitlines() if line.strip())
+    clean_stdout = "\n".join(line for line in clean_stdout.splitlines() if line.strip())
+    clean_stderr = "\n".join(line for line in clean_stderr.splitlines() if line.strip())
 
     combined = "\n".join([clean_stdout, clean_stderr]).strip()
 
     if "warning:" in combined.lower():
         st.warning("Warnings occurred during cluster installation:")
-        colored_combined = ansi_to_html_block(combined)
-        st.markdown(colored_combined, unsafe_allow_html=True)
+        st.code(combined, language="python", height=400)
     elif clean_stderr:
         st.error("Errors occurred during cluster installation:")
-        colored_errors = ansi_to_html_block(clean_stderr)
-        st.markdown(colored_errors, unsafe_allow_html=True)
+        st.code(clean_stderr, language="python", height=400)
     else:
-        colored_out = ansi_to_html_block(clean_stdout or "No logs available")
-        st.markdown(colored_out, unsafe_allow_html=True)
+        st.code(clean_stdout or "No logs available", language="python", height=400)
 
 
 def parse_benchmark(benchmark_str):
@@ -142,15 +121,6 @@ def parse_benchmark(benchmark_str):
     This function converts a benchmark string that may have unquoted numeric keys and
     single quotes into a valid JSON string and then parses it into a dictionary.
     Numeric keys are converted to integers.
-
-    Args:
-        benchmark_str (str): The benchmark string to parse.
-
-    Returns:
-        dict: A dictionary with numeric keys as integers.
-
-    Raises:
-        ValueError: If the input is not a string or the benchmark string cannot be parsed.
     """
     if not isinstance(benchmark_str, str):
         raise ValueError("Input must be a string.")
@@ -167,7 +137,6 @@ def parse_benchmark(benchmark_str):
     except json.JSONDecodeError as e:
         raise ValueError("Invalid benchmark string. Failed to decode JSON.") from e
 
-    # Convert keys that represent numbers to integers, leave others as-is
     def try_int(key):
         return int(key) if key.isdigit() else key
 
@@ -185,21 +154,17 @@ def safe_eval(expression, expected_type, error_message):
         st.error(error_message)
         return None
 
-def parse_and_validate_scheduler(scheduler_input):
-    apps_dir_value = st.session_state.get("apps_dir")
-    env = st.session_state.setdefault(
-        "env",
-        AgiEnv(
-            apps_dir=Path(apps_dir_value).expanduser() if apps_dir_value else None,
-            verbose=0,
-        ),
-    )
-    scheduler = scheduler_input.strip()
-    if not scheduler:
-        st.error("Scheduler must be provided as a valid IP address.")
+def parse_and_validate_scheduler(scheduler):
+    """
+    Accept IP or IP:PORT. Validate IP via is_valid_ip(host) and optional numeric port.
+    """
+
+    host, sep, port = scheduler.partition(":")
+    if not is_valid_ip(host):
+        st.error(f"The scheduler host '{scheduler}' is invalid. Expect IP or IP:PORT.")
         return None
-    if not env.is_valid_ip(scheduler):
-        st.error(f"The scheduler IP address '{scheduler}' is invalid.")
+    if sep and (not port.isdigit() or not (0 < int(port) < 65536)):
+        st.error(f"The scheduler port in '{scheduler}' is invalid.")
         return None
     return scheduler
 
@@ -211,7 +176,7 @@ def parse_and_validate_workers(workers_input):
         error_message="Workers must be provided as a dictionary of IP addresses and capacities (e.g., {'192.168.0.1': 2})."
     )
     if workers is not None:
-        invalid_ips = [ip for ip in workers.keys() if not env.is_valid_ip(ip)]
+        invalid_ips = [ip for ip in workers.keys() if not is_valid_ip(ip)]
         if invalid_ips:
             st.error(f"The following worker IPs are invalid: {', '.join(invalid_ips)}")
             return {"127.0.0.1": 1}
@@ -419,41 +384,43 @@ def render_cluster_settings_ui():
         )
         cluster_params[param] = updated_value
 
-    default_cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
-
+    # -------- per-project cluster toggle seeded from TOML; do not pass value= while also using session_state
+    cluster_enabled_key = f"cluster_enabled__{env.app}"
+    if cluster_enabled_key not in st.session_state:
+        st.session_state[cluster_enabled_key] = bool(cluster_params.get("cluster_enabled", False))
     cluster_enabled = st.toggle(
         "Enable Cluster",
-        value=cluster_params.get("cluster_enabled", False),
-        key="cluster_enabled",
+        key=cluster_enabled_key,
         help="Enable cluster: provide a scheduler IP and workers configuration."
     )
     cluster_params["cluster_enabled"] = bool(cluster_enabled)
 
+    # Keep scheduler/workers persisted even if disabled (don’t pop them)
     if cluster_enabled:
-        scheduler_value = st.session_state.get("cluster_scheduler_value")
-        if scheduler_value is None:
-            scheduler_value = cluster_params.get("scheduler", "")
+        # per-project widget key & seeding; do not also pass value=
+        scheduler_widget_key = f"cluster_scheduler__{env.app}"
+        if scheduler_widget_key not in st.session_state:
+            st.session_state[scheduler_widget_key] = cluster_params.get("scheduler", "")
         scheduler_input = st.text_input(
             "Scheduler IP Address",
-            value=scheduler_value,
-            placeholder="e.g., 192.168.0.100",
-            help="Provide a scheduler IP address.",
-            key="cluster_scheduler"
+            key=scheduler_widget_key,
+            placeholder="e.g., 192.168.0.100 or 192.168.0.100:8786",
+            help="Provide a scheduler IP address (optionally with :PORT).",
         )
         if scheduler_input:
             scheduler = parse_and_validate_scheduler(scheduler_input)
             if scheduler:
                 cluster_params["scheduler"] = scheduler
-                st.session_state["cluster_scheduler_value"] = scheduler
 
+        workers_widget_key = f"cluster_workers__{env.app}"
         workers_dict = cluster_params.get("workers", {})
-        workers_value = json.dumps(workers_dict, indent=2) if isinstance(workers_dict, dict) else "{}"
+        if workers_widget_key not in st.session_state:
+            st.session_state[workers_widget_key] = json.dumps(workers_dict, indent=2) if isinstance(workers_dict, dict) else "{}"
         workers_input = st.text_area(
             "Workers Configuration",
-            value=workers_value,
+            key=workers_widget_key,
             placeholder='e.g., {"192.168.0.1": 2, "192.168.0.2": 3}',
             help="Provide a dictionary of worker IP addresses and capacities.",
-            key="cluster_workers"
         )
         if workers_input:
             workers = parse_and_validate_workers(workers_input)
@@ -488,6 +455,7 @@ def render_cluster_settings_ui():
         st.info(f"Run mode {run_mode_label[mode_value]}")
     st.session_state.app_settings["cluster"] = cluster_params
 
+    # Persist to TOML
     with open(env.app_settings_file, "wb") as file:
         tomli_w.dump(st.session_state.app_settings, file)
     try:
@@ -538,7 +506,6 @@ def _draw_distribution(graph, partition_key, show_leaf_list, title):
     ax = plt.gca()
     for node in graph.nodes():
         x, y = pos[node]
-        data = graph.nodes[node]
         # Rotate leaf labels if present
         if show_leaf_list and node in leaf_nodes:
             rotation, fontsize = 90, 7
@@ -595,7 +562,6 @@ def _extract_chunk_info(chunk, partition_key, weights_key):
     if isinstance(chunk, (tuple, list)):
         if not chunk:
             return "unknown", 1
-        # Handle cases like [(partition, size)]
         if len(chunk) == 1 and isinstance(chunk[0], (tuple, list)):
             chunk = chunk[0]
         if chunk and isinstance(chunk[0], dict):
@@ -623,12 +589,10 @@ def show_tree(workers, work_plan_metadata, work_plan, partition_key, weights_key
     total_per_host = defaultdict(int)
     workers_works = defaultdict(list)
 
-    # Build workload mapping
     for worker, chunks, files_list in zip(workers, work_plan_metadata, work_plan):
         ip = worker.split("-")[0]
         for chunk, files in zip(chunks, files_list):
             partition, size = _extract_chunk_info(chunk, partition_key, weights_key)
-            # Normalize size
             if isinstance(size, numbers.Number):
                 size_processed = size
             else:
@@ -647,28 +611,23 @@ def show_tree(workers, work_plan_metadata, work_plan, partition_key, weights_key
         st.warning("No workers with assigned chunks found.")
         return
 
-    # Determine minimum for relative weights
     min_size = min(sum(sz for _, sz, _, _ in w) for w in workers_works.values())
     graph = nx.Graph()
 
-    # Populate nodes and edges
     for worker, works in workers_works.items():
         try:
             ip, wnum = worker.split("-")
         except ValueError:
             st.error(f"Worker identifier '{worker}' is not in the expected 'ip-number' format.")
             continue
-        # Host node
         host_load = round(100 * total_per_host[ip] / total) if total else 0
         host_node = f"{ip}\n{host_load}%"
         graph.add_node(host_node, level=0)
-        # Worker node
         wsize = sum(sz for _, sz, _, _ in works)
         wload = round(100 * wsize / total) if total else 0
         worker_node = f"{wnum}\n{ip}\n{wload}%"
         graph.add_node(worker_node, level=1)
         graph.add_edge(host_node, worker_node, weight=round(wsize / min_size, 1))
-        # Partition and leaves
         for partition, sz, nfiles, files in works:
             part_node = f"{partition}\n{nfiles} {weights_key}"
             graph.add_node(part_node, level=2)
@@ -814,7 +773,6 @@ async def page():
         "_experiment_reload_required": False,
     }
 
-
     init_session_state(defaults)
     projects = env.projects
     current_project = env.app
@@ -827,8 +785,12 @@ async def page():
     project_changed = st.session_state.pop("project_changed", False)
     if project_changed or env.app != previous_project:
         app_settings_snapshot = st.session_state.get("app_settings", {})
+        # Clear generic & per-project keys to prevent bleed-through
         st.session_state.pop("cluster_enabled", None)
-        st.session_state.pop("cluster_scheduler_value", None)
+        st.session_state.pop(f"cluster_enabled__{previous_project}", None)
+        st.session_state.pop(f"cluster_scheduler__{previous_project}", None)
+        st.session_state.pop(f"cluster_workers__{previous_project}", None)
+        st.session_state.pop("cluster_scheduler_value", None)  # legacy
         st.session_state.pop(f"deploy_expanded_{previous_project}", None)
         st.session_state.pop(f"optimize_expanded_{previous_project}", None)
         st.session_state.pop("app_settings", None)
@@ -928,12 +890,7 @@ async def page():
     st.session_state["_verbose_user_override"] = selected_verbose_int != 1
 
     verbose = cluster_params.get('verbose', 1)
-    deploy_state_key = f"deploy_expanded_{env.app}"
-    with st.expander(
-        "Do deployment",
-        expanded=st.session_state.get(deploy_state_key, False),
-    ):
-        st.session_state[deploy_state_key] = True
+    with st.expander("Do deployment"):
         render_cluster_settings_ui()
         cluster_params = st.session_state.app_settings["cluster"]
         verbose = cluster_params.get('verbose', 1)
@@ -970,12 +927,11 @@ if __name__ == "__main__":
                 log_placeholder = st.empty()
                 existing_log = st.session_state.get("log_text", "").strip()
                 if existing_log:
-                    colored_logs = ansi_to_html_block(existing_log)
-                    log_placeholder.markdown(colored_logs, unsafe_allow_html=True)
+                    log_placeholder.code(existing_log, language="python")
             if st.button("INSTALL", key="install_btn", type="primary",
                          help="Run the install snippet to set up your .venv for Manager and Worker"):
                 clear_log()
-                venv = env.cluster_root if (env.is_source_env or env.is_worker_env) else env.active_app.parents[1]
+                venv = env.agi_cluster if (env.is_source_env or env.is_worker_env) else env.active_app.parents[1]
                 install_command = cmd.replace("asyncio.run(main())", env.snippet_tail)
                 context_lines = [
                     "=== Install request ===",
@@ -1008,9 +964,8 @@ if __name__ == "__main__":
                         display_log(st.session_state.get("log_text", ""), stderr)
                     if not stderr:
                         st.success("Cluster installation completed.")
-                        # 👇 Auto-enable the RUN section after install
-                        st.session_state["SET ARGS"] = True  # reveals the "SET ARGS" expander
-                        st.session_state["show_run"] = True  # reveal the RUN section
+                        st.session_state["SET ARGS"] = True
+                        st.session_state["show_run"] = True
                         st.rerun()
 
     # ------------------
@@ -1143,7 +1098,9 @@ if __name__ == "__main__":
                                         idx = workers.index(selected_worker)
                                         new_work_plan_metadata[idx].append(chunk)
                                         new_work_plan[idx].append(files)
-                            data = load_distribution(dist_tree_path)[0]
+                            # Read & update the original JSON dict (avoid writing to the workers list)
+                            with open(dist_tree_path, "r") as f:
+                                data = json.load(f)
                             data["target_args"] = st.session_state.app_settings["args"]
                             data["work_plan_metadata"] = new_work_plan_metadata
                             data["work_plan"] = new_work_plan
@@ -1155,14 +1112,18 @@ if __name__ == "__main__":
     # RUN Section
     # ------------------
     if show_run:
+        # Reset run log state when switching between projects so the expander starts closed
+        prev_app_key = "execute_prev_app"
+        if st.session_state.get(prev_app_key) != env.app:
+            st.session_state[prev_app_key] = env.app
+            st.session_state["run_log_cache"] = ""
+            st.session_state.pop("log_text", None)
+            st.session_state.pop("_benchmark_expand", None)
+            st.session_state.pop("_force_export_open", None)
         st.session_state.setdefault("run_log_cache", "")
         cmd = None
-        optimize_state_key = f"optimize_expanded_{env.app}"
-        with st.expander(
-            "Optimize execution",
-            expanded=st.session_state.get(optimize_state_key, False),
-        ):
-            st.session_state[optimize_state_key] = True
+        with st.expander("Optimize execution"):
+            # Benchmark toggle
             st.session_state.setdefault("benchmark", False)
             if st.session_state.pop("benchmark_reset_pending", False):
                 st.session_state["benchmark"] = False
@@ -1171,13 +1132,42 @@ if __name__ == "__main__":
                 key="benchmark",
                 help="Run the snippet once per mode and report timings for each path",
             )
-            if benchmark_enabled:
-                st.session_state["mode"] = None
 
+            # ---- Compute run_mode exactly once (single source of truth)
             cluster_params = st.session_state.app_settings["cluster"]
-            enabled = cluster_params.get("cluster_enabled", False)
-            scheduler = f'"{cluster_params.get("scheduler")}"' if enabled else "None"
-            workers = str(cluster_params.get("workers")) if enabled else "None"
+            cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
+
+            def _compute_mode():
+                # 0/1 pool + 0/2 cython + 0/4 dask + 0/8 rapids
+                return (
+                    int(cluster_params.get("pool", False))
+                    + int(cluster_params.get("cython", False)) * 2
+                    + int(cluster_enabled) * 4
+                    + int(cluster_params.get("rapids", False)) * 8
+                )
+
+            if benchmark_enabled:
+                run_mode = None
+                info_label = "Run mode benchmark (all modes)"
+            else:
+                run_mode = _compute_mode()
+                run_mode_label = [
+                    "0: python", "1: pool of process", "2: cython", "3: pool and cython",
+                    "4: dask", "5: dask and pool", "6: dask and cython", "7: dask and pool and cython",
+                    "8: rapids", "9: rapids and pool", "10: rapids and cython", "11: rapids and pool and cython",
+                    "12: rapids and dask", "13: rapids and dask and pool", "14: rapids and dask and cython",
+                    "15: rapids and dask and pool and cython"
+                ]
+                info_label = f"Run mode {run_mode_label[run_mode]}"
+
+            # Keep session_state in sync (for any other code that reads it)
+            st.session_state["mode"] = run_mode
+            st.info(info_label)
+
+            verbose = cluster_params.get('verbose', 1)
+            enabled = cluster_enabled
+            scheduler = f'"{cluster_params.get("scheduler")}"' if enabled and cluster_params.get("scheduler") else "None"
+            workers = str(cluster_params.get("workers")) if enabled and cluster_params.get("workers") else "None"
             cmd = f"""
 import asyncio
 from agi_cluster.agi_distributor import AGI
@@ -1189,7 +1179,7 @@ APP = "{env.app}"
 async def main():
     app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
     res = await AGI.run(app_env, 
-                        mode={st.session_state["mode"]}, 
+                        mode={run_mode if run_mode is not None else "None"}, 
                         scheduler={scheduler}, 
                         workers={workers}, 
                         {st.session_state.args_serialized})
@@ -1202,7 +1192,7 @@ if __name__ == "__main__":
 
             expand_benchmark = st.session_state.pop("_benchmark_expand", False)
             with st.expander("Benchmark results", expanded=expand_benchmark):
-                if not st.session_state.get('mode'):
+                if run_mode is None:
                     try:
                         if env.benchmark.exists():
                             with open(env.benchmark, "r") as f:
@@ -1211,15 +1201,12 @@ if __name__ == "__main__":
                             # Pull out a date if present, so it doesn't break the DF shape
                             date_value = str(raw.pop("date", "") or "").strip()
 
-                            # Keep your original layout
                             benchmark_df = pd.DataFrame.from_dict(raw, orient='index')
 
-                            # Only display if there's real content (not all-NaN rows/cols)
                             df_nonempty = benchmark_df.dropna(how='all')
                             if not df_nonempty.empty:
                                 df_nonempty = df_nonempty.loc[:, df_nonempty.notna().any(axis=0)]
                             if not df_nonempty.empty and df_nonempty.shape[1] > 0:
-                                # If no date in JSON, try file mtime; otherwise skip date
                                 if not date_value:
                                     try:
                                         ts = os.path.getmtime(env.benchmark)
@@ -1231,10 +1218,8 @@ if __name__ == "__main__":
                                     st.caption(f"Benchmark date: {date_value}")
 
                                 st.dataframe(df_nonempty)
-                            # else: don't display anything if table is effectively empty
                         else:
                             st.error("program abort before all mode have been run")
-                            st.session_state['mode'] = 0
                             st.session_state['benchmark_reset_pending'] = True
 
                     except json.JSONDecodeError as e:
@@ -1247,11 +1232,11 @@ if __name__ == "__main__":
             run_log_expander = st.expander("Run logs", expanded=False)
             with run_log_expander:
                 run_log_placeholder = st.empty()
-                run_log_placeholder.code(existing_run_log)
+                run_log_placeholder.code(existing_run_log, language="python")
 
         run_col, load_col = st.columns(2)
         run_clicked = False
-        run_label = "RUN BENCHMARK" if st.session_state.get("benchmark") else "EXECUTE"
+        run_label = "RUN benchmark" if st.session_state.get("benchmark") else "EXECUTE"
         if cmd:
             run_clicked = run_col.button(
                 run_label,
