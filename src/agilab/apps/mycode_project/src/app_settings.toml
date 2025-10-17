@@ -2,7 +2,11 @@
 
 [cluster]
 verbose = 1
-cython = false
-pool = false
-rapids = false
-cluster_enabled = false
+cython = true
+pool = true
+rapids = true
+cluster_enabled = true
+scheduler = "127.0.0.1"
+
+[cluster.workers]
+"127.0.0.1" = 2

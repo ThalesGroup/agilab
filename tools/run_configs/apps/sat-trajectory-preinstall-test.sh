@@ -5,4 +5,4 @@ set -euo pipefail
 cd /Users/jpm/PycharmProjects/agilab/src/agilab/apps/sat_trajectory_project
 export PYTHONUNBUFFERED=1
 export UV_NO_SYNC=1
-uv run python /Users/jpm/PycharmProjects/agilab/src/agilab/apps/sat_trajectory_project/src/sat_trajectory_worker/pre_install.py remove_decorators --verbose --worker_path /Users/jpm/wenv/sat_trajectory_worker/src/sat_trajectory_worker/sat_trajectory_worker.py
+uv run python /Users/jpm/PycharmProjects/agilab/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/pre_install.py remove_decorators --verbose --worker_path /Users/jpm/wenv/sat_trajectory_worker/src/sat_trajectory_worker/sat_trajectory_worker.py

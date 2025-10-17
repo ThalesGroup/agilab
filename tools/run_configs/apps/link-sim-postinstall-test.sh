@@ -5,4 +5,4 @@ set -euo pipefail
 cd /Users/jpm/PycharmProjects/agilab/src/agilab/apps/link_sim_project
 export PYTHONUNBUFFERED=1
 export UV_NO_SYNC=1
-uv run python /Users/jpm/wenv/link_sim_worker/src/link_sim_worker/post_install.py /Users/jpm/PycharmProjects/agilab/src/agilab/apps/link_sim_project 1 /Users/jpm/data/link_sim
+uv run python /Users/jpm/PycharmProjects/agilab/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/post_install.py /Users/jpm/PycharmProjects/agilab/src/agilab/apps/link_sim_project /Users/jpm/data/link_sim

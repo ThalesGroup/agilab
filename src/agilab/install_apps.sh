@@ -49,6 +49,7 @@ declare -a PRIVATE_APPS=(
   link_sim_project
   sat_trajectory_project
   flight_trajectory_project
+  ilp_project
   sb3_trainer_project
 )
 

@@ -15,6 +15,7 @@ from typing import Dict, Optional
 import sys
 import logging
 import webbrowser
+import shlex
 from sqlalchemy import false
 import ast
 from typing import List, Optional, Union
@@ -34,6 +35,8 @@ custom_css = (
     "text-overflow: ellipsis;  /* Show ellipsis for overflow text */"
     "display: inline-block;} </style>"
 )
+
+def is_valid_ip(*args: Any, **kwargs: Any) -> Any: ...
 
 class JumpToMain(Exception):
     ...
@@ -129,5 +132,7 @@ def sidebar_views(*args: Any, **kwargs: Any) -> Any: ...
 def on_df_change(*args: Any, **kwargs: Any) -> Any: ...
 
 def activate_mlflow(*args: Any, **kwargs: Any) -> Any: ...
+
+def activate_gpt_oss(*args: Any, **kwargs: Any) -> Any: ...
 
 def _focus_existing_docs_tab(*args: Any, **kwargs: Any) -> Any: ...

@@ -1,7 +1,7 @@
 """Cluster workplan utilities for distributing AGILab workloads."""
 
 import traceback
-from typing import Tuple, Set
+from typing import List, Optional, Tuple, Set
 from IPython.lib import backgroundjobs as bg
 import asyncio
 import getpass
@@ -107,3 +107,5 @@ class AGI:
     def exec_ssh(*args: Any, **kwargs: Any) -> Any: ...
     def exec_ssh_async(*args: Any, **kwargs: Any) -> Any: ...
     def _close_all_connections(*args: Any, **kwargs: Any) -> Any: ...
+
+def _format_exception_chain(*args: Any, **kwargs: Any) -> Any: ...
