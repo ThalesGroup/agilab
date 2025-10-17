@@ -1909,6 +1909,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 shutil.rmtree(active_app, ignore_errors=True)
             raise
 
+    # Backward-compat alias used by legacy UIs
+    def change_active_app(self, app):
+        return self.change_app(app)
+
     @staticmethod
     def is_local(ip):
         """
