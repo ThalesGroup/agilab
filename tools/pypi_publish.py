@@ -77,6 +77,12 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--skip-existing", action="store_true", default=True, help="Twine skip-existing (default on)")
     ap.add_argument("--retries", type=int, default=1, help="Twine upload retries (default: 1)")
     ap.add_argument("--dry-run", action="store_true", help="Plan only; print decisions and exit before build/upload")
+    ap.add_argument(
+        "--packages",
+        nargs="+",
+        choices=ALL_PACKAGE_NAMES,
+        help="Limit build/upload to the specified packages (default: all)"
+    )
     ap.add_argument("--verbose", action="store_true", help="Verbose logging for cleanup")
 
     # Version control
@@ -131,6 +137,7 @@ class Cfg:
     git_commit_version: bool
     git_reset_on_failure: bool
     pypirc_check: bool
+    packages: list[str] | None
 
 
 def make_cfg(args: argparse.Namespace) -> Cfg:
@@ -156,6 +163,7 @@ def make_cfg(args: argparse.Namespace) -> Cfg:
         git_commit_version=bool(args.git_commit_version),
         git_reset_on_failure=bool(args.git_reset_on_failure),
         pypirc_check=bool(getattr(args, "pypirc_check", True)),
+        packages=list(args.packages) if getattr(args, "packages", None) else None,
     )
 
 
@@ -169,6 +177,7 @@ CORE: List[Tuple[str, pathlib.Path, pathlib.Path]] = [
     ("agi-core",    REPO_ROOT / "src/agilab/core/agi-core/pyproject.toml",    REPO_ROOT / "src/agilab/core/agi-core"),
 ]
 UMBRELLA = ("agilab", REPO_ROOT / "pyproject.toml", REPO_ROOT)
+ALL_PACKAGE_NAMES = [name for name, *_ in CORE] + [UMBRELLA[0]]
 
 PYPI_JSON = {
     "testpypi": "https://test.pypi.org/pypi/{name}/json",
@@ -331,6 +340,18 @@ def compute_unified_version(core_names: List[str], repo_target: str, base_versio
 
 
 # ---------- TOML ops ----------
+def get_version_from_pyproject(pyproject_path: str | pathlib.Path) -> str:
+    p = pathlib.Path(pyproject_path)
+    if not p.exists():
+        raise RuntimeError(f"pyproject not found: {p}")
+    raw = p.read_text(encoding="utf-8")
+    doc = toml_parse(raw)
+    try:
+        return str(doc["project"]["version"])
+    except KeyError as exc:
+        raise RuntimeError(f"[project].version missing in {p}") from exc
+
+
 def set_version_in_pyproject(pyproject_path: str | pathlib.Path, new_version: str) -> None:
     """
     Robustly set [project].version using tomlkit (preserves formatting/comments/EOL).
@@ -666,45 +687,73 @@ def main():
     if cfg.version is not None and not re.fullmatch(r"\d+\.\d+\.\d+(?:\.post\d+)?", cfg.version):
         raise SystemExit("ERROR: Invalid --version format. Use X.Y.Z or X.Y.Z.postN")
 
+    selected_packages = set(cfg.packages or ALL_PACKAGE_NAMES)
+    unknown = selected_packages - set(ALL_PACKAGE_NAMES)
+    if unknown:
+        raise SystemExit(f"ERROR: Unknown package(s): {', '.join(sorted(unknown))}")
+
+    selected_core_entries = [entry for entry in CORE if entry[0] in selected_packages]
+    build_umbrella = UMBRELLA[0] in selected_packages
+    if not selected_core_entries and not build_umbrella:
+        raise SystemExit("ERROR: --packages must include at least one buildable package")
+
+    selected_core_names = [name for name, *_ in selected_core_entries]
+    version_targets = selected_core_names + ([UMBRELLA[0]] if build_umbrella else [])
+
     removed_symlinks: list[tuple[pathlib.Path, str, bool]] = []
     try:
-        if not cfg.dry_run:
+        if not cfg.dry_run and build_umbrella:
             removed_symlinks = remove_symlinks_for_umbrella()
 
         # Name hygiene
-        sanitize_project_names([p for _, p, _ in CORE])
+        sanitize_project_names([p for _, p, _ in selected_core_entries])
 
-        core_names = [n for n, _, __ in CORE]
+        # Determine version target
+        if cfg.packages and cfg.version is None:
+            existing_versions: set[str] = set()
+            for _, toml_path, _ in selected_core_entries:
+                existing_versions.add(get_version_from_pyproject(toml_path))
+            if build_umbrella:
+                existing_versions.add(get_version_from_pyproject(UMBRELLA[1]))
+            if len(existing_versions) != 1:
+                raise SystemExit(
+                    "ERROR: Selected packages have differing versions. "
+                    "Specify --version explicitly to override."
+                )
+            base_version = existing_versions.pop()
+        else:
+            base_version = cfg.version
 
-        # Choose unified version
-        base = cfg.version or datetime.now(timezone.utc).strftime("%Y.%m.%d")
-        chosen, collisions = compute_unified_version(core_names + [UMBRELLA[0]], cfg.repo, base)
+        chosen, collisions = compute_unified_version(version_targets, cfg.repo, base_version)
 
         print(f"[plan] Unified version: {chosen}")
         date_tag = normalize_base(chosen)  # date base (YYYY.MM.DD)
         print(f"[plan] Tag base (UTC): {date_tag}")
         if cfg.dry_run:
             print("[dry-run] Collisions per package:")
-            for n in core_names + [UMBRELLA[0]]:
+            for n in version_targets:
                 hits = collisions.get(n) or []
                 print(f"  - {n}: {', '.join(hits) if hits else '(none)'}")
 
         # Cleanup-only path
         if cfg.cleanup_only:
-            packages = core_names + [UMBRELLA[0]]
-            cleanup_leave_latest(cfg, packages)
+            cleanup_leave_latest(cfg, version_targets)
             return
 
         # Optional purge BEFORE
         if cfg.purge_before:
-            cleanup_leave_latest(cfg, core_names + [UMBRELLA[0]])
+            cleanup_leave_latest(cfg, version_targets)
 
         # Apply version + pin internal deps, then build
-        pins = {n: chosen for n, _, __ in CORE}
+        current_versions = {name: get_version_from_pyproject(toml) for name, toml, _ in CORE}
+        pins = current_versions.copy()
+        for name in selected_core_names:
+            pins[name] = chosen
+
         all_files: List[str] = []
 
         # core
-        for name, toml, project in CORE:
+        for name, toml, project in selected_core_entries:
             try:
                 set_version_in_pyproject(toml, chosen)
             except Exception as e:
@@ -718,18 +767,19 @@ def main():
             all_files.extend(files)
 
         # umbrella
-        _, umbrella_toml, _ = UMBRELLA
-        try:
-            set_version_in_pyproject(umbrella_toml, chosen)
-        except Exception as e:
-            raise SystemExit(f"fatal: Could not update version in {umbrella_toml}\n{e}")
-        pin_internal_deps(umbrella_toml, pins)
-        if not cfg.dry_run:
-            uv_build_repo_root(cfg.dist)
-        root_files = dist_files_root()
-        if root_files:
-            print(f"[build] umbrella: {', '.join(root_files)}")
-        all_files.extend(root_files)
+        if build_umbrella:
+            _, umbrella_toml, _ = UMBRELLA
+            try:
+                set_version_in_pyproject(umbrella_toml, chosen)
+            except Exception as e:
+                raise SystemExit(f"fatal: Could not update version in {umbrella_toml}\n{e}")
+            pin_internal_deps(umbrella_toml, pins)
+            if not cfg.dry_run:
+                uv_build_repo_root(cfg.dist)
+            root_files = dist_files_root()
+            if root_files:
+                print(f"[build] umbrella: {', '.join(root_files)}")
+            all_files.extend(root_files)
 
         # Dry-run end
         if cfg.dry_run:
@@ -741,39 +791,37 @@ def main():
         # Twine
         twine_check(all_files)
         twine_upload(all_files, cfg.repo, cfg.skip_existing, cfg.retries)
-        # Auto-bump fallback: if every artifact was a reuse collision, bump to next .postN, rebuild, and retry once
         if not cfg.dry_run and UPLOAD_COLLISION_DETECTED and UPLOAD_SUCCESS_COUNT == 0:
             print('[auto-bump] upload collision detected; bumping to next .postN and retrying upload...')
-            # compute next free post based on the originally chosen base
             base_only = normalize_base(chosen)
-            chosen2 = next_free_post_for_all(core_names, cfg.repo, base_only)
-            # apply new version to all, rebuild, and retry upload
-            pins2 = {n: chosen2 for n, _, __ in CORE}
+            chosen2 = next_free_post_for_all(version_targets, cfg.repo, base_only)
+            pins2 = pins.copy()
+            for name in selected_core_names:
+                pins2[name] = chosen2
             all_files2: List[str] = []
-            for name, toml, project in CORE:
+            for name, toml, project in selected_core_entries:
                 set_version_in_pyproject(toml, chosen2)
                 pin_internal_deps(toml, pins2)
                 uv_build_project(project, cfg.dist)
                 all_files2.extend(dist_files(project))
-            # umbrella
-            _, umbrella_toml, _ = UMBRELLA
-            set_version_in_pyproject(umbrella_toml, chosen2)
-            pin_internal_deps(umbrella_toml, pins2)
-            uv_build_repo_root(cfg.dist)
-            all_files2.extend(dist_files_root())
+            if build_umbrella:
+                _, umbrella_toml, _ = UMBRELLA
+                set_version_in_pyproject(umbrella_toml, chosen2)
+                pin_internal_deps(umbrella_toml, pins2)
+                uv_build_repo_root(cfg.dist)
+                all_files2.extend(dist_files_root())
             twine_check(all_files2)
-            # reset flags and re-upload
             globals()['UPLOAD_COLLISION_DETECTED'] = False
             globals()['UPLOAD_SUCCESS_COUNT'] = 0
             twine_upload(all_files2, cfg.repo, cfg.skip_existing, cfg.retries)
 
         # Yank (optional, PyPI only)
         if cfg.yank_previous:
-            yank_previous_versions(cfg, core_names + [UMBRELLA[0]], chosen)
+            yank_previous_versions(cfg, version_targets, chosen)
 
         # Purge AFTER (optional)
         if cfg.purge_after:
-            cleanup_leave_latest(cfg, core_names + [UMBRELLA[0]])
+            cleanup_leave_latest(cfg, version_targets)
 
         # Git tag/commit (optional)
         if cfg.repo == "pypi" and cfg.git_tag:
