@@ -953,8 +953,7 @@ if __name__ == "__main__":
                 if existing_log:
                     colored_logs = ansi_to_html_block(existing_log)
                     log_placeholder.markdown(colored_logs, unsafe_allow_html=True)
-            if st.button("INSTALL", key="install_btn", type="primary",
-                         help="Run the install snippet to set up your .venv for Manager and Worker"):
+            if st.button("INSTALL", key="install_btn", type="primary"):
                 clear_log()
                 venv = env.agi_cluster if (env.is_source_env or env.is_worker_env) else env.active_app.parents[1]
                 install_command = cmd.replace("asyncio.run(main())", env.snippet_tail)
@@ -1386,7 +1385,7 @@ if __name__ == "__main__":
             with action_col_stats:
                 stats_clicked = st.button("STATS report", key="stats_report_main", type="primary", use_container_width=True)
             with action_col_export:
-                export_clicked = st.button("EXPORT dataframe", key="export_df_main", type="primary", use_container_width=True, help="Save the current run output to export/export.csv so Experiment/Explore can load it.")
+                export_clicked = st.button("EXPORT dataframe", key="export_df_main", type="primary", use_container_width=True)
 
             if stats_clicked:
                 profile_file = st.session_state.profile_report_file
