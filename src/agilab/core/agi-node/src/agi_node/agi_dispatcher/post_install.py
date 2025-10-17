@@ -48,6 +48,14 @@ def main(argv: list[str] | None = None) -> int:
     env = _build_env(app_arg)
     archive = app_arg / "src" / app_arg.name.replace("project", "worker") / "dataset.7z"
     print("archive:", archive)
+
+    if not archive.exists():
+        print(
+            f"[post_install] dataset archive not found at {archive}. "
+            "Skipping extraction."
+        )
+        return 0
+
     print("destination", dest_arg)
     env.unzip_data(archive, dest_arg)
     return 0
