@@ -6,6 +6,7 @@
 import os
 from pathlib import Path
 from datetime import datetime
+from typing import Dict, List
 
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parent / "resources" / "config.toml"))
 
@@ -90,14 +91,152 @@ def openai_status_banner(env):
             icon="⚠️",
         )
 
+ENV_FILE_PATH = Path.home() / ".local/share/agilab/.env"
+
+def _ensure_env_file(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.touch(exist_ok=True)
+    return path
+
+def _read_env_file(path: Path) -> List[Dict[str, str]]:
+    path = _ensure_env_file(path)
+    entries: List[Dict[str, str]] = []
+    with path.open("r", encoding="utf-8") as handle:
+        for raw_line in handle.readlines():
+            raw = raw_line.rstrip("\n")
+            stripped = raw.strip()
+            if not stripped or stripped.startswith("#"):
+                entries.append({"type": "comment", "raw": raw})
+            else:
+                if "=" in raw:
+                    key, value = raw.split("=", 1)
+                    entries.append({"type": "entry", "key": key.strip(), "value": value, "raw": raw})
+                else:
+                    entries.append({"type": "comment", "raw": raw})
+    return entries
+
+def _write_env_file(path: Path, entries: List[Dict[str, str]], updates: Dict[str, str], new_entry: Dict[str, str] | None) -> None:
+    path = _ensure_env_file(path)
+    lines: List[str] = []
+    processed_keys = set()
+
+    for entry in entries:
+        if entry["type"] != "entry":
+            lines.append(entry["raw"])
+            continue
+        key = entry["key"]
+        processed_keys.add(key)
+        value = updates.get(key, entry["value"])
+        lines.append(f"{key}={value}")
+
+    for key, value in updates.items():
+        if key not in processed_keys:
+            lines.append(f"{key}={value}")
+            processed_keys.add(key)
+
+    if new_entry and new_entry.get("key") and new_entry["key"] not in processed_keys:
+        lines.append(f"{new_entry['key']}={new_entry['value']}")
+
+    content = "\n".join(lines).rstrip() + "\n"
+    path.write_text(content, encoding="utf-8")
+
+def _render_env_editor(env, help_file: Path):
+    from agi_env.pagelib import open_docs
+
+    st.markdown("### .agilab/.env Environment Editor")
+    st.caption("Update global variables persisted in `~/.local/share/agilab/.env`. Changes apply to future runs immediately.")
+
+    feedback = st.session_state.pop("env_editor_feedback", None)
+    if feedback:
+        st.success(feedback)
+
+    st.session_state.setdefault("env_editor_new_key", "")
+    st.session_state.setdefault("env_editor_new_value", "")
+
+    if st.button("View documentation", key="env_editor_docs", type="secondary"):
+        try:
+            open_docs(env, help_file, "environment-variables")
+        except Exception:
+            open_docs(env, help_file)
+
+    entries = _read_env_file(ENV_FILE_PATH)
+    existing_entries = [entry for entry in entries if entry["type"] == "entry"]
+
+    with st.form("env_editor_form"):
+        updated_values: Dict[str, str] = {}
+        for entry in existing_entries:
+            key = entry["key"]
+            default_value = entry["value"].strip()
+            updated_values[key] = st.text_input(
+                key,
+                value=default_value,
+                key=f"env_editor_val_{key}",
+                help=f"Set value for {key}",
+            )
+
+        st.markdown("#### Add a new variable")
+        new_key = st.text_input("Variable name", key="env_editor_new_key", placeholder="MY_SETTING")
+        new_value = st.text_input("Variable value", key="env_editor_new_value", placeholder="value")
+
+        submitted = st.form_submit_button("Save .env", type="primary")
+
+    if submitted:
+        cleaned_updates: Dict[str, str] = {}
+        for entry in existing_entries:
+            key = entry["key"]
+            cleaned_updates[key] = st.session_state.get(f"env_editor_val_{key}", "").strip()
+
+        new_entry_data = None
+        new_key_clean = new_key.strip()
+        if new_key_clean:
+            new_value_clean = new_value.strip()
+            if new_key_clean in cleaned_updates:
+                cleaned_updates[new_key_clean] = new_value_clean
+            else:
+                new_entry_data = {"key": new_key_clean, "value": new_value_clean}
+
+        try:
+            _write_env_file(ENV_FILE_PATH, entries, cleaned_updates, new_entry_data)
+            combined_updates = dict(cleaned_updates)
+            if new_entry_data:
+                combined_updates[new_entry_data["key"]] = new_entry_data["value"]
+
+            for key, value in combined_updates.items():
+                os.environ[key] = value
+                if hasattr(env, "envars") and isinstance(env.envars, dict):
+                    env.envars[key] = value
+
+            st.session_state["env_editor_feedback"] = "Environment variables updated."
+            st.session_state["env_editor_new_key"] = ""
+            st.session_state["env_editor_new_value"] = ""
+            st.session_state["show_env_editor"] = True
+            st.rerun()
+        except Exception as exc:
+            st.error(f"Failed to save .env file: {exc}")
+
+    if st.button("Close editor", key="env_editor_close", type="secondary"):
+        st.session_state["show_env_editor"] = False
+
 
 def page(env):
     """Render the main landing page controls and footer for the lab."""
+    st.session_state.setdefault("show_env_editor", False)
+
     cols = st.columns(4)
     help_file = Path(env.help_path) / "index.html"
     from agi_env.pagelib import open_docs
     if cols[0].button("Read Documentation", use_container_width=True):
         open_docs(env, help_file, "project-editor")
+
+    if cols[1].button("Edit Environment (.env)", use_container_width=True):
+        st.session_state["show_env_editor"] = True
+        try:
+            open_docs(env, help_file, "environment-variables")
+        except Exception:
+            open_docs(env, help_file)
+
+    if st.session_state.get("show_env_editor"):
+        _render_env_editor(env, help_file)
 
     current_year = datetime.now().year
     st.markdown(
