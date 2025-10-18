@@ -1,0 +1,31 @@
+# Mycode-project Licenses
+| Package Name | License |
+|--------------|---------|
+| asttokens | APACHE 2.0 |
+| brotli | MIT LICENSE |
+| decorator | BSD LICENSE |
+| executing | MIT LICENSE |
+| inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| ipython | BSD LICENSE |
+| ipython-pygments-lexers | BSD LICENSE |
+| jedi | MIT LICENSE |
+| matplotlib-inline | BSD LICENSE |
+| multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| parso | MIT LICENSE |
+| pexpect | ISC LICENSE _ISCL_ |
+| prompt-toolkit | BSD LICENSE |
+| psutil | BSD-3-CLAUSE |
+| ptyprocess | ISC LICENSE _ISCL_ |
+| pure-eval | MIT LICENSE |
+| py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
+| pygments | BSD LICENSE |
+| pyppmd | LGPL-2.1-OR-LATER |
+| python-dotenv | BSD LICENSE |
+| pyzstd | BSD LICENSE |
+| setuptools | MIT |
+| stack-data | MIT LICENSE |
+| texttable | MIT LICENSE |
+| traitlets | BSD LICENSE |
+| wcwidth | MIT LICENSE |

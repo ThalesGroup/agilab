@@ -1,0 +1,54 @@
+Framework API
+=============
+
+The framework is organised as a small set of cooperating packages that expose
+both Streamlit primitives (pages, widgets, orchestration helpers) and the
+worker-side orchestration logic. Start here when you need to automate project
+setup, build new nodes, or integrate with the AGILab distributor.
+
+Core packages
+-------------
+
+- ``agi_env`` maps the current project into an ``AgiEnv`` object and provides the
+  helper utilities relied upon by Streamlit pages (project discovery, dataset
+  export, templating helpers, etc.).
+- ``agi_node`` contains the base worker/node abstractions that run inside a
+  cluster. Extend these classes when you need custom pipelines or want to add
+  typed contracts around data exchange.
+- ``agi_distributor`` bundles the orchestration layer responsible for installing
+  apps, creating distributions, and delegating tasks to remote workers.
+
+The detailed API reference for each package is available below.
+
+.. toctree::
+   :maxdepth: 2
+
+   agi-env
+   agi-node
+   agi-distributor
+
+Working with the API
+--------------------
+
+- Use ``agi_env.AgiEnv`` inside Streamlit pages or utility scripts to access the
+  active project structure and configuration.
+- Derive from ``agi_node`` base classes to implement new DAG steps or worker
+  behaviours that can be shipped with your app bundles.
+- Call into ``agi_distributor.AGI`` for programmatic install / get_distrib / run
+  flows; this is the same surface area surfaced in the Execute page snippets.
+
+App structure conventions
+-------------------------
+
+- Every app bundles a manager module under
+  ``src/agilab/apps/<app>_project/src/<app>/<app>.py`` and a worker module under
+  ``src/agilab/apps/<app>_project/src/<app>_worker/<app>_worker.py``.
+- Test coverage mirrors that split: ``test/_test_<app>_manager.py`` drives the
+  manager entry points, ``test/_test_<app>_worker.py`` exercises the worker, and
+  ``app_test.py`` orchestrates the combined flow.
+- Instantiate managers with their validated args models (for example ``FlightArgs``).
+  The convenience constructor ``BaseWorker.from_toml`` remains the recommended entry
+  point for configuration-driven flows.
+
+For end-to-end examples, browse ``src/agilab/examples`` to see how the packages
+fit together in real projects.

@@ -1,0 +1,161 @@
+agi-node API
+============
+
+Path handling
+-------------
+Workers resolve any dataset or workspace URI through
+``BaseWorker.normalize_data_uri`` before touching the filesystem. The helper
+accepts ``str`` or ``pathlib.Path`` inputs and normalises them as follows:
+
+- UNC-style shares on Windows (for example ``\\server\share``) are preserved
+  by wrapping them in ``PureWindowsPath`` and returning the
+  ``os.path.normpath`` representation so network drives keep their double
+  backslashes.
+- Every other value is expanded relative to the current home directory. This
+  lets configuration files ship entries such as ``data/my-project`` while still
+  resolving to ``~/data/my-project`` on the worker host.
+- ``Path.resolve(strict=False)`` is applied to keep symlinks such as the
+  ``~/data`` link created by installers, while still accepting directories that
+  are created later during the run.
+- On non-managed Windows installs the helper also attempts to map the dataset
+  under ``\\127.0.0.1\…`` via ``net use`` so local workers gain access to the
+  same share paths used on Linux.
+- The function emits POSIX-style strings on Unix-like systems and uses
+  ``os.path.normpath`` on Windows so downstream code can hand the value to shell
+  commands or ``pathlib`` without further tweaks.
+
+All built-in workers, including ``flight_worker`` and ``mycode_worker``, call
+this helper in ``start`` and ``work_pool`` to populate ``self.args.data_uri``
+and any per-file path passed to the pool. Extending these workers means you get
+consistent path semantics across local and distributed executions without
+copy-pasting platform-specific logic.
+
+
+Argument helpers
+----------------
+
+Recent updates to ``BaseWorker`` standardise how workers load, merge, and persist
+their argument models. Every subclass can opt into the following hooks:
+
+- ``default_settings_path`` and ``default_settings_section`` control the TOML
+  source used by ``from_toml`` / ``to_toml``.
+- ``args_loader`` and ``args_merger`` are callables that fetch and combine raw
+  settings with user overrides before instantiating the worker.
+- ``args_ensure_defaults`` lets workers patch derived values (for example,
+  normalising paths) after the merge but before instantiation.
+- ``args_dumper`` and ``args_dump_mode`` define how ``to_toml`` emits the active
+  configuration, enabling round-trips back into ``app_settings.toml``.
+
+If these helpers live in the worker module (for example ``load_args`` or
+``dump_args`` defined alongside the class) or inside a sibling ``*_args``/``app_args``
+module, ``BaseWorker`` auto-binds them during class creation. That lets most apps
+drop the explicit ``args_loader = …`` boilerplate while still allowing manual
+overrides for custom integrations.
+
+Managed PC path remapping
+-------------------------
+
+- ``managed_pc_path_fields`` lists argument attributes that should be remapped to
+  the managed-machine workspace (``~/MyApp`` by default) when ``AgiEnv`` reports a
+  managed PC.
+- ``managed_pc_home_suffix`` customises the managed workspace folder name if your
+  deployment uses something other than ``MyApp``.
+- ``BaseWorker.from_toml`` applies the remapping automatically; when instantiating
+  a worker manually, use ``setup_args`` to apply defaults and remap paths in a
+  single call.
+- ``setup_args`` optionally accepts ``output_field`` (e.g. ``"data_uri"``) along with
+  ``output_subdir``, ``output_attr``, ``output_clean`` and ``output_parents_up`` so
+  managers can prepare their output directories without repeating boilerplate.
+
+Output directory helpers
+------------------------
+
+- ``prepare_output_dir`` centralises the setup of manager-side output folders
+  (defaulting to ``dataframe``). Hand it the base path you want to target and it
+  normalises the path, clears old contents when ``auto_clean_data_out`` is enabled,
+  creates the directory, and stores it on ``self.data_out`` unless you override the
+  target attribute.
+
+With these attributes in place, ``BaseWorker.from_toml`` produces a configured
+instance and ``BaseWorker.to_toml`` writes the updated schema without each app
+copying boilerplate. ``BaseWorker.as_dict`` exposes a serialisable payload for
+Streamlit pages and API consumers, while ``_extend_payload`` stays available for
+apps that need to enrich the exported structure.
+
+
+Reference
+--------
+
+dag_worker
+~~~~~~~~~~
+
+.. image:: diagrams/packages_dag_worker.svg
+   :width: 400
+   :alt: Packages diagram for dag_worker
+   :align: center
+
+----
+
+.. image:: diagrams/classes_dag_worker.svg
+   :width: 400
+   :alt: Classes diagram for dag_worker
+   :align: center
+
+----
+
+.. automodule:: dag_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----
+
+
+pandas_worker
+~~~~~~~~~~~
+
+.. image:: diagrams/packages_pandas_worker.svg
+   :width: 400
+   :alt: Packages diagram for pandas_worker
+   :align: center
+
+----
+
+.. image:: diagrams/classes_pandas_worker.svg
+   :width: 400
+   :alt: Classes diagram for pandas_worker
+   :align: center
+
+----
+
+.. automodule:: agi_core.pandas_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----
+
+
+polars_worker
+~~~~~~~~~~~
+
+.. image:: diagrams/packages_polars_worker.svg
+   :width: 400
+   :alt: Packages diagram for polars_worker
+   :align: center
+
+----
+
+.. image:: diagrams/classes_polars_worker.svg
+   :width: 400
+   :alt: Classes diagram for polars_worker
+   :align: center
+
+----
+
+.. automodule:: polars_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+----

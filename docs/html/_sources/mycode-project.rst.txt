@@ -1,0 +1,83 @@
+MyCode Project
+==============
+
+Overview
+--------
+- Minimal starter template you can copy to bootstrap a new AGILab application.
+- Demonstrates the project layout expected by the platform (manager package,
+  worker package, ``app_args`` definitions, Explore configuration) with minimal
+  business logic so you can focus on custom code.
+- Ships with blank Streamlit forms and prompt files to illustrate where to plug
+  in UI customisation and Experiment prompts.
+
+Manager (`mycode.mycode`)
+-------------------------
+- Lightweight subclass of ``BaseWorker`` that shows how to wire argument
+  handling, logging and dataframe export without heavy dependencies.
+- Provides the same ``from_toml`` / ``to_toml`` helpers as production projects so
+  you can reuse the Execute page snippets verbatim.
+
+Args (`mycode.app_args`)
+------------------------
+- Simple Pydantic model that mirrors the keys present in ``app_settings.toml``.
+- Ideal starting point for capturing new configuration options; extend the model
+  and the Streamlit form generated on the Execute page will pick them up.
+
+Worker (`mycode_worker.mycode_worker`)
+--------------------------------------
+- Skeleton worker that demonstrates the lifecycle hooks (``start``,
+  ``work_init``, ``run``) required by the distributor.
+- Includes placeholder logic for dataset loading and result persistence—replace
+  with your domain-specific processing steps.
+
+Assets & Tests
+--------------
+- ``app_test.py`` ensures the installer and worker skeleton keep working as the
+  template evolves.
+- ``test/_test_*`` modules show how to unit-test managers and workers in
+  isolation.
+- ``app_args_form.py`` provides the optional Streamlit form that mirrors the
+  generated UI; tailor it when you need additional validation or widgets.
+
+API Reference
+-------------
+
+.. image:: diagrams/packages_mycode.svg
+   :width: 400
+   :alt: mycode package diagram
+   :align: center
+
+.. automodule:: mycode.mycode
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_mycode.svg
+   :width: 400
+   :alt: mycode class diagram
+   :align: center
+
+.. automodule:: mycode.app_args
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_mycode_args.svg
+   :width: 400
+   :alt: mycode args class diagram
+   :align: center
+
+.. image:: diagrams/packages_mycode_worker.svg
+   :width: 400
+   :alt: mycode worker package diagram
+   :align: center
+
+.. automodule:: mycode_worker.mycode_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_mycode_worker.svg
+   :width: 400
+   :alt: mycode worker class diagram
+   :align: center
