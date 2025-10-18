@@ -815,6 +815,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         credentials_parts = raw_credentials.split(":")
         self.user = credentials_parts[0]
         self.password = credentials_parts[1] if len(credentials_parts) > 1 else None
+        ssh_key_env = envars.get("AGI_SSH_KEY_PATH", "")
+        ssh_key_env = ssh_key_env.strip() if isinstance(ssh_key_env, str) else ""
+        self.ssh_key_path = str(Path(ssh_key_env).expanduser()) if ssh_key_env else None
 
         self.projects = self.get_projects(self.apps_dir)
         if not self.projects:

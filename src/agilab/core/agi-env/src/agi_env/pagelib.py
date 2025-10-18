@@ -160,7 +160,7 @@ def open_docs(env, html_file="index.html", anchor=""):
 
     if docs_path is None:
         print("Documentation file not found locally. Opening online docs instead.")
-        online_url = "https://thalesgroup.github.io/agilab/"
+        online_url = "https://thalesgroup.github.io/agilab/html/index.html"
         if anchor:
             # Ensure the anchor starts with '#'
             if not anchor.startswith("#"):
