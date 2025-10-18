@@ -546,7 +546,6 @@ def render_cluster_settings_ui():
 
         if use_ssh_key:
             cluster_params["ssh_key_path"] = sanitized_key
-            cluster_params.pop("password", None)
             env.password = None
             env.ssh_key_path = sanitized_key or None
 
@@ -554,8 +553,7 @@ def render_cluster_settings_ui():
                 _persist_env_var("CLUSTER_CREDENTIALS", sanitized_user)
             _persist_env_var("AGI_SSH_KEY_PATH", sanitized_key)
         else:
-            cluster_params["password"] = password_value
-            cluster_params.pop("ssh_key_path", None)
+            cluster_params.pop("password", None)
             env.password = password_value or None
             env.ssh_key_path = None
 

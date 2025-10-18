@@ -837,7 +837,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             raise ValueError(f"Invalid scheduler IP address: {self.scheduler_ip}")
 
         if self.is_source_env:
-            self.help_path = str(self.agilab_pck / "../docs/html")
+            self.help_path = str(self.agilab_pck.parents[1] / "docs/html")
         else:
             self.help_path = "https://thalesgroup.github.io/agilab"
         self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", home_abs / "data"))
