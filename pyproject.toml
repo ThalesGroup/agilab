@@ -19,10 +19,10 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
 ]
 keywords = [
-    "jupyter", "mlflow", "asyncio", "dask", "rapids",
+    "jupyterai", "mlflow", "asyncio", "dask", "rapids",
     "streamlit", "distributed", "cython", "cluster", "dataframe",
-    "dataset", "load balancing", "gen ai", "copilot", "agi",
-    "pycharm", "datascience"
+    "dataset", "loadbalancing", "genai", "agi",
+    "pycharm", "datascience", "codex", "ollama"
 ]
 dependencies = ["ansi2html>=1.9.2", "astor", "asyncssh", "build", "cmake>=3.29", "fastparquet", "geojson", "humanize", "jupyter-ai[all]", "keras", "matplotlib", "mlflow", "networkx", "numba", "numpy>=1.14.1", "openai", "pathspec", "pip", "plotly", "polars", "pulp", "py7zr", "scipy==1.15.2", "seaborn", "setuptools", "streamlit", "streamlit-modal", "streamlit_code_editor", "streamlit_extras", "tomli", "tomli_w", "twine", "watchdog", "wheel", "agi-core==2025.10.17", "legacy-cgi; python_version >= '3.13'", "standard-imghdr; python_version >= '3.13'"]
 
