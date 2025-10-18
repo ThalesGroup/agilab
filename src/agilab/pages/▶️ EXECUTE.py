@@ -13,10 +13,12 @@ import numbers
 import logging
 from pathlib import Path
 import importlib
+from typing import Optional
 from datetime import datetime
 
 # Third-Party imports
 import networkx as nx
+from networkx.readwrite import json_graph
 import matplotlib.pyplot as plt
 import textwrap
 from matplotlib.patches import Patch
@@ -30,7 +32,7 @@ import streamlit as st
 # Project Libraries:
 from agi_env.pagelib import (
     get_about_content, render_logo, activate_mlflow, save_csv, init_custom_ui, select_project, open_new_tab,
-    cached_load_df, inject_theme, is_valid_ip
+    cached_load_df, inject_theme, is_valid_ip, find_files
 )
 
 from agi_env import AgiEnv
@@ -87,6 +89,29 @@ def strip_ansi(text: str) -> str:
         return ""
     ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
     return ansi_escape.sub('', text)
+
+def _looks_like_shared_path(path: Path) -> bool:
+    """Heuristic: treat paths outside the local home/project tree as shared."""
+    try:
+        resolved = path.expanduser().resolve()
+    except Exception:
+        return False
+
+    home = Path.home().resolve()
+    try:
+        resolved.relative_to(home)
+        return False
+    except ValueError:
+        pass
+
+    project_root = Path(__file__).resolve().parents[2]
+    try:
+        resolved.relative_to(project_root)
+        return False
+    except ValueError:
+        pass
+
+    return resolved.is_absolute()
 
 
 def display_log(stdout, stderr):
@@ -397,16 +422,149 @@ def render_cluster_settings_ui():
 
     # Keep scheduler/workers persisted even if disabled (don’t pop them)
     if cluster_enabled:
+        # Helper to persist environment variables if the value changed
+        def _persist_env_var(key: str, value: Optional[str]):
+            normalized = "" if value is None else str(value)
+            current = ""
+            envars = getattr(AgiEnv, "envars", None)
+            if isinstance(envars, dict):
+                current = str(envars.get(key, "") or "")
+            if normalized != current:
+                AgiEnv.set_env_var(key, normalized)
+
+        share_root = getattr(env, "AGILAB_SHARE", None)
+        share_candidate = None
+        if isinstance(share_root, Path):
+            share_candidate = share_root
+        elif isinstance(share_root, str) and share_root.strip():
+            share_candidate = Path(share_root.strip())
+        if share_candidate is not None:
+            base_home = getattr(env, "home_abs", Path.home())
+            if not share_candidate.is_absolute():
+                share_candidate = (base_home / share_candidate)
+            share_candidate = share_candidate.expanduser()
+            is_symlink = share_candidate.is_symlink()
+            try:
+                share_resolved = share_candidate.resolve()
+            except Exception:
+                share_resolved = share_candidate
+
         # per-project widget key & seeding; do not also pass value=
         scheduler_widget_key = f"cluster_scheduler__{env.app}"
         if scheduler_widget_key not in st.session_state:
             st.session_state[scheduler_widget_key] = cluster_params.get("scheduler", "")
-        scheduler_input = st.text_input(
-            "Scheduler IP Address",
-            key=scheduler_widget_key,
-            placeholder="e.g., 192.168.0.100 or 192.168.0.100:8786",
-            help="Provide a scheduler IP address (optionally with :PORT).",
-        )
+        user_widget_key = f"cluster_user__{env.app}"
+        stored_user = cluster_params.get("user")
+        if stored_user in (None, ""):
+            stored_user = getattr(env, "user", "") or ""
+        if user_widget_key not in st.session_state:
+            st.session_state[user_widget_key] = stored_user
+        auth_toggle_key = f"cluster_use_key__{env.app}"
+        auth_method = cluster_params.get("auth_method")
+        default_use_key = bool(cluster_params.get("ssh_key_path"))
+        if isinstance(auth_method, str):
+            default_use_key = auth_method.lower() == "ssh_key"
+        if auth_toggle_key not in st.session_state:
+            st.session_state[auth_toggle_key] = default_use_key
+
+        auth_row = st.container()
+        scheduler_col, user_col, credential_col, toggle_col = auth_row.columns(4, vertical_alignment="top")
+        with scheduler_col:
+            scheduler_input = st.text_input(
+                "Scheduler IP Address",
+                key=scheduler_widget_key,
+                placeholder="e.g., 192.168.0.100 or 192.168.0.100:8786",
+                help="Provide a scheduler IP address (optionally with :PORT).",
+            )
+        with user_col:
+            user_input = st.text_input(
+                "SSH User",
+                key=user_widget_key,
+                placeholder="e.g., ubuntu",
+                help="Remote account used for cluster SSH connections.",
+            )
+        sanitized_user = (user_input or "").strip()
+        if not sanitized_user and stored_user:
+            sanitized_user = stored_user
+            if user_input != sanitized_user:
+                st.session_state[user_widget_key] = sanitized_user
+        elif user_input != sanitized_user:
+            st.session_state[user_widget_key] = sanitized_user
+
+        env.user = sanitized_user
+        cluster_params["user"] = sanitized_user
+        if not sanitized_user:
+            _persist_env_var("CLUSTER_CREDENTIALS", "")
+
+        sanitized_key = None
+        password_value = ""
+        with toggle_col:
+            use_ssh_key = st.toggle(
+                "Use SSH key",
+                key=auth_toggle_key,
+                help="Toggle between SSH key-based auth (recommended) and password auth for cluster workers.",
+            )
+        cluster_params["auth_method"] = "ssh_key" if use_ssh_key else "password"
+
+        if use_ssh_key:
+            ssh_key_widget_key = f"cluster_ssh_key__{env.app}"
+            stored_key = cluster_params.get("ssh_key_path")
+            if stored_key in (None, ""):
+                stored_key = getattr(env, "ssh_key_path", "") or ""
+            if ssh_key_widget_key not in st.session_state:
+                st.session_state[ssh_key_widget_key] = stored_key
+            with credential_col:
+                ssh_key_input = st.text_input(
+                    "SSH Key Path",
+                    key=ssh_key_widget_key,
+                    placeholder="e.g., ~/.ssh/id_rsa",
+                    help="Private key used for SSH authentication.",
+                )
+            sanitized_key = (ssh_key_input or "").strip()
+            if not sanitized_key and stored_key:
+                sanitized_key = stored_key
+                if ssh_key_input != sanitized_key:
+                    st.session_state[ssh_key_widget_key] = sanitized_key
+            elif ssh_key_input != sanitized_key:
+                st.session_state[ssh_key_widget_key] = sanitized_key
+        else:
+            password_widget_key = f"cluster_password__{env.app}"
+            stored_password = cluster_params.get("password")
+            if stored_password is None:
+                stored_password = env.password or ""
+            if password_widget_key not in st.session_state:
+                st.session_state[password_widget_key] = stored_password
+            with credential_col:
+                password_input = st.text_input(
+                    "SSH Password",
+                    key=password_widget_key,
+                    type="password",
+                    placeholder="Enter SSH password",
+                    help="Password for SSH authentication. Leave blank if workers use key-based auth.",
+                )
+            password_value = password_input or ""
+
+        if use_ssh_key:
+            cluster_params["ssh_key_path"] = sanitized_key
+            cluster_params.pop("password", None)
+            env.password = None
+            env.ssh_key_path = sanitized_key or None
+
+            if sanitized_user:
+                _persist_env_var("CLUSTER_CREDENTIALS", sanitized_user)
+            _persist_env_var("AGI_SSH_KEY_PATH", sanitized_key)
+        else:
+            cluster_params["password"] = password_value
+            cluster_params.pop("ssh_key_path", None)
+            env.password = password_value or None
+            env.ssh_key_path = None
+
+            if sanitized_user:
+                credentials_value = sanitized_user if not password_value else f"{sanitized_user}:{password_value}"
+                _persist_env_var("CLUSTER_CREDENTIALS", credentials_value)
+            else:
+                _persist_env_var("CLUSTER_CREDENTIALS", "")
+            _persist_env_var("AGI_SSH_KEY_PATH", "")
         if scheduler_input:
             scheduler = parse_and_validate_scheduler(scheduler_input)
             if scheduler:
@@ -1001,6 +1159,32 @@ if __name__ == "__main__":
                         with open(app_args_form, "w") as st_src:
                             st_src.write("")
 
+            cluster_params = st.session_state.app_settings.setdefault("cluster", {})
+            cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
+            if cluster_enabled:
+                share_root = getattr(env, "AGILAB_SHARE", None)
+                share_candidate = None
+                if isinstance(share_root, Path):
+                    share_candidate = share_root
+                elif isinstance(share_root, str) and share_root.strip():
+                    share_candidate = Path(share_root.strip())
+                if share_candidate is not None:
+                    base_home = getattr(env, "home_abs", Path.home())
+                    if not share_candidate.is_absolute():
+                        share_candidate = base_home / share_candidate
+                    share_candidate = share_candidate.expanduser()
+                    is_symlink = share_candidate.is_symlink()
+                    try:
+                        share_resolved = share_candidate.resolve()
+                    except Exception:
+                        share_resolved = share_candidate
+                    if not is_symlink and not _looks_like_shared_path(share_resolved):
+                        st.warning(
+                            f"Cluster is enabled but the data directory `{share_resolved}` appears local. "
+                            "Set `AGI_SHARE_DIR` to a shared mount (or symlink to one) so remote workers can read outputs.",
+                            icon="⚠️",
+                        )
+
             args_serialized = ", ".join(
                 [f'{key}="{value}"' if isinstance(value, str) else f"{key}={value}"
                  for key, value in st.session_state.app_settings["args"].items()]
@@ -1234,7 +1418,7 @@ if __name__ == "__main__":
                 run_log_placeholder = st.empty()
                 run_log_placeholder.code(existing_run_log, language="python")
 
-        run_col, load_col = st.columns(2)
+        run_col, load_col, delete_col = st.columns(3)
         run_clicked = False
         run_label = "RUN benchmark" if st.session_state.get("benchmark") else "EXECUTE"
         if cmd:
@@ -1263,9 +1447,96 @@ if __name__ == "__main__":
             help="Fetch the latest dataframe preview for export",
         )
 
+        delete_clicked = delete_col.button(
+            "DELETE dataframe",
+            key="delete_data_main",
+            type="secondary",
+            use_container_width=True,
+            help="Clear the cached dataframe preview so the next load reflects a fresh EXECUTE run.",
+        )
+
         if load_clicked:
-            st.session_state["loaded_df"] = cached_load_df(Path().home() / env.dataframe_path, with_index=False)
-            st.session_state["_force_export_open"] = True
+            data_root = Path.home() / env.dataframe_path
+            target_file: Optional[Path] = None
+            if data_root.is_dir():
+                candidates = [
+                    *data_root.rglob("*.parquet"),
+                    *data_root.rglob("*.csv"),
+                    *data_root.rglob("*.json"),
+                ]
+                if candidates:
+                    target_file = max(candidates, key=lambda file: file.stat().st_mtime)
+            elif data_root.is_file():
+                target_file = data_root
+
+            if not target_file:
+                st.warning("No dataframe export found yet. Run EXECUTE to generate a fresh output.")
+            else:
+                st.session_state["loaded_source_path"] = target_file
+                suffix = target_file.suffix.lower()
+                try:
+                    if suffix in {".csv", ".parquet"}:
+                        loaded_df = cached_load_df(target_file, with_index=False)
+                        if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
+                            st.session_state["loaded_df"] = loaded_df
+                            st.session_state["_force_export_open"] = True
+                            st.session_state.pop("loaded_graph", None)
+                            st.success(f"Loaded dataframe preview from {target_file.name}.")
+                        else:
+                            st.warning(f"{target_file.name} is empty; nothing to preview.")
+                    elif suffix == ".json":
+                        payload = json.loads(target_file.read_text())
+                        if isinstance(payload, dict) and "nodes" in payload and "links" in payload:
+                            graph = json_graph.node_link_graph(payload, directed=payload.get("directed", True))
+                            st.session_state["loaded_df"] = None
+                            st.session_state["_force_export_open"] = False
+                            st.session_state["loaded_graph"] = graph
+                            st.success(f"Loaded network graph from {target_file.name}.")
+                        else:
+                            loaded_df = pd.json_normalize(payload)
+                            st.session_state["loaded_df"] = loaded_df
+                            st.session_state["_force_export_open"] = True
+                            st.session_state.pop("loaded_graph", None)
+                            st.info(f"Parsed JSON payload as tabular data from {target_file.name}.")
+                    else:
+                        st.warning(f"Unsupported file format: {target_file.suffix}")
+                except json.JSONDecodeError as exc:
+                    st.error(f"Failed to decode JSON from {target_file.name}: {exc}")
+                except Exception as exc:
+                    st.error(f"Unable to load {target_file.name}: {exc}")
+
+        if delete_clicked:
+            source_path = st.session_state.pop("loaded_source_path", None)
+            st.session_state["loaded_df"] = None
+            st.session_state.pop("df_cols", None)
+            st.session_state.pop("selected_cols", None)
+            st.session_state["check_all"] = False
+            st.session_state["_force_export_open"] = False
+            st.session_state.pop("loaded_graph", None)
+
+            deleted = False
+            if source_path:
+                file_path = Path(source_path)
+                try:
+                    if file_path.exists():
+                        file_path.unlink()
+                        try:
+                            cached_load_df.clear()
+                        except Exception:
+                            pass
+                        try:
+                            find_files.clear()
+                        except Exception:
+                            pass
+                        st.success(f"Deleted {file_path.name} from disk.")
+                        deleted = True
+                    else:
+                        st.info("Loaded file already removed from disk.")
+                except Exception as exc:
+                    st.error(f"Failed to delete {file_path}: {exc}")
+
+            if not deleted:
+                st.info("Dataframe preview cleared. Run EXECUTE then LOAD to refresh with new output.")
 
         if run_clicked and cmd:
             clear_log()
@@ -1289,8 +1560,31 @@ if __name__ == "__main__":
                     st.rerun()
 
     df_preview = st.session_state.get("loaded_df")
+    graph_preview = st.session_state.get("loaded_graph")
+    source_preview_path = st.session_state.get("loaded_source_path")
+    source_preview_name = None
+    if source_preview_path:
+        try:
+            source_preview_name = Path(source_preview_path).name
+        except Exception:
+            source_preview_name = str(source_preview_path)
     if isinstance(df_preview, pd.DataFrame) and not df_preview.empty:
         st.dataframe(df_preview)
+        if source_preview_name:
+            st.caption(f"Previewing {source_preview_name}")
+    elif isinstance(graph_preview, nx.Graph):
+        st.caption("Graph preview generated from JSON output")
+        fig, ax = plt.subplots(figsize=(8, 6))
+        pos = nx.spring_layout(graph_preview, seed=42)
+        node_colors = "skyblue"
+        nx.draw_networkx_nodes(graph_preview, pos, node_color=node_colors, ax=ax)
+        nx.draw_networkx_edges(graph_preview, pos, ax=ax, alpha=0.5)
+        nx.draw_networkx_labels(graph_preview, pos, ax=ax, font_size=9)
+        ax.axis("off")
+        st.pyplot(fig, use_container_width=True)
+        plt.close(fig)
+        if source_preview_name:
+            st.caption(f"Source: {source_preview_name}")
 
     export_expanded = st.session_state.pop("_force_export_open", False)
     loaded_df = st.session_state.get("loaded_df")
