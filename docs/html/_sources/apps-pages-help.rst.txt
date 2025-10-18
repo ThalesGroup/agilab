@@ -1,0 +1,42 @@
+▶️ APPS PAGES
+=============
+
+.. toctree::
+   :hidden:
+
+Introduction
+------------
+Apps pages host Streamlit utilities that are independent of any single
+application. You can decide which pages are available to a project by editing
+``[pages]`` in ``app_settings.toml`` or by using the Explore page. A bundle is
+discovered when its directory under ``${AGILAB_PAGES_ABS}`` contains a
+``pyproject.toml`` that points at ``src/<module>/<module>.py``; keep a dedicated
+``.venv`` nearby if you need custom dependencies—the Explore launcher will spin
+it up automatically.
+
+Built-in vs Plugin Pages
+------------------------
+- **Built-in pages** (Edit, Execute, Experiment, Explore) ship with AGILab. They
+  live in the IDE itself, always appear in the navigation sidebar and update
+  whenever you upgrade the core project.
+- **Plugin pages** live under ``src/agilab/apps-pages`` (or your private clone).
+  Each bundle adds Streamlit views that load side-by-side with the built-in
+  pages. Projects enable them by listing the page module in ``app_settings.toml``
+  or via Explore → Configure.
+- Built-in flows remain available even when no plugin pages are installed. When
+  plugins are present, Explore surfaces both sets so users can jump between core
+  workflows and custom dashboards.
+
+Sidebar
+-------
+- Project selector: switch between installed applications.
+- Multi-select of available page bundles (persisted per project).
+
+Main Content Area
+-----------------
+- Browse the catalogue of discovered Streamlit bundles.
+- Choose which pages should surface on the home dashboard.
+- Launch a page in a dedicated sidecar session for interactive work.
+
+See also **EDIT → APP-SETTINGS → File Editor** to review the ``[pages]`` entry
+that Explore updates.
