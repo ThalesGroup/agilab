@@ -1,0 +1,88 @@
+Link Sim Project
+================
+
+Overview
+--------
+- Network-simulation reference app that correlates aircraft telemetry, satellite
+  visibility and service definitions to evaluate link availability.
+- Exercises multi-source ingestion by combining per-flight CSVs, satellite
+  traces and JSON configuration into unified dataframes.
+- Useful companion for the Explore network bundles (maps-network, maps-3d) which
+  expect the enriched outputs produced by this project.
+
+Manager (`link_sim.link_sim`)
+-----------------------------
+- Validates paths to flight and satellite datasets, plane configuration, service
+  definitions and heatmaps before seeding ``WorkDispatcher``.
+- Normalises data directories (including managed-PC path rewrites) and exposes
+  ``from_toml`` / ``to_toml`` helpers via the shared ``agi_env.app_args``
+  machinery.
+- Provides dataset inspection utilities (CSV combiners) that feed into the
+  distribution stage so workers receive balanced workloads.
+
+Args (`link_sim.app_args`)
+-------------------------
+- Typed model (`LinkSimArgs`) describing every file required to run a simulation
+  and the desired export format (CSV/JSON/Parquet).
+- Supports dictionary-style overrides (for Execute snippets) as well as Pydantic
+  validation to avoid shipping incomplete configurations to workers.
+
+Worker (`link_sim_worker.link_sim_worker`)
+------------------------------------------
+- Builds a workload from the flight/satellite folders, assigns plane trajectories
+  to workers and harmonises the results into a single dataframe.
+- Generates intermediate artefacts (plane statistics, heatmaps) that Explore
+  uses for network graphs and 3D overlays.
+- Includes Cython acceleration and post-install hooks to unpack large datasets
+  once per environment rather than at runtime.
+
+Assets & Tests
+--------------
+- ``app_test.py`` validates the full install/distribute/run loop.
+- ``test/_test_*`` modules focus on workload generation, worker behaviour and the
+  configuration helpers.
+- ``src/app_settings.toml`` enumerates the default Explore pages to surface for
+  this project.
+
+API Reference
+-------------
+
+.. image:: diagrams/packages_link_sim.svg
+   :width: 400
+   :alt: link sim package diagram
+   :align: center
+
+.. automodule:: link_sim.link_sim
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_link_sim.svg
+   :width: 400
+   :alt: link sim class diagram
+   :align: center
+
+.. automodule:: link_sim.app_args
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_link_sim_args.svg
+   :width: 400
+   :alt: link sim args class diagram
+   :align: center
+
+.. image:: diagrams/packages_link_sim_worker.svg
+   :width: 400
+   :alt: link sim worker package diagram
+   :align: center
+
+.. automodule:: link_sim_worker.link_sim_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_link_sim_worker.svg
+   :width: 400
+   :alt: link sim worker class diagram
+   :align: center
