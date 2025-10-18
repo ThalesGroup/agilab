@@ -19,22 +19,16 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
 ]
 keywords = [
-    "jupyter",
-    "mlflow",
     "asyncio",
     "dask",
     "rapids",
-    "streamlit",
     "distributed",
     "cython",
     "cluster",
     "dataframe",
     "dataset",
     "loadbalancing",
-    "genai",
-    "copilot",
     "agi",
-    "pycharm",
     "datascience",
 ]
 dependencies = [

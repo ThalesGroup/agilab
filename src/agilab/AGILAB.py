@@ -77,9 +77,8 @@ def display_landing_page(resources_path: Path):
 
 
 def show_banner_and_intro(resources_path: Path):
-    """Render the branding banner followed by the descriptive landing copy."""
+    """Render the branding banner."""
     quick_logo(resources_path)
-    display_landing_page(resources_path)
 
 def openai_status_banner(env):
     """Show a non-blocking banner if OpenAI features are unavailable."""
@@ -141,8 +140,6 @@ def _write_env_file(path: Path, entries: List[Dict[str, str]], updates: Dict[str
     path.write_text(content, encoding="utf-8")
 
 def _render_env_editor(env, help_file: Path):
-    from agi_env.pagelib import open_docs
-
     st.markdown("### .agilab/.env Environment Editor")
     st.caption("Update global variables persisted in `~/.local/share/agilab/.env`. Changes apply to future runs immediately.")
 
@@ -152,12 +149,6 @@ def _render_env_editor(env, help_file: Path):
 
     st.session_state.setdefault("env_editor_new_key", "")
     st.session_state.setdefault("env_editor_new_value", "")
-
-    if st.button("View documentation", key="env_editor_docs", type="secondary"):
-        try:
-            open_docs(env, help_file, "environment-variables")
-        except Exception:
-            open_docs(env, help_file)
 
     entries = _read_env_file(ENV_FILE_PATH)
     existing_entries = [entry for entry in entries if entry["type"] == "entry"]
@@ -209,34 +200,46 @@ def _render_env_editor(env, help_file: Path):
             st.session_state["env_editor_feedback"] = "Environment variables updated."
             st.session_state["env_editor_new_key"] = ""
             st.session_state["env_editor_new_value"] = ""
-            st.session_state["show_env_editor"] = True
-            st.rerun()
+            st.experimental_rerun()
         except Exception as exc:
             st.error(f"Failed to save .env file: {exc}")
 
-    if st.button("Close editor", key="env_editor_close", type="secondary"):
-        st.session_state["show_env_editor"] = False
-
-
 def page(env):
     """Render the main landing page controls and footer for the lab."""
-    st.session_state.setdefault("show_env_editor", False)
-
     cols = st.columns(4)
     help_file = Path(env.help_path) / "index.html"
     from agi_env.pagelib import open_docs
     if cols[0].button("Read Documentation", use_container_width=True):
         open_docs(env, help_file, "project-editor")
 
-    if cols[1].button("Edit Environment (.env)", use_container_width=True):
-        st.session_state["show_env_editor"] = True
-        try:
-            open_docs(env, help_file, "environment-variables")
-        except Exception:
-            open_docs(env, help_file)
+    with st.expander("Introduction", expanded=True):
+        display_landing_page(Path(env.st_resources))
 
-    if st.session_state.get("show_env_editor"):
+    with st.expander("Environment Variables (.env)", expanded=False):
         _render_env_editor(env, help_file)
+
+    with st.expander("Installed package versions", expanded=False):
+        try:
+            from importlib import metadata as importlib_metadata
+        except Exception:
+            import importlib_metadata  # type: ignore
+
+        packages = [
+            ("agilab", "agilab"),
+            ("agi-core", "agi-core"),
+            ("agi-node", "agi-node"),
+            ("agi-env", "agi-env"),
+        ]
+
+        version_rows = []
+        for label, pkg_name in packages:
+            try:
+                version = importlib_metadata.version(pkg_name)
+            except importlib_metadata.PackageNotFoundError:
+                version = "not installed"
+            version_rows.append(f"{label}: {version}")
+
+        st.dataframe({"Version": version_rows}, hide_index=True, use_container_width=True)
 
     current_year = datetime.now().year
     st.markdown(
