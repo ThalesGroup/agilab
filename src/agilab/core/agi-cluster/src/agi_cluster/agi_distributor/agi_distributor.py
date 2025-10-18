@@ -768,7 +768,19 @@ class AGI:
             cmd_base = ["sshpass"]
             cmd += cmd_base + ["-p", password]
 
-        cmd_end = ["scp", str(local_path), remote]
+        scp_cmd = [
+            "scp",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+        ]
+        ssh_key_path = getattr(env, "ssh_key_path", None)
+        if ssh_key_path:
+            scp_cmd.extend(["-i", str(Path(ssh_key_path).expanduser())])
+        scp_cmd.append(str(local_path))
+        scp_cmd.append(remote)
+        cmd_end = scp_cmd
         cmd = cmd + cmd_end
 
         try:
@@ -2028,7 +2040,7 @@ class AGI:
             os_id = ''
 
         if any(x in os_id for x in ('Linux', 'Darwin', 'BSD')):
-            return 'export PATH="~/.local/bin:$PATH";'
+            return 'export PATH="$HOME/.local/bin:$PATH";'
         else:
             return ""  # 'set PATH=%USERPROFILE%\\.local\\bin;%PATH% &&'
 
@@ -2664,24 +2676,29 @@ class AGI:
             return
 
         try:
-            ssh_dir = Path("~/.ssh").expanduser()
-            keys = []
+            client_keys = None
+            ssh_key_override = getattr(env, "ssh_key_path", None)
+            if ssh_key_override:
+                client_keys = [str(Path(ssh_key_override).expanduser())]
+            else:
+                ssh_dir = Path("~/.ssh").expanduser()
+                keys = []
 
-            for file in ssh_dir.iterdir():
-                if not file.is_file():
-                    continue
+                for file in ssh_dir.iterdir():
+                    if not file.is_file():
+                        continue
 
-                name = file.name
-                if name.startswith('authorized_keys'):
-                    continue
-                if name.startswith('known_hosts'):
-                    continue
-                if name.endswith('.pub'):
-                    continue
+                    name = file.name
+                    if name.startswith('authorized_keys'):
+                        continue
+                    if name.startswith('known_hosts'):
+                        continue
+                    if name.endswith('.pub'):
+                        continue
 
-                keys.append(str(file))
+                    keys.append(str(file))
 
-            client_keys = keys if keys else None
+                client_keys = keys if keys else None
 
             conn = await asyncio.wait_for(
                 asyncssh.connect(
