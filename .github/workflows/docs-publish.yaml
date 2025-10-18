@@ -65,10 +65,15 @@ jobs:
               } > docs/html/index.html
             fi
           fi
+          # Ensure root-level index mirrors html index for convenience
+          mkdir -p docs
+          if [ -f docs/html/index.html ]; then
+            cp docs/html/index.html docs/index.html
+          fi
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'docs/html'
+          path: 'docs'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
