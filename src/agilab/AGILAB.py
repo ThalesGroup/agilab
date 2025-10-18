@@ -45,7 +45,6 @@ def display_landing_page(resources_path: Path):
     # You can optionally show a small logo here if wanted.
     md_content = f"""
     <div class="uvp-highlight">
-      <strong>Introduciton</strong>:
     <ul>
       AGILAB revolutionizing data Science experimentation with zero integration hassles. As a comprehensive framework built on pure Python and powered by Gen AI and ML, AGILAB scales effortlessly—from embedded systems to the cloud—empowering seamless collaboration on data insights and predictive modeling.
     </ul>
@@ -140,9 +139,6 @@ def _write_env_file(path: Path, entries: List[Dict[str, str]], updates: Dict[str
     path.write_text(content, encoding="utf-8")
 
 def _render_env_editor(env, help_file: Path):
-    st.markdown("### .agilab/.env Environment Editor")
-    st.caption("Update global variables persisted in `~/.local/share/agilab/.env`. Changes apply to future runs immediately.")
-
     feedback = st.session_state.pop("env_editor_feedback", None)
     if feedback:
         st.success(feedback)
@@ -206,16 +202,14 @@ def _render_env_editor(env, help_file: Path):
 
 def page(env):
     """Render the main landing page controls and footer for the lab."""
-    cols = st.columns(4)
+    cols = st.columns(1)
     help_file = Path(env.help_path) / "index.html"
     from agi_env.pagelib import open_docs
-    if cols[0].button("Read Documentation", use_container_width=True):
-        open_docs(env, help_file, "project-editor")
 
     with st.expander("Introduction", expanded=True):
         display_landing_page(Path(env.st_resources))
 
-    with st.expander("Environment Variables (.env)", expanded=False):
+    with st.expander(f"Environment Variables ({ENV_FILE_PATH.expanduser()})", expanded=False):
         _render_env_editor(env, help_file)
 
     with st.expander("Installed package versions", expanded=False):
@@ -239,7 +233,27 @@ def page(env):
                 version = "not installed"
             version_rows.append(f"{label}: {version}")
 
-        st.dataframe({"Version": version_rows}, hide_index=True, use_container_width=True)
+        for entry in version_rows:
+            st.write(entry)
+
+    with st.expander("System information", expanded=False):
+        import platform
+        import subprocess
+
+        st.write(f"OS: {platform.system()} {platform.release()}")
+        cpu_name = platform.processor() or platform.machine()
+        st.write(f"CPU: {cpu_name}")
+        try:
+            hw_info = subprocess.check_output(["system_profiler", "SPHardwareDataType"], text=True, timeout=2)
+            for line in hw_info.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("Chip:") or stripped.startswith("Model Identifier:") or stripped.startswith("Memory:"):
+                    st.write(stripped)
+        except Exception:
+            pass
+
+    if st.button("Read Documentation", use_container_width=True, type="primary"):
+        open_docs(env, help_file, "project-editor")
 
     current_year = datetime.now().year
     st.markdown(
