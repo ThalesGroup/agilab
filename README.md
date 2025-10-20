@@ -34,6 +34,7 @@ see below for more details
 Quick run (no setup):
 
 ```bash
+uv tool upgrade agilab
 uvx -p 3.13 agilab
 ```
 

@@ -21,6 +21,8 @@ Use this runbook whenever you:
 - **uv everywhere**: Invoke Python entry points through `uv` (`uv run python …`,
   `uv run streamlit …`) so dependencies resolve inside the managed environments that
   ship with AGILab.
+- **Upgrade packaged tools first**: Before launching the published CLI with `uvx
+  agilab`, run `uv tool upgrade agilab` to pick up the latest wheel.
 - **No repo uvx**: Reserve `uvx` for packaged installs outside this checkout. Launching
   it from the source tree swaps in the published wheel and discards your local changes.
 - **Run config parity**: After touching `.idea/runConfigurations/*.xml`, regenerate
