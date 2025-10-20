@@ -60,6 +60,7 @@ Managed workspace (project folder):
 mkdir agi-space && cd agi-space
 uv init --bare --no-workspace
 uv add agilab
+uv tool upgrade agilab
 uv run agilab
 ```
 
