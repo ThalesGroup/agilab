@@ -89,7 +89,7 @@ def openai_status_banner(env):
             icon="⚠️",
         )
 
-ENV_FILE_PATH = Path.home() / ".local/share/agilab/.env"
+ENV_FILE_PATH = Path.home() / ".agilab/.env"
 
 def _ensure_env_file(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
