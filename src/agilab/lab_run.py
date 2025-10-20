@@ -12,6 +12,7 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import argparse
+import os
 import sys
 from pathlib import Path
 import streamlit.web.cli as stcli
@@ -25,8 +26,17 @@ def _detect_repo_root(start: Path) -> Path | None:
 
 
 def _running_from_uvx() -> bool:
-    prefix_parts = Path(sys.prefix).resolve().parts
-    return ".cache" in prefix_parts and "uv" in prefix_parts and any(part.startswith("archive-") for part in prefix_parts)
+    """Detect uvx or other uv tool environments that should not touch the source tree."""
+    # `uv run` sets this; honour it so developers keep their standard workflow.
+    if os.environ.get("UV_RUN_RECURSION_DEPTH"):
+        return False
+
+    prefix = Path(sys.prefix).resolve()
+    uv_roots = [
+        Path.home() / ".cache" / "uv",
+        Path.home() / ".local" / "share" / "uv",
+    ]
+    return any(root == prefix or root in prefix.parents for root in uv_roots)
 
 
 def _guard_against_uvx_in_source_tree() -> None:
