@@ -21,9 +21,9 @@
 | jedi | MIT LICENSE |
 | jinja2 | BSD LICENSE |
 | locket | BSD LICENSE |
-| markupsafe | BSD-3-CLAUSE |
+| markupsafe | BSD LICENSE |
 | matplotlib-inline | BSD LICENSE |
-| msgpack | APACHE 2.0 |
+| msgpack | APACHE-2.0 |
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | narwhals | MIT LICENSE |
 | numpy | BSD LICENSE |
@@ -36,7 +36,7 @@
 | polars | MIT LICENSE |
 | polars-runtime-32 | MIT LICENSE |
 | prompt-toolkit | BSD LICENSE |
-| psutil | BSD-3-CLAUSE |
+| psutil | BSD LICENSE |
 | ptyprocess | ISC LICENSE _ISCL_ |
 | pure-eval | MIT LICENSE |
 | py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
@@ -55,7 +55,7 @@
 | stack-data | MIT LICENSE |
 | tblib | BSD-2-CLAUSE |
 | texttable | MIT LICENSE |
-| toolz | BSD LICENSE |
+| toolz | BSD-3-CLAUSE |
 | tornado | APACHE SOFTWARE LICENSE |
 | traitlets | BSD LICENSE |
 | tzdata | APACHE SOFTWARE LICENSE |

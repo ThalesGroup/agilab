@@ -1754,21 +1754,37 @@ class AGI:
         cmd = f"{uv} --project {wenv_rel} run -p {pyvers} python -m ensurepip"
         await AGI.exec_ssh(ip, cmd)
 
-        cmd = f"{uv} --project {wenv_rel} run -p {pyvers} python -m pip install -e {wenv_rel}"
-        await AGI.exec_ssh(ip, cmd)
+        if env.is_source_env:
+            cmd = f"{uv} --project {wenv_rel} run -p {pyvers} python -m pip install -e {wenv_rel}"
+            await AGI.exec_ssh(ip, cmd)
 
-        # install env
-        cmd = f"{uv} --project {wenv_rel} add -p {pyvers} --upgrade {wenv_rel / env_whl.name}"
-        await AGI.exec_ssh(ip, cmd)
+            # install env
+            cmd = f"{uv} --project {wenv_rel} add -p {pyvers} --upgrade {wenv_rel / env_whl.name}"
+            await AGI.exec_ssh(ip, cmd)
 
-        # install node
-        cmd = f"{uv} --project {wenv_rel} add -p {pyvers} --upgrade {wenv_rel / node_whl.name}"
-        await AGI.exec_ssh(ip, cmd)
+            # install node
+            cmd = f"{uv} --project {wenv_rel} add -p {pyvers} --upgrade {wenv_rel / node_whl.name}"
+            await AGI.exec_ssh(ip, cmd)
+
+            # unzip egg to get src/
+            cli = env.wenv_rel.parent / "cli.py"
+            cmd = f"{uv} run --no-sync -p {pyvers} python {cli} unzip {wenv_rel}"
+            await AGI.exec_ssh(ip, cmd)
+        else:
+
+            # install env
+            cmd = f"{uv} --project {wenv_rel} add -p {pyvers} --upgrade agi-env"
+            await AGI.exec_ssh(ip, cmd)
+
+            # install node
+            cmd = f"{uv} --project {wenv_rel} add -p {pyvers} --upgrade agi-node"
+            await AGI.exec_ssh(ip, cmd)
 
         # unzip egg to get src/
         cli = env.wenv_rel.parent / "cli.py"
         cmd = f"{uv} run --no-sync -p {pyvers} python {cli} unzip {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
+
 
         # Post-install script
         cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python -m {env.post_install_rel} {wenv_rel.stem} {env.data_rel}"
