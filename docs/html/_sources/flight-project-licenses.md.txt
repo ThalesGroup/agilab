@@ -15,7 +15,7 @@
 | anyio | MIT |
 | appnope | BSD LICENSE |
 | argon2-cffi | MIT |
-| argon2-cffi-bindings | MIT LICENSE |
+| argon2-cffi-bindings | MIT |
 | arrow | APACHE SOFTWARE LICENSE |
 | arxiv | MIT LICENSE |
 | asn1crypto | MIT LICENSE |
@@ -66,7 +66,7 @@
 | dnspython | ISC LICENSE _ISCL_ |
 | docker | APACHE SOFTWARE LICENSE |
 | docstring-parser | MIT LICENSE |
-| docutils | BSD LICENSE;; GNU GENERAL PUBLIC LICENSE _GPL_;; PUBLIC DOMAIN |
+| docutils | BSD LICENSE;; GNU GENERAL PUBLIC LICENSE _GPL_;; PUBLIC DOMAIN;; PYTHON SOFTWARE FOUNDATION LICENSE |
 | email-validator | THE UNLICENSE _UNLICENSE_ |
 | entrypoints | MIT LICENSE |
 | eval-type-backport | MIT LICENSE |
@@ -81,7 +81,7 @@
 | fastparquet | APACHE SOFTWARE LICENSE |
 | favicon | MIT LICENSE |
 | feedparser | BSD LICENSE |
-| filelock | THE UNLICENSE _UNLICENSE_ |
+| filelock | UNLICENSE |
 | filetype | MIT LICENSE |
 | flask | BSD-3-CLAUSE |
 | flask-cors |  |
@@ -125,7 +125,7 @@
 | huggingface-hub | APACHE SOFTWARE LICENSE |
 | humanize | MIT License |
 | id | APACHE SOFTWARE LICENSE |
-| idna | BSD-3-CLAUSE |
+| idna | BSD LICENSE |
 | importlib-metadata | APACHE SOFTWARE LICENSE |
 | inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | invoke | BSD LICENSE |
@@ -187,12 +187,12 @@
 | legacy-cgi | PSF-2.0 |
 | llvmlite | BSD |
 | locket | BSD LICENSE |
-| lxml | BSD-3-CLAUSE |
+| lxml | BSD LICENSE |
 | mako | MIT LICENSE |
 | markdown | BSD-3-CLAUSE |
 | markdown-it-py | MIT LICENSE |
 | markdownlit | Apache License 2.0 |
-| markupsafe | BSD-3-CLAUSE |
+| markupsafe | BSD LICENSE |
 | marshmallow | MIT LICENSE |
 | matplotlib | PYTHON SOFTWARE FOUNDATION LICENSE |
 | matplotlib-inline | BSD LICENSE |
@@ -224,17 +224,17 @@
 | numexpr | MIT |
 | numpy | BSD LICENSE |
 | ollama | MIT |
-| openai | APACHE SOFTWARE LICENSE |
+| openai | MIT LICENSE |
 | openapi-core | BSD LICENSE |
 | openapi-pydantic | MIT LICENSE |
 | openapi-schema-validator | BSD LICENSE |
 | openapi-spec-validator | APACHE SOFTWARE LICENSE |
-| opentelemetry-api | APACHE-2.0 |
+| opentelemetry-api | APACHE SOFTWARE LICENSE |
 | opentelemetry-proto | APACHE-2.0 |
-| opentelemetry-sdk | APACHE-2.0 |
-| opentelemetry-semantic-conventions | APACHE-2.0 |
+| opentelemetry-sdk | APACHE SOFTWARE LICENSE |
+| opentelemetry-semantic-conventions | APACHE SOFTWARE LICENSE |
 | optree | APACHE-2.0 |
-| orjson | APACHE SOFTWARE LICENSE;; MIT LICENSE |
+| orjson | APACHE-2.0;; MIT |
 | packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | pandas | BSD LICENSE |
 | pandocfilters | BSD LICENSE |
@@ -257,7 +257,7 @@
 | propcache | APACHE SOFTWARE LICENSE |
 | proto-plus | APACHE SOFTWARE LICENSE |
 | protobuf | 3-CLAUSE BSD LICENSE |
-| psutil | BSD-3-CLAUSE |
+| psutil | BSD LICENSE |
 | ptyprocess | ISC LICENSE _ISCL_ |
 | pure-eval | MIT LICENSE |
 | py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
@@ -268,14 +268,14 @@
 | pycparser | BSD LICENSE |
 | pycryptodome | BSD LICENSE;; PUBLIC DOMAIN |
 | pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
-| pydantic | MIT |
-| pydantic-core | MIT |
+| pydantic | MIT LICENSE |
+| pydantic-core | MIT LICENSE |
 | pydantic-settings | MIT LICENSE |
 | pydeck | APACHE LICENSE 2.0 |
 | pygments | BSD LICENSE |
 | pyjwt | MIT LICENSE |
 | pymdown-extensions | MIT LICENSE |
-| pynacl | APACHE LICENSE 2.0 |
+| pynacl | APACHE SOFTWARE LICENSE |
 | pyopenssl | APACHE SOFTWARE LICENSE |
 | pyparsing | MIT |
 | pypdf | BSD-3-CLAUSE |
@@ -301,7 +301,7 @@
 | rfc3986-validator | MIT LICENSE |
 | rfc3987-syntax | APACHE SOFTWARE LICENSE |
 | rich | MIT LICENSE |
-| rich-rst | MIT |
+| rich-rst | MIT LICENSE |
 | rpds-py | MIT |
 | rsa | APACHE SOFTWARE LICENSE |
 | s3transfer | APACHE SOFTWARE LICENSE |
@@ -335,7 +335,7 @@
 | streamlit-card | MIT LICENSE |
 | streamlit-code-editor | MIT License |
 | streamlit-embedcode | MIT License |
-| streamlit-extras | APACHE-2.0 |
+| streamlit-extras | APACHE SOFTWARE LICENSE |
 | streamlit-faker | Apache License 2.0 |
 | streamlit-image-coordinates | MIT LICENSE |
 | streamlit-keyup | MIT License |
@@ -354,7 +354,7 @@
 | together | APACHE SOFTWARE LICENSE |
 | tokenizers | APACHE SOFTWARE LICENSE |
 | toml | MIT LICENSE |
-| tomli | MIT |
+| tomli | MIT LICENSE |
 | tomli-w | MIT LICENSE |
 | tomlkit | MIT LICENSE |
 | toolz | BSD-3-CLAUSE |
