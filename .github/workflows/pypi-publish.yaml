@@ -178,3 +178,41 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
         run: twine upload --skip-existing dist/*
+
+      - name: Tag private apps
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "${GITHUB_ACTOR}"
+          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+          python - <<'PY'
+          import subprocess
+          import tomllib
+          from pathlib import Path
+
+          def git_tags_for(tag: str) -> bool:
+              result = subprocess.run(["git", "tag", "-l", tag], capture_output=True, text=True, check=True)
+              return bool(result.stdout.strip())
+
+          def git_tag(tag: str):
+              subprocess.run(["git", "tag", tag], check=True)
+              subprocess.run(["git", "push", "origin", tag], check=True)
+
+          apps_root = Path("src/agilab/apps")
+          if not apps_root.exists():
+              raise SystemExit("Apps directory missing; expected src/agilab/apps")
+
+          for pyproject in sorted(apps_root.glob("*_project/pyproject.toml")):
+              data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+              project = data.get("project") or {}
+              name = project.get("name")
+              version = project.get("version")
+              if not name or not version:
+                  continue
+              tag = f"private-apps/{name}-v{version}"
+              if git_tags_for(tag):
+                  print(f"Tag {tag} already exists; skipping")
+                  continue
+              print(f"Tagging {tag} for {pyproject}")
+              git_tag(tag)
+          PY
