@@ -1,4 +1,4 @@
-[![PyPI version](https://img.shields.io/pypi/v/agilab.svg?color=informational)](https://pypi.org/project/agilab)
+[![PyPI version](https://img.shields.io/badge/PyPI-2025.10.20.post5-informational?logo=pypi)](https://pypi.org/project/agi-env)
 [![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
 [![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![pypi_dl](https://img.shields.io/pypi/dm/agilab)]()
@@ -22,5 +22,4 @@ It is as a pure meta-package containing the subpackages declare in pyproject.tom
 ```bash
 pip install agi-env
 ```
-
 
