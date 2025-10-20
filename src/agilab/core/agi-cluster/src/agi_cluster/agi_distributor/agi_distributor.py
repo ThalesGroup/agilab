@@ -1699,15 +1699,15 @@ class AGI:
         cmd = f"{uv} run -p {pyvers} python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
         await AGI.exec_ssh(ip, cmd)
 
-        if env.is_source_env:
-            # Then send the files to the remote directory
-            try:
-                egg_file = next(iter(dist_abs.glob(f"{env.app}*.egg")), None)
-            except StopIteration:
-                logger.error(f"searching for {wenv_abs / env.app}*.egg")
-                raise FileNotFoundError(f"no existing egg file in {wenv_abs / env.app}*")
 
-            # build agi_env*.whl
+        # Then send the files to the remote directory
+        try:
+            egg_file = next(iter(dist_abs.glob(f"{env.app}*.egg")), None)
+        except StopIteration:
+            logger.error(f"searching for {wenv_abs / env.app}*.egg")
+            raise FileNotFoundError(f"no existing egg file in {wenv_abs / env.app}*")
+
+        if env.is_source_env:
             wenv = env.agi_env / 'dist'
             try:
                 env_whl = next(iter(wenv.glob("agi_env*.whl")))
