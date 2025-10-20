@@ -1156,6 +1156,9 @@ class AGI:
             await AGI.send_files(env, ip, [env.cluster_pck / "agi_distributor/cli.py"],
                                  wenv_rel.parent)
 
+            await AGI._kill(ip, force=True)
+            await AGI._clean_dirs(ip)
+
             await AGI.send_files(env, ip, [env.worker_pyproject, env.uvproject],
                                  wenv_rel)
 
@@ -1165,11 +1168,8 @@ class AGI:
             # AgiEnv.set_env_var(f"{ip}_PYTHON_VERSION", pyvers_worker)
             # await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers_worker}")
 
-            await AGI._kill(ip, force=True)
-            await AGI._clean_dirs(ip)
-
-            cmd = f"{uv} --project {wenv_rel} init --bare --no-workspace"
-            await AGI.exec_ssh(ip, cmd)
+            # cmd = f"{uv} --project {wenv_rel} init --bare --no-workspace"
+            # await AGI.exec_ssh(ip, cmd)
 
             # cmd = f"{uv} run --no-sync -p {pyvers} python {env.wenv_rel.parent / "cli.py"} platform"
             # await AGI.exec_ssh(ip, cmd)
@@ -1772,12 +1772,9 @@ class AGI:
         else:
 
             # install env
-            cmd = f"{uv} --project {wenv_rel} add -p {pyvers} --upgrade agi-env"
+            cmd = f"{uv} --project {wenv_rel} sync"
             await AGI.exec_ssh(ip, cmd)
 
-            # install node
-            cmd = f"{uv} --project {wenv_rel} add -p {pyvers} --upgrade agi-node"
-            await AGI.exec_ssh(ip, cmd)
 
         # unzip egg to get src/
         cli = env.wenv_rel.parent / "cli.py"
