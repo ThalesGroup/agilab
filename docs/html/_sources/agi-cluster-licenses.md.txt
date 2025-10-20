@@ -138,9 +138,9 @@
 | toolz | BSD-3-CLAUSE |
 | tornado | APACHE SOFTWARE LICENSE |
 | traitlets | BSD LICENSE |
-| types-python-dateutil | APACHE-2.0 |
 | typing-extensions | PSF-2.0 |
 | typing-inspection | MIT |
+| tzdata | APACHE SOFTWARE LICENSE |
 | uri-template | MIT LICENSE |
 | urllib3 | MIT |
 | wcwidth | MIT LICENSE |
