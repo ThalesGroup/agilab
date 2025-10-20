@@ -1034,17 +1034,6 @@ class AGI:
         hw_rapids_capable = AGI._hardware_supports_rapids() and AGI._rapids_enabled
         env.hw_rapids_capable = hw_rapids_capable
 
-        os.makedirs(wenv_abs, exist_ok=True)
-        file = env.worker_pyproject
-        if env.verbose > 0:
-            logger.info(f"Copying {file} -> {wenv_abs}")
-        shutil.copy(file, wenv_abs / file.name)
-
-        file = env.cli
-        if env.verbose > 0:
-            logger.info(f"Copying {file} -> {wenv_abs.parent}")
-        shutil.copy(file, wenv_abs.parent)
-
         if hw_rapids_capable:
             AgiEnv.set_env_var(ip, "hw_rapids_capable")
         else:
@@ -1054,30 +1043,26 @@ class AGI:
             logger.info(f"Rapids-capable GPU[{ip}]: {hw_rapids_capable}")
 
         # # Install Python
-
-        # TODO: Check install freethreaded for workers only
-
         cmd_prefix = await AGI._detect_export_cmd(ip)
         AgiEnv.set_env_var(f"{ip}_CMD_PREFIX", cmd_prefix)
-        # uv = cmd_prefix + env.uv
+        uv = cmd_prefix + env.uv
 
-        #
-        # AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
-        #
-        # cli = wenv_abs.parent / file.name
-        # cmd = f"{uv} run python {cli} platform"
-        # res = await AgiEnv.run(cmd, wenv_abs.parent)
-        # pyvers = res.split(':')[-1].strip()
-        # AgiEnv.set_env_var(f"{ip}_PYTHON_VERSION", pyvers)
-        # await AgiEnv.run(f"{cmd_prefix}{env.uv} python install {pyvers}", wenv_abs)
+        AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
 
-        # cmd = (
-        #     f"{uv} --project {wenv_abs} init --bare --no-workspace"
-        # )
-        # await AgiEnv.run(cmd, wenv_abs)
+        cmd = f"{uv} run python -m agi_cluster.agi_distributor.cli platform"
+        res = await AgiEnv.run(cmd, wenv_abs.parent)
+        pyvers = res.split(':')[-1].strip()
+        AgiEnv.set_env_var(f"{ip}_PYTHON_VERSION", pyvers)
+        await AgiEnv.run(f"{cmd_prefix}{env.uv} python install {pyvers}", wenv_abs)
 
-        # cmd = f"{uv} run -p {pyvers} --project {wenv_abs} python {cli} threaded"
-        # await AgiEnv.run(cmd, wenv_abs)
+        cmd = f"{uv} --project {wenv_abs} init --bare --no-workspace"
+        await AgiEnv.run(cmd, wenv_abs)
+
+        cmd = f"{uv} --project {wenv_abs} add agi-env agi-node"
+        await AgiEnv.run(cmd, wenv_abs)
+
+        #cmd = f"{uv} run -p {pyvers} --project {wenv_abs} python {cli} threaded"
+        #await AgiEnv.run(cmd, wenv_abs)
 
     @staticmethod
     async def _prepare_cluster_env(scheduler_addr: Optional[str]) -> None:
@@ -2404,10 +2389,11 @@ class AGI:
             # case install modes
             t = time.time()
 
-            if AGI._mode & AGI.DASK_MODE:
-                await AGI._prepare_cluster_env(scheduler)
             AGI._clean_dirs_local()
             await AGI._prepare_local_env()
+
+            if AGI._mode & AGI.DASK_MODE:
+                await AGI._prepare_cluster_env(scheduler)
 
             await AGI._deploy_application(scheduler)
 
