@@ -26,7 +26,7 @@ See also: CHANGELOG.md for recent changes.
 
 - **Demo users** launch `uvx agilab`; no repository checkout or IDE is required.
 - **End users** create a uv workspace and launch `uv run agilab` ; no repository checkout or IDE is required.
-- **Developers** clone this repository and launch install.sh; Pycharm IDE is strongly recommended. 
+- **Developers** clone this repository and launch install.sh; Pycharm IDE is strongly recommended. Never run `uvx` inside the cloned checkout—use the `uv run …` commands or generated wrappers.
 see below for more details 
 
 ## Install and Execution for end users
@@ -38,7 +38,7 @@ uvx -p 3.13 agilab
 ```
 
 > **Note**
-> This `uvx` invocation is meant for demos or smoke tests. Any changes you make inside the cached package will be overwritten on the next run. For development, clone the repository or use a virtual environment.
+> This `uvx` invocation is meant for demos or smoke tests. Any changes you make inside the cached package will be overwritten on the next run. For development, clone the repository or use a virtual environment. Within a local checkout, stick to `uv run …`; invoking `uvx` there replaces your workspace with the published wheel.
 
 ### Offline assistant (GPT-OSS)
 

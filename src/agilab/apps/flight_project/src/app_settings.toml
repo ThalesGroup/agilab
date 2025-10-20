@@ -17,7 +17,7 @@ pool = true
 rapids = true
 cluster_enabled = true
 scheduler = "192.168.20.111"
-user = "jpm"
+user = "nsbl"
 auth_method = "password"
 
 [cluster.workers]
