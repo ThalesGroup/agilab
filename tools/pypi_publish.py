@@ -848,6 +848,9 @@ def main():
                 print(f"[build] umbrella: {', '.join(root_files)}")
             all_files.extend(root_files)
 
+        # keep README badges aligned even when running with --dry-run
+        update_selected_badges(selected_core_entries, build_umbrella)
+
         # Dry-run end
         if cfg.dry_run:
             print("[dry-run] Would twine check & upload:")

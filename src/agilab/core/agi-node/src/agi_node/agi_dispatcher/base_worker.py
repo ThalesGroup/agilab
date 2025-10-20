@@ -692,6 +692,8 @@ class BaseWorker(abc.ABC):
             workers, workers_plan, workers_plan_metadata = await WorkDispatcher._do_distrib(env, workers, args)
         except Exception as err:
             logging.error(traceback.format_exc())
+            if isinstance(err, RuntimeError):
+                raise
             raise RuntimeError("Failed to build distribution plan") from err
 
         if mode == 48:
