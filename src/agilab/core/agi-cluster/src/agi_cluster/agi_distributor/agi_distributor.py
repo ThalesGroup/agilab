@@ -1148,7 +1148,7 @@ class AGI:
             cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
             uv = cmd_prefix + env.uv
 
-            cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
+            cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel.parents[1]', exist_ok=True)\""
             await AGI.exec_ssh(ip, cmd)
 
             await AGI.exec_ssh(ip, f"{uv} python install {pyvers_worker}")
@@ -1158,6 +1158,9 @@ class AGI:
 
             await AGI._kill(ip, force=True)
             await AGI._clean_dirs(ip)
+
+            cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
+            await AGI.exec_ssh(ip, cmd)
 
             await AGI.send_files(env, ip, [env.worker_pyproject, env.uvproject],
                                  wenv_rel)
