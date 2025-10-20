@@ -1047,7 +1047,13 @@ class AGI:
         AgiEnv.set_env_var(f"{ip}_CMD_PREFIX", cmd_prefix)
         uv = cmd_prefix + env.uv
 
-        AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
+        wenv_abs.mkdir(parents=True, exist_ok=True)
+
+        if not env.is_worker_env:
+            await AgiEnv.run(f"{uv} python -m venv {wenv_abs / '.venv'}", wenv_abs.parent)
+            await AgiEnv.run(f"{cmd_prefix}{env.uv} run --project {wenv_abs} init --bare --no-workspace", wenv_abs)
+
+        await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
 
         cluster_project = env.agilab_pck / "core/agi-cluster"
         cluster_project_q = shlex.quote(str(cluster_project))
@@ -1055,13 +1061,14 @@ class AGI:
         res = await AgiEnv.run(cmd, wenv_abs.parent)
         pyvers = res.split(':')[-1].strip()
         AgiEnv.set_env_var(f"{ip}_PYTHON_VERSION", pyvers)
-        await AgiEnv.run(f"{cmd_prefix}{env.uv} python install {pyvers}", wenv_abs)
+        if env.is_worker_env:
+            await AgiEnv.run(f"{cmd_prefix}{env.uv} python install {pyvers}", wenv_abs)
 
-        cmd = f"{uv} --project {wenv_abs} init --bare --no-workspace"
-        await AgiEnv.run(cmd, wenv_abs)
+            cmd = f"{uv} --project {wenv_abs} init --bare --no-workspace"
+            await AgiEnv.run(cmd, wenv_abs)
 
-        cmd = f"{uv} --project {wenv_abs} add agi-env agi-node"
-        await AgiEnv.run(cmd, wenv_abs)
+            cmd = f"{uv} --project {wenv_abs} add agi-env agi-node"
+            await AgiEnv.run(cmd, wenv_abs)
 
         #cmd = f"{uv} run -p {pyvers} --project {wenv_abs} python {cli} threaded"
         #await AgiEnv.run(cmd, wenv_abs)
