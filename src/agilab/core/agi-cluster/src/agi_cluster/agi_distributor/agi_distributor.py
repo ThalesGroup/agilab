@@ -1250,8 +1250,6 @@ class AGI:
         dependency_info: dict[str, dict[str, Any]] = {}
         dep_versions: dict[str, str] = {}
         worker_pyprojects: set[str] = set()
-        # in case of core src has changed
-        AGI._build_lib_local()
 
         def _cleanup_editable(site_packages: Path) -> None:
             patterns = (
@@ -1386,6 +1384,9 @@ class AGI:
                                 continue
                             if spec_str not in meta['specifiers']:
                                 meta['specifiers'].append(spec_str)
+
+        # in case of core src has changed
+        await AGI._build_lib_local()
 
         if env.install_type == 0:
             repo_root = AgiEnv.read_agilab_path()
@@ -1672,9 +1673,6 @@ class AGI:
         #     f"{shlex.quote(str(env.data_rel))}"
         # )
         # await AgiEnv.run(cmd, wenv_abs)
-
-        # Build target_worker lib local
-        await AGI._build_lib_local()
 
         # Cleanup modules
         await AGI._uninstall_modules()
