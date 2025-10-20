@@ -15,7 +15,7 @@
 | decorator | BSD LICENSE |
 | etils | APACHE SOFTWARE LICENSE |
 | farama-notifications | MIT LICENSE |
-| filelock | THE UNLICENSE _UNLICENSE_ |
+| filelock | UNLICENSE |
 | flax | APACHE SOFTWARE LICENSE |
 | fonttools | MIT |
 | fsspec | BSD-3-CLAUSE |
@@ -33,13 +33,13 @@
 | kiwisolver | BSD LICENSE |
 | markdown | BSD-3-CLAUSE |
 | markdown-it-py | MIT LICENSE |
-| markupsafe | BSD-3-CLAUSE |
+| markupsafe | BSD LICENSE |
 | matplotlib | PYTHON SOFTWARE FOUNDATION LICENSE |
 | mdurl | MIT LICENSE |
 | ml-dtypes | APACHE-2.0 |
 | moviepy | MIT LICENSE |
 | mpmath | BSD LICENSE |
-| msgpack | APACHE 2.0 |
+| msgpack | APACHE-2.0 |
 | mujoco | APACHE-2.0 |
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | nest-asyncio | BSD LICENSE |
@@ -57,7 +57,7 @@
 | polars-runtime-32 | MIT LICENSE |
 | proglog | MIT |
 | protobuf | 3-CLAUSE BSD LICENSE |
-| psutil | BSD-3-CLAUSE |
+| psutil | BSD LICENSE |
 | py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
@@ -83,8 +83,8 @@
 | tensorboard-data-server | APACHE SOFTWARE LICENSE |
 | tensorstore | APACHE SOFTWARE LICENSE |
 | texttable | MIT LICENSE |
-| toolz | BSD LICENSE |
-| torch | BSD LICENSE |
+| toolz | BSD-3-CLAUSE |
+| torch | BSD-3-CLAUSE |
 | tqdm | MIT LICENSE;; MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | treescope | APACHE SOFTWARE LICENSE |
 | typing-extensions | PSF-2.0 |
