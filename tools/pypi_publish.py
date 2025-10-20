@@ -36,6 +36,7 @@ import shutil
 import subprocess
 import sys
 import urllib.request
+import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Dict, List, Tuple
@@ -183,6 +184,11 @@ PYPI_JSON = {
     "testpypi": "https://test.pypi.org/pypi/{name}/json",
     "pypi":     "https://pypi.org/pypi/{name}/json",
 }
+
+BADGE_PATTERN = re.compile(
+    r"\[!\[PyPI version\]\(https://img\.shields\.io/[^)]+\)\]\(https://pypi\.org/project/[^)]+\)"
+)
+
 
 
 # ---------- Utils ----------
@@ -424,6 +430,49 @@ def pin_internal_deps(pyproject_path: pathlib.Path, pins: Dict[str, str]) -> boo
     return changed
 
 
+# ---------- README badge helpers ----------
+def shields_badge(version: str, package_name: str) -> str:
+    safe_version = urllib.parse.quote(version, safe="")
+    return (
+        f"[![PyPI version](https://img.shields.io/badge/PyPI-{safe_version}-informational?logo=pypi)]"
+        f"(https://pypi.org/project/{package_name})"
+    )
+
+
+def update_badge(readme_path: pathlib.Path, package_name: str, version: str) -> bool:
+    if not readme_path.exists():
+        return False
+    text = readme_path.read_text(encoding="utf-8")
+    replacement = shields_badge(version, package_name)
+    if BADGE_PATTERN.search(text):
+        new_text = BADGE_PATTERN.sub(replacement, text, count=1)
+    else:
+        return False
+    if new_text == text:
+        return False
+    readme_path.write_text(new_text, encoding="utf-8")
+    rel = readme_path.relative_to(REPO_ROOT)
+    print(f"[badge] {rel}: set PyPI badge to {version}")
+    return True
+
+
+def update_selected_badges(selected_core: List[Tuple[str, pathlib.Path, pathlib.Path]], include_umbrella: bool):
+    touched = False
+    for name, toml_path, project_dir in selected_core:
+        readme = project_dir / "README.md"
+        if not toml_path.exists():
+            continue
+        version = get_version_from_pyproject(toml_path)
+        touched |= update_badge(readme, name, version)
+    if include_umbrella:
+        umbrella_toml = UMBRELLA[1]
+        if umbrella_toml.exists():
+            version = get_version_from_pyproject(umbrella_toml)
+            readme = UMBRELLA[2] / "README.md"
+            touched |= update_badge(readme, UMBRELLA[0], version)
+    return touched
+
+
 # ---------- Build ----------
 def uv_build_project(project_dir: pathlib.Path, dist_kind: str):
     # clean
@@ -647,8 +696,26 @@ def create_and_push_tag(tag: str):
 
 
 def git_paths_to_commit() -> list[str]:
-    paths = [str(t) for _, t, __ in CORE] + [str(UMBRELLA[1])]
-    return [p for p in paths if pathlib.Path(p).exists()]
+    paths: list[str] = []
+    for _, toml_path, project_dir in CORE:
+        if toml_path.exists():
+            paths.append(str(toml_path.relative_to(REPO_ROOT)))
+        readme = project_dir / "README.md"
+        if readme.exists():
+            paths.append(str(readme.relative_to(REPO_ROOT)))
+    if UMBRELLA[1].exists():
+        paths.append(str(UMBRELLA[1].relative_to(REPO_ROOT)))
+    umbrella_readme = UMBRELLA[2] / "README.md"
+    if umbrella_readme.exists():
+        paths.append(str(umbrella_readme.relative_to(REPO_ROOT)))
+    # Preserve order but drop duplicates
+    seen: set[str] = set()
+    unique: list[str] = []
+    for p in paths:
+        if p not in seen:
+            seen.add(p)
+            unique.append(p)
+    return unique
 
 
 def git_commit_version(chosen_version: str):
@@ -814,6 +881,10 @@ def main():
             globals()['UPLOAD_COLLISION_DETECTED'] = False
             globals()['UPLOAD_SUCCESS_COUNT'] = 0
             twine_upload(all_files2, cfg.repo, cfg.skip_existing, cfg.retries)
+            chosen = chosen2
+
+        if not cfg.dry_run:
+            update_selected_badges(selected_core_entries, build_umbrella)
 
         # Yank (optional, PyPI only)
         if cfg.yank_previous:
