@@ -1084,8 +1084,7 @@ if __name__ == "__main__":
                 existing_log = st.session_state.get("log_text", "").strip()
                 if existing_log:
                     log_placeholder.code(existing_log, language="python")
-            if st.button("INSTALL", key="install_btn", type="primary",
-                         help="Run the install snippet to set up your .venv for Manager and Worker"):
+            if st.button("INSTALL", key="install_btn", type="primary"):
                 clear_log()
                 venv = env.agi_cluster if (env.is_source_env or env.is_worker_env) else env.active_app.parents[1]
                 install_command = cmd.replace("asyncio.run(main())", env.snippet_tail)
@@ -1218,8 +1217,7 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())"""
             st.code(cmd, language="python")
-            if st.button("CHECK distribute", key="preview_btn", type="primary",
-                         help="Run the snippet and display your distribution tree"):
+            if st.button("CHECK distribute", key="preview_btn", type="primary"):
                 st.session_state.preview_tree = True
                 with st.expander("Orchestration log", expanded=False):
                     clear_log()
@@ -1424,7 +1422,6 @@ if __name__ == "__main__":
                 run_label,
                 key="run_btn",
                 type="primary",
-                help="Run your snippet with your cluster and app settings",
                 use_container_width=True,
             )
         else:
