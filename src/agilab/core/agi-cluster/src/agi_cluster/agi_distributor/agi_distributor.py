@@ -1724,11 +1724,6 @@ class AGI:
             await AGI.send_files(env, ip,
                                  [egg_file, node_whl, env_whl, env.worker_pyproject, env.uvproject],
                                  wenv_rel)
-        else:
-            cmd = f"{uv} pip install agi-env"
-            await AGI.exec_ssh(ip, cmd)
-            cmd = f"{uv} pip install agi-node"
-            await AGI.exec_ssh(ip, cmd)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
         hw_rapids_capable = False
