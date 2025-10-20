@@ -19,9 +19,17 @@ from datetime import datetime
 # Third-Party imports
 import networkx as nx
 from networkx.readwrite import json_graph
-import matplotlib.pyplot as plt
 import textwrap
-from matplotlib.patches import Patch
+
+try:
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Patch
+except ModuleNotFoundError as exc:
+    plt = None  # type: ignore[assignment]
+    Patch = None  # type: ignore[assignment]
+    _MATPLOTLIB_IMPORT_ERROR = exc
+else:
+    _MATPLOTLIB_IMPORT_ERROR = None
 from collections import defaultdict
 import tomli         # For reading TOML files
 import tomli_w       # For writing TOML files

@@ -305,8 +305,8 @@ bootstrapper, etc.) now assume.</p>
 <ul class="simple">
 <li><p><strong>Public checkout</strong> – the open-source <code class="docutils literal notranslate"><span class="pre">agilab</span></code> repository containing the
 default apps and tooling.</p></li>
-<li><p><strong>Private checkout</strong> – the closed-source <code class="docutils literal notranslate"><span class="pre">private-apps</span></code> repository referenced
-by the <code class="docutils literal notranslate"><span class="pre">AGILAB_PRIVATE</span></code> environment variable.</p></li>
+<li><p><strong>Private checkout</strong> – the closed-source <code class="docutils literal notranslate"><span class="pre">apps-repository</span></code> repository referenced
+by the <code class="docutils literal notranslate"><span class="pre">AGILAB_APPS_REPOSITORY</span></code> environment variable.</p></li>
 <li><p><strong>Service mode</strong> – an end-user installation (<code class="docutils literal notranslate"><span class="pre">install_type</span> <span class="pre">==</span> <span class="pre">0</span></code>) where the
 runtime lives under <code class="docutils literal notranslate"><span class="pre">~/agi-space</span></code> and pulls packages from wheels installed in
 a virtual environment.</p></li>
@@ -327,7 +327,7 @@ a virtual environment.</p></li>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code>.  Must contain the private checkout location via</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">AGILAB_PRIVATE=&quot;/abs/path/to/private-apps&quot;</span></code>.</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">AGILAB_APPS_REPOSITORY=&quot;/abs/path/to/apps-repository&quot;</span></code>.</p></td>
 <td><p></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">~/.local/share/agilab/.agilab-path</span></code></p></td>
@@ -355,7 +355,7 @@ a virtual environment.</p></li>
 <h2>How App Symlinks Are Resolved<a class="headerlink" href="#how-app-symlinks-are-resolved" title="Link to this heading"></a></h2>
 <ol class="arabic simple">
 <li><p>When <code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code> initialises with <code class="docutils literal notranslate"><span class="pre">install_type</span> <span class="pre">==</span> <span class="pre">0</span></code>, it first looks for
-<code class="docutils literal notranslate"><span class="pre">AGILAB_PRIVATE/src/agilab/apps</span></code>.</p></li>
+<code class="docutils literal notranslate"><span class="pre">AGILAB_APPS_REPOSITORY/src/agilab/apps</span></code>.</p></li>
 <li><p>Every <code class="docutils literal notranslate"><span class="pre">*_project</span></code> folder inside that private directory is symlinked into the
 active end-user workspace (e.g. <code class="docutils literal notranslate"><span class="pre">~/agi-space/apps</span></code>).  Existing links are
 recreated only when the target changed.</p></li>
@@ -364,9 +364,9 @@ stored in <code class="docutils literal notranslate"><span class="pre">~/.local/
 instead of linking them.</p></li>
 </ol>
 <p>Because the private checkout is the primary source of truth, make sure the
-installer writes the up-to-date path to <code class="docutils literal notranslate"><span class="pre">AGILAB_PRIVATE</span></code> and that the target
+installer writes the up-to-date path to <code class="docutils literal notranslate"><span class="pre">AGILAB_APPS_REPOSITORY</span></code> and that the target
 repository exposes the expected sub-tree:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>${AGILAB_PRIVATE}/
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>${AGILAB_APPS_REPOSITORY}/
   src/
     agilab/
       apps/
@@ -385,11 +385,11 @@ using the up-to-date private path.</p>
 <section id="practical-checklist">
 <h2>Practical Checklist<a class="headerlink" href="#practical-checklist" title="Link to this heading"></a></h2>
 <ol class="arabic simple">
-<li><p>Point <code class="docutils literal notranslate"><span class="pre">AGILAB_PRIVATE</span></code> at the root of the private repository.</p></li>
+<li><p>Point <code class="docutils literal notranslate"><span class="pre">AGILAB_APPS_REPOSITORY</span></code> at the root of the private repository.</p></li>
 <li><p>Run the installer (or rerun <code class="docutils literal notranslate"><span class="pre">install_apps.sh</span></code>) so <code class="docutils literal notranslate"><span class="pre">~/.local/share/agilab/.env</span></code>
 is refreshed.</p></li>
 <li><p>Restart the end-user Streamlit app.  The sidebar project selector should now
-only list apps that resolve inside <code class="docutils literal notranslate"><span class="pre">AGILAB_PRIVATE</span></code>.</p></li>
+only list apps that resolve inside <code class="docutils literal notranslate"><span class="pre">AGILAB_APPS_REPOSITORY</span></code>.</p></li>
 </ol>
 </section>
 </section>

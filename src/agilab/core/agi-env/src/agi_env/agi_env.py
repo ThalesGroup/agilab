@@ -573,7 +573,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if (not self.is_source_env) and (not self.is_worker_env):
             os.makedirs(apps_dir, exist_ok=True)
 
-            link_source = self._get_private_apps_root()
+            link_source = self._get_apps_repository_root()
             if link_source is None:
                 agilab_path = self.read_agilab_path()
                 if agilab_path:
@@ -585,7 +585,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 for src_app in link_source.glob("*_project"):
                     dest_app = apps_dir / src_app.relative_to(link_source)
                     # Avoid creating self-referential symlinks when the public
-                    # destination already resides inside the private tree.
+                    # destination already resides inside the apps repository tree.
                     if dest_app.resolve(strict=False) == src_app.resolve():
                         AgiEnv.logger.info(
                             f"Skipping symlink for app {src_app} because destination matches source"
@@ -696,7 +696,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         if not self.worker_path.exists():
             copied_packaged_worker = False
-            if self._ensure_private_app_link():
+            if self._ensure_repository_app_link():
                 self.app_src = self.active_app / "src"
                 self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
                 self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
@@ -881,19 +881,31 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         src_dir = root / "src" / root.name.replace("-", "_")
         return src_dir if src_dir.exists() else root
 
-    def _get_private_apps_root(self) -> Path | None:
-        """Return the private apps directory when ``AGILAB_PRIVATE`` is configured."""
+    def _get_apps_repository_root(self) -> Path | None:
+        """Return the apps repository directory when ``AGILAB_APPS_REPOSITORY`` is configured."""
 
-        private_root = self.envars.get("AGILAB_PRIVATE")
-        if not private_root:
+        repo_root = self.envars.get("AGILAB_APPS_REPOSITORY")
+        if not repo_root:
             return None
 
-        candidate = Path(private_root).expanduser() / "src/agilab/apps"
+        repo_path = Path(repo_root).expanduser()
+
+        candidate = repo_path / "src/agilab/apps"
         if candidate.exists():
             return candidate
 
+        try:
+            for alt in repo_path.glob("**/apps"):
+                try:
+                    if any(child.name.endswith("_project") for child in alt.iterdir()):
+                        return alt
+                except OSError:
+                    continue
+        except Exception as exc:
+            AgiEnv.logger.debug(f"Error while scanning apps repository: {exc}")
+
         AgiEnv.logger.info(
-            f"AGILAB_PRIVATE is set but apps directory is missing: {candidate}"
+            f"AGILAB_APPS_REPOSITORY is set but apps directory is missing under {repo_path}"
         )
         return None
 
@@ -1258,10 +1270,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     mapping[alias.asname or alias.name] = module
         return mapping
 
-    def _ensure_private_app_link(self) -> bool:
-        """Create a symlink to a private app when the public tree is missing it."""
+    def _ensure_repository_app_link(self) -> bool:
+        """Create a symlink to a repository app when the public tree is missing it."""
 
-        link_root = self._get_private_apps_root()
+        link_root = self._get_apps_repository_root()
         if not link_root:
             return False
 
@@ -1277,7 +1289,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 return False
 
         dest.symlink_to(candidate, target_is_directory=True)
-        AgiEnv.logger.info("Created private app symlink: %s -> %s", dest, candidate)
+        AgiEnv.logger.info("Created apps repository symlink: %s -> %s", dest, candidate)
         return True
 
     def extract_base_info(self, base, import_mapping):

@@ -3,7 +3,7 @@
   Purpose: Mirror the behavior of install_apps_pages.sh for Windows/PowerShell
   Notes:
     - Uses junctions for directory links (works without admin). Falls back to copying if linking fails.
-    - Respects the same env vars as the bash script: AGI_PYTHON_VERSION, AGILAB_PRIVATE, APPS_DEST_BASE, PAGES_DEST_BASE.
+    - Respects the same env vars as the bash script: AGI_PYTHON_VERSION, AGILAB_APPS_REPOSITORY, APPS_DEST_BASE, PAGES_DEST_BASE.
 #>
 
 #----- Strict mode / setup -----------------------------------------------------
@@ -72,6 +72,29 @@ function New-DirLink([string]$LinkPath, [string]$TargetPath) {
   }
 }
 
+function Find-RepoSubdir([string]$Root, [string]$Name) {
+  if ([string]::IsNullOrEmpty($Root)) { return "" }
+  try {
+    $candidates = Get-ChildItem -LiteralPath $Root -Directory -Recurse -ErrorAction Stop |
+      Where-Object { $_.Name -eq $Name }
+  } catch {
+    return ""
+  }
+  foreach ($candidate in $candidates) {
+    if ($Name -eq 'apps') {
+      $hasProjects = Get-ChildItem -LiteralPath $candidate.FullName -Directory -Filter '*_project' -ErrorAction SilentlyContinue | Select-Object -First 1
+      if ($hasProjects) { return $candidate.FullName }
+    } elseif ($Name -eq 'apps-pages') {
+      $hasPages = Get-ChildItem -LiteralPath $candidate.FullName -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -ne '.venv' } | Select-Object -First 1
+      if ($hasPages) { return $candidate.FullName }
+    } else {
+      return $candidate.FullName
+    }
+  }
+  return ""
+}
+
 $UvPreviewArgs = @("--preview-features", "extra-build-dependencies")
 function Invoke-UvPreview {
   param([string[]]$Args)
@@ -97,14 +120,26 @@ if (-not (Test-Path -LiteralPath $agilabPathFile)) {
   $AGILAB_PUBLIC = (Get-Content -LiteralPath $agilabPathFile -Raw).Trim()
 }
 
-$AGILAB_PRIVATE = $env:AGILAB_PRIVATE
+$AGILAB_APPS_REPOSITORY = $env:AGILAB_APPS_REPOSITORY
 
-$PAGES_TARGET_BASE = if ($AGILAB_PRIVATE) { Join-Path $AGILAB_PRIVATE "src/agilab/apps-pages" } else { "" }
-$APPS_TARGET_BASE  = if ($AGILAB_PRIVATE) { Join-Path $AGILAB_PRIVATE "src/agilab/apps" } else { "" }
+$PAGES_TARGET_BASE = ""
+$APPS_TARGET_BASE  = ""
+$SkipRepositoryPages = $true
+$SkipRepositoryApps  = $true
 
-if ($AGILAB_PRIVATE) {
-  if (-not (Test-Path -LiteralPath $PAGES_TARGET_BASE)) { Write-Color RED "Error: Missing directory: $PAGES_TARGET_BASE"; exit 1 }
-  if (-not (Test-Path -LiteralPath $APPS_TARGET_BASE))  { Write-Color RED "Error: Missing directory: $APPS_TARGET_BASE";  exit 1 }
+if (-not [string]::IsNullOrEmpty($AGILAB_APPS_REPOSITORY)) {
+  $PAGES_TARGET_BASE = Find-RepoSubdir $AGILAB_APPS_REPOSITORY 'apps-pages'
+  if (-not $PAGES_TARGET_BASE) {
+    Write-Color RED "Error: Could not locate an 'apps-pages' directory under $AGILAB_APPS_REPOSITORY"
+    exit 1
+  }
+  $APPS_TARGET_BASE = Find-RepoSubdir $AGILAB_APPS_REPOSITORY 'apps'
+  if (-not $APPS_TARGET_BASE) {
+    Write-Color RED "Error: Could not locate an 'apps' directory under $AGILAB_APPS_REPOSITORY"
+    exit 1
+  }
+  $SkipRepositoryPages = $false
+  $SkipRepositoryApps  = $false
 }
 
 
@@ -115,7 +150,7 @@ $PAGES_DEST_BASE = if ($env:PAGES_DEST_BASE) { $env:PAGES_DEST_BASE } else { Joi
 Ensure-Dir $APPS_DEST_BASE
 Ensure-Dir $PAGES_DEST_BASE
 
-Write-Color BLUE "Using AGILAB_PRIVATE: $AGILAB_PRIVATE"
+Write-Color BLUE "Using AGILAB_APPS_REPOSITORY: $AGILAB_APPS_REPOSITORY"
 Write-Color BLUE "Using AGILAB_PUBLIC: $AGILAB_PUBLIC"
 
 Write-Color BLUE "(Apps) Destination base: $APPS_DEST_BASE"
@@ -123,47 +158,54 @@ Write-Color BLUE "(Apps) Link target base: $APPS_TARGET_BASE"
 Write-Color BLUE "(Pages) Destination base: $PAGES_DEST_BASE"
 Write-Color BLUE "(Pages) Link target base: $PAGES_TARGET_BASE`n"
 
-# --- App/Page lists (merge private + public) ---------------------------------
-$PRIVATE_PAGES = @(
-  "maps-network-graph"
-)
-
-$PRIVATE_APPS = @(
-  "example_app_project",
-  "example_app_project",
-  "example_app_project",
-  "example_app_project"
-)
-
-$PUBLIC_PAGES = @()
-if (Test-Path -LiteralPath $PAGES_DEST_BASE) {
-  $PUBLIC_PAGES = Get-ChildItem -LiteralPath $PAGES_DEST_BASE -Directory |
+# --- App/Page lists (merge repository + public) ------------------------------
+$REPOSITORY_PAGES = @()
+if (-not $SkipRepositoryPages -and (Test-Path -LiteralPath $PAGES_TARGET_BASE)) {
+  $REPOSITORY_PAGES = Get-ChildItem -LiteralPath $PAGES_TARGET_BASE -Directory |
     Where-Object { $_.Name -ne ".venv" } | ForEach-Object { $_.Name }
 }
 
-$PUBLIC_APPS = @()
-if (Test-Path -LiteralPath $APPS_DEST_BASE) {
-  $PUBLIC_APPS = Get-ChildItem -LiteralPath $APPS_DEST_BASE -Directory -Filter "*_project" |
+$REPOSITORY_APPS = @()
+if (-not $SkipRepositoryApps -and (Test-Path -LiteralPath $APPS_TARGET_BASE)) {
+  $REPOSITORY_APPS = Get-ChildItem -LiteralPath $APPS_TARGET_BASE -Directory -Filter "*_project" |
     ForEach-Object { $_.Name }
 }
 
-if ([string]::IsNullOrEmpty($AGILAB_PRIVATE)) {
-  $INCLUDED_PAGES = @($PUBLIC_PAGES)
-  $INCLUDED_APPS  = @($PUBLIC_APPS)
+$BUILTIN_PAGES = @()
+if (Test-Path -LiteralPath $PAGES_DEST_BASE) {
+  $BUILTIN_PAGES = Get-ChildItem -LiteralPath $PAGES_DEST_BASE -Directory |
+    Where-Object { $_.Name -ne ".venv" } | ForEach-Object { $_.Name }
+}
+
+$BUILTIN_APPS = @()
+if (Test-Path -LiteralPath $APPS_DEST_BASE) {
+  $BUILTIN_APPS = Get-ChildItem -LiteralPath $APPS_DEST_BASE -Directory -Filter "*_project" |
+    ForEach-Object { $_.Name }
+}
+
+if ($SkipRepositoryPages) {
+  $INCLUDED_PAGES = @($BUILTIN_PAGES)
 } else {
-  $INCLUDED_PAGES = @($PRIVATE_PAGES + $PUBLIC_PAGES)
-  $INCLUDED_APPS  = @($PRIVATE_APPS + $PUBLIC_APPS)
+  $INCLUDED_PAGES = @($REPOSITORY_PAGES + $BUILTIN_PAGES)
+}
+
+if ($SkipRepositoryApps) {
+  $INCLUDED_APPS = @($BUILTIN_APPS)
+} else {
+  $INCLUDED_APPS  = @($REPOSITORY_APPS + $BUILTIN_APPS)
 }
 
 Write-Color BLUE ("Apps to install: " + ($(if ($INCLUDED_APPS.Count) { $INCLUDED_APPS -join ' ' } else { "<none>" })))
 Write-Color BLUE ("Pages to install: " + ($(if ($INCLUDED_PAGES.Count) { $INCLUDED_PAGES -join ' ' } else { "<none>" })) + "`n")
 
 # --- Ensure local links in DEST_BASE -----------------------------------------
-if (-not [string]::IsNullOrEmpty($AGILAB_PRIVATE)) {
-  Push-Location (Join-Path $AGILAB_PRIVATE "src/agilab")
-  if (Test-Path -LiteralPath "core") { Remove-Item -LiteralPath "core" -Force -Recurse -ErrorAction SilentlyContinue }
-  $target = if (Test-Path (Join-Path $AGILAB_PUBLIC "core")) {
-    Join-Path $AGILAB_PUBLIC "core"
+if (-not $SkipRepositoryApps) {
+  $repoAgilabPath = if ($APPS_TARGET_BASE) { Split-Path -Parent $APPS_TARGET_BASE } else { "" }
+  if (Test-Path -LiteralPath $repoAgilabPath) {
+    Push-Location $repoAgilabPath
+    if (Test-Path -LiteralPath "core") { Remove-Item -LiteralPath "core" -Force -Recurse -ErrorAction SilentlyContinue }
+    $target = if (Test-Path (Join-Path $AGILAB_PUBLIC "core")) {
+      Join-Path $AGILAB_PUBLIC "core"
   } elseif (Test-Path (Join-Path $AGILAB_PUBLIC "src/agilab/core")) {
     Join-Path $AGILAB_PUBLIC "src/agilab/core"
   } else {
@@ -171,35 +213,36 @@ if (-not [string]::IsNullOrEmpty($AGILAB_PRIVATE)) {
     exit 1
   }
   New-DirLink -LinkPath "core" -TargetPath $target
-  & uv run python -c "import pathlib; p=pathlib.Path('core').resolve(); print(f'Private core -> {p}')" | Out-Host
+  & uv run python -c "import pathlib; p=pathlib.Path('core').resolve(); print(f'Repository core -> {p}')" | Out-Host
 
   $publicTemplates = if ($AGILAB_PUBLIC) { Join-Path $AGILAB_PUBLIC "apps/templates" } else { "" }
   if ($publicTemplates -and (Test-Path -LiteralPath $publicTemplates)) {
     Ensure-Dir "apps"
-    $privateTemplates = Join-Path "apps" "templates"
-    if (Test-Path -LiteralPath $privateTemplates) {
-      if (Is-Link $privateTemplates) {
-        Remove-Item -LiteralPath $privateTemplates -Force
+    $repoTemplates = Join-Path "apps" "templates"
+    if (Test-Path -LiteralPath $repoTemplates) {
+      if (Is-Link $repoTemplates) {
+        Remove-Item -LiteralPath $repoTemplates -Force
       } else {
-        Write-Color YELLOW ("Replacing private templates directory with link -> {0}" -f $publicTemplates)
-        Remove-Item -LiteralPath $privateTemplates -Force -Recurse
+        Write-Color YELLOW ("Replacing repository templates directory with link -> {0}" -f $publicTemplates)
+        Remove-Item -LiteralPath $repoTemplates -Force -Recurse
       }
     }
-    if (-not (Test-Path -LiteralPath $privateTemplates)) {
-      New-DirLink -LinkPath $privateTemplates -TargetPath $publicTemplates
-      Write-Color BLUE ("Linked private templates to {0}" -f $publicTemplates)
+    if (-not (Test-Path -LiteralPath $repoTemplates)) {
+      New-DirLink -LinkPath $repoTemplates -TargetPath $publicTemplates
+      Write-Color BLUE ("Linked repository templates to {0}" -f $publicTemplates)
     }
   } else {
     if ($publicTemplates) {
       Write-Color YELLOW ("Warning: expected templates at {0} not found; skipping link." -f $publicTemplates)
     }
   }
-  Pop-Location
+    Pop-Location
+  }
 }
 
 $status = 0
-if (-not [string]::IsNullOrEmpty($AGILAB_PRIVATE)){
-  foreach ($page in $PRIVATE_PAGES) {
+if (-not $SkipRepositoryPages){
+  foreach ($page in $REPOSITORY_PAGES) {
     $page_target = Join-Path $PAGES_TARGET_BASE $page
     $page_dest   = Join-Path $PAGES_DEST_BASE $page
     if (-not (Test-Path -LiteralPath $page_target)) {
@@ -218,7 +261,7 @@ if (-not [string]::IsNullOrEmpty($AGILAB_PRIVATE)){
     }
   }
 
-  foreach ($app in $PRIVATE_APPS) {
+  foreach ($app in $REPOSITORY_APPS) {
     $app_target = Join-Path $APPS_TARGET_BASE $app
     $app_dest   = Join-Path $APPS_DEST_BASE $app
     if (-not (Test-Path -LiteralPath $app_target)) {
