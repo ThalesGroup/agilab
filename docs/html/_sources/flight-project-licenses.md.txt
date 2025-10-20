@@ -363,7 +363,6 @@
 | traitlets | BSD LICENSE |
 | twine | APACHE-2.0 |
 | typer | MIT LICENSE |
-| types-python-dateutil | APACHE-2.0 |
 | types-pyyaml | APACHE-2.0 |
 | types-requests | APACHE-2.0 |
 | typing-extensions | PSF-2.0 |
