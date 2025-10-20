@@ -12,12 +12,36 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import argparse
-import os
 import sys
 from pathlib import Path
 import streamlit.web.cli as stcli
 
+
+def _detect_repo_root(start: Path) -> Path | None:
+    for candidate in (start, *start.parents):
+        if (candidate / "pyproject.toml").is_file() and (candidate / "src" / "agilab").is_dir():
+            return candidate
+    return None
+
+
+def _running_from_uvx() -> bool:
+    prefix_parts = Path(sys.prefix).resolve().parts
+    return ".cache" in prefix_parts and "uv" in prefix_parts and any(part.startswith("archive-") for part in prefix_parts)
+
+
+def _guard_against_uvx_in_source_tree() -> None:
+    repo_root = _detect_repo_root(Path.cwd())
+    if repo_root and _running_from_uvx():
+        message = (
+            "agilab: running inside the source checkout via `uvx` is not supported.\n"
+            f"Current checkout: {repo_root}\n"
+            "Use `uv run agilab` or the generated run-config wrappers instead."
+        )
+        raise SystemExit(message)
+
 def main():
+    _guard_against_uvx_in_source_tree()
+
     parser = argparse.ArgumentParser(
         description="Run AGILAB application with custom options."
     )
