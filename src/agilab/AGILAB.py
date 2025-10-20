@@ -204,7 +204,7 @@ def page(env):
     """Render the main landing page controls and footer for the lab."""
     cols = st.columns(1)
     help_file = Path(env.help_path) / "index.html"
-    from agi_env.pagelib import open_docs
+    from agi_env.pagelib import open_docs, open_local_docs
 
     with st.expander("Introduction", expanded=True):
         display_landing_page(Path(env.st_resources))
@@ -252,8 +252,16 @@ def page(env):
         except Exception:
             pass
 
-    if st.button("Read Documentation", use_container_width=True, type="primary"):
-        open_docs(env, help_file, "project-editor")
+    col_docs_remote, col_docs_local = st.columns(2)
+    with col_docs_remote:
+        if st.button("Read Documentation", use_container_width=True, type="primary"):
+            open_docs(env, help_file, "project-editor")
+    with col_docs_local:
+        if st.button("Open Local Documentation", use_container_width=True):
+            try:
+                open_local_docs(env, help_file, "project-editor")
+            except FileNotFoundError:
+                st.error("Local documentation not found. Regenerate via docs/gen_docs.sh.")
 
     current_year = datetime.now().year
     st.markdown(

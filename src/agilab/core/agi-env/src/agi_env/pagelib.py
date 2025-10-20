@@ -120,6 +120,31 @@ import webbrowser
 _DOCS_ALREADY_OPENED = False
 _LAST_DOCS_URL: Optional[str] = None
 
+
+def _with_anchor(url: str, anchor: str) -> str:
+    if anchor:
+        if not anchor.startswith("#"):
+            anchor = "#" + anchor
+        return url + anchor
+    return url
+
+
+def _open_docs_url(target_url: str) -> None:
+    """Open the docs URL, trying to reuse existing browser tabs when possible."""
+    global _DOCS_ALREADY_OPENED, _LAST_DOCS_URL
+
+    if _DOCS_ALREADY_OPENED and _LAST_DOCS_URL == target_url:
+        if _focus_existing_docs_tab(target_url):
+            return
+        webbrowser.open_new_tab(target_url)
+        _DOCS_ALREADY_OPENED = True
+        _LAST_DOCS_URL = target_url
+        return
+
+    webbrowser.open_new_tab(target_url)
+    _DOCS_ALREADY_OPENED = True
+    _LAST_DOCS_URL = target_url
+
 def _resolve_docs_path(env, html_file: str) -> Path | None:
     """Return the first docs HTML path that exists for the requested file."""
     candidates = [
@@ -161,36 +186,27 @@ def open_docs(env, html_file="index.html", anchor=""):
     if docs_path is None:
         print("Documentation file not found locally. Opening online docs instead.")
         online_url = "https://thalesgroup.github.io/agilab/index.html"
-        if anchor:
-            # Ensure the anchor starts with '#'
-            if not anchor.startswith("#"):
-                anchor = "#" + anchor
-            online_url += anchor
-        target_url = online_url
+        target_url = _with_anchor(online_url, anchor)
     else:
         # Construct a file:// URL with an optional anchor
-        docs_url = docs_path.as_uri()
-        if anchor:
-            if not anchor.startswith("#"):
-                anchor = "#" + anchor
-            docs_url += anchor
-        target_url = docs_url
+        target_url = _with_anchor(docs_path.as_uri(), anchor)
 
-    if _DOCS_ALREADY_OPENED and _LAST_DOCS_URL == target_url:
-        # If we can focus an existing tab, do so. Otherwise, fall back to opening a new tab
-        # to handle cases where the previous tab was closed or focus is not permitted.
-        if _focus_existing_docs_tab(target_url):
-            return
-        # Fallback: open a fresh tab so users can reopen docs after closing them.
-        webbrowser.open_new_tab(target_url)
-        _DOCS_ALREADY_OPENED = True
-        _LAST_DOCS_URL = target_url
-        return
+    _open_docs_url(target_url)
 
-    # Either first open, or navigating to different doc target -> open in new tab.
-    webbrowser.open_new_tab(target_url)
-    _DOCS_ALREADY_OPENED = True
-    _LAST_DOCS_URL = target_url
+
+def open_local_docs(env, html_file="index.html", anchor=""):
+    """
+    Open the local documentation without falling back to the hosted site.
+
+    Raises:
+        FileNotFoundError: If the requested local documentation file cannot be located.
+    """
+    docs_path = _resolve_docs_path(env, html_file)
+    if docs_path is None:
+        raise FileNotFoundError(f"Local documentation file '{html_file}' was not found.")
+
+    target_url = _with_anchor(docs_path.as_uri(), anchor)
+    _open_docs_url(target_url)
 
 
 
