@@ -1699,30 +1699,36 @@ class AGI:
         cmd = f"{uv} run -p {pyvers} python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
         await AGI.exec_ssh(ip, cmd)
 
-        # Then send the files to the remote directory
-        try:
-            egg_file = next(iter(dist_abs.glob(f"{env.app}*.egg")), None)
-        except StopIteration:
-            logger.error(f"searching for {wenv_abs / env.app}*.egg")
-            raise FileNotFoundError(f"no existing egg file in {wenv_abs / env.app}*")
+        if env.is_source_env:
+            # Then send the files to the remote directory
+            try:
+                egg_file = next(iter(dist_abs.glob(f"{env.app}*.egg")), None)
+            except StopIteration:
+                logger.error(f"searching for {wenv_abs / env.app}*.egg")
+                raise FileNotFoundError(f"no existing egg file in {wenv_abs / env.app}*")
 
-        # build agi_env*.whl
-        wenv = env.agi_env / 'dist'
-        try:
-            env_whl = next(iter(wenv.glob("agi_env*.whl")))
-        except StopIteration:
-            raise FileNotFoundError(f"no existing whl file in {wenv / "agi_env*"}")
+            # build agi_env*.whl
+            wenv = env.agi_env / 'dist'
+            try:
+                env_whl = next(iter(wenv.glob("agi_env*.whl")))
+            except StopIteration:
+                raise FileNotFoundError(f"no existing whl file in {wenv / "agi_env*"}")
 
-        # build agi_node*.whl
-        wenv = env.agi_node / 'dist'
-        try:
-            node_whl = next(iter(wenv.glob("agi_node*.whl")))
-        except StopIteration:
-            raise FileNotFoundError(f"no existing whl file in {wenv / "agi_node*"}")
+            # build agi_node*.whl
+            wenv = env.agi_node / 'dist'
+            try:
+                node_whl = next(iter(wenv.glob("agi_node*.whl")))
+            except StopIteration:
+                raise FileNotFoundError(f"no existing whl file in {wenv / "agi_node*"}")
 
-        await AGI.send_files(env, ip,
-                             [egg_file, node_whl, env_whl, env.worker_pyproject, env.uvproject],
-                             wenv_rel)
+            await AGI.send_files(env, ip,
+                                 [egg_file, node_whl, env_whl, env.worker_pyproject, env.uvproject],
+                                 wenv_rel)
+        else:
+            cmd = f"{uv} pip install agi-env"
+            await AGI.exec_ssh(ip, cmd)
+            cmd = f"{uv} pip install agi-node"
+            await AGI.exec_ssh(ip, cmd)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
         hw_rapids_capable = False
