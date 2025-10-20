@@ -304,6 +304,7 @@ class AGI:
                 logger.error(f"Unhandled exception in AGI.run: {message}")
                 if logger.isEnabledFor(logging.DEBUG):
                     logger.debug("Traceback:\n%s", traceback.format_exc())
+                raise
 
     @staticmethod
     async def serve(
