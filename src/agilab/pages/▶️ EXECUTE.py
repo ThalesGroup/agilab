@@ -1106,18 +1106,38 @@ if __name__ == "__main__":
                     for line in context_lines:
                         update_log(log_placeholder, line)
                 with st.spinner("Installing worker..."):
-                    _stdout, stderr = await env.run_agi(
-                        install_command,
-                        log_callback=lambda message: update_log(log_placeholder, message),
-                        venv=venv
-                    )
+                    _install_stdout = ""
+                    install_stderr = ""
+                    install_error: Exception | None = None
+                    try:
+                        _install_stdout, install_stderr = await env.run_agi(
+                            install_command,
+                            log_callback=lambda message: update_log(log_placeholder, message),
+                            venv=venv,
+                        )
+                    except Exception as exc:
+                        install_error = exc
+                        install_stderr = str(exc)
+                        with log_expander:
+                            update_log(log_placeholder, f"ERROR: {install_stderr}")
+
+                    error_flag = bool(install_stderr.strip()) or install_error is not None
 
                     with log_expander:
-                        status_line = "✅ Install finished without errors." if not stderr else "❌ Install finished with errors. Check logs above."
+                        status_line = (
+                            "✅ Install finished without errors."
+                            if not error_flag
+                            else "❌ Install finished with errors. Check logs above."
+                        )
                         update_log(log_placeholder, status_line)
                         log_placeholder.empty()
-                        display_log(st.session_state.get("log_text", ""), stderr)
-                    if not stderr:
+                        display_log(
+                            st.session_state.get("log_text", ""),
+                            install_stderr,
+                        )
+                    if error_flag:
+                        st.error("Cluster installation failed.")
+                    else:
                         st.success("Cluster installation completed.")
                         st.session_state["SET ARGS"] = True
                         st.session_state["show_run"] = True
