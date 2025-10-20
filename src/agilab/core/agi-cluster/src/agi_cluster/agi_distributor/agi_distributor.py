@@ -1156,6 +1156,8 @@ class AGI:
             await AGI.send_files(env, ip, [env.cluster_pck / "agi_distributor/cli.py", env.worker_pyproject,
                                            env.uvproject],
                                  wenv_rel.parent)
+            print("DEBUG:", env.cluster_pck / "agi_distributor/cli.py")
+            print("DEBUG:", env.worker_pyproject)
 
             # cmd = f"{uv} run --no-sync python {cli} platform"
             # res =  await AGI.exec_ssh(ip, cmd)
