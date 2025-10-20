@@ -162,7 +162,7 @@ find . \( -name ".venv" -o -name "uv.lock" -o -name "build" -o -name "dist" -o -
 # Command-Line Arguments
 # ================================
 usage() {
-    echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path> --private-apps <path>] [--source local|pypi|testpypi]"
+    echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps] [--test-apps]"
     exit 1
 }
 
@@ -171,17 +171,28 @@ CURRENT_PATH="$(realpath '.')"
 cluster_credentials=""
 openai_api_key=""
 SOURCE="local"
+INSTALL_APPS_FLAG=1
+TEST_APPS_FLAG=0
+AGILAB_APPS_REPOSITORY=""
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --cluster-ssh-credentials) cluster_credentials="$2"; shift 2;;
         --openai-api-key)      openai_api_key="$2";      shift 2;;
         --install-path)        AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
-        --private-apps)        AGILAB_PRIVATE=$(realpath "$2"); shift 2;;
+        --apps-repository)     AGILAB_APPS_REPOSITORY=$(realpath "$2"); shift 2;;
         --source)             SOURCE="$2"; shift 2;;
+        --install-apps)       INSTALL_APPS_FLAG=1; shift;;
+        --test-apps)          TEST_APPS_FLAG=1; INSTALL_APPS_FLAG=1; shift;;
         *) echo -e "${RED}Unknown option: $1${NC}" && usage;;
     esac
 done
+
+if [[ -z "$AGILAB_APPS_REPOSITORY" ]]; then
+    AGILAB_APPS_REPOSITORY=""
+fi
+
+export AGILAB_APPS_REPOSITORY
 
 # Validate mandatory parameters
 if [[ -z "$cluster_credentials" ]]; then
@@ -378,7 +389,7 @@ update_environment() {
         echo "CLUSTER_CREDENTIALS=\"$cluster_credentials\""
         echo "AGI_PYTHON_VERSION=\"$AGI_PYTHON_VERSION\""
         echo "AGI_PYTHON_FREE_THREADED=\"$AGI_PYTHON_FREE_THREADED\""
-        echo "AGILAB_PRIVATE=\"$AGILAB_PRIVATE\""
+        echo "AGILAB_APPS_REPOSITORY=\"$AGILAB_APPS_REPOSITORY\""
     } > "$ENV_FILE"
     echo -e "${GREEN}Environment updated in $ENV_FILE${NC}"
 }
@@ -394,14 +405,23 @@ install_core() {
 }
 
 install_apps() {
+  if (( ! INSTALL_APPS_FLAG )); then
+    echo -e "${YELLOW}Skipping app installation (not requested).${NC}"
+    return 0
+  fi
   dir="$AGI_INSTALL_PATH/src/agilab"
   pushd $dir > /dev/null
   chmod +x "install_apps.sh"
   local agilab_public
   agilab_public="$(cat "$HOME/.local/share/agilab/.agilab-path")"
+  local install_args=()
+  install_args+=(--install-apps)
+  if (( TEST_APPS_FLAG )); then
+    install_args+=(--test-apps)
+  fi
   APPS_DEST_BASE="${agilab_public}/apps" \
   PAGES_DEST_BASE="${agilab_public}/apps-pages" \
-    ./install_apps.sh
+    ./install_apps.sh "${install_args[@]}"
   popd > /dev/null
 }
 
@@ -472,16 +492,28 @@ copy_project_files
 update_environment
 install_core
 write_env_values
-if ! install_apps; then
-  warn "install_apps failed; continuing with PyCharm setup."
-  install_pycharm_script # needed to investigate with pycharm why previous script has failed
-  refresh_launch_matrix
+
+if (( INSTALL_APPS_FLAG )); then
+  if ! install_apps; then
+    warn "install_apps failed; continuing with PyCharm setup."
+    install_pycharm_script # needed to investigate with pycharm why previous script has failed
+    refresh_launch_matrix
+  else
+    install_pycharm_script
+    refresh_launch_matrix
+    install_enduser
+    install_offline_extra
+    seed_mistral_pdfs
+    setup_mistral_offline
+    echo -e "${GREEN}Installation complete!${NC}"
+  fi
 else
+  warn "App installation skipped (use --install-apps to enable)."
   install_pycharm_script
   refresh_launch_matrix
   install_enduser
   install_offline_extra
   seed_mistral_pdfs
   setup_mistral_offline
-  echo -e "${GREEN}Installation complete!${NC}"
+  echo -e "${GREEN}Installation complete (apps skipped).${NC}"
 fi
