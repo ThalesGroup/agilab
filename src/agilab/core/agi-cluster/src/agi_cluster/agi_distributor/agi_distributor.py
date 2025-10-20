@@ -1152,7 +1152,9 @@ class AGI:
             await AGI.exec_ssh(ip, cmd)
 
             await AGI.exec_ssh(ip, f"{uv} python install {pyvers_worker}")
-            await AGI.send_files(env, ip, [env.cluster_pck / "agi_distributor/cli.py"],
+
+            await AGI.send_files(env, ip, [env.cluster_pck / "agi_distributor/cli.py", env.worker_pyproject,
+                                           env.uvproject],
                                  wenv_rel.parent)
 
             # cmd = f"{uv} run --no-sync python {cli} platform"
@@ -1695,10 +1697,6 @@ class AGI:
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
         uv = cmd_prefix + env.uv_worker
 
-        cmd = f"{uv} run -p {pyvers} python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
-        await AGI.exec_ssh(ip, cmd)
-
-
         # Then send the files to the remote directory
         try:
             egg_file = next(iter(dist_abs.glob(f"{env.app}*.egg")), None)
@@ -1721,11 +1719,7 @@ class AGI:
                 raise FileNotFoundError(f"no existing whl file in {wenv / "agi_node*"}")
 
             await AGI.send_files(env, ip,
-                                 [egg_file, node_whl, env_whl, env.worker_pyproject, env.uvproject],
-                                 wenv_rel)
-        else:
-            await AGI.send_files(env, ip,
-                                 [env.worker_pyproject, env.uvproject],
+                                 [egg_file, node_whl, env_whl],
                                  wenv_rel)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
