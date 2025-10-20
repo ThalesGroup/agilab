@@ -1722,6 +1722,10 @@ class AGI:
             await AGI.send_files(env, ip,
                                  [egg_file, node_whl, env_whl, env.worker_pyproject, env.uvproject],
                                  wenv_rel)
+        else:
+            await AGI.send_files(env, ip,
+                                 [env.worker_pyproject, env.uvproject],
+                                 wenv_rel)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
         hw_rapids_capable = False
@@ -2035,6 +2039,8 @@ class AGI:
             except Exception as e:
                 logger.error("Dask Client instantiation trouble, run aborted due to:")
                 logger.info(e)
+                if isinstance(e, RuntimeError):
+                    raise
                 raise RuntimeError("Failed to instantiate Dask Client") from e
 
             AGI._install_done = True
@@ -2850,8 +2856,23 @@ class AGI:
 def _format_exception_chain(exc: BaseException) -> str:
     """Return a compact representation of the exception chain, capturing root causes."""
     messages: List[str] = []
+    norms: List[str] = []
     visited = set()
     current: Optional[BaseException] = exc
+
+    def _normalize(text: str) -> str:
+        text = text.strip()
+        if not text:
+            return ""
+        lowered = text.lower()
+        for token in ("error:", "exception:", "warning:", "runtimeerror:", "valueerror:", "typeerror:"):
+            if lowered.startswith(token):
+                return text[len(token):].strip()
+        if ": " in text:
+            head, tail = text.split(": ", 1)
+            if head.endswith(("Error", "Exception", "Warning")):
+                return tail.strip()
+        return text
 
     while current and id(current) not in visited:
         visited.add(id(current))
@@ -2859,8 +2880,26 @@ def _format_exception_chain(exc: BaseException) -> str:
         text = "".join(tb_exc.format_exception_only()).strip()
         if not text:
             text = f"{current.__class__.__name__}: {current}"
-        if text and text not in messages:
-            messages.append(text)
+        if text:
+            norm = _normalize(text)
+            if messages:
+                last_norm = norms[-1]
+                if not norm:
+                    norm = text
+                if norm == last_norm:
+                    pass
+                elif last_norm.endswith(norm):
+                    messages[-1] = text
+                    norms[-1] = norm
+                elif norm.endswith(last_norm):
+                    # Current message is a superset; keep existing shorter variant.
+                    pass
+                else:
+                    messages.append(text)
+                    norms.append(norm)
+            else:
+                messages.append(text)
+                norms.append(norm if norm else text)
 
         if current.__cause__ is not None:
             current = current.__cause__

@@ -1583,6 +1583,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 logger = getattr(AgiEnv, "logger", None)
                 if logger:
                     logger.error(traceback.format_exc())
+                if isinstance(e, RuntimeError):
+                    raise
                 raise RuntimeError(f"Command execution error: {e}") from e
 
         else:
@@ -1838,6 +1840,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             if logger:
                 logger.error(f"Error during: {cmd}")
                 logger.error(err)
+            if isinstance(err, RuntimeError):
+                raise
             raise RuntimeError(f"Subprocess execution error for: {cmd}") from err
 
         rc = proc.returncode
@@ -2300,6 +2304,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         except Exception as e:
             AgiEnv.logger.error(f"Failed to extract '{archive_path}': {e}")
             traceback.print_exc()
+            if isinstance(e, RuntimeError):
+                raise
             raise RuntimeError(f"Extraction failed for '{archive_path}'") from e
 
     @staticmethod
