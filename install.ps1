@@ -8,15 +8,20 @@ param(
     [string]$ClusterSshCredentials,
     [string]$OpenaiApiKey,
     [string]$InstallPath = (Get-Location).Path,
-    [string]$PrivateApps,
+    [string]$AppsRepository,
     [ValidateSet("local", "pypi", "testpypi")]
     [string]$Source = "local",
-    [switch]$SkipConnectivityCheck
+    [switch]$InstallApps,
+    [switch]$TestApps
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+if ($TestApps) {
+    $InstallApps = $true
+}
 
 function Write-Info { param([string]$Message) Write-Host $Message -ForegroundColor Blue }
 function Write-Success { param([string]$Message) Write-Host $Message -ForegroundColor Green }
@@ -56,8 +61,8 @@ function Ensure-NotAdmin {
 
 $CurrentPath = [System.IO.Path]::GetFullPath((Get-Location).Path)
 $InstallPathFull = [System.IO.Path]::GetFullPath($InstallPath)
-$PrivateAppsPath = if ($PrivateApps) { [System.IO.Path]::GetFullPath($PrivateApps) } else { "" }
-$env:AGILAB_PRIVATE = $PrivateAppsPath
+$AppsRepositoryPath = if ($AppsRepository) { [System.IO.Path]::GetFullPath($AppsRepository) } else { "" }
+$env:AGILAB_APPS_REPOSITORY = $AppsRepositoryPath
 
 $LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
 Ensure-Directory $LocalDir
@@ -69,7 +74,6 @@ $LogFile = Join-Path $LogDir ("install_{0}.log" -f (Get-Date -Format "yyyyMMdd_H
 
 $script:AgiPythonVersion = $null
 $script:AgiPythonFreeThreaded = $false
-$script:HasInternet = $true
 $TranscriptStarted = $false
 
 $UvPreviewArgs = @("--preview-features", "extra-build-dependencies")
@@ -93,41 +97,30 @@ function Remove-UnwantedPaths {
     }
 }
 
-function Test-Internet {
-    Write-Info "Checking internet connectivity..."
-    try {
-        $response = Invoke-WebRequest -Uri "https://www.microsoft.com" -Method Head -TimeoutSec 10
-        if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 400) {
-            Write-Success "Internet connection is OK."
-            return $true
-        }
-    } catch {
-        Write-Warn "No internet connection detected. Continuing with offline-safe defaults."
-        return $false
-    }
-    return $true
-}
-
 function Install-Dependencies {
-    param([bool]$AllowNetwork)
     Write-Info "Step: Installing system dependencies..."
-    if (-not $AllowNetwork) {
-        Write-Warn "Skipping dependency installation (network unavailable)."
-        return
-    }
-    if (-not (Prompt-YesNo "Do you want to install system dependencies (uv, build tools)?")) {
-        Write-Warn "Skipping dependency installation."
-        return
-    }
+    Write-Warn "Automatic dependency installation is disabled for restricted networks."
     if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-        Write-Info "Installing uv..."
-        try {
-            powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://astral.sh/uv/install.ps1 | iex"
-        } catch {
-            Write-Warn "Failed to install uv automatically. Install it manually before re-running."
-        }
+        Write-Failure "uv CLI not found. Install uv (https://astral.sh/uv/) before re-running the installer."
+        exit 1
     }
     Write-Warn "Ensure Visual Studio Build Tools or MSVC are installed if native builds are required."
+}
+
+function Ensure-Locale {
+    Write-Info "Setting locale..."
+    try {
+        $culture = [System.Globalization.CultureInfo]::CurrentCulture
+        if ($culture.Name -ne "en-US") {
+            Write-Warn ("Current culture is {0}; setting process locale variables to en_US.UTF-8." -f $culture.Name)
+        } else {
+            Write-Success "Locale en_US.UTF-8 is already active."
+        }
+    } catch {
+        Write-Warn "Unable to determine current culture; setting locale variables for this session."
+    }
+    $env:LC_ALL = "en_US.UTF-8"
+    $env:LANG = "en_US.UTF-8"
 }
 
 function Ensure-Uv {
@@ -316,13 +309,13 @@ function Update-Environment {
     $clusterValue = if ($null -eq $ClusterSshCredentials) { "" } else { $ClusterSshCredentials }
     $pythonValue = if ($null -eq $script:AgiPythonVersion) { "" } else { $script:AgiPythonVersion }
     $freethreadedValue = if ($script:AgiPythonFreeThreaded) { "1" } else { "0" }
-    $privateValue = if ($env:AGILAB_PRIVATE) { $env:AGILAB_PRIVATE } else { "" }
+    $appsRepoValue = if ($env:AGILAB_APPS_REPOSITORY) { $env:AGILAB_APPS_REPOSITORY } else { "" }
     $lines = @(
         ('OPENAI_API_KEY="{0}"' -f $openAiValue),
         ('CLUSTER_CREDENTIALS="{0}"' -f $clusterValue),
         ('AGI_PYTHON_VERSION="{0}"' -f $pythonValue),
         ('AGI_PYTHON_FREE_THREADED="{0}"' -f $freethreadedValue),
-        ('AGILAB_PRIVATE="{0}"' -f $privateValue)
+        ('AGILAB_APPS_REPOSITORY="{0}"' -f $appsRepoValue)
     )
     $lines | Set-Content -Encoding UTF8 -Path $envFile
     Write-Success "Environment updated in $envFile"
@@ -381,7 +374,46 @@ function Install-Core {
     }
 }
 
+function Invoke-AppPytest {
+    param([string]$AppsRoot)
+    if (-not (Test-Path -LiteralPath $AppsRoot)) {
+        Write-Warn "Apps directory not found at $AppsRoot; skipping pytest."
+        return $true
+    }
+    $status = $true
+    Push-Location $AppsRoot
+    try {
+        $apps = Get-ChildItem -Directory -Filter "*_project"
+        if (-not $apps) {
+            Write-Warn "No app directories with '*_project' found under $AppsRoot; skipping pytest."
+            return $true
+        }
+        foreach ($app in $apps) {
+            Write-Info ("[pytest] {0}" -f $app.Name)
+            Push-Location $app.FullName
+            try {
+                Invoke-UvPreview @("run", "--no-sync", "-p", $script:AgiPythonVersion, "--project", ".", "pytest") | Out-Host
+                $exitCode = $LASTEXITCODE
+                if ($exitCode -eq 0) {
+                    Write-Success ("pytest succeeded for '{0}'." -f $app.Name)
+                } elseif ($exitCode -eq 5) {
+                    Write-Warn ("No tests collected for '{0}'." -f $app.Name)
+                } else {
+                    Write-Warn ("pytest failed for '{0}' (exit code {1})." -f $app.Name, $exitCode)
+                    $status = $false
+                }
+            } finally {
+                Pop-Location
+            }
+        }
+    } finally {
+        Pop-Location
+    }
+    return $status
+}
+
 function Install-Apps {
+    param([switch]$RunPytest)
     $dir = Join-Path $InstallPathFull "src\agilab"
     if (-not (Test-Path -LiteralPath $dir)) {
         Write-Warn "Apps directory not found at $dir; skipping app install."
@@ -405,6 +437,12 @@ function Install-Apps {
         Pop-Location
         Remove-Item Env:APPS_DEST_BASE -ErrorAction SilentlyContinue
         Remove-Item Env:PAGES_DEST_BASE -ErrorAction SilentlyContinue
+    }
+    if ($RunPytest) {
+        $appsRoot = Join-Path $agilabPublic "apps"
+        if (-not (Invoke-AppPytest -AppsRoot $appsRoot)) {
+            return $false
+        }
     }
     return $true
 }
@@ -451,7 +489,6 @@ function Refresh-LaunchMatrix {
 }
 
 function Install-Enduser {
-    param([bool]$AllowNetwork)
     $scriptPath = Join-Path $InstallPathFull "tools\install_enduser.ps1"
     if (-not (Test-Path -LiteralPath $scriptPath)) {
         Write-Warn "tools/install_enduser.ps1 not found; skipping enduser packaging."
@@ -461,8 +498,8 @@ function Install-Enduser {
         Write-Warn "Source '$Source' not supported by install_enduser.ps1 on Windows; skipping."
         return
     }
-    if (-not $AllowNetwork) {
-        Write-Warn "Skipping enduser install (network unavailable)."
+    if (-not (Prompt-YesNo "Run enduser packaging step (may fetch Python dependencies)?" -DefaultYes)) {
+        Write-Warn "Skipping enduser packaging at user request."
         return
     }
     Write-Info "Installing agilab (endusers)..."
@@ -482,7 +519,6 @@ function Install-Enduser {
 }
 
 function Install-OfflineExtra {
-    param([bool]$AllowNetwork)
     $pyver = $script:AgiPythonVersion
     if (-not $pyver) { return }
     $normalized = $pyver -replace '\+freethreaded', ''
@@ -493,10 +529,6 @@ function Install-OfflineExtra {
         return
     }
     if ($versionObj.Major -gt 3 -or ($versionObj.Major -eq 3 -and $versionObj.Minor -ge 12)) {
-        if (-not $AllowNetwork) {
-            Write-Warn "Skipping offline assistant packages (network unavailable)."
-            return
-        }
         if (-not (Prompt-YesNo "Install offline assistant dependencies (GPT-OSS + mistral:instruct)?")) {
             Write-Warn "Skipping offline assistant packages."
             return
@@ -573,16 +605,10 @@ try {
 
     Remove-UnwantedPaths
 
-    if ($SkipConnectivityCheck) {
-        Write-Warn "Skipping internet connectivity check as requested."
-        $script:HasInternet = $false
-    } else {
-        $script:HasInternet = Test-Internet
-    }
-
     Test-VisualStudio
-    Install-Dependencies -AllowNetwork:$script:HasInternet
+    Install-Dependencies
     Ensure-Uv
+    Ensure-Locale
 
     Select-PythonVersion
     Backup-ExistingProject
@@ -595,19 +621,30 @@ try {
 
     Install-Core
 
-    $appsInstalled = Install-Apps
-    if (-not $appsInstalled) {
-        Write-Warn "install_apps.ps1 failed; continuing with PyCharm setup."
-        Install-PyCharmScript
-        Refresh-LaunchMatrix
+    if ($InstallApps) {
+        $appsInstalled = Install-Apps -RunPytest:$TestApps
+        if (-not $appsInstalled) {
+            Write-Warn "install_apps.ps1 failed; continuing with PyCharm setup."
+            Install-PyCharmScript
+            Refresh-LaunchMatrix
+        } else {
+            Install-PyCharmScript
+            Refresh-LaunchMatrix
+            Install-Enduser
+            Install-OfflineExtra
+            Seed-MistralPdfs
+            Setup-MistralOffline
+            Write-Success "Installation complete!"
+        }
     } else {
+        Write-Warn "App installation skipped (use -InstallApps to enable)."
         Install-PyCharmScript
         Refresh-LaunchMatrix
-        Install-Enduser -AllowNetwork:$script:HasInternet
-        Install-OfflineExtra -AllowNetwork:$script:HasInternet
+        Install-Enduser
+        Install-OfflineExtra
         Seed-MistralPdfs
         Setup-MistralOffline
-        Write-Success "Installation complete!"
+        Write-Success "Installation complete (apps skipped)."
     }
 } finally {
     if ($TranscriptStarted) {
