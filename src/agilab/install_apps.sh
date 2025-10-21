@@ -207,6 +207,7 @@ if (( SKIP_REPOSITORY_PAGES == 0 )); then
   fi
 fi
 
+declare -a INCLUDED_PAGES=()
 if (( SKIP_REPOSITORY_PAGES == 0 )); then
   INCLUDED_PAGES=(${BUILTIN_PAGES+"${BUILTIN_PAGES[@]}"} ${REPOSITORY_PAGES+"${REPOSITORY_PAGES[@]}"})
 else
@@ -248,6 +249,7 @@ if (( SKIP_REPOSITORY_APPS == 0 )); then
   fi
 fi
 
+declare -a INCLUDED_APPS=()
 if (( SKIP_REPOSITORY_APPS == 0 )); then
   INCLUDED_APPS=(${BUILTIN_APPS+"${BUILTIN_APPS[@]}"} ${REPOSITORY_APPS+"${REPOSITORY_APPS[@]}"})
 else
