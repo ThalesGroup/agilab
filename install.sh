@@ -433,8 +433,8 @@ while [[ "$#" -gt 0 ]]; do
         --install-path)        AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
         --apps-repository)     AGILAB_APPS_REPOSITORY=$(realpath "$2"); shift 2;;
         --source)             SOURCE="$2"; shift 2;;
-        --install-apps)       INSTALL_APPS_FLAG=1; shift;;
-        --test-apps)          TEST_APPS_FLAG=1; INSTALL_APPS_FLAG=1; shift;;
+        --install-apps)       INSTALL_APPS_FLAG=0; shift;;
+        --test-apps)          TEST_APPS_FLAG=0; INSTALL_APPS_FLAG=1; shift;;
         *) echo -e "${RED}Unknown option: $1${NC}" && usage;;
     esac
 done
