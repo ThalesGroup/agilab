@@ -1052,16 +1052,18 @@ class AGI:
         await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
 
         cluster_project = env.agilab_pck / "core/agi-cluster"
-        cluster_project_q = shlex.quote(str(cluster_project))
-        cmd = f"{uv} run --project {cluster_project_q} python -m agi_cluster.agi_distributor.cli platform"
+
+        cmd = f"{uv} run --project {cluster_project} python -m agi_cluster.agi_distributor.cli platform"
         res = await AgiEnv.run(cmd, wenv_abs.parent)
         pyvers = res.split(':')[-1].strip()
         AgiEnv.set_env_var(f"{ip}_PYTHON_VERSION", pyvers)
-        cmd = f"{uv} --project {wenv_abs} init --bare --no-workspace"
-        await AgiEnv.run(cmd, wenv_abs)
 
-        cmd = f"{uv} --project {wenv_abs} add agi-env agi-node"
-        await AgiEnv.run(cmd, wenv_abs)
+        if env.is_worker_env:
+             cmd = f"{uv} --project {wenv_abs} init --bare --no-workspace"
+             await AgiEnv.run(cmd, wenv_abs)
+
+        # cmd = f"{uv} --project {wenv_abs} add agi-env agi-node"
+        # await AgiEnv.run(cmd, wenv_abs)
 
         #cmd = f"{uv} run -p {pyvers} --project {wenv_abs} python {cli} threaded"
         #await AgiEnv.run(cmd, wenv_abs)
@@ -1380,8 +1382,6 @@ class AGI:
                             if spec_str not in meta['specifiers']:
                                 meta['specifiers'].append(spec_str)
 
-        # in case of core src has changed
-        await AGI._build_lib_local()
 
         if env.install_type == 0:
             repo_root = AgiEnv.read_agilab_path()
@@ -1536,6 +1536,9 @@ class AGI:
             cmd = f"{uv} pip install -e ."
             await AgiEnv.run(cmd, app_path)
 
+        # in case of core src has changed
+        await AGI._build_lib_local()
+
         # ========
         # WORKER install command with and without rapids capable
         # ========
@@ -1556,6 +1559,23 @@ class AGI:
                 dep_versions,
                 filter_to_worker=True,
             )
+
+        shutil.rmtree(wenv_abs / ".venv", ignore_errors=True)
+
+        if env.is_source_env:
+            # add missing agi-anv and agi-node as there are not in pyproject.toml as wished
+            cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add {env.agi_env}"
+            await AgiEnv.run(cmd_worker, wenv_abs)
+
+            cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add {env.agi_node}"
+            await AgiEnv.run(cmd_worker, wenv_abs)
+        else:
+            # add missing agi-anv and agi-node as there are not in pyproject.toml as wished
+            cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-env"
+            await AgiEnv.run(cmd_worker, wenv_abs)
+
+            cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-node"
+            await AgiEnv.run(cmd_worker, wenv_abs)
 
         if hw_rapids_capable:
             cmd_worker = (
@@ -2181,19 +2201,28 @@ class AGI:
         cmd_prefix = env.envars.get(f"127.0.0.1_CMD_PREFIX", "")
         if env.is_free_threading_available:
             uv = cmd_prefix + " PYTHON_GIL=0 " + env.uv
-        app_path_q = shlex.quote(str(app_path))
-        wenv_abs_q = shlex.quote(str(wenv_abs))
         module_cmd = f"python -m {module}"
-        app_arg = f"--app-path {app_path_q}"
+        app_arg = f"--app-path {app_path}"
+
+        shutil.copy(env.worker_pyproject, env.wenv_abs)
+        shutil.copy(env.uvproject, env.wenv_abs)
+
+        # install agi-env and agi-node
+        cmd = f"{env.uv} --project {app_path} pip install agi-env "
+        await AgiEnv.run(cmd, app_path)
+
+        cmd = f"{env.uv} --project {app_path} pip install agi-node "
+        await AgiEnv.run(cmd, app_path)
+
         if env.verbose > 1:
             cmd = (
-                f"{env.uv} --project {app_path_q} run --no-sync "
-                f"{module_cmd} {app_arg} bdist_egg --packages \"{packages}\" -d {wenv_abs_q}"
+                f"{env.uv} --project {app_path} run --no-sync "
+                f"{module_cmd} {app_arg} bdist_egg --packages \"{packages}\" -d {wenv_abs}"
             )
         else:
             cmd = (
-                f"{env.uv} --project {app_path_q} run --no-sync "
-                f"{module_cmd} {app_arg} -q bdist_egg --packages \"{packages}\" -d {wenv_abs_q}"
+                f"{env.uv} --project {app_path} run --no-sync "
+                f"{module_cmd} {app_arg} -q bdist_egg --packages \"{packages}\" -d {wenv_abs}"
             )
 
         await AgiEnv.run(cmd, app_path)
@@ -2209,13 +2238,13 @@ class AGI:
             # cython compilation of wenv/src into wenv
             if env.verbose > 1:
                 cmd = (
-                    f"{env.uv} --project {wenv_abs_q} run --no-sync "
-                    f"{module_cmd} --app-path {wenv_abs_q} build_ext -b {wenv_abs_q}"
+                    f"{env.uv} --project {app_path} run --no-sync "
+                    f"{module_cmd} --app-path {wenv_abs} build_ext -b {wenv_abs}"
                 )
             else:
                 cmd = (
-                    f"{env.uv} --project {wenv_abs_q} run --no-sync "
-                    f"{module_cmd} --app-path {wenv_abs_q} -q build_ext -b {wenv_abs_q}"
+                    f"{env.uv} --project {app_path} run --no-sync "
+                    f"{module_cmd} --app-path {wenv_abs} -q build_ext -b {wenv_abs}"
                 )
 
             res = await AgiEnv.run(cmd, app_path)
