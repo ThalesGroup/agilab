@@ -25,6 +25,7 @@ import shutil
 import socket
 import sys
 import time
+import shlex
 import warnings
 from copy import deepcopy
 from datetime import timedelta
@@ -2200,27 +2201,28 @@ class AGI:
         if env.is_free_threading_available:
             uv = cmd_prefix + " PYTHON_GIL=0 " + env.uv
         module_cmd = f"python -m {module}"
-        app_arg = f"--app-path {app_path}"
+        app_path_arg = shlex.quote(str(app_path))
+        wenv_arg = shlex.quote(str(wenv_abs))
 
         shutil.copy(env.worker_pyproject, env.wenv_abs)
         shutil.copy(env.uvproject, env.wenv_abs)
 
         # install agi-env and agi-node
-        cmd = f"{env.uv} --project {app_path} pip install agi-env "
+        cmd = f"{env.uv} --project {app_path_arg} pip install agi-env "
         await AgiEnv.run(cmd, app_path)
 
-        cmd = f"{env.uv} --project {app_path} pip install agi-node "
+        cmd = f"{env.uv} --project {app_path_arg} pip install agi-node "
         await AgiEnv.run(cmd, app_path)
 
         if env.verbose > 1:
             cmd = (
-                f"{env.uv} --project {app_path} run --no-sync "
-                f"{module_cmd} {app_arg} bdist_egg --packages \"{packages}\" -d {wenv_abs}"
+                f"{env.uv} --project {app_path_arg} run --no-sync "
+                f"{module_cmd} --app-path {app_path_arg} bdist_egg --packages \"{packages}\" -d {wenv_arg}"
             )
         else:
             cmd = (
-                f"{env.uv} --project {app_path} run --no-sync "
-                f"{module_cmd} {app_arg} -q bdist_egg --packages \"{packages}\" -d {wenv_abs}"
+                f"{env.uv} --project {app_path_arg} run --no-sync "
+                f"{module_cmd} --app-path {app_path_arg} -q bdist_egg --packages \"{packages}\" -d {wenv_arg}"
             )
 
         await AgiEnv.run(cmd, app_path)
@@ -2236,13 +2238,13 @@ class AGI:
             # cython compilation of wenv/src into wenv
             if env.verbose > 1:
                 cmd = (
-                    f"{env.uv} --project {app_path} run --no-sync "
-                    f"{module_cmd} --app-path {wenv_abs} build_ext -b {wenv_abs}"
+                    f"{env.uv} --project {app_path_arg} run --no-sync "
+                    f"{module_cmd} --app-path {wenv_arg} build_ext -b {wenv_arg}"
                 )
             else:
                 cmd = (
-                    f"{env.uv} --project {app_path} run --no-sync "
-                    f"{module_cmd} --app-path {wenv_abs} -q build_ext -b {wenv_abs}"
+                    f"{env.uv} --project {app_path_arg} run --no-sync "
+                    f"{module_cmd} --app-path {wenv_arg} -q build_ext -b {wenv_arg}"
                 )
 
             res = await AgiEnv.run(cmd, app_path)
