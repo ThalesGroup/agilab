@@ -12,6 +12,7 @@ dependencies = [
     "humanize",
     "numpy",
     "parso",
+    "pydantic",
     "polars",
     "psutil",
     "py7zr",
@@ -38,4 +39,3 @@ text = "Thales SIX GTS France SAS"
 [project.optional-dependencies]
 dag-worker = []
 polars-worker = []
-
