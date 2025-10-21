@@ -1,11 +1,7 @@
 #!/bin/bash
 set -e
 set -o pipefail
-UV="uv --preview-features extra-build-dependencies"
 
-# ================================
-# Initial Setup
-# ================================f
 LOG_DIR="$HOME/log/install_logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/install_$(date +%Y%m%d_%H%M%S).log"_
@@ -17,6 +13,17 @@ GREEN='\033[1;32m'
 BLUE='\033[1;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+
+UV="uv --preview-features extra-build-dependencies"
+
+AGI_INSTALL_PATH="$(realpath '.')"
+CURRENT_PATH="$(realpath '.')"
+CLUSTER_CREDENTIALS=""
+OPENAI_API_KEY=""
+SOURCE="local"
+INSTALL_APPS_FLAG=0
+TEST_APPS_FLAG=0
+AGILAB_APPS_REPOSITORY=""
 
 warn() {
     echo -e "${YELLOW}Warning:${NC} $*"
@@ -149,71 +156,20 @@ seed_mistral_pdfs() {
     fi
 }
 
-# Prevent Running as Root
-if [[ "$EUID" -eq 0 ]]; then
-    echo -e "${RED}Error: This script should not be run as root. Please run as a regular user.${NC}"
-    exit 1
-fi
-
-# Remove unwanted files/directories
-find . \( -name ".venv" -o -name "uv.lock" -o -name "build" -o -name "dist" -o -name "*egg-info" \) -exec rm -rf {} +
-
-# ================================
-# Command-Line Arguments
-# ================================
-usage() {
-    echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps] [--test-apps]"
-    exit 1
+refresh_launch_matrix() {
+    echo -e "${BLUE}Refreshing Launch Matrix from .idea/runConfigurations...${NC}"
+    pushd "$AGI_INSTALL_PATH" > /dev/null || return 0
+    if [[ -f "tools/refresh_launch_matrix.py" ]]; then
+        # Best-effort; do not fail install if this step errors
+        $UV run -p "$AGI_PYTHON_VERSION" python tools/refresh_launch_matrix.py --inplace \
+          && echo -e "${GREEN}Launch Matrix updated in AGENTS.md.${NC}" \
+          || warn "Launch Matrix refresh skipped (tooling not available)."
+    else
+        warn "No tools/refresh_launch_matrix.py found; skipping matrix refresh."
+    fi
+    popd > /dev/null || true
 }
 
-AGI_INSTALL_PATH="$(realpath '.')"
-CURRENT_PATH="$(realpath '.')"
-cluster_credentials=""
-openai_api_key=""
-SOURCE="local"
-INSTALL_APPS_FLAG=1
-TEST_APPS_FLAG=0
-AGILAB_APPS_REPOSITORY=""
-
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --cluster-ssh-credentials) cluster_credentials="$2"; shift 2;;
-        --openai-api-key)      openai_api_key="$2";      shift 2;;
-        --install-path)        AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
-        --apps-repository)     AGILAB_APPS_REPOSITORY=$(realpath "$2"); shift 2;;
-        --source)             SOURCE="$2"; shift 2;;
-        --install-apps)       INSTALL_APPS_FLAG=1; shift;;
-        --test-apps)          TEST_APPS_FLAG=1; INSTALL_APPS_FLAG=1; shift;;
-        *) echo -e "${RED}Unknown option: $1${NC}" && usage;;
-    esac
-done
-
-if [[ -z "$AGILAB_APPS_REPOSITORY" ]]; then
-    AGILAB_APPS_REPOSITORY=""
-fi
-
-export AGILAB_APPS_REPOSITORY
-
-# Validate mandatory parameters
-if [[ -z "$cluster_credentials" ]]; then
-    echo -e "${RED}Missing mandatory parameter: --cluster-ssh-credentials${NC}"
-    usage
-fi
-
-# Ensure credentials are in user[:password] form
-if [[ ! "$cluster_credentials" =~ ^[^:]+(:.*)?$ ]]; then
-    echo -e "${RED}Invalid format for --cluster-ssh-credentials. Expected user or user:password${NC}"
-    usage
-fi
-
-if [[ -z "$openai_api_key" ]]; then
-    echo -e "${RED}Missing mandatory parameter: --openai-api-key${NC}"
-    usage
-fi
-
-# ================================
-# Pre-check Functions
-# ================================
 check_internet() {
     echo -e "${BLUE}Checking internet connectivity...${NC}"
     curl -s --head --fail https://www.google.com >/dev/null || {
@@ -394,37 +350,6 @@ update_environment() {
     echo -e "${GREEN}Environment updated in $ENV_FILE${NC}"
 }
 
-install_core() {
-    framework_dir="$AGI_INSTALL_PATH/src/agilab/core"
-    chmod +x "$framework_dir/install.sh"
-
-    echo -e "${BLUE}Installing Framework...${NC}"
-    pushd "$framework_dir" > /dev/null
-    ./install.sh "$framework_dir"
-    popd  > /dev/null
-}
-
-install_apps() {
-  if (( ! INSTALL_APPS_FLAG )); then
-    echo -e "${YELLOW}Skipping app installation (not requested).${NC}"
-    return 0
-  fi
-  dir="$AGI_INSTALL_PATH/src/agilab"
-  pushd $dir > /dev/null
-  chmod +x "install_apps.sh"
-  local agilab_public
-  agilab_public="$(cat "$HOME/.local/share/agilab/.agilab-path")"
-  local install_args=()
-  install_args+=(--install-apps)
-  if (( TEST_APPS_FLAG )); then
-    install_args+=(--test-apps)
-  fi
-  APPS_DEST_BASE="${agilab_public}/apps" \
-  PAGES_DEST_BASE="${agilab_public}/apps-pages" \
-    ./install_apps.sh "${install_args[@]}"
-  popd > /dev/null
-}
-
 write_env_values() {
     shared_env="$HOME/.local/share/agilab/.env"
     agilab_env="$HOME/.agilab/.env"
@@ -451,6 +376,31 @@ write_env_values() {
     echo -e "${GREEN}.env file updated.${NC}"
 }
 
+install_core() {
+    framework_dir="$AGI_INSTALL_PATH/src/agilab/core"
+    chmod +x "$framework_dir/install.sh"
+
+    echo -e "${BLUE}Installing Framework...${NC}"
+    pushd "$framework_dir" > /dev/null
+    ./install.sh "$framework_dir"
+    popd  > /dev/null
+}
+
+install_apps() {
+  dir="$AGI_INSTALL_PATH/src/agilab"
+  pushd $dir > /dev/null
+  chmod +x "install_apps.sh"
+  local agilab_public
+  agilab_public="$(cat "$HOME/.local/share/agilab/.agilab-path")"
+  if (( TEST_APPS_FLAG )); then
+    install_args+=(--test-apps)
+  fi
+  APPS_DEST_BASE="${agilab_public}/apps" \
+  PAGES_DEST_BASE="${agilab_public}/apps-pages" \
+    ./install_apps.sh "${install_args[@]}"
+  popd > /dev/null
+}
+
 install_enduser() {
     pushd "tools" > /dev/null
     echo -e "${BLUE}Installing agilab (endusers)...${NC}"
@@ -466,23 +416,31 @@ install_pycharm_script() {
     $UV run -p "$AGI_PYTHON_VERSION" python pycharm/setup_pycharm.py || warn "pycharm/install-apps-script.py failed or not found; continuing."
 }
 
-refresh_launch_matrix() {
-    echo -e "${BLUE}Refreshing Launch Matrix from .idea/runConfigurations...${NC}"
-    pushd "$AGI_INSTALL_PATH" > /dev/null || return 0
-    if [[ -f "tools/refresh_launch_matrix.py" ]]; then
-        # Best-effort; do not fail install if this step errors
-        $UV run -p "$AGI_PYTHON_VERSION" python tools/refresh_launch_matrix.py --inplace \
-          && echo -e "${GREEN}Launch Matrix updated in AGENTS.md.${NC}" \
-          || warn "Launch Matrix refresh skipped (tooling not available)."
-    else
-        warn "No tools/refresh_launch_matrix.py found; skipping matrix refresh."
-    fi
-    popd > /dev/null || true
+usage() {
+    echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps] [--test-apps]"
+    exit 1
 }
+
 
 # ================================
 # Script Execution
 # ================================
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --cluster-ssh-credentials) cluster_credentials="$2"; shift 2;;
+        --openai-api-key)      openai_api_key="$2";      shift 2;;
+        --install-path)        AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
+        --apps-repository)     AGILAB_APPS_REPOSITORY=$(realpath "$2"); shift 2;;
+        --source)             SOURCE="$2"; shift 2;;
+        --install-apps)       INSTALL_APPS_FLAG=1; shift;;
+        --test-apps)          TEST_APPS_FLAG=1; INSTALL_APPS_FLAG=1; shift;;
+        *) echo -e "${RED}Unknown option: $1${NC}" && usage;;
+    esac
+done
+
+export AGILAB_APPS_REPOSITORY
+
 check_internet
 set_locale
 install_dependencies
@@ -508,12 +466,12 @@ if (( INSTALL_APPS_FLAG )); then
     echo -e "${GREEN}Installation complete!${NC}"
   fi
 else
-  warn "App installation skipped (use --install-apps to enable)."
-  install_pycharm_script
-  refresh_launch_matrix
-  install_enduser
-  install_offline_extra
-  seed_mistral_pdfs
-  setup_mistral_offline
-  echo -e "${GREEN}Installation complete (apps skipped).${NC}"
+    warn "App installation skipped (use --install-apps to enable)."
+    install_pycharm_script
+    refresh_launch_matrix
+    install_enduser
+    install_offline_extra
+    seed_mistral_pdfs
+    setup_mistral_offline
+    echo -e "${GREEN}Installation complete (apps skipped).${NC}"
 fi
