@@ -1051,7 +1051,7 @@ class AGI:
 
         await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
 
-        cluster_project = env.agilab_pck / "core/agi-cluster"
+        cluster_project = env.agi_cluster / "core/agi-cluster"
 
         cmd = f"{uv} run --project {cluster_project} python -m agi_cluster.agi_distributor.cli platform"
         res = await AgiEnv.run(cmd, wenv_abs.parent)
