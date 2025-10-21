@@ -1,18 +1,10 @@
 #!/bin/bash
-# Script: install_Agi_apps.sh
-# Purpose: Install the apps (apps-only; no positional args required)
-# macOS-friendly: avoid `mapfile`, keep POSIX-ish constructs for Bash 3.2
+set -e
+set -o pipefail
 
-set -euo pipefail
-
-export AGI_PYTHON_VERSION
-export PYTHONPATH="$PWD:${PYTHONPATH-}"
-
-UV_PREVIEW=(uv --preview-features extra-build-dependencies)
-
-# Capture potential overrides before arrays are declared (preserves set -u semantics)
-BUILTIN_PAGES_FROM_ENV="${BUILTIN_PAGES-}"
-BUILTIN_APPS_FROM_ENV="${BUILTIN_APPS-}"
+# Load env + normalize Python version
+# shellcheck source=/dev/null
+source "$HOME/.local/share/agilab/.env"
 
 # Colors for output
 RED='\033[1;31m'
@@ -21,105 +13,23 @@ BLUE='\033[1;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-usage() {
-  cat <<'EOF'
-Usage: install_apps.sh [--install-apps] [--test-apps]
+UV_PREVIEW=(uv --preview-features extra-build-dependencies)
 
-  --install-apps   Perform uv installation for apps and pages (default when no options provided)
-  --test-apps      Run pytest for each app after installation (implies --install-apps)
-  --help           Show this message and exit
-EOF
-}
-
-DO_INSTALL_APPS=1
 DO_TEST_APPS=0
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --install-apps) DO_INSTALL_APPS=1;;
-    --test-apps) DO_TEST_APPS=1; DO_INSTALL_APPS=1;;
-    --help|-h) usage; exit 0;;
-    *)
-      echo -e "${RED}Error:${NC} Unknown option '$1'" >&2
-      usage
-      exit 1
-      ;;
-  esac
-  shift
-done
-
-# Load env + normalize Python version
-# shellcheck source=/dev/null
-source "$HOME/.local/share/agilab/.env"
+BUILTIN_PAGES_FROM_ENV="${BUILTIN_PAGES-}"
+BUILTIN_APPS_FROM_ENV="${BUILTIN_APPS-}"
 
 AGI_PYTHON_VERSION=$(echo "${AGI_PYTHON_VERSION:-}" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*/\1/')
-
 AGILAB_PUBLIC="$(cat "$HOME/.local/share/agilab/.agilab-path")"
 AGILAB_APPS_REPOSITORY="${AGILAB_APPS_REPOSITORY:-}"
-
-discover_repo_dir() {
-  local root="$1"
-  local name="$2"
-  local candidate
-  [[ -z "$root" ]] && return 1
-  while IFS= read -r candidate; do
-    [[ -z "$candidate" ]] && continue
-    if [[ "$name" == "apps" ]]; then
-      if find "$candidate" -maxdepth 1 -type d -name '*_project' -print -quit | grep -q .; then
-        printf '%s\n' "$candidate"
-        return 0
-      fi
-    elif [[ "$name" == "apps-pages" ]]; then
-      if find "$candidate" -maxdepth 1 -type d ! -name '.venv' -print -quit | grep -q .; then
-        printf '%s\n' "$candidate"
-        return 0
-      fi
-    else
-      printf '%s\n' "$candidate"
-      return 0
-    fi
-  done < <(find "$root" -maxdepth 5 -type d -name "$name" -print 2>/dev/null)
-  return 1
-}
 
 PAGES_TARGET_BASE=""
 APPS_TARGET_BASE=""
 SKIP_REPOSITORY_APPS=1
 SKIP_REPOSITORY_PAGES=1
 
-if [[ -n "$AGILAB_APPS_REPOSITORY" ]]; then
-  if ! PAGES_TARGET_BASE=$(discover_repo_dir "$AGILAB_APPS_REPOSITORY" "apps-pages"); then
-    echo -e "${RED}Error:${NC} Could not locate an 'apps-pages' directory under $AGILAB_APPS_REPOSITORY" >&2
-    exit 1
-  fi
-  if ! APPS_TARGET_BASE=$(discover_repo_dir "$AGILAB_APPS_REPOSITORY" "apps"); then
-    echo -e "${RED}Error:${NC} Could not locate an 'apps' directory under $AGILAB_APPS_REPOSITORY" >&2
-    exit 1
-  fi
-  SKIP_REPOSITORY_APPS=0
-  SKIP_REPOSITORY_PAGES=0
-fi
-
-
-# --- Ensure arrays exist (avoids 'unbound variable' with set -u) -------------
-# We declare them empty up front; later code can append or overwrite freely.
-# This prevents errors like: ${REPOSITORY_PAGES[@]}: unbound variable
-declare -a BUILTIN_PAGES=()
-declare -a REPOSITORY_PAGES=()
-declare -a BUILTIN_APPS=(
-  mycode_project
-  flight_project
-)
-declare -a REPOSITORY_APPS=(
-  example_app_project
-  example_app_project
-  example_app_project
-  example_app_project
-  example_app_project
-)
-
 # (macOS-safe helpers remain below)
-
 # --- Helpers -----------------------------------------------------------------
 # parse_list_to_array <array_var_name> <raw_string>
 # Accepts comma/semicolon/whitespace/newline-delimited strings and fills array.
@@ -147,8 +57,89 @@ parse_list_to_array() {
   eval "$__out=($qitems)"
 }
 
+discover_repo_dir() {
+  local root="$1"
+  local name="$2"
+  local candidate
+  [[ -z "$root" ]] && return 1
+  while IFS= read -r candidate; do
+    [[ -z "$candidate" ]] && continue
+    if [[ "$name" == "apps" ]]; then
+      if find "$candidate" -maxdepth 1 -type d -name '*_project' -print -quit | grep -q .; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+    elif [[ "$name" == "apps-pages" ]]; then
+      if find "$candidate" -maxdepth 1 -type d ! -name '.venv' -print -quit | grep -q .; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+    else
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done < <(find "$root" -maxdepth 5 -type d -name "$name" -print 2>/dev/null)
+  return 1
+}
 
-# --- App lists (merge repository + builtin) ----------------------------------
+resolve_physical_dir() {
+  (cd "$1" >/dev/null 2>&1 && pwd -P)
+}
+
+usage() {
+  cat <<'EOF'
+Usage: install_apps.sh [--test-apps]
+  --test-apps      Run pytest for each app after installation (implies --install-apps)
+  --help           Show this message and exit
+EOF
+}
+
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --test-apps) DO_TEST_APPS=1;;
+    --help|-h) usage; exit 0;;
+    *)
+      echo -e "${RED}Error:${NC} Unknown option '$1'" >&2
+      usage
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+if [[ -n "$AGILAB_APPS_REPOSITORY" ]]; then
+  if ! PAGES_TARGET_BASE=$(discover_repo_dir "$AGILAB_APPS_REPOSITORY" "apps-pages"); then
+    echo -e "${RED}Error:${NC} Could not locate an 'apps-pages' directory under $AGILAB_APPS_REPOSITORY" >&2
+    exit 1
+  fi
+  if ! APPS_TARGET_BASE=$(discover_repo_dir "$AGILAB_APPS_REPOSITORY" "apps"); then
+    echo -e "${RED}Error:${NC} Could not locate an 'apps' directory under $AGILAB_APPS_REPOSITORY" >&2
+    exit 1
+  fi
+  SKIP_REPOSITORY_APPS=0
+  SKIP_REPOSITORY_PAGES=0
+fi
+
+# --- Ensure arrays exist (avoids 'unbound variable' with set -u) -------------
+# We declare them empty up front; later code can append or overwrite freely.
+# This prevents errors like: ${REPOSITORY_PAGES[@]}: unbound variable
+declare -a BUILTIN_PAGES=()
+declare -a REPOSITORY_PAGES=()
+declare -a BUILTIN_APPS=(
+  mycode_project
+  flight_project
+)
+declare -a REPOSITORY_APPS=(
+  example_app_project
+  example_app_project
+  example_app_project
+  example_app_project
+  example_app_project
+)
+
+declare -a INCLUDED_APPS=()
+declare -a INCLUDED_PAGES=()
 
 # Destination base for creating local app symlinks (defaults to current dir)
 : "${APPS_DEST_BASE:="$AGILAB_PUBLIC/apps"}"
@@ -156,10 +147,6 @@ parse_list_to_array() {
 
 mkdir -p -- "$APPS_DEST_BASE"
 mkdir -p -- "$PAGES_DEST_BASE"
-
-resolve_physical_dir() {
-  (cd "$1" >/dev/null 2>&1 && pwd -P)
-}
 
 APPS_DEST_REAL=$(resolve_physical_dir "$APPS_DEST_BASE")
 PAGES_DEST_REAL=$(resolve_physical_dir "$PAGES_DEST_BASE")
@@ -189,7 +176,6 @@ echo -e "${BLUE}(Apps) Destination base:${NC} $APPS_DEST_BASE"
 echo -e "${BLUE}(Apps) Link target base:${NC} $APPS_TARGET_BASE\n"
 echo -e "${BLUE}(Pages) Destination base:${NC} $PAGES_DEST_BASE"
 echo -e "${BLUE}(Pages) Link target base:${NC} $PAGES_TARGET_BASE\n"
-
 
 # --- BUILTIN_PAGES: allow manual override via env ----------------------------
 # You can set BUILTIN_PAGES or BUILTIN_PAGES_OVERRIDE to a comma/space/newline
@@ -221,7 +207,6 @@ if (( SKIP_REPOSITORY_PAGES == 0 )); then
   fi
 fi
 
-declare -a INCLUDED_PAGES=()
 if (( SKIP_REPOSITORY_PAGES == 0 )); then
   INCLUDED_PAGES=(${BUILTIN_PAGES+"${BUILTIN_PAGES[@]}"} ${REPOSITORY_PAGES+"${REPOSITORY_PAGES[@]}"})
 else
@@ -248,9 +233,14 @@ fi
 
 if (( SKIP_REPOSITORY_APPS == 0 )); then
   declare -a repository_apps_found=()
-  while IFS= read -r -d '' dir; do
-    repository_apps_found+=("$(basename -- "$dir")")
-  done < <(find "$APPS_TARGET_BASE" -mindepth 1 -maxdepth 1 -type d -name '*_project' -print0)
+
+  for app in "${REPOSITORY_APPS[@]}"; do
+    dir="$APPS_TARGET_BASE/${app}"
+    if [[ -d "$dir" ]]; then
+      repository_apps_found+=("$app")
+    fi
+  done
+
   if (( ${#repository_apps_found[@]} )); then
     REPOSITORY_APPS=("${repository_apps_found[@]}")
   else
@@ -258,7 +248,6 @@ if (( SKIP_REPOSITORY_APPS == 0 )); then
   fi
 fi
 
-declare -a INCLUDED_APPS=()
 if (( SKIP_REPOSITORY_APPS == 0 )); then
   INCLUDED_APPS=(${BUILTIN_APPS+"${BUILTIN_APPS[@]}"} ${REPOSITORY_APPS+"${REPOSITORY_APPS[@]}"})
 else
@@ -365,54 +354,50 @@ fi
 
 
 # --- Run installer for each page (stable CWD so ../core/cluster resolves) -----
-if (( DO_INSTALL_APPS )); then
-  pushd -- "$AGILAB_PUBLIC/apps-pages" >/dev/null
+pushd -- "$AGILAB_PUBLIC/apps-pages" >/dev/null
 
-  for page in ${INCLUDED_PAGES+"${INCLUDED_PAGES[@]}"}; do
+for page in ${INCLUDED_PAGES+"${INCLUDED_PAGES[@]}"}; do
     echo -e "${BLUE}Installing $page...${NC}"
     pushd "$page" >/dev/null
     ${UV_PREVIEW[@]} sync --project . --preview-features python-upgrade
     status=$?
     if (( status != 0 )); then
-      echo -e "${RED}Error during 'uv sync' for page '$page'.${NC}"
+        echo -e "${RED}Error during 'uv sync' for page '$page'.${NC}"
     fi
     popd >/dev/null
-  done
+done
 
-  popd >/dev/null
-fi
+popd >/dev/null
 
 # --- Run installer for each app (stable CWD so ../core/cluster resolves) -----
-if (( DO_INSTALL_APPS )); then
-  pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
+pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
 
-  for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
-    echo -e "${BLUE}Installing $app...${NC}"
-    echo  uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
-        "$AGILAB_PUBLIC/apps/$app"
-    if uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
-        "$AGILAB_PUBLIC/apps/$app"; then
-      echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
-      echo -e "${GREEN}Checking installation...${NC}"
-      if pushd -- "$app" >/dev/null; then
-        if [[ -f app_test.py ]]; then
-          echo uv run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
-          uv run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
-        else
-          echo -e "${BLUE}No app_test.py in $app, skipping tests.${NC}"
-        fi
-        popd >/dev/null
-      else
-        echo -e "${YELLOW}Warning:${NC} could not enter '$app' to run tests."
-      fi
+for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
+echo -e "${BLUE}Installing $app...${NC}"
+echo  uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
+    "$AGILAB_PUBLIC/apps/$app"
+if uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
+    "$AGILAB_PUBLIC/apps/$app"; then
+    echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
+    echo -e "${GREEN}Checking installation...${NC}"
+    if pushd -- "$app" >/dev/null; then
+    if [[ -f app_test.py ]]; then
+        echo uv run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
+        uv run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
     else
-      echo -e "${RED}✗ '$app' installation failed.${NC}"
-      status=1
+        echo -e "${BLUE}No app_test.py in $app, skipping tests.${NC}"
     fi
-  done
-
-  popd >/dev/null
+    popd >/dev/null
+    else
+    echo -e "${YELLOW}Warning:${NC} could not enter '$app' to run tests."
+    fi
+else
+    echo -e "${RED}✗ '$app' installation failed.${NC}"
+    status=1
 fi
+done
+
+popd >/dev/null
 
 # --- Optional pytest pass for apps -------------------------------------------
 if (( DO_TEST_APPS )); then
@@ -446,17 +431,13 @@ if (( DO_TEST_APPS )); then
 fi
 
 # --- Final Message -----------------------------------------------------------
-if (( DO_INSTALL_APPS )); then
-  if (( status == 0 )); then
+if (( status == 0 )); then
     if [[ -n "$AGILAB_APPS_REPOSITORY" ]]; then
-      ln -s "examples" "${AGILAB_APPS_REPOSITORY}/docs/source"
+        ln -s "examples" "${AGILAB_APPS_REPOSITORY}/docs/source"
     fi
     echo -e "${GREEN}Installation of apps complete!${NC}"
-  else
-    echo -e "${YELLOW}Installation finished with some errors (status=$status).${NC}"
-  fi
 else
-  echo -e "${GREEN}App installation skipped.${NC}"
+    echo -e "${YELLOW}Installation finished with some errors (status=$status).${NC}"
 fi
 
 exit "$status"
