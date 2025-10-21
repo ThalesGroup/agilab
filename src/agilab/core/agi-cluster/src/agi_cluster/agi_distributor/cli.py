@@ -288,6 +288,7 @@ def python_version():
     freethreaded = "+freethreaded" if "freethreaded" in cache_tag else ""
     tag = f"{sys.implementation.name}-{version}{freethreaded}-{os_tag}-{arch}-none"
     logger.info(tag)
+    return tag
 
 # ---------------- main ----------------
 if __name__ == "__main__":
