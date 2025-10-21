@@ -51,4 +51,3 @@ filterwarnings = [
     "ignore:.*Theme names and color schemes are lowercase in IPython 9.0.*:DeprecationWarning:IPython\\.core\\.ultratb",
 ]
 
-
