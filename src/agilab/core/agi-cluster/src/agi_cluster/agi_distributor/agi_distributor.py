@@ -32,6 +32,8 @@ from ipaddress import ip_address as is_ip
 from pathlib import Path
 from tempfile import gettempdir
 
+from agi_cluster.agi_distributor import cli as distributor_cli
+
 
 # --- Added minimal TestPyPI fallback for uv sync ---
 def _agi__version_missing_on_pypi(project_path):
@@ -1050,25 +1052,8 @@ class AGI:
 
         await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
 
-        def locate_project(seed: Path) -> Path:
-            cur = seed
-            while cur:
-                if (cur / ".venv").exists() or (cur / "pyproject.toml").exists():
-                    return cur
-                parent = cur.parent
-                if parent == cur:
-                    break
-                cur = parent
-            return seed
-
-        if env.is_source_env:
-            project = locate_project(env.agi_cluster)
-        else:
-            project = locate_project(getattr(env, "cluster_pck", env.active_app))
-
-        cmd = f'{uv} run --project "{project}" python -m agi_cluster.agi_distributor.cli platform'
-        res = await AgiEnv.run(cmd, wenv_abs.parent)
-        pyvers = res.split(':')[-1].strip()
+        res = distributor_cli.python_version() or ""
+        pyvers = res.strip()
         AgiEnv.set_env_var(f"{ip}_PYTHON_VERSION", pyvers)
 
         if env.is_worker_env:
