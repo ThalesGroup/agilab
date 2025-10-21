@@ -1051,9 +1051,12 @@ class AGI:
 
         await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
 
-        cluster_project = env.agi_cluster / "core/agi-cluster"
+        if env.is_source_env:
+            project = env.agi_cluster
+        else:
+            project = env.aggilab_pck.parents[1]
 
-        cmd = f"{uv} run --project {cluster_project} python -m agi_cluster.agi_distributor.cli platform"
+        cmd = f"{uv} run --project {project} python -m agi_cluster.agi_distributor.cli platform"
         res = await AgiEnv.run(cmd, wenv_abs.parent)
         pyvers = res.split(':')[-1].strip()
         AgiEnv.set_env_var(f"{ip}_PYTHON_VERSION", pyvers)
