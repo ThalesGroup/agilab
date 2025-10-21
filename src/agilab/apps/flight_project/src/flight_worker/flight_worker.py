@@ -128,7 +128,7 @@ class FlightWorker(PolarsWorker):
         except Exception as e:
             logging.info(f"Error removing directory: {e}")
 
-        self.args["data_uri"] = data_uri
+        self.args.data_uri = data_uri
 
         if self.verbose > 1:
             logging.info(f"Worker #{self._worker_id} dataframe root path = {self.data_out}")
@@ -137,7 +137,7 @@ class FlightWorker(PolarsWorker):
             logging.info(f"start worker_id {self._worker_id}\n")
         args = self.args
 
-        if args["data_source"] == "file":
+        if args.data_source == "file":
             # Implement your file logic
             pass
         else:
@@ -174,7 +174,7 @@ class FlightWorker(PolarsWorker):
         """
         global global_vars
 
-        data_source = global_vars["args"]["data_source"]
+        data_source = getattr(global_vars["args"], "data_source")
 
         prefix = "~/"
         if data_source == "file":
@@ -230,12 +230,12 @@ class FlightWorker(PolarsWorker):
             plane_df = plane_df.with_columns(pl.col("aircraft").alias("worker_id"))
 
             try:
-                if self.args["output_format"] == "parquet":
+                if self.args.output_format == "parquet":
                     filename = (Path(self.data_out) / str(plane)).with_suffix(".parquet")
                     # Ensure that the "date" column is present and correctly typed.
                     # You might want to cast it to a datetime type if needed.
                     plane_df.write_parquet(str(filename))
-                elif self.args["output_format"] == "csv":
+                elif self.args.output_format == "csv":
                     timestamp = dt.now().strftime("%Y-%m-%d_%H-%M-%S")
                     filename = f"{self.data_out}/{str(plane)+'_'+timestamp}.csv"
                     plane_df.write_csv(str(filename))
