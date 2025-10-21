@@ -1714,23 +1714,22 @@ class AGI:
             logger.error(f"searching for {wenv_abs / env.app}*.egg")
             raise FileNotFoundError(f"no existing egg file in {wenv_abs / env.app}*")
 
-        if env.is_source_env:
-            wenv = env.agi_env / 'dist'
-            try:
-                env_whl = next(iter(wenv.glob("agi_env*.whl")))
-            except StopIteration:
-                raise FileNotFoundError(f"no existing whl file in {wenv / "agi_env*"}")
+        wenv = env.agi_env / 'dist'
+        try:
+            env_whl = next(iter(wenv.glob("agi_env*.whl")))
+        except StopIteration:
+            raise FileNotFoundError(f"no existing whl file in {wenv / "agi_env*"}")
 
-            # build agi_node*.whl
-            wenv = env.agi_node / 'dist'
-            try:
-                node_whl = next(iter(wenv.glob("agi_node*.whl")))
-            except StopIteration:
-                raise FileNotFoundError(f"no existing whl file in {wenv / "agi_node*"}")
+        # build agi_node*.whl
+        wenv = env.agi_node / 'dist'
+        try:
+            node_whl = next(iter(wenv.glob("agi_node*.whl")))
+        except StopIteration:
+            raise FileNotFoundError(f"no existing whl file in {wenv / "agi_node*"}")
 
-            await AGI.send_files(env, ip,
-                                 [egg_file, node_whl, env_whl],
-                                 wenv_rel)
+        await AGI.send_files(env, ip,
+                             [egg_file, node_whl, env_whl],
+                             wenv_rel)
 
         # 5) Check remote Rapids hardware support via nvidia-smi
         hw_rapids_capable = False
@@ -1762,33 +1761,24 @@ class AGI:
         await AGI.exec_ssh(ip, cmd)
 
         if env.is_source_env:
-
-            # install env
-            cmd = f"{uv} --project {wenv_rel} add -p {pyvers} --upgrade {wenv_rel / "dist" / env_whl.name}"
-            await AGI.exec_ssh(ip, cmd)
-
-            # install node
-            cmd = f"{uv} --project {wenv_rel} add -p {pyvers} --upgrade {wenv_rel / "dist" / node_whl.name}"
-            await AGI.exec_ssh(ip, cmd)
-
-            # unzip egg to get src/
-            cli = env.wenv_rel.parent / "cli.py"
-            cmd = f"{uv} run --no-sync -p {pyvers} python {cli} unzip {wenv_rel}"
-            await AGI.exec_ssh(ip, cmd)
+            env_pck = wenv_rel / "dist" / env_whl.name
+            node_pck = wenv_rel / "dist" / node_whl.name
         else:
-            # install env
-            cmd = f"{uv} --project {wenv_rel} add -p {pyvers} --upgrade agi-env"
-            await AGI.exec_ssh(ip, cmd)
+            env_pck = "agi-env"
+            node_pck = "agi-node"
 
-            # install node
-            cmd = f"{uv} --project {wenv_rel} add -p {pyvers} --upgrade agi-node"
-            await AGI.exec_ssh(ip, cmd)
+        # install env
+        cmd = f"{uv} --project {wenv_rel} add -p {pyvers} --upgrade {env_pck}"
+        await AGI.exec_ssh(ip, cmd)
+
+        # install node
+        cmd = f"{uv} --project {wenv_rel} add -p {pyvers} --upgrade {node_pck}"
+        await AGI.exec_ssh(ip, cmd)
 
         # unzip egg to get src/
         cli = env.wenv_rel.parent / "cli.py"
-        cmd = f"{uv} run --no-sync -p {pyvers} python {cli} unzip {wenv_rel}"
+        cmd = f"{uv} --project {wenv_rel}  run --no-sync -p {pyvers} python {cli} unzip {wenv_rel}"
         await AGI.exec_ssh(ip, cmd)
-
 
         # Post-install script
         cmd = f"{uv} --project {wenv_rel} run --no-sync -p {pyvers} python -m {env.post_install_rel} {wenv_rel.stem} {env.data_rel}"
