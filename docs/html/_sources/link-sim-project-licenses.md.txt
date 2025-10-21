@@ -21,7 +21,7 @@
 | jedi | MIT LICENSE |
 | jinja2 | BSD LICENSE |
 | locket | BSD LICENSE |
-| markupsafe | BSD LICENSE |
+| markupsafe | BSD-3-CLAUSE |
 | matplotlib-inline | BSD LICENSE |
 | msgpack | APACHE-2.0 |
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
@@ -37,7 +37,7 @@
 | polars | MIT LICENSE |
 | polars-runtime-32 | MIT LICENSE |
 | prompt-toolkit | BSD LICENSE |
-| psutil | BSD LICENSE |
+| psutil | BSD-3-CLAUSE |
 | ptyprocess | ISC LICENSE _ISCL_ |
 | pure-eval | MIT LICENSE |
 | py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
