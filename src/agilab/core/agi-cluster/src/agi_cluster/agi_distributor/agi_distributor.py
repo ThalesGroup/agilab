@@ -24,7 +24,6 @@ import re
 import shutil
 import socket
 import sys
-import shlex
 import time
 import warnings
 from copy import deepcopy
@@ -1051,12 +1050,23 @@ class AGI:
 
         await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
 
-        if env.is_source_env:
-            project = env.agi_cluster
-        else:
-            project = env.active_app.parent
+        def locate_project(seed: Path) -> Path:
+            cur = seed
+            while cur:
+                if (cur / ".venv").exists() or (cur / "pyproject.toml").exists():
+                    return cur
+                parent = cur.parent
+                if parent == cur:
+                    break
+                cur = parent
+            return seed
 
-        cmd = f"{uv} run --project {project} python -m agi_cluster.agi_distributor.cli platform"
+        if env.is_source_env:
+            project = locate_project(env.agi_cluster)
+        else:
+            project = locate_project(getattr(env, "cluster_pck", env.active_app))
+
+        cmd = f'{uv} run --project "{project}" python -m agi_cluster.agi_distributor.cli platform'
         res = await AgiEnv.run(cmd, wenv_abs.parent)
         pyvers = res.split(':')[-1].strip()
         AgiEnv.set_env_var(f"{ip}_PYTHON_VERSION", pyvers)
