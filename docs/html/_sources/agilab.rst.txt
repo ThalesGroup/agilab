@@ -12,3 +12,4 @@ AGILab
    execute_help
    experiment_help
    explore_help
+   agilab_help

@@ -56,9 +56,9 @@ agilab
 
   - Automatically generates APIs to streamline development processes.
 
-- **ChatGPT Coding Assistant:**
+- **ChatGPT / Mistral Coding Assistant:**
 
-  - Integrates with ChatGPT to offer real-time code suggestions and support.
+  - Integrates with ChatGPT and Mistral to offer real-time code suggestions and support across preferred providers.
 
 - **Embedded Dataframe Export:**
 

@@ -105,7 +105,8 @@
 <li class="toctree-l2"><a class="reference internal" href="cluster-help.html#principle">Principle</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="agilab.html">AGILab</a><ul class="simple">
+<li class="toctree-l1"><a class="reference internal" href="agilab.html">AGILab</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agilab_help.html">AGILab Help</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="framework-api.html">Framework API</a><ul>
@@ -177,6 +178,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Pages</span></p>
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="agilab_help.html">AGILab Help</a></li>
 <li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ EDIT</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#main-content-area">Main Content Area</a></li>
@@ -303,15 +305,28 @@
 __pycache__/ [excluded]
 apps/
     flight_project/
+        .venv/ [excluded]
+        agilab/
+            core/
+                agi-env/
+                    src/
+                        agi_env/
+                            resources/
+                                .agilab/
+                                    .env
+                                    balancer_df.csv
+                                    balancer_model.pkl
+                                mistral_offline/
+                                    data/
+                                        [max depth reached]
         Modules/ [excluded]
         src/
+            agi_node/
             flight/
-                __pycache__/ [excluded]
                 __init__.py
                 flight.py
                 flight_args.py
             flight_worker/
-                __pycache__/ [excluded]
                 __init__.py
                 dataset.7z
                 flight_worker.py
@@ -342,15 +357,13 @@ apps/
         uv_config.toml
     mycode_project/
         .venv/ [excluded]
-        Modules/ [excluded]
         src/
+            agi_node/
             mycode/
-                __pycache__/ [excluded]
                 __init__.py
                 mycode.py
                 mycode_args.py
             mycode_worker/
-                __pycache__/ [excluded]
                 __init__.py
                 mycode_worker.py
                 mycode_worker.pyx
@@ -359,6 +372,7 @@ apps/
             app_settings.toml
         pyproject.toml
         README.md
+        uv_config.toml
     templates/
         dag_app_template/
             src/
@@ -439,13 +453,9 @@ apps/
     .gitignore
     __init__.py
     example_app_project
-    example_app_project
-    example_app_project
     install.py
     example_app_project
     README.md
-    rssi_predictor_project
-    example_app_project
     example_app_project
     example_app_project
 apps-pages/
