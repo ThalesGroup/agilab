@@ -1054,7 +1054,7 @@ class AGI:
         if env.is_source_env:
             project = env.agi_cluster
         else:
-            project = env.active_app.parents[1]
+            project = env.active_app.parent
 
         cmd = f"{uv} run --project {project} python -m agi_cluster.agi_distributor.cli platform"
         res = await AgiEnv.run(cmd, wenv_abs.parent)
