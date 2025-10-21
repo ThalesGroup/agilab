@@ -33,6 +33,8 @@ You’ll find everything from quickstarts to API references, as well as example 
    :maxdepth: 2
    :caption: Pages
 
+   agilab_help
+
    edit-help
 
    execute-help
