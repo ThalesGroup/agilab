@@ -1078,9 +1078,6 @@ class AGI:
         try:
             await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
         except RuntimeError as exc:
-            if "No download found for request" not in str(exc):
-                raise
-
             fallback = AGI._fallback_python_spec(pyvers)
             if not fallback or fallback == pyvers:
                 raise
@@ -1090,7 +1087,11 @@ class AGI:
                 pyvers,
                 fallback,
             )
-            await AgiEnv.run(f"{uv} python install {fallback}", wenv_abs.parent)
+            try:
+                await AgiEnv.run(f"{uv} python install {fallback}", wenv_abs.parent)
+            except RuntimeError:
+                raise exc
+
             pyvers = fallback
             env.python_version = pyvers
             env.pyvers_worker = pyvers
@@ -1181,7 +1182,27 @@ class AGI:
             cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel.parents[1]}', exist_ok=True)\""
             await AGI.exec_ssh(ip, cmd)
 
-            await AGI.exec_ssh(ip, f"{uv} python install {pyvers_worker}")
+            try:
+                await AGI.exec_ssh(ip, f"{uv} python install {pyvers_worker}")
+            except ProcessError as exc:
+                fallback = AGI._fallback_python_spec(pyvers_worker)
+                if not fallback or fallback == pyvers_worker:
+                    raise
+
+                logger.warning(
+                    "[%s] uv could not install '%s'; retrying with fallback specification '%s'",
+                    ip,
+                    pyvers_worker,
+                    fallback,
+                )
+                try:
+                    await AGI.exec_ssh(ip, f"{uv} python install {fallback}")
+                except ProcessError:
+                    raise exc
+
+                pyvers_worker = fallback
+                env.pyvers_worker = pyvers_worker
+                AgiEnv.set_env_var(f"{ip}_PYTHON_VERSION", pyvers_worker)
 
             await AGI.send_files(env, ip, [env.cluster_pck / "agi_distributor/cli.py"],
                                  wenv_rel.parent)
