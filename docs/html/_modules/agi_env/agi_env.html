@@ -102,8 +102,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../cluster-help.html#principle">Principle</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../../agilab.html">AGILab</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../agilab_help.html">AGILab Help</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../agilab.html">AGILab</a><ul class="simple">
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../framework-api.html">Framework API</a><ul>
@@ -175,7 +174,6 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Pages</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../agilab_help.html">AGILab Help</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../edit-help.html">▶️ EDIT</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../edit-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../edit-help.html#main-content-area">Main Content Area</a></li>
@@ -910,9 +908,6 @@
                         <span class="c1"># Avoid self-referential symlinks when the public destination</span>
                         <span class="c1"># already resides inside the apps repository tree.</span>
                         <span class="k">if</span> <span class="n">dest_app</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">==</span> <span class="n">src_app</span><span class="o">.</span><span class="n">resolve</span><span class="p">():</span>
-                            <span class="n">AgiEnv</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-                                <span class="sa">f</span><span class="s2">&quot;Skipping symlink for app </span><span class="si">{</span><span class="n">src_app</span><span class="si">}</span><span class="s2"> because destination matches source&quot;</span>
-                            <span class="p">)</span>
                             <span class="k">continue</span>
                         <span class="k">try</span><span class="p">:</span>
                             <span class="k">if</span> <span class="n">dest_app</span><span class="o">.</span><span class="n">is_symlink</span><span class="p">():</span>
