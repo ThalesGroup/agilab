@@ -7,6 +7,8 @@ mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/install_$(date +%Y%m%d_%H%M%S).log"_
 exec > >(tee -a "$LOG_FILE") 2>&1
 
+START_TIME=$(date +%s)
+
 # Colors for output
 RED='\033[1;31m'
 GREEN='\033[1;32m'
@@ -475,3 +477,9 @@ else
     setup_mistral_offline
     echo -e "${GREEN}Installation complete (apps skipped).${NC}"
 fi
+
+END_TIME=$(date +%s)
+ELAPSED=$((END_TIME - START_TIME))
+ELAPSED_MIN=$((ELAPSED / 60))
+ELAPSED_SEC=$((ELAPSED % 60))
+echo -e "${BLUE}Total install duration: ${ELAPSED_MIN}m ${ELAPSED_SEC}s${NC}"
