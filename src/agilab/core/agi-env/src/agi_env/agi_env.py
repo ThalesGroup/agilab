@@ -846,10 +846,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         dataset_archive = getattr(self, "dataset_archive", None)
         if dataset_archive and Path(dataset_archive).exists():
             dataset_root = (self.home_abs / self.data_rel / "dataset").expanduser()
-            csv_candidates = list(dataset_root.rglob("*.csv")) if dataset_root.exists() else []
+            existing_files = list(dataset_root.rglob("*")) if dataset_root.exists() else []
             archive_mtime = Path(dataset_archive).stat().st_mtime
-            latest_csv_mtime = max((p.stat().st_mtime for p in csv_candidates), default=0)
-            needs_extract = (not csv_candidates) or (latest_csv_mtime < archive_mtime)
+            latest_file_mtime = max((p.stat().st_mtime for p in existing_files if p.is_file()), default=0)
+            needs_extract = (not existing_files) or (latest_file_mtime < archive_mtime)
             if needs_extract:
                 try:
                     dest_arg = self.data_rel
