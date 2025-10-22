@@ -48,6 +48,9 @@ class Flight(BaseWorker):
         **kwargs: FlightArgsTD,
     ) -> None:
         self.env = env
+        # Allow caller-provided verbosity flag even though the Pydantic model forbids extras.
+        self.verbose = bool(kwargs.pop("verbose", getattr(env, "verbose", False)))
+
         if args is None:
             try:
                 args = FlightArgs(**kwargs)

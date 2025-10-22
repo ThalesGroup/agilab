@@ -27,7 +27,7 @@ def args():
         'nread': 0,
         'nskip': 0,
         'output_format': 'parquet',
-        'path': 'data/flight/dataset',
+        'data_uri': 'data/flight/dataset',
         'sampling_rate': 10.0,
         'verbose': True
     }
