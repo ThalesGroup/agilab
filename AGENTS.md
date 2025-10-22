@@ -38,7 +38,7 @@ Use this runbook whenever you:
   `~/agi-space/.venv` and uses `uv pip` afterwards. If an install reports
   `No module named pip`, rerun the latest installer or execute
   `uv run python -m ensurepip --upgrade` once in `~/agi-space`.
-- **Apps repository symlinks**: Keep the apps repository (``AGILAB_APPS_REPOSITORY``) at the path recorded in
+- **Apps repository symlinks**: Keep the apps repository (``APPS_REPOSITORY``) at the path recorded in
   `~/.local/share/agilab/.env`. The installer auto-creates symlinks so missing workers
   resolve without manual action.
 - **Runtime isolation**: Anything launched from `~/agi-space` must assume the upstream
