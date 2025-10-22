@@ -22,7 +22,7 @@ BUILTIN_APPS_FROM_ENV="${BUILTIN_APPS-}"
 
 AGI_PYTHON_VERSION=$(echo "${AGI_PYTHON_VERSION:-}" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*/\1/')
 AGILAB_PUBLIC="$(cat "$HOME/.local/share/agilab/.agilab-path")"
-AGILAB_APPS_REPOSITORY="${AGILAB_APPS_REPOSITORY:-}"
+APPS_REPOSITORY="${APPS_REPOSITORY:-}"
 
 PAGES_TARGET_BASE=""
 APPS_TARGET_BASE=""
@@ -108,13 +108,13 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-if [[ -n "$AGILAB_APPS_REPOSITORY" ]]; then
-  if ! PAGES_TARGET_BASE=$(discover_repo_dir "$AGILAB_APPS_REPOSITORY" "apps-pages"); then
-    echo -e "${RED}Error:${NC} Could not locate an 'apps-pages' directory under $AGILAB_APPS_REPOSITORY" >&2
+if [[ -n "$APPS_REPOSITORY" ]]; then
+  if ! PAGES_TARGET_BASE=$(discover_repo_dir "$APPS_REPOSITORY" "apps-pages"); then
+    echo -e "${RED}Error:${NC} Could not locate an 'apps-pages' directory under $APPS_REPOSITORY" >&2
     exit 1
   fi
-  if ! APPS_TARGET_BASE=$(discover_repo_dir "$AGILAB_APPS_REPOSITORY" "apps"); then
-    echo -e "${RED}Error:${NC} Could not locate an 'apps' directory under $AGILAB_APPS_REPOSITORY" >&2
+  if ! APPS_TARGET_BASE=$(discover_repo_dir "$APPS_REPOSITORY" "apps"); then
+    echo -e "${RED}Error:${NC} Could not locate an 'apps' directory under $APPS_REPOSITORY" >&2
     exit 1
   fi
   SKIP_REPOSITORY_APPS=0
@@ -171,7 +171,7 @@ if (( SKIP_REPOSITORY_PAGES == 0 )); then
   fi
 fi
 
-echo -e "${BLUE}Using AGILAB_APPS_REPOSITORY:${NC} $AGILAB_APPS_REPOSITORY"
+echo -e "${BLUE}Using APPS_REPOSITORY:${NC} $APPS_REPOSITORY"
 echo -e "${BLUE}(Apps) Destination base:${NC} $APPS_DEST_BASE"
 echo -e "${BLUE}(Apps) Link target base:${NC} $APPS_TARGET_BASE\n"
 echo -e "${BLUE}(Pages) Destination base:${NC} $PAGES_DEST_BASE"
@@ -432,8 +432,8 @@ fi
 
 # --- Final Message -----------------------------------------------------------
 if (( status == 0 )); then
-    if [[ -n "$AGILAB_APPS_REPOSITORY" ]]; then
-        ln -s "examples" "${AGILAB_APPS_REPOSITORY}/docs/source"
+    if [[ -n "$APPS_REPOSITORY" ]]; then
+        ln -s "examples" "${APPS_REPOSITORY}/docs/source"
     fi
     echo -e "${GREEN}Installation of apps complete!${NC}"
 else
