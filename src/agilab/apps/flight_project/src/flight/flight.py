@@ -136,6 +136,9 @@ class Flight(BaseWorker):
         Returns:
 
         """
+        workers_chunks: list | None = []
+        workers_planes_dist: list | None = []
+
         try:
             # create list of works weighted
             planes_partition, planes_partition_size, df = self.get_partition_by_planes(
@@ -173,7 +176,7 @@ class Flight(BaseWorker):
         except Exception as e:
             print(traceback.format_exc())
             print(f"warning issue while trying to build distribution: {e}")
-        return workers_planes_dist, workers_chunks, "plane", "files", "ko"
+        return workers_planes_dist or [], workers_chunks or [], "plane", "files", "ko"
 
     def get_data_from_hawk(self):
         """get output-data from ELK/HAWK"""
