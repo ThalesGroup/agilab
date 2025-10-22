@@ -494,6 +494,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         except Exception:
             self.active_app = active_app
         self.apps_dir = apps_dir
+        self.apps_repository_root: Path | None = None
 
         target = app.replace("_project", "").replace("_worker","").replace("-", "_")
 
@@ -573,24 +574,28 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if (not self.is_source_env) and (not self.is_worker_env):
             os.makedirs(apps_dir, exist_ok=True)
 
-            link_source = self._get_apps_repository_root()
-            if link_source is None:
-                agilab_path = self.read_agilab_path()
-                if agilab_path:
-                    candidate = agilab_path / "apps"
-                    if candidate.exists():
-                        link_source = candidate
+            link_source = self.apps_repository_root = self._get_apps_repository_root()
 
             if link_source is not None and link_source.exists():
-                for src_app in link_source.glob("*_project"):
-                    dest_app = apps_dir / src_app.relative_to(link_source)
-                    # Avoid creating self-referential symlinks when the public
-                    # destination already resides inside the apps repository tree.
-                    if dest_app.resolve(strict=False) == src_app.resolve():
-                        AgiEnv.logger.info(
-                            f"Skipping symlink for app {src_app} because destination matches source"
-                        )
-                        continue
+                same_tree = False
+                if apps_dir is not None:
+                    try:
+                        same_tree = apps_dir.resolve(strict=False) == link_source.resolve()
+                    except Exception:
+                        same_tree = False
+
+                if same_tree:
+                    pass
+                else:
+                    for src_app in link_source.glob("*_project"):
+                        dest_app = apps_dir / src_app.relative_to(link_source)
+                        # Avoid self-referential symlinks when the public destination
+                        # already resides inside the apps repository tree.
+                        if dest_app.resolve(strict=False) == src_app.resolve():
+                            AgiEnv.logger.info(
+                                f"Skipping symlink for app {src_app} because destination matches source"
+                            )
+                            continue
                     try:
                         if dest_app.is_symlink():
                             same_target = False
@@ -882,9 +887,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         return src_dir if src_dir.exists() else root
 
     def _get_apps_repository_root(self) -> Path | None:
-        """Return the apps repository directory when ``AGILAB_APPS_REPOSITORY`` is configured."""
+        """Return the apps repository directory when ``APPS_REPOSITORY`` is configured."""
 
-        repo_root = self.envars.get("AGILAB_APPS_REPOSITORY")
+        repo_root = self.envars.get("APPS_REPOSITORY") or os.environ.get("APPS_REPOSITORY")
         if not repo_root:
             return None
 
@@ -905,7 +910,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             AgiEnv.logger.debug(f"Error while scanning apps repository: {exc}")
 
         AgiEnv.logger.info(
-            f"AGILAB_APPS_REPOSITORY is set but apps directory is missing under {repo_path}"
+            f"APPS_REPOSITORY is set but apps directory is missing under {repo_path}"
         )
         return None
 
