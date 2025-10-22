@@ -1,7 +1,7 @@
 # Flight-project Licenses
 | Package Name | License |
 |--------------|---------|
-| absl-py | APACHE-2.0 |
+| absl-py | APACHE SOFTWARE LICENSE |
 | ai21 | Apache License 2.0 |
 | aiohappyeyeballs | PYTHON SOFTWARE FOUNDATION LICENSE |
 | aiohttp | APACHE-2.0;; MIT |
@@ -16,7 +16,7 @@
 | anyio | MIT |
 | appnope | BSD LICENSE |
 | argon2-cffi | MIT |
-| argon2-cffi-bindings | MIT |
+| argon2-cffi-bindings | MIT LICENSE |
 | arrow | APACHE SOFTWARE LICENSE |
 | arxiv | MIT LICENSE |
 | asn1crypto | MIT LICENSE |
@@ -24,7 +24,7 @@
 | asttokens | APACHE 2.0 |
 | async-lru | MIT LICENSE |
 | asyncssh | EPL-2.0;; GPL-2.0-OR-LATER |
-| attrs | MIT |
+| attrs | MIT LICENSE |
 | authlib | BSD LICENSE |
 | babel | BSD LICENSE |
 | bce-python-sdk | APACHE LICENSE 2.0 |
@@ -50,7 +50,7 @@
 | cramjam | MIT |
 | cryptography | APACHE-2.0;; BSD-3-CLAUSE |
 | cycler | BSD LICENSE |
-| cyclopts | APACHE-2.0 |
+| cyclopts | APACHE SOFTWARE LICENSE |
 | cython | APACHE SOFTWARE LICENSE |
 | dask | BSD LICENSE |
 | databricks-sdk | APACHE SOFTWARE LICENSE |
@@ -78,11 +78,11 @@
 | fastapi | MIT LICENSE |
 | fastavro | MIT |
 | fastjsonschema | BSD LICENSE |
-| fastmcp | APACHE-2.0 |
+| fastmcp | APACHE SOFTWARE LICENSE |
 | fastparquet | APACHE SOFTWARE LICENSE |
 | favicon | MIT LICENSE |
 | feedparser | BSD LICENSE |
-| filelock | UNLICENSE |
+| filelock | THE UNLICENSE _UNLICENSE_ |
 | filetype | MIT LICENSE |
 | flask | BSD-3-CLAUSE |
 | flask-cors |  |
@@ -105,7 +105,7 @@
 | google-cloud-resource-manager | APACHE SOFTWARE LICENSE |
 | google-cloud-storage | APACHE SOFTWARE LICENSE |
 | google-crc32c | APACHE 2.0 |
-| google-genai | APACHE SOFTWARE LICENSE |
+| google-genai | APACHE-2.0 |
 | google-resumable-media | APACHE SOFTWARE LICENSE |
 | googleapis-common-protos | APACHE SOFTWARE LICENSE |
 | gpt4all | MIT LICENSE |
@@ -120,7 +120,7 @@
 | h5py | BSD-3-CLAUSE |
 | hf-xet | APACHE SOFTWARE LICENSE |
 | htbuilder | APACHE SOFTWARE LICENSE |
-| httpcore | BSD-3-CLAUSE |
+| httpcore | BSD LICENSE |
 | httpx | BSD LICENSE |
 | httpx-sse | MIT |
 | huggingface-hub | APACHE SOFTWARE LICENSE |
@@ -235,7 +235,7 @@
 | opentelemetry-sdk | APACHE-2.0 |
 | opentelemetry-semantic-conventions | APACHE-2.0 |
 | optree | APACHE-2.0 |
-| orjson | APACHE-2.0;; MIT |
+| orjson | APACHE SOFTWARE LICENSE;; MIT LICENSE |
 | packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | pandas | BSD LICENSE |
 | pandocfilters | BSD LICENSE |
@@ -248,7 +248,7 @@
 | pexpect | ISC LICENSE _ISCL_ |
 | pillow | MIT-CMU |
 | pip | MIT |
-| platformdirs | MIT |
+| platformdirs | MIT LICENSE |
 | plotly | MIT LICENSE |
 | ply | BSD |
 | polars | MIT LICENSE |
@@ -272,12 +272,12 @@
 | pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
 | pydantic | MIT |
 | pydantic-core | MIT |
-| pydantic-settings | MIT |
+| pydantic-settings | MIT LICENSE |
 | pydeck | APACHE LICENSE 2.0 |
 | pygments | BSD LICENSE |
 | pyjwt | MIT LICENSE |
-| pymdown-extensions | MIT |
-| pynacl | APACHE SOFTWARE LICENSE |
+| pymdown-extensions | MIT LICENSE |
+| pynacl | APACHE LICENSE 2.0 |
 | pyopenssl | APACHE SOFTWARE LICENSE |
 | pyparsing | MIT |
 | pypdf | BSD-3-CLAUSE |
@@ -301,7 +301,7 @@
 | rfc3339-validator | MIT LICENSE |
 | rfc3986 | APACHE SOFTWARE LICENSE |
 | rfc3986-validator | MIT LICENSE |
-| rfc3987-syntax | MIT |
+| rfc3987-syntax | APACHE SOFTWARE LICENSE |
 | rich | MIT LICENSE |
 | rich-rst | MIT |
 | rpds-py | MIT |
@@ -322,7 +322,7 @@
 | snowflake-connector-python | APACHE SOFTWARE LICENSE |
 | snowflake-snowpark-python | APACHE SOFTWARE LICENSE |
 | sortedcontainers | APACHE SOFTWARE LICENSE |
-| soupsieve | MIT |
+| soupsieve | MIT LICENSE |
 | sqlalchemy | MIT |
 | sqlparse | BSD LICENSE |
 | sse-starlette | BSD-3-CLAUSE |
@@ -330,7 +330,7 @@
 | st-theme | MIT LICENSE |
 | stack-data | MIT LICENSE |
 | standard-imghdr | PYTHON SOFTWARE FOUNDATION LICENSE |
-| starlette | BSD-3-CLAUSE |
+| starlette | BSD LICENSE |
 | streamlit | APACHE SOFTWARE LICENSE |
 | streamlit-avatar |  |
 | streamlit-camera-input-live | MIT License |

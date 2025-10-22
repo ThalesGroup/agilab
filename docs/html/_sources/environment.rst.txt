@@ -54,9 +54,9 @@ summarises the supported keys.
    * - ``AGI_PAGES_DIR``
      - ``agilab/apps-pages``
      - Location of Streamlit page bundles loaded by the Explore/Edit views.
-   * - ``APPS_REPOSITORY``
-     - unset
-     - Optional pointer to a private checkout containing apps or overrides.
+  * - ``APPS_REPOSITORY``
+    - unset
+    - Optional pointer to the repository checkout containing apps or overrides.
    * - ``INSTALL_TYPE``
      - ``1``
      - Controls the installation mode passed to ``AgiEnv``/installers (1 = developer workflow).
