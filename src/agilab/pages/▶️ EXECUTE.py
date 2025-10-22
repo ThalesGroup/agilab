@@ -108,6 +108,8 @@ def _looks_like_shared_path(path: Path) -> bool:
     home = Path.home().resolve()
     try:
         resolved.relative_to(home)
+        if os.path.ismount(resolved):
+            return True
         return False
     except ValueError:
         pass
