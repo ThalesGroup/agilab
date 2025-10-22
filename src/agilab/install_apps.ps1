@@ -460,10 +460,10 @@ if ($DoTestApps) {
             & uv @pytestArgs | Out-Host
             $pytestExit = $LASTEXITCODE
             switch ($pytestExit) {
-                0 { Write-Color GREEN ("✓ pytest succeeded for '{0}'." -f $app) }
+                0 { Write-Color GREEN ("pytest succeeded for '{0}'." -f $app) }
                 5 { Write-Color YELLOW ("No tests collected for '{0}'." -f $app) }
                 default {
-                    Write-Color RED ("✗ pytest failed for '{0}' (exit code {1})." -f $app, $pytestExit)
+                    Write-Color RED ("pytest failed for '{0}' (exit code {1})." -f $app, $pytestExit)
                     $status = 1
                 }
             }

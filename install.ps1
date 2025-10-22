@@ -603,7 +603,7 @@ try {
     Start-Transcript -Path $LogFile | Out-Null
     $TranscriptStarted = $true
 
-    Remove-UnwantedPaths
+#    Remove-UnwantedPaths
 
     Test-VisualStudio
     Install-Dependencies
