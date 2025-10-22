@@ -204,7 +204,7 @@ class Flight(BaseWorker):
             self.logs_ivq = {
                 str(f.relative_to(home_dir)): os.path.getsize(f) // 1000
                 for f in data_uri.rglob(self.args.files)
-                if f.is_file()
+                if f.is_file() and not f.name.startswith("._")
             }
 
             if not self.logs_ivq:
