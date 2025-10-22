@@ -1051,6 +1051,7 @@ class AGI:
 
         wenv_abs.mkdir(parents=True, exist_ok=True)
 
+        await AgiEnv.run(f"{uv} self update", wenv_abs.parent)
         await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
 
         res = distributor_cli.python_version() or ""
@@ -1139,6 +1140,7 @@ class AGI:
             cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel.parents[1]}', exist_ok=True)\""
             await AGI.exec_ssh(ip, cmd)
 
+            await AGI.exec_ssh(ip, f"{uv} self update")
             await AGI.exec_ssh(ip, f"{uv} python install {pyvers_worker}")
 
             await AGI.send_files(env, ip, [env.cluster_pck / "agi_distributor/cli.py"],
@@ -1152,18 +1154,6 @@ class AGI:
 
             await AGI.send_files(env, ip, [env.worker_pyproject, env.uvproject],
                                  wenv_rel)
-
-            # cmd = f"{uv} run --no-sync python {cli} platform"
-            # res =  await AGI.exec_ssh(ip, cmd)
-            # pyvers_worker = res.split(':')[-1]
-            # AgiEnv.set_env_var(f"{ip}_PYTHON_VERSION", pyvers_worker)
-            # await AGI.exec_ssh(ip, f"{cmd_prefix}{env.uv} python install {pyvers_worker}")
-
-            # cmd = f"{uv} --project {wenv_rel} init --bare --no-workspace"
-            # await AGI.exec_ssh(ip, cmd)
-
-            # cmd = f"{uv} run --no-sync -p {pyvers} python {env.wenv_rel.parent / "cli.py"} platform"
-            # await AGI.exec_ssh(ip, cmd)
 
     @staticmethod
     async def _deploy_application(scheduler_addr: Optional[str]) -> None:
