@@ -13,6 +13,8 @@ BLUE='\033[1;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+START_TIME=$(date +%s)
+
 UV_PREVIEW=(uv --preview-features extra-build-dependencies)
 
 DO_TEST_APPS=0
@@ -439,5 +441,11 @@ if (( status == 0 )); then
 else
     echo -e "${YELLOW}Installation finished with some errors (status=$status).${NC}"
 fi
+
+END_TIME=$(date +%s)
+ELAPSED=$((END_TIME - START_TIME))
+ELAPSED_MIN=$((ELAPSED / 60))
+ELAPSED_SEC=$((ELAPSED % 60))
+echo -e "${BLUE}install_apps.sh duration: ${ELAPSED_MIN}m ${ELAPSED_SEC}s${NC}"
 
 exit "$status"
