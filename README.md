@@ -6,7 +6,7 @@
 [![codecov](https://codecov.io/gh/ThalesGroup/agilab/branch/main/graph/badge.svg)](https://codecov.io/gh/ThalesGroup/agilab)
 [![GitHub stars](https://img.shields.io/github/stars/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab)
 [![black](https://img.shields.io/badge/code%20style-black-000000.svg)]()
-[![docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://thalesgroup.github.io/agilab)
+[![docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://thalesgroup.github.io/agilab/html)
 [![ORCID](https://img.shields.io/badge/ORCID-0009--0003--5375--368X-A6CE39?logo=orcid)](https://orcid.org/0009-0003-5375-368X)
 
 
@@ -18,7 +18,7 @@ Docs publishing
 - The static site is committed under `docs/html` and deployed by GitHub Pages directly (no Sphinx build in CI).
 - Preferred path: run `docs/gen_docs.sh`. It builds Sphinx if a config exists; otherwise it syncs `src/agilab/resources/help/` into `docs/html` and ensures an `index.html` is present.
 - CI will deploy the committed `docs/html`; if it’s empty, the workflow falls back to copying from `src/agilab/resources/help/`.
-See [documentation](https://thalesgroup.github.io/agilab).
+See [documentation](https://thalesgroup.github.io/agilab/html).
 
 See also: CHANGELOG.md for recent changes.
 
