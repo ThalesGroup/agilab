@@ -1052,7 +1052,16 @@ class AGI:
         wenv_abs.mkdir(parents=True, exist_ok=True)
 
         await AgiEnv.run(f"{uv} self update", wenv_abs.parent)
-        await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
+        try:
+            await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
+        except RuntimeError as exc:
+            if "No download found for request" in str(exc):
+                logger.warning(
+                    "uv could not download interpreter '%s'; assuming a system interpreter is available",
+                    pyvers,
+                )
+            else:
+                raise
 
         res = distributor_cli.python_version() or ""
         pyvers = res.strip()
@@ -1141,7 +1150,17 @@ class AGI:
             await AGI.exec_ssh(ip, cmd)
 
             await AGI.exec_ssh(ip, f"{uv} self update")
-            await AGI.exec_ssh(ip, f"{uv} python install {pyvers_worker}")
+            try:
+                await AGI.exec_ssh(ip, f"{uv} python install {pyvers_worker}")
+            except ProcessError as exc:
+                if "No download found for request" in str(exc):
+                    logger.warning(
+                        "[%s] uv could not download interpreter '%s'; assuming a system interpreter is available",
+                        ip,
+                        pyvers_worker,
+                    )
+                else:
+                    raise
 
             await AGI.send_files(env, ip, [env.cluster_pck / "agi_distributor/cli.py"],
                                  wenv_rel.parent)
