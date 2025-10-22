@@ -584,9 +584,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     except Exception:
                         same_tree = False
 
-                if same_tree:
-                    pass
-                else:
+                if not same_tree:
                     for src_app in link_source.glob("*_project"):
                         dest_app = apps_dir / src_app.relative_to(link_source)
                         # Avoid self-referential symlinks when the public destination
@@ -596,27 +594,27 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                                 f"Skipping symlink for app {src_app} because destination matches source"
                             )
                             continue
-                    try:
-                        if dest_app.is_symlink():
-                            same_target = False
-                            if dest_app.exists():
-                                try:
-                                    same_target = dest_app.resolve() == src_app.resolve()
-                                except OSError:
-                                    same_target = False
-                            if same_target:
-                                continue
-                            dest_app.unlink()
-                        elif dest_app.exists():
-                            shutil.rmtree(dest_app)
-                    except FileNotFoundError:
-                        pass
+                        try:
+                            if dest_app.is_symlink():
+                                same_target = False
+                                if dest_app.exists():
+                                    try:
+                                        same_target = dest_app.resolve() == src_app.resolve()
+                                    except OSError:
+                                        same_target = False
+                                if same_target:
+                                    continue
+                                dest_app.unlink()
+                            elif dest_app.exists():
+                                shutil.rmtree(dest_app)
+                        except FileNotFoundError:
+                            pass
 
-                    if os.name == "nt":
-                        AgiEnv.create_symlink_windows(Path(src_app), dest_app)
-                    else:
-                        os.symlink(src_app, dest_app, target_is_directory=True)
-                    AgiEnv.logger.info(f"Created symbolic link for app: {src_app} -> {dest_app}")
+                        if os.name == "nt":
+                            AgiEnv.create_symlink_windows(Path(src_app), dest_app)
+                        else:
+                            os.symlink(src_app, dest_app, target_is_directory=True)
+                        AgiEnv.logger.info(f"Created symbolic link for app: {src_app} -> {dest_app}")
             elif apps_root.exists():
                 self.copy_existing_projects(apps_root, active_app.parent)
             else:
