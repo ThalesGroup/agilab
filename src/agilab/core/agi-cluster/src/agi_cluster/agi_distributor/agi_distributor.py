@@ -1019,6 +1019,31 @@ class AGI:
             await asyncio.gather(*tasks)
 
     @staticmethod
+    def _fallback_python_spec(spec: str) -> Optional[str]:
+        """Downgrade a Python spec to major.minor when a precise build is unavailable."""
+
+        if not spec:
+            return None
+
+        prefix = ""
+        remainder = spec
+        if remainder.startswith("cpython-"):
+            prefix = "cpython-"
+            remainder = remainder[len(prefix) :]
+
+        remainder = remainder.split("-", 1)[0]
+        version_part, plus, suffix = remainder.partition("+")
+        components = version_part.split(".")
+        if len(components) <= 2:
+            return None
+
+        fallback_version = ".".join(components[:2])
+        fallback = f"{prefix}{fallback_version}"
+        if plus:
+            fallback = f"{fallback}{plus}{suffix}"
+        return fallback
+
+    @staticmethod
     async def _prepare_local_env() -> None:
         """
         Validate and prepare each remote node in the cluster:
@@ -1050,8 +1075,25 @@ class AGI:
         uv = cmd_prefix + env.uv
 
         wenv_abs.mkdir(parents=True, exist_ok=True)
+        try:
+            await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
+        except RuntimeError as exc:
+            if "No download found for request" not in str(exc):
+                raise
 
-        await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
+            fallback = AGI._fallback_python_spec(pyvers)
+            if not fallback or fallback == pyvers:
+                raise
+
+            logger.warning(
+                "uv could not install '%s'; retrying with fallback specification '%s'",
+                pyvers,
+                fallback,
+            )
+            await AgiEnv.run(f"{uv} python install {fallback}", wenv_abs.parent)
+            pyvers = fallback
+            env.python_version = pyvers
+            env.pyvers_worker = pyvers
 
         res = distributor_cli.python_version() or ""
         pyvers = res.strip()
