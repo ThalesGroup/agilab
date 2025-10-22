@@ -1051,7 +1051,31 @@ class AGI:
 
         wenv_abs.mkdir(parents=True, exist_ok=True)
 
-        await AgiEnv.run(f"{uv} self update", wenv_abs.parent)
+        if os.name == "nt":
+            standalone_uv = Path.home() / ".local" / "bin" / "uv.exe"
+            if standalone_uv.exists():
+                uv_parts = shlex.split(env.uv)
+                if uv_parts:
+                    uv_parts[0] = str(standalone_uv)
+                    windows_uv = cmd_prefix + " ".join(shlex.quote(part) for part in uv_parts)
+                else:
+                    windows_uv = cmd_prefix + shlex.quote(str(standalone_uv))
+                try:
+                    await AgiEnv.run(f"{windows_uv} self update", wenv_abs.parent)
+                except RuntimeError as exc:
+                    logger.warning(
+                        "Failed to update standalone uv at %s (skipping self update): %s",
+                        standalone_uv,
+                        exc,
+                    )
+            else:
+                logger.warning(
+                    "Standalone uv not found at %s; skipping 'uv self update' on Windows",
+                    standalone_uv,
+                )
+        else:
+            await AgiEnv.run(f"{uv} self update", wenv_abs.parent)
+
         try:
             await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
         except RuntimeError as exc:
