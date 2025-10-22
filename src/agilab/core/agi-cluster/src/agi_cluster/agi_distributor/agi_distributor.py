@@ -1481,6 +1481,9 @@ class AGI:
         else:
             cmd_manager = f"{extra_indexes}{uv} {run_type} --project '{app_path}'"
 
+        # Reset manager virtualenv to avoid stale or partially-created interpreters.
+        shutil.rmtree(app_path / ".venv", ignore_errors=True)
+
         if env.verbose > 0:
             logger.info(f"Installing manager: {cmd_manager}")
         await AgiEnv.run(cmd_manager, app_path)
