@@ -590,9 +590,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                         # Avoid self-referential symlinks when the public destination
                         # already resides inside the apps repository tree.
                         if dest_app.resolve(strict=False) == src_app.resolve():
-                            AgiEnv.logger.info(
-                                f"Skipping symlink for app {src_app} because destination matches source"
-                            )
                             continue
                         try:
                             if dest_app.is_symlink():
