@@ -9,7 +9,7 @@ bootstrapper, etc.) now assume.
 
 - **Public checkout** – the open-source `agilab` repository containing the
   default apps and tooling.
-- **Private checkout** – the closed-source `apps-repository` repository referenced
+- **Private checkout** – the closed-source `private-apps` repository referenced
   by the `APPS_REPOSITORY` environment variable.
 - **Service mode** – an end-user installation (`install_type == 0`) where the
   runtime lives under `~/agi-space` and pulls packages from wheels installed in
@@ -21,7 +21,7 @@ bootstrapper, etc.) now assume.
 | ----------------| --------|
 | `~/.local/share/agilab/.env` | Populated by the installer and read by
   `AgiEnv`.  Must contain the private checkout location via
-  `APPS_REPOSITORY="/abs/path/to/apps-repository"`. |
+  `APPS_REPOSITORY="/abs/path/to/private-apps"`. |
 | `~/.local/share/agilab/.agilab-path` | Records the canonical public checkout
   used when the installer ran.  When present it allows a fallback to the
   open-source apps. |
@@ -67,4 +67,3 @@ using the up-to-date private path.
    is refreshed.
 3. Restart the end-user Streamlit app.  The sidebar project selector should now
    only list apps that resolve inside `APPS_REPOSITORY`.
-
