@@ -842,6 +842,23 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.help_path = "https://thalesgroup.github.io/agilab"
         self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", home_abs / "data"))
 
+        # Ensure packaged datasets are available when running locally (e.g. app_test).
+        dataset_archive = getattr(self, "dataset_archive", None)
+        if dataset_archive and Path(dataset_archive).exists():
+            dataset_root = (self.home_abs / self.data_rel / "dataset").expanduser()
+            needs_extract = not dataset_root.exists() or not any(dataset_root.iterdir())
+            if needs_extract:
+                try:
+                    dest_arg = self.data_rel
+                    dest_arg = dest_arg if isinstance(dest_arg, str) else str(dest_arg)
+                    self.unzip_data(Path(dataset_archive), dest_arg)
+                except Exception as exc:  # pragma: no cover - defensive guard
+                    AgiEnv.logger.warning(
+                        "Failed to extract packaged dataset %s: %s",
+                        dataset_archive,
+                        exc,
+                    )
+
         self.app_src.mkdir(parents=True, exist_ok=True)
         app_src_str = str(self.app_src)
         if app_src_str not in sys.path:
