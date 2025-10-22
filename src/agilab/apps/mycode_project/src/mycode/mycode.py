@@ -86,5 +86,6 @@ class Mycode(BaseWorker):
 
     def build_distribution(
         self,
+        workers: dict | None = None,
     ) -> Tuple[List[List], List[List[Tuple[int, int]]], str, str, str]:  # pragma: no cover - template hook
         return [], [], "id", "nb_fct", ""
