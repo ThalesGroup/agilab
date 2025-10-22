@@ -1492,6 +1492,10 @@ class AGI:
 
         # Reset manager virtualenv to avoid stale or partially-created interpreters.
         shutil.rmtree(app_path / ".venv", ignore_errors=True)
+        try:
+            (app_path / "uv.lock").unlink()
+        except FileNotFoundError:
+            pass
 
         if env.verbose > 0:
             logger.info(f"Installing manager: {cmd_manager}")
