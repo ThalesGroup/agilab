@@ -3,7 +3,7 @@
   Purpose: Mirror the behavior of install_apps_pages.sh for Windows/PowerShell
   Notes:
     - Uses junctions for directory links (works without admin). Falls back to copying if linking fails.
-    - Respects the same env vars as the bash script: AGI_PYTHON_VERSION, AGILAB_APPS_REPOSITORY, APPS_DEST_BASE, PAGES_DEST_BASE.
+    - Respects the same env vars as the bash script: AGI_PYTHON_VERSION, APPS_REPOSITORY, APPS_DEST_BASE, PAGES_DEST_BASE.
 #>
 
 #----- Strict mode / setup -----------------------------------------------------
@@ -120,22 +120,22 @@ if (-not (Test-Path -LiteralPath $agilabPathFile)) {
   $AGILAB_PUBLIC = (Get-Content -LiteralPath $agilabPathFile -Raw).Trim()
 }
 
-$AGILAB_APPS_REPOSITORY = $env:AGILAB_APPS_REPOSITORY
+$APPS_REPOSITORY = $env:APPS_REPOSITORY
 
 $PAGES_TARGET_BASE = ""
 $APPS_TARGET_BASE  = ""
 $SkipRepositoryPages = $true
 $SkipRepositoryApps  = $true
 
-if (-not [string]::IsNullOrEmpty($AGILAB_APPS_REPOSITORY)) {
-  $PAGES_TARGET_BASE = Find-RepoSubdir $AGILAB_APPS_REPOSITORY 'apps-pages'
+if (-not [string]::IsNullOrEmpty($APPS_REPOSITORY)) {
+  $PAGES_TARGET_BASE = Find-RepoSubdir $APPS_REPOSITORY 'apps-pages'
   if (-not $PAGES_TARGET_BASE) {
-    Write-Color RED "Error: Could not locate an 'apps-pages' directory under $AGILAB_APPS_REPOSITORY"
+    Write-Color RED "Error: Could not locate an 'apps-pages' directory under $APPS_REPOSITORY"
     exit 1
   }
-  $APPS_TARGET_BASE = Find-RepoSubdir $AGILAB_APPS_REPOSITORY 'apps'
+  $APPS_TARGET_BASE = Find-RepoSubdir $APPS_REPOSITORY 'apps'
   if (-not $APPS_TARGET_BASE) {
-    Write-Color RED "Error: Could not locate an 'apps' directory under $AGILAB_APPS_REPOSITORY"
+    Write-Color RED "Error: Could not locate an 'apps' directory under $APPS_REPOSITORY"
     exit 1
   }
   $SkipRepositoryPages = $false
@@ -150,7 +150,7 @@ $PAGES_DEST_BASE = if ($env:PAGES_DEST_BASE) { $env:PAGES_DEST_BASE } else { Joi
 Ensure-Dir $APPS_DEST_BASE
 Ensure-Dir $PAGES_DEST_BASE
 
-Write-Color BLUE "Using AGILAB_APPS_REPOSITORY: $AGILAB_APPS_REPOSITORY"
+Write-Color BLUE "Using APPS_REPOSITORY: $APPS_REPOSITORY"
 Write-Color BLUE "Using AGILAB_PUBLIC: $AGILAB_PUBLIC"
 
 Write-Color BLUE "(Apps) Destination base: $APPS_DEST_BASE"

@@ -10,7 +10,7 @@ bootstrapper, etc.) now assume.
 - **Public checkout** – the open-source `agilab` repository containing the
   default apps and tooling.
 - **Private checkout** – the closed-source `apps-repository` repository referenced
-  by the `AGILAB_APPS_REPOSITORY` environment variable.
+  by the `APPS_REPOSITORY` environment variable.
 - **Service mode** – an end-user installation (`install_type == 0`) where the
   runtime lives under `~/agi-space` and pulls packages from wheels installed in
   a virtual environment.
@@ -21,7 +21,7 @@ bootstrapper, etc.) now assume.
 | ----------------| --------|
 | `~/.local/share/agilab/.env` | Populated by the installer and read by
   `AgiEnv`.  Must contain the private checkout location via
-  `AGILAB_APPS_REPOSITORY="/abs/path/to/apps-repository"`. |
+  `APPS_REPOSITORY="/abs/path/to/apps-repository"`. |
 | `~/.local/share/agilab/.agilab-path` | Records the canonical public checkout
   used when the installer ran.  When present it allows a fallback to the
   open-source apps. |
@@ -32,7 +32,7 @@ bootstrapper, etc.) now assume.
 ## How App Symlinks Are Resolved
 
 1. When `AgiEnv` initialises with `install_type == 0`, it first looks for
-   `AGILAB_APPS_REPOSITORY/src/agilab/apps`.
+   `APPS_REPOSITORY/src/agilab/apps`.
 2. Every `*_project` folder inside that private directory is symlinked into the
    active end-user workspace (e.g. `~/agi-space/apps`).  Existing links are
    recreated only when the target changed.
@@ -41,11 +41,11 @@ bootstrapper, etc.) now assume.
    instead of linking them.
 
 Because the private checkout is the primary source of truth, make sure the
-installer writes the up-to-date path to `AGILAB_APPS_REPOSITORY` and that the target
+installer writes the up-to-date path to `APPS_REPOSITORY` and that the target
 repository exposes the expected sub-tree:
 
 ```
-${AGILAB_APPS_REPOSITORY}/
+${APPS_REPOSITORY}/
   src/
     agilab/
       apps/
@@ -62,9 +62,9 @@ using the up-to-date private path.
 
 ## Practical Checklist
 
-1. Point `AGILAB_APPS_REPOSITORY` at the root of the private repository.
+1. Point `APPS_REPOSITORY` at the root of the private repository.
 2. Run the installer (or rerun `install_apps.sh`) so `~/.local/share/agilab/.env`
    is refreshed.
 3. Restart the end-user Streamlit app.  The sidebar project selector should now
-   only list apps that resolve inside `AGILAB_APPS_REPOSITORY`.
+   only list apps that resolve inside `APPS_REPOSITORY`.
 

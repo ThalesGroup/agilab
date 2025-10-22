@@ -23,7 +23,7 @@ OPENAI_API_KEY=""
 SOURCE="local"
 INSTALL_APPS_FLAG=0
 TEST_APPS_FLAG=0
-AGILAB_APPS_REPOSITORY=""
+APPS_REPOSITORY=""
 
 warn() {
     echo -e "${YELLOW}Warning:${NC} $*"
@@ -345,7 +345,7 @@ update_environment() {
         echo "CLUSTER_CREDENTIALS=\"$cluster_credentials\""
         echo "AGI_PYTHON_VERSION=\"$AGI_PYTHON_VERSION\""
         echo "AGI_PYTHON_FREE_THREADED=\"$AGI_PYTHON_FREE_THREADED\""
-        echo "AGILAB_APPS_REPOSITORY=\"$AGILAB_APPS_REPOSITORY\""
+        echo "APPS_REPOSITORY=\"$APPS_REPOSITORY\""
     } > "$ENV_FILE"
     echo -e "${GREEN}Environment updated in $ENV_FILE${NC}"
 }
@@ -431,7 +431,7 @@ while [[ "$#" -gt 0 ]]; do
         --cluster-ssh-credentials) cluster_credentials="$2"; shift 2;;
         --openai-api-key)      openai_api_key="$2";      shift 2;;
         --install-path)        AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
-        --apps-repository)     AGILAB_APPS_REPOSITORY=$(realpath "$2"); shift 2;;
+        --apps-repository)     APPS_REPOSITORY=$(realpath "$2"); shift 2;;
         --source)             SOURCE="$2"; shift 2;;
         --install-apps)       INSTALL_APPS_FLAG=1; shift;;
         --test-apps)          TEST_APPS_FLAG=1; INSTALL_APPS_FLAG=1; shift;;
@@ -439,7 +439,7 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
-export AGILAB_APPS_REPOSITORY
+export APPS_REPOSITORY
 
 check_internet
 set_locale
