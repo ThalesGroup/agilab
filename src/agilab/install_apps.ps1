@@ -145,22 +145,22 @@ if (-not (Test-Path -LiteralPath $agilabPathFile)) {
     $AGILAB_PUBLIC = (Get-Content -LiteralPath $agilabPathFile -Raw).Trim()
 }
 
-$APPS_REPOSITORY = $env:APPS_REPOSITORY
+$AGILAB_APPS_REPOSITORY = $env:AGILAB_APPS_REPOSITORY
 
 $PAGES_TARGET_BASE = ""
 $APPS_TARGET_BASE  = ""
 $SkipRepositoryPages = $true
 $SkipRepositoryApps  = $true
 
-if (-not [string]::IsNullOrEmpty($APPS_REPOSITORY)) {
-  $PAGES_TARGET_BASE = Find-RepoSubdir $APPS_REPOSITORY 'apps-pages'
+if (-not [string]::IsNullOrEmpty($AGILAB_APPS_REPOSITORY)) {
+  $PAGES_TARGET_BASE = Find-RepoSubdir $AGILAB_APPS_REPOSITORY 'apps-pages'
   if (-not $PAGES_TARGET_BASE) {
-    Write-Color RED "Error: Could not locate an 'apps-pages' directory under $APPS_REPOSITORY"
+    Write-Color RED "Error: Could not locate an 'apps-pages' directory under $AGILAB_APPS_REPOSITORY"
     exit 1
   }
-  $APPS_TARGET_BASE = Find-RepoSubdir $APPS_REPOSITORY 'apps'
+  $APPS_TARGET_BASE = Find-RepoSubdir $AGILAB_APPS_REPOSITORY 'apps'
   if (-not $APPS_TARGET_BASE) {
-    Write-Color RED "Error: Could not locate an 'apps' directory under $APPS_REPOSITORY"
+    Write-Color RED "Error: Could not locate an 'apps' directory under $AGILAB_APPS_REPOSITORY"
     exit 1
   }
   $SkipRepositoryPages = $false
