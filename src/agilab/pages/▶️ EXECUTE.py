@@ -1337,15 +1337,30 @@ if __name__ == "__main__":
             st.session_state.setdefault("benchmark", False)
             if st.session_state.pop("benchmark_reset_pending", False):
                 st.session_state["benchmark"] = False
-            benchmark_enabled = st.toggle(
-                "Benchmark all modes",
-                key="benchmark",
-                help="Run the snippet once per mode and report timings for each path",
-            )
-
             # ---- Compute run_mode exactly once (single source of truth)
             cluster_params = st.session_state.app_settings["cluster"]
             cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
+
+            benchmark_prereqs_met = cluster_enabled and all(
+                cluster_params.get(flag, False) for flag in ("pool", "cython")
+            )
+            if not benchmark_prereqs_met and st.session_state.get("benchmark"):
+                st.session_state["benchmark"] = False
+
+            requested_benchmark = st.toggle(
+                "Benchmark all modes",
+                key="benchmark",
+                help="Run the snippet once per mode and report timings for each path",
+                disabled=not benchmark_prereqs_met,
+            )
+
+            if benchmark_prereqs_met:
+                benchmark_enabled = requested_benchmark
+            else:
+                benchmark_enabled = False
+                st.warning(
+                    "Benchmark requires Cluster, Pool, and Cython to be enabled together."
+                )
 
             def _compute_mode():
                 # 0/1 pool + 0/2 cython + 0/4 dask + 0/8 rapids
