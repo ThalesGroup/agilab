@@ -5,6 +5,7 @@ import streamlit as st
 import tomli
 from pydantic import ValidationError
 
+from agi_env.pagelib import diagnose_data_directory
 from agi_env.streamlit_args import render_form
 from flight import (
     FlightArgs,
@@ -155,7 +156,13 @@ if st.session_state.get("toggle_custom", True):
     if st.session_state.data_source == "file":
         directory = env.home_abs / st.session_state.data_uri
         if not directory.is_dir():
-            st.error(f"The provided data_uri '{directory}' is not a valid directory.")
+            diagnosis = diagnose_data_directory(directory)
+            if not diagnosis:
+                diagnosis = (
+                    f"The provided data_uri '{directory}' is not a valid directory. "
+                    "If this location is a shared file mount, the shared file server may be down."
+                )
+            st.error(diagnosis)
             st.stop()
     validated_path = st.session_state.data_uri
 
