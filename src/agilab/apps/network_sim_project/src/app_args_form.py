@@ -7,12 +7,11 @@ from pydantic import ValidationError
 
 from agi_env.pagelib import diagnose_data_directory
 from agi_env.streamlit_args import render_form
-from flight import (
-    FlightArgs,
+from network_sim import (
+    NetworkSimArgs,
     apply_source_defaults,
     dump_args_to_toml,
 )
-
 
 def change_data_source() -> None:
     """Reset dependent fields when the data source toggles."""
@@ -41,20 +40,19 @@ if not app_settings or not st.session_state.get("is_args_from_ui"):
 
 stored_payload = dict(app_settings.get("args", {}))
 try:
-    stored_args = FlightArgs(**stored_payload)
+    stored_args = NetworkSimArgs(**stored_payload)
 except ValidationError as exc:
     messages = env.humanize_validation_errors(exc)
     st.warning("\n".join(messages) + f"\nplease check {settings_path}")
     st.session_state.pop("is_args_from_ui", None)
-    stored_args = FlightArgs()
+    stored_args = NetworkSimArgs()
 
 defaults_model = apply_source_defaults(stored_args)
 defaults_payload = defaults_model.to_toml_payload()
 st.session_state.app_settings["args"] = defaults_payload
 
-if st.session_state.get("toggle_edit", True):
-    # Streamlit User Interface
-    c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1.0, 1])
+if not st.session_state.get("toggle_edit", False):
+    c1, c2, c3, c4 = st.columns(4)
 
     with c1:
         st.selectbox(
@@ -80,77 +78,22 @@ if st.session_state.get("toggle_edit", True):
             )
 
     with c3:
-        if st.session_state.data_source == "file":
-            st.text_input(
-                label="Files filter",
-                value=defaults_model.files,
-                key="files",
-            )
-        else:
-            st.text_input(
-                label="Select the pipeline",
-                value=defaults_model.files,
-                key="files",
-            )
+        net_size = st.number_input(
+            "Number of nodes",
+            min_value=4,
+            value=int(defaults_model.net_size),
+            step=1,
+        )
+        topology_filename = st.text_input(
+            "Topology filename",
+            value=str(defaults_model.topology_filename),
+        )
 
     with c4:
-        st.number_input(
-            label="Number of files to read",
-            value=defaults_model.nfile,
-            key="nfile",
-            step=1,
-            min_value=0,
-        )
-
-    with c5:
-        st.number_input(
-            label="Number of line to skip",
-            value=defaults_model.nskip,
-            key="nskip",
-            step=1,
-            min_value=0,
-        )
-
-    c6, c7, c8, c9, c10 = st.columns([1, 1, 1, 1, 1])
-
-    with c6:
-        st.number_input(
-            label="Number of lines to read",
-            value=defaults_model.nread,
-            key="nread",
-            step=1,
-            min_value=0,
-        )
-
-    with c7:
-        st.number_input(
-            label="Sampling rate",
-            value=defaults_model.sampling_rate,
-            key="sampling_rate",
-            step=0.1,
-            min_value=0.0,
-        )
-
-    with c8:
-        st.date_input(
-            label="from Date",
-            value=defaults_model.datemin,
-            key="datemin",
-        )
-
-    with c9:
-        st.date_input(
-            label="to Date",
-            value=defaults_model.datemax,
-            key="datemax",
-        )
-
-    with c10:
-        st.selectbox(
-            label="Dataset output format",
-            options=["parquet", "csv"],
-            index=["parquet", "csv"].index(defaults_model.output_format),
-            key="output_format",
+        seed = st.number_input("Random seed", value=int(defaults_model.seed), step=1)
+        summary_filename = st.text_input(
+            "Summary filename",
+            value=str(defaults_model.summary_filename),
         )
 
     if st.session_state.data_source == "file":
@@ -169,21 +112,18 @@ if st.session_state.get("toggle_edit", True):
     candidate_args: dict[str, Any] = {
         "data_source": st.session_state.data_source,
         "data_uri": validated_path,
-        "files": st.session_state.files,
-        "nfile": st.session_state.nfile,
-        "nskip": st.session_state.nskip,
-        "nread": st.session_state.nread,
-        "sampling_rate": st.session_state.sampling_rate,
-        "datemin": st.session_state.datemin,
-        "datemax": st.session_state.datemax,
-        "output_format": st.session_state.output_format,
+        "net_size": int(net_size),
+        "seed": int(seed),
+        "topology_filename": topology_filename,
+        "summary_filename": summary_filename,
+        "data_uri": validated_path,
     }
 else:
     form_values = render_form(defaults_model)
     candidate_args = form_values
 
 try:
-    parsed_args = FlightArgs(**candidate_args)
+    parsed_args = NetworkSimArgs(**candidate_args)
 except ValidationError as exc:
     messages = env.humanize_validation_errors(exc)
     st.warning("\n".join(messages))
