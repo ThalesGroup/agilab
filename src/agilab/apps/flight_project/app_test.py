@@ -27,12 +27,12 @@ async def main() -> None:
     env = AgiEnv(apps_dir=apps_dir, active_app=active_app, verbose=True)
     wenv = env.wenv_abs
     for cmd in [
-        f"uv run --no-sync --project {wenv} python -m agi_node.agi_dispatcher.build --app-path {wenv} "
-        f"-q bdist_egg --packages agi_dispatcher,polars_worker -d {wenv}",
-        f"uv run --no-sync --project {wenv} python -m agi_node.agi_dispatcher.build --app-path {wenv} "
-        f"-q build_ext -b {wenv}",
-        f"uv run --no-sync --project {script_dir} {script_dir}/test/_test_{target_name}_manager.py",
-        f"uv run --no-sync --project {worker_repo} {script_dir}/test/_test_{target_name}_worker.py"
+        f"uv run --no-sync --project \"{wenv}\" python -m agi_node.agi_dispatcher.build --app-path \"{wenv}\" "
+        f"-q bdist_egg --packages agi_dispatcher,polars_worker -d \"{wenv}\"",
+        f"uv run --no-sync --project \"{wenv}\" python -m agi_node.agi_dispatcher.build --app-path \"{wenv}\" "
+        f"-q build_ext -b \"{wenv}\"",
+        f"uv run --no-sync --project \"{script_dir}\" \"{script_dir}/test/_test_{target_name}_manager.py\"",
+        f"uv run --no-sync --project \"{worker_repo}\" \"{script_dir}/test/_test_{target_name}_worker.py\""
     ]:
         await env.run(cmd, wenv)
 
