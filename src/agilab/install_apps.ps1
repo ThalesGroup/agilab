@@ -122,8 +122,8 @@ function ConvertTo-List {
 }
 
 function Invoke-UvPreview {
-    param([string[]]$Args)
-    & uv --preview-features extra-build-dependencies @Args
+    param([string[]]$UvArgs)
+    & uv --preview-features extra-build-dependencies @UvArgs
     return $LASTEXITCODE
 }
 
