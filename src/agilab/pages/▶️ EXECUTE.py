@@ -1496,18 +1496,49 @@ if __name__ == "__main__":
         )
 
         if load_clicked:
-            data_root = Path.home() / env.dataframe_path
+            candidate_roots: list[Path] = []
+
+            def _attach_root(raw_path: Optional[Path | str]) -> None:
+                if not raw_path:
+                    return
+                path = Path(raw_path).expanduser()
+                if not path.is_absolute():
+                    path = Path.home() / path
+                candidate_roots.append(path)
+
+            _attach_root(getattr(env, "dataframe_path", None))
+            _attach_root(getattr(env, "data_rel", None))
+
+            active_args = st.session_state.app_settings.get("args", {})
+            _attach_root(active_args.get("data_uri"))
+
+            # Remove duplicates while preserving order
+            unique_roots: list[Path] = []
+            seen_roots = set()
+            for root in candidate_roots:
+                key = str(root.resolve()) if root.exists() else str(root)
+                if key not in seen_roots:
+                    seen_roots.add(key)
+                    unique_roots.append(root)
+
             target_file: Optional[Path] = None
-            if data_root.is_dir():
-                candidates = [
-                    *data_root.rglob("*.parquet"),
-                    *data_root.rglob("*.csv"),
-                    *data_root.rglob("*.json"),
-                ]
-                if candidates:
-                    target_file = max(candidates, key=lambda file: file.stat().st_mtime)
-            elif data_root.is_file():
-                target_file = data_root
+            search_files: list[Path] = []
+            for root in unique_roots:
+                if root.is_dir():
+                    search_files.extend(
+                        list(root.rglob("*.parquet"))
+                        + list(root.rglob("*.csv"))
+                        + list(root.rglob("*.json"))
+                        + list(root.rglob("*.gml"))
+                    )
+                elif root.is_file():
+                    search_files.append(root)
+
+            if search_files:
+                try:
+                    target_file = max(search_files, key=lambda file: file.stat().st_mtime)
+                except FileNotFoundError:
+                    target_file = None
 
             if not target_file:
                 st.warning("No dataframe export found yet. Run EXECUTE to generate a fresh output.")
@@ -1538,6 +1569,26 @@ if __name__ == "__main__":
                             st.session_state["_force_export_open"] = True
                             st.session_state.pop("loaded_graph", None)
                             st.info(f"Parsed JSON payload as tabular data from {target_file.name}.")
+                    elif suffix == ".gml":
+                        graph = nx.read_gml(target_file)
+                        edge_df = nx.to_pandas_edgelist(graph)
+                        if not edge_df.empty:
+                            st.session_state["loaded_df"] = edge_df
+                            st.session_state["_force_export_open"] = True
+                            st.session_state["loaded_graph"] = graph
+                            st.success(f"Loaded topology edges from {target_file.name}.")
+                        else:
+                            node_df = pd.DataFrame(
+                                [(node, data) for node, data in graph.nodes(data=True)],
+                                columns=["node", "attributes"],
+                            )
+                            if node_df.empty:
+                                st.warning(f"{target_file.name} did not contain edges or node attributes to display.")
+                            else:
+                                st.session_state["loaded_df"] = node_df
+                                st.session_state["_force_export_open"] = True
+                                st.session_state["loaded_graph"] = graph
+                                st.info(f"Showing node metadata from {target_file.name}.")
                     else:
                         st.warning(f"Unsupported file format: {target_file.suffix}")
                 except json.JSONDecodeError as exc:

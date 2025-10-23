@@ -600,8 +600,8 @@ def init_custom_ui(render_generic_ui):
     """Ensure the custom app-args form toggle reflects the snippet state."""
     env = st.session_state["env"]
     form_path = env.app_args_form
-    if "toggle_custom" not in st.session_state:
-        st.session_state["toggle_custom"] = form_path.stat().st_size > 0
+    if "toggle_edit" not in st.session_state:
+        st.session_state["toggle_edit"] = form_path.stat().st_size > 0
     return
 
 
@@ -616,7 +616,7 @@ def on_project_change(project, switch_to_select=False):
     keys_to_clear = (
         "is_args_from_ui",
         "args_default",
-        "toggle_custom",
+        "toggle_edit",
         "df_file_selectbox",
         "app_settings",
         "input_datadir",
