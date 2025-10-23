@@ -1732,9 +1732,10 @@ class AGI:
             except StopIteration:
                 raise FileNotFoundError(f"no existing whl file in {wenv / "agi_node*"}")
 
-            await AGI.send_files(env, ip,
-                                 [egg_file, node_whl, env_whl],
-                                 wenv_rel)
+            dist_remote = wenv_rel / "dist"
+            await AGI.exec_ssh(ip, f"mkdir -p '{dist_remote}'")
+            await AGI.send_files(env, ip, [egg_file], wenv_rel)
+            await AGI.send_files(env, ip, [node_whl, env_whl], dist_remote)
         else:
             # Then send the files to the remote directory
             try:

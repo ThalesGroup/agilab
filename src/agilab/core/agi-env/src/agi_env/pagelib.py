@@ -85,6 +85,133 @@ def log(message):
     logging.info(message)
 
 
+def _current_mount_points() -> dict[Path, str]:
+    """Return currently mounted directories mapped to their filesystem type."""
+
+    mounts: dict[Path, str] = {}
+    proc_mounts = Path("/proc/mounts")
+    if proc_mounts.exists():
+        try:
+            for raw_line in proc_mounts.read_text(encoding="utf-8", errors="ignore").splitlines():
+                parts = raw_line.split()
+                if len(parts) < 3:
+                    continue
+                target = Path(parts[1]).expanduser().resolve(strict=False)
+                mounts[target] = parts[2]
+        except OSError as exc:
+            logging.debug("Unable to read /proc/mounts: %s", exc)
+        return mounts
+
+    try:
+        result = subprocess.run(
+            ["mount"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        logging.debug("Unable to query current mount points: %s", exc)
+        return {}
+
+    for raw_line in result.stdout.splitlines():
+        if " on " not in raw_line:
+            continue
+        try:
+            _, remainder = raw_line.split(" on ", 1)
+            target, details = remainder.split(" (", 1)
+        except ValueError:
+            continue
+        target_path = target.strip()
+        if not target_path:
+            continue
+        fstype = details.split(",", 1)[0].strip()
+        mounts[Path(target_path).expanduser().resolve(strict=False)] = fstype
+    return mounts
+
+
+@lru_cache(maxsize=1)
+def _fstab_mount_points() -> tuple[Path, ...]:
+    """Return mount points declared in ``/etc/fstab`` (if the file exists)."""
+
+    fstab = Path("/etc/fstab")
+    if not fstab.exists():
+        return tuple()
+
+    mounts: list[Path] = []
+    try:
+        for raw_line in fstab.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = raw_line.split("#", 1)[0].strip()
+            if not line:
+                continue
+            parts = line.split()
+            if len(parts) < 2:
+                continue
+            mounts.append(Path(parts[1]).expanduser())
+    except OSError as exc:
+        logging.debug("Unable to read /etc/fstab: %s", exc)
+    return tuple(mounts)
+
+
+def diagnose_data_directory(directory: Path) -> str | None:
+    """Return a user-friendly explanation when ``directory`` is unavailable."""
+
+    directory = Path(directory).expanduser()
+    try:
+        directory = directory.resolve(strict=False)
+    except RuntimeError:
+        directory = directory.absolute()
+    mounts = _fstab_mount_points()
+    current_mounts = _current_mount_points()
+
+    for mount in mounts:
+        try:
+            mount_resolved = mount.expanduser().resolve(strict=False)
+            directory.relative_to(mount_resolved)
+        except ValueError:
+            continue
+
+        if not mount_resolved.exists():
+            return (
+                f"The data share at '{mount_resolved}' is not mounted; "
+                "the shared file server may be down."
+            )
+        fstype = current_mounts.get(mount_resolved)
+        if fstype is None:
+            return (
+                f"The data share at '{mount_resolved}' is not mounted; "
+                "the shared file server may be down."
+            )
+        if fstype.lower() == "autofs":
+            prefix = str(mount_resolved)
+            if not prefix.endswith(os.sep):
+                prefix += os.sep
+            has_active_child = any(
+                str(child).startswith(prefix) and fs.lower() != "autofs"
+                for child, fs in current_mounts.items()
+            )
+            if not has_active_child:
+                return (
+                    f"The data share at '{mount_resolved}' is not mounted; "
+                    "the shared file server may be down."
+                )
+        if mount_resolved.is_dir():
+            try:
+                next(mount_resolved.iterdir())
+            except StopIteration:
+                return (
+                    f"The data share at '{mount_resolved}' appears empty; "
+                    "ensure the shared file export is reachable."
+                )
+            except OSError:
+                return (
+                    f"The data share at '{mount_resolved}' is unreachable; "
+                    "the shared file server may be down."
+                )
+        break
+    return None
+
+
 def run(command, cwd=None):
     """
     Execute a shell command.
@@ -595,7 +722,12 @@ def find_files(directory, ext=".csv", recursive=True):
     """
     directory = Path(directory)
     if not directory.is_dir():
-        raise NotADirectoryError(f"{directory} is not a valid directory.")
+        diagnosis = diagnose_data_directory(directory)
+        message = diagnosis or (
+            f"{directory} is not a valid directory. "
+            "If this path resides on a shared file mount, the shared file server may be down."
+        )
+        raise NotADirectoryError(message)
 
     # Normalize the extension to handle cases like 'csv' or '.csv'
     ext = f".{ext.lstrip('.')}"
