@@ -1051,7 +1051,31 @@ class AGI:
 
         wenv_abs.mkdir(parents=True, exist_ok=True)
 
-        await AgiEnv.run(f"{uv} self update", wenv_abs.parent)
+        if os.name == "nt":
+            standalone_uv = Path.home() / ".local" / "bin" / "uv.exe"
+            if standalone_uv.exists():
+                uv_parts = shlex.split(env.uv)
+                if uv_parts:
+                    uv_parts[0] = str(standalone_uv)
+                    windows_uv = cmd_prefix + " ".join(shlex.quote(part) for part in uv_parts)
+                else:
+                    windows_uv = cmd_prefix + shlex.quote(str(standalone_uv))
+                try:
+                    await AgiEnv.run(f"{windows_uv} self update", wenv_abs.parent)
+                except RuntimeError as exc:
+                    logger.warning(
+                        "Failed to update standalone uv at %s (skipping self update): %s",
+                        standalone_uv,
+                        exc,
+                    )
+            else:
+                logger.warning(
+                    "Standalone uv not found at %s; skipping 'uv self update' on Windows",
+                    standalone_uv,
+                )
+        else:
+            await AgiEnv.run(f"{uv} self update", wenv_abs.parent)
+
         try:
             await AgiEnv.run(f"{uv} python install {pyvers}", wenv_abs.parent)
         except RuntimeError as exc:
@@ -1579,10 +1603,10 @@ class AGI:
 
         if env.is_source_env:
             # add missing agi-anv and agi-node as there are not in pyproject.toml as wished
-            cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add {env.agi_env}"
+            cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add \"{env.agi_env}\""
             await AgiEnv.run(cmd_worker, wenv_abs)
 
-            cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add {env.agi_node}"
+            cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add \"{env.agi_node}\""
             await AgiEnv.run(cmd_worker, wenv_abs)
         else:
             # add missing agi-anv and agi-node as there are not in pyproject.toml as wished
@@ -1595,12 +1619,12 @@ class AGI:
         if hw_rapids_capable:
             cmd_worker = (
                 f"{worker_extra_indexes}{uv_worker} {run_type} --python {pyvers_worker} "
-                f"--config-file uv_config.toml --project '{wenv_abs}'"
+                f"--config-file uv_config.toml --project \"{wenv_abs}\""
             )
         else:
             cmd_worker = (
                 f"{worker_extra_indexes}{uv_worker} {run_type} {options_worker} "
-                f"--python {pyvers_worker} --project '{wenv_abs}'"
+                f"--python {pyvers_worker} --project \"{wenv_abs}\""
             )
 
         if env.verbose > 0:
@@ -1635,8 +1659,8 @@ class AGI:
                     if repo_agilab_root and project_path.resolve() == repo_agilab_root.resolve():
                         continue
                     cmd = (
-                        f"{uv_worker} run --project '{wenv_abs}' python -m pip install "
-                        f"--upgrade --no-deps '{project_path}'"
+                        f"{uv_worker} run --project \"{wenv_abs}\" python -m pip install "
+                        f"--upgrade --no-deps \"{project_path}\""
                     )
                     await AgiEnv.run(cmd, wenv_abs)
 
@@ -1653,7 +1677,7 @@ class AGI:
         else:
             # build agi_env*.whl
             menv = env.agi_env
-            cmd = f"{uv} --project '{menv}' build --wheel"
+            cmd = f"{uv} --project \"{menv}\" build --wheel"
             await AgiEnv.run(cmd, menv)
             src = menv / "dist"
             try:
@@ -1662,12 +1686,12 @@ class AGI:
             except StopIteration:
                 raise RuntimeError(cmd)
 
-            cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.agi_env}'"
+            cmd = f"{uv_worker} pip install --project \"{wenv_abs}\" -e \"{env.agi_env}\""
             await AgiEnv.run(cmd, wenv_abs)
 
             # build agi_node*.whl
             menv = env.agi_node
-            cmd = f"{uv} --project '{menv}' build --wheel"
+            cmd = f"{uv} --project \"{menv}\" build --wheel"
             await AgiEnv.run(cmd, menv)
             src = menv / "dist"
             try:
@@ -1676,11 +1700,11 @@ class AGI:
             except StopIteration:
                 raise RuntimeError(cmd)
 
-            cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.agi_node}'"
+            cmd = f"{uv_worker} pip install --project \"{wenv_abs}\" -e \"{env.agi_node}\""
             await AgiEnv.run(cmd, wenv_abs)
 
         # Install the app sources into the worker venv using the absolute app path
-        cmd = f"{uv_worker} pip install --project '{wenv_abs}' -e '{env.active_app}'"
+        cmd = f"{uv_worker} pip install --project \"{wenv_abs}\" -e \"{env.active_app}\""
         await AgiEnv.run(cmd, wenv_abs)
 
         # dataset
@@ -1696,7 +1720,7 @@ class AGI:
         AGI._install_done_local = True
 
         cli = wenv_abs.parent / "cli.py"
-        cmd = f"{uv_worker} run --no-sync --project '{wenv_abs}' python '{cli}' threaded"
+        cmd = f"{uv_worker} run --no-sync --project \"{wenv_abs}\" python \"{cli}\" threaded"
         await AgiEnv.run(cmd, wenv_abs)
 
     @staticmethod
@@ -2205,8 +2229,8 @@ class AGI:
         if env.is_free_threading_available:
             uv = cmd_prefix + " PYTHON_GIL=0 " + env.uv
         module_cmd = f"python -m {module}"
-        app_path_arg = shlex.quote(str(app_path))
-        wenv_arg = shlex.quote(str(wenv_abs))
+        app_path_arg = f"\"{app_path}\"" # shlex.quote(str(app_path))
+        wenv_arg = f"\"{wenv_abs}\"" # shlex.quote(str(wenv_abs))
 
         shutil.copy(env.worker_pyproject, env.wenv_abs)
         shutil.copy(env.uvproject, env.wenv_abs)
