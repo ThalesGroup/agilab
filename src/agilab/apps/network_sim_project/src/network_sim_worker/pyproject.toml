@@ -5,8 +5,6 @@ description = "Worker package for the Network Simulation app"
 requires-python = ">=3.11"
 readme = "README.md"
 dependencies = [
-    "agi-env",
-    "agi-node",
     "networkx",
     "numpy",
 ]

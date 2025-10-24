@@ -5,8 +5,6 @@ description = "Worker package for the Network Simulation app"
 requires-python = ">=3.11"
 readme = "README.md"
 dependencies = [
-    "agi-env",
-    "agi-node",
     "networkx",
     "numpy",
 ]
@@ -29,10 +27,6 @@ build-backend = "setuptools.build_meta"
 mypy_path = ["stubs"]
 disallow_untyped_defs = false
 ignore_missing_imports = true
-
-[tool.uv.sources]
-agi-env = { path = "../../PycharmProjects/agilab/src/agilab/core/agi-env" }
-agi-node = { path = "../../PycharmProjects/agilab/src/agilab/core/agi-node" }
 
 [project.optional-dependencies]
 dag-worker = []
