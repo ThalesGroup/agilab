@@ -1,6 +1,6 @@
 [args]
 data_source = "file"
-data_uri = "data/network_sim/dataset"
+data_uri = "data/flight/dataset"
 net_size = 12
 seed = 42
 topology_filename = "topology.gml"
@@ -11,4 +11,10 @@ verbose = 1
 cython = true
 pool = true
 rapids = true
-cluster_enabled = false
+cluster_enabled = true
+user = "nsbl"
+auth_method = "password"
+scheduler = "192.168.20.111"
+
+[cluster.workers]
+"192.168.20.111" = 1

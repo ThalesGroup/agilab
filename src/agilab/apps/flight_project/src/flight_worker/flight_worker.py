@@ -15,9 +15,9 @@ import warnings
 from datetime import datetime as dt
 from pathlib import Path
 import logging
-from types import SimpleNamespace
 
 from agi_env import normalize_path
+from agi_node import MutableNamespace
 from agi_node.polars_worker import PolarsWorker
 from agi_node.agi_dispatcher import BaseWorker
 
@@ -26,16 +26,6 @@ warnings.filterwarnings("ignore")
 
 import polars as pl
 from geopy.distance import geodesic
-
-
-class _MutableNamespace(SimpleNamespace):
-    """Namespace that also supports item-style access."""
-
-    def __getitem__(self, key):
-        return getattr(self, key)
-
-    def __setitem__(self, key, value):
-        setattr(self, key, value)
 
 
 class FlightWorker(PolarsWorker):
@@ -90,12 +80,12 @@ class FlightWorker(PolarsWorker):
         """Initialize global variables and setup paths."""
         global global_vars
 
-        if not isinstance(self.args, _MutableNamespace):
+        if not isinstance(self.args, MutableNamespace):
             if isinstance(self.args, dict):
                 payload = self.args
             else:
                 payload = vars(self.args)
-            self.args = _MutableNamespace(**payload)
+            self.args = MutableNamespace(**payload)
 
         logging.info(f"from: {__file__}")
 

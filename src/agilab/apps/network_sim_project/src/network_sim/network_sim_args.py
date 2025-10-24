@@ -88,13 +88,23 @@ def apply_source_defaults(
     args: NetworkSimArgs,
     *,
     host_ip: str | None = None,
+    env: Any | None = None,
 ) -> NetworkSimArgs:
     """Ensure source-specific defaults for missing values."""
 
     overrides: NetworkSimArgsTD = {}
     if args.data_source == "file":
         if not str(args.data_uri).strip():
-            overrides["data_uri"] = "data/network_sim/dataset"
+            default_path = Path("data/network_sim/dataset")
+            if env is not None:
+                try:
+                    base = Path(getattr(env, "home_abs", Path.home()))
+                    default_path = (base / default_path).expanduser()
+                except Exception:
+                    default_path = default_path.expanduser()
+            else:
+                default_path = default_path.expanduser()
+            overrides["data_uri"] = str(default_path)
     else:
         if host_ip:
             host = host_ip

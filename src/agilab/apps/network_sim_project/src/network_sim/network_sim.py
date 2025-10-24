@@ -126,3 +126,10 @@ class NetworkSimApp(BaseWorker):
         metadata[0].append(("generate_topology", 1))
 
         return plan, metadata, "job", "count", "weight"
+
+
+class NetworkSim(NetworkSimApp):
+    """Backwards-compatible alias expected by legacy installers."""
+
+
+__all__ = ["NetworkSimApp", "NetworkSim"]

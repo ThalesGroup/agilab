@@ -10,24 +10,13 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Dict
-from types import SimpleNamespace
-
 import networkx as nx
 
 from agi_env import normalize_path
+from agi_node import MutableNamespace
 from agi_node.dag_worker import DagWorker
 
 from network_sim.topology import generate_mixed_topology
-
-
-class _MutableNamespace(SimpleNamespace):
-    """Namespace that also supports item-style access."""
-
-    def __getitem__(self, key):
-        return getattr(self, key)
-
-    def __setitem__(self, key, value):
-        setattr(self, key, value)
 
 
 global_vars: Dict[str, Any] = {}
@@ -40,12 +29,12 @@ class NetworkSimWorker(DagWorker):  # pragma: no cover - executed within workers
         """Initialize global variables and setup paths."""
         global global_vars
 
-        if not isinstance(self.args, _MutableNamespace):
+        if not isinstance(self.args, MutableNamespace):
             if isinstance(self.args, dict):
                 payload = self.args
             else:
                 payload = vars(self.args)
-            self.args = _MutableNamespace(**payload)
+            self.args = MutableNamespace(**payload)
 
         logging.info(f"from: {__file__}")
 
@@ -94,6 +83,8 @@ class NetworkSimWorker(DagWorker):  # pragma: no cover - executed within workers
             # Implement your HAWK logic
             pass
 
+        if self.pool_vars is None:
+            self.pool_vars = {}
         self.pool_vars["args"] = self.args
         self.pool_vars["verbose"] = self.verbose
         global global_vars
@@ -110,7 +101,7 @@ class NetworkSimWorker(DagWorker):  # pragma: no cover - executed within workers
             params: Dict[str, Any] = {}
         elif isinstance(args_namespace, dict):
             params = dict(args_namespace)
-            args_namespace = _MutableNamespace(**params)
+            args_namespace = MutableNamespace(**params)
             global_vars["args"] = args_namespace
         else:
             params = dict(vars(args_namespace))

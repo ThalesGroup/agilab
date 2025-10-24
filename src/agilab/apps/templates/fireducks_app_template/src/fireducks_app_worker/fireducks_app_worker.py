@@ -2,6 +2,7 @@ import logging
 import warnings
 
 from fireducks_worker import FireducksWorker
+from agi_node import MutableNamespace
 
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
@@ -17,6 +18,9 @@ class FireducksAppWorker(FireducksWorker):
 
     def start(self):  # pragma: no cover - template hook
         logging.info("from: %s", __file__)
+        if not isinstance(self.args, MutableNamespace):
+            payload = self.args if isinstance(self.args, dict) else vars(self.args)
+            self.args = MutableNamespace(**payload)
 
     def work_init(self):  # pragma: no cover - template hook
         global global_vars

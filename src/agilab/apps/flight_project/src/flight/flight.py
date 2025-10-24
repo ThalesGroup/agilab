@@ -261,3 +261,10 @@ class Flight(BaseWorker):
         )
 
         return planes_partition, planes_partition_size, df
+
+
+class FlightApp(Flight):
+    """Alias keeping legacy imports alive."""
+
+
+__all__ = ["Flight", "FlightApp"]
