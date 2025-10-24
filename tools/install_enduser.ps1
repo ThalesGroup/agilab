@@ -277,8 +277,7 @@ function Install-OfflineAssistant {
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = (Resolve-Path (Join-Path $ScriptDir "..")).Path
 $RepoSrcDir = Join-Path (Join-Path $RepoRoot "src") "agilab"
-$Home = $HOME
-$AgiSpace = Join-Path $Home "agi-space"
+$AgiSpace = Join-Path $HOME "agi-space"
 Ensure-Dir $AgiSpace
 Write-Host "Using AGI_SPACE: $AgiSpace"
 
