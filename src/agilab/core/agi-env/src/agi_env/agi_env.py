@@ -1098,6 +1098,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             return candidate_repo
         return base_dir.parent
 
+    # Backwards-compatible alias kept for older tests and scripts
+    @staticmethod
+    def locate_agi_installation(verbose=False):
+        """Deprecated alias for locate_agilab_installation()."""
+        return AgiEnv.locate_agilab_installation(verbose=verbose)
+
     def copy_existing_projects(self, src_apps: Path, dst_apps: Path):
         """Copy ``*_project`` trees from ``src_apps`` into ``dst_apps`` if missing."""
 

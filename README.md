@@ -41,6 +41,17 @@ uvx -p 3.13 agilab
 > **Note**
 > This `uvx` invocation is meant for demos or smoke tests. Any changes you make inside the cached package will be overwritten on the next run. For development, clone the repository or use a virtual environment. Within a local checkout, stick to `uv run …`; invoking `uvx` there replaces your workspace with the published wheel.
 
+### Quick check: latest install log
+
+- Before launching, quickly inspect the newest installer log for errors.
+- Log locations:
+  - Windows: `C:\Users\<you>\log\install_logs`
+  - macOS/Linux: `$HOME/log/install_logs`
+- PowerShell (Windows):
+  - `($d = "$HOME\log\install_logs"); $f = Get-ChildItem -LiteralPath $d -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($f) { Write-Host "Log:" $f.FullName; Select-String -LiteralPath $f.FullName -Pattern '(?i)(error|exception|traceback|failed|fatal|denied|missing|not found)' | Select-Object -Last 25 | ForEach-Object { $_.Line } } else { Write-Host "No logs found." }`
+- Bash (macOS/Linux):
+  - `dir="$HOME/log/install_logs"; f=$(ls -1t "$dir"/*.log 2>/dev/null | head -1); [ -n "$f" ] && echo "Log: $f" && grep -Eai "error|exception|traceback|failed|fatal|denied|missing|not found" "$f" | tail -n 25 || echo "No logs found."`
+
 ### Offline assistant (GPT-OSS)
 
 Prefer to stay offline? Start a local GPT-OSS responses server and switch the “Assistant engine” selector (in the Experiment page sidebar) to *GPT-OSS (local)*:
