@@ -677,13 +677,13 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.worker_path = self.app_src / target_worker / f"{target_worker}.py"
         self.manager_path = self.app_src / target / f"{target}.py"
         is_local_worker = self.has_agilab_anywhere_under_home(self.agilab_pck)
-        worker_src = self.wenv_rel / 'src'
+        worker_src_abs = self.wenv_abs / 'src'
 
         if self.is_worker_env and not is_local_worker:
             self.app_src = self.agilab_pck / "src"
-            self.worker_path = worker_src / target_worker / f"{target_worker}.py"
+            self.worker_path = worker_src_abs / target_worker / f"{target_worker}.py"
 
-            self.manager_path = worker_src / target / f"{target}.py"
+            self.manager_path = worker_src_abs / target / f"{target}.py"
 
         self.worker_pyproject = self.worker_path.parent / "pyproject.toml"
         self.uvproject = self.active_app / "uv_config.toml"

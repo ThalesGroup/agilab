@@ -120,3 +120,10 @@ class FireducksApp(BaseWorker):
         self,
     ) -> Tuple[List[List], List[List[Tuple[int, int]]], str, str, str]:  # pragma: no cover - template hook
         return [], [], "id", "nb_fct", ""
+
+
+class Fireducks(FireducksApp):
+    """Backward-compatible alias without the App suffix."""
+
+
+__all__ = ["FireducksApp", "Fireducks"]
