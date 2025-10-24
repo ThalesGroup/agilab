@@ -1,50 +1,119 @@
-# test_work_dispatcher.py
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
-from unittest.mock import MagicMock, patch
+
+import agi_node.agi_dispatcher.agi_dispatcher as dispatcher_module
 from agi_node.agi_dispatcher import WorkDispatcher
-import asyncio
 
 
-@pytest.fixture
-def dispatcher():
-    wd = WorkDispatcher()
-    # Ajout d’un stub _convert si absent
-    if not hasattr(wd, '_convert'):
-        wd._convert = lambda lst, delegate_func=None: [delegate_func(x) for x in lst]
-    return wd
+def test_convert_functions_to_names_handles_nested_callables():
+    plan = {
+        "root": [
+            lambda: None,
+            (
+                "tuple",
+                {"cb": lambda: None},
+            ),
+        ]
+    }
+
+    converted = WorkDispatcher._convert_functions_to_names(plan)
+
+    assert converted["root"][0] == "<lambda>"
+    assert converted["root"][1][1]["cb"] == "<lambda>"
 
 
-def test__convert_delegates_correctly(dispatcher):
-    dispatcher._func_map = {"foo": MagicMock(return_value="bar")}
-    result = dispatcher._convert(["foo"], delegate_func=lambda x: dispatcher._func_map[x]())
-    assert result == ["bar"]
+@pytest.mark.asyncio
+async def test_do_distrib_builds_and_caches_plan(tmp_path, monkeypatch):
+    plan_path = tmp_path / "plan.json"
+    cluster_src = tmp_path / "cluster" / "src"
+    cluster_src.mkdir(parents=True)
+    env = SimpleNamespace(
+        target="DemoWorker",
+        target_class="DemoWorker",
+        agi_cluster=cluster_src.parent,
+        app_src=tmp_path / "app",
+        distribution_tree=plan_path,
+    )
+    env.app_src.mkdir(exist_ok=True)
+
+    workers = {"127.0.0.1": 1}
+    args = {"alpha": 1}
+
+    class DemoWorker:
+        build_calls = 0
+
+        def __init__(self, env, **kwargs):
+            self.received_env = env
+            self.received_args = kwargs
+
+        def build_distribution(self, assigned_workers):
+            type(self).build_calls += 1
+            assert assigned_workers == workers
+            return [["chunk"]], [{"meta": 1}], "partition", 1, 1.0
+
+    module = SimpleNamespace(DemoWorker=DemoWorker)
+    monkeypatch.setattr(WorkDispatcher, "_load_module", AsyncMock(return_value=module))
+
+    loaded_workers, work_plan, metadata = await WorkDispatcher._do_distrib(env, workers, args)
+
+    assert loaded_workers == {"127.0.0.1": 1}
+    assert work_plan == [["chunk"]]
+    assert metadata == [{"meta": 1}]
+    assert DemoWorker.build_calls == 1
+
+    data = json.loads(plan_path.read_text(encoding="utf-8"))
+    assert data["workers"] == workers
+    assert data["target_args"] == args
+
+    await WorkDispatcher._do_distrib(env, workers, args)
+    assert DemoWorker.build_calls == 1  # cached, no rebuild
 
 
-def test_do_distrib_calls_expected_methods(dispatcher):
-    if hasattr(dispatcher, 'do_distrib'):
-        with patch.object(dispatcher, 'do_distrib') as mock_do_work:
-            # Ici tu peux ajouter le code de test réel si besoin
-            pass
-    else:
-        pytest.skip("No do_work method in WorkDispatcher")
+def test_onerror_handles_permission_issue(monkeypatch):
+    monkeypatch.setattr("os.access", lambda path, mode: False)
+    captured: dict[str, str] = {}
+
+    def fake_chmod(path, mode):
+        captured["path"] = path
+
+    monkeypatch.setattr("os.chmod", fake_chmod)
+
+    WorkDispatcher._onerror(lambda _: None, "dummy_path", ("exc", "value", "tb"))
+
+    assert captured["path"] == "dummy_path"
 
 
-def test_onerror_handles_exception(dispatcher):
-    with patch('os.access', return_value=False), patch('os.chmod') as mock_chmod:
-        try:
-            dispatcher._onerror(func=lambda path: None, path='dummy_path', exc_info=('exc_type', 'exc_value', 'traceback'))
-        except Exception:
-            pytest.fail("onerror raised Exception unexpectedly!")
+@pytest.mark.asyncio
+async def test_load_module_requests_install(monkeypatch, tmp_path):
+    import_calls = []
 
+    def fake_import(name):
+        import_calls.append(name)
+        if len(import_calls) == 1:
+            raise ModuleNotFoundError("No module named 'missing_pkg'")
+        return "module"
 
-def test_workdispatcher_init_sets_attributes():
-    wd = WorkDispatcher()
-    wd._func_map = {}  # initialisation manuelle
-    assert hasattr(wd, '_func_map')
+    recorded: list[tuple[str, Path]] = []
 
+    async def fake_run(cmd, app_path):
+        recorded.append((cmd, app_path))
 
-def test_workdispatcher_load_module():
-    module = asyncio.run(WorkDispatcher._load_module("math", package=None, path=""))
-    import math
-    assert module == math, "Loaded module does not match the built-in math module."
+    monkeypatch.setattr(dispatcher_module.importlib, "import_module", fake_import)
+    monkeypatch.setattr(dispatcher_module.AgiEnv, "run", fake_run)
+
+    env = SimpleNamespace(
+        uv="uv",
+        active_app=tmp_path,
+    )
+
+    result = await WorkDispatcher._load_module("demo", env=env)
+
+    assert result == "module"
+    assert recorded == [("uv add --upgrade missing_pkg", tmp_path)]
+    assert len(import_calls) == 2
