@@ -7,189 +7,156 @@ from pydantic import ValidationError
 
 from agi_env.pagelib import diagnose_data_directory
 from agi_env.streamlit_args import render_form
-from flight import (
-    FlightArgs,
-    apply_source_defaults,
-    dump_args_to_toml,
-)
+from flight import FlightArgs, apply_source_defaults, dump_args_to_toml
 
-
-def change_data_source() -> None:
-    """Reset dependent fields when the data source toggles."""
-
-    st.session_state.pop("data_uri", None)
-    st.session_state.pop("files", None)
+PREFIX = "flight_"
 
 
 def load_app_settings(path: Path) -> dict[str, Any]:
-    """Load the full Streamlit app settings TOML into a dictionary."""
-
     if path.exists():
         with path.open("rb") as handle:
             return tomli.load(handle)
     return {}
 
 
-env = st.session_state._env
-settings_path = Path(env.app_settings_file)
+def _ensure_streamlit_context() -> Any | None:
+    return st.session_state.get("_env")
 
-# Ensure app_settings is available in session state
-app_settings = st.session_state.get("app_settings")
-if not app_settings or not st.session_state.get("is_args_from_ui"):
-    app_settings = load_app_settings(settings_path)
-    st.session_state.app_settings = app_settings
 
-stored_payload = dict(app_settings.get("args", {}))
-try:
-    stored_args = FlightArgs(**stored_payload)
-except ValidationError as exc:
-    messages = env.humanize_validation_errors(exc)
-    st.warning("\n".join(messages) + f"\nplease check {settings_path}")
-    st.session_state.pop("is_args_from_ui", None)
-    stored_args = FlightArgs()
+def render() -> None:
+    env = _ensure_streamlit_context()
+    if env is None:
+        return
 
-defaults_model = apply_source_defaults(stored_args)
-defaults_payload = defaults_model.to_toml_payload()
-st.session_state.app_settings["args"] = defaults_payload
+    settings_path = Path(env.app_settings_file)
 
-if st.session_state.get("toggle_edit", True):
-    # Streamlit User Interface
-    c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1.0, 1])
+    app_settings = st.session_state.get("app_settings")
+    if not app_settings or not st.session_state.get("is_args_from_ui"):
+        app_settings = load_app_settings(settings_path)
+        st.session_state.app_settings = app_settings
 
-    with c1:
-        st.selectbox(
-            label="Data source",
+    try:
+        stored_args = FlightArgs(**dict(app_settings.get("args", {})))
+    except ValidationError as exc:
+        st.warning("\n".join(env.humanize_validation_errors(exc)) + f"\nplease check {settings_path}")
+        st.session_state.pop("is_args_from_ui", None)
+        stored_args = FlightArgs()
+
+    defaults_model = apply_source_defaults(stored_args)
+    defaults_payload = defaults_model.to_toml_payload()
+    st.session_state.app_settings["args"] = defaults_payload
+
+    if st.session_state.get("toggle_edit", True):
+        c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1.0, 1])
+
+        data_source = st.selectbox(
+            "Data source",
             options=["file", "hawk"],
             index=["file", "hawk"].index(defaults_model.data_source),
-            key="data_source",
-            on_change=change_data_source,
+            key=f"{PREFIX}data_source",
         )
 
-    with c2:
-        if st.session_state.data_source == "file":
-            st.text_input(
-                label="Data directory",
+        with c2:
+            data_uri = st.text_input(
+                "Data directory" if data_source == "file" else "Hawk cluster data_uri",
                 value=str(defaults_model.data_uri),
-                key="data_uri",
-            )
-        else:
-            st.text_input(
-                label="Hawk cluster data_uri",
-                value=str(defaults_model.data_uri),
-                key="data_uri",
+                key=f"{PREFIX}data_uri",
             )
 
-    with c3:
-        if st.session_state.data_source == "file":
-            st.text_input(
-                label="Files filter",
+        with c3:
+            files = st.text_input(
+                "Files filter" if data_source == "file" else "Select the pipeline",
                 value=defaults_model.files,
-                key="files",
-            )
-        else:
-            st.text_input(
-                label="Select the pipeline",
-                value=defaults_model.files,
-                key="files",
+                key=f"{PREFIX}files",
             )
 
-    with c4:
-        st.number_input(
-            label="Number of files to read",
-            value=defaults_model.nfile,
-            key="nfile",
-            step=1,
-            min_value=0,
-        )
+        with c4:
+            nfile = st.number_input(
+                "Number of files to read",
+                value=defaults_model.nfile,
+                key=f"{PREFIX}nfile",
+                step=1,
+                min_value=0,
+            )
 
-    with c5:
-        st.number_input(
-            label="Number of line to skip",
-            value=defaults_model.nskip,
-            key="nskip",
-            step=1,
-            min_value=0,
-        )
+        with c5:
+            nskip = st.number_input(
+                "Number of line to skip",
+                value=defaults_model.nskip,
+                key=f"{PREFIX}nskip",
+                step=1,
+                min_value=0,
+            )
 
-    c6, c7, c8, c9, c10 = st.columns([1, 1, 1, 1, 1])
+        c6, c7, c8, c9, c10 = st.columns([1, 1, 1, 1, 1])
 
-    with c6:
-        st.number_input(
-            label="Number of lines to read",
-            value=defaults_model.nread,
-            key="nread",
-            step=1,
-            min_value=0,
-        )
+        with c6:
+            nread = st.number_input(
+                "Number of lines to read",
+                value=defaults_model.nread,
+                key=f"{PREFIX}nread",
+                step=1,
+                min_value=0,
+            )
 
-    with c7:
-        st.number_input(
-            label="Sampling rate",
-            value=defaults_model.sampling_rate,
-            key="sampling_rate",
-            step=0.1,
-            min_value=0.0,
-        )
+        with c7:
+            sampling_rate = st.number_input(
+                "Sampling rate",
+                value=defaults_model.sampling_rate,
+                key=f"{PREFIX}sampling_rate",
+                step=0.1,
+                min_value=0.0,
+            )
 
-    with c8:
-        st.date_input(
-            label="from Date",
-            value=defaults_model.datemin,
-            key="datemin",
-        )
+        with c8:
+            datemin = st.date_input("from Date", value=defaults_model.datemin, key=f"{PREFIX}datemin")
 
-    with c9:
-        st.date_input(
-            label="to Date",
-            value=defaults_model.datemax,
-            key="datemax",
-        )
+        with c9:
+            datemax = st.date_input("to Date", value=defaults_model.datemax, key=f"{PREFIX}datemax")
 
-    with c10:
-        st.selectbox(
-            label="Dataset output format",
-            options=["parquet", "csv"],
-            index=["parquet", "csv"].index(defaults_model.output_format),
-            key="output_format",
-        )
+        with c10:
+            output_format = st.selectbox(
+                "Dataset output format",
+                options=["parquet", "csv"],
+                index=["parquet", "csv"].index(defaults_model.output_format),
+                key=f"{PREFIX}output_format",
+            )
 
-    if st.session_state.data_source == "file":
-        directory = env.home_abs / st.session_state.data_uri
-        if not directory.is_dir():
-            diagnosis = diagnose_data_directory(directory)
-            if not diagnosis:
-                diagnosis = (
-                    f"The provided data_uri '{directory}' is not a valid directory. "
-                    "If this location is a shared file mount, the shared file server may be down."
-                )
-            st.error(diagnosis)
-            st.stop()
-    validated_path = st.session_state.data_uri
+        if data_source == "file":
+            directory = env.home_abs / data_uri
+            if not directory.is_dir():
+                diagnosis = diagnose_data_directory(directory)
+                if not diagnosis:
+                    diagnosis = (
+                        f"The provided data_uri '{directory}' is not a valid directory. "
+                        "If this location is a shared file mount, the shared file server may be down."
+                    )
+                st.error(diagnosis)
+                st.stop()
 
-    candidate_args: dict[str, Any] = {
-        "data_source": st.session_state.data_source,
-        "data_uri": validated_path,
-        "files": st.session_state.files,
-        "nfile": st.session_state.nfile,
-        "nskip": st.session_state.nskip,
-        "nread": st.session_state.nread,
-        "sampling_rate": st.session_state.sampling_rate,
-        "datemin": st.session_state.datemin,
-        "datemax": st.session_state.datemax,
-        "output_format": st.session_state.output_format,
-    }
-else:
-    form_values = render_form(defaults_model)
-    candidate_args = form_values
+        candidate_args: dict[str, Any] = {
+            "data_source": data_source,
+            "data_uri": data_uri,
+            "files": files,
+            "nfile": int(nfile),
+            "nskip": int(nskip),
+            "nread": int(nread),
+            "sampling_rate": float(sampling_rate),
+            "datemin": datemin,
+            "datemax": datemax,
+            "output_format": output_format,
+        }
+    else:
+        candidate_args = render_form(defaults_model)
 
-try:
-    parsed_args = FlightArgs(**candidate_args)
-except ValidationError as exc:
-    messages = env.humanize_validation_errors(exc)
-    st.warning("\n".join(messages))
-    st.session_state.pop("is_args_from_ui", None)
-else:
-    st.success("All params are valid !")
+    try:
+        parsed_args = FlightArgs(**candidate_args)
+    except ValidationError as exc:
+        st.warning("\n".join(env.humanize_validation_errors(exc)))
+        st.session_state.pop("is_args_from_ui", None)
+        return
+
+    st.success("All params are valid !")
 
     payload = parsed_args.to_toml_payload()
     if payload != defaults_payload:
@@ -197,3 +164,6 @@ else:
         st.session_state.app_settings["args"] = payload
         st.session_state.is_args_from_ui = True
         st.session_state["args_project"] = env.app
+
+
+render()

@@ -1,8 +1,13 @@
+import logging
 import warnings
+
 from agi_env import AgiEnv, normalize_path
+from agi_node import MutableNamespace
 from agi_node.polars_worker import PolarsWorker
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
+
+global_vars = None
 
 
 class PolarsAppWorker(PolarsWorker):
@@ -13,6 +18,10 @@ class PolarsAppWorker(PolarsWorker):
     def start(self):
         """init"""
         logging.info(f"from: {__file__}")
+
+        if not isinstance(self.args, MutableNamespace):
+            payload = self.args if isinstance(self.args, dict) else vars(self.args)
+            self.args = MutableNamespace(**payload)
 
     def work_init(self):
         """work_init : read from space"""

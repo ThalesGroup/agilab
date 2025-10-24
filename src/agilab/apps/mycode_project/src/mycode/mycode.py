@@ -89,3 +89,10 @@ class Mycode(BaseWorker):
         workers: dict | None = None,
     ) -> Tuple[List[List], List[List[Tuple[int, int]]], str, str, str]:  # pragma: no cover - template hook
         return [], [], "id", "nb_fct", ""
+
+
+class MycodeApp(Mycode):
+    """Alias retaining the historical suffix for compatibility."""
+
+
+__all__ = ["Mycode", "MycodeApp"]

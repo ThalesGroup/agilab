@@ -260,7 +260,12 @@ def main(argv: list[str] | None = None) -> None:
             AgiEnv.logger.error(e)
             raise
 
-        worker_py = env.worker_path
+        worker_py = Path(env.worker_path)
+        if not worker_py.is_absolute():
+            try:
+                worker_py = (env.home_abs / worker_py).resolve()
+            except Exception:
+                worker_py = (Path.cwd() / worker_py).resolve()
         worker_pyx = worker_py.with_suffix('.pyx')
         if not worker_pyx.exists() and env.pre_install:
             pre_cmd = [
