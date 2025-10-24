@@ -8,7 +8,7 @@ from dask.distributed import Client
 
 # Project Libraries:
 from agi_env import AgiEnv, normalize_path
-from managers import AGI
+from agi_cluster.agi_distributor.agi_distributor import AGI
 
 warnings.filterwarnings("ignore")
 logger = logging.getLogger(__name__)
