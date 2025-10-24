@@ -343,8 +343,10 @@ if ($Source -eq 'local') {
 Set-PersistEnvVar -Key "APPS_DIR" -Value $AppsRoot -EnvFile $EnvFile
 
 Write-Host "===================================="
-Write-Host (" MODE:     {0}" -f $Source)
-Write-Host (" VERSION:  {0}" -f ([string]::IsNullOrEmpty($Version) ? "<latest>" : $Version))
+Write-Host " MODE:     $Source"
+$__verDisp = "<latest>"
+if (-not [string]::IsNullOrEmpty($Version)) { $__verDisp = $Version }
+Write-Host " VERSION:  $($__verDisp)"
 Write-Host "===================================="
 
 $venvPython = ""
@@ -405,7 +407,7 @@ try {
             Invoke-UvPreview -Args @("pip", "install", "packaging")
 
             if ([string]::IsNullOrEmpty($Version)) {
-                Write-Host ("Resolving newest *common* TestPyPI version across: {0}" -f ($Packages -join ' '))
+                Write-Host "Resolving newest common TestPyPI version across: $($Packages -join ' ')"
                 $attempt = 0
                 while ([string]::IsNullOrEmpty($Version) -and $attempt -lt 10) {
                     $candidate = Resolve-CommonLatest -Packages $Packages
@@ -420,12 +422,13 @@ try {
                 if ([string]::IsNullOrEmpty($Version)) {
                     throw "ERROR: Could not find a common version for all packages on TestPyPI after retries."
                 }
-                Write-Host ("✔ Using version {0} for all packages" -f $Version)
+                Write-Host "Using version $Version for all packages"
             } else {
-                Write-Host ("Installing from TestPyPI (forced VERSION={0} for all)…" -f $Version)
+                Write-Host "Installing from TestPyPI (forced VERSION=$Version for all)."
             }
 
-            Write-Host ("Installing packages: {0} == {1}" -f ($Packages -join ' '), $Version)
+            $pkgListInstall = ($Packages -join ' ')
+            Write-Host "Installing packages: $pkgListInstall == $Version"
             $pkgArgs = foreach ($pkg in $Packages) { "$pkg==$Version" }
             Invoke-UvPreview -Args (@("run", "python", "-m", "pip", "install", "--index", $indexUrl, "--extra-index-url", $extraUrl, "--upgrade", "--no-cache-dir") + $pkgArgs)
 
@@ -480,3 +483,6 @@ if ($venvPython) {
     Write-Warning "Python interpreter not found in $Venv; skipping package list."
 }
 Write-Host "===================================="
+
+
+
