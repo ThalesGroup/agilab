@@ -186,16 +186,23 @@ TIME_LEVEL_PREFIX = re.compile(
 def normalize_path(path):
     """Return ``path`` coerced to a normalised string representation.
 
-    ``Path`` objects are converted to a string that matches the current platform
-    conventions so the value can safely be stored in configuration files or
-    environment variables.
+    On Windows, ensure relative inputs are resolved to absolute paths to match
+    historical expectations in tests and config consumers. On POSIX, preserve
+    the POSIX-style representation of the provided path.
     """
 
-    return (
-        str(PureWindowsPath(Path(path)))
-        if os.name == "nt"
-        else str(PurePosixPath(Path(path)))
-    )
+    # Accept both strings and Path-like
+    p = Path(path) if str(path) != "" else Path.cwd()
+    if os.name == "nt":
+        try:
+            # Resolve to absolute path without requiring the target to exist.
+            p = p.expanduser().resolve(strict=False)
+        except Exception:
+            # Fallback: normalise without resolution
+            p = p.expanduser()
+        return str(PureWindowsPath(p))
+    else:
+        return str(PurePosixPath(p))
 
 
 def parse_level(line, default_level):
