@@ -680,7 +680,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         worker_src = self.wenv_rel / 'src'
 
         if self.is_worker_env and not is_local_worker:
-            app = self.agilab_pck
             self.app_src = self.agilab_pck / "src"
             self.worker_path = worker_src / target_worker / f"{target_worker}.py"
 
@@ -719,7 +718,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                             f"Unable to copy packaged worker app from {packaged_app} to {self.app}: {exc}"
                         )
                 elif not self.is_worker_env and apps_root.exists():
-                    self.copy_existing_projects(apps_root, app.parent)
+                    self.copy_existing_projects(apps_root, apps_dir)
 
                 if (
                     not self.is_worker_env
