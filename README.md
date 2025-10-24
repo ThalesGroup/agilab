@@ -95,7 +95,7 @@ The generator groups scripts under `tools/run_configs/<group>/` (`agilab`, `apps
 ```bash
 git clone https://github.com/ThalesGroup/agilab
 cd agilab
-./install.sh --openai-api-key "sk-your-api-key" --cluster-ssh-credentials "username[:password]"
+./install.sh --apps-repository path/to/your/apps/repository
 ```
 </details>
 
@@ -107,7 +107,7 @@ cd agilab
 ```powershell
 git clone https://github.com/ThalesGroup/agilab
 cd agilabpush it
-powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --openai-api-key "sk-your-api-key"
+powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 --apps-repositroy
 ```
 </details>
 
