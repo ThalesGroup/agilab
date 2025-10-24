@@ -143,4 +143,4 @@ addopts = [
 
 [tool.coverage.run]
 branch = true
-source = ["agilab", "agi_core", "agi_env", "agi_cluster", "agi_node"]
+source = ["agi_core", "agi_env", "agi_cluster", "agi_node"]

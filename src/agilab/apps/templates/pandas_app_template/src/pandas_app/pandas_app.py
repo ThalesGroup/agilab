@@ -121,3 +121,10 @@ class PandasApp(BaseWorker):
         self,
     ) -> Tuple[List[List], List[List[Tuple[int, int]]], str, str, str]:  # pragma: no cover - template hook
         return [], [], "id", "nb_fct", ""
+
+
+class Pandas(PandasApp):
+    """Backward-compatible alias expected by older tooling."""
+
+
+__all__ = ["PandasApp", "Pandas"]
