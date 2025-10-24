@@ -1,9 +1,9 @@
-import runpy
 from agi_env import AgiEnv
+from agi_cluster.agi_distributor import cli as distributor_cli
 
-# Prefer modern module invocation over filesystem paths
+# Ensure environment resolves, but avoid invoking the CLI with no args
 apps_dir = AgiEnv.locate_agi_installation(verbose=0) / "apps"
 env = AgiEnv(apps_dir=apps_dir, app="flight_project", verbose=1)
 
-# Execute the distributor CLI via its module entrypoint
-runpy.run_module("agi_cluster.agi_distributor.cli", run_name="__main__")
+# Call a harmless function to validate importability
+_ = distributor_cli.python_version()

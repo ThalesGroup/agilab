@@ -83,23 +83,35 @@ function New-DirLink {
 
 function Find-RepoSubdir {
     param([string]$Root, [string]$Name)
-    if ([string]::IsNullOrWhiteSpace($Root) -or -not (Test-Path -LiteralPath $Root)) { return "" }
-    try {
-        $candidates = Get-ChildItem -LiteralPath $Root -Directory -Recurse -ErrorAction Stop |
-            Where-Object { $_.Name -eq $Name }
-    } catch {
-        return ""
+    if ([string]::IsNullOrWhiteSpace($Root)) { return "" }
+    $rootPath = Resolve-PhysicalPath $Root
+    if (-not $rootPath) { $rootPath = $Root }
+
+    # Fast known-candidate checks (common layouts)
+    $known = @(
+        (Join-Path $rootPath $Name),
+        (Join-Path (Join-Path $rootPath 'src/agilab') $Name)
+    )
+    foreach ($k in $known) {
+        if (Test-Path -LiteralPath $k) { return (Resolve-PhysicalPath $k) }
     }
+
+    # Fallback: recursive scan, tolerant to errors
+    try {
+        $candidates = Get-ChildItem -LiteralPath $rootPath -Directory -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -eq $Name }
+    } catch { $candidates = @() }
+
     foreach ($candidate in $candidates) {
         if ($Name -eq 'apps') {
             $hasProjects = Get-ChildItem -LiteralPath $candidate.FullName -Directory -Filter '*_project' -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($hasProjects) { return $candidate.FullName }
+            if ($hasProjects) { return (Resolve-PhysicalPath $candidate.FullName) }
         } elseif ($Name -eq 'apps-pages') {
             $hasPages = Get-ChildItem -LiteralPath $candidate.FullName -Directory -ErrorAction SilentlyContinue |
                 Where-Object { $_.Name -ne '.venv' } | Select-Object -First 1
-            if ($hasPages) { return $candidate.FullName }
+            if ($hasPages) { return (Resolve-PhysicalPath $candidate.FullName) }
         } else {
-            return $candidate.FullName
+            return (Resolve-PhysicalPath $candidate.FullName)
         }
     }
     return ""
@@ -152,15 +164,43 @@ $APPS_TARGET_BASE  = ""
 $SkipRepositoryPages = $true
 $SkipRepositoryApps  = $true
 
+function Fix-WindowsDrivePath {
+  param([string]$Path)
+  if ([string]::IsNullOrWhiteSpace($Path)) { return $Path }
+  $p = $Path.Trim()
+  if ($p -match '^[A-Za-z]:(?![\\/])') { $p = $p.Substring(0,2) + '\\' + $p.Substring(2) }
+  return $p
+}
+
+$AGILAB_APPS_REPOSITORY = Fix-WindowsDrivePath $AGILAB_APPS_REPOSITORY
+
 if (-not [string]::IsNullOrEmpty($AGILAB_APPS_REPOSITORY)) {
-  $PAGES_TARGET_BASE = Find-RepoSubdir $AGILAB_APPS_REPOSITORY 'apps-pages'
+  $RepoRoot = Resolve-PhysicalPath $AGILAB_APPS_REPOSITORY
+  if (-not $RepoRoot) { $RepoRoot = $AGILAB_APPS_REPOSITORY }
+  Write-Color BLUE ("Using repository root: {0}" -f $RepoRoot)
+  # Basic Windows path sanity hint: e.g. "C:Usersfoo" (missing backslashes)
+  if ($AGILAB_APPS_REPOSITORY -match '^[A-Za-z]:(?![\\/])') {
+    Write-Color YELLOW "Hint: The AppsRepository path '$AGILAB_APPS_REPOSITORY' looks malformed. On Windows, use backslashes and quote the path, e.g. 'C:\\Users\\me\\repo'"
+  }
+  $PAGES_TARGET_BASE = Find-RepoSubdir $RepoRoot 'apps-pages'
   if (-not $PAGES_TARGET_BASE) {
     Write-Color RED "Error: Could not locate an 'apps-pages' directory under $AGILAB_APPS_REPOSITORY"
+    $cand1 = Join-Path $RepoRoot 'apps-pages'
+    $cand2 = Join-Path (Join-Path $RepoRoot 'src/agilab') 'apps-pages'
+    Write-Color YELLOW ("Checked: {0} and {1}" -f $cand1, $cand2)
+    Write-Color YELLOW "Hint: Ensure the repository contains an 'apps-pages' folder or omit -AppsRepository to skip repository pages."
+    $here = (Get-Location).Path
+    if ($here -match '^[A-Za-z]:(?![\\/])') { $here = $here.Substring(0,2) + '\\' + $here.Substring(2) }
+    Write-Color YELLOW ("Hint: If this is the current repo, pass -AppsRepository '{0}'" -f $here)
     exit 1
   }
-  $APPS_TARGET_BASE = Find-RepoSubdir $AGILAB_APPS_REPOSITORY 'apps'
+  $APPS_TARGET_BASE = Find-RepoSubdir $RepoRoot 'apps'
   if (-not $APPS_TARGET_BASE) {
     Write-Color RED "Error: Could not locate an 'apps' directory under $AGILAB_APPS_REPOSITORY"
+    $cand1 = Join-Path $RepoRoot 'apps'
+    $cand2 = Join-Path (Join-Path $RepoRoot 'src/agilab') 'apps'
+    Write-Color YELLOW ("Checked: {0} and {1}" -f $cand1, $cand2)
+    Write-Color YELLOW "Hint: Ensure the repository contains an 'apps' folder (with '*_project' subfolders), or omit -AppsRepository to skip repository apps."
     exit 1
   }
   $SkipRepositoryPages = $false

@@ -370,7 +370,15 @@ def inject_theme(base_path: Path | None = None) -> None:
         base_path = Path(__file__).resolve().parents[1] / "resources"
     css_path = Path(base_path) / "theme.css"
     if css_path.exists():
-        css = css_path.read_text()
+        try:
+            css = css_path.read_text(encoding="utf-8")
+        except Exception:
+            try:
+                with css_path.open("rb") as fh:
+                    css = fh.read().decode("utf-8", errors="replace")
+            except Exception:
+                # Give up silently; theme is optional
+                return
         st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 def _read_version_from_pyproject(env) -> str | None:

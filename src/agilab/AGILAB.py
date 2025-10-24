@@ -289,7 +289,11 @@ def main():
     )
     resources_path = Path(__file__).resolve().parent / "resources"
     os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(resources_path / "config.toml"))
-    inject_theme(resources_path)
+    try:
+        inject_theme(resources_path)
+    except Exception as e:
+        # Non-fatal: UI will still load without custom theme
+        st.warning(f"Theme injection skipped: {e}")
     st.session_state.setdefault("first_run", True)
 
     # Always set background style

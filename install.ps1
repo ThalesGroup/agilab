@@ -61,7 +61,16 @@ function Ensure-NotAdmin {
 
 $CurrentPath = [System.IO.Path]::GetFullPath((Get-Location).Path)
 $InstallPathFull = [System.IO.Path]::GetFullPath($InstallPath)
-$AppsRepositoryPath = if ($AppsRepository) { [System.IO.Path]::GetFullPath($AppsRepository) } else { "" }
+
+function Normalize-RepoPath {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return "" }
+    $p = $Path.Trim()
+    if ($p -match '^[A-Za-z]:(?![\\/])') { $p = $p.Substring(0,2) + '\\' + $p.Substring(2) }
+    try { return [System.IO.Path]::GetFullPath($p) } catch { return $p }
+}
+
+$AppsRepositoryPath = if ($AppsRepository) { Normalize-RepoPath $AppsRepository } else { "" }
 $env:AGILAB_APPS_REPOSITORY = $AppsRepositoryPath
 
 $LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
