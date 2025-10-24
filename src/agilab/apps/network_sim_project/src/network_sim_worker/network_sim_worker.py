@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import getpass
 import json
+import logging
+import os
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any, Dict
+from types import SimpleNamespace
 
 import networkx as nx
 
+from agi_env import normalize_path
 from agi_node.dag_worker import DagWorker
 
 from network_sim.topology import generate_mixed_topology
@@ -21,6 +28,9 @@ class _MutableNamespace(SimpleNamespace):
 
     def __setitem__(self, key, value):
         setattr(self, key, value)
+
+
+global_vars: Dict[str, Any] = {}
 
 
 class NetworkSimWorker(DagWorker):  # pragma: no cover - executed within workers
@@ -86,21 +96,35 @@ class NetworkSimWorker(DagWorker):  # pragma: no cover - executed within workers
 
         self.pool_vars["args"] = self.args
         self.pool_vars["verbose"] = self.verbose
+        global global_vars
+        global_vars = self.pool_vars
 
     def pool_init(self, worker_vars: Dict[str, Any]) -> None:  # pragma: no cover - template hook
         global global_vars
-        pass
-       global_vars = worker_vars
+        global_vars = worker_vars
 
     def work_pool(self, file) -> Dict[str, Any]:
         global global_vars
-        params = {**global_vars, **(args or {})}
+        args_namespace = global_vars.get("args")
+        if args_namespace is None:
+            params: Dict[str, Any] = {}
+        elif isinstance(args_namespace, dict):
+            params = dict(args_namespace)
+            args_namespace = _MutableNamespace(**params)
+            global_vars["args"] = args_namespace
+        else:
+            params = dict(vars(args_namespace))
 
         net_size = int(params.get("net_size", 12))
         seed = params.get("seed")
         topology_filename = params.get("topology_filename", "topology.gml")
         summary_filename = params.get("summary_filename", "topology_summary.json")
         data_source = params.get("data_source", "file")
+
+        data_uri_value = params.get("data_uri")
+        if not data_uri_value:
+            raise ValueError("Missing data_uri in worker arguments")
+        data_uri = Path(data_uri_value)
 
         prefix = "~/"
         if data_source == "file":
@@ -117,6 +141,7 @@ class NetworkSimWorker(DagWorker):  # pragma: no cover - executed within workers
         graph = generate_mixed_topology(net_size, seed=seed)
 
         topology_path = data_uri / topology_filename
+        topology_path.parent.mkdir(parents=True, exist_ok=True)
         nx.write_gml(graph, topology_path)
 
         summary = {
@@ -128,8 +153,7 @@ class NetworkSimWorker(DagWorker):  # pragma: no cover - executed within workers
         }
 
         summary_path = data_uri / summary_filename
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
         return summary
-
-

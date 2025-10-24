@@ -19,6 +19,7 @@ from .network_sim_args import (
     load_args,
     merge_args,
 )
+
 from .topology import generate_mixed_topology
 
 logger = logging.getLogger(__name__)
@@ -84,10 +85,13 @@ class NetworkSimApp(BaseWorker):
 
     def simulate(self) -> dict[str, Any]:
         """Generate a topology immediately in the manager process."""
-
         return self._generate_and_persist(self.args, self.dir_path)
 
-    def _generate_and_persist(self, args: NetworkSimArgs, output_dir: Path) -> dict[str, Any]:
+    def _generate_and_persist(
+        self,
+        args: NetworkSimArgs,
+        output_dir: Path,
+    ) -> dict[str, Any]:
         graph = generate_mixed_topology(args.net_size, seed=args.seed)
 
         gml_path = output_dir / args.topology_filename
@@ -111,21 +115,14 @@ class NetworkSimApp(BaseWorker):
         workers: dict[str, int],
     ) -> Tuple[List[List], List[List[Tuple[str, int]]], str, str, str]:
         """Create a simple distribution plan with a single generation task."""
-
         job_args = self.as_dict()
-        task = ({"functions name": "generate_topology", "args": job_args}, [])
+        task = ({"function_name": "generate_topology", "args": job_args}, [])
 
         worker_slots = max(1, sum(workers.values()) if workers else 1)
         plan = [[] for _ in range(worker_slots)]
         metadata = [[] for _ in range(worker_slots)]
+
         plan[0].append(task)
         metadata[0].append(("generate_topology", 1))
+
         return plan, metadata, "job", "count", "weight"
-
-
-# Backwards-compatible alias expected by the dispatcher
-class NetworkSim(NetworkSimApp):
-    pass
-
-
-__all__ = ["NetworkSim", "NetworkSimApp"]
