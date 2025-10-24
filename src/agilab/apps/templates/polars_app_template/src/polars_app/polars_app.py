@@ -120,3 +120,10 @@ class Polars(BaseWorker):
         self,
     ) -> Tuple[List[List], List[List[Tuple[int, int]]], str, str, str]:  # pragma: no cover - template hook
         return [], [], "id", "nb_fct", ""
+
+
+class PolarsApp(Polars):
+    """Alias retaining the historical class name."""
+
+
+__all__ = ["Polars", "PolarsApp"]

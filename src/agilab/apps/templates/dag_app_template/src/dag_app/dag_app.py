@@ -88,3 +88,10 @@ class DagApp(BaseWorker):
         self,
     ) -> Tuple[List[List], List[List[Tuple[int, int]]], str, str, str]:  # pragma: no cover - template hook
         return [], [], "id", "nb_fct", ""
+
+
+class Dag(DagApp):
+    """Alias matching legacy imports without the App suffix."""
+
+
+__all__ = ["DagApp", "Dag"]
