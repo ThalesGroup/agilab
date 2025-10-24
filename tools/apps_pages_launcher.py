@@ -76,6 +76,11 @@ def pick_from_menu(active_app: Path) -> int:
 
 
 def main() -> int:
+    # Surface a concise pointer to install logs for troubleshooting
+    print(
+        "[hint] If launch fails, check latest installer log. "
+        "See 'Install Error Check (at Codex startup)' in AGENTS.md."
+    )
     parser = argparse.ArgumentParser(description="Apps-Pages Launcher")
     parser.add_argument(
         "--active-app",

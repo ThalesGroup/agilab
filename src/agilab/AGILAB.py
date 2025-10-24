@@ -361,6 +361,15 @@ def main():
     env = st.session_state['env']
     show_banner_and_intro(resources_path)
     openai_status_banner(env)
+    # Quick hint for operators: where to check install errors
+    try:
+        st.info(
+            "Tip: If startup fails, check the latest installer log. "
+            "See 'Install Error Check (at Codex startup)' in AGENTS.md.\n"
+            "Windows: C\\Users\\<you>\\log\\install_logs | macOS/Linux: $HOME/log/install_logs",
+        )
+    except Exception:
+        pass
     page(env)
 
 

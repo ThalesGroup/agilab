@@ -505,7 +505,7 @@ function Install-Enduser {
     Write-Info "Installing agilab (endusers)..."
     Push-Location (Join-Path $InstallPathFull "tools")
     try {
-        & ".\install_enduser.ps1"
+        & $scriptPath
         if ($LASTEXITCODE -eq 0) {
             Write-Success "agilab (enduser) installation complete."
         } else {

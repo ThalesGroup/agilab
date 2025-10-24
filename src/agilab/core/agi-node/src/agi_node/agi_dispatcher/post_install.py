@@ -38,10 +38,12 @@ def main(argv: list[str] | None = None) -> int:
     if len(args) not in (1, 2):
         _usage()
         return 1
-    if args[0][0]  != "/":
-        app_arg = Path.home() / "wenv" / args[0]
+    candidate = Path(args[0]).expanduser()
+    # Use robust absolute-path detection across platforms (Windows, POSIX)
+    if candidate.is_absolute():
+        app_arg = candidate
     else:
-        app_arg = Path(args[0]).expanduser()
+        app_arg = Path.home() / "wenv" / candidate
 
     dest_arg = args[1] if len(args) == 2 else None
 
