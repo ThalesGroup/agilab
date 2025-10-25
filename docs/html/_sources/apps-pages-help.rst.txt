@@ -40,3 +40,13 @@ Main Content Area
 
 See also **EDIT → APP-SETTINGS → File Editor** to review the ``[pages]`` entry
 that Explore updates.
+
+External Repository Pages
+-------------------------
+- Built-in pages live under ``src/agilab/apps-pages`` in this repository.
+- To include pages from a separate repository, run the installer with
+  ``-AppsRepository "C:\\path\\to\\repo"`` (PowerShell on Windows).
+- The installer probes ``<repo>/apps-pages`` and ``<repo>/src/agilab/apps-pages``.
+- Merge rules:
+  - Destination is ``src/agilab/apps-pages``. Existing non-link folders are left untouched (built-in wins).
+  - Missing folders are linked/joined to the external repo so both sets appear.
