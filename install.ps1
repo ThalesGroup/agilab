@@ -71,6 +71,9 @@ function Normalize-RepoPath {
 }
 
 $AppsRepositoryPath = if ($AppsRepository) { Normalize-RepoPath $AppsRepository } else { "" }
+# New canonical var
+$env:APPS_REPOSITORY = $AppsRepositoryPath
+# Backward-compat for older tools that still read AGILAB_APPS_REPOSITORY
 $env:AGILAB_APPS_REPOSITORY = $AppsRepositoryPath
 
 $LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
@@ -318,13 +321,13 @@ function Update-Environment {
     $clusterValue = if ($null -eq $ClusterSshCredentials) { "" } else { $ClusterSshCredentials }
     $pythonValue = if ($null -eq $script:AgiPythonVersion) { "" } else { $script:AgiPythonVersion }
     $freethreadedValue = if ($script:AgiPythonFreeThreaded) { "1" } else { "0" }
-    $appsRepoValue = if ($env:AGILAB_APPS_REPOSITORY) { $env:AGILAB_APPS_REPOSITORY } else { "" }
+    $appsRepoValue = if ($env:APPS_REPOSITORY) { $env:APPS_REPOSITORY } else { "" }
     $lines = @(
         ('OPENAI_API_KEY="{0}"' -f $openAiValue),
         ('CLUSTER_CREDENTIALS="{0}"' -f $clusterValue),
         ('AGI_PYTHON_VERSION="{0}"' -f $pythonValue),
         ('AGI_PYTHON_FREE_THREADED="{0}"' -f $freethreadedValue),
-        ('AGILAB_APPS_REPOSITORY="{0}"' -f $appsRepoValue)
+        ('APPS_REPOSITORY="{0}"' -f $appsRepoValue)
     )
     $lines | Set-Content -Encoding UTF8 -Path $envFile
     Write-Success "Environment updated in $envFile"
