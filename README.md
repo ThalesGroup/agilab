@@ -106,10 +106,33 @@ cd agilab
 
 ```powershell
 git clone https://github.com/ThalesGroup/agilab
-cd agilabpush it
-powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 -AppsRepository -InstallApps -TestApps 
+cd agilab
+# Built-in apps/pages only
+powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 -InstallApps
+
+# Or include an external apps repository that contains 'apps' and/or 'apps-pages'
+# The repository root must contain either '<repo>\\apps-pages' or '<repo>\\src\\agilab\\apps-pages'.
+# Use quotes and backslashes on Windows.
+powershell.exe -ExecutionPolicy Bypass -File .\install.ps1 -InstallApps -TestApps -AppsRepository "C:\\path\\to\\your-apps-repo"
 ```
 </details>
+
+### Apps/Pages Layout and -AppsRepository
+
+- Built-in pages live in this repo at `src/agilab/apps-pages` and are installed by default.
+- To add pages/apps from another repository, pass `-AppsRepository "C:\path\to\repo"`.
+  - The installer probes `<repo>\apps-pages` and `<repo>\src\agilab\apps-pages` for pages.
+  - Similarly for apps: `<repo>\apps` and `<repo>\src\agilab\apps` (expects `*_project` folders).
+- Merging rules:
+  - Destination bases are `src/agilab/apps` and `src/agilab/apps-pages`.
+  - If a destination folder already exists and is not a link, it is left as-is (built-in takes precedence).
+  - If missing, a link/junction is created to the repository version.
+- Environment controls (optional):
+  - Limit built-in pages: `BUILTIN_PAGES_OVERRIDE="page1,page2"` or `BUILTIN_PAGES="page1 page2"`.
+  - Limit built-in apps: `BUILTIN_APPS_OVERRIDE="app_project1,app_project2"` or `BUILTIN_APPS`.
+- Troubleshooting:
+  - If you pass `-AppsRepository` and the repo has no `apps-pages`, the installer errors out. Omit `-AppsRepository` to use only built-ins.
+  - Use quotes and backslashes in PowerShell paths; e.g., `"C:\\Users\\me\\repo"`.
 
 ## AGILab Execution
 
