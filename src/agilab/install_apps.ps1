@@ -157,7 +157,8 @@ if (-not (Test-Path -LiteralPath $agilabPathFile)) {
     $AGILAB_PUBLIC = (Get-Content -LiteralPath $agilabPathFile -Raw).Trim()
 }
 
-$AGILAB_APPS_REPOSITORY = $env:AGILAB_APPS_REPOSITORY
+# Preferred var name (with legacy fallback)
+$APPS_REPOSITORY = if ($env:APPS_REPOSITORY) { $env:APPS_REPOSITORY } else { $env:AGILAB_APPS_REPOSITORY }
 
 $PAGES_TARGET_BASE = ""
 $APPS_TARGET_BASE  = ""
@@ -172,19 +173,20 @@ function Fix-WindowsDrivePath {
   return $p
 }
 
-$AGILAB_APPS_REPOSITORY = Fix-WindowsDrivePath $AGILAB_APPS_REPOSITORY
 
-if (-not [string]::IsNullOrEmpty($AGILAB_APPS_REPOSITORY)) {
-  $RepoRoot = Resolve-PhysicalPath $AGILAB_APPS_REPOSITORY
-  if (-not $RepoRoot) { $RepoRoot = $AGILAB_APPS_REPOSITORY }
+$APPS_REPOSITORY = Fix-WindowsDrivePath $APPS_REPOSITORY
+
+if (-not [string]::IsNullOrEmpty($APPS_REPOSITORY)) {
+  $RepoRoot = Resolve-PhysicalPath $APPS_REPOSITORY
+  if (-not $RepoRoot) { $RepoRoot = $APPS_REPOSITORY }
   Write-Color BLUE ("Using repository root: {0}" -f $RepoRoot)
   # Basic Windows path sanity hint: e.g. "C:Usersfoo" (missing backslashes)
-  if ($AGILAB_APPS_REPOSITORY -match '^[A-Za-z]:(?![\\/])') {
-    Write-Color YELLOW "Hint: The AppsRepository path '$AGILAB_APPS_REPOSITORY' looks malformed. On Windows, use backslashes and quote the path, e.g. 'C:\\Users\\me\\repo'"
+  if ($APPS_REPOSITORY -match '^[A-Za-z]:(?![\\/])') {
+    Write-Color YELLOW "Hint: The AppsRepository path '$APPS_REPOSITORY' looks malformed. On Windows, use backslashes and quote the path, e.g. 'C:\\Users\\me\\repo'"
   }
   $PAGES_TARGET_BASE = Find-RepoSubdir $RepoRoot 'apps-pages'
   if (-not $PAGES_TARGET_BASE) {
-    Write-Color RED "Error: Could not locate an 'apps-pages' directory under $AGILAB_APPS_REPOSITORY"
+    Write-Color RED "Error: Could not locate an 'apps-pages' directory under $APPS_REPOSITORY"
     $cand1 = Join-Path $RepoRoot 'apps-pages'
     $cand2 = Join-Path (Join-Path $RepoRoot 'src/agilab') 'apps-pages'
     Write-Color YELLOW ("Checked: {0} and {1}" -f $cand1, $cand2)
@@ -196,7 +198,7 @@ if (-not [string]::IsNullOrEmpty($AGILAB_APPS_REPOSITORY)) {
   }
   $APPS_TARGET_BASE = Find-RepoSubdir $RepoRoot 'apps'
   if (-not $APPS_TARGET_BASE) {
-    Write-Color RED "Error: Could not locate an 'apps' directory under $AGILAB_APPS_REPOSITORY"
+    Write-Color RED "Error: Could not locate an 'apps' directory under $APPS_REPOSITORY"
     $cand1 = Join-Path $RepoRoot 'apps'
     $cand2 = Join-Path (Join-Path $RepoRoot 'src/agilab') 'apps'
     Write-Color YELLOW ("Checked: {0} and {1}" -f $cand1, $cand2)
@@ -238,12 +240,12 @@ if (-not $SkipRepositoryPages) {
     }
 }
 
-$repoDisplay = if ([string]::IsNullOrEmpty($AGILAB_APPS_REPOSITORY)) { "<none>" } else { $AGILAB_APPS_REPOSITORY }
+$repoDisplay = if ([string]::IsNullOrEmpty($APPS_REPOSITORY)) { "<none>" } else { $APPS_REPOSITORY }
 $publicDisplay = if ([string]::IsNullOrEmpty($AGILAB_PUBLIC)) { "<none>" } else { $AGILAB_PUBLIC }
 $appsTargetDisplay = if ([string]::IsNullOrEmpty($APPS_TARGET_BASE)) { "<none>" } else { $APPS_TARGET_BASE }
 $pagesTargetDisplay = if ([string]::IsNullOrEmpty($PAGES_TARGET_BASE)) { "<none>" } else { $PAGES_TARGET_BASE }
 
-Write-Color BLUE ("Using AGILAB_APPS_REPOSITORY: {0}" -f $repoDisplay)
+Write-Color BLUE ("Using APPS_REPOSITORY: {0}" -f $repoDisplay)
 Write-Color BLUE ("Using AGILAB_PUBLIC: {0}" -f $publicDisplay)
 Write-Color BLUE ("(Apps) Destination base: {0}" -f $APPS_DEST_BASE)
 Write-Color BLUE ("(Apps) Link target base: {0}" -f $appsTargetDisplay)
@@ -517,20 +519,24 @@ if ($DoTestApps) {
 }
 
 # --- Final message -----------------------------------------------------------
-if ($status -eq 0 -and -not [string]::IsNullOrEmpty($AGILAB_APPS_REPOSITORY)) {
-    $docsSourceDir = Join-Path $AGILAB_APPS_REPOSITORY "docs/source"
-    $docsExamplesLink = Join-Path $docsSourceDir "examples"
-    if (Test-Path -LiteralPath $docsSourceDir -and -not (Test-Path -LiteralPath $docsExamplesLink)) {
-        try {
-            New-Item -ItemType SymbolicLink -Path $docsExamplesLink -Target "examples" | Out-Null
-        } catch {
-            try {
-                $absoluteExamples = Join-Path $AGILAB_APPS_REPOSITORY "examples"
-                if (Test-Path -LiteralPath $absoluteExamples) {
-                    New-Item -ItemType Junction -Path $docsExamplesLink -Target $absoluteExamples | Out-Null
+if ($status -eq 0) {
+    if (-not [string]::IsNullOrEmpty($APPS_REPOSITORY)) {
+        $docsSourceDir = Join-Path $APPS_REPOSITORY "docs/source"
+        $docsExamplesLink = Join-Path $docsSourceDir "examples"
+        if (Test-Path -LiteralPath $docsSourceDir) {
+            if (-not (Test-Path -LiteralPath $docsExamplesLink)) {
+                try {
+                    New-Item -ItemType SymbolicLink -Path $docsExamplesLink -Target "examples" | Out-Null
+                } catch {
+                    try {
+                        $absoluteExamples = Join-Path $APPS_REPOSITORY "examples"
+                        if (Test-Path -LiteralPath $absoluteExamples) {
+                            New-Item -ItemType Junction -Path $docsExamplesLink -Target $absoluteExamples | Out-Null
+                        }
+                    } catch {
+                        Write-Color YELLOW ("Warning: unable to create docs/source/examples link: {0}" -f $_.Exception.Message)
+                    }
                 }
-            } catch {
-                Write-Color YELLOW ("Warning: unable to create docs/source/examples link: {0}" -f $_.Exception.Message)
             }
         }
     }

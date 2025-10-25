@@ -8,6 +8,12 @@ it up in an isolated interpreter. Add the module name to the
 ``[pages].view_module`` list in ``app_settings.toml`` (or use Explore → Configure)
 and the page becomes available to every user of the project.
 
+External pages can be added from a separate repository by running the
+installer with ``-AppsRepository`` and pointing it at a repo containing
+``apps-pages`` (or ``src/agilab/apps-pages``). The installer links missing
+folders into ``src/agilab/apps-pages`` while leaving any existing non-link
+folders (built-ins) as-is.
+
 view_autoencoder_latenspace
 ---------------------------
 
