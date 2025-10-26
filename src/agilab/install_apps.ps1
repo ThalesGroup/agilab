@@ -89,8 +89,8 @@ function Find-RepoSubdir {
 
     # Fast known-candidate checks (common layouts)
     $known = @(
-        (Join-Path $rootPath $Name),
-        (Join-Path (Join-Path $rootPath 'src/agilab') $Name)
+        (Join-PathSafe $rootPath $Name),
+        (Join-PathSafe (Join-PathSafe $rootPath 'src/agilab') $Name)
     )
     foreach ($k in $known) {
         if (Test-Path -LiteralPath $k) { return (Resolve-PhysicalPath $k) }
@@ -127,6 +127,41 @@ function Resolve-PhysicalPath {
     }
 }
 
+function Normalize-PathInput {
+    param([object]$Value)
+    if ($null -eq $Value) { return "" }
+    if ($Value -is [string]) { return $Value }
+    if ($Value -is [System.IO.FileSystemInfo]) { return $Value.FullName }
+    if ($Value -is [object[]]) {
+        $first = $Value | Where-Object { $_ } | Select-Object -First 1
+        if ($null -ne $first) { return ($first.ToString()) }
+        return ""
+    }
+    try { return ($Value.ToString()) } catch { return "" }
+}
+
+function Join-PathSafe {
+    [CmdletBinding()] param(
+        [Parameter(Mandatory=$true, Position=0)] [object]$Path,
+        [Parameter(Mandatory=$true, Position=1)] [object]$ChildPath,
+        [Parameter(ValueFromRemainingArguments=$true, Position=2)] [object[]]$AdditionalChildPath
+    )
+    $p  = Normalize-PathInput $Path
+    $cp = Normalize-PathInput $ChildPath
+    $rest = @()
+    foreach ($a in $AdditionalChildPath) {
+        $s = Normalize-PathInput $a
+        if ($s) { $rest += [string]$s }
+    }
+    if (-not $p) { $p = '' }
+    if (-not $cp) { $cp = '' }
+    if ($rest.Count -gt 0) {
+        return (Join-Path -Path ([string]$p) -ChildPath ([string]$cp) -AdditionalChildPath $rest)
+    } else {
+        return (Join-Path -Path ([string]$p) -ChildPath ([string]$cp))
+    }
+}
+
 function ConvertTo-List {
     param([string]$Value)
     if ([string]::IsNullOrWhiteSpace($Value)) { return @() }
@@ -141,7 +176,7 @@ function Invoke-UvPreview {
 
 # ----- Load environment ------------------------------------------------------
 $LocalAppData = $env:LOCALAPPDATA
-$envPath = Join-Path $LocalAppData "agilab/.env"
+$envPath = Join-PathSafe $LocalAppData "agilab/.env"
 Import-DotEnv -Path $envPath
 
 $AGI_PYTHON_VERSION = $env:AGI_PYTHON_VERSION
@@ -149,7 +184,7 @@ if ($AGI_PYTHON_VERSION) {
     $AGI_PYTHON_VERSION = $AGI_PYTHON_VERSION -replace '^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*$', '$1'
 }
 
-$agilabPathFile = Join-Path $LocalAppData "agilab/.agilab-path"
+$agilabPathFile = Join-PathSafe $LocalAppData "agilab/.agilab-path"
 if (-not (Test-Path -LiteralPath $agilabPathFile)) {
     Write-Color YELLOW "Warning: $agilabPathFile not found. Some paths may be unresolved."
     $AGILAB_PUBLIC = ""
@@ -158,7 +193,7 @@ if (-not (Test-Path -LiteralPath $agilabPathFile)) {
 }
 
 # Preferred var name (with legacy fallback)
-$APPS_REPOSITORY = if ($env:APPS_REPOSITORY) { $env:APPS_REPOSITORY } else { $env:AGILAB_APPS_REPOSITORY }
+$APPS_REPOSITORY = $env:APPS_REPOSITORY
 
 $PAGES_TARGET_BASE = ""
 $APPS_TARGET_BASE  = ""
@@ -174,7 +209,10 @@ function Fix-WindowsDrivePath {
 }
 
 
-$APPS_REPOSITORY = Fix-WindowsDrivePath $APPS_REPOSITORY
+$AGILAB_PUBLIC    = Normalize-PathInput $AGILAB_PUBLIC
+$APPS_REPOSITORY  = Normalize-PathInput $APPS_REPOSITORY
+$AGILAB_PUBLIC    = Fix-WindowsDrivePath $AGILAB_PUBLIC
+$APPS_REPOSITORY  = Fix-WindowsDrivePath $APPS_REPOSITORY
 
 if (-not [string]::IsNullOrEmpty($APPS_REPOSITORY)) {
   $RepoRoot = Resolve-PhysicalPath $APPS_REPOSITORY
@@ -187,8 +225,8 @@ if (-not [string]::IsNullOrEmpty($APPS_REPOSITORY)) {
   $PAGES_TARGET_BASE = Find-RepoSubdir $RepoRoot 'apps-pages'
   if (-not $PAGES_TARGET_BASE) {
     Write-Color RED "Error: Could not locate an 'apps-pages' directory under $APPS_REPOSITORY"
-    $cand1 = Join-Path $RepoRoot 'apps-pages'
-    $cand2 = Join-Path (Join-Path $RepoRoot 'src/agilab') 'apps-pages'
+    $cand1 = Join-PathSafe $RepoRoot 'apps-pages'
+    $cand2 = Join-PathSafe (Join-PathSafe $RepoRoot 'src/agilab') 'apps-pages'
     Write-Color YELLOW ("Checked: {0} and {1}" -f $cand1, $cand2)
     Write-Color YELLOW "Hint: Ensure the repository contains an 'apps-pages' folder or omit -AppsRepository to skip repository pages."
     $here = (Get-Location).Path
@@ -199,22 +237,28 @@ if (-not [string]::IsNullOrEmpty($APPS_REPOSITORY)) {
   $APPS_TARGET_BASE = Find-RepoSubdir $RepoRoot 'apps'
   if (-not $APPS_TARGET_BASE) {
     Write-Color RED "Error: Could not locate an 'apps' directory under $APPS_REPOSITORY"
-    $cand1 = Join-Path $RepoRoot 'apps'
-    $cand2 = Join-Path (Join-Path $RepoRoot 'src/agilab') 'apps'
+    $cand1 = Join-PathSafe $RepoRoot 'apps'
+    $cand2 = Join-PathSafe (Join-PathSafe $RepoRoot 'src/agilab') 'apps'
     Write-Color YELLOW ("Checked: {0} and {1}" -f $cand1, $cand2)
     Write-Color YELLOW "Hint: Ensure the repository contains an 'apps' folder (with '*_project' subfolders), or omit -AppsRepository to skip repository apps."
     exit 1
   }
   $SkipRepositoryPages = $false
   $SkipRepositoryApps  = $false
+  # Sanitize to plain strings
+  $APPS_TARGET_BASE  = [string](Normalize-PathInput $APPS_TARGET_BASE)
+  $PAGES_TARGET_BASE = [string](Normalize-PathInput $PAGES_TARGET_BASE)
 }
 
 $APPS_DEST_BASE = if ($env:APPS_DEST_BASE) { $env:APPS_DEST_BASE }
-    elseif (-not [string]::IsNullOrEmpty($AGILAB_PUBLIC)) { Join-Path $AGILAB_PUBLIC "apps" }
-    else { Join-Path (Get-Location) "apps" }
+    elseif (-not [string]::IsNullOrEmpty($AGILAB_PUBLIC)) { Join-PathSafe ([string](Normalize-PathInput $AGILAB_PUBLIC)) "apps" }
+    else { Join-PathSafe (Get-Location) "apps" }
 $PAGES_DEST_BASE = if ($env:PAGES_DEST_BASE) { $env:PAGES_DEST_BASE }
-    elseif (-not [string]::IsNullOrEmpty($AGILAB_PUBLIC)) { Join-Path $AGILAB_PUBLIC "apps-pages" }
-    else { Join-Path (Get-Location) "apps-pages" }
+    elseif (-not [string]::IsNullOrEmpty($AGILAB_PUBLIC)) { Join-PathSafe ([string](Normalize-PathInput $AGILAB_PUBLIC)) "apps-pages" }
+    else { Join-PathSafe (Get-Location) "apps-pages" }
+
+$APPS_DEST_BASE  = [string](Normalize-PathInput $APPS_DEST_BASE)
+$PAGES_DEST_BASE = [string](Normalize-PathInput $PAGES_DEST_BASE)
 
 Ensure-Dir $APPS_DEST_BASE
 Ensure-Dir $PAGES_DEST_BASE
@@ -240,8 +284,8 @@ if (-not $SkipRepositoryPages) {
     }
 }
 
-$repoDisplay = if ([string]::IsNullOrEmpty($APPS_REPOSITORY)) { "<none>" } else { $APPS_REPOSITORY }
-$publicDisplay = if ([string]::IsNullOrEmpty($AGILAB_PUBLIC)) { "<none>" } else { $AGILAB_PUBLIC }
+$repoDisplay = if ([string]::IsNullOrEmpty($APPS_REPOSITORY)) { "<none>" } else { [string]$APPS_REPOSITORY }
+$publicDisplay = if ([string]::IsNullOrEmpty($AGILAB_PUBLIC)) { "<none>" } else { [string]$AGILAB_PUBLIC }
 $appsTargetDisplay = if ([string]::IsNullOrEmpty($APPS_TARGET_BASE)) { "<none>" } else { $APPS_TARGET_BASE }
 $pagesTargetDisplay = if ([string]::IsNullOrEmpty($PAGES_TARGET_BASE)) { "<none>" } else { $PAGES_TARGET_BASE }
 
@@ -298,7 +342,7 @@ $repositoryApps = @('example_app_project', 'example_app_project', 'example_app_p
 if (-not $SkipRepositoryApps) {
     $existingRepoApps = @()
     foreach ($app in $repositoryApps) {
-        $candidate = Join-Path $APPS_TARGET_BASE $app
+        $candidate = Join-PathSafe $APPS_TARGET_BASE $app
         if (Test-Path -LiteralPath $candidate) {
             $existingRepoApps += $app
         }
@@ -325,28 +369,28 @@ if (-not $SkipRepositoryApps) {
             $coreTargets = @()
             if (-not [string]::IsNullOrEmpty($AGILAB_PUBLIC)) {
                 $coreTargets = @(
-                    Join-Path $AGILAB_PUBLIC "core",
-                    Join-Path $AGILAB_PUBLIC "src/agilab/core"
+                    Join-PathSafe $AGILAB_PUBLIC "core",
+                    Join-PathSafe $AGILAB_PUBLIC "src/agilab/core"
                 )
             }
             $coreTarget = $coreTargets | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
             if (-not $coreTarget) {
-                $firstChoice = if ($coreTargets.Count -ge 1 -and $coreTargets[0]) { $coreTargets[0] } else { Join-Path $AGILAB_PUBLIC "core" }
-                $secondChoice = if ($coreTargets.Count -ge 2 -and $coreTargets[1]) { $coreTargets[1] } else { Join-Path $AGILAB_PUBLIC "src/agilab/core" }
-                $publicLabel = if ([string]::IsNullOrEmpty($AGILAB_PUBLIC)) { "<unknown>" } else { $AGILAB_PUBLIC }
-                Write-Color RED ("ERROR: can't find 'core' under {0}.`nTried: {1} and {2}" -f $publicLabel, $firstChoice, $secondChoice)
-                exit 1
+                $firstChoice = if ($coreTargets.Count -ge 1 -and $coreTargets[0]) { [string]$coreTargets[0] } else { [string](Join-PathSafe $AGILAB_PUBLIC "core") }
+                $secondChoice = if ($coreTargets.Count -ge 2 -and $coreTargets[1]) { [string]$coreTargets[1] } else { [string](Join-PathSafe $AGILAB_PUBLIC "src/agilab/core") }
+                $publicLabel = if ([string]::IsNullOrEmpty($AGILAB_PUBLIC)) { "<unknown>" } else { [string]$AGILAB_PUBLIC }
+                Write-Color YELLOW ("Warning: can't find 'core' under {0}.`nTried: {1} and {2}. Skipping repository core link." -f $publicLabel, $firstChoice, $secondChoice)
+            } else {
+                if (Test-Path -LiteralPath "core") {
+                    Remove-Item -LiteralPath "core" -Force -Recurse -ErrorAction SilentlyContinue
+                }
+                New-DirLink -LinkPath "core" -TargetPath ([string](Normalize-PathInput $coreTarget))
+                & uv run python -c "import pathlib; p=pathlib.Path('core').resolve(); print(f'Repository core -> {p}')" | Out-Host
             }
-            if (Test-Path -LiteralPath "core") {
-                Remove-Item -LiteralPath "core" -Force -Recurse -ErrorAction SilentlyContinue
-            }
-            New-DirLink -LinkPath "core" -TargetPath $coreTarget
-            & uv run python -c "import pathlib; p=pathlib.Path('core').resolve(); print(f'Repository core -> {p}')" | Out-Host
 
-            $publicTemplates = if ($AGILAB_PUBLIC) { Join-Path $AGILAB_PUBLIC "apps/templates" } else { "" }
+            $publicTemplates = if ($AGILAB_PUBLIC) { Join-PathSafe $AGILAB_PUBLIC "apps/templates" } else { "" }
             if ($publicTemplates -and (Test-Path -LiteralPath $publicTemplates)) {
                 Ensure-Dir "apps"
-                $repoTemplates = Join-Path "apps" "templates"
+                $repoTemplates = Join-PathSafe "apps" "templates"
                 if (Test-Path -LiteralPath $repoTemplates) {
                     if (Is-Link $repoTemplates) {
                         Remove-Item -LiteralPath $repoTemplates -Force
@@ -372,8 +416,8 @@ $status = 0
 
 if (-not $SkipRepositoryPages) {
     foreach ($page in $repositoryPages) {
-        $pageTarget = Join-Path $PAGES_TARGET_BASE $page
-        $pageDest   = Join-Path $PAGES_DEST_BASE $page
+        $pageTarget = Join-PathSafe $PAGES_TARGET_BASE $page
+        $pageDest   = Join-PathSafe $PAGES_DEST_BASE $page
 
         if (-not (Test-Path -LiteralPath $pageTarget)) {
             Write-Color YELLOW ("Skipping repository page '{0}': missing target {1}." -f $page, $pageTarget)
@@ -395,8 +439,8 @@ if (-not $SkipRepositoryPages) {
 
 if (-not $SkipRepositoryApps) {
     foreach ($app in $repositoryApps) {
-        $appTarget = Join-Path $APPS_TARGET_BASE $app
-        $appDest   = Join-Path $APPS_DEST_BASE $app
+        $appTarget = Join-PathSafe $APPS_TARGET_BASE $app
+        $appDest   = Join-PathSafe $APPS_DEST_BASE $app
 
         if (-not (Test-Path -LiteralPath $appTarget)) {
             Write-Color YELLOW ("Skipping repository app '{0}': missing target {1}." -f $app, $appTarget)
@@ -417,8 +461,8 @@ if (-not $SkipRepositoryApps) {
 }
 
 # --- Install pages -----------------------------------------------------------
-$appsPagesRoot = if ($AGILAB_PUBLIC) { Join-Path $AGILAB_PUBLIC "apps-pages" } else { "" }
-$appsRoot = if ($AGILAB_PUBLIC) { Join-Path $AGILAB_PUBLIC "apps" } else { "" }
+$appsPagesRoot = if ($AGILAB_PUBLIC) { Join-PathSafe ([string](Normalize-PathInput $AGILAB_PUBLIC)) "apps-pages" } else { "" }
+$appsRoot      = if ($AGILAB_PUBLIC) { Join-PathSafe ([string](Normalize-PathInput $AGILAB_PUBLIC)) "apps" } else { "" }
 
 if (-not [string]::IsNullOrEmpty($appsPagesRoot) -and (Test-Path -LiteralPath $appsPagesRoot)) {
     Push-Location $appsPagesRoot
@@ -450,7 +494,7 @@ if (-not [string]::IsNullOrEmpty($appsRoot) -and (Test-Path -LiteralPath $appsRo
         Write-Color BLUE ("Installing {0}..." -f $app)
         $installArgs = @("-q", "run")
         if ($AGI_PYTHON_VERSION) { $installArgs += @("-p", $AGI_PYTHON_VERSION) }
-        $installArgs += @("--project", "../core/cluster", "python", "install.py", (Join-Path $AGILAB_PUBLIC "apps/$app"))
+        $installArgs += @("--project", "../core/cluster", "python", "install.py", (Join-PathSafe $AGILAB_PUBLIC "apps/$app"))
         & uv @installArgs | Out-Host
         $installExit = $LASTEXITCODE
         if ($installExit -eq 0) {
@@ -521,15 +565,15 @@ if ($DoTestApps) {
 # --- Final message -----------------------------------------------------------
 if ($status -eq 0) {
     if (-not [string]::IsNullOrEmpty($APPS_REPOSITORY)) {
-        $docsSourceDir = Join-Path $APPS_REPOSITORY "docs/source"
-        $docsExamplesLink = Join-Path $docsSourceDir "examples"
+        $docsSourceDir = Join-PathSafe $APPS_REPOSITORY "docs/source"
+        $docsExamplesLink = Join-PathSafe $docsSourceDir "examples"
         if (Test-Path -LiteralPath $docsSourceDir) {
             if (-not (Test-Path -LiteralPath $docsExamplesLink)) {
                 try {
                     New-Item -ItemType SymbolicLink -Path $docsExamplesLink -Target "examples" | Out-Null
                 } catch {
                     try {
-                        $absoluteExamples = Join-Path $APPS_REPOSITORY "examples"
+                        $absoluteExamples = Join-PathSafe $APPS_REPOSITORY "examples"
                         if (Test-Path -LiteralPath $absoluteExamples) {
                             New-Item -ItemType Junction -Path $docsExamplesLink -Target $absoluteExamples | Out-Null
                         }
