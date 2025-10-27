@@ -765,7 +765,8 @@ class BaseWorker(abc.ABC):
             # Instantiate the class with arguments
             worker_inst = worker_class()
             worker_inst._mode = mode
-            worker_inst.args = SimpleNamespace(**args)
+            args_namespace = ArgsNamespace(**(args or {}))
+            worker_inst.args = args_namespace
             worker_inst.verbose = verbose
 
             # Instantiate the base class
@@ -948,3 +949,20 @@ class BaseWorker(abc.ABC):
 
 # enable dotted access ``BaseWorker.break()`` even though ``break`` is a keyword
 setattr(BaseWorker, "break", BaseWorker.break_loop)
+class ArgsNamespace(SimpleNamespace):
+    """Namespace that supports both attribute and key-style access."""
+
+    def __getitem__(self, key):
+        try:
+            return getattr(self, key)
+        except AttributeError as exc:
+            raise KeyError(key) from exc
+
+    def get(self, key, default=None):
+        return getattr(self, key, default)
+
+    def __contains__(self, key):
+        return hasattr(self, key)
+
+    def to_dict(self):
+        return dict(self.__dict__)
