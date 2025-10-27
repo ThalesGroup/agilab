@@ -4,7 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve()
 CORE_ENV = ROOT.parents[3] / "core/agi-env/src"
-CORE_NODE = ROOT.parents[3] / "core/node/src"
+CORE_NODE = ROOT.parents[3] / "core/agi-node/src"
 for candidate in (CORE_ENV, CORE_NODE):
     candidate_str = str(candidate)
     if candidate_str not in sys.path:
