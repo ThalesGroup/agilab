@@ -49,12 +49,13 @@ def render() -> None:
     if st.session_state.get("toggle_edit", True):
         c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1.0, 1])
 
-        data_source = st.selectbox(
-            "Data source",
-            options=["file", "hawk"],
-            index=["file", "hawk"].index(defaults_model.data_source),
-            key=f"{PREFIX}data_source",
-        )
+        with c1:
+            data_source = st.selectbox(
+                "Data source",
+                options=["file", "hawk"],
+                index=["file", "hawk"].index(defaults_model.data_source),
+                key=f"{PREFIX}data_source",
+            )
 
         with c2:
             data_uri = st.text_input(

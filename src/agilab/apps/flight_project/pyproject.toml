@@ -73,6 +73,7 @@ text = "Thales SIX GTS France SAS"
 polars-worker = []
 
 
+
 [dependency-groups]
 dev = [
     "black",

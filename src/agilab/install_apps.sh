@@ -138,6 +138,7 @@ declare -a REPOSITORY_APPS=(
   flight_trajectory_project
   ilp_project
   sb3_trainer_project
+  network_sim
 )
 
 declare -a INCLUDED_APPS=()

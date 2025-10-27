@@ -12,19 +12,20 @@ from network_sim import NetworkSimArgs, apply_source_defaults, dump_args_to_toml
 PREFIX = "network_sim_"
 
 
-def _env() -> Any | None:
-    return st.session_state.get("_env")
-
-
-def _load_settings(path: Path) -> dict:
+def _load_settings(path: Path) -> dict[str, Any]:
     if path.exists():
         with path.open("rb") as handle:
             return tomli.load(handle)
     return {"args": {}}
 
 
+def _ensure_streamlit_context() -> Any | None:
+    """Return the AGI environment injected by the hosting Streamlit app."""
+    return st.session_state.get("_env")
+
+
 def render() -> None:
-    env = _env()
+    env = _ensure_streamlit_context()
     if env is None:
         return
 
