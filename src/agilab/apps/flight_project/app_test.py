@@ -9,6 +9,12 @@ import sys
 from pathlib import Path
 from agi_env import AgiEnv
 
+# Ensure stdout can emit UTF-8 (emojis) even on legacy Windows consoles
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
 
 # Keep uv from mutating environments while running tests
 os.environ.setdefault("UV_NO_SYNC", "1")
@@ -19,9 +25,9 @@ async def main() -> None:
     apps_dir = script_dir.parent
     active_app = script_dir.name
 
-    # Heuristic: corresponding worker checkout under ~/wenv/<name with project→worker>
+    # Heuristic: corresponding worker checkout under ~/wenv/<name with project->worker>
     target_name = script_dir.name.replace("_project", "")
-    worker_name = target_name +  "_worker"
+    worker_name = target_name + "_worker"
     worker_repo = Path.home() / "wenv" / worker_name
 
     env = AgiEnv(apps_dir=apps_dir, active_app=active_app, verbose=True)
@@ -32,13 +38,19 @@ async def main() -> None:
         f"uv run --no-sync --project \"{wenv}\" python -m agi_node.agi_dispatcher.build --app-path \"{wenv}\" "
         f"-q build_ext -b \"{wenv}\"",
         f"uv run --no-sync --project \"{script_dir}\" \"{script_dir}/test/_test_{target_name}_manager.py\"",
-        f"uv run --no-sync --project \"{worker_repo}\" \"{script_dir}/test/_test_{target_name}_worker.py\""
+        f"uv run --no-sync --project \"{worker_repo}\" \"{script_dir}/test/_test_{target_name}_worker.py\"",
     ]:
         await env.run(cmd, wenv)
 
-    print("✅ All done.")
+    ok = "✅ All done."
+    enc = (getattr(sys.stdout, "encoding", None) or "").lower()
+    try:
+        print(ok if "utf-8" in enc else "All done.")
+    except UnicodeEncodeError:
+        print("All done.")
     sys.exit(0)
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+
