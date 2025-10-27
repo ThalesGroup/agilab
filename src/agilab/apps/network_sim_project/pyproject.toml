@@ -7,7 +7,6 @@ readme = "README.md"
 dependencies = [
     "networkx",
     "numpy",
-    "ansi2html>=1.9.2",
     "astor",
     "asyncssh",
     "build",
@@ -78,6 +77,7 @@ dag-worker = []
 dev = [
     "black",
     "pytest",
+    "pytest-cov",
     "licensecheck",
 ]
 
@@ -89,4 +89,3 @@ build-backend = "setuptools.build_meta"
 mypy_path = ["stubs"]
 disallow_untyped_defs = false
 ignore_missing_imports = true
-

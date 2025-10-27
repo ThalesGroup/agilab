@@ -62,7 +62,6 @@ dependencies = [
     "mypy",
     "requests",
     "scp",
-    "ansi2html>=1.9.2",
     "pulp",
 ]
 
