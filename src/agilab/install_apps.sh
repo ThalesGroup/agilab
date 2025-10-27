@@ -138,6 +138,7 @@ declare -a REPOSITORY_APPS=(
   example_app_project
   example_app_project
   example_app_project
+  example_app
 )
 
 declare -a INCLUDED_APPS=()
