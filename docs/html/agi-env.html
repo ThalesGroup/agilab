@@ -628,6 +628,12 @@ in-file identifiers and class names.</p>
 <dd></dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.locate_agi_installation">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">locate_agi_installation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.locate_agi_installation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.locate_agi_installation" title="Link to this definition"></a></dt>
+<dd><p>Deprecated alias for locate_agilab_installation().</p>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="agi_env.agi_env.AgiEnv.locate_agilab_installation">
 <em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">locate_agilab_installation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#AgiEnv.locate_agilab_installation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.AgiEnv.locate_agilab_installation" title="Link to this definition"></a></dt>
 <dd><p>Attempt to locate the installed AGILab package path on disk.</p>
@@ -1062,9 +1068,9 @@ Raises on non-zero exit (logs stderr tail).</p>
 <dt class="sig sig-object py" id="agi_env.agi_env.normalize_path">
 <span class="sig-prename descclassname"><span class="pre">agi_env.agi_env.</span></span><span class="sig-name descname"><span class="pre">normalize_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/agi_env/agi_env.html#normalize_path"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agi_env.agi_env.normalize_path" title="Link to this definition"></a></dt>
 <dd><p>Return <code class="docutils literal notranslate"><span class="pre">path</span></code> coerced to a normalised string representation.</p>
-<p><code class="docutils literal notranslate"><span class="pre">Path</span></code> objects are converted to a string that matches the current platform
-conventions so the value can safely be stored in configuration files or
-environment variables.</p>
+<p>On Windows, ensure relative inputs are resolved to absolute paths to match
+historical expectations in tests and config consumers. On POSIX, preserve
+the POSIX-style representation of the provided path.</p>
 </dd></dl>
 
 <dl class="py function">
