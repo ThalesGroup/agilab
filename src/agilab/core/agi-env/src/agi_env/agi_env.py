@@ -191,8 +191,11 @@ def normalize_path(path):
     the POSIX-style representation of the provided path.
     """
 
-    # Accept both strings and Path-like
-    p = Path(path) if str(path) != "" else Path.cwd()
+    # Accept both strings and Path-like, keeping relative inputs relative on POSIX
+    if path == "":
+        p = Path(".")
+    else:
+        p = Path(path)
     if os.name == "nt":
         try:
             # Resolve to absolute path without requiring the target to exist.
