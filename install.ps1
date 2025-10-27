@@ -437,11 +437,7 @@ function Install-Apps {
     $env:PAGES_DEST_BASE = Join-Path $agilabPublic "apps-pages"
     Push-Location $dir
     try {
-        $installArgs = @()
-        if ($RunPytest) {
-            $installArgs += "-TestApps"
-        }
-        & ".\install_apps.ps1" @installArgs
+        & ".\install_apps.ps1"
         if ($LASTEXITCODE -ne 0) {
             Write-Warn "install_apps.ps1 exited with code $LASTEXITCODE"
             return $false
