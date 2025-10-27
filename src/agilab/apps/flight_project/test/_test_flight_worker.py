@@ -39,7 +39,7 @@ async def main():
     cmd = f"{module_cmd} -q build_ext -b \"{wenv}\""
     await env.run(cmd, wenv)
 
-    for i in [0, 1, 2, 3]: # 2 is working only if you have generate the cython lib before
+    for i in [0, 1, 2, 3]:
         path = str(env.home_abs / "src")
         if path not in sys.path:
             sys.path.insert(0, path)
