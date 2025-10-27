@@ -7,6 +7,8 @@ pool = true
 rapids = true
 cluster_enabled = true
 scheduler = "127.0.0.1"
+user = "nsbl"
+auth_method = "password"
 
 [cluster.workers]
 "127.0.0.1" = 2
