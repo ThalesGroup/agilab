@@ -1576,6 +1576,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             if logger:
                 logger.info(f"@{vname}: {cmd}")
 
+        # Inject uv preview flag to silence extra-build-dependencies warnings
+        try:
+            if isinstance(cmd, str) and "uv" in cmd and "--preview-features" not in cmd:
+                import re as _re
+                cmd = _re.sub(r"(^|\s)uv(\s+)", r"\1uv --preview-features extra-build-dependencies \2", cmd, count=1)
+        except Exception:
+            pass
+
         if not cwd:
             cwd = venv
         process_env = AgiEnv._build_env(venv)
@@ -1677,6 +1685,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 process_env.pop(key, None)
         if env_override:
             process_env.update(env_override)
+
+        # Inject uv preview flag to silence extra-build-dependencies warnings
+        try:
+            if isinstance(cmd, str) and "uv" in cmd and "--preview-features" not in cmd:
+                import re as _re
+                cmd = _re.sub(r"(^|\s)uv(\s+)", r"\1uv --preview-features extra-build-dependencies \2", cmd, count=1)
+        except Exception:
+            pass
 
         result = []
 
