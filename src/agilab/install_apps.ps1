@@ -513,8 +513,7 @@ if (-not [string]::IsNullOrEmpty($appsRoot) -and (Test-Path -LiteralPath $appsRo
         $installArgs = @("-q", "run")
         if ($AGI_PYTHON_VERSION) { $installArgs += @("-p", $AGI_PYTHON_VERSION) }
         $installArgs += @("--project", "../core/cluster", "python", "install.py", (Join-PathSafe $AGILAB_REPOSITORY "apps/$app"))
-        & uv @installArgs | Out-Host
-        $installExit = $LASTEXITCODE
+        $installExit = Invoke-UvPreview @($installArgs)
         if ($installExit -eq 0) {
             Write-Color GREEN ("{0} successfully installed." -f $app)
             Write-Color GREEN "Checking installation..."
@@ -524,8 +523,8 @@ if (-not [string]::IsNullOrEmpty($appsRoot) -and (Test-Path -LiteralPath $appsRo
                     $testArgs = @("run", "--no-sync")
                     if ($AGI_PYTHON_VERSION) { $testArgs += @("-p", $AGI_PYTHON_VERSION) }
                     $testArgs += @("python", "app_test.py")
-                    & uv @testArgs | Out-Host
-                    if ($LASTEXITCODE -ne 0) {
+                    $testExit = Invoke-UvPreview @($testArgs)
+                    if ($testExit -ne 0) {
                         $status = 1
                     }
                 } else {
@@ -561,8 +560,7 @@ if ($DoTestApps) {
             $pytestArgs = @("run", "--no-sync")
             if ($AGI_PYTHON_VERSION) { $pytestArgs += @("-p", $AGI_PYTHON_VERSION) }
             $pytestArgs += @("--project", ".", "pytest")
-            & uv @pytestArgs | Out-Host
-            $pytestExit = $LASTEXITCODE
+            $pytestExit = Invoke-UvPreview @($pytestArgs)
             switch ($pytestExit) {
                 0 { Write-Color GREEN ("pytest succeeded for '{0}'." -f $app) }
                 5 { Write-Color YELLOW ("No tests collected for '{0}'." -f $app) }
