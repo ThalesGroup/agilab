@@ -192,7 +192,7 @@ def normalize_path(path):
     """
 
     # Accept both strings and Path-like, keeping relative inputs relative on POSIX
-    if path == "":
+    if str(path) == "":
         p = Path(".")
     else:
         p = Path(path)
