@@ -402,7 +402,7 @@ if (-not $SkipRepositoryApps) {
                     Remove-Item -LiteralPath "core" -Force -Recurse -Confirm:$false -ErrorAction SilentlyContinue
                 }
                 New-DirLink -LinkPath "core" -TargetPath ([string](Normalize-PathInput $coreTarget))
-                & uv run python -c "import pathlib; p=pathlib.Path('core').resolve(); print(f'Repository core -> {p}')" | Out-Host
+                Invoke-UvPreview @("run", "python", "-c", "import pathlib; p=pathlib.Path('core').resolve(); print(f'Repository core -> {p}')") | Out-Null
             }
 
             $publicTemplates = if ($AGILAB_REPOSITORY) { Join-PathSafe $AGILAB_REPOSITORY "apps/templates" } else { "" }
