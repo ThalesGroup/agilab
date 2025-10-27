@@ -208,6 +208,22 @@ def normalize_path(path):
         return str(PurePosixPath(p))
 
 
+def _fix_windows_drive(path_str: str) -> str:
+    """Ensure Windows drive paths include a separator after the colon.
+
+    Example: 'C:Users\\me' -> 'C:\\Users\\me'. Returns input on non-Windows.
+    """
+    if os.name != "nt" or not isinstance(path_str, str):
+        return path_str
+    try:
+        import re as _re
+        if _re.match(r'^[A-Za-z]:(?![\\/])', path_str):
+            return path_str[:2] + "\\" + path_str[2:]
+    except Exception:
+        pass
+    return path_str
+
+
 def parse_level(line, default_level):
     """Resolve a logging level token found in ``line``.
 
@@ -917,6 +933,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if not repo_root:
             return None
 
+        # Normalise malformed Windows drive paths like 'C:Users...'
+        repo_root = _fix_windows_drive(repo_root)
         repo_path = Path(repo_root).expanduser()
 
         candidate = repo_path / "src/agilab/apps"

@@ -9,6 +9,7 @@ import sys
 import os
 import shutil
 import logging
+import re
 from pathlib import Path
 from zipfile import ZipFile
 import argparse
@@ -198,6 +199,18 @@ def _keep_lflag(arg: str) -> bool:
     cand = arg[2:]
     return Path(cand).exists()
 
+def _fix_windows_drive(path_str: str) -> str:
+    """Insert a path separator after a Windows drive letter if missing.
+
+    Example: 'C:Users\\me' -> 'C:\\Users\\me'.
+    No-op on non-Windows or when already absolute.
+    """
+    if os.name == "nt" and isinstance(path_str, str):
+        if re.match(r'^[A-Za-z]:(?![\\/])', path_str):
+            return path_str[:2] + "\\" + path_str[2:]
+    return path_str
+
+
 def main(argv: list[str] | None = None) -> None:
     raw_args = sys.argv[1:] if argv is None else list(argv)
     prog_name = sys.argv[0]
@@ -207,12 +220,18 @@ def main(argv: list[str] | None = None) -> None:
     global_args, remaining = pre_parser.parse_known_args(raw_args)
 
     if global_args.app_path:
-        active_app = Path(global_args.app_path).expanduser().resolve()
+        app_path_str = _fix_windows_drive(global_args.app_path)
+        active_app = Path(app_path_str).expanduser().resolve()
     else:
         active_app = Path(__file__).parent.resolve()
 
     os.chdir(active_app)
     opts = parse_custom_args(remaining, active_app)
+    # Normalise user-provided output dirs that may be missing the separator after the drive
+    if getattr(opts, "build_dir", None):
+        opts.build_dir = _fix_windows_drive(str(opts.build_dir))
+    if getattr(opts, "dist_dir", None):
+        opts.dist_dir = _fix_windows_drive(str(opts.dist_dir))
     cmd = opts.command
     quiet = True if opts.remaining and ("-q" in opts.remaining or "--quiet" in opts.remaining) else False
     packages = opts.packages
