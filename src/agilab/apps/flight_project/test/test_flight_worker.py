@@ -3,11 +3,11 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-# Ajouter core/node/src au sys.path pour agi_dispatcher
+# Ajouter core/agi-node/src au sys.path pour agi_dispatcher
 script_path = Path(__file__).resolve()
 active_app_path = script_path.parents[1]
 apps_dir = script_path.parents[2]
-node_src = active_app_path.parents[1] / 'core/node/src'
+node_src = active_app_path.parents[1] / 'core/agi-node/src'
 if str(node_src) not in sys.path:
     sys.path.insert(0, str(node_src))
 

@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 base_path = Path(__file__).resolve()
-path = str(base_path.parents[3]  / "core/node/src")
+path = str(base_path.parents[3]  / "core/agi-node/src")
 if path not in sys.path:
     sys.path.append(path)
 from agi_node.agi_dispatcher import BaseWorker
