@@ -4,7 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve()
 CORE_ENV = ROOT.parents[3] / "core/agi-env/src"
-CORE_NODE = ROOT.parents[3] / "core/agi-node/src"
+CORE_NODE = ROOT.parents[3] / "core/node/src"
 APP_SRC = ROOT.parents[1] / "src"
 for candidate in (CORE_ENV, CORE_NODE, APP_SRC):
     candidate_str = str(candidate)
