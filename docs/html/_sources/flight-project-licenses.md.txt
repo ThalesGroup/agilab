@@ -10,13 +10,13 @@
 | alembic | MIT |
 | altair | BSD LICENSE |
 | altex | APACHE-2.0 |
+| annotated-doc | MIT LICENSE |
 | annotated-types | MIT LICENSE |
-| ansi2html | GNU LESSER GENERAL PUBLIC LICENSE V3;; LATER _LGPLV3__;; MIT LICENSE |
 | anthropic | MIT LICENSE |
 | anyio | MIT |
 | appnope | BSD LICENSE |
 | argon2-cffi | MIT |
-| argon2-cffi-bindings | MIT LICENSE |
+| argon2-cffi-bindings | MIT |
 | arrow | APACHE SOFTWARE LICENSE |
 | arxiv | MIT LICENSE |
 | asn1crypto | MIT LICENSE |
@@ -25,7 +25,6 @@
 | async-lru | MIT LICENSE |
 | asyncssh | EPL-2.0;; GPL-2.0-OR-LATER |
 | attrs | MIT LICENSE |
-| authlib | BSD LICENSE |
 | babel | BSD LICENSE |
 | bce-python-sdk | APACHE LICENSE 2.0 |
 | bcrypt | APACHE SOFTWARE LICENSE |
@@ -39,7 +38,7 @@
 | build | MIT |
 | cachetools | MIT LICENSE |
 | certifi | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
-| cffi | MIT LICENSE |
+| cffi | MIT |
 | charset-normalizer | MIT |
 | click | BSD-3-CLAUSE |
 | cloudpickle | BSD LICENSE |
@@ -50,7 +49,6 @@
 | cramjam | MIT |
 | cryptography | APACHE-2.0;; BSD-3-CLAUSE |
 | cycler | BSD LICENSE |
-| cyclopts | APACHE SOFTWARE LICENSE |
 | cython | APACHE SOFTWARE LICENSE |
 | dask | BSD LICENSE |
 | databricks-sdk | APACHE SOFTWARE LICENSE |
@@ -64,21 +62,17 @@
 | diskcache | APACHE SOFTWARE LICENSE |
 | distributed | BSD LICENSE |
 | distro | APACHE SOFTWARE LICENSE |
-| dnspython | ISC LICENSE _ISCL_ |
 | docker | APACHE SOFTWARE LICENSE |
 | docstring-parser | MIT LICENSE |
 | docutils | BSD LICENSE;; GNU GENERAL PUBLIC LICENSE _GPL_;; PUBLIC DOMAIN |
-| email-validator | THE UNLICENSE _UNLICENSE_ |
 | entrypoints | MIT LICENSE |
 | eval-type-backport | MIT LICENSE |
-| exceptiongroup | MIT LICENSE |
 | executing | MIT LICENSE |
 | faiss-cpu | BSD-3-CLAUSE;; MIT |
 | faker | MIT LICENSE |
 | fastapi | MIT LICENSE |
 | fastavro | MIT |
 | fastjsonschema | BSD LICENSE |
-| fastmcp | APACHE SOFTWARE LICENSE |
 | fastparquet | APACHE SOFTWARE LICENSE |
 | favicon | MIT LICENSE |
 | feedparser | BSD LICENSE |
@@ -134,7 +128,6 @@
 | ipython | BSD LICENSE |
 | ipython-pygments-lexers | BSD LICENSE |
 | ipywidgets | BSD LICENSE |
-| isodate | BSD LICENSE |
 | isoduration | ISC LICENSE _ISCL_ |
 | itsdangerous | BSD LICENSE |
 | jaraco-classes | MIT LICENSE |
@@ -150,7 +143,6 @@
 | jsonpath-ng | APACHE SOFTWARE LICENSE |
 | jsonpointer | BSD LICENSE |
 | jsonschema | MIT |
-| jsonschema-path | APACHE SOFTWARE LICENSE |
 | jsonschema-specifications | MIT |
 | jupyter | BSD LICENSE |
 | jupyter-ai | BSD LICENSE |
@@ -184,7 +176,6 @@
 | langchain-text-splitters | MIT |
 | langsmith | MIT |
 | lark | MIT LICENSE |
-| lazy-object-proxy | BSD-2-CLAUSE |
 | legacy-cgi | PSF-2.0 |
 | llvmlite | BSD |
 | locket | BSD LICENSE |
@@ -196,8 +187,7 @@
 | markupsafe | BSD-3-CLAUSE |
 | marshmallow | MIT LICENSE |
 | matplotlib | PYTHON SOFTWARE FOUNDATION LICENSE |
-| matplotlib-inline | BSD LICENSE |
-| mcp | MIT LICENSE |
+| matplotlib-inline |  |
 | mdurl | MIT LICENSE |
 | mistune | BSD LICENSE |
 | ml-dtypes | APACHE-2.0 |
@@ -226,10 +216,6 @@
 | numpy | BSD LICENSE |
 | ollama | MIT |
 | openai | APACHE SOFTWARE LICENSE |
-| openapi-core | BSD LICENSE |
-| openapi-pydantic | MIT LICENSE |
-| openapi-schema-validator | BSD LICENSE |
-| openapi-spec-validator | APACHE SOFTWARE LICENSE |
 | opentelemetry-api | APACHE-2.0 |
 | opentelemetry-proto | APACHE-2.0 |
 | opentelemetry-sdk | APACHE-2.0 |
@@ -240,10 +226,8 @@
 | pandas | BSD LICENSE |
 | pandocfilters | BSD LICENSE |
 | paramiko | LGPL-2.1 |
-| parse | MIT LICENSE |
 | parso | MIT LICENSE |
 | partd | BSD |
-| pathable | APACHE SOFTWARE LICENSE |
 | pathspec | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | pexpect | ISC LICENSE _ISCL_ |
 | pillow | MIT-CMU |
@@ -277,17 +261,15 @@
 | pygments | BSD LICENSE |
 | pyjwt | MIT LICENSE |
 | pymdown-extensions | MIT LICENSE |
-| pynacl | APACHE LICENSE 2.0 |
+| pynacl | APACHE SOFTWARE LICENSE |
 | pyopenssl | APACHE SOFTWARE LICENSE |
 | pyparsing | MIT |
 | pypdf | BSD-3-CLAUSE |
-| pyperclip | BSD LICENSE |
 | pyppmd | LGPL-2.1-OR-LATER |
 | pyproject-hooks | MIT LICENSE |
 | python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
-| python-dotenv | BSD LICENSE |
+| python-dotenv | BSD-3-CLAUSE |
 | python-json-logger | BSD LICENSE |
-| python-multipart | APACHE SOFTWARE LICENSE |
 | pytz | MIT LICENSE |
 | pyyaml | MIT LICENSE |
 | pyzmq | BSD LICENSE |
@@ -303,7 +285,6 @@
 | rfc3986-validator | MIT LICENSE |
 | rfc3987-syntax | APACHE SOFTWARE LICENSE |
 | rich | MIT LICENSE |
-| rich-rst | MIT |
 | rpds-py | MIT |
 | rsa | APACHE SOFTWARE LICENSE |
 | s3transfer | APACHE SOFTWARE LICENSE |
@@ -325,7 +306,6 @@
 | soupsieve | MIT LICENSE |
 | sqlalchemy | MIT |
 | sqlparse | BSD LICENSE |
-| sse-starlette | BSD-3-CLAUSE |
 | st-annotated-text | APACHE SOFTWARE LICENSE |
 | st-theme | MIT LICENSE |
 | stack-data | MIT LICENSE |
@@ -365,6 +345,7 @@
 | traitlets | BSD LICENSE |
 | twine | APACHE-2.0 |
 | typer | MIT LICENSE |
+| typer-slim | MIT LICENSE |
 | types-pyyaml | APACHE-2.0 |
 | types-requests | APACHE-2.0 |
 | typing-extensions | PSF-2.0 |

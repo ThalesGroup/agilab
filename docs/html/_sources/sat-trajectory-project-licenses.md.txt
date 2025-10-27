@@ -15,7 +15,7 @@
 | ipython | BSD LICENSE |
 | ipython-pygments-lexers | BSD LICENSE |
 | jedi | MIT LICENSE |
-| matplotlib-inline | BSD LICENSE |
+| matplotlib-inline |  |
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | numpy | BSD LICENSE |
 | packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
@@ -25,7 +25,7 @@
 | polars | MIT LICENSE |
 | polars-runtime-32 | MIT LICENSE |
 | prompt-toolkit | BSD LICENSE |
-| psutil | BSD LICENSE |
+| psutil | BSD-3-CLAUSE |
 | ptyprocess | ISC LICENSE _ISCL_ |
 | pure-eval | MIT LICENSE |
 | py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
@@ -35,7 +35,7 @@
 | pygments | BSD LICENSE |
 | pyppmd | LGPL-2.1-OR-LATER |
 | python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
-| python-dotenv | BSD LICENSE |
+| python-dotenv | BSD-3-CLAUSE |
 | pytz | MIT LICENSE |
 | pyzstd | BSD LICENSE |
 | setuptools | MIT |

@@ -9,7 +9,7 @@
 | ipython | BSD LICENSE |
 | ipython-pygments-lexers | BSD LICENSE |
 | jedi | MIT LICENSE |
-| matplotlib-inline | BSD LICENSE |
+| matplotlib-inline |  |
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | parso | MIT LICENSE |
 | pexpect | ISC LICENSE _ISCL_ |
@@ -22,7 +22,7 @@
 | pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
 | pygments | BSD LICENSE |
 | pyppmd | LGPL-2.1-OR-LATER |
-| python-dotenv | BSD LICENSE |
+| python-dotenv | BSD-3-CLAUSE |
 | pyzstd | BSD LICENSE |
 | setuptools | MIT |
 | stack-data | MIT LICENSE |
