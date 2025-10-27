@@ -22,7 +22,7 @@ import asyncio
 from pathlib import Path
 import argparse
 
-node_src = str(Path(__file__).parents[1] / 'core/agi-node/src')
+node_src = str(Path(__file__).parents[1] / 'core/node/src')
 sys.path.insert(0, node_src)
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
