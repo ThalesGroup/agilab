@@ -203,6 +203,20 @@ declare -a SKIPPED_APP_TESTS=()
 DATA_CHECK_MESSAGE=""
 DATA_URI_PATH=""
 
+# Append items to the referenced array, ensuring uniqueness while preserving order.
+append_unique() {
+  local __out="$1"; shift
+  local -n __ref="$__out"
+  local item existing
+  for item in "$@"; do
+    [[ -z "$item" ]] && continue
+    for existing in "${__ref[@]}"; do
+      [[ "$existing" == "$item" ]] && continue 2
+    done
+    __ref+=("$item")
+  done
+}
+
 # Destination base for creating local app symlinks (defaults to current dir)
 : "${APPS_DEST_BASE:="$AGILAB_PUBLIC/apps"}"
 : "${PAGES_DEST_BASE:="$AGILAB_PUBLIC/apps-pages"}"
