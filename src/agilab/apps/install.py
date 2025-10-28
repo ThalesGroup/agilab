@@ -16,11 +16,11 @@
 # OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
 import sys
 import asyncio
 from pathlib import Path
 import argparse
+import errno
 
 node_src = str(Path(__file__).parents[1] / 'core/node/src')
 sys.path.insert(0, node_src)
@@ -35,6 +35,32 @@ else:
     raise ValueError("Please provide the module name as the first argument.")
 
 print('install module:', module)
+
+
+def ensure_data_storage(env: AgiEnv) -> None:
+    """Guarantee the app data directory is available before invoking AGI installers."""
+
+    data_root = (env.home_abs / env.data_rel).expanduser()
+    try:
+        data_root.mkdir(parents=True, exist_ok=True)
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            f"Required data directory {data_root} is unavailable. "
+            "Verify the data URI share is mounted before running install."
+        ) from exc
+    except OSError as exc:
+        if exc.errno in {
+            errno.ENOENT,
+            errno.EHOSTDOWN,
+            errno.ESTALE,
+            errno.ENOTCONN,
+            errno.EIO,
+        }:
+            raise RuntimeError(
+                f"Unable to reach data directory {data_root} ({exc.strerror or exc}). "
+                "Verify the data URI share is mounted before running install."
+            ) from exc
+        raise
 
 
 async def main():
@@ -64,13 +90,20 @@ async def main():
     except Exception as e:
         raise Exception("Failed to resolve env and core path in toml") from e
 
+    try:
+        ensure_data_storage(app_env)
+    except RuntimeError as err:
+        print(f"[ERROR] {err}", file=sys.stderr)
+        return 1
+
     await AGI.install(
         env=app_env,
         scheduler="127.0.0.1",
         verbose=args.verbose,
         modes_enabled=AGI.DASK_MODE | AGI.CYTHON_MODE
     )
+    return 0
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    sys.exit(asyncio.run(main()))
