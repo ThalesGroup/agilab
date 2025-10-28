@@ -1,0 +1,15 @@
+[args]
+topology = "topo3N"
+num_demands = 3
+seed = 42
+demand_scale = 1.0
+data_uri = "data/ilp"
+
+[cluster]
+cython = true
+pool = true
+rapids = true
+cluster_enabled = false
+verbose = 1
+user = "nsbl"
+auth_method = "password"
