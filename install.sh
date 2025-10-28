@@ -18,8 +18,21 @@ NC='\033[0m' # No Color
 
 UV="uv --preview-features extra-build-dependencies"
 
+CALLER_DIR="$(pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Always operate relative to the repository root even if invoked from another directory.
+cd "$SCRIPT_DIR"
+
+FAST_MODE=0
+ASSUME_YES=0
+FAST_MODE_USER_SET=0
+AUTO_FAST_DEFAULT="${AGILAB_AUTO_FAST:-1}"
+PYTHON_VERSION_OVERRIDE=""
+AGI_ENV_FILE="$HOME/.local/share/agilab/.env"
+PREVIOUS_ENV_LOADED=0
+
 AGI_INSTALL_PATH="$(realpath '.')"
-CURRENT_PATH="$(realpath '.')"
+CURRENT_PATH="$AGI_INSTALL_PATH"
 CLUSTER_CREDENTIALS=""
 OPENAI_API_KEY=""
 SOURCE="local"
@@ -27,11 +40,150 @@ INSTALL_APPS_FLAG=0
 TEST_APPS_FLAG=0
 APPS_REPOSITORY=""
 
+if [[ -f "$AGI_ENV_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$AGI_ENV_FILE"
+    PREVIOUS_ENV_LOADED=1
+fi
+
+AGI_PYTHON_FREE_THREADED="${AGI_PYTHON_FREE_THREADED:-0}"
+
 warn() {
     echo -e "${YELLOW}Warning:${NC} $*"
 }
 
+should_auto_fast() {
+    # Require previous install context and a repo checkout
+    (( PREVIOUS_ENV_LOADED )) || return 1
+    [[ -d "$SCRIPT_DIR/.git" ]] || return 1
+    [[ -d "$SCRIPT_DIR/src/agilab" ]] || return 1
+    [[ -d "$SCRIPT_DIR/src/agilab/core" ]] || return 1
+    return 0
+}
+
+maybe_enable_auto_fast() {
+    (( FAST_MODE_USER_SET )) && return
+    (( FAST_MODE )) && return
+
+    if [[ "$AUTO_FAST_DEFAULT" == "0" ]]; then
+        echo -e "${BLUE}Auto fast mode disabled (AGILAB_AUTO_FAST=0 or --no-fast).${NC}"
+        return
+    fi
+
+    if ! should_auto_fast; then
+        return
+    fi
+
+    local auto_enabled_message="Fast mode enabled automatically (previous install detected)."
+
+    if (( ASSUME_YES )) || [[ ! -t 0 ]]; then
+        FAST_MODE=1
+        echo -e "${BLUE}${auto_enabled_message}${NC}"
+        return
+    fi
+
+    if [[ -t 0 ]]; then
+        read -rp "Previous install detected. Enable fast mode (skip system deps, locale, offline extras)? [Y/n]: " response
+        response=${response:-Y}
+        if [[ "$response" =~ ^[Yy]$ ]]; then
+            FAST_MODE=1
+            echo -e "${BLUE}${auto_enabled_message}${NC}"
+        else
+            echo -e "${BLUE}Fast mode skipped; running full install.${NC}"
+        fi
+    fi
+}
+
+ensure_python_runtime() {
+    local version="$1"
+    if [[ -z "$version" ]]; then
+        version="3.13"
+    fi
+
+    echo -e "${BLUE}Ensuring Python ${version} is available...${NC}"
+    local installed
+    installed="$($UV python list --only-installed 2>/dev/null | awk '{print $1}' || true)"
+    if ! grep -F -- "$version" <<<"$installed" >/dev/null; then
+        echo -e "${YELLOW}Installing Python ${version} via uv...${NC}"
+        $UV python install "$version"
+        installed="$($UV python list --only-installed 2>/dev/null | awk '{print $1}' || true)"
+    else
+        echo -e "${GREEN}Python version (${version}) is already installed.${NC}"
+    fi
+
+    if (( FAST_MODE )); then
+        warn "Fast mode: skipping freethreaded interpreter setup."
+        AGI_PYTHON_FREE_THREADED=0
+    else
+        local python_list matches
+        python_list="$($UV python list)"
+        matches="$(grep -F -- "$version" <<<"$python_list" || true)"
+        if grep -qi "freethreaded" <<<"$matches"; then
+            local freethreaded="${version}+freethreaded"
+            if ! grep -F -- "$freethreaded" <<<"$installed" >/dev/null; then
+                echo -e "${YELLOW}Installing ${freethreaded} via uv...${NC}"
+                $UV python install "$freethreaded"
+            fi
+            AGI_PYTHON_FREE_THREADED=1
+        else
+            AGI_PYTHON_FREE_THREADED=0
+        fi
+    fi
+
+    AGI_PYTHON_VERSION="$version"
+    export AGI_PYTHON_FREE_THREADED AGI_PYTHON_VERSION
+}
+
+interactive_python_selection() {
+    local default_version="3.13"
+    read -p "Enter Python major version [${default_version}]: " PYTHON_VERSION
+    PYTHON_VERSION=${PYTHON_VERSION:-$default_version}
+    echo "You selected Python version $PYTHON_VERSION"
+
+    local available_python_versions
+    available_python_versions="$($UV python list | grep -F -- "$PYTHON_VERSION" | grep -v "freethreaded" || true)"
+
+    if [[ -z "$available_python_versions" ]]; then
+        warn "No matching Python release found by uv for '$PYTHON_VERSION'. Proceeding with the requested version spec."
+        echo "$PYTHON_VERSION"
+        return 0
+    fi
+
+    local python_array=()
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        python_array+=("$line")
+    done <<< "$available_python_versions"
+
+    for idx in "${!python_array[@]}"; do
+        if [[ "${python_array[$idx]}" == *"$PYTHON_VERSION"* ]]; then
+            echo -e "${GREEN}$((idx + 1)) - ${python_array[$idx]}${NC}"
+        else
+            echo -e "$((idx + 1)) - ${python_array[$idx]}"
+        fi
+    done
+
+    local selection
+    while true; do
+        read -rp "Enter the number of the Python version you want to use (default: 1) " selection
+        selection=${selection:-1}
+        if [[ $selection =~ ^[0-9]+$ ]] && (( selection >= 1 && selection <= ${#python_array[@]} )); then
+            local choice
+            choice=$(echo "${python_array[$((selection - 1))]}" | awk '{print $1}')
+            choice=$(echo "$choice" | cut -d '-' -f2)
+            echo "$choice"
+            return 0
+        fi
+        echo "Invalid selection. Please try again."
+    done
+}
+
 install_offline_extra() {
+    if (( FAST_MODE )); then
+        warn "Fast mode: skipping offline assistant extra dependencies."
+        return
+    fi
+
     local pyver="${AGI_PYTHON_VERSION:-}"
     local major minor patch
     IFS='.' read -r major minor patch <<< "$pyver"
@@ -64,6 +216,11 @@ install_offline_extra() {
 }
 
 setup_mistral_offline() {
+    if (( FAST_MODE )); then
+        warn "Fast mode: skipping local Mistral (Ollama) setup."
+        return
+    fi
+
     echo -e "${BLUE}Configuring local Mistral assistant (Ollama)...${NC}"
     if [[ "$OSTYPE" == "darwin"* ]]; then
         if ! command -v ollama >/dev/null 2>&1; then
@@ -125,6 +282,11 @@ setup_mistral_offline() {
 }
 
 seed_mistral_pdfs() {
+    if (( FAST_MODE )); then
+        warn "Fast mode: skipping PDF seeding for offline assistants."
+        return
+    fi
+
     echo -e "${BLUE}Seeding sample PDFs for mistral:instruct (optional)...${NC}"
     local dest="$HOME/.agilab/mistral_offline/data"
     mkdir -p "$dest"
@@ -159,6 +321,11 @@ seed_mistral_pdfs() {
 }
 
 refresh_launch_matrix() {
+    if (( FAST_MODE )); then
+        warn "Fast mode: skipping Launch Matrix refresh."
+        return
+    fi
+
     echo -e "${BLUE}Refreshing Launch Matrix from .idea/runConfigurations...${NC}"
     pushd "$AGI_INSTALL_PATH" > /dev/null || return 0
     if [[ -f "tools/refresh_launch_matrix.py" ]]; then
@@ -182,6 +349,11 @@ check_internet() {
 }
 
 set_locale() {
+    if (( FAST_MODE )); then
+        warn "Fast mode: skipping locale check."
+        return
+    fi
+
     echo -e "${BLUE}Setting locale...${NC}"
     if ! locale -a | grep -q "en_US.utf8"; then
         echo -e "${YELLOW}Locale en_US.UTF-8 not found. Generating...${NC}"
@@ -202,8 +374,19 @@ set_locale() {
 }
 
 install_dependencies() {
+    if (( FAST_MODE )); then
+        warn "Fast mode: skipping system dependency installation."
+        return
+    fi
+
     echo -e "${BLUE}Step: Installing system dependencies...${NC}"
-    read -rp "Do you want to install system dependencies? (y/N): " confirm
+    local confirm="n"
+    if (( ASSUME_YES )); then
+        confirm="y"
+        echo -e "${BLUE}--yes provided: auto-confirming system dependency installation.${NC}"
+    else
+        read -rp "Do you want to install system dependencies? (y/N): " confirm
+    fi
     [[ "$confirm" =~ ^[Yy]$ ]] || { warn "Skipping dependency installation."; return; }
 
     if ! command -v uv > /dev/null 2>&1; then
@@ -243,60 +426,26 @@ install_dependencies() {
 
 choose_python_version() {
     echo -e "${BLUE}Choosing Python version...${NC}"
-    read -p "Enter Python major version [3.13]: " PYTHON_VERSION
-    PYTHON_VERSION=${PYTHON_VERSION:-3.13}
-    echo "You selected Python version $PYTHON_VERSION"
-    available_python_versions=$($UV python list | grep -F -- "$PYTHON_VERSION" | grep -v "freethreaded")
-    python_array=()
-    while IFS= read -r line; do
-        python_array+=("$line")
-    done <<< "$available_python_versions"
+    local chosen_python=""
 
-    for idx in "${!python_array[@]}"; do
-        if [[ "${python_array[$idx]}" == *"$PYTHON_VERSION"* ]]; then
-            echo -e "${GREEN}$((idx + 1)) - ${python_array[$idx]}${NC}"
+    if [[ -n "$PYTHON_VERSION_OVERRIDE" ]]; then
+        chosen_python="$PYTHON_VERSION_OVERRIDE"
+        echo -e "${BLUE}Using Python version supplied via --python-version: ${chosen_python}${NC}"
+    elif [[ -n "$AGI_PYTHON_VERSION" ]]; then
+        chosen_python="$AGI_PYTHON_VERSION"
+        if (( PREVIOUS_ENV_LOADED )); then
+            echo -e "${BLUE}Reusing Python version from previous install: ${chosen_python}${NC}"
         else
-            echo -e "$((idx + 1)) - ${python_array[$idx]}"
+            echo -e "${BLUE}Using preset AGI_PYTHON_VERSION: ${chosen_python}${NC}"
         fi
-    done
-
-    while true; do
-        read -rp "Enter the number of the Python version you want to use (default: 1) " selection
-        selection=${selection:-1}
-        if [[ $selection =~ ^[0-9]+$ ]] && (( selection >= 1 && selection <= ${#python_array[@]} )); then
-            chosen_python=$(echo "${python_array[$((selection - 1))]}" | cut -d' ' -f1)
-            break
-        else
-            echo "Invalid selection. Please try again."
-        fi
-    done
-
-    installed_pythons=$($UV python list --only-installed | cut -d' ' -f1)
-    if ! echo "$installed_pythons" | grep -q "$chosen_python"; then
-        echo -e "${YELLOW}Installing $chosen_python...${NC}"
-        $UV python install "$chosen_python"
-        echo -e "${GREEN}Python version ($chosen_python) is now installed.${NC}"
+    elif (( FAST_MODE )); then
+        chosen_python="3.13"
+        echo -e "${BLUE}Fast mode: defaulting to Python ${chosen_python}.${NC}"
     else
-        echo -e "${GREEN}Python version ($chosen_python) is already installed.${NC}"
+        chosen_python="$(interactive_python_selection)"
     fi
 
-    chosen_python=$(echo "$chosen_python" | cut -d '-' -f2)
-    if $UV python list | grep "$chosen_python" | grep -q "freethreaded"; then
-        echo -e "${YELLOW}Freethreaded version available.${NC}"
-        chosen_python_free="${chosen_python}+freethreaded"
-        if ! echo "$installed_pythons" | grep -q "$chosen_python_free"; then
-            echo -e "${YELLOW}Installing $chosen_python_free...${NC}"
-            $UV python install "$chosen_python_free"
-            echo -e "${GREEN}Python version ($chosen_python_free) is now installed.${NC}"
-        else
-            echo -e "${GREEN}Python version ($chosen_python_free) is already installed.${NC}"
-        fi
-        AGI_PYTHON_FREE_THREADED=1
-    fi
-
-    AGI_PYTHON_VERSION="$chosen_python"
-    export AGI_PYTHON_FREE_THREADED
-    export AGI_PYTHON_VERSION
+    ensure_python_runtime "$chosen_python"
 }
 
 
@@ -419,7 +568,7 @@ install_pycharm_script() {
 }
 
 usage() {
-    echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps] [--test-apps]"
+    echo "Usage: $0 --cluster-ssh-credentials <user[:password]> --openai-api-key <api-key> [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--python-version <major.minor>] [--fast|--no-fast] [--yes] [--install-apps] [--test-apps]"
     exit 1
 }
 
@@ -432,14 +581,36 @@ while [[ "$#" -gt 0 ]]; do
     case $1 in
         --cluster-ssh-credentials) cluster_credentials="$2"; shift 2;;
         --openai-api-key)      openai_api_key="$2";      shift 2;;
-        --install-path)        AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
-        --apps-repository)     APPS_REPOSITORY=$(realpath "$2"); shift 2;;
+        --install-path)
+            AGI_INSTALL_PATH="$(cd "$CALLER_DIR" && realpath "$2")"
+            shift 2;;
+        --apps-repository)
+            APPS_REPOSITORY="$(cd "$CALLER_DIR" && realpath "$2")"
+            shift 2;;
         --source)             SOURCE="$2"; shift 2;;
+        --python-version)
+            PYTHON_VERSION_OVERRIDE="$2"
+            shift 2;;
+        --fast)
+            FAST_MODE=1
+            ASSUME_YES=1
+            FAST_MODE_USER_SET=1
+            shift;;
+        --no-fast)
+            FAST_MODE=0
+            AUTO_FAST_DEFAULT=0
+            FAST_MODE_USER_SET=1
+            shift;;
+        --yes)
+            ASSUME_YES=1
+            shift;;
         --install-apps)       INSTALL_APPS_FLAG=1; shift;;
         --test-apps)          TEST_APPS_FLAG=1; INSTALL_APPS_FLAG=1; shift;;
         *) echo -e "${RED}Unknown option: $1${NC}" && usage;;
     esac
 done
+
+maybe_enable_auto_fast
 
 export APPS_REPOSITORY
 
