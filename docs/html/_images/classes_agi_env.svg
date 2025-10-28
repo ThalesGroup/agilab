@@ -9,9 +9,9 @@
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 1446.5)">
 <title>classes_agi_env</title>
 <polygon fill="white" stroke="none" points="-4,4 -4,-1446.5 1417.75,-1446.5 1417.75,4 -4,4"/>
-<!-- agilab.core.agi&#45;env.src.agi_env.agi_env.AgiEnv -->
+<!-- agilab.src.agilab.core.agi&#45;env.src.agi_env.agi_env.AgiEnv -->
 <g id="node1" class="node">
-<title>agilab.core.agi&#45;env.src.agi_env.agi_env.AgiEnv</title>
+<title>agilab.src.agilab.core.agi&#45;env.src.agi_env.agi_env.AgiEnv</title>
 <polygon fill="#f8f9fb" stroke="#77aadd" stroke-width="1.1" points="0,-0.5 0,-1442 469,-1442 469,-0.5 0,-0.5"/>
 <text xml:space="preserve" text-anchor="start" x="218.75" y="-1428.5" font-family="Helvetica,sans-Serif" font-size="10.00">AgiEnv</text>
 <polyline fill="none" stroke="#77aadd" stroke-width="1.1" points="0,-1422.75 469,-1422.75"/>
@@ -142,9 +142,9 @@
 <text xml:space="preserve" text-anchor="start" x="8" y="-17.5" font-family="Helvetica,sans-Serif" font-size="10.00">set_env_var(key: str, value: str)</text>
 <text xml:space="preserve" text-anchor="start" x="8" y="-6.25" font-family="Helvetica,sans-Serif" font-size="10.00">unzip_data(archive_path: Path, extract_to: Path | str)</text>
 </g>
-<!-- agilab.core.agi&#45;env.src.agi_env.agi_logger.AgiLogger -->
+<!-- agilab.src.agilab.core.agi&#45;env.src.agi_env.agi_logger.AgiLogger -->
 <g id="node2" class="node">
-<title>agilab.core.agi&#45;env.src.agi_env.agi_logger.AgiLogger</title>
+<title>agilab.src.agilab.core.agi&#45;env.src.agi_env.agi_logger.AgiLogger</title>
 <polygon fill="#f8f9fb" stroke="#77aadd" stroke-width="1.1" points="501.12,-685.12 501.12,-757.38 709.88,-757.38 709.88,-685.12 501.12,-685.12"/>
 <text xml:space="preserve" text-anchor="start" x="583.75" y="-743.88" font-family="Helvetica,sans-Serif" font-size="10.00">AgiLogger</text>
 <polyline fill="none" stroke="#77aadd" stroke-width="1.1" points="501.12,-738.12 709.88,-738.12"/>
@@ -154,18 +154,18 @@
 <text xml:space="preserve" text-anchor="start" x="509.12" y="-702.12" font-family="Helvetica,sans-Serif" font-size="10.00">get_logger(name: str | None): logging.Logger</text>
 <text xml:space="preserve" text-anchor="start" x="509.12" y="-690.88" font-family="Helvetica,sans-Serif" font-size="10.00">set_level(level: int): None</text>
 </g>
-<!-- agilab.core.agi&#45;env.src.agi_env.agi_logger.ClassNameFilter -->
+<!-- agilab.src.agilab.core.agi&#45;env.src.agi_env.agi_logger.ClassNameFilter -->
 <g id="node3" class="node">
-<title>agilab.core.agi&#45;env.src.agi_env.agi_logger.ClassNameFilter</title>
+<title>agilab.src.agilab.core.agi&#45;env.src.agi_env.agi_logger.ClassNameFilter</title>
 <polygon fill="#f8f9fb" stroke="#77aadd" stroke-width="1.1" points="741.75,-702 741.75,-740.5 831.25,-740.5 831.25,-702 741.75,-702"/>
 <text xml:space="preserve" text-anchor="start" x="749.75" y="-727" font-family="Helvetica,sans-Serif" font-size="10.00">ClassNameFilter</text>
 <polyline fill="none" stroke="#77aadd" stroke-width="1.1" points="741.75,-721.25 831.25,-721.25"/>
 <polyline fill="none" stroke="#77aadd" stroke-width="1.1" points="741.75,-721.25 831.25,-721.25"/>
 <text xml:space="preserve" text-anchor="start" x="760.62" y="-707.75" font-family="Helvetica,sans-Serif" font-size="10.00">filter(record)</text>
 </g>
-<!-- agilab.core.agi&#45;env.src.agi_env.agi_env.ContentRenamer -->
+<!-- agilab.src.agilab.core.agi&#45;env.src.agi_env.agi_env.ContentRenamer -->
 <g id="node4" class="node">
-<title>agilab.core.agi&#45;env.src.agi_env.agi_env.ContentRenamer</title>
+<title>agilab.src.agilab.core.agi&#45;env.src.agi_env.agi_env.ContentRenamer</title>
 <polygon fill="#f8f9fb" stroke="#77aadd" stroke-width="1.1" points="863.75,-630.5 863.75,-812 983.25,-812 983.25,-630.5 863.75,-630.5"/>
 <text xml:space="preserve" text-anchor="start" x="886.38" y="-798.5" font-family="Helvetica,sans-Serif" font-size="10.00">ContentRenamer</text>
 <polyline fill="none" stroke="#77aadd" stroke-width="1.1" points="863.75,-792.75 983.25,-792.75"/>
@@ -184,18 +184,18 @@
 <text xml:space="preserve" text-anchor="start" x="871.75" y="-647.5" font-family="Helvetica,sans-Serif" font-size="10.00">visit_arg(node)</text>
 <text xml:space="preserve" text-anchor="start" x="871.75" y="-636.25" font-family="Helvetica,sans-Serif" font-size="10.00">visit_nonlocal(node)</text>
 </g>
-<!-- agilab.core.agi&#45;env.src.agi_env.pagelib.JumpToMain -->
+<!-- agilab.src.agilab.core.agi&#45;env.src.agi_env.pagelib.JumpToMain -->
 <g id="node5" class="node">
-<title>agilab.core.agi&#45;env.src.agi_env.pagelib.JumpToMain</title>
+<title>agilab.src.agilab.core.agi&#45;env.src.agi_env.pagelib.JumpToMain</title>
 <polygon fill="#f8f9fb" stroke="#77aadd" stroke-width="1.1" points="1015.75,-702 1015.75,-740.5 1087.25,-740.5 1087.25,-702 1015.75,-702"/>
 <text xml:space="preserve" text-anchor="start" x="1023.75" y="-727" font-family="Helvetica,sans-Serif" font-size="10.00" fill="red">JumpToMain</text>
 <polyline fill="none" stroke="#77aadd" stroke-width="1.1" points="1015.75,-721.25 1087.25,-721.25"/>
 <polyline fill="none" stroke="#77aadd" stroke-width="1.1" points="1015.75,-721.25 1087.25,-721.25"/>
 <text xml:space="preserve" text-anchor="start" x="1050" y="-707.75" font-family="Helvetica,sans-Serif" font-size="10.00" fill="red"> </text>
 </g>
-<!-- agilab.core.agi&#45;env.src.agi_env.agi_logger.LogFormatter -->
+<!-- agilab.src.agilab.core.agi&#45;env.src.agi_env.agi_logger.LogFormatter -->
 <g id="node6" class="node">
-<title>agilab.core.agi&#45;env.src.agi_env.agi_logger.LogFormatter</title>
+<title>agilab.src.agilab.core.agi&#45;env.src.agi_env.agi_logger.LogFormatter</title>
 <polygon fill="#f8f9fb" stroke="#77aadd" stroke-width="1.1" points="1119.12,-692.38 1119.12,-750.12 1195.88,-750.12 1195.88,-692.38 1119.12,-692.38"/>
 <text xml:space="preserve" text-anchor="start" x="1128.62" y="-736.62" font-family="Helvetica,sans-Serif" font-size="10.00">LogFormatter</text>
 <polyline fill="none" stroke="#77aadd" stroke-width="1.1" points="1119.12,-730.88 1195.88,-730.88"/>
@@ -203,9 +203,9 @@
 <polyline fill="none" stroke="#77aadd" stroke-width="1.1" points="1119.12,-711.62 1195.88,-711.62"/>
 <text xml:space="preserve" text-anchor="start" x="1127.12" y="-698.12" font-family="Helvetica,sans-Serif" font-size="10.00">format(record)</text>
 </g>
-<!-- agilab.core.agi&#45;env.src.agi_env.agi_logger.MaxLevelFilter -->
+<!-- agilab.src.agilab.core.agi&#45;env.src.agi_env.agi_logger.MaxLevelFilter -->
 <g id="node7" class="node">
-<title>agilab.core.agi&#45;env.src.agi_env.agi_logger.MaxLevelFilter</title>
+<title>agilab.src.agilab.core.agi&#45;env.src.agi_env.agi_logger.MaxLevelFilter</title>
 <polygon fill="#f8f9fb" stroke="#77aadd" stroke-width="1.1" points="1227.62,-692.38 1227.62,-750.12 1307.38,-750.12 1307.38,-692.38 1227.62,-692.38"/>
 <text xml:space="preserve" text-anchor="start" x="1235.62" y="-736.62" font-family="Helvetica,sans-Serif" font-size="10.00">MaxLevelFilter</text>
 <polyline fill="none" stroke="#77aadd" stroke-width="1.1" points="1227.62,-730.88 1307.38,-730.88"/>
@@ -213,9 +213,9 @@
 <polyline fill="none" stroke="#77aadd" stroke-width="1.1" points="1227.62,-711.62 1307.38,-711.62"/>
 <text xml:space="preserve" text-anchor="start" x="1241.62" y="-698.12" font-family="Helvetica,sans-Serif" font-size="10.00">filter(record)</text>
 </g>
-<!-- agilab.core.agi&#45;env.src.agi_env.agi_env._AgiEnvMeta -->
+<!-- agilab.src.agilab.core.agi&#45;env.src.agi_env.agi_env._AgiEnvMeta -->
 <g id="node8" class="node">
-<title>agilab.core.agi&#45;env.src.agi_env.agi_env._AgiEnvMeta</title>
+<title>agilab.src.agilab.core.agi&#45;env.src.agi_env.agi_env._AgiEnvMeta</title>
 <polygon fill="#f8f9fb" stroke="#77aadd" stroke-width="1.1" points="1339.25,-702 1339.25,-740.5 1413.75,-740.5 1413.75,-702 1339.25,-702"/>
 <text xml:space="preserve" text-anchor="start" x="1347.25" y="-727" font-family="Helvetica,sans-Serif" font-size="10.00">_AgiEnvMeta</text>
 <polyline fill="none" stroke="#77aadd" stroke-width="1.1" points="1339.25,-721.25 1413.75,-721.25"/>
