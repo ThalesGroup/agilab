@@ -23,6 +23,11 @@ if ($TestApps) {
     $InstallApps = $true
 }
 
+$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (-not $PSBoundParameters.ContainsKey('InstallPath')) {
+    $InstallPath = $ScriptRoot
+}
+
 function Write-Info { param([string]$Message) Write-Host $Message -ForegroundColor Blue }
 function Write-Success { param([string]$Message) Write-Host $Message -ForegroundColor Green }
 function Write-Warn { param([string]$Message) Write-Host "Warning: $Message" -ForegroundColor Yellow }
