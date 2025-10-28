@@ -60,7 +60,9 @@ function Ensure-NotAdmin {
 }
 
 $CurrentPath = [System.IO.Path]::GetFullPath((Get-Location).Path)
-$InstallPathFull = [System.IO.Path]::GetFullPath($InstallPath)
+$InstallPathNormalized = Normalize-RepoPath $InstallPath
+if (-not $InstallPathNormalized) { $InstallPathNormalized = $InstallPath }
+$InstallPathFull = [System.IO.Path]::GetFullPath($InstallPathNormalized)
 
 function Normalize-RepoPath {
     param([string]$Path)
@@ -111,12 +113,11 @@ function Remove-UnwantedPaths {
 
 function Install-Dependencies {
     Write-Info "Step: Installing system dependencies..."
-    Write-Warn "Automatic dependency installation is disabled for restricted networks."
     if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
         Write-Failure "uv CLI not found. Install uv (https://astral.sh/uv/) before re-running the installer."
         exit 1
     }
-    Write-Warn "Ensure Visual Studio Build Tools or MSVC are installed if native builds are required."
+    Write-Info "Ensure Visual Studio Build Tools or MSVC are installed if native builds are required."
 }
 
 function Ensure-Locale {
@@ -124,7 +125,7 @@ function Ensure-Locale {
     try {
         $culture = [System.Globalization.CultureInfo]::CurrentCulture
         if ($culture.Name -ne "en-US") {
-            Write-Warn ("Current culture is {0}; setting process locale variables to en_US.UTF-8." -f $culture.Name)
+            Write-Info ("Current culture is {0}; setting process locale variables to en_US.UTF-8." -f $culture.Name)
         } else {
             Write-Success "Locale en_US.UTF-8 is already active."
         }

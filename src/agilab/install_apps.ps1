@@ -255,32 +255,30 @@ if (-not [string]::IsNullOrEmpty($APPS_REPOSITORY)) {
   if ($APPS_REPOSITORY -match '^[A-Za-z]:(?![\\/])') {
     Write-Color YELLOW "Hint: The AppsRepository path '$APPS_REPOSITORY' looks malformed. On Windows, use backslashes and quote the path, e.g. 'C:\\Users\\me\\repo'"
   }
-  $PAGES_TARGET_BASE = Find-RepoSubdir $RepoRoot 'apps-pages'
-  if (-not $PAGES_TARGET_BASE) {
-    Write-Color RED "Error: Could not locate an 'apps-pages' directory under $APPS_REPOSITORY"
+  $pagesCandidate = Find-RepoSubdir $RepoRoot 'apps-pages'
+  if ($pagesCandidate) {
+    $PAGES_TARGET_BASE = [string](Normalize-PathInput $pagesCandidate)
+    $SkipRepositoryPages = $false
+  } else {
+    Write-Color YELLOW "apps-pages not found under $APPS_REPOSITORY; repository pages will be skipped."
+  }
+  $appsCandidate = Find-RepoSubdir $RepoRoot 'apps'
+  if ($appsCandidate) {
+    $APPS_TARGET_BASE = [string](Normalize-PathInput $appsCandidate)
+    $SkipRepositoryApps = $false
+  } else {
+    Write-Color YELLOW "apps not found under $APPS_REPOSITORY; repository apps will be skipped."
+  }
+  if ($SkipRepositoryApps -and $SkipRepositoryPages) {
     $cand1 = Join-PathSafe $RepoRoot 'apps-pages'
     $cand2 = Join-PathSafe (Join-PathSafe $RepoRoot 'src/agilab') 'apps-pages'
-    Write-Color YELLOW ("Checked: {0} and {1}" -f $cand1, $cand2)
-    Write-Color YELLOW "Hint: Ensure the repository contains an 'apps-pages' folder or omit -AppsRepository to skip repository pages."
-    $here = (Get-Location).Path
-    if ($here -match '^[A-Za-z]:(?![\\/])') { $here = $here.Substring(0,2) + '\\' + $here.Substring(2) }
-    Write-Color YELLOW ("Hint: If this is the current repo, pass -AppsRepository '{0}'" -f $here)
+    $cand3 = Join-PathSafe $RepoRoot 'apps'
+    $cand4 = Join-PathSafe (Join-PathSafe $RepoRoot 'src/agilab') 'apps'
+    Write-Color RED "Neither 'apps' nor 'apps-pages' directories were found under $APPS_REPOSITORY."
+    Write-Color YELLOW ("Checked: {0}, {1}, {2}, {3}" -f $cand1, $cand2, $cand3, $cand4)
+    Write-Color YELLOW "Provide at least one of the directories or omit -AppsRepository to fall back to built-in content."
     exit 1
   }
-  $APPS_TARGET_BASE = Find-RepoSubdir $RepoRoot 'apps'
-  if (-not $APPS_TARGET_BASE) {
-    Write-Color RED "Error: Could not locate an 'apps' directory under $APPS_REPOSITORY"
-    $cand1 = Join-PathSafe $RepoRoot 'apps'
-    $cand2 = Join-PathSafe (Join-PathSafe $RepoRoot 'src/agilab') 'apps'
-    Write-Color YELLOW ("Checked: {0} and {1}" -f $cand1, $cand2)
-    Write-Color YELLOW "Hint: Ensure the repository contains an 'apps' folder (with '*_project' subfolders), or omit -AppsRepository to skip repository apps."
-    exit 1
-  }
-  $SkipRepositoryPages = $false
-  $SkipRepositoryApps  = $false
-  # Sanitize to plain strings
-  $APPS_TARGET_BASE  = [string](Normalize-PathInput $APPS_TARGET_BASE)
-  $PAGES_TARGET_BASE = [string](Normalize-PathInput $PAGES_TARGET_BASE)
 }
 
 $APPS_DEST_BASE = if ($env:APPS_DEST_BASE) { $env:APPS_DEST_BASE }
