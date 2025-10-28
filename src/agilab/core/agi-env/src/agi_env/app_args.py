@@ -70,11 +70,29 @@ def dump_model_to_toml(
 
     doc[section] = model_to_payload(model)
 
+    dumper: Callable[[dict[str, Any], BinaryIO], None] | None = None
     try:
         import tomli_w  # type: ignore[import-not-found]
+
+        def _dump_with_tomli_w(data: dict[str, Any], stream: BinaryIO) -> None:
+            tomli_w.dump(data, stream)
+
+        dumper = _dump_with_tomli_w
+    except ModuleNotFoundError:
+        try:
+            from tomlkit import dumps as tomlkit_dumps
+        except Exception as exc:  # pragma: no cover - defensive guard
+            raise RuntimeError(
+                "Writing settings requires either 'tomli-w' or 'tomlkit'."
+            ) from exc
+
+        def _dump_with_tomlkit(data: dict[str, Any], stream: BinaryIO) -> None:
+            stream.write(tomlkit_dumps(data).encode("utf-8"))
+
+        dumper = _dump_with_tomlkit
     except Exception as exc:  # pragma: no cover - defensive guard
         raise RuntimeError("Writing settings requires the 'tomli-w' package") from exc
 
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     with settings_path.open("wb") as handle:
-        tomli_w.dump(doc, handle)
+        dumper(doc, handle)

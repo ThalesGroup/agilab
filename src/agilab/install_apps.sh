@@ -101,7 +101,7 @@ check_data_mount() {
   DATA_URI_PATH=""
 
   if ! output=$(
-    "${UV_PREVIEW[@]}" -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python - "$app_path" <<'PY' 2>&1
+    "${UV_PREVIEW[@]}" -q run -p "$AGI_PYTHON_VERSION" --project ../core/agi-cluster python - "$app_path" <<'PY' 2>&1
 from pathlib import Path
 import sys
 from agi_env import AgiEnv
@@ -524,7 +524,7 @@ fi
 
 append_unique INCLUDED_APPS_UNIQ ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}
 
-# --- Run installer for each page (stable CWD so ../core/cluster resolves) -----
+# --- Run installer for each page (stable CWD so ../core/agi-cluster resolves) -----
 pushd -- "$AGILAB_PUBLIC/apps-pages" >/dev/null
 
 for page in ${INCLUDED_PAGES+"${INCLUDED_PAGES[@]}"}; do
@@ -540,7 +540,7 @@ done
 
 popd >/dev/null
 
-# --- Run installer for each app (stable CWD so ../core/cluster resolves) -----
+# --- Run installer for each app (stable CWD so ../core/agi-cluster resolves) -----
 pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
 
 for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
@@ -557,8 +557,8 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   fi
 
   echo -e "${BLUE}Installing $app...${NC}"
-  echo "${UV_PREVIEW[@]} -q run -p \"$AGI_PYTHON_VERSION\" --project ../core/cluster python install.py \"${AGILAB_PUBLIC}/apps/$app\""
-  if "${UV_PREVIEW[@]}" -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
+  echo "${UV_PREVIEW[@]} -q run -p \"$AGI_PYTHON_VERSION\" --project ../core/agi-cluster python install.py \"${AGILAB_PUBLIC}/apps/$app\""
+  if "${UV_PREVIEW[@]}" -q run -p "$AGI_PYTHON_VERSION" --project ../core/agi-cluster python install.py \
     "${AGILAB_PUBLIC}/apps/$app"; then
       echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
       echo -e "${GREEN}Checking installation...${NC}"
