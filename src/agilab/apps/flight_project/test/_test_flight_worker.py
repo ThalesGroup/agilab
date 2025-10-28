@@ -31,7 +31,7 @@ async def main():
     # build the egg using the shared build module
     wenv = env.wenv_abs
     menv = env.wenv_abs
-    module_cmd = f"uv run --project \"{menv}\" python -m agi_node.agi_dispatcher.build --app-path \"{menv}\""
+le_cmd = f"uv run --project \"{menv}\" python -m agi_node.agi_dispatcher.build --app-path \"{menv}\""
     cmd = f"{module_cmd} -q bdist_egg --packages \"agi_dispatcher, polars_worker\" -d \"{menv}\""
     await env.run(cmd, menv)
 
