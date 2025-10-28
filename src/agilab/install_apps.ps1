@@ -191,6 +191,19 @@ function Invoke-UvPreview {
     return $LASTEXITCODE
 }
 
+function Add-Unique {
+    param(
+        [ref]$List,
+        [string[]]$Items
+    )
+    foreach ($item in $Items) {
+        if ([string]::IsNullOrWhiteSpace($item)) { continue }
+        if (-not ($List.Value -contains $item)) {
+            $List.Value += $item
+        }
+    }
+}
+
 # ----- Load environment ------------------------------------------------------
 $LocalAppData = $env:LOCALAPPDATA
 $envPath = Join-PathSafe $LocalAppData "agilab/.env"
@@ -373,9 +386,46 @@ if (-not $SkipRepositoryApps) {
 $includedPages = if ($SkipRepositoryPages) { $builtinPages } else { $builtinPages + $repositoryPages }
 $includedApps = if ($SkipRepositoryApps) { $builtinApps } else { $builtinApps + $repositoryApps }
 
-Write-Color BLUE ("Apps to install: {0}" -f ($(if ($includedApps.Count) { $includedApps -join ' ' } else { "<none>" })))
-Write-Host ""
-Write-Color BLUE ("Pages to install: {0}" -f ($(if ($includedPages.Count) { $includedPages -join ' ' } else { "<none>" })))
+$includedPages = $includedPages | Select-Object -Unique
+$includedApps  = $includedApps  | Select-Object -Unique
+
+$allPages = @()
+Add-Unique ([ref]$allPages) $builtinPages
+Add-Unique ([ref]$allPages) $repositoryPages
+
+$allApps = @()
+Add-Unique ([ref]$allApps) $builtinApps
+Add-Unique ([ref]$allApps) $repositoryApps
+
+$filteredPages = @()
+foreach ($page in $allPages) {
+    if (-not ($includedPages -contains $page)) {
+        $filteredPages += $page
+    }
+}
+$filteredApps = @()
+foreach ($app in $allApps) {
+    if (-not ($includedApps -contains $app)) {
+        $filteredApps += $app
+    }
+}
+
+if ($includedPages.Count) {
+    Write-Color BLUE ("Pages selected for install: {0}" -f ($includedPages -join ' '))
+} else {
+    Write-Color YELLOW "No pages selected for install."
+}
+if ($filteredPages.Count) {
+    Write-Color YELLOW ("Pages filtered out: {0}" -f ($filteredPages -join ' '))
+}
+if ($includedApps.Count) {
+    Write-Color BLUE ("Apps selected for install: {0}" -f ($includedApps -join ' '))
+} else {
+    Write-Color YELLOW "No apps selected for install."
+}
+if ($filteredApps.Count) {
+    Write-Color YELLOW ("Apps filtered out: {0}" -f ($filteredApps -join ' '))
+}
 Write-Host ""
 
 # --- Ensure local symlinks in repository -------------------------------------
