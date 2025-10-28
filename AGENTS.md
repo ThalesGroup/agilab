@@ -38,6 +38,11 @@ Use this runbook whenever you:
   `~/agi-space/.venv` and uses `uv pip` afterwards. If an install reports
   `No module named pip`, rerun the latest installer or execute
   `uv run python -m ensurepip --upgrade` once in `~/agi-space`.
+- **Fast reinstall mode**: Repeat installs now auto-detect prior runs and offer to enable
+  fast mode (skips system deps, locale config, offline extras, matrix refresh). Accept the
+  prompt or pass `./install.sh --fast [--python-version <major.minor>]` / `.\install.ps1 -Fast [-PythonVersion <major.minor>]`
+  for non-interactive speedups. Use `--no-fast` / `-NoFast` or set `AGILAB_AUTO_FAST=0` when you
+  need the full flow, and rerun without fast mode before shipping artifacts.
 - **Apps repository symlinks**: Keep the apps repository (``APPS_REPOSITORY``) at the path recorded in
   `~/.local/share/agilab/.env`. On this machine it resolves to `/Users/example/PycharmProjects/agilab-apps`.
   The installer auto-creates symlinks so missing workers
