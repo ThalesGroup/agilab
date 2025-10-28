@@ -5,7 +5,7 @@ Use this runbook to align Codex CLI and human operators on consistent launch and
 ## General practices
 
 - Codex CLI startup (after EXECUTE project clone): run from repo root
-  - `codex -s danger-full-access -a never`
+  - `codex --full-access -a never -m codex-medium`
   - Grants full filesystem access with non-interactive approvals. Use only on trusted local machines.
 
 - Windows: set `APPS_REPOSITORY` using forward slashes in `%USERPROFILE%\.agilab\.env` to avoid path parsing issues

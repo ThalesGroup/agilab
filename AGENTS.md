@@ -476,7 +476,7 @@ This repository uses Codex CLI for local agent development. Follow these notes w
 ## Codex CLI Quickstart
 
 - Start app development after an initial creation via EXECUTE project clone using:
-  - `codex -s danger-full-access -a never`
+  - `codex --full-access -a never -m codex-medium`
 - Run the command from the repository root to give the agent full filesystem access with a non-interactive approval policy.
 - Use only on your local, trusted machine. Do not run with these flags on shared or untrusted environments.
 

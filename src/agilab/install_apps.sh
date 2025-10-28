@@ -88,6 +88,62 @@ resolve_physical_dir() {
   (cd "$1" >/dev/null 2>&1 && pwd -P)
 }
 
+# Detect whether an application's data directory is reachable. Returns:
+#   0 - data root accessible
+#   2 - data root unavailable (e.g. NFS share offline)
+# Other return codes bubble up for unexpected failures so callers can react.
+check_data_mount() {
+  local app="$1"
+  local app_path="$AGILAB_PUBLIC/apps/$app"
+  local output rc marker
+
+  DATA_CHECK_MESSAGE=""
+  DATA_URI_PATH=""
+
+  if ! output=$(
+    uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python - "$app_path" <<'PY' 2>&1
+from pathlib import Path
+import sys
+from agi_env import AgiEnv
+
+app_path = Path(sys.argv[1])
+try:
+    env = AgiEnv(apps_dir=app_path.parent, app=app_path.name, verbose=0)
+except FileNotFoundError as exc:
+    sys.stdout.write(f"DATA_UNAVAILABLE::{exc}")
+    sys.exit(3)
+except Exception as exc:
+    sys.stdout.write(f"DATA_ERROR::{type(exc).__name__}:{exc}")
+    sys.exit(4)
+else:
+    data_root = (env.home_abs / env.data_rel).expanduser()
+    sys.stdout.write(f"DATA_OK::{data_root}")
+PY
+  ); then
+    rc=$?
+    marker=$(printf '%s\n' "$output" | tail -n 1)
+    if [[ "$marker" == DATA_UNAVAILABLE::* ]]; then
+      DATA_CHECK_MESSAGE="${marker#DATA_UNAVAILABLE::}"
+      return 2
+    fi
+    if [[ "$marker" == DATA_ERROR::* ]]; then
+      DATA_CHECK_MESSAGE="${marker#DATA_ERROR::}"
+      return $rc
+    fi
+    DATA_CHECK_MESSAGE="$marker"
+    return $rc
+  fi
+
+  marker=$(printf '%s\n' "$output" | tail -n 1)
+  if [[ "$marker" == DATA_OK::* ]]; then
+    DATA_URI_PATH="${marker#DATA_OK::}"
+    return 0
+  fi
+
+  DATA_CHECK_MESSAGE="$marker"
+  return 0
+}
+
 usage() {
   cat <<'EOF'
 Usage: install_apps.sh [--test-apps]
@@ -143,6 +199,9 @@ declare -a REPOSITORY_APPS=(
 
 declare -a INCLUDED_APPS=()
 declare -a INCLUDED_PAGES=()
+declare -a SKIPPED_APP_TESTS=()
+DATA_CHECK_MESSAGE=""
+DATA_URI_PATH=""
 
 # Destination base for creating local app symlinks (defaults to current dir)
 : "${APPS_DEST_BASE:="$AGILAB_PUBLIC/apps"}"
@@ -376,28 +435,40 @@ popd >/dev/null
 pushd -- "$AGILAB_PUBLIC/apps" >/dev/null
 
 for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
-echo -e "${BLUE}Installing $app...${NC}"
-echo  uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
-    "$AGILAB_PUBLIC/apps/$app"
-if uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
-    "$AGILAB_PUBLIC/apps/$app"; then
-    echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
-    echo -e "${GREEN}Checking installation...${NC}"
-    if pushd -- "$app" >/dev/null; then
-    if [[ -f app_test.py ]]; then
-        echo uv run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
-        uv run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
-    else
-        echo -e "${BLUE}No app_test.py in $app, skipping tests.${NC}"
+  if ! check_data_mount "$app"; then
+    rc=$?
+    if (( rc == 2 )); then
+      SKIPPED_APP_TESTS+=("$app")
+      echo -e "${YELLOW}Warning:${NC} data storage unavailable for '$app' (${DATA_CHECK_MESSAGE}). Skipping install/apps-test stage."
+      continue
     fi
-    popd >/dev/null
-    else
-    echo -e "${YELLOW}Warning:${NC} could not enter '$app' to run tests."
-    fi
-else
-    echo -e "${RED}✗ '$app' installation failed.${NC}"
+    echo -e "${RED}Error checking data availability for '$app':${NC} ${DATA_CHECK_MESSAGE:-"unknown error"}"
     status=1
-fi
+    continue
+  fi
+
+  echo -e "${BLUE}Installing $app...${NC}"
+  echo  uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
+      "$AGILAB_PUBLIC/apps/$app"
+  if uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
+      "$AGILAB_PUBLIC/apps/$app"; then
+      echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
+      echo -e "${GREEN}Checking installation...${NC}"
+      if pushd -- "$app" >/dev/null; then
+      if [[ -f app_test.py ]]; then
+          echo uv run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
+          uv run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
+      else
+          echo -e "${BLUE}No app_test.py in $app, skipping tests.${NC}"
+      fi
+      popd >/dev/null
+      else
+      echo -e "${YELLOW}Warning:${NC} could not enter '$app' to run tests."
+      fi
+  else
+      echo -e "${RED}✗ '$app' installation failed.${NC}"
+      status=1
+  fi
 done
 
 popd >/dev/null
@@ -409,6 +480,10 @@ if (( DO_TEST_APPS )); then
   for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
     if [[ ! -d "$app" ]]; then
       echo -e "${YELLOW}Skipping pytest for '$app': directory not found.${NC}"
+      continue
+    fi
+    if [[ " ${SKIPPED_APP_TESTS[*]} " == *" $app "* ]]; then
+      echo -e "${YELLOW}Skipping pytest for '$app': data storage unavailable earlier.${NC}"
       continue
     fi
     echo -e "${BLUE}[pytest] $app${NC}"
@@ -441,6 +516,10 @@ if (( status == 0 )); then
     echo -e "${GREEN}Installation of apps complete!${NC}"
 else
     echo -e "${YELLOW}Installation finished with some errors (status=$status).${NC}"
+fi
+
+if (( ${#SKIPPED_APP_TESTS[@]} )); then
+    echo -e "${YELLOW}apps-test bypassed for:${NC} ${SKIPPED_APP_TESTS[*]}"
 fi
 
 END_TIME=$(date +%s)
