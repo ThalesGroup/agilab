@@ -39,7 +39,8 @@ dependencies = [
     "ipython",
     "py7zr",
     "cmake>=3.29",
-    "numba"
+    "numba",
+    "streamlit"
 ]
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -62,7 +63,6 @@ dev = [
     "pytest-asyncio",
     "licensecheck",
     "pytest-cov",
-    "streamlit",
     "agi-env"
 ]
 
