@@ -15,7 +15,7 @@ NC='\033[0m' # No Color
 
 START_TIME=$(date +%s)
 
-UV_PREVIEW=(uv --preview-features extra-build-dependencies --link-mode copy)
+UV_PREVIEW=(uv --preview-features extra-build-dependencies)
 
 DO_TEST_APPS=0
 
