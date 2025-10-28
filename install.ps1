@@ -60,7 +60,9 @@ function Ensure-NotAdmin {
 }
 
 $CurrentPath = [System.IO.Path]::GetFullPath((Get-Location).Path)
-$InstallPathFull = [System.IO.Path]::GetFullPath($InstallPath)
+$InstallPathNormalized = Normalize-RepoPath $InstallPath
+if (-not $InstallPathNormalized) { $InstallPathNormalized = $InstallPath }
+$InstallPathFull = [System.IO.Path]::GetFullPath($InstallPathNormalized)
 
 function Normalize-RepoPath {
     param([string]$Path)
@@ -115,7 +117,7 @@ function Install-Dependencies {
         Write-Failure "uv CLI not found. Install uv (https://astral.sh/uv/) before re-running the installer."
         exit 1
     }
-    Write-Warn "Ensure Visual Studio Build Tools or MSVC are installed if native builds are required."
+    Write-Info "Ensure Visual Studio Build Tools or MSVC are installed if native builds are required."
 }
 
 function Ensure-Locale {
