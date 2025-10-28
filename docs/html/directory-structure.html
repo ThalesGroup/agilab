@@ -165,6 +165,7 @@
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#dask-debug-issue">&lt;DASK&gt; Debug Issue</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#pycharm-run-debug-configuration-is-broken">&lt;PYCHARM&gt; Run/Debug Configuration is Broken</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#pycharm-can-t-open-your-project">&lt;PYCHARM&gt; Can’t open your project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#failed-to-read-pydantic-metadata">Failed to read pydantic metadata</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul>
@@ -354,6 +355,48 @@ apps/
         README.md
         run_test.sh
         uv_config.toml
+    example_app_project/
+        .pytest_cache/ [excluded]
+        .venv/ [excluded]
+        ILP_legacy/
+            .gitkeep
+            demand.py
+            flyenv.py
+            milp.py
+            requirement.txt
+            tests.py
+            topo3N.txt
+        Modules/ [excluded]
+        src/
+            data/
+                topo3N.txt
+            ilp/
+                __init__.py
+                ilp.py
+                ilp_args.py
+            example_worker/
+                data/
+                    __init__.py
+                    topo3N.txt
+                __init__.py
+                demand.py
+                flyenv.py
+                example_worker.py
+                example_worker.pyx
+                milp.py
+                pyproject.toml
+            app_args_form.py
+            app_settings.toml
+            pre_prompt.json
+        test/
+            __init__.py
+            _test_ilp_manager.py
+            _test_example_worker.py
+        distribution.json
+        MANIFEST.in
+        pyproject.toml
+        README.md
+        uv_config.toml
     mycode_project/
         .pytest_cache/ [excluded]
         .venv/ [excluded]
@@ -524,7 +567,6 @@ apps/
             uv_config.toml
     .gitignore
     __init__.py
-    example_app_project
     example_app_project
     install.py
     example_app_project
