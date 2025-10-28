@@ -189,6 +189,20 @@ def cleanup_links(links: list[Path]) -> None:
                     shutil.rmtree(link)
                 else:
                     link.unlink()
+
+            parent = link.parent
+            while parent and parent.name:
+                if parent.name == "agi_node" or \
+                   (parent.parent and parent.parent.name == "agi_node"):
+                    try:
+                        if any(parent.iterdir()):
+                            break
+                        parent.rmdir()
+                    except OSError:
+                        break
+                    parent = parent.parent
+                    continue
+                break
         except Exception as e:
             AgiEnv.logger.warning(f"Failed to remove {link}: {e}")
 
