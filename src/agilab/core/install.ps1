@@ -26,7 +26,7 @@ if (Test-Path $envFile) {
 # Clean up AGI_PYTHON_VERSION
 $env:AGI_PYTHON_VERSION = $env:AGI_PYTHON_VERSION -replace '^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*','$1'
 
-$UvPreviewArgs = @("--preview-features", "extra-build-dependencies", "--link-mode", "copy")
+$UvPreviewArgs = @("--preview-features", "extra-build-dependencies")
 function Invoke-UvPreview {
     param([string[]]$MoreArgs)
 
