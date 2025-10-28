@@ -275,6 +275,30 @@ else
   INCLUDED_PAGES=(${BUILTIN_PAGES+"${BUILTIN_PAGES[@]}"})
 fi
 
+declare -a ALL_PAGES=()
+declare -a INCLUDED_PAGES_UNIQ=()
+
+for item in "${BUILTIN_PAGES[@]}"; do
+  [[ -z "$item" ]] && continue
+  if [[ " ${ALL_PAGES[*]} " != *" ${item} "* ]]; then
+    ALL_PAGES+=("$item")
+  fi
+done
+if (( SKIP_REPOSITORY_PAGES == 0 )); then
+  for item in "${REPOSITORY_PAGES[@]}"; do
+    [[ -z "$item" ]] && continue
+    if [[ " ${ALL_PAGES[*]} " != *" ${item} "* ]]; then
+      ALL_PAGES+=("$item")
+    fi
+  done
+fi
+for item in "${INCLUDED_PAGES[@]}"; do
+  [[ -z "$item" ]] && continue
+  if [[ " ${INCLUDED_PAGES_UNIQ[*]} " != *" ${item} "* ]]; then
+    INCLUDED_PAGES_UNIQ+=("$item")
+  fi
+done
+
 # --- BUILTIN_APPS: allow manual override via env -----------------------------
 # You can set BUILTIN_APPS or BUILTIN_APPS_OVERRIDE to a comma/space/newline
 # separated list (e.g. "foo_project,bar_project baz_project").
@@ -315,9 +339,64 @@ if (( SKIP_REPOSITORY_APPS == 0 )); then
 else
   INCLUDED_APPS=(${BUILTIN_APPS+"${BUILTIN_APPS[@]}"})
 fi
+declare -a ALL_APPS=()
+declare -a INCLUDED_APPS_UNIQ=()
 
-echo -e "${BLUE}Apps to install:${NC} ${INCLUDED_APPS[*]:-<none>}\n"
-echo -e "${BLUE}Pages to install:${NC} ${INCLUDED_PAGES[*]:-<none>}\n"
+for item in "${BUILTIN_APPS[@]}"; do
+  [[ -z "$item" ]] && continue
+  if [[ " ${ALL_APPS[*]} " != *" ${item} "* ]]; then
+    ALL_APPS+=("$item")
+  fi
+done
+if (( SKIP_REPOSITORY_APPS == 0 )); then
+  for item in "${REPOSITORY_APPS[@]}"; do
+    [[ -z "$item" ]] && continue
+    if [[ " ${ALL_APPS[*]} " != *" ${item} "* ]]; then
+      ALL_APPS+=("$item")
+    fi
+  done
+fi
+for item in "${INCLUDED_APPS[@]}"; do
+  [[ -z "$item" ]] && continue
+  if [[ " ${INCLUDED_APPS_UNIQ[*]} " != *" ${item} "* ]]; then
+    INCLUDED_APPS_UNIQ+=("$item")
+  fi
+done
+
+declare -a FILTERED_PAGES=()
+declare -a FILTERED_APPS=()
+
+for item in "${ALL_PAGES[@]}"; do
+  [[ -z "$item" ]] && continue
+  if [[ " ${INCLUDED_PAGES_UNIQ[*]} " != *" ${item} "* ]]; then
+    FILTERED_PAGES+=("$item")
+  fi
+done
+for item in "${ALL_APPS[@]}"; do
+  [[ -z "$item" ]] && continue
+  if [[ " ${INCLUDED_APPS_UNIQ[*]} " != *" ${item} "* ]]; then
+    FILTERED_APPS+=("$item")
+  fi
+done
+
+if (( ${#INCLUDED_PAGES_UNIQ[@]} )); then
+  echo -e "${BLUE}Pages selected for install:${NC} ${INCLUDED_PAGES_UNIQ[*]}"
+else
+  echo -e "${YELLOW}No pages selected for install.${NC}"
+fi
+if (( ${#FILTERED_PAGES[@]} )); then
+  echo -e "${YELLOW}Pages filtered out:${NC} ${FILTERED_PAGES[*]}"
+fi
+if (( ${#INCLUDED_APPS_UNIQ[@]} )); then
+  echo -e "${BLUE}Apps selected for install:${NC} ${INCLUDED_APPS_UNIQ[*]}"
+else
+  echo -e "${YELLOW}No apps selected for install.${NC}"
+fi
+if (( ${#FILTERED_APPS[@]} )); then
+  echo -e "${YELLOW}Apps filtered out:${NC} ${FILTERED_APPS[*]}"
+fi
+
+echo
 
 # --- Ensure local symlinks exist/refresh in DEST_BASE ------------------------
 if (( SKIP_REPOSITORY_APPS == 0 )); then
@@ -414,6 +493,7 @@ for app in ${REPOSITORY_APPS+"${REPOSITORY_APPS[@]}"}; do
 done
 fi
 
+append_unique INCLUDED_APPS_UNIQ ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}
 
 # --- Run installer for each page (stable CWD so ../core/cluster resolves) -----
 pushd -- "$AGILAB_PUBLIC/apps-pages" >/dev/null
