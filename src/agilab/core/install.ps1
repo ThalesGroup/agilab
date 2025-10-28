@@ -45,10 +45,21 @@ function Install-ModulePath {
     Push-Location $Path
     Write-Host "uv sync -p $env:AGI_PYTHON_VERSION --dev" -ForegroundColor Blue
     Invoke-UvPreview @("sync", "-p", $env:AGI_PYTHON_VERSION, "--dev")
-    uv run python -m ensurepip
+    Invoke-UvPreview @("run", "-p", $env:AGI_PYTHON_VERSION, "python", "-m", "ensurepip")
     Invoke-UvPreview @("pip", "install", "-e", ".")
     foreach ($pkg in $ExtraInstalls) {
         Invoke-UvPreview @("pip", "install", "-e", $pkg)
+    }
+
+    Invoke-UvPreview @("pip", "show", "pydantic") | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        $repoRoot = (Resolve-Path "..\..\..").Path
+        $localWheel = Get-ChildItem -LiteralPath $repoRoot -Recurse -Filter "pydantic-2.12.3*.whl" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($localWheel) {
+            Invoke-UvPreview @("pip", "install", "--force-reinstall", "--no-index", "--find-links", $localWheel.Directory.FullName, "pydantic==2.12.3")
+        } else {
+            Invoke-UvPreview @("pip", "install", "--force-reinstall", "pydantic==2.12.3")
+        }
     }
 
     Pop-Location
@@ -66,7 +77,6 @@ Install-ModulePath "agi-node" @("../agi-env")
 Write-Host "Installing agi-cluster..." -ForegroundColor Blue
 Install-ModulePath "agi-cluster" @("../agi-node", "../agi-env")
 
-
 Write-Host "Installing agilab..." -ForegroundColor Blue
 Push-Location (Resolve-Path "..\..\..")
 Invoke-UvPreview @("sync", "-p", $env:AGI_PYTHON_VERSION)
@@ -77,4 +87,4 @@ Invoke-UvPreview @("pip", "install", "-e", "src/agilab/core/agi-core")
 Pop-Location
 
 Write-Host "Checking installation..." -ForegroundColor Green
-uv run --project .\agi-cluser -p $env:AGI_PYTHON_VERSION --no-sync python -m pytest
+Invoke-UvPreview @("run", "--project", ".\agi-cluster", "-p", $env:AGI_PYTHON_VERSION, "--no-sync", "python", "-m", "pytest")
