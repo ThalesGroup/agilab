@@ -90,7 +90,8 @@ $script:AgiPythonVersion = $null
 $script:AgiPythonFreeThreaded = $false
 $TranscriptStarted = $false
 
-$UvPreviewArgs = @("--preview-features", "extra-build-dependencies")
+if (-not $env:UV_LINK_MODE) { $env:UV_LINK_MODE = "copy" }
+$UvPreviewArgs = @("--preview-features", "extra-build-dependencies", "--link-mode", "copy")
 function Invoke-UvPreview {
     param([string[]]$Arguments)
     & uv @UvPreviewArgs @Arguments
