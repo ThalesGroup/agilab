@@ -11,10 +11,6 @@ param(
     [string]$AppsRepository,
     [ValidateSet("local", "pypi", "testpypi")]
     [string]$Source = "local",
-    [string]$PythonVersion,
-    [switch]$Fast,
-    [switch]$NoFast,
-    [switch]$Yes,
     [switch]$InstallApps,
     [switch]$TestApps
 )
@@ -23,25 +19,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-if ($Fast.IsPresent -and $NoFast.IsPresent) {
-    Write-Error "Cannot specify both -Fast and -NoFast."
-    exit 1
-}
-
-$script:FastMode = $Fast.IsPresent
-$script:FastModeUserSet = $Fast.IsPresent -or $NoFast.IsPresent
-$script:AssumeYes = $Yes.IsPresent
-$script:AutoFastDefault = if ($NoFast.IsPresent -or $env:AGILAB_AUTO_FAST -eq "0") { $false } else { $true }
-$script:InputIsRedirected = [Console]::IsInputRedirected
-$script:ProvidedPythonVersion = if ($PSBoundParameters.ContainsKey('PythonVersion')) { $PythonVersion } else { $null }
-
 if ($TestApps) {
     $InstallApps = $true
-}
-
-$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-if (-not $PSBoundParameters.ContainsKey('InstallPath')) {
-    $InstallPath = $ScriptRoot
 }
 
 function Write-Info { param([string]$Message) Write-Host $Message -ForegroundColor Blue }
@@ -54,13 +33,6 @@ function Prompt-YesNo {
         [string]$Message,
         [switch]$DefaultYes
     )
-    if ($script:AssumeYes) {
-        Write-Info "$Message [auto-yes via -Yes]"
-        return $true
-    }
-    if ($script:InputIsRedirected) {
-        return $DefaultYes.IsPresent
-    }
     $suffix = if ($DefaultYes) { "[Y/n]" } else { "[y/N]" }
     while ($true) {
         $response = Read-Host "$Message $suffix"
@@ -87,80 +59,15 @@ function Ensure-NotAdmin {
     }
 }
 
+$CurrentPath = [System.IO.Path]::GetFullPath((Get-Location).Path)
+$InstallPathFull = [System.IO.Path]::GetFullPath($InstallPath)
+
 function Normalize-RepoPath {
     param([string]$Path)
     if ([string]::IsNullOrWhiteSpace($Path)) { return "" }
     $p = $Path.Trim()
-    if ($p -match '^[A-Za-z]:(?![\\/])') { $p = $p.Substring(0,2) + '\' + $p.Substring(2) }
+    if ($p -match '^[A-Za-z]:(?![\\/])') { $p = $p.Substring(0,2) + '\\' + $p.Substring(2) }
     try { return [System.IO.Path]::GetFullPath($p) } catch { return $p }
-}
-
-$script:PreviousEnvMap = @{}
-$script:PreviousEnvLoaded = $false
-
-function Import-PreviousEnv {
-    $envFile = Join-Path $LocalDir ".env"
-    if (-not (Test-Path -LiteralPath $envFile)) { return @{} }
-    $map = @{}
-    Get-Content -LiteralPath $envFile | ForEach-Object {
-        $line = $_.Trim()
-        if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith("#")) { return }
-        $pair = $line -split "=", 2
-        if ($pair.Count -ne 2) { return }
-        $key = $pair[0].Trim()
-        $value = $pair[1].Trim()
-        if ($value.StartsWith('"') -and $value.EndsWith('"')) {
-            $value = $value.Substring(1, $value.Length - 2)
-        }
-        $map[$key] = $value
-    }
-    $script:PreviousEnvMap = $map
-    $script:PreviousEnvLoaded = $true
-    return $map
-}
-
-function Should-AutoFast {
-    if (-not $script:PreviousEnvLoaded) { return $false }
-    if (-not (Test-Path -LiteralPath (Join-Path $ScriptRoot ".git"))) { return $false }
-    if (-not (Test-Path -LiteralPath (Join-Path $ScriptRoot "src\agilab"))) { return $false }
-    if (-not (Test-Path -LiteralPath (Join-Path $ScriptRoot "src\agilab\core"))) { return $false }
-    return $true
-}
-
-function Maybe-EnableAutoFast {
-    if ($script:FastModeUserSet -or $script:FastMode) { return }
-    if (-not $script:AutoFastDefault) {
-        Write-Info "Auto fast mode disabled (AGILAB_AUTO_FAST=0 or -NoFast supplied)."
-        return
-    }
-    if (-not (Should-AutoFast)) { return }
-
-    $message = "Previous install detected. Enable fast mode (skip system deps, locale, offline extras)?"
-    if ($script:AssumeYes -or $script:InputIsRedirected) {
-        $script:FastMode = $true
-        Write-Info "Fast mode enabled automatically (previous install detected)."
-        return
-    }
-    if (Prompt-YesNo $message -DefaultYes) {
-        $script:FastMode = $true
-        Write-Info "Fast mode enabled (previous install detected)."
-    } else {
-        Write-Info "Fast mode declined; running full install."
-    }
-}
-
-$CurrentPath = [System.IO.Path]::GetFullPath((Get-Location).Path)
-$InstallPathNormalized = Normalize-RepoPath $InstallPath
-if (-not $InstallPathNormalized) { $InstallPathNormalized = $InstallPath }
-$InstallPathFull = [System.IO.Path]::GetFullPath($InstallPathNormalized)
-
-$LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
-Ensure-Directory $LocalDir
-
-$null = Import-PreviousEnv
-
-if (-not $PSBoundParameters.ContainsKey('AppsRepository') -and $script:PreviousEnvMap.ContainsKey('APPS_REPOSITORY')) {
-    $AppsRepository = $script:PreviousEnvMap['APPS_REPOSITORY']
 }
 
 $AppsRepositoryPath = if ($AppsRepository) { Normalize-RepoPath $AppsRepository } else { "" }
@@ -169,6 +76,8 @@ $env:APPS_REPOSITORY = $AppsRepositoryPath
 # Backward-compat for older tools that still read AGILAB_APPS_REPOSITORY
 $env:AGILAB_APPS_REPOSITORY = $AppsRepositoryPath
 
+$LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
+Ensure-Directory $LocalDir
 $AgiPathFile = Join-Path $LocalDir ".agilab-path"
 
 $LogDir = Join-Path $env:USERPROFILE "log\install_logs"
@@ -177,17 +86,8 @@ $LogFile = Join-Path $LogDir ("install_{0}.log" -f (Get-Date -Format "yyyyMMdd_H
 
 $script:AgiPythonVersion = $null
 $script:AgiPythonFreeThreaded = $false
-
-if (-not $script:ProvidedPythonVersion -and $script:PreviousEnvMap.ContainsKey('AGI_PYTHON_VERSION')) {
-    $script:AgiPythonVersion = $script:PreviousEnvMap['AGI_PYTHON_VERSION']
-}
-if ($script:PreviousEnvMap.ContainsKey('AGI_PYTHON_FREE_THREADED')) {
-    $script:AgiPythonFreeThreaded = $script:PreviousEnvMap['AGI_PYTHON_FREE_THREADED'] -eq "1"
-}
-
 $TranscriptStarted = $false
 
-if (-not $env:UV_LINK_MODE) { $env:UV_LINK_MODE = "copy" }
 $UvPreviewArgs = @("--preview-features", "extra-build-dependencies")
 function Invoke-UvPreview {
     param([string[]]$Arguments)
@@ -210,28 +110,21 @@ function Remove-UnwantedPaths {
 }
 
 function Install-Dependencies {
-    if ($script:FastMode) {
-        Write-Warn "Fast mode: skipping system dependency checks."
-        return
-    }
     Write-Info "Step: Installing system dependencies..."
+    Write-Warn "Automatic dependency installation is disabled for restricted networks."
     if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
         Write-Failure "uv CLI not found. Install uv (https://astral.sh/uv/) before re-running the installer."
         exit 1
     }
-    Write-Info "Ensure Visual Studio Build Tools or MSVC are installed if native builds are required."
+    Write-Warn "Ensure Visual Studio Build Tools or MSVC are installed if native builds are required."
 }
 
 function Ensure-Locale {
-    if ($script:FastMode) {
-        Write-Warn "Fast mode: skipping locale configuration."
-        return
-    }
     Write-Info "Setting locale..."
     try {
         $culture = [System.Globalization.CultureInfo]::CurrentCulture
         if ($culture.Name -ne "en-US") {
-            Write-Info ("Current culture is {0}; setting process locale variables to en_US.UTF-8." -f $culture.Name)
+            Write-Warn ("Current culture is {0}; setting process locale variables to en_US.UTF-8." -f $culture.Name)
         } else {
             Write-Success "Locale en_US.UTF-8 is already active."
         }
@@ -263,115 +156,8 @@ function Test-VisualStudio {
     }
 }
 
-function Get-InstalledPythonSpecs {
-    Invoke-UvPreview @("python", "list", "--only-installed") | ForEach-Object {
-        $parts = $_ -split '\s+'
-        if ($parts.Length -gt 0) { $parts[0] }
-    }
-}
-
-function Get-VersionFromSpec {
-    param([string]$Spec)
-    if ([string]::IsNullOrWhiteSpace($Spec)) { return $null }
-    $match = [regex]::Match($Spec, '([0-9]+\.[0-9]+\.[0-9]+)')
-    if ($match.Success) { return $match.Groups[1].Value }
-    $match = [regex]::Match($Spec, '([0-9]+\.[0-9]+)')
-    if ($match.Success) { return $match.Groups[1].Value }
-    return $null
-}
-
-function Resolve-PythonSpec {
-    param([string]$Requested)
-    if ([string]::IsNullOrWhiteSpace($Requested)) { $Requested = "3.13" }
-    $pattern = [regex]::Escape($Requested)
-    $installed = Get-InstalledPythonSpecs
-    $match = $installed | Where-Object { $_ -match $pattern }
-    if ($match) { return $match[0] }
-    $available = Invoke-UvPreview @("python", "list") | ForEach-Object {
-        $trim = $_.Trim()
-        if ($trim) { ($trim -split '\s+')[0] } else { $null }
-    } | Where-Object { $_ -and $_ -match $pattern -and $_ -notmatch "freethreaded" }
-    if ($available) { return $available[0] }
-    return $Requested
-}
-
-function Ensure-PythonRuntime {
-    param(
-        [string]$Requested,
-        [switch]$SkipFreethreaded
-    )
-    if ([string]::IsNullOrWhiteSpace($Requested)) { $Requested = "3.13" }
-    $spec = Resolve-PythonSpec $Requested
-    $installedPythons = Get-InstalledPythonSpecs
-    if ($installedPythons -notcontains $spec) {
-        Write-Info "Installing $spec..."
-        Invoke-UvPreview @("python", "install", $spec)
-        $installedPythons = Get-InstalledPythonSpecs
-        if ($installedPythons -contains $spec) {
-            Write-Success "Python version ($spec) is now installed."
-        } else {
-            Write-Warn "Unable to confirm installation of $spec; continuing."
-        }
-    } else {
-        Write-Success "Python version ($spec) is already installed."
-    }
-
-    $version = Get-VersionFromSpec $spec
-    if (-not $version) { $version = $Requested }
-    $script:AgiPythonVersion = $version
-    $env:AGI_PYTHON_VERSION = $script:AgiPythonVersion
-
-    if ($SkipFreethreaded) {
-        $script:AgiPythonFreeThreaded = $false
-        $env:AGI_PYTHON_FREE_THREADED = "0"
-        Write-Warn "Fast mode: skipping freethreaded interpreter setup."
-        return
-    }
-
-    $freethreadedEntry = (Invoke-UvPreview @("python", "list") | Where-Object { $_ -match [regex]::Escape($script:AgiPythonVersion) -and $_ -match "freethreaded" } | Select-Object -First 1)
-    if ($freethreadedEntry) {
-        $freethreadedId = ($freethreadedEntry -split '\s+')[0]
-        $installedPythons = Get-InstalledPythonSpecs
-        if ($installedPythons -notcontains $freethreadedId) {
-            Write-Info "Installing $freethreadedId..."
-            Invoke-UvPreview @("python", "install", $freethreadedId)
-            Write-Success "Python version ($freethreadedId) is now installed."
-        } else {
-            Write-Success "Python version ($freethreadedId) is already installed."
-        }
-        $script:AgiPythonFreeThreaded = $true
-        $env:AGI_PYTHON_FREE_THREADED = "1"
-    } else {
-        $script:AgiPythonFreeThreaded = $false
-        $env:AGI_PYTHON_FREE_THREADED = "0"
-        Write-Warn "Skipping freethreaded build for $($script:AgiPythonVersion) (not available)."
-    }
-}
-
 function Select-PythonVersion {
     Write-Info "Choosing Python version..."
-    $requested = $null
-
-    if ($script:ProvidedPythonVersion) {
-        $requested = $script:ProvidedPythonVersion
-        Write-Info "Using Python version supplied via -PythonVersion: $requested"
-    } elseif ($script:FastMode -and $script:AgiPythonVersion) {
-        $requested = $script:AgiPythonVersion
-        Write-Info "Fast mode: reusing Python version $requested."
-    } elseif ($script:FastMode) {
-        $requested = "3.13"
-        Write-Info "Fast mode: defaulting to Python $requested."
-    } elseif ($script:AgiPythonVersion) {
-        if (Prompt-YesNo ("Reuse previously selected Python version $($script:AgiPythonVersion)?") -DefaultYes) {
-            $requested = $script:AgiPythonVersion
-        }
-    }
-
-    if ($requested) {
-        Ensure-PythonRuntime -Requested $requested -SkipFreethreaded:$script:FastMode
-        return
-    }
-
     $requested = Read-Host "Enter Python major version [3.13]"
     if ([string]::IsNullOrWhiteSpace($requested)) {
         $requested = "3.13"
@@ -409,7 +195,41 @@ function Select-PythonVersion {
     }
 
     $chosenPython = ($pythonArray[[int]$selection - 1] -split '\s+')[0]
-    Ensure-PythonRuntime -Requested $chosenPython -SkipFreethreaded:$false
+    $installedPythons = Invoke-UvPreview @("python", "list", "--only-installed") | ForEach-Object { ($_ -split '\s+')[0] }
+
+    if ($installedPythons -notcontains $chosenPython) {
+        Write-Info "Installing $chosenPython..."
+        Invoke-UvPreview @("python", "install", $chosenPython)
+        Write-Success "Python version ($chosenPython) is now installed."
+    } else {
+        Write-Success "Python version ($chosenPython) is already installed."
+    }
+
+    $versionMatch = [regex]::Match($chosenPython, '([0-9]+\.[0-9]+\.[0-9]+)')
+    if ($versionMatch.Success) {
+        $script:AgiPythonVersion = $versionMatch.Groups[1].Value
+    } else {
+        $script:AgiPythonVersion = $chosenPython
+    }
+
+    $freethreadedEntry = (Invoke-UvPreview @("python", "list") | Where-Object { $_ -match "$($script:AgiPythonVersion)" -and $_ -match "freethreaded" } | Select-Object -First 1)
+    if ($freethreadedEntry) {
+        $freethreadedId = ($freethreadedEntry -split '\s+')[0]
+        if ($installedPythons -notcontains $freethreadedId) {
+            Write-Info "Installing $freethreadedId..."
+            Invoke-UvPreview @("python", "install", $freethreadedId)
+            Write-Success "Python version ($freethreadedId) is now installed."
+        } else {
+            Write-Success "Python version ($freethreadedId) is already installed."
+        }
+        $script:AgiPythonFreeThreaded = $true
+    } else {
+        $script:AgiPythonFreeThreaded = $false
+        Write-Warn "Skipping freethreaded build for $($script:AgiPythonVersion) (not available)."
+    }
+
+    $env:AGI_PYTHON_VERSION = $script:AgiPythonVersion
+    $env:AGI_PYTHON_FREE_THREADED = if ($script:AgiPythonFreeThreaded) { "1" } else { "0" }
 }
 
 function Backup-ExistingProject {
@@ -659,10 +479,6 @@ function Install-PyCharmScript {
 }
 
 function Refresh-LaunchMatrix {
-    if ($script:FastMode) {
-        Write-Warn "Fast mode: skipping Launch Matrix refresh."
-        return
-    }
     $tool = Join-Path $InstallPathFull "tools\refresh_launch_matrix.py"
     if (-not (Test-Path -LiteralPath $tool)) {
         Write-Warn "tools/refresh_launch_matrix.py not found; skipping matrix refresh."
@@ -685,10 +501,6 @@ function Refresh-LaunchMatrix {
 }
 
 function Install-Enduser {
-    if ($script:FastMode) {
-        Write-Warn "Fast mode: skipping enduser packaging."
-        return
-    }
     $scriptPath = Join-Path $InstallPathFull "tools\install_enduser.ps1"
     if (-not (Test-Path -LiteralPath $scriptPath)) {
         Write-Warn "tools/install_enduser.ps1 not found; skipping enduser packaging."
@@ -719,10 +531,6 @@ function Install-Enduser {
 }
 
 function Install-OfflineExtra {
-    if ($script:FastMode) {
-        Write-Warn "Fast mode: skipping offline assistant extras."
-        return
-    }
     $pyver = $script:AgiPythonVersion
     if (-not $pyver) { return }
     $normalized = $pyver -replace '\+freethreaded', ''
@@ -773,10 +581,6 @@ function Install-OfflineExtra {
 }
 
 function Seed-MistralPdfs {
-    if ($script:FastMode) {
-        Write-Warn "Fast mode: skipping PDF seeding for offline assistants."
-        return
-    }
     Write-Info "Seeding sample PDFs for mistral:instruct (optional)..."
     $dest = Join-Path $env:USERPROFILE ".agilab\mistral_offline\data"
     Ensure-Directory $dest
@@ -805,7 +609,98 @@ function Setup-MistralOffline {
     Write-Warn "Automatic Ollama setup is not available on Windows. Install Ollama manually and pull 'mistral:instruct' if needed."
 }
 
-Maybe-EnableAutoFast
+function Invoke-RepositoryCoverage {
+    param([string]$RepoRoot)
+    if (-not $script:AgiPythonVersion) {
+        Write-Warn "Python version not available; skipping repository coverage."
+        return
+    }
+    if (-not (Test-Path -LiteralPath $RepoRoot)) {
+        Write-Warn "Repository root '$RepoRoot' not found; skipping repository coverage."
+        return
+    }
+
+    $corePaths = @(
+        Join-Path $RepoRoot "src\agilab\core\agi-env\src",
+        Join-Path $RepoRoot "src\agilab\core\agi-node\src",
+        Join-Path $RepoRoot "src\agilab\core\agi-cluster\src"
+    ) | Where-Object { Test-Path -LiteralPath $_ }
+
+    $separator = [System.IO.Path]::PathSeparator
+    $originalPythonPath = $env:PYTHONPATH
+    $env:PYTHONPATH = (($corePaths + @($originalPythonPath)) | Where-Object { $_ -and $_.Trim() }) -join $separator
+
+    try {
+        $appsRoot = Join-Path $RepoRoot "src\agilab\apps"
+        $appTestDirs = @()
+        if (Test-Path -LiteralPath $appsRoot) {
+            Get-ChildItem -Path $appsRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+                $testDir = Join-Path $_.FullName "test"
+                if (Test-Path -LiteralPath $testDir) {
+                    $appTestDirs += $testDir
+                }
+            }
+        }
+
+        if ($appTestDirs.Count -gt 0) {
+            Write-Info "Running builtin and repository app tests with coverage..."
+            Push-Location $RepoRoot
+            try {
+                $pytestArgs = @(
+                    "run", "-p", $script:AgiPythonVersion, "--no-sync", "--preview-features", "python-upgrade",
+                    "pytest"
+                ) + $appTestDirs + @("--maxfail=1", "--cov=src/agilab/apps", "--cov-report=term-missing", "--cov-report=xml", "--cov-append")
+                Invoke-UvPreview $pytestArgs | Out-Host
+                $rc = $LASTEXITCODE
+                if ($rc -eq 5) {
+                    Write-Warn "No tests collected for repository app suite."
+                } elseif ($rc -ne 0) {
+                    Write-Warn "Coverage run failed for repository app suite (exit code $rc)."
+                }
+            } finally {
+                Pop-Location
+            }
+        } else {
+            Write-Info "No repository app test directories detected; skipping app coverage."
+        }
+
+        $pagesRoot = Join-Path $RepoRoot "src\agilab\apps-pages"
+        $pageTestDirs = @()
+        if (Test-Path -LiteralPath $pagesRoot) {
+            Get-ChildItem -Path $pagesRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+                $testDir = Join-Path $_.FullName "test"
+                if (Test-Path -LiteralPath $testDir) {
+                    $pageTestDirs += $testDir
+                }
+            }
+        }
+
+        if ($pageTestDirs.Count -gt 0) {
+            Write-Info "Running apps-pages tests with coverage..."
+            Push-Location $RepoRoot
+            try {
+                $pytestArgs = @(
+                    "run", "-p", $script:AgiPythonVersion, "--no-sync", "--preview-features", "python-upgrade",
+                    "pytest"
+                ) + $pageTestDirs + @("--maxfail=1", "--cov=src/agilab/apps-pages", "--cov-report=term-missing", "--cov-report=xml", "--cov-append")
+                Invoke-UvPreview $pytestArgs | Out-Host
+                $rc = $LASTEXITCODE
+                if ($rc -eq 5) {
+                    Write-Warn "No tests collected for apps-pages suite."
+                } elseif ($rc -ne 0) {
+                    Write-Warn "Coverage run failed for apps-pages suite (exit code $rc)."
+                }
+            } finally {
+                Pop-Location
+            }
+        } else {
+            Write-Info "No apps-pages test directories detected; skipping apps-pages coverage."
+        }
+    }
+    finally {
+        $env:PYTHONPATH = $originalPythonPath
+    }
+}
 
 Ensure-NotAdmin
 
@@ -856,6 +751,8 @@ try {
         Setup-MistralOffline
         Write-Success "Installation complete (apps skipped)."
     }
+
+    Invoke-RepositoryCoverage -RepoRoot $InstallPathFull
 } finally {
     if ($TranscriptStarted) {
         try { Stop-Transcript | Out-Null } catch {}

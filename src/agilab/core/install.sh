@@ -57,4 +57,12 @@ ${UV_PREVIEW[@]} pip install -e src/agilab/core/agi-core
 
 echo -e "${GREEN}Checking installation...${NC}"
 uv run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade -m pytest
+
+echo -e "${BLUE}Running core test suite with coverage...${NC}"
+uv run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade -m pytest \
+  src/agilab/core/test \
+  --cov=src/agilab/core \
+  --cov-report=term-missing \
+  --cov-report=xml
+
 popd > /dev/null

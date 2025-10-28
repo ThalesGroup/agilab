@@ -33,12 +33,14 @@ dependencies = [
     "python-dotenv",
     "setuptools",
     "tomlkit",
+    "tomli-w",
     "astor",
     "psutil",
     "pathspec",
     "ipython",
     "py7zr",
     "cmake>=3.29",
+    "sqlalchemy>=2.0.43",
     "numba"
 ]
 [project.urls]
@@ -62,6 +64,7 @@ dev = [
     "pytest-asyncio",
     "licensecheck",
     "pytest-cov",
+    "streamlit",
     "agi-env"
 ]
 
