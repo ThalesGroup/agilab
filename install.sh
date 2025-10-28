@@ -518,15 +518,15 @@ if (( INSTALL_APPS_FLAG )); then
     install_pycharm_script # needed to investigate with pycharm why previous script has failed
     refresh_launch_matrix
   else
+    if ! run_repository_tests_with_coverage; then
+      warn "Repository coverage run encountered issues; review the log output."
+    fi
     install_pycharm_script
     refresh_launch_matrix
     install_enduser
     install_offline_extra
     seed_mistral_pdfs
     setup_mistral_offline
-    if ! run_repository_tests_with_coverage; then
-      warn "Repository coverage run encountered issues; review the log output."
-    fi
     echo -e "${GREEN}Installation complete!${NC}"
   fi
 else
