@@ -83,6 +83,7 @@ Write-Host "Checking installation (agilab test suite with coverage)..." -Foregro
 Invoke-UvPreview @(
     "run", "-p", $env:AGI_PYTHON_VERSION, "--no-sync", "--preview-features", "python-upgrade",
     "-m", "pytest",
+    "src/agilab/test",
     "--cov=src/agilab",
     "--cov-report=term-missing",
     "--cov-report=xml"
