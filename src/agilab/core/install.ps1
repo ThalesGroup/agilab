@@ -44,13 +44,14 @@ function Install-ModulePath {
     )
     Push-Location $Path
     Write-Host "uv sync -p $env:AGI_PYTHON_VERSION --dev" -ForegroundColor Blue
-    $sitePackages = Join-Path (Join-Path ".venv" "Lib") "site-packages"
-    if (Test-Path -LiteralPath $sitePackages) {
-        Get-ChildItem -LiteralPath $sitePackages -Directory -Filter "*.dist-info" -ErrorAction SilentlyContinue |
-            Where-Object { -not (Test-Path -LiteralPath (Join-Path $_.FullName "RECORD")) } |
-            ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
-    }
+    $oldNoCache = $env:UV_NO_CACHE
+    $env:UV_NO_CACHE = "1"
     Invoke-UvPreview @("sync", "-p", $env:AGI_PYTHON_VERSION, "--dev", "--reinstall")
+    if ($null -eq $oldNoCache) {
+        Remove-Item Env:UV_NO_CACHE -ErrorAction SilentlyContinue
+    } else {
+        $env:UV_NO_CACHE = $oldNoCache
+    }
     Invoke-UvPreview @("run", "-p", $env:AGI_PYTHON_VERSION, "python", "-m", "ensurepip")
     Invoke-UvPreview @("pip", "install", "-e", ".")
     foreach ($pkg in $ExtraInstalls) {
