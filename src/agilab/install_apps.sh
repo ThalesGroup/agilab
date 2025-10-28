@@ -167,16 +167,20 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -n "$APPS_REPOSITORY" ]]; then
-  if ! PAGES_TARGET_BASE=$(discover_repo_dir "$APPS_REPOSITORY" "apps-pages"); then
-    echo -e "${RED}Error:${NC} Could not locate an 'apps-pages' directory under $APPS_REPOSITORY" >&2
+  if PAGES_TARGET_BASE=$(discover_repo_dir "$APPS_REPOSITORY" "apps-pages"); then
+    SKIP_REPOSITORY_PAGES=0
+  else
+    warn "Repository pages not found under $APPS_REPOSITORY; skipping repository pages."
+  fi
+  if APPS_TARGET_BASE=$(discover_repo_dir "$APPS_REPOSITORY" "apps"); then
+    SKIP_REPOSITORY_APPS=0
+  else
+    warn "Repository apps not found under $APPS_REPOSITORY; skipping repository apps."
+  fi
+  if (( SKIP_REPOSITORY_APPS && SKIP_REPOSITORY_PAGES )); then
+    echo -e "${RED}Error:${NC} Neither 'apps' nor 'apps-pages' directories were found under $APPS_REPOSITORY" >&2
     exit 1
   fi
-  if ! APPS_TARGET_BASE=$(discover_repo_dir "$APPS_REPOSITORY" "apps"); then
-    echo -e "${RED}Error:${NC} Could not locate an 'apps' directory under $APPS_REPOSITORY" >&2
-    exit 1
-  fi
-  SKIP_REPOSITORY_APPS=0
-  SKIP_REPOSITORY_PAGES=0
 fi
 
 # --- Ensure arrays exist (avoids 'unbound variable' with set -u) -------------
