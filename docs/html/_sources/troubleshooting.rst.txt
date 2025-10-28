@@ -188,3 +188,27 @@ rm -f  ~/Library/Application\ Support/JetBrains/PyCharm*/options/recentProjects.
 rm -f  ~/Library/Application\ Support/JetBrains/PyCharm*/options/other.xml.___jb_tmp___
 rm -f  ~/Library/Application\ Support/JetBrains/PyCharm*/options/jdk.table.xml
 rm -f  ~/Library/Application\ Support/JetBrains/PyCharm*/options/jdk.table.xml.___jb_tmp___
+
+
+Failed to read pydantic metadata
+--------------------------------
+
+If the installer emits ``Failed to read metadata from installed package pydantic==2.12.3``:
+
+1. Clear the offending wheel::
+
+       uv cache clean pydantic
+
+2. Reinstall ``pydantic`` in each affected project::
+
+       cd src\agilab\core\agi-env
+       uv pip install --no-cache-dir --force-reinstall pydantic==2.12.3
+       cd ..\agi-node
+       uv pip install --no-cache-dir --force-reinstall pydantic==2.12.3
+       cd ..\agi-cluster
+       uv pip install --no-cache-dir --force-reinstall pydantic==2.12.3
+
+3. Rerun the installer.
+
+The METADATA files are regenerated and the warning disappears.
+

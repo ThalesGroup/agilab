@@ -105,8 +105,7 @@
 <li class="toctree-l2"><a class="reference internal" href="cluster-help.html#principle">Principle</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="agilab.html">AGILab</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="agilab_help.html">AGILab Help</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agilab.html">AGILab</a><ul class="simple">
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="framework-api.html">Framework API</a><ul>
@@ -166,6 +165,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#dask-debug-issue">&lt;DASK&gt; Debug Issue</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#pycharm-run-debug-configuration-is-broken">&lt;PYCHARM&gt; Run/Debug Configuration is Broken</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#pycharm-can-t-open-your-project">&lt;PYCHARM&gt; Can’t open your project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#failed-to-read-pydantic-metadata">Failed to read pydantic metadata</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a><ul>
@@ -178,7 +178,6 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Pages</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="agilab_help.html">AGILab Help</a></li>
 <li class="toctree-l1"><a class="reference internal" href="edit-help.html">▶️ EDIT</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#sidebar">Sidebar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="edit-help.html#main-content-area">Main Content Area</a></li>
@@ -445,6 +444,29 @@ rm -f  ~/Library/ApplicationSupport/JetBrains/PyCharm</em>/options/recentProject
 rm -f  ~/Library/ApplicationSupport/JetBrains/PyCharm*/options/other.xml.___jb_tmp___
 rm -f  ~/Library/ApplicationSupport/JetBrains/PyCharm*/options/jdk.table.xml
 rm -f  ~/Library/ApplicationSupport/JetBrains/PyCharm*/options/jdk.table.xml.___jb_tmp___</p>
+</section>
+<section id="failed-to-read-pydantic-metadata">
+<h2>Failed to read pydantic metadata<a class="headerlink" href="#failed-to-read-pydantic-metadata" title="Link to this heading"></a></h2>
+<p>If the installer emits <code class="docutils literal notranslate"><span class="pre">Failed</span> <span class="pre">to</span> <span class="pre">read</span> <span class="pre">metadata</span> <span class="pre">from</span> <span class="pre">installed</span> <span class="pre">package</span> <span class="pre">pydantic==2.12.3</span></code>:</p>
+<ol class="arabic">
+<li><p>Clear the offending wheel:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">uv</span> <span class="n">cache</span> <span class="n">clean</span> <span class="n">pydantic</span>
+</pre></div>
+</div>
+</li>
+<li><p>Reinstall <code class="docutils literal notranslate"><span class="pre">pydantic</span></code> in each affected project:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="n">src</span>\<span class="n">agilab</span>\<span class="n">core</span>\<span class="n">agi</span><span class="o">-</span><span class="n">env</span>
+<span class="n">uv</span> <span class="n">pip</span> <span class="n">install</span> <span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">cache</span><span class="o">-</span><span class="nb">dir</span> <span class="o">--</span><span class="n">force</span><span class="o">-</span><span class="n">reinstall</span> <span class="n">pydantic</span><span class="o">==</span><span class="mf">2.12.3</span>
+<span class="n">cd</span> <span class="o">..</span>\<span class="n">agi</span><span class="o">-</span><span class="n">node</span>
+<span class="n">uv</span> <span class="n">pip</span> <span class="n">install</span> <span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">cache</span><span class="o">-</span><span class="nb">dir</span> <span class="o">--</span><span class="n">force</span><span class="o">-</span><span class="n">reinstall</span> <span class="n">pydantic</span><span class="o">==</span><span class="mf">2.12.3</span>
+<span class="n">cd</span> <span class="o">..</span>\<span class="n">agi</span><span class="o">-</span><span class="n">cluster</span>
+<span class="n">uv</span> <span class="n">pip</span> <span class="n">install</span> <span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">cache</span><span class="o">-</span><span class="nb">dir</span> <span class="o">--</span><span class="n">force</span><span class="o">-</span><span class="n">reinstall</span> <span class="n">pydantic</span><span class="o">==</span><span class="mf">2.12.3</span>
+</pre></div>
+</div>
+</li>
+<li><p>Rerun the installer.</p></li>
+</ol>
+<p>The METADATA files are regenerated and the warning disappears.</p>
 </section>
 </section>
 

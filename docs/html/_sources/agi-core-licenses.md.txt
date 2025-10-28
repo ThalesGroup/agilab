@@ -4,6 +4,7 @@
 | agi-cluster |  |
 | agi-env |  |
 | agi-node |  |
+| altair | BSD LICENSE |
 | annotated-types | MIT LICENSE |
 | anyio | MIT |
 | appnope | BSD LICENSE |
@@ -19,7 +20,9 @@
 | bcrypt | APACHE SOFTWARE LICENSE |
 | beautifulsoup4 | MIT LICENSE |
 | bleach | APACHE SOFTWARE LICENSE |
+| blinker | MIT LICENSE |
 | brotli | MIT LICENSE |
+| cachetools | MIT LICENSE |
 | certifi | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | cffi | MIT |
 | charset-normalizer | MIT |
@@ -38,6 +41,8 @@
 | fastjsonschema | BSD LICENSE |
 | fqdn | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | fsspec | BSD-3-CLAUSE |
+| gitdb | BSD LICENSE |
+| gitpython | BSD-3-CLAUSE |
 | h11 | MIT LICENSE |
 | httpcore | BSD LICENSE |
 | httpx | BSD LICENSE |
@@ -79,6 +84,7 @@
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | mypy | MIT LICENSE |
 | mypy-extensions |  |
+| narwhals | MIT LICENSE |
 | nbclient | BSD LICENSE |
 | nbconvert | BSD LICENSE |
 | nbformat | BSD LICENSE |
@@ -95,20 +101,24 @@
 | partd | BSD |
 | pathspec | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | pexpect | ISC LICENSE _ISCL_ |
+| pillow | MIT-CMU |
 | platformdirs | MIT LICENSE |
 | polars | MIT LICENSE |
 | polars-runtime-32 | MIT LICENSE |
 | prometheus-client | APACHE-2.0;; BSD-2-CLAUSE |
 | prompt-toolkit | BSD LICENSE |
+| protobuf | 3-CLAUSE BSD LICENSE |
 | psutil | BSD LICENSE |
 | ptyprocess | ISC LICENSE _ISCL_ |
 | pure-eval | MIT LICENSE |
 | py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pyarrow | APACHE SOFTWARE LICENSE |
 | pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pycparser | BSD LICENSE |
 | pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
 | pydantic | MIT LICENSE |
 | pydantic-core | MIT LICENSE |
+| pydeck | APACHE LICENSE 2.0 |
 | pygments | BSD LICENSE |
 | pynacl | APACHE SOFTWARE LICENSE |
 | pyppmd | LGPL-2.1-OR-LATER |
@@ -131,15 +141,19 @@
 | send2trash | BSD LICENSE |
 | setuptools | MIT |
 | six | MIT LICENSE |
+| smmap | BSD LICENSE |
 | sniffio | APACHE SOFTWARE LICENSE;; MIT LICENSE |
 | sortedcontainers | APACHE SOFTWARE LICENSE |
 | soupsieve | MIT LICENSE |
 | stack-data | MIT LICENSE |
+| streamlit | APACHE SOFTWARE LICENSE |
 | tblib | BSD-2-CLAUSE |
+| tenacity | APACHE SOFTWARE LICENSE |
 | terminado | BSD LICENSE |
 | texttable | MIT LICENSE |
 | threadpoolctl | BSD LICENSE |
 | tinycss2 | BSD LICENSE |
+| toml | MIT LICENSE |
 | tomli | MIT LICENSE |
 | tomlkit | MIT LICENSE |
 | toolz | BSD-3-CLAUSE |
