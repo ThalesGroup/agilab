@@ -626,9 +626,7 @@ function Invoke-RepositoryCoverage {
         Join-Path $RepoRoot "src\agilab\core\agi-cluster\src"
     ) | Where-Object { Test-Path -LiteralPath $_ }
 
-    $separator = [System.IO.Path]::PathSeparator
     $originalPythonPath = $env:PYTHONPATH
-    $env:PYTHONPATH = (($corePaths + @($originalPythonPath)) | Where-Object { $_ -and $_.Trim() }) -join $separator
 
     try {
         $appsRoot = Join-Path $RepoRoot "src\agilab\apps"
@@ -646,6 +644,19 @@ function Invoke-RepositoryCoverage {
             Write-Info "Running builtin and repository app tests with coverage..."
             Push-Location $RepoRoot
             try {
+                $extraPaths = New-Object 'System.Collections.Generic.HashSet[string]'
+                foreach ($path in $corePaths) { if ($path) { $null = $extraPaths.Add($path) } }
+                foreach ($testDir in $appTestDirs) {
+                    $appPath = Split-Path -Parent $testDir
+                    foreach ($candidate in @(Join-Path $appPath "src"), $appPath) {
+                        if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+                            $null = $extraPaths.Add($candidate)
+                        }
+                    }
+                }
+                $separator = [System.IO.Path]::PathSeparator
+                $env:PYTHONPATH = ((@($extraPaths.ToArray()) + @($originalPythonPath)) | Where-Object { $_ -and $_.Trim() }) -join $separator
+
                 $pytestArgs = @(
                     "run", "-p", $script:AgiPythonVersion, "--no-sync", "--preview-features", "python-upgrade",
                     "pytest"
@@ -679,6 +690,19 @@ function Invoke-RepositoryCoverage {
             Write-Info "Running apps-pages tests with coverage..."
             Push-Location $RepoRoot
             try {
+                $extraPagePaths = New-Object 'System.Collections.Generic.HashSet[string]'
+                foreach ($path in $corePaths) { if ($path) { $null = $extraPagePaths.Add($path) } }
+                foreach ($testDir in $pageTestDirs) {
+                    $pagePath = Split-Path -Parent $testDir
+                    foreach ($candidate in @(Join-Path $pagePath "src"), $pagePath) {
+                        if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+                            $null = $extraPagePaths.Add($candidate)
+                        }
+                    }
+                }
+                $separator = [System.IO.Path]::PathSeparator
+                $env:PYTHONPATH = ((@($extraPagePaths.ToArray()) + @($originalPythonPath)) | Where-Object { $_ -and $_.Trim() }) -join $separator
+
                 $pytestArgs = @(
                     "run", "-p", $script:AgiPythonVersion, "--no-sync", "--preview-features", "python-upgrade",
                     "pytest"
