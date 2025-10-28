@@ -79,6 +79,9 @@ Invoke-UvPreview @("pip", "install", "-e", "src/agilab/core/agi-cluster")
 Invoke-UvPreview @("pip", "install", "-e", "src/agilab/core/agi-core")
 Pop-Location
 
+$previousCoverageFile = $env:COVERAGE_FILE
+
+$env:COVERAGE_FILE = ".coverage-agilab"
 Write-Host "Checking installation (agilab test suite with coverage)..." -ForegroundColor Green
 Invoke-UvPreview @(
     "run", "-p", $env:AGI_PYTHON_VERSION, "--no-sync", "--preview-features", "python-upgrade",
@@ -86,16 +89,45 @@ Invoke-UvPreview @(
     "src/agilab/test",
     "--cov=src/agilab",
     "--cov-report=term-missing",
-    "--cov-report=xml"
+    "--cov-report=xml:coverage-agilab.xml"
 )
 
+$env:COVERAGE_FILE = ".coverage-agi-env"
+Write-Host "Running agi-env test suite with coverage..." -ForegroundColor Blue
+Invoke-UvPreview @(
+    "run", "-p", $env:AGI_PYTHON_VERSION, "--no-sync", "--preview-features", "python-upgrade",
+    "-m", "pytest",
+    "src/agilab/core/agi-env/test",
+    "--cov=src/agilab/core/agi-env/src/agi_env",
+    "--cov-report=term-missing",
+    "--cov-report=xml:coverage-agi-env.xml"
+)
+
+$env:COVERAGE_FILE = ".coverage-agi-core"
 Write-Host "Running core test suite with coverage..." -ForegroundColor Blue
 Invoke-UvPreview @(
     "run", "-p", $env:AGI_PYTHON_VERSION, "--no-sync", "--preview-features", "python-upgrade",
     "-m", "pytest",
     "src/agilab/core/test",
     "--cov=src/agilab/core",
+    "--cov=src/agilab/core/agi-node/src/agi_node",
+    "--cov=src/agilab/core/agi-cluster/src/agi_cluster",
     "--cov-report=term-missing",
-    "--cov-report=xml",
-    "--cov-append"
+    "--cov-report=xml:coverage-agi-core.xml"
 )
+
+Invoke-UvPreview @(
+    "run", "-p", $env:AGI_PYTHON_VERSION, "--no-sync", "--preview-features", "python-upgrade",
+    "-m", "coverage", "xml", "-i",
+    "--include=src/agilab/core/agi-node/src/agi_node/*",
+    "-o", "coverage-agi-node.xml"
+)
+
+Invoke-UvPreview @(
+    "run", "-p", $env:AGI_PYTHON_VERSION, "--no-sync", "--preview-features", "python-upgrade",
+    "-m", "coverage", "xml", "-i",
+    "--include=src/agilab/core/agi-cluster/src/agi_cluster/*",
+    "-o", "coverage-agi-cluster.xml"
+)
+
+$env:COVERAGE_FILE = $previousCoverageFile
