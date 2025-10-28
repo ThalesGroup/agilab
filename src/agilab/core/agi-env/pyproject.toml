@@ -47,15 +47,6 @@ Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/agi-env"
 Tracker = "https://github.com/ThalesGroup/agilab/issues"
 
-
-
-
-
-
-
-
-
-
 [dependency-groups]
 dev = [
     "black",
@@ -63,6 +54,7 @@ dev = [
     "pytest-asyncio",
     "licensecheck",
     "pytest-cov",
+    "streamlit",
     "agi-env"
 ]
 
