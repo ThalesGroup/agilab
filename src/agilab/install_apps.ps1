@@ -187,7 +187,7 @@ function ConvertTo-List {
 
 function Invoke-UvPreview {
     param([string[]]$UvArgs)
-    & uv --preview-features extra-build-dependencies @UvArgs
+    & uv --preview-features extra-build-dependencies --link-mode copy @UvArgs
     return $LASTEXITCODE
 }
 
