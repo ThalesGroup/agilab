@@ -101,7 +101,7 @@ check_data_mount() {
   DATA_URI_PATH=""
 
   if ! output=$(
-    uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python - "$app_path" <<'PY' 2>&1
+    "${UV_PREVIEW[@]}" -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python - "$app_path" <<'PY' 2>&1
 from pathlib import Path
 import sys
 from agi_env import AgiEnv
@@ -443,7 +443,7 @@ if (( SKIP_REPOSITORY_APPS == 0 )); then
       exit 1
     fi
     ln -s "$target" core
-    uv run python - <<'PY'
+    "${UV_PREVIEW[@]}" run python - <<'PY'
 import pathlib
 p = pathlib.Path("core").resolve()
 print(f"Repository core -> {p}")
@@ -557,16 +557,15 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   fi
 
   echo -e "${BLUE}Installing $app...${NC}"
-  echo  uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
-      "$AGILAB_PUBLIC/apps/$app"
-  if uv -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
-      "$AGILAB_PUBLIC/apps/$app"; then
+  echo "${UV_PREVIEW[@]} -q run -p \"$AGI_PYTHON_VERSION\" --project ../core/cluster python install.py \"${AGILAB_PUBLIC}/apps/$app\""
+  if "${UV_PREVIEW[@]}" -q run -p "$AGI_PYTHON_VERSION" --project ../core/cluster python install.py \
+    "${AGILAB_PUBLIC}/apps/$app"; then
       echo -e "${GREEN}✓ '$app' successfully installed.${NC}"
       echo -e "${GREEN}Checking installation...${NC}"
       if pushd -- "$app" >/dev/null; then
       if [[ -f app_test.py ]]; then
-          echo uv run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
-          uv run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
+        echo "${UV_PREVIEW[@]} run --no-sync -p \"$AGI_PYTHON_VERSION\" python app_test.py"
+        "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" python app_test.py
       else
           echo -e "${BLUE}No app_test.py in $app, skipping tests.${NC}"
       fi
@@ -597,7 +596,7 @@ if (( DO_TEST_APPS )); then
     fi
     echo -e "${BLUE}[pytest] $app${NC}"
     if pushd -- "$app" >/dev/null; then
-      if uv run --no-sync -p "$AGI_PYTHON_VERSION" --project . pytest; then
+      if "${UV_PREVIEW[@]}" run --no-sync -p "$AGI_PYTHON_VERSION" --project . pytest; then
         echo -e "${GREEN}✓ pytest succeeded for '$app'.${NC}"
       else
         rc=$?
