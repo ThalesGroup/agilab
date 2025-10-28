@@ -170,12 +170,12 @@ if [[ -n "$APPS_REPOSITORY" ]]; then
   if PAGES_TARGET_BASE=$(discover_repo_dir "$APPS_REPOSITORY" "apps-pages"); then
     SKIP_REPOSITORY_PAGES=0
   else
-    warn "Repository pages not found under $APPS_REPOSITORY; skipping repository pages."
+    echo -e "${BLUE}apps-pages not present under $APPS_REPOSITORY; repository pages will be skipped.${NC}"
   fi
   if APPS_TARGET_BASE=$(discover_repo_dir "$APPS_REPOSITORY" "apps"); then
     SKIP_REPOSITORY_APPS=0
   else
-    warn "Repository apps not found under $APPS_REPOSITORY; skipping repository apps."
+    echo -e "${BLUE}apps not present under $APPS_REPOSITORY; repository apps will be skipped.${NC}"
   fi
   if (( SKIP_REPOSITORY_APPS && SKIP_REPOSITORY_PAGES )); then
     echo -e "${RED}Error:${NC} Neither 'apps' nor 'apps-pages' directories were found under $APPS_REPOSITORY" >&2

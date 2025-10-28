@@ -260,14 +260,14 @@ if (-not [string]::IsNullOrEmpty($APPS_REPOSITORY)) {
     $PAGES_TARGET_BASE = [string](Normalize-PathInput $pagesCandidate)
     $SkipRepositoryPages = $false
   } else {
-    Write-Color YELLOW "apps-pages not found under $APPS_REPOSITORY; repository pages will be skipped."
+    Write-Color BLUE "apps-pages not present under $APPS_REPOSITORY; repository pages will be skipped."
   }
   $appsCandidate = Find-RepoSubdir $RepoRoot 'apps'
   if ($appsCandidate) {
     $APPS_TARGET_BASE = [string](Normalize-PathInput $appsCandidate)
     $SkipRepositoryApps = $false
   } else {
-    Write-Color YELLOW "apps not found under $APPS_REPOSITORY; repository apps will be skipped."
+    Write-Color BLUE "apps not present under $APPS_REPOSITORY; repository apps will be skipped."
   }
   if ($SkipRepositoryApps -and $SkipRepositoryPages) {
     $cand1 = Join-PathSafe $RepoRoot 'apps-pages'
