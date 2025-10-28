@@ -232,7 +232,7 @@ case "${SOURCE}" in
 
     [[ -n "${AGI_INSTALL_PATH:-}" && -d "${AGI_INSTALL_PATH}" ]] || { echo "Error: Missing or invalid install path: ${AGI_INSTALL_PATH}" >&2; exit 1; }
     pushd "${AGI_INSTALL_ROOT}" >/dev/null
-    uv build --wheel
+    uv build --wheel --no-build-logs --quiet
     popd >/dev/null
     echo "Installing packages from local source tree..."
     for pkg in ${PACKAGES}; do
