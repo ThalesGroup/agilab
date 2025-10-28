@@ -70,7 +70,7 @@
 | executing | MIT LICENSE |
 | faiss-cpu | BSD-3-CLAUSE;; MIT |
 | faker | MIT LICENSE |
-| fastapi | MIT LICENSE |
+| fastapi | MIT |
 | fastavro | MIT |
 | fastjsonschema | BSD LICENSE |
 | fastparquet | APACHE SOFTWARE LICENSE |
@@ -310,7 +310,7 @@
 | st-theme | MIT LICENSE |
 | stack-data | MIT LICENSE |
 | standard-imghdr | PYTHON SOFTWARE FOUNDATION LICENSE |
-| starlette | BSD LICENSE |
+| starlette | BSD-3-CLAUSE |
 | streamlit | APACHE SOFTWARE LICENSE |
 | streamlit-avatar |  |
 | streamlit-camera-input-live | MIT License |
