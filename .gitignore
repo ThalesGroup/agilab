@@ -1,13 +1,7 @@
+coverage.xml
+.coverage
 # MacOS files
 .DS_Store
-
-.idea/*
-!.idea/runConfigurations/
-!.idea/runConfigurations/**
-.idea/runConfigurations/_*.xml
-.idea.bak/
-agi-space
-
 
 # Python virtual environments and build artifacts
 .venv/
@@ -21,7 +15,6 @@ __pypackages__/
 
 # Miscellaneous files
 *.lock
-*.pid
 .uv-*
 
 # Egg files and binary distributions
@@ -33,23 +26,17 @@ EGG*
 
 # Specific src patterns (adjust if needed)
 src/*-info/
+src/*_worker_*/
 
 # Pytest caches
-.py*
+.pytest*
 
-# managed PC install under windows
-/thales/
-
-.coverage*
-
-# Built documentation (tracked in repo)
-# docs/html/
-
-# Python bytecode
-*.pyc
-
-# Pytest cache
-.pytest_cache/
-
-# Sphinx build directory
-docs/build/
+# JetBrains IDE settings
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries
+.idea/usage.statistics.xml
+.idea/dataSources.ids
+.idea/dataSources.local.xml
+.idea/sqlDataSources.xml
+.idea/dynamic.xml
