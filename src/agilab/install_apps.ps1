@@ -196,12 +196,14 @@ function Add-Unique {
         [ref]$List,
         [string[]]$Items
     )
+    $current = @($List.Value)
     foreach ($item in $Items) {
         if ([string]::IsNullOrWhiteSpace($item)) { continue }
-        if (-not ($List.Value -contains $item)) {
-            $List.Value += $item
+        if (-not ($current -contains $item)) {
+            $current += $item
         }
     }
+    $List.Value = $current
 }
 
 # ----- Load environment ------------------------------------------------------

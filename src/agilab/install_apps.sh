@@ -205,16 +205,27 @@ DATA_URI_PATH=""
 
 # Append items to the referenced array, ensuring uniqueness while preserving order.
 append_unique() {
-  local __out="$1"; shift
-  local -n __ref="$__out"
+  local __name="$1"
+  shift
   local item existing
-  for item in "$@"; do
+  # shellcheck disable=SC1083,SC2086
+  eval "set -- \${${__name}[@]}"
+  local current=("$@")
+  shift $(( $# )) 2>/dev/null || true
+  local new_items=("$@")
+
+  for item in "${new_items[@]}"; do
     [[ -z "$item" ]] && continue
-    for existing in "${__ref[@]}"; do
+    for existing in "${current[@]}"; do
       [[ "$existing" == "$item" ]] && continue 2
     done
-    __ref+=("$item")
+    current+=("$item")
   done
+
+  printf -v "${__name}" '%s ' "${current[@]}"
+  # Trim trailing space
+  # shellcheck disable=SC2086
+  eval "${__name}=(\${${__name}%% })"
 }
 
 # Destination base for creating local app symlinks (defaults to current dir)
