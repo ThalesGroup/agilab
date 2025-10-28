@@ -59,18 +59,18 @@ function Ensure-NotAdmin {
     }
 }
 
-$CurrentPath = [System.IO.Path]::GetFullPath((Get-Location).Path)
-$InstallPathNormalized = Normalize-RepoPath $InstallPath
-if (-not $InstallPathNormalized) { $InstallPathNormalized = $InstallPath }
-$InstallPathFull = [System.IO.Path]::GetFullPath($InstallPathNormalized)
-
 function Normalize-RepoPath {
     param([string]$Path)
     if ([string]::IsNullOrWhiteSpace($Path)) { return "" }
     $p = $Path.Trim()
-    if ($p -match '^[A-Za-z]:(?![\\/])') { $p = $p.Substring(0,2) + '\\' + $p.Substring(2) }
+    if ($p -match '^[A-Za-z]:(?![\\/])') { $p = $p.Substring(0,2) + '\' + $p.Substring(2) }
     try { return [System.IO.Path]::GetFullPath($p) } catch { return $p }
 }
+
+$CurrentPath = [System.IO.Path]::GetFullPath((Get-Location).Path)
+$InstallPathNormalized = Normalize-RepoPath $InstallPath
+if (-not $InstallPathNormalized) { $InstallPathNormalized = $InstallPath }
+$InstallPathFull = [System.IO.Path]::GetFullPath($InstallPathNormalized)
 
 $AppsRepositoryPath = if ($AppsRepository) { Normalize-RepoPath $AppsRepository } else { "" }
 # New canonical var
@@ -90,6 +90,7 @@ $script:AgiPythonVersion = $null
 $script:AgiPythonFreeThreaded = $false
 $TranscriptStarted = $false
 
+if (-not $env:UV_LINK_MODE) { $env:UV_LINK_MODE = "copy" }
 $UvPreviewArgs = @("--preview-features", "extra-build-dependencies")
 function Invoke-UvPreview {
     param([string[]]$Arguments)

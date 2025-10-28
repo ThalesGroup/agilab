@@ -44,22 +44,11 @@ function Install-ModulePath {
     )
     Push-Location $Path
     Write-Host "uv sync -p $env:AGI_PYTHON_VERSION --dev" -ForegroundColor Blue
-    Invoke-UvPreview @("sync", "-p", $env:AGI_PYTHON_VERSION, "--dev")
+    Invoke-UvPreview @("sync", "-p", $env:AGI_PYTHON_VERSION, "--dev", "--reinstall")
     Invoke-UvPreview @("run", "-p", $env:AGI_PYTHON_VERSION, "python", "-m", "ensurepip")
     Invoke-UvPreview @("pip", "install", "-e", ".")
     foreach ($pkg in $ExtraInstalls) {
         Invoke-UvPreview @("pip", "install", "-e", $pkg)
-    }
-
-    Invoke-UvPreview @("pip", "show", "pydantic") | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        $repoRoot = (Resolve-Path "..\..\..").Path
-        $localWheel = Get-ChildItem -LiteralPath $repoRoot -Recurse -Filter "pydantic-2.12.3*.whl" -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($localWheel) {
-            Invoke-UvPreview @("pip", "install", "--force-reinstall", "--no-index", "--find-links", $localWheel.Directory.FullName, "pydantic==2.12.3")
-        } else {
-            Invoke-UvPreview @("pip", "install", "--force-reinstall", "pydantic==2.12.3")
-        }
     }
 
     Pop-Location
