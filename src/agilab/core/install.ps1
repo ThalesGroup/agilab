@@ -86,5 +86,22 @@ Invoke-UvPreview @("pip", "install", "-e", "src/agilab/core/agi-cluster")
 Invoke-UvPreview @("pip", "install", "-e", "src/agilab/core/agi-core")
 Pop-Location
 
-Write-Host "Checking installation..." -ForegroundColor Green
-Invoke-UvPreview @("run", "--project", ".\agi-cluster", "-p", $env:AGI_PYTHON_VERSION, "--no-sync", "python", "-m", "pytest")
+Write-Host "Checking installation (agilab test suite with coverage)..." -ForegroundColor Green
+Invoke-UvPreview @(
+    "run", "-p", $env:AGI_PYTHON_VERSION, "--no-sync", "--preview-features", "python-upgrade",
+    "-m", "pytest",
+    "--cov=src/agilab",
+    "--cov-report=term-missing",
+    "--cov-report=xml"
+)
+
+Write-Host "Running core test suite with coverage..." -ForegroundColor Blue
+Invoke-UvPreview @(
+    "run", "-p", $env:AGI_PYTHON_VERSION, "--no-sync", "--preview-features", "python-upgrade",
+    "-m", "pytest",
+    "src/agilab/core/test",
+    "--cov=src/agilab/core",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+    "--cov-append"
+)

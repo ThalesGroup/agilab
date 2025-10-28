@@ -55,14 +55,18 @@ ${UV_PREVIEW[@]} pip install -e src/agilab/core/agi-node
 ${UV_PREVIEW[@]} pip install -e src/agilab/core/agi-cluster
 ${UV_PREVIEW[@]} pip install -e src/agilab/core/agi-core
 
-echo -e "${GREEN}Checking installation...${NC}"
-uv run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade -m pytest
+echo -e "${GREEN}Checking installation (agilab test suite with coverage)...${NC}"
+uv run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade -m pytest \
+  --cov=src/agilab \
+  --cov-report=term-missing \
+  --cov-report=xml
 
 echo -e "${BLUE}Running core test suite with coverage...${NC}"
 uv run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade -m pytest \
   src/agilab/core/test \
   --cov=src/agilab/core \
   --cov-report=term-missing \
-  --cov-report=xml
+  --cov-report=xml \
+  --cov-append
 
 popd > /dev/null
