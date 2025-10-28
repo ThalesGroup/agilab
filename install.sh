@@ -394,7 +394,7 @@ run_repository_tests_with_coverage() {
     local -a app_test_dirs=()
     local -a page_test_dirs=()
     local -a uv_cmd=(uv --preview-features extra-build-dependencies run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade)
-    local extra_pythonpath="${repo_root}/src/agilab/core/agi-env/src:${repo_root}/src/agilab/core/agi-node/src:${repo_root}/src/agilab/core/agi-cluster/src"
+    local extra_pythonpath_base="${repo_root}/src/agilab/core/agi-env/src:${repo_root}/src/agilab/core/agi-node/src:${repo_root}/src/agilab/core/agi-cluster/src"
 
     if [[ -d "$repo_root/src/agilab/apps" ]]; then
         while IFS= read -r dir; do
@@ -406,6 +406,18 @@ run_repository_tests_with_coverage() {
         echo -e "${BLUE}Running builtin and repository app tests with coverage...${NC}"
         pushd "$repo_root" > /dev/null
         local -a cov_args=(--cov=src/agilab/apps --cov-report=term-missing --cov-report=xml --cov-append)
+        local extra_pythonpath="${extra_pythonpath_base}"
+        local app_path unique_path
+        declare -A seen_paths=()
+        for test_dir in "${app_test_dirs[@]}"; do
+            app_path="$(dirname "$test_dir")"
+            for candidate in "$app_path/src" "$app_path"; do
+                if [[ -d "$candidate" && -z "${seen_paths[$candidate]}" ]]; then
+                    extra_pythonpath="${extra_pythonpath}:${candidate}"
+                    seen_paths[$candidate]=1
+                fi
+            done
+        done
         if ! PYTHONPATH="${extra_pythonpath}:${PYTHONPATH:-}" "${uv_cmd[@]}" pytest "${app_test_dirs[@]}" --maxfail=1 "${cov_args[@]}"; then
             local rc=$?
             if (( rc == 5 )); then
@@ -430,7 +442,19 @@ run_repository_tests_with_coverage() {
         echo -e "${BLUE}Running apps-pages tests with coverage...${NC}"
         pushd "$repo_root" > /dev/null
         local -a cov_page_args=(--cov=src/agilab/apps-pages --cov-report=term-missing --cov-report=xml --cov-append)
-        if ! PYTHONPATH="${extra_pythonpath}:${PYTHONPATH:-}" "${uv_cmd[@]}" pytest "${page_test_dirs[@]}" --maxfail=1 "${cov_page_args[@]}"; then
+        local extra_pythonpath_pages="${extra_pythonpath_base}"
+        declare -A seen_page_paths=()
+        for test_dir in "${page_test_dirs[@]}"; do
+            local page_path
+            page_path="$(dirname "$test_dir")"
+            for candidate in "$page_path/src" "$page_path"; do
+                if [[ -d "$candidate" && -z "${seen_page_paths[$candidate]}" ]]; then
+                    extra_pythonpath_pages="${extra_pythonpath_pages}:${candidate}"
+                    seen_page_paths[$candidate]=1
+                fi
+            done
+        done
+        if ! PYTHONPATH="${extra_pythonpath_pages}:${PYTHONPATH:-}" "${uv_cmd[@]}" pytest "${page_test_dirs[@]}" --maxfail=1 "${cov_page_args[@]}"; then
             local rc=$?
             if (( rc == 5 )); then
                 echo -e "${YELLOW}No tests collected for apps-pages suite (exit code 5).${NC}"
