@@ -55,19 +55,40 @@ ${UV_PREVIEW[@]} pip install -e src/agilab/core/agi-node
 ${UV_PREVIEW[@]} pip install -e src/agilab/core/agi-cluster
 ${UV_PREVIEW[@]} pip install -e src/agilab/core/agi-core
 
-echo -e "${GREEN}Checking installation (agilab test suite with coverage)...${NC}"
+COVERAGE_FILE=".coverage-agilab" \
 uv run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade -m pytest \
   src/agilab/test \
   --cov=src/agilab \
   --cov-report=term-missing \
-  --cov-report=xml
+  --cov-report=xml:coverage-agilab.xml
+
+echo -e "${BLUE}Running agi-env test suite with coverage...${NC}"
+COVERAGE_FILE=".coverage-agi-env" \
+uv run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade -m pytest \
+  src/agilab/core/agi-env/test \
+  --cov=src/agilab/core/agi-env/src/agi_env \
+  --cov-report=term-missing \
+  --cov-report=xml:coverage-agi-env.xml
 
 echo -e "${BLUE}Running core test suite with coverage...${NC}"
+COVERAGE_FILE=".coverage-agi-core" \
 uv run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade -m pytest \
   src/agilab/core/test \
   --cov=src/agilab/core \
+  --cov=src/agilab/core/agi-node/src/agi_node \
+  --cov=src/agilab/core/agi-cluster/src/agi_cluster \
   --cov-report=term-missing \
-  --cov-report=xml \
-  --cov-append
+  --cov-report=xml:coverage-agi-core.xml
+
+COVERAGE_FILE=".coverage-agi-core" \
+uv run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade -m coverage xml -i \
+  --include="src/agilab/core/agi-node/src/agi_node/*" \
+  -o coverage-agi-node.xml
+
+COVERAGE_FILE=".coverage-agi-core" \
+uv run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade -m coverage xml -i \
+  --include="src/agilab/core/agi-cluster/src/agi_cluster/*" \
+  -o coverage-agi-cluster.xml
+
 
 popd > /dev/null
