@@ -1,0 +1,80 @@
+graph [
+  multigraph 1
+  directed 1
+  node [
+    id 0
+    label "0"
+    type "ngf"
+    x_position 100
+    y_postiion 200
+    z_position 100
+    bufferSizes 32000
+  ]
+  node [
+    id 1
+    label "1"
+    type "ngf"
+    x_position 100
+    y_postiion 200
+    z_position 100
+    bufferSizes 32000
+  ]
+  node [
+    id 2
+    label "2"
+    type "hrc"
+    x_position 100
+    y_postiion 200
+    z_position 100
+    bufferSizes 32000
+  ]
+  edge [
+    source 0
+    target 1
+    bearer "Sat"
+    capacity 10000
+    latency 300
+  ]
+  edge [
+    source 0
+    target 1
+    bearer "ivdl"
+    capacity 7000
+    latency 50
+  ]
+  edge [
+    source 0
+    target 2
+    bearer "ivdl"
+    capacity 1000
+    latency 50
+  ]
+  edge [
+    source 1
+    target 2
+    bearer "ivdl"
+    capacity 1000
+    latency 50
+  ]
+  edge [
+    source 1
+    target 0
+    bearer "ivdl"
+    capacity 1000
+    latency 50
+  ]
+  edge [
+    source 2
+    target 1
+    bearer "Opt"
+    capacity 10000
+    latency 50
+  ]
+  edge [
+    source 2
+    target 1
+    bearer "ivdl"
+    capacity 1000
+    latency 50
+  ]
+]
