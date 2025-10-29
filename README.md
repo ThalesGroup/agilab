@@ -10,7 +10,7 @@
 [![ORCID](https://img.shields.io/badge/ORCID-0009--0003--5375--368X-A6CE39?logo=orcid)](https://orcid.org/0009-0003-5375-368X)
 
 
-# AGI-ENV Open Source Project
+# AGILAB Open Source Project
 
 agi-env is the env compoment for AGILAB [BSD license](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) project purpose is to explore AI for engineering. It is designed to help engineers quickly experiment with AI-driven methods.
 See [documentation](https://thalesgroup.github.io/agilab).
