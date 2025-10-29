@@ -767,6 +767,21 @@ def main():
     selected_core_names = [name for name, *_ in selected_core_entries]
     version_targets = selected_core_names + ([UMBRELLA[0]] if build_umbrella else [])
 
+    if cfg.version is not None:
+        latest_existing: str | None = None
+        for name in version_targets:
+            releases = {v for v in pypi_releases(name, cfg.repo) if v and v != "0.0.0.post0"}
+            if not releases:
+                continue
+            candidate = max(releases, key=safe_ver)
+            if latest_existing is None or safe_ver(candidate) > safe_ver(latest_existing):
+                latest_existing = candidate
+        if latest_existing is not None and safe_ver(cfg.version) < safe_ver(latest_existing):
+            raise SystemExit(
+                f"ERROR: Explicit --version {cfg.version} is lower than existing release "
+                f"{latest_existing} on {cfg.repo}. Choose a version >= the latest release."
+            )
+
     removed_symlinks: list[tuple[pathlib.Path, str, bool]] = []
     try:
         if not cfg.dry_run and build_umbrella:
