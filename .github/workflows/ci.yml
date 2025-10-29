@@ -165,15 +165,11 @@ for label, xml_path in COVERAGE_FILES.items():
     target.write_text(json.dumps(badge, indent=2) + "\n", encoding="utf-8")
 PY
 
-      - name: Commit coverage badges
-        if: matrix.python-version == '3.13' && github.actor != 'github-actions[bot]'
-        run: |
-          if git diff --quiet -- badges/*.json; then
-            echo "No badge updates detected."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add badges/*.json
-          git commit -m "ci(badge): update coverage shields"
-          git push origin HEAD
+      - name: Publish coverage badges
+        if: matrix.python-version == '3.13'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: badges
+          publish_branch: badge-data
+          force_orphan: true
