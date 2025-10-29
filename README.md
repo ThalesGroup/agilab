@@ -12,13 +12,64 @@
 
 # AGILAB Open Source Project
 
-agi-env is the env compoment for AGILAB [BSD license](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) project purpose is to explore AI for engineering. It is designed to help engineers quickly experiment with AI-driven methods.
-See [documentation](https://thalesgroup.github.io/agilab).
+AGILAB is an integrated experimentation platform that helps data scientists and applied researchers prototype, validate,
+and deliver AI/ML applications quickly. The project bundles a curated suite of “agi-*” components (environment, node,
+cluster, core libraries, and reference applications) that work together to provide:
 
-It is as a pure meta-package containing the subpackages declare in pyproject.toml
+- **Reproducible experimentation** with managed virtual environments, dependency tracking, and application templates.
+- **Scalable execution** through local and distributed worker orchestration (agi-node / agi-cluster) that mirrors
+  production-like topologies.
+- **Rich tooling** including Streamlit-powered apps, notebooks, workflow automation, and coverage-guided CI pipelines.
+- **Turn‑key examples** covering classical analytics and more advanced domains such as flight simulation, network traffic,
+  industrial IoT, and optimization workloads.
 
-## Install
+The project is licensed under the [BSD 3-Clause License](https://github.com/ThalesGroup/agilab/blob/main/LICENSE) and is
+maintained by the Thales Group with community contributions welcomed.
+
+## Repository layout
+
+The monorepo hosts several tightly-coupled packages:
+
+| Package | Location | Purpose |
+| --- | --- | --- |
+| `agilab` | `src/agilab` | Top-level Streamlit experience, tooling, and reference applications |
+| `agi-env` | `src/agilab/core/agi-env` | Environment bootstrap, configuration helpers, and pagelib utilities |
+| `agi-node` | `src/agilab/core/agi-node` | Local/remote worker orchestration and task dispatch |
+| `agi-cluster` | `src/agilab/core/agi-cluster` | Multi-node coordination, distribution, and deployment helpers |
+| `agi-core` | `src/agilab/core/agi-core` | Meta-package bundling the environment/node/cluster components |
+
+Each package can be installed independently via `pip install <package-name>`, but the recommended path for development is
+to clone this repository and use the provided scripts.
+
+## Quick start (developer mode)
 
 ```bash
-pip install agi-env
+git clone https://github.com/ThalesGroup/agilab.git
+cd agilab
+./install.sh --install-apps --test-apps
+streamlit run src/agilab/AGILAB.py
 ```
+
+The installer uses [Astral’s uv](https://github.com/astral-sh/uv) to provision isolated Python interpreters, set up
+required credentials, run tests with coverage, and link bundled applications into the local workspace.
+
+See the [documentation](https://thalesgroup.github.io/agilab) for alternative installation modes (PyPI/TestPyPI) and end
+user deployment instructions.
+
+## Documentation & resources
+
+- 📘 **Docs:** https://thalesgroup.github.io/agilab
+- 📦 **PyPI:** https://pypi.org/project/agilab
+- 🧪 **Test matrix:** refer to `.github/workflows/ci.yml`
+- 🧾 **Runbook:** [RUNBOOK.md](RUNBOOK.md)
+- 🛠️ **Developer tools:** scripts in `tools/` and application templates in `src/agilab/apps`
+
+## Contributing
+
+Contributions are encouraged! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on reporting issues,
+submitting pull requests, and the review process. Security-related concerns should follow the instructions in
+[SECURITY.md](SECURITY.md).
+
+## License
+
+Distributed under the BSD 3-Clause License. See [LICENSE](LICENSE) for full text.
