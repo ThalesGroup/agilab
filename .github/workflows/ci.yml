@@ -138,35 +138,38 @@ jobs:
           rm -rf badges
           mkdir badges
           COVERAGE_FILE=.coverage uv run --group dev python -m coverage json -o coverage-summary.json
-          python <<'PY'
-import json
-from pathlib import Path
 
-summary = json.loads(Path('coverage-summary.json').read_text())
-percent = float(summary['totals'].get('percent_covered') or 0.0)
+      - name: Build coverage badge payload
+        if: matrix.python-version == '3.13' && github.ref == 'refs/heads/main'
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
 
-def pick_color(value: float) -> str:
-    if value >= 90:
-        return 'brightgreen'
-    if value >= 75:
-        return 'green'
-    if value >= 60:
-        return 'yellowgreen'
-    if value >= 45:
-        return 'yellow'
-    if value >= 30:
-        return 'orange'
-    return 'red'
+          summary = json.loads(Path("coverage-summary.json").read_text())
+          percent = float(summary["totals"].get("percent_covered") or 0.0)
 
-badge = {
-    'schemaVersion': 1,
-    'label': 'coverage',
-    'message': f"{percent:.1f}%",
-    'color': pick_color(percent),
-}
+          def pick_color(value: float) -> str:
+              if value >= 90:
+                  return "brightgreen"
+              if value >= 75:
+                  return "green"
+              if value >= 60:
+                  return "yellowgreen"
+              if value >= 45:
+                  return "yellow"
+              if value >= 30:
+                  return "orange"
+              return "red"
 
-Path('badges/coverage.json').write_text(json.dumps(badge, indent=2) + '\n')
-PY
+          badge = {
+              "schemaVersion": 1,
+              "label": "coverage",
+              "message": f"{percent:.1f}%",
+              "color": pick_color(percent),
+          }
+
+          Path("badges/coverage.json").write_text(json.dumps(badge, indent=2) + "\n")
 
       - name: Publish coverage badge
         if: matrix.python-version == '3.13' && github.ref == 'refs/heads/main'
