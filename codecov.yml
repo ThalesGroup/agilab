@@ -1,0 +1,16 @@
+flags:
+  agilab:
+    paths:
+      - src/agilab
+  agi-env:
+    paths:
+      - src/agilab/core/agi-env
+  agi-node:
+    paths:
+      - src/agilab/core/agi-node
+  agi-cluster:
+    paths:
+      - src/agilab/core/agi-cluster
+  agi-core:
+    paths:
+      - src/agilab/core/agi-core
