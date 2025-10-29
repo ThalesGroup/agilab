@@ -116,3 +116,46 @@ jobs:
           files: ./coverage-agi-core.xml
           flags: agi-core
           fail_ci_if_error: false
+
+      - name: Generate coverage badge data
+        if: matrix.python-version == '3.13' && github.ref == 'refs/heads/main'
+        run: |
+          uv run --group dev coverage json -o coverage-summary.json
+          python <<'PY'
+import json
+from pathlib import Path
+
+summary = json.loads(Path('coverage-summary.json').read_text())
+percent = float(summary['totals']['percent_covered'] or 0.0)
+
+def pick_color(value: float) -> str:
+    if value >= 90:
+        return 'brightgreen'
+    if value >= 75:
+        return 'green'
+    if value >= 60:
+        return 'yellowgreen'
+    if value >= 45:
+        return 'yellow'
+    if value >= 30:
+        return 'orange'
+    return 'red'
+
+badge = {
+    'schemaVersion': 1,
+    'label': 'coverage',
+    'message': f"{percent:.1f}%",
+    'color': pick_color(percent),
+}
+Path('badges').mkdir(exist_ok=True)
+Path('badges/coverage.json').write_text(json.dumps(badge, indent=2) + '\n')
+PY
+
+      - name: Publish coverage badge
+        if: matrix.python-version == '3.13' && github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: badge-data
+          publish_dir: badges
+          force_orphan: true
