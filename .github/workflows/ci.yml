@@ -32,13 +32,42 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v2
 
-      - name: Run tests with coverage (smoke)
+      - name: Run agilab tests with coverage
         run: |
           set -e
-          # Use uv to run pytest without polluting global/site-packages
+          mkdir -p test-results
           uv run pytest -q --maxfail=1 --disable-warnings \
-            --cov=agilab --cov-report=xml:coverage.xml \
-            --junitxml=test-results/junit.xml || true
+            --cov=agilab --cov-report=xml:coverage-agilab.xml \
+            --junitxml=test-results/junit.xml \
+            src/agilab/test || true
+
+      - name: Run agi-env tests with coverage
+        run: |
+          set -e
+          uv run pytest -q --maxfail=1 --disable-warnings \
+            --cov=agi_env --cov-report=xml:coverage-agi-env.xml \
+            src/agilab/core/agi-env/test || true
+
+      - name: Run agi-node tests with coverage
+        run: |
+          set -e
+          uv run pytest -q --maxfail=1 --disable-warnings \
+            --cov=agi_node --cov-report=xml:coverage-agi-node.xml \
+            src/agilab/core/test || true
+
+      - name: Run agi-cluster tests with coverage
+        run: |
+          set -e
+          uv run pytest -q --maxfail=1 --disable-warnings \
+            --cov=agi_cluster --cov-report=xml:coverage-agi-cluster.xml \
+            src/agilab/core/test || true
+
+      - name: Run agi-core tests with coverage
+        run: |
+          set -e
+          uv run pytest -q --maxfail=1 --disable-warnings \
+            --cov=agi_core --cov-report=xml:coverage-agi-core.xml \
+            src/agilab/core/test || true
 
       - name: Upload JUnit results
         if: always()
@@ -48,11 +77,42 @@ jobs:
           path: test-results/junit.xml
           if-no-files-found: ignore
 
-      - name: Upload coverage to Codecov
+      - name: Upload agilab coverage to Codecov
         if: always()
         uses: codecov/codecov-action@v3
         with:
-          files: ./coverage.xml
-          flags: unittests
+          files: ./coverage-agilab.xml
+          flags: agilab
           fail_ci_if_error: false
 
+      - name: Upload agi-env coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage-agi-env.xml
+          flags: agi-env
+          fail_ci_if_error: false
+
+      - name: Upload agi-node coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage-agi-node.xml
+          flags: agi-node
+          fail_ci_if_error: false
+
+      - name: Upload agi-cluster coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage-agi-cluster.xml
+          flags: agi-cluster
+          fail_ci_if_error: false
+
+      - name: Upload agi-core coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage-agi-core.xml
+          flags: agi-core
+          fail_ci_if_error: false
