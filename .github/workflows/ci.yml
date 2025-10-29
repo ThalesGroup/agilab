@@ -149,19 +149,18 @@ def select_color(percent: float) -> str:
 badges_dir = Path("badges")
 badges_dir.mkdir(exist_ok=True)
 
-for label, xml_path in COVERAGE_FILES.items():
+for pkg_name, xml_path in COVERAGE_FILES.items():
     if not xml_path.exists():
         continue
     root = ET.parse(xml_path).getroot()
     percent = round(float(root.attrib.get("line-rate", "0.0")) * 100, 1)
-    message = f"{percent:.1f}%"
     badge = {
         "schemaVersion": 1,
-        "label": label,
-        "message": message,
+        "label": "coverage",
+        "message": f"{percent:.1f}%",
         "color": select_color(percent),
     }
-    target = badges_dir / f"{label}.json"
+    target = badges_dir / f"{pkg_name}.json"
     target.write_text(json.dumps(badge, indent=2) + "\n", encoding="utf-8")
 PY
 
