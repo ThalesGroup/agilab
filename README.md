@@ -60,6 +60,7 @@ user deployment instructions.
 - 📘 **Docs:** https://thalesgroup.github.io/agilab
 - 📦 **PyPI:** https://pypi.org/project/agilab
 - 🧪 **Test matrix:** refer to `.github/workflows/ci.yml`
+- ✅ **Coverage snapshot:** 4.1%
 - 🧾 **Runbook:** [RUNBOOK.md](RUNBOOK.md)
 - 🛠️ **Developer tools:** scripts in `tools/` and application templates in `src/agilab/apps`
 
