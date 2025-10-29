@@ -28,6 +28,7 @@
 # DAMAGE.
 
 import os
+import posixpath
 import zipfile
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
@@ -36,6 +37,7 @@ from pathlib import Path
 from functools import lru_cache
 
 EXCLUDE_DIRS = {'.git', '.venv', '__pycache__', 'node_modules'}
+FOLLOW_SYMLINK_NAMES_DEFAULT = {"apps", "apps-pages"}
 
 @lru_cache(maxsize=None)
 def read_gitignore_cached(gitignore_path):
@@ -46,21 +48,42 @@ def read_gitignore_cached(gitignore_path):
     except FileNotFoundError:
         return PathSpec.from_lines(GitWildMatchPattern, [])
 
+def _normalize_relpath(relpath: str) -> str:
+    return relpath.replace(os.sep, "/")
+
+
 def should_include_file(relpath, spec, verbose=False):
-    included = not spec.match_file(relpath)
+    relpath_norm = _normalize_relpath(relpath)
+    included = not spec.match_file(relpath_norm)
     if verbose:
-        print(f"CHECK: {relpath} --> {'INCLUDE' if included else 'EXCLUDE'}")
+        print(f"CHECK: {relpath_norm} --> {'INCLUDE' if included else 'EXCLUDE'}")
     return included
 
-def zip_directory(target_dir, zip_filepath, top_spec, no_top=False, verbose=False):
+
+def _should_follow_symlink(relpath: str, follow_names: set[str]) -> bool:
+    if not follow_names:
+        return False
+    parts = _normalize_relpath(relpath).split("/")
+    return any(part in follow_names for part in parts if part)
+
+
+def zip_directory(target_dir, zip_filepath, top_spec, no_top=False, verbose=False, follow_symlink_names=None):
     target_dir = os.path.abspath(target_dir)
     base_name = os.path.basename(target_dir)
     output_zip_abs = os.path.abspath(zip_filepath)
+    follow_symlink_names = set(follow_symlink_names or [])
+    visited_real_paths: set[str] = set()
 
     def process_directory(current_dir, relative_to, depth=0):
         if depth > 30:
             print(f"MAX DEPTH reached at {current_dir} - Possible recursion problem.")
             return
+        real_current = os.path.realpath(current_dir)
+        if real_current in visited_real_paths:
+            if verbose:
+                print(f"Skipping already visited directory: {real_current}")
+            return
+        visited_real_paths.add(real_current)
         try:
             with os.scandir(current_dir) as it:
                 for entry in it:
@@ -69,28 +92,48 @@ def zip_directory(target_dir, zip_filepath, top_spec, no_top=False, verbose=Fals
                             print(f"Hard skip dir: {entry.name}")
                         continue
                     full_path = os.path.join(current_dir, entry.name)
-                    # Always compute relpath to the *target_dir* for .gitignore matching
-                    rel_for_match = os.path.relpath(full_path, start=target_dir)
+                    archive_rel = entry.name if not relative_to else posixpath.join(relative_to, entry.name)
+                    rel_for_match = archive_rel or entry.name
                     if os.path.abspath(full_path) == output_zip_abs:
                         continue
                     if entry.is_symlink() and not os.path.exists(full_path):
                         continue
-                    if entry.is_dir(follow_symlinks=False) and entry.is_symlink():
-                        continue
+                    if entry.is_symlink():
+                        if follow_symlink_names and _should_follow_symlink(archive_rel, follow_symlink_names):
+                            target_path = os.path.realpath(full_path)
+                            if not os.path.exists(target_path):
+                                if verbose:
+                                    print(f"Symlink target missing, skipping: {full_path} -> {target_path}")
+                                continue
+                            if os.path.isdir(target_path):
+                                if verbose:
+                                    print(f"Following directory symlink: {archive_rel} -> {target_path}")
+                                process_directory(target_path, archive_rel, depth+1)
+                            else:
+                                archive_path = archive_rel if no_top else posixpath.join(base_name, archive_rel)
+                                if should_include_file(rel_for_match, top_spec, verbose):
+                                    zipf.write(target_path, archive_path)
+                                    if verbose:
+                                        print(f"Adding symlink file {archive_path} (target: {target_path})")
+                            continue
+                        else:
+                            if verbose:
+                                print(f"Skipping symlink: {full_path}")
+                            continue
                     # Don't recurse into ignored directories
                     if entry.is_dir(follow_symlinks=False):
-                        if not should_include_file(rel_for_match + '/', top_spec, verbose):
+                        rel_dir = rel_for_match + '/'
+                        if not should_include_file(rel_dir, top_spec, verbose):
                             if verbose:
                                 print(f"Skipping directory (ignored by .gitignore): {full_path}")
                             continue
                         process_directory(
                             full_path,
-                            os.path.join(relative_to, entry.name),
+                            archive_rel,
                             depth+1
                         )
                     else:
-                        archive_path = os.path.join(relative_to, entry.name) if no_top \
-                            else os.path.join(base_name, relative_to, entry.name)
+                        archive_path = archive_rel if no_top else posixpath.join(base_name, archive_rel)
                         if should_include_file(rel_for_match, top_spec, verbose):
                             if not os.path.exists(full_path):
                                 if verbose:
@@ -133,17 +176,25 @@ if __name__ == "__main__":
         action="store_true",
         help="Do not include the top-level directory in the zip archive."
     )
+    parser.add_argument(
+        "--follow-app-links",
+        action="store_true",
+        help="Follow symlinks residing in 'apps' and 'apps-pages' directories."
+    )
     args = parser.parse_args()
 
     project_dir = args.dir2zip.absolute()
     zip_file = args.zipfile.absolute()
     verbose = args.verbose
     no_top = args.no_top
+    follow_app_links = args.follow_app_links
 
     if verbose:
         print("Directory to zip:", project_dir)
         print("Zip file will be:", zip_file)
         print("No top directory:", no_top)
+        if follow_app_links:
+            print("Following symlinks for: apps, apps-pages")
 
     os.makedirs(zip_file.parent, exist_ok=True)
 
@@ -158,5 +209,7 @@ if __name__ == "__main__":
             print(f"No top-level .gitignore found at {top_gitignore}. No files will be filtered at this level.")
         top_spec = PathSpec.from_lines(GitWildMatchPattern, [])
 
-    zip_directory(str(project_dir), str(zip_file), top_spec, no_top, verbose)
+    follow_names = FOLLOW_SYMLINK_NAMES_DEFAULT if follow_app_links else None
+
+    zip_directory(str(project_dir), str(zip_file), top_spec, no_top, verbose, follow_names)
     print(f"Zipped {project_dir} into {zip_file}")
