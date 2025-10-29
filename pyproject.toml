@@ -1,7 +1,7 @@
 [project]
-version = "2025.10.28.post1"
-name = "agi-env"
-description = "AGI Env"
+version = "2025.10.22"
+name = "agilab"
+description = "AGILAB is a PyCharm‑integrated AI experimentation lab for engineering (requires PyCharm for full workflow)"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [
@@ -19,74 +19,76 @@ classifiers = [
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
 ]
-
 keywords = [
-    "jupyter", "mlflow", "asyncio", "dask", "rapids",
+    "jupyterai", "mlflow", "asyncio", "dask", "rapids",
     "streamlit", "distributed", "cython", "cluster", "dataframe",
-    "dataset", "loadbalancing", "genai", "copilot", "agi",
-    "pycharm", "datascience"
+    "dataset", "loadbalancing", "genai", "agi",
+    "pycharm", "datascience", "codex", "ollama"
 ]
+dependencies = ["astor", "asyncssh", "build", "cmake>=3.29", "fastparquet", "geojson", "geopy", "humanize", "jupyter-ai[all]", "keras", "matplotlib", "mlflow", "networkx", "noise", "numba", "numpy>=1.14.1", "openai", "pathspec", "pip", "plotly", "polars", "pulp", "py7zr", "pytest-cov", "scipy==1.15.2", "seaborn", "setuptools", "streamlit", "streamlit-modal", "streamlit_code_editor", "streamlit_extras", "tomli", "tomli_w", "twine", "watchdog", "wheel", "sgp4", "agi-core==2025.10.22", "legacy-cgi; python_version >= '3.13'", "standard-imghdr; python_version >= '3.13'"]
 
-dependencies = [
-    "humanize",
-    "pydantic",
-    "python-dotenv",
-    "setuptools",
-    "tomlkit",
-    "tomli-w",
-    "astor",
-    "psutil",
-    "pathspec",
-    "ipython",
-    "py7zr",
-    "cmake>=3.29",
-    "sqlalchemy>=2.0.43",
-    "numba"
-]
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
-Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/agi-env"
-Tracker = "https://github.com/ThalesGroup/agilab/issues"
+Source = "https://github.com/ThalesGroup/agilab"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
 
+[project.scripts]
+agilab = "agilab.lab_run:main"
 
-
-
-
-
-
-
-
-
-
-
-
-
+[project.optional-dependencies]
+offline = ["gpt-oss>=0.0.8; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'", "transformers>=4.57.0; python_version >= '3.12'", "torch>=2.8.0; python_version >= '3.12'", "accelerate>=0.34.2; python_version >= '3.12'"]
 
 [dependency-groups]
 dev = [
-    "black",
+    "agi-core",
     "pytest",
-    "pytest-asyncio",
-    "licensecheck",
     "pytest-cov",
-    "streamlit",
-    "agi-env"
+    "pytest-local-badge",
+    "pytest-asyncio",
+    "ydata-profiling",
+    "genbadge[coverage]",
+    "pypi-cleanup",
 ]
 
+[tool.uv.extra-build-dependencies]
+htmlmin = ["legacy-cgi"]
+ydata-profiling = ["standard-imghdr"]
+
+[tool.uv.sources.agi-core]
+    path = "./src/agilab/core/agi-core"
+    editable = true
+
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.data-files]
-agi_env = [
-    "src/resources/*",
-    "*.ipynb",
-    "*.json",
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["agilab*"]
+exclude = [
+    "agilab.core*",
+    ".idea*",
+    "test*",
+    "build*",
+    ".venv*"
+]
+
+[tool.setuptools.package-data]
+agilab = [
+    "resources/*.*",
+    "resources/help/*",
     "*.toml",
+    "*.ipynb",
 ]
 
 [tool.mypy]
-mypy_path = ["stubs"]
+mypy_path = [
+    "stubs",
+]
 disallow_untyped_defs = false
 ignore_missing_imports = true
 
@@ -95,13 +97,33 @@ source_dir = "src"
 format = "google"
 
 [tool.pytest.ini_options]
-# Where your tests live for this project
-testpaths = ["test"]
+# Let pytest discover tests from repo root
+testpaths = [
+  "test",
+  "src/agilab/core/test",
+  "src/agilab/core/agi-env/test",
+]
 
-# Prefer auto so async tests don't need @pytest.mark.asyncio
+# Make the core packages importable when running pytest from the repo root
+pythonpath = [
+  "src/agilab/core/agi-env/src",
+  "src/agilab/core/agi-node/src",
+  "src/agilab/core/agi-cluster/src",
+]
+
+# (merge everything you had inline here)
 asyncio_mode = "auto"
-
-# Quiet known third-party deprecations
+# addopts = "--import-mode=importlib"   # if you had it
 filterwarnings = [
   "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
+  "ignore:Theme names and color schemes are lowercase.*:DeprecationWarning:IPython\\.core\\.ultratb",
 ]
+
+addopts = [
+  "--cov=agilab", "--cov=agi_core", "--cov=agi_env", "--cov=agi_cluster", "--cov=agi_node",
+  "--cov-report=term-missing:skip-covered"
+]
+
+[tool.coverage.run]
+branch = true
+source = ["agi_core", "agi_env", "agi_cluster", "agi_node"]
