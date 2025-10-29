@@ -131,8 +131,6 @@ seed_mistral_pdfs() {
 
     # Prefer curated path under resources/mistral_offline/data
     local src1="$AGI_INSTALL_PATH/src/agilab/core/agi-env/src/agi_env/resources/mistral_offline/data"
-    # Fallback to older stash path under resources/.agilab/pdfs
-    local src2="$AGI_INSTALL_PATH/src/agilab/core/agi-env/src/agi_env/resources/.agilab/pdfs"
 
     local copied=0
     if [[ -d "$src1" ]]; then
