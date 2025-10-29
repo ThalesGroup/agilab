@@ -7,7 +7,7 @@ on:
     branches: [ "**" ]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -116,59 +116,3 @@ jobs:
           files: ./coverage-agi-core.xml
           flags: agi-core
           fail_ci_if_error: false
-
-      - name: Generate coverage badge data
-        if: matrix.python-version == '3.13'
-        run: |
-          python <<'PY'
-import json
-import xml.etree.ElementTree as ET
-from pathlib import Path
-
-COVERAGE_FILES = {
-    "agilab": Path("coverage-agilab.xml"),
-    "agi-env": Path("coverage-agi-env.xml"),
-    "agi-node": Path("coverage-agi-node.xml"),
-    "agi-core": Path("coverage-agi-core.xml"),
-    "agi-cluster": Path("coverage-agi-cluster.xml"),
-}
-
-def select_color(percent: float) -> str:
-    if percent >= 90:
-        return "brightgreen"
-    if percent >= 75:
-        return "green"
-    if percent >= 60:
-        return "yellowgreen"
-    if percent >= 45:
-        return "yellow"
-    if percent >= 30:
-        return "orange"
-    return "red"
-
-badges_dir = Path("badges")
-badges_dir.mkdir(exist_ok=True)
-
-for pkg_name, xml_path in COVERAGE_FILES.items():
-    if not xml_path.exists():
-        continue
-    root = ET.parse(xml_path).getroot()
-    percent = round(float(root.attrib.get("line-rate", "0.0")) * 100, 1)
-    badge = {
-        "schemaVersion": 1,
-        "label": "coverage",
-        "message": f"{percent:.1f}%",
-        "color": select_color(percent),
-    }
-    target = badges_dir / f"{pkg_name}.json"
-    target.write_text(json.dumps(badge, indent=2) + "\n", encoding="utf-8")
-PY
-
-      - name: Publish coverage badges
-        if: matrix.python-version == '3.13'
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: badges
-          publish_branch: badge-data
-          force_orphan: true
