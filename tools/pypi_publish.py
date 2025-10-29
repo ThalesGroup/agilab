@@ -180,6 +180,10 @@ CORE: List[Tuple[str, pathlib.Path, pathlib.Path]] = [
 UMBRELLA = ("agilab", REPO_ROOT / "pyproject.toml", REPO_ROOT)
 ALL_PACKAGE_NAMES = [name for name, *_ in CORE] + [UMBRELLA[0]]
 
+APPS_REPO_ENV_KEYS: tuple[str, ...] = ("APPS_REPOSITORY", "AGILAB_APPS_REPOSITORY")
+DEFAULT_APPS_REPO_DIRNAME = "agilab-apps"
+APPS_REPO_REMOTE_ENV = "APPS_REPOSITORY_REMOTE"
+
 PYPI_JSON = {
     "testpypi": "https://test.pypi.org/pypi/{name}/json",
     "pypi":     "https://pypi.org/pypi/{name}/json",
@@ -670,10 +674,12 @@ def restore_symlinks(entries: list[tuple[pathlib.Path, str, bool]]):
 
 
 # ---------- Git ----------
-def _tag_exists(tag: str) -> bool:
+def _tag_exists(tag: str, repo: pathlib.Path = REPO_ROOT) -> bool:
     try:
-        subprocess.run(["git", "rev-parse", "-q", "--verify", f"refs/tags/{tag}"], cwd=REPO_ROOT,
-                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(
+            ["git", "rev-parse", "-q", "--verify", f"refs/tags/{tag}"],
+            cwd=str(repo),
+            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
     except subprocess.CalledProcessError:
         return False
@@ -689,10 +695,76 @@ def compute_date_tag() -> str:
     return tag
 
 
+def _is_git_repo(path: pathlib.Path) -> bool:
+    try:
+        subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=str(path),
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError, NotADirectoryError):
+        return False
+
+
+def _candidate_apps_repo_paths() -> List[Tuple[str, pathlib.Path]]:
+    candidates: List[Tuple[str, pathlib.Path]] = []
+    for key in APPS_REPO_ENV_KEYS:
+        value = os.environ.get(key)
+        if value:
+            candidates.append((f"env:{key}", pathlib.Path(value).expanduser()))
+    default_path = (REPO_ROOT.parent / DEFAULT_APPS_REPO_DIRNAME).expanduser()
+    candidates.append(("default", default_path))
+    return candidates
+
+
+def find_apps_repository() -> Tuple[pathlib.Path | None, str | None]:
+    for source, raw_path in _candidate_apps_repo_paths():
+        try:
+            resolved = raw_path.resolve()
+        except FileNotFoundError:
+            resolved = raw_path
+        if not resolved.exists():
+            if source.startswith("env:"):
+                print(f"[git] apps repository path '{resolved}' from {source.split(':',1)[1]} does not exist; skipping")
+            continue
+        if not _is_git_repo(resolved):
+            if source.startswith("env:"):
+                print(f"[git] apps repository path '{resolved}' from {source.split(':',1)[1]} is not a git repository; skipping")
+            continue
+        return resolved, source
+    return None, None
+
+
+def _create_tag_in_repo(repo_path: pathlib.Path, tag_ref: str, release_label: str, remote: str):
+    run(["git", "tag", "-a", tag_ref, "-m", f"Release {release_label}"], cwd=repo_path)
+    run(["git", "push", remote, tag_ref], cwd=repo_path)
+
+
 def create_and_push_tag(tag: str):
-    run(["git", "tag", "-a", f"v{tag}", "-m", f"Release {tag}"], cwd=REPO_ROOT)
-    run(["git", "push", "origin", f"v{tag}"], cwd=REPO_ROOT)
-    print(f"[git] created and pushed v{tag}")
+    tag_ref = f"v{tag}"
+    _create_tag_in_repo(REPO_ROOT, tag_ref, tag, "origin")
+    print(f"[git] created and pushed {tag_ref}")
+
+    apps_repo, source = find_apps_repository()
+    if not apps_repo:
+        print("[git] apps repository not found; skipping secondary tag")
+        return
+
+    apps_remote = os.environ.get(APPS_REPO_REMOTE_ENV, "origin")
+    if _tag_exists(tag_ref, apps_repo):
+        print(f"[git] apps repository '{apps_repo}' already has {tag_ref}; skipping secondary tag push")
+        return
+
+    try:
+        _create_tag_in_repo(apps_repo, tag_ref, tag, apps_remote)
+    except subprocess.CalledProcessError as exc:
+        raise SystemExit(
+            f"ERROR: failed to tag apps repository at {apps_repo} ({apps_remote}): {exc}"
+        ) from exc
+    print(f"[git] created and pushed {tag_ref} in apps repository ({apps_repo})")
 
 
 def git_paths_to_commit() -> list[str]:
