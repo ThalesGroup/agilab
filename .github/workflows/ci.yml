@@ -7,7 +7,7 @@ on:
     branches: [ "**" ]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -32,11 +32,13 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v2
 
+      - name: Prepare test artifacts
+        run: mkdir -p test-results
+
       - name: Run agilab tests with coverage
         run: |
           set -e
-          mkdir -p test-results
-          uv run pytest -q --maxfail=1 --disable-warnings \
+          COVERAGE_FILE=.coverage.agilab uv run pytest -q --maxfail=1 --disable-warnings \
             --cov=agilab --cov-report=xml:coverage-agilab.xml \
             --junitxml=test-results/junit.xml \
             src/agilab/test || true
@@ -44,28 +46,28 @@ jobs:
       - name: Run agi-env tests with coverage
         run: |
           set -e
-          uv run pytest -q --maxfail=1 --disable-warnings \
+          COVERAGE_FILE=.coverage.agi-env uv run pytest -q --maxfail=1 --disable-warnings \
             --cov=agi_env --cov-report=xml:coverage-agi-env.xml \
             src/agilab/core/agi-env/test || true
 
       - name: Run agi-node tests with coverage
         run: |
           set -e
-          uv run pytest -q --maxfail=1 --disable-warnings \
+          COVERAGE_FILE=.coverage.agi-node uv run pytest -q --maxfail=1 --disable-warnings \
             --cov=agi_node --cov-report=xml:coverage-agi-node.xml \
             src/agilab/core/test || true
 
       - name: Run agi-cluster tests with coverage
         run: |
           set -e
-          uv run pytest -q --maxfail=1 --disable-warnings \
+          COVERAGE_FILE=.coverage.agi-cluster uv run pytest -q --maxfail=1 --disable-warnings \
             --cov=agi_cluster --cov-report=xml:coverage-agi-cluster.xml \
             src/agilab/core/test || true
 
       - name: Run agi-core tests with coverage
         run: |
           set -e
-          uv run pytest -q --maxfail=1 --disable-warnings \
+          COVERAGE_FILE=.coverage.agi-core uv run pytest -q --maxfail=1 --disable-warnings \
             --cov=agi_core --cov-report=xml:coverage-agi-core.xml \
             src/agilab/core/test || true
 
@@ -117,16 +119,31 @@ jobs:
           flags: agi-core
           fail_ci_if_error: false
 
+      - name: Combine coverage data
+        if: matrix.python-version == '3.13'
+        run: |
+          set -e
+          shopt -s nullglob
+          coverage_files=(.coverage.*)
+          if [ ${#coverage_files[@]} -eq 0 ]; then
+            echo "No coverage data files produced."
+            exit 1
+          fi
+          COVERAGE_FILE=.coverage uv run --group dev python -m coverage combine "${coverage_files[@]}"
+          shopt -u nullglob
+
       - name: Generate coverage badge data
         if: matrix.python-version == '3.13' && github.ref == 'refs/heads/main'
         run: |
-          uv run --group dev coverage json -o coverage-summary.json
+          rm -rf badges
+          mkdir badges
+          COVERAGE_FILE=.coverage uv run --group dev python -m coverage json -o coverage-summary.json
           python <<'PY'
 import json
 from pathlib import Path
 
 summary = json.loads(Path('coverage-summary.json').read_text())
-percent = float(summary['totals']['percent_covered'] or 0.0)
+percent = float(summary['totals'].get('percent_covered') or 0.0)
 
 def pick_color(value: float) -> str:
     if value >= 90:
@@ -147,7 +164,7 @@ badge = {
     'message': f"{percent:.1f}%",
     'color': pick_color(percent),
 }
-Path('badges').mkdir(exist_ok=True)
+
 Path('badges/coverage.json').write_text(json.dumps(badge, indent=2) + '\n')
 PY
 
