@@ -983,16 +983,38 @@ def run_agi(code, path="."):
         path (str): The working directory.
     """
     env = st.session_state["env"]
+    if isinstance(code, (list, tuple)):
+        if len(code) >= 3:
+            code_str = str(code[2])
+        elif code:
+            code_str = str(code[-1])
+        else:
+            code_str = ""
+    elif code is None:
+        code_str = ""
+    else:
+        code_str = str(code)
+
+    code_str = code_str.strip("\n")
+    if not code_str:
+        st.warning("No code supplied for execution.")
+        return None
+
+    try:
+        target_path = Path(path) if path else Path(env.agi_env)
+    except TypeError:
+        target_path = Path(env.agi_env)
+    target_path = target_path.expanduser()
+    if target_path.name == ".venv":
+        target_path = target_path.parent
+
     # Regular expression pattern to match the string between "await" and "("
     pattern = r"await\s+(?:Agi\.)?([^\(]+)\("
 
     # Find all matches in the code
-    matches = re.findall(pattern, code)
-    if not matches:
-        st.warning("Could not determine snippet name from code.")
-        return None
+    matches = re.findall(pattern, code_str)
+    snippet_name = matches[0] if matches else "AGI_command"
 
-    snippet_name = matches[0]
     snippet_prefix = re.sub(r"[^0-9A-Za-z_]+", "_", str(snippet_name)).strip("_") or "AGI_unknown_command"
     target_slug = re.sub(r"[^0-9A-Za-z_]+", "_", str(env.target)).strip("_") or "unknown_app_name"
 
@@ -1000,30 +1022,30 @@ def run_agi(code, path="."):
     runenv_path.mkdir(parents=True, exist_ok=True)
     snippet_file = runenv_path / f"{snippet_prefix}_{target_slug}.py"
     with open(snippet_file, "w") as file:
-        file.write(code)
+        file.write(code_str)
 
-    if (path == env.agi_env) or (env.app_abs / ".venv").exists():
-        return run_with_output(env, f"uv -q run python {snippet_file}", path)
-    else:
-        st.info("Please do an install first")
-        st.stop()
+    if target_path.exists():
+        return run_with_output(env, f"uv -q run python {snippet_file}", str(target_path))
+
+    st.info("Please do an install first")
+    st.stop()
 
 
-def run_lab(query, snippet, copilot):
+def run_lab(query, snippet, codex):
     """
     Run gui code.
 
     Args:
         query: The query data.
         snippet: The snippet file path.
-        copilot: The copilot script path.
+        codex: The codex script path.
     """
     if not query:
         return
     with open(snippet, "w") as file:
         file.write(query[2])
     try:
-        runpy.run_path(copilot)
+        runpy.run_path(codex)
     except Exception as e:
         st.warning(f"Error: {e}")
 
