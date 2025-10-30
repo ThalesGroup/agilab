@@ -1,6 +1,11 @@
 from pathlib import Path
+import sys
 
 import pytest
+
+APP_SRC = Path(__file__).resolve().parents[1] / "src"
+if str(APP_SRC) not in sys.path:
+    sys.path.insert(0, str(APP_SRC))
 
 from agi_env import AgiEnv
 from mycode import Mycode, MycodeArgs
