@@ -22,6 +22,7 @@ from agi_env.pagelib import (
     activate_gpt_oss,
     find_files,
     run_agi,
+    run_lab,
     load_df,
     get_custom_buttons,
     get_info_bar,
@@ -85,7 +86,7 @@ def on_step_change(
     # Drop any existing editor instance state for this step (best-effort)
     st.session_state.pop(f"{index_page}_a_{index_step}", None)
     venv_map = st.session_state.get(f"{index_page}__venv_map", {})
-    st.session_state["lab_selected_venv"] = venv_map.get(index_step, "")
+    st.session_state["lab_selected_venv"] = normalize_runtime_path(venv_map.get(index_step, ""))
     # Do not call st.rerun() here: callbacks automatically trigger a rerun
     # after returning. Rely on the updated session_state to refresh the UI.
     return
@@ -110,7 +111,7 @@ def load_last_step(
             c = entry.get("C", "")
             detail = details_store.get(current_step, "")
             st.session_state[index_page][1:6] = [d, q, m, c, detail]
-            e = entry.get("E", "")
+            e = normalize_runtime_path(entry.get("E", ""))
             venv_map = st.session_state.setdefault(f"{index_page}__venv_map", {})
             if e:
                 venv_map[current_step] = e
@@ -141,6 +142,106 @@ def clean_query(index_page: str) -> None:
         venv_store = st.session_state.setdefault(f"{index_page}__venv_map", {})
         venv_store.pop(current_step, None)
         st.session_state["lab_selected_venv"] = ""
+
+
+def normalize_runtime_path(raw: Optional[Union[str, Path]]) -> str:
+    """Return a canonical project directory for a runtime selection."""
+    if not raw:
+        return ""
+    try:
+        text = str(raw).strip()
+        if not text:
+            return ""
+        candidate = Path(text).expanduser()
+    except Exception:
+        return str(raw)
+
+    if candidate.name == ".venv":
+        candidate = candidate.parent
+    return str(candidate)
+
+
+def _module_keys(module: Union[str, Path]) -> List[str]:
+    """Return preferred TOML keys for the provided module path."""
+    raw_path = Path(module)
+    keys: List[str] = []
+    env = st.session_state.get("env")
+    if env:
+        base = Path(getattr(env, "AGILAB_EXPORT_ABS", "") or "")
+        if base:
+            try:
+                candidate = raw_path if raw_path.is_absolute() else (base / raw_path).resolve()
+                rel = str(candidate.relative_to(base))
+                keys.append(rel)
+            except Exception:
+                pass
+    keys.append(str(raw_path))
+    ordered: List[str] = []
+    seen: set[str] = set()
+    for key in keys:
+        if key and key not in seen:
+            seen.add(key)
+            ordered.append(key)
+    return ordered or [str(raw_path)]
+
+
+def _ensure_primary_module_key(module: Union[str, Path], steps_file: Path) -> None:
+    """Ensure steps are stored under the primary module key."""
+    if not steps_file.exists():
+        return
+    try:
+        with open(steps_file, "rb") as f:
+            data = tomli.load(f)
+    except Exception:
+        return
+
+    keys = _module_keys(module)
+    primary = keys[0]
+    candidates: List[Tuple[str, List[Dict[str, Any]]]] = []
+    for key in keys:
+        entries = data.get(key)
+        if isinstance(entries, list) and entries:
+            candidates.append((key, entries))
+
+    if not candidates:
+        return
+
+    candidates.sort(key=lambda kv: (len(kv[1]), kv[0] != primary), reverse=True)
+    best_key, best_entries = candidates[0]
+    changed = best_key != primary or any(key != primary for key, _ in candidates[1:])
+    if not changed:
+        return
+
+    data[primary] = best_entries
+    for key, _ in candidates[1:]:
+        if key != primary:
+            data.pop(key, None)
+
+    try:
+        with open(steps_file, "wb") as f:
+            tomli_w.dump(convert_paths_to_strings(data), f)
+    except Exception:
+        logger.warning("Failed to normalize module keys for %s", steps_file)
+
+
+def _is_valid_step(entry: Dict[str, Any]) -> bool:
+    """Return True if a step contains meaningful content."""
+    if not entry:
+        return False
+    for field in ("D", "Q", "M", "C", "E"):
+        value = entry.get(field, "")
+        if isinstance(value, str) and value.strip():
+            return True
+    return False
+
+
+def _prune_invalid_entries(entries: List[Dict[str, Any]], keep_index: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Remove invalid steps, optionally preserving the entry at keep_index."""
+    pruned: List[Dict[str, Any]] = []
+    for idx, entry in enumerate(entries):
+        if _is_valid_step(entry) or (keep_index is not None and idx == keep_index):
+            pruned.append(entry)
+    return pruned
 
 
 def _bump_history_revision() -> None:
@@ -347,10 +448,12 @@ def load_all_steps(
 
     Uses a small cache keyed by file mtime to avoid re-parsing on every rerun.
     """
+    _ensure_primary_module_key(module_path, steps_file)
     try:
-        module_key = str(Path(str(module_path)))
+        module_key = _module_keys(module_path)[0]
         mtime_ns = steps_file.stat().st_mtime_ns
-        filtered_entries = _read_steps(steps_file, module_key, mtime_ns)
+        raw_entries = _read_steps(steps_file, module_key, mtime_ns)
+        filtered_entries = _prune_invalid_entries(raw_entries)
         if filtered_entries and not st.session_state[index_page][-1]:
             st.session_state[index_page][-1] = len(filtered_entries)
         # Lazily materialize a notebook if it's missing; read full TOML once
@@ -1221,22 +1324,35 @@ def is_query_valid(query: Any) -> bool:
 def get_steps_list(module: Path, steps_file: Path) -> List[Any]:
     """Get the list of steps for a module from a TOML file."""
     module_path = Path(module)
+    _ensure_primary_module_key(module_path, steps_file)
     try:
         with open(steps_file, "rb") as f:
             steps = tomli.load(f)
     except (FileNotFoundError, tomli.TOMLDecodeError):
-        steps = {}
-    return steps.get(str(module_path), [])
+        return []
+
+    for key in _module_keys(module_path):
+        entries = steps.get(key)
+        if isinstance(entries, list):
+            return entries
+    return []
 
 
 def get_steps_dict(module: Path, steps_file: Path) -> Dict[str, Any]:
     """Get the steps dictionary from a TOML file."""
-    _ = Path(module)  # Normalize for callers expecting Path-compatible input
+    module_path = Path(module)
+    _ensure_primary_module_key(module_path, steps_file)
     try:
         with open(steps_file, "rb") as f:
             steps = tomli.load(f)
     except (FileNotFoundError, tomli.TOMLDecodeError):
         steps = {}
+    else:
+        keys = _module_keys(module_path)
+        primary = keys[0]
+        for alt_key in keys[1:]:
+            if alt_key != primary:
+                steps.pop(alt_key, None)
     return steps
 
 
@@ -1249,14 +1365,17 @@ def remove_step(
     """Remove a step from the steps file."""
     module_path = Path(module)
     steps = get_steps_dict(module_path, steps_file)
-    nsteps = len(steps.get(str(module_path), []))
+    module_keys = _module_keys(module_path)
+    module_key = next((key for key in module_keys if key in steps), module_keys[0])
+    steps.setdefault(module_key, [])
+    nsteps = len(steps.get(module_key, []))
     index_step = int(step)
     details_key = f"{index_page}__details"
     details_store = st.session_state.setdefault(details_key, {})
     venv_key = f"{index_page}__venv_map"
     venv_store = st.session_state.setdefault(venv_key, {})
     if 0 <= index_step < nsteps:
-        del steps[str(module_path)][index_step]
+        del steps[module_key][index_step]
         nsteps -= 1
         st.session_state[index_page][0] = max(0, nsteps - 1)
         st.session_state[index_page][-1] = nsteps
@@ -1277,6 +1396,10 @@ def remove_step(
     else:
         st.session_state[index_page][0] = 0
         st.session_state[venv_key] = venv_store
+
+    steps[module_key] = _prune_invalid_entries(steps[module_key])
+    nsteps = len(steps[module_key])
+    st.session_state[index_page][-1] = nsteps
 
     serializable_steps = convert_paths_to_strings(steps)
     try:
@@ -1345,12 +1468,13 @@ def save_step(
 ) -> Tuple[int, Dict[str, Any]]:
     """Save a step in the steps file."""
     module_path = Path(module)
+    _ensure_primary_module_key(module_path, steps_file)
     # Persist only D, Q, M, and C
     fields = ["D", "Q", "M", "C"]
     entry = {field: (query[i] if i < len(query) else "") for i, field in enumerate(fields)}
     if venv_map is not None:
         try:
-            entry["E"] = venv_map.get(int(current_step), "")
+            entry["E"] = normalize_runtime_path(venv_map.get(int(current_step), ""))
         except Exception:
             entry["E"] = ""
     else:
@@ -1371,8 +1495,15 @@ def save_step(
         os.makedirs(steps_file.parent, exist_ok=True)
         steps = {}
 
-    module_str = str(module_path)
+    module_keys = _module_keys(module_path)
+    module_str = module_keys[0]
     steps.setdefault(module_str, [])
+    for alt_key in module_keys[1:]:
+        if alt_key in steps:
+            alt_entries = steps.pop(alt_key)
+            if not steps[module_str] or len(alt_entries) > len(steps[module_str]):
+                steps[module_str] = alt_entries
+
     nsteps_saved = len(steps[module_str])
     nsteps = max(int(nsteps), nsteps_saved)
 
@@ -1380,6 +1511,9 @@ def save_step(
         steps[module_str][index_step] = entry
     else:
         steps[module_str].append(entry)
+
+    steps[module_str] = _prune_invalid_entries(steps[module_str], keep_index=index_step)
+    nsteps = len(steps[module_str])
 
     serializable_steps = convert_paths_to_strings(steps)
     try:
@@ -1409,16 +1543,20 @@ def run_all_steps(
     selected_map = st.session_state.setdefault(f"{index_page_str}__venv_map", {})
     details_store = st.session_state.setdefault(f"{index_page_str}__details", {})
     original_step = st.session_state[index_page_str][0]
-    original_selected = st.session_state.get("lab_selected_venv", "")
+    original_selected = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
+    snippet_file = st.session_state.get("snippet_file")
+    if not snippet_file:
+        st.error("Snippet file is not configured. Reload the page and try again.")
+        return
 
     executed = 0
     with st.spinner("Running all steps…"):
         for idx, entry in enumerate(steps):
             code = entry.get("C", "")
-            if not code:
+            if not _is_valid_step(entry) or not code:
                 continue
 
-            venv_path = entry.get("E", "") or ""
+            venv_path = normalize_runtime_path(entry.get("E", ""))
             if venv_path:
                 selected_map[idx] = venv_path
             else:
@@ -1432,11 +1570,16 @@ def run_all_steps(
             st.session_state[index_page_str][4] = code
             st.session_state[index_page_str][5] = details_store.get(idx, "")
 
-            venv_root = (entry.get("E", "") or "").strip()
-            target_path = Path(venv_root).expanduser() if venv_root else Path(env.agi_env)
-            if target_path.name == ".venv":
-                target_path = target_path.parent
-            run_agi(code, path=target_path)
+            venv_root = normalize_runtime_path(entry.get("E", ""))
+            if venv_root:
+                target_path = Path(venv_root).expanduser()
+                run_agi(code, path=target_path)
+            else:
+                run_lab(
+                    [entry.get("D", ""), entry.get("Q", ""), code],
+                    snippet_file,
+                    env.copilot_file,
+                )
 
             if isinstance(st.session_state.get("data"), pd.DataFrame) and not st.session_state["data"].empty:
                 export_target = st.session_state.get("df_file_out", "")
@@ -1446,7 +1589,7 @@ def run_all_steps(
             executed += 1
 
     st.session_state[index_page_str][0] = original_step
-    st.session_state["lab_selected_venv"] = original_selected
+    st.session_state["lab_selected_venv"] = normalize_runtime_path(original_selected)
     st.session_state[f"{index_page_str}__force_blank_q"] = True
     st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
 
@@ -1575,6 +1718,14 @@ def sidebar_controls() -> None:
     env.envars["LAB_LLM_PROVIDER"] = selected_provider
     if previous_provider != selected_provider and previous_provider == UOAIC_PROVIDER:
         st.session_state.pop(UOAIC_RUNTIME_KEY, None)
+    if previous_provider != selected_provider:
+        index_page = st.session_state.get("index_page") or st.session_state.get("lab_dir")
+        if index_page is not None:
+            index_page_str = str(index_page)
+            row = st.session_state.get(index_page_str)
+            if isinstance(row, list) and len(row) > 3:
+                row[3] = ""
+        st.session_state.setdefault("_experiment_reload_required", True)
 
     if selected_provider == "gpt-oss":
         default_endpoint = (
@@ -1971,6 +2122,21 @@ def display_lab_tab(
     query = st.session_state[index_page_str]
     step = query[0]
     step_count = st.session_state[index_page_str][-1]
+    snippet_file = st.session_state.get("snippet_file")
+
+    if query[-1]:
+        cols = st.columns(BUTTONS_PER_LINE)
+        for idx_button in range(query[-1]):
+            col = cols[idx_button % BUTTONS_PER_LINE]
+            str_button = str(idx_button + 1)
+            col.button(
+                str_button,
+                use_container_width=True,
+                on_click=on_step_change,
+                args=(module_path, steps_file, idx_button, index_page_str),
+                key=f"{index_page_str}_step_{str_button}",
+            )
+
     header_col, action_col = st.columns((20, 1))
     with header_col:
         st.markdown(f"<h3 style='font-size:16px;'>Step {step + 1}</h3>", unsafe_allow_html=True)
@@ -1990,35 +2156,78 @@ def display_lab_tab(
         st.rerun()
         return
 
-    if query[-1]:
-        cols = st.columns(BUTTONS_PER_LINE)
-        for idx_button in range(query[-1]):
-            col = cols[idx_button % BUTTONS_PER_LINE]
-            str_button = str(idx_button + 1)
-            col.button(
-                str_button,
-                use_container_width=True,
-                on_click=on_step_change,
-                args=(module_path, steps_file, idx_button, index_page_str),
-                key=f"{index_page_str}_step_{str_button}",
-            )
+    available_venvs = [
+        normalize_runtime_path(path) for path in get_available_virtualenvs(env)
+    ]
+    available_venvs = [path for path in dict.fromkeys(available_venvs) if path]
 
-    run_all_clicked = st.button(
-        "Run all steps",
-        key=f"{index_page_str}_run_all",
-        help="Execute every step sequentially using its saved virtual environment.",
-        type="secondary",
+    venv_state_key = f"{index_page_str}__venv_map"
+    selected_map: Dict[int, str] = st.session_state.setdefault(venv_state_key, {})
+    for idx_key, raw_value in list(selected_map.items()):
+        normalized_value = normalize_runtime_path(raw_value)
+        if normalized_value:
+            selected_map[idx_key] = normalized_value
+        else:
+            selected_map.pop(idx_key, None)
+
+    current_path = normalize_runtime_path(selected_map.get(step, ""))
+    lab_selected_path = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
+    env_active_app = normalize_runtime_path(getattr(env, "active_app", ""))
+
+    if env_active_app:
+        available_venvs = [env_active_app] + [p for p in available_venvs if p != env_active_app]
+
+    for candidate in [current_path, lab_selected_path, *selected_map.values()]:
+        candidate_normalized = normalize_runtime_path(candidate)
+        if candidate_normalized and candidate_normalized not in available_venvs:
+            available_venvs.append(candidate_normalized)
+
+    default_env_label = "Use AGILAB environment"
+    venv_labels = [default_env_label] + available_venvs
+    select_key = f"{index_page_str}_venv_{step}"
+    session_label = st.session_state.get(select_key, "")
+    initial_label = session_label or current_path or lab_selected_path or env_active_app
+    if initial_label and initial_label not in venv_labels:
+        venv_labels.append(initial_label)
+    if initial_label:
+        default_label = initial_label
+    else:
+        default_label = default_env_label
+    if default_label not in venv_labels:
+        venv_labels.append(default_label)
+    if select_key not in st.session_state or st.session_state[select_key] not in venv_labels:
+        st.session_state[select_key] = default_label
+    selected_label = st.selectbox(
+        "Active app",
+        venv_labels,
+        key=select_key,
+        help="Choose which virtual environment should execute this step.",
     )
-    if run_all_clicked:
-        run_all_steps(lab_dir, index_page_str, steps_file, module_path, env)
+    selected_path = "" if selected_label == venv_labels[0] else normalize_runtime_path(selected_label)
+    previous_path = normalize_runtime_path(selected_map.get(step, ""))
+    if selected_path:
+        selected_map[step] = selected_path
+    else:
+        selected_map.pop(step, None)
+    if selected_path != previous_path:
+        save_step(
+            lab_dir,
+            [query[1], query[2], query[3], query[4]],
+            step,
+            query[-1],
+            steps_file,
+            venv_map=selected_map,
+        )
+        _bump_history_revision()
+    st.session_state["lab_selected_venv"] = selected_path
 
     # Compute a revisioned key for the prompt to allow forced remount/clear
     q_rev = st.session_state.get(f"{index_page_str}__q_rev", 0)
     prompt_key = f"{index_page_str}_q__{q_rev}"
 
-    active_model = str(query[3] or "").strip()
-    if active_model:
-        st.caption(f"Model: `{active_model}`")
+    default_prompt_value = st.session_state.get(prompt_key)
+    if default_prompt_value is None:
+        st.session_state[prompt_key] = ""
 
     st.text_area(
         "Ask chatGPT:",
@@ -2050,47 +2259,6 @@ def display_lab_tab(
         else:
             st.info(detail_text)
 
-    available_venvs = get_available_virtualenvs(env)
-    discovered_labels: List[str] = [str(path) for path in available_venvs]
-    venv_state_key = f"{index_page_str}__venv_map"
-    selected_map: Dict[int, str] = st.session_state.setdefault(venv_state_key, {})
-    current_path = selected_map.get(step, "")
-    lab_selected_path = (st.session_state.get("lab_selected_venv") or "").strip()
-    for candidate in [current_path, lab_selected_path, *selected_map.values()]:
-        if candidate and candidate not in discovered_labels:
-            discovered_labels.append(candidate)
-    venv_labels = ["Use Streamlit environment"] + discovered_labels
-    select_key = f"{index_page_str}_venv_{step}"
-    session_label = st.session_state.get(select_key, "")
-    initial_label = session_label or current_path or lab_selected_path or ""
-    if initial_label and initial_label not in venv_labels:
-        venv_labels.append(initial_label)
-    default_label = initial_label if initial_label in venv_labels else venv_labels[0]
-    if select_key not in st.session_state or st.session_state[select_key] not in venv_labels:
-        st.session_state[select_key] = default_label
-    selected_label = st.selectbox(
-        "Runtime virtual environment",
-        venv_labels,
-        key=select_key,
-        help="Choose which virtual environment should execute this step.",
-    )
-    selected_path = "" if selected_label == venv_labels[0] else selected_label
-    previous_path = selected_map.get(step, "")
-    if selected_path:
-        selected_map[step] = selected_path
-    else:
-        selected_map.pop(step, None)
-    if selected_path != previous_path:
-        save_step(
-            lab_dir,
-            [query[1], query[2], query[3], query[4]],
-            step,
-            query[-1],
-            steps_file,
-            venv_map=selected_map,
-        )
-        _bump_history_revision()
-    st.session_state["lab_selected_venv"] = selected_path
 
     snippet_dict: Optional[Dict[str, Any]] = None
     if code_for_editor:
@@ -2155,16 +2323,55 @@ def display_lab_tab(
         query[4] = snippet_dict["text"]
         save_query(lab_dir, query, steps_file, index_page_str)
         if query[4] and not st.session_state.get("step_checked", False):
-            selected_env = (st.session_state.get("lab_selected_venv") or "").strip()
-            target_path = Path(selected_env).expanduser() if selected_env else Path(env.agi_env)
-            if target_path.name == ".venv":
-                target_path = target_path.parent
-            run_agi(query[4], path=target_path)
+            selected_env = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
+            if selected_env:
+                target_path = Path(selected_env).expanduser()
+                run_agi(query[4], path=target_path)
+            else:
+                if not snippet_file:
+                    st.error("Snippet file is not configured. Reload the page and try again.")
+                    return
+                run_lab([query[1], query[2], query[4]], snippet_file, env.copilot_file)
             if isinstance(st.session_state.get("data"), pd.DataFrame) and not st.session_state["data"].empty:
                 export_target = st.session_state.get("df_file_out", "")
                 if save_csv(st.session_state["data"], export_target):
                     st.session_state["df_file_in"] = export_target
                     st.session_state["step_checked"] = True
+
+    run_all_col, delete_all_col = st.columns(2)
+    with run_all_col:
+        run_all_clicked = st.button(
+            "Run all steps",
+            key=f"{index_page_str}_run_all",
+            help="Execute every step sequentially using its saved virtual environment.",
+            type="secondary",
+            use_container_width=True,
+        )
+    with delete_all_col:
+        delete_all_clicked = st.button(
+            "Delete all steps",
+            key=f"{index_page_str}_delete_all",
+            help="Remove every step in this lab.",
+            type="secondary",
+            use_container_width=True,
+        )
+
+    if run_all_clicked:
+        run_all_steps(lab_dir, index_page_str, steps_file, module_path, env)
+    if delete_all_clicked:
+        total_steps = st.session_state[index_page_str][-1]
+        for idx_remove in reversed(range(total_steps)):
+            remove_step(lab_dir, str(idx_remove), steps_file, index_page_str)
+        st.session_state[index_page_str] = [0, "", "", "", "", "", 0]
+        st.session_state[f"{index_page_str}__details"] = {}
+        st.session_state[f"{index_page_str}__venv_map"] = {}
+        st.session_state["lab_selected_venv"] = ""
+        st.session_state[f"{index_page_str}__clear_q"] = True
+        st.session_state[f"{index_page_str}__force_blank_q"] = True
+        st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
+        st.session_state.pop(select_key, None)
+        _bump_history_revision()
+        st.rerun()
 
     if st.session_state.pop("_experiment_reload_required", False):
         st.session_state.pop("loaded_df", None)
@@ -2183,11 +2390,19 @@ def display_lab_tab(
 
 def display_history_tab(steps_file: Path, module_path: Path) -> None:
     """Display the HISTORY tab with code editor for steps file."""
+    _ensure_primary_module_key(module_path, steps_file)
     if steps_file.exists():
         with open(steps_file, "rb") as f:
-            code = f.read().decode("utf-8")
+            raw_data = tomli.load(f)
+        cleaned: Dict[str, List[Dict[str, Any]]] = {}
+        for mod, entries in raw_data.items():
+            if isinstance(entries, list):
+                filtered = [entry for entry in entries if _is_valid_step(entry)]
+                if filtered:
+                    cleaned[mod] = filtered
+        code = json.dumps(cleaned, indent=2)
     else:
-        code = ""
+        code = "{}"
     history_rev = st.session_state.get("history_rev", 0)
     action_onsteps = code_editor(
         code,
@@ -2201,8 +2416,15 @@ def display_history_tab(steps_file: Path, module_path: Path) -> None:
     )
     if action_onsteps["type"] == "save":
         try:
+            data = json.loads(action_onsteps["text"] or "{}")
+            cleaned: Dict[str, List[Dict[str, Any]]] = {}
+            for mod, entries in data.items():
+                if isinstance(entries, list):
+                    filtered = [entry for entry in entries if _is_valid_step(entry)]
+                    if filtered:
+                        cleaned[mod] = filtered
             with open(steps_file, "wb") as f:
-                tomli_w.dump(json.loads(action_onsteps["text"]), f)
+                tomli_w.dump(convert_paths_to_strings(cleaned), f)
             _bump_history_revision()
         except Exception as e:
             st.error(f"Failed to save steps file from editor: {e}")
