@@ -12,6 +12,9 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import sys
+import argparse
+from pathlib import Path
+
 import streamlit as st
 import pandas as pd
 import pydeck as pdk
@@ -21,7 +24,6 @@ import numpy as np
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
-from pathlib import Path
 
 
 def _ensure_repo_on_path() -> None:
@@ -42,39 +44,35 @@ _ensure_repo_on_path()
 from agi_env import AgiEnv
 from agi_env.pagelib import find_files, load_df, render_logo
 
+
+def _resolve_active_app() -> Path:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument(
+        "--active-app",
+        dest="active_app",
+        type=str,
+        required=True,
+    )
+    args, _ = parser.parse_known_args()
+    active_app_path = Path(args.active_app).expanduser()
+    if not active_app_path.exists():
+        st.error(f"Provided --active-app path not found: {active_app_path}")
+        st.stop()
+    return active_app_path
+
+
 st.title(":world_map: Maps Network Graph")
 
-# Build env from CLI, env var, or session fallback
 if 'env' not in st.session_state:
-    import argparse, os
-    parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
-    parser.add_argument("--active-app", dest="active_app", type=str,
-                        help="Active app path (e.g. src/agilab/apps/flight_project)", default=None)
-    args, _ = parser.parse_known_args()
-
-    active_app: Path | None
-    if args.active_app is None:
-        env_app = os.environ.get("AGILAB_APP")
-        active_app = Path(env_app).expanduser() if env_app else None
-    else:
-        active_app = Path(args.active_app)
-
-    if active_app is not None:
-        app = active_app.name
-        env = AgiEnv(apps_dir=active_app.parent, app=app, verbose=0)
-        env.init_done = True
-        st.session_state['env'] = env
-        st.session_state['IS_SOURCE_ENV'] = env.is_source_env
-        st.session_state['IS_WORKER_ENV'] = env.is_worker_env
-        st.session_state['apps_dir'] = str(active_app.parent)
-    else:
-        # Fallback: use session apps_dir only
-        apps_dir_value = st.session_state.get("apps_dir")
-        env = AgiEnv(apps_dir=Path(apps_dir_value).expanduser() if apps_dir_value else None, verbose=0)
-        env.init_done = True
-        st.session_state['env'] = env
-        st.session_state['IS_SOURCE_ENV'] = env.is_source_env
-        st.session_state['IS_WORKER_ENV'] = env.is_worker_env
+    active_app_path = _resolve_active_app()
+    app_name = active_app_path.name
+    env = AgiEnv(apps_dir=active_app_path.parent, app=app_name, verbose=0)
+    env.init_done = True
+    st.session_state['env'] = env
+    st.session_state['IS_SOURCE_ENV'] = env.is_source_env
+    st.session_state['IS_WORKER_ENV'] = env.is_worker_env
+    st.session_state['apps_dir'] = str(active_app_path.parent)
+    st.session_state['app'] = app_name
 else:
     env = st.session_state['env']
 
