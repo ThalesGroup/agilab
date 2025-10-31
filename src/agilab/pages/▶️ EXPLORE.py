@@ -100,6 +100,30 @@ def _default_app_path(apps_dir: Path | None) -> Path | None:
             return candidate
     return None
 
+
+LAST_APP_FILE = Path.home() / ".local/share/agilab/.last-active-app"
+
+
+def _load_last_app() -> Path | None:
+    try:
+        if LAST_APP_FILE.exists():
+            data = LAST_APP_FILE.read_text(encoding="utf-8").strip()
+            if data:
+                candidate = Path(data).expanduser()
+                if candidate.exists():
+                    return candidate
+    except Exception:
+        pass
+    return None
+
+
+def _store_last_app(path: Path) -> None:
+    try:
+        LAST_APP_FILE.parent.mkdir(parents=True, exist_ok=True)
+        LAST_APP_FILE.write_text(str(path), encoding="utf-8")
+    except Exception:
+        pass
+
 @staticmethod
 def exec_bg(agi_env: AgiEnv, cmd: str, cwd: str) -> None:
     """
@@ -233,6 +257,13 @@ async def main():
                         apps_dir_path = candidate.parent
 
         if active_app_path is None:
+            last_app = _load_last_app()
+            if last_app is not None:
+                active_app_path = last_app
+                if not apps_dir_path:
+                    apps_dir_path = last_app.parent
+
+        if active_app_path is None:
             active_app_path = _default_app_path(apps_dir_path)
 
         if active_app_path is None:
@@ -258,6 +289,7 @@ async def main():
             st.session_state['apps_dir'] = str(apps_dir_path)
         if app_name:
             st.session_state['app'] = app_name
+        _store_last_app(active_app_path)
     else:
         env = st.session_state['env']
 
@@ -269,6 +301,8 @@ async def main():
     projects = env.projects
     current_project = env.app if env.app in projects else (projects[0] if projects else None)
     select_project(projects, current_project)  # may be updated by select_project
+    if env.app:
+        _store_last_app(Path(env.apps_dir) / env.app)
 
     # Where to store selected pages per project
     project = env.app
