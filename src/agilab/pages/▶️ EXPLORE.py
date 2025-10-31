@@ -364,9 +364,25 @@ async def render_view_page(view_path: Path):
     # --- sidecar per-view run + iframe embed ---
     # Unique key for port hashing (works even if two Page share the same filename)
     view_key = f"{view_path.stem}|{view_path.parent.as_posix()}"
-    active_app = str(env.active_app) if getattr(env, "active_app", None) else env.app
-    port = _port_for(f"{view_key}|{active_app}")
-    _ensure_sidecar(view_key, view_path, port, active_app)
+    active_app_path: Path | None = None
+    if getattr(env, "apps_dir", None):
+        for name in (env.target, env.app):
+            if name:
+                candidate = Path(env.apps_dir) / name
+                if candidate.exists():
+                    active_app_path = candidate
+                    break
+    if active_app_path is None and getattr(env, "active_app", None):
+        candidate = Path(env.active_app)
+        if candidate.exists():
+            active_app_path = candidate
+
+    if active_app_path is None and getattr(env, "active_app", None):
+        active_app_arg = str(env.active_app)
+    else:
+        active_app_arg = str(active_app_path) if active_app_path else ""
+    port = _port_for(f"{view_key}|{active_app_arg}")
+    _ensure_sidecar(view_key, view_path, port, active_app_arg)
 
     # Regular iframe (child keeps its own sidebar if it has one)
     components.iframe(f"http://127.0.0.1:{port}/?embed=true", height=900)
