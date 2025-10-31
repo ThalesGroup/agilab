@@ -235,7 +235,15 @@ async def main():
         if active_app_path is None:
             active_app_path = _default_app_path(apps_dir_path)
 
-        app_name = active_app_path.name if active_app_path else None
+        if active_app_path is None:
+            st.error(
+                "Could not determine the active app. Please select a project first or set AGILAB_APP."
+            )
+            st.stop()
+
+        app_name = active_app_path.name
+        if apps_dir_path is None:
+            apps_dir_path = active_app_path.parent
 
         env = AgiEnv(
             apps_dir=apps_dir_path,
