@@ -115,7 +115,7 @@ def exec_bg(agi_env: AgiEnv, cmd: str, cwd: str) -> None:
     return subprocess.Popen(cmd, shell=isinstance(cmd, str), cwd=cwd, stdout=stdout, stderr=stderr)
 
 @st.cache_resource(show_spinner=False)
-def _ensure_sidecar(view_key: str, view_page: Path, port: int):
+def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str):
     """Start the view's Streamlit in a separate process (one per session)."""
     if _is_port_open(port):
         return  # already running
@@ -129,7 +129,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int):
     env.err_log = f"{env.AGILAB_LOG_ABS / view_page.stem}.err"
 
     cmd = (f"uv run --project {page_home} python -m streamlit run {view_page} --server.port {port} --server.headless true"
-           f" --browser.gatherUsageStats false -- --active-app {env.active_app}")
+           f" --browser.gatherUsageStats false -- --active-app {active_app}")
     result = exec_bg(env, cmd, cwd=page_home)
 
     env = os.environ.copy()
@@ -364,8 +364,9 @@ async def render_view_page(view_path: Path):
     # --- sidecar per-view run + iframe embed ---
     # Unique key for port hashing (works even if two Page share the same filename)
     view_key = f"{view_path.stem}|{view_path.parent.as_posix()}"
-    port = _port_for(view_key)
-    _ensure_sidecar(view_key, view_path, port)
+    active_app = str(env.active_app) if getattr(env, "active_app", None) else env.app
+    port = _port_for(f"{view_key}|{active_app}")
+    _ensure_sidecar(view_key, view_path, port, active_app)
 
     # Regular iframe (child keeps its own sidebar if it has one)
     components.iframe(f"http://127.0.0.1:{port}/?embed=true", height=900)
