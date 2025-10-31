@@ -211,7 +211,7 @@ async def main():
 
     page_title = "Explore"
     # Sidebar header/logo
-    render_logo(page_title)
+    render_logo()
 
     # Sidebar: project selection
     projects = env.projects

@@ -1545,7 +1545,7 @@ def page():
     env = st.session_state['_env']
     inject_theme(env.st_resources)
 
-    render_logo("Edit your Project")
+    render_logo()
 
     if not st.session_state.get("server_started"):
         activate_mlflow(env)
