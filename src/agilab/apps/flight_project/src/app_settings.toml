@@ -24,4 +24,6 @@ auth_method = "password"
 "192.168.20.130" = 1
 
 [pages]
-view_module = []
+view_module = [
+    "view_maps",
+]
