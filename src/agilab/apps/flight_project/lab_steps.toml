@@ -3,6 +3,7 @@ D = "/Users/jpm/export/flight/export.csv"
 Q = "add smoothing of col long with savgol"
 M = "gpt-4o"
 C = "from scipy.signal import savgol_filter\n\ndf['smoothed_long'] = savgol_filter(df['long'], window_length=5, polyorder=2)\n"
+E = "/Users/jpm/PycharmProjects/agilab/src/agilab/apps/flight_project"
 
 [[flight]]
 D = "/Users/jpm/export/flight/export.csv"
@@ -15,3 +16,4 @@ D = "/Users/jpm/export/flight/export.csv"
 Q = "add smoothing of col long with savgol"
 M = "mistral:instruct"
 C = "from scipy.signal import convolve2d as cv2\nimport numpy as np\n\n# Define the window size for Savitzky-Golay filtering\nwindow_size = 51\n\n# Apply Savitzky-Golay filter to column 'long'\ndf['smoothed_long'] = cv2(df['long'].values, window_size, 2) / window_size"
+E = "/Users/jpm/PycharmProjects/agilab/src/agilab/apps/flight_project"
