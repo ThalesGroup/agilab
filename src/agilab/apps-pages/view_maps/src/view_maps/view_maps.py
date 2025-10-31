@@ -124,20 +124,20 @@ def page(env):
     last_target_key = "_view_maps_last_target"
     last_target = st.session_state.get(last_target_key)
 
+    current = st.session_state.get("datadir")
     if (
         last_target != env.target
-        or "datadir" not in st.session_state
-        or not st.session_state.get("datadir")
+        or current is None
+        or str(current).strip() == ""
     ):
-        st.session_state["datadir"] = str(default_datadir)
-    else:
-        # Normalise to string representation for downstream widgets
-        current = st.session_state["datadir"]
-        st.session_state["datadir"] = str(current)
+        current = str(default_datadir)
+    st.session_state["datadir"] = str(current)
 
     st.session_state["datadir_str"] = st.session_state["datadir"]
     st.session_state[last_target_key] = env.target
     datadir = Path(st.session_state["datadir"])
+    datadir_changed = st.session_state.get("_view_maps_last_datadir") != str(datadir)
+    st.session_state["_view_maps_last_datadir"] = str(datadir)
     # Data directory input
     st.sidebar.text_input(
         "Data Directory",
@@ -160,23 +160,45 @@ def page(env):
 
     # Prepare list of CSV files relative to the data directory
     csv_files_rel = sorted(
-        [
+        {
             Path(file).relative_to(datadir).as_posix()
             for file in st.session_state["csv_files"]
-        ]
+        }
     )
 
-    if "df_files_selected" not in st.session_state or not st.session_state["df_files_selected"]:
-        st.session_state["df_files_selected"] = csv_files_rel[:1] if csv_files_rel else []
+    # Prefer the consolidated export file when present (matches flight app UX)
+    priority_files = [
+        candidate
+        for candidate in csv_files_rel
+        if Path(candidate).name.lower() in {"export.csv", "export.parquet", "export.json"}
+    ]
+    default_selection = [priority_files[0]] if priority_files else (csv_files_rel[:1] if csv_files_rel else [])
 
-    # DataFrame multi-selection
-    selected_files = st.sidebar.multiselect(
+    if (
+        "df_files_selected" not in st.session_state
+        or not st.session_state["df_files_selected"]
+        or any(item not in csv_files_rel for item in st.session_state["df_files_selected"])
+    ):
+        st.session_state["df_files_selected"] = default_selection
+
+    current_selection = st.session_state.get("df_files_selected")
+    if datadir_changed:
+        st.session_state["df_files_selected"] = default_selection
+        current_selection = default_selection
+    if (
+        current_selection is None
+        or any(item not in csv_files_rel for item in current_selection)
+    ):
+        st.session_state["df_files_selected"] = default_selection
+    elif not current_selection and default_selection:
+        st.session_state["df_files_selected"] = default_selection
+    st.sidebar.multiselect(
         label="DataFrames",
         options=csv_files_rel,
-        default=st.session_state["df_files_selected"],
         key="df_files_selected",
     )
 
+    selected_files = st.session_state.get("df_files_selected", [])
     if not selected_files:
         st.warning("Please select at least one dataset to proceed.")
         return

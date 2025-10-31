@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
 # All rights reserved.
-# Co-author: Codex 0.42.0
+# Co-author: Codex cli
 #
 # Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 #
