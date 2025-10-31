@@ -349,6 +349,7 @@ async def main():
 
 async def render_view_page(view_path: Path):
     """Render a specific view by launching it as a sidecar app in its own venv and iframing it."""
+    env = st.session_state['env']
     # Hide THIS page's sidebar while a child view is displayed
     _hide_parent_sidebar()
 
