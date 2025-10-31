@@ -1,4 +1,4 @@
-[![PyPI version](https://img.shields.io/badge/PyPI-2025.10.29.post3-informational?logo=pypi)](https://pypi.org/project/agilab)
+[![PyPI version](https://img.shields.io/badge/PyPI-2025.10.31.post1-informational?logo=pypi)](https://pypi.org/project/agilab)
 [![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
 [![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![pypi_dl](https://img.shields.io/pypi/dm/agilab)]()
