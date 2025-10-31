@@ -166,40 +166,45 @@ def page(env):
         ]
     )
 
-    # Ensure the currently selected dataframe belongs to the active app
-    if csv_files_rel:
-        current_df = st.session_state.get("df_file")
-        if current_df not in csv_files_rel:
-            st.session_state["df_file"] = csv_files_rel[0]
+    if "df_files_selected" not in st.session_state or not st.session_state["df_files_selected"]:
+        st.session_state["df_files_selected"] = csv_files_rel[:1] if csv_files_rel else []
 
-    # DataFrame selection
-    st.sidebar.selectbox(
-        label="DataFrame",
+    # DataFrame multi-selection
+    selected_files = st.sidebar.multiselect(
+        label="DataFrames",
         options=csv_files_rel,
-        key="df_file",
-        index=(
-            csv_files_rel.index(st.session_state.df_file)
-            if "df_file" in st.session_state
-               and st.session_state.df_file in csv_files_rel
-            else 0
-        ),
-        # on_change=update_var,
-        args=("df_file"),
+        default=st.session_state["df_files_selected"],
+        key="df_files_selected",
     )
 
-    # Check if a DataFrame has been selected
-    if not st.session_state.get("df_file"):
-        st.warning("Please select a dataset to proceed.")
-        return  # Stop further processing
+    if not selected_files:
+        st.warning("Please select at least one dataset to proceed.")
+        return
 
-    # Load the selected DataFrame
-    df_file_abs = Path(st.session_state.datadir) / st.session_state.df_file
+    # Load and concatenate selected DataFrames
+    dataframes = []
+    for rel_path in selected_files:
+        df_file_abs = datadir / rel_path
+        try:
+            df_loaded = load_df(df_file_abs, with_index=True)
+        except Exception as e:
+            st.error(f"Error loading data from {rel_path}: {e}")
+            continue
+        df_loaded = df_loaded.copy()
+        df_loaded["__dataset__"] = rel_path
+        dataframes.append(df_loaded)
+
+    if not dataframes:
+        st.warning("The selected data files could not be loaded. Please select valid files.")
+        return
+
     try:
-        st.session_state["loaded_df"] = load_df(df_file_abs, with_index=True)
+        combined_df = pd.concat(dataframes, ignore_index=True)
     except Exception as e:
-        st.error(f"Error loading data: {e}")
-        st.warning("The selected data file could not be loaded. Please select a valid file.")
-        return  # Stop further processing
+        st.error(f"Error concatenating datasets: {e}")
+        return
+
+    st.session_state["loaded_df"] = combined_df
 
     # Check if data is loaded and valid
     if (
