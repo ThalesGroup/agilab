@@ -90,6 +90,16 @@ def _port_for(key: str) -> int:
 
 jobs = bg.BackgroundJobManager()
 
+
+def _default_app_path(apps_dir: Path | None) -> Path | None:
+    """Return the first *_project directory found under apps_dir."""
+    if not apps_dir or not apps_dir.exists():
+        return None
+    for candidate in sorted(apps_dir.iterdir()):
+        if candidate.is_dir() and candidate.name.endswith("_project"):
+            return candidate
+    return None
+
 @staticmethod
 def exec_bg(agi_env: AgiEnv, cmd: str, cwd: str) -> None:
     """
@@ -198,14 +208,48 @@ async def main():
 
     if 'env' not in st.session_state:
         apps_dir_value = st.session_state.get("apps_dir")
+        apps_dir_path = Path(apps_dir_value).expanduser() if apps_dir_value else None
+        if apps_dir_path is None:
+            repo_apps_dir = Path(__file__).resolve().parents[2] / "apps"
+            if repo_apps_dir.exists():
+                apps_dir_path = repo_apps_dir
+
+        # Derive active app path
+        active_app_path = None
+
+        stored_app = st.session_state.get("app")
+        if stored_app and apps_dir_path:
+            candidate = apps_dir_path / stored_app
+            if candidate.exists():
+                active_app_path = candidate
+
+        if active_app_path is None:
+            env_app = os.environ.get("AGILAB_APP")
+            if env_app:
+                candidate = Path(env_app).expanduser()
+                if candidate.exists():
+                    active_app_path = candidate
+                    if not apps_dir_path:
+                        apps_dir_path = candidate.parent
+
+        if active_app_path is None:
+            active_app_path = _default_app_path(apps_dir_path)
+
+        app_name = active_app_path.name if active_app_path else None
+
         env = AgiEnv(
-            apps_dir=Path(apps_dir_value).expanduser() if apps_dir_value else None,
+            apps_dir=apps_dir_path,
+            app=app_name,
             verbose=0,
         )
         env.init_done = True
         st.session_state['env'] = env
         st.session_state['IS_SOURCE_ENV'] = env.is_source_env
         st.session_state['IS_WORKER_ENV'] = env.is_worker_env
+        if apps_dir_path:
+            st.session_state['apps_dir'] = str(apps_dir_path)
+        if app_name:
+            st.session_state['app'] = app_name
     else:
         env = st.session_state['env']
 
