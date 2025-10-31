@@ -2197,28 +2197,18 @@ def display_lab_tab(
 
     order_key = f"{index_page_str}__step_order"
     existing_order = st.session_state.get(order_key)
-    if not isinstance(existing_order, list):
-        sanitized_order: List[int] = step_indices.copy()
-    else:
+    if isinstance(existing_order, list):
         sanitized_order = [idx for idx in existing_order if idx in step_indices]
-        if len(sanitized_order) < len(step_indices):
-            sanitized_order.extend(idx for idx in step_indices if idx not in sanitized_order)
+    else:
+        sanitized_order = step_indices.copy()
+    if len(sanitized_order) < len(step_indices):
+        sanitized_order.extend(idx for idx in step_indices if idx not in sanitized_order)
+    if not sanitized_order and step_indices:
+        sanitized_order = step_indices.copy()
     if st.session_state.get(order_key) != sanitized_order:
         st.session_state[order_key] = sanitized_order
 
-    selected_order = st.multiselect(
-        "Step order & visibility",
-        step_indices,
-        key=order_key,
-        format_func=lambda idx: _step_label_for_multiselect(idx, all_steps[idx] if idx < total_steps else None),
-        help="Reorder or hide steps; changes are kept in session only.",
-    )
-
-    selected_order = [idx for idx in selected_order if idx in step_indices]
-    displayed_indices = selected_order if selected_order else step_indices
-    st.session_state[f"{order_key}__cached"] = selected_order
-
-    st.divider()
+    displayed_indices = sanitized_order if sanitized_order else step_indices
 
     step_map = {idx: pos for pos, idx in enumerate(displayed_indices)}
 
@@ -2234,10 +2224,11 @@ def display_lab_tab(
         st.session_state[index_page_str][0] = 0
         step = 0
 
+    st.subheader("Steps", divider="gray")
     snippet_file = st.session_state.get("snippet_file")
 
     if displayed_indices:
-        cols = st.columns(min(len(displayed_indices), 4) or 1)
+        cols = st.columns(min(len(displayed_indices), 3) or 1)
         for display_pos, step_idx in enumerate(displayed_indices):
             col = cols[display_pos % len(cols)]
             label_entry = all_steps[step_idx] if step_idx < total_steps else None
@@ -2252,7 +2243,7 @@ def display_lab_tab(
                 key=f"{index_page_str}_step_{step_idx}",
             )
     elif total_steps == 0:
-        st.info("No steps recorded yet.")
+        st.info("No steps recorded yet. Ask the assistant to generate your first step.")
 
     header_col, action_col = st.columns((20, 1))
     with header_col:
@@ -2308,41 +2299,43 @@ def display_lab_tab(
     default_env_label = "Use AGILAB environment"
     venv_labels = [default_env_label] + available_venvs
     select_key = f"{index_page_str}_venv_{step}"
-    session_label = st.session_state.get(select_key, "")
-    initial_label = session_label or current_path or lab_selected_path or env_active_app
-    if initial_label and initial_label not in venv_labels:
-        venv_labels.append(initial_label)
-    if initial_label:
-        default_label = initial_label
-    else:
-        default_label = default_env_label
-    if default_label not in venv_labels:
-        venv_labels.append(default_label)
-    if select_key not in st.session_state or st.session_state[select_key] not in venv_labels:
-        st.session_state[select_key] = default_label
-    selected_label = st.selectbox(
-        "Active app",
-        venv_labels,
-        key=select_key,
-        help="Choose which virtual environment should execute this step.",
-    )
-    selected_path = "" if selected_label == venv_labels[0] else normalize_runtime_path(selected_label)
-    previous_path = normalize_runtime_path(selected_map.get(step, ""))
-    if selected_path:
-        selected_map[step] = selected_path
-    else:
-        selected_map.pop(step, None)
-    if selected_path != previous_path:
-        save_step(
-            lab_dir,
-            [query[1], query[2], query[3], query[4]],
-            step,
-            query[-1],
-            steps_file,
-            venv_map=selected_map,
+    with st.container(border=True):
+        st.caption("Execution environment")
+        session_label = st.session_state.get(select_key, "")
+        initial_label = session_label or current_path or lab_selected_path or env_active_app
+        if initial_label and initial_label not in venv_labels:
+            venv_labels.append(initial_label)
+        if initial_label:
+            default_label = initial_label
+        else:
+            default_label = default_env_label
+        if default_label not in venv_labels:
+            venv_labels.append(default_label)
+        if select_key not in st.session_state or st.session_state[select_key] not in venv_labels:
+            st.session_state[select_key] = default_label
+        selected_label = st.selectbox(
+            "Active app",
+            venv_labels,
+            key=select_key,
+            help="Choose which virtual environment should execute this step.",
         )
-        _bump_history_revision()
-    st.session_state["lab_selected_venv"] = selected_path
+        selected_path = "" if selected_label == venv_labels[0] else normalize_runtime_path(selected_label)
+        previous_path = normalize_runtime_path(selected_map.get(step, ""))
+        if selected_path:
+            selected_map[step] = selected_path
+        else:
+            selected_map.pop(step, None)
+        if selected_path != previous_path:
+            save_step(
+                lab_dir,
+                [query[1], query[2], query[3], query[4]],
+                step,
+                query[-1],
+                steps_file,
+                venv_map=selected_map,
+            )
+            _bump_history_revision()
+        st.session_state["lab_selected_venv"] = selected_path
 
     # Compute a revisioned key for the prompt to allow forced remount/clear
     q_rev = st.session_state.get(f"{index_page_str}__q_rev", 0)
@@ -2454,6 +2447,22 @@ def display_lab_tab(
                 if save_csv(st.session_state["data"], export_target):
                     st.session_state["df_file_in"] = export_target
                     st.session_state["step_checked"] = True
+
+    st.subheader("Execution controls", divider="gray")
+    st.caption("Choose which steps are visible and how they are ordered.")
+    selected_order = st.multiselect(
+        "Step order & visibility",
+        step_indices,
+        key=order_key,
+        format_func=lambda idx: _step_label_for_multiselect(idx, all_steps[idx] if idx < total_steps else None),
+        help="Reorder or hide steps; changes are kept in session only.",
+    )
+    cleaned_selection = [idx for idx in selected_order if idx in step_indices]
+    if not cleaned_selection and step_indices:
+        cleaned_selection = step_indices.copy()
+    if cleaned_selection != st.session_state.get(order_key):
+        st.session_state[order_key] = cleaned_selection
+        st.rerun()
 
     run_all_col, delete_all_col = st.columns(2)
     with run_all_col:
