@@ -1459,6 +1459,25 @@ if __name__ == "__main__":
                 run_log_placeholder = st.empty()
                 run_log_placeholder.code(existing_run_log, language="python")
 
+        async def _execute_with_logging(current_expander, label: str):
+            """Run the configured AGI command and surface logs inside an expander."""
+            clear_log()
+            st.session_state["run_log_cache"] = ""
+            target_expander = current_expander or st.expander(label, expanded=True)
+            with target_expander:
+                log_placeholder = st.empty()
+            with st.spinner("Running AGI..."):
+                _, stderr = await env.run_agi(
+                    cmd.replace("asyncio.run(main())", env.snippet_tail),
+                    log_callback=lambda message: update_log(log_placeholder, message),
+                    venv=project_path,
+                )
+                st.session_state["run_log_cache"] = st.session_state.get("log_text", "")
+            with target_expander:
+                log_placeholder.empty()
+                display_log(st.session_state["run_log_cache"], stderr)
+            return target_expander
+
         run_col, load_col, delete_col = st.columns(3)
         run_clicked = False
         run_label = "RUN benchmark" if st.session_state.get("benchmark") else "EXECUTE"
@@ -1486,6 +1505,8 @@ if __name__ == "__main__":
             use_container_width=True,
             help="Fetch the latest dataframe preview for export",
         )
+        if st.session_state.pop("_combo_load_trigger", False):
+            load_clicked = True
 
         delete_clicked = delete_col.button(
             "DELETE dataframe",
@@ -1539,6 +1560,16 @@ if __name__ == "__main__":
                     target_file = max(search_files, key=lambda file: file.stat().st_mtime)
                 except FileNotFoundError:
                     target_file = None
+            # Filter out metadata stubs like `._file.csv` and empty artefacts before loading.
+            search_files = [
+                file_path
+                for file_path in search_files
+                if file_path.is_file()
+                and not file_path.name.startswith("._")
+                and file_path.stat().st_size > 0
+            ]
+            if target_file and target_file not in search_files:
+                target_file = max(search_files, key=lambda file: file.stat().st_mtime) if search_files else None
 
             if not target_file:
                 st.warning("No dataframe export found yet. Run EXECUTE to generate a fresh output.")
@@ -1547,12 +1578,46 @@ if __name__ == "__main__":
                 suffix = target_file.suffix.lower()
                 try:
                     if suffix in {".csv", ".parquet"}:
-                        loaded_df = cached_load_df(target_file, with_index=False)
+                        # Gather the most recent batch of files so multi-flight runs remain intact.
+                        latest_mtime = target_file.stat().st_mtime
+                        batch_window = st.session_state.get("export_batch_window_seconds", 600)
+                        try:
+                            batch_window = int(batch_window)
+                        except (TypeError, ValueError):
+                            batch_window = 600
+
+                        candidate_batch = sorted(
+                            {
+                                file_path
+                                for file_path in search_files
+                                if file_path.suffix.lower() == suffix
+                                and file_path.parent == target_file.parent
+                                and abs(latest_mtime - file_path.stat().st_mtime) <= batch_window
+                            },
+                            key=lambda p: p.stat().st_mtime,
+                        )
+
+                        if not candidate_batch:
+                            candidate_batch = [target_file]
+
+                        frames = []
+                        for file_path in candidate_batch:
+                            df_piece = cached_load_df(file_path, with_index=False, nrows=0)
+                            if isinstance(df_piece, pd.DataFrame) and not df_piece.empty:
+                                df_piece = df_piece.copy()
+                                df_piece["__source__"] = file_path.name
+                                frames.append(df_piece)
+
+                        loaded_df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
                         if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
                             st.session_state["loaded_df"] = loaded_df
                             st.session_state["_force_export_open"] = True
                             st.session_state.pop("loaded_graph", None)
-                            st.success(f"Loaded dataframe preview from {target_file.name}.")
+                            if len(candidate_batch) > 1:
+                                st.success(f"Loaded dataframe preview from {len(candidate_batch)} files (latest: {target_file.name}).")
+                            else:
+                                st.success(f"Loaded dataframe preview from {target_file.name}.")
                         else:
                             st.warning(f"{target_file.name} is empty; nothing to preview.")
                     elif suffix == ".json":
@@ -1629,26 +1694,30 @@ if __name__ == "__main__":
             if not deleted:
                 st.info("Dataframe preview cleared. Run EXECUTE then LOAD to refresh with new output.")
 
-        if run_clicked and cmd:
-            clear_log()
-            st.session_state["run_log_cache"] = ""
-            if run_log_expander is None:
-                run_log_expander = st.expander("Run logs", expanded=True)
-            with run_log_expander:
-                run_log_placeholder = st.empty()
-            with st.spinner("Running AGI..."):
-                stdout, stderr = await env.run_agi(
-                    cmd.replace("asyncio.run(main())", env.snippet_tail),
-                    log_callback=lambda message: update_log(run_log_placeholder, message),
-                    venv=project_path
-                )
-                st.session_state["run_log_cache"] = st.session_state.get("log_text", "")
-            with run_log_expander:
-                run_log_placeholder.empty()
-                display_log(st.session_state["run_log_cache"], stderr)
-                if st.session_state.get("benchmark"):
-                    st.session_state["_benchmark_expand"] = True
-                    st.rerun()
+
+    if run_clicked and cmd:
+        run_log_expander = await _execute_with_logging(run_log_expander, "Run logs")
+        if st.session_state.get("benchmark"):
+            st.session_state["_benchmark_expand"] = True
+            st.rerun()
+
+    combo_clicked = st.button(
+        "EXECUTE → LOAD → EXPORT",
+        key="combo_exec_load_export",
+        type="primary",
+        help="Run EXECUTE, LOAD dataframe, and EXPORT output in one click.",
+        use_container_width=True,
+    )
+
+    if combo_clicked:
+        if cmd:
+            run_log_expander = await _execute_with_logging(run_log_expander, "Run logs")
+        else:
+            st.error("No EXECUTE command configured; please configure it first.")
+
+        st.session_state["_combo_load_trigger"] = True
+        st.session_state["_combo_export_trigger"] = True
+        st.rerun()
 
     df_preview = st.session_state.get("loaded_df")
     graph_preview = st.session_state.get("loaded_graph")
@@ -1746,7 +1815,9 @@ if __name__ == "__main__":
             with action_col_stats:
                 stats_clicked = st.button("STATS report", key="stats_report_main", type="primary", use_container_width=True)
             with action_col_export:
-                export_clicked = st.button("EXPORT dataframe", key="export_df_main", type="primary", use_container_width=True, help="Save the current run output to export/export.csv so Experiment/Explore can load it.")
+                export_clicked_manual = st.button("EXPORT dataframe", key="export_df_main", type="primary", use_container_width=True, help="Save the current run output to export/export.csv so Experiment/Explore can load it.")
+            combo_export_trigger = st.session_state.pop("_combo_export_trigger", False)
+            export_clicked = export_clicked_manual or combo_export_trigger
 
             if stats_clicked:
                 profile_file = st.session_state.profile_report_file
