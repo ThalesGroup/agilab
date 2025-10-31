@@ -119,11 +119,29 @@ def page(env):
     if "projects" not in st.session_state:
         st.session_state["projects"] = env.projects
 
-    datadir = Path(st.session_state.datadir)
+    # Resolve the data directory for the currently selected app
+    default_datadir = Path(env.AGILAB_EXPORT_ABS) / env.target
+    last_target_key = "_view_maps_last_target"
+    last_target = st.session_state.get(last_target_key)
+
+    if (
+        last_target != env.target
+        or "datadir" not in st.session_state
+        or not st.session_state.get("datadir")
+    ):
+        st.session_state["datadir"] = str(default_datadir)
+    else:
+        # Normalise to string representation for downstream widgets
+        current = st.session_state["datadir"]
+        st.session_state["datadir"] = str(current)
+
+    st.session_state["datadir_str"] = st.session_state["datadir"]
+    st.session_state[last_target_key] = env.target
+    datadir = Path(st.session_state["datadir"])
     # Data directory input
     st.sidebar.text_input(
         "Data Directory",
-        value=str(st.session_state.datadir),
+        value=st.session_state["datadir"],
         key="input_datadir",
         on_change=update_datadir,
         args=("datadir", "input_datadir"),
@@ -147,6 +165,12 @@ def page(env):
             for file in st.session_state["csv_files"]
         ]
     )
+
+    # Ensure the currently selected dataframe belongs to the active app
+    if csv_files_rel:
+        current_df = st.session_state.get("df_file")
+        if current_df not in csv_files_rel:
+            st.session_state["df_file"] = csv_files_rel[0]
 
     # DataFrame selection
     st.sidebar.selectbox(
