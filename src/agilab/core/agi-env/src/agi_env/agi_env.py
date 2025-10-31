@@ -670,7 +670,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         resources_root = self.env_pck if self.is_source_env else ""
         if not self.is_worker_env:
             self._init_resources(resources_root / self._agi_resources)
-        self.TABLE_MAX_ROWS = int(envars.get("TABLE_MAX_ROWS", 1000))
+        self.TABLE_MAX_ROWS = int(envars.get("TABLE_MAX_ROWS", 1000000))
         self.GUI_SAMPLING = int(envars.get("GUI_SAMPLING", 20))
 
         self.target = target
