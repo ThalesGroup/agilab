@@ -424,6 +424,7 @@ def main():
         # Derive the short app name (e.g., 'flight_project')
         app = active_app.name
         st.session_state["apps_dir"] = str(active_app.parent)
+        st.session_state["app"] = app
 
         st.info(f"active_app: {active_app}")
         env = AgiEnv(
@@ -440,10 +441,6 @@ def main():
             st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
         if "GUI_SAMPLING" not in st.session_state:
             st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
-
-        # Initialize session state
-        if "datadir" not in st.session_state:
-            st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
 
         page(env)
 
