@@ -913,7 +913,7 @@ async def page():
 
     st.set_page_config(layout="wide", menu_items=get_about_content())
     inject_theme(env.st_resources)
-    render_logo("Execute your Application")
+    render_logo()
 
     if not st.session_state.get("server_started"):
         activate_mlflow(env)
