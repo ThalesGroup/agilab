@@ -7,6 +7,7 @@ import importlib
 import importlib.metadata as importlib_metadata
 import sys
 import sysconfig
+import textwrap
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import pandas as pd
@@ -41,7 +42,6 @@ from agi_env.defaults import get_default_openai_model
 # Constants
 STEPS_FILE_NAME = "lab_steps.toml"
 DEFAULT_DF = "export.csv"
-BUTTONS_PER_LINE = 20
 JUPYTER_URL = "http://localhost:8888"
 
 # Configure logging
@@ -161,6 +161,39 @@ def normalize_runtime_path(raw: Optional[Union[str, Path]]) -> str:
     return str(candidate)
 
 
+def _step_summary(entry: Optional[Dict[str, Any]], width: int = 60) -> str:
+    """Return a concise summary for a step entry."""
+    if not isinstance(entry, dict):
+        return ""
+
+    question = str(entry.get("Q") or "").strip()
+    if question:
+        collapsed = " ".join(question.split())
+        return textwrap.shorten(collapsed, width=width, placeholder="…")
+
+    code = str(entry.get("C") or "").strip()
+    if code:
+        first_line = code.splitlines()[0]
+        collapsed = " ".join(first_line.split())
+        return textwrap.shorten(collapsed, width=width, placeholder="…")
+
+    return ""
+
+
+def _step_label_for_multiselect(idx: int, entry: Optional[Dict[str, Any]]) -> str:
+    """Label for the step order multiselect widget."""
+    summary = _step_summary(entry)
+    return f"Step {idx + 1}: {summary}" if summary else f"Step {idx + 1}"
+
+
+def _step_button_label(display_idx: int, step_idx: int, entry: Optional[Dict[str, Any]]) -> str:
+    """Label for a rendered step button respecting the selected order."""
+    summary = _step_summary(entry)
+    if summary:
+        return f"{display_idx + 1}. {summary}"
+    return f"{display_idx + 1}. Step {step_idx + 1}"
+
+
 def _module_keys(module: Union[str, Path]) -> List[str]:
     """Return preferred TOML keys for the provided module path."""
     raw_path = Path(module)
@@ -228,10 +261,9 @@ def _is_valid_step(entry: Dict[str, Any]) -> bool:
     """Return True if a step contains meaningful content."""
     if not entry:
         return False
-    for field in ("D", "Q", "M", "C", "E"):
-        value = entry.get(field, "")
-        if isinstance(value, str) and value.strip():
-            return True
+    code = entry.get("C", "")
+    if isinstance(code, str) and code.strip():
+        return True
     return False
 
 
@@ -498,14 +530,17 @@ def on_query_change(
             )
             detail = answer[4] if len(answer) > 4 else ""
             model_label = answer[2] if len(answer) > 2 else ""
-            details_key = f"{index_page}__details"
-            details_store = st.session_state.setdefault(details_key, {})
-            if detail:
-                details_store[step] = detail
-            else:
-                details_store.pop(step, None)
             venv_map = st.session_state.get(f"{index_page}__venv_map", {})
             nstep, entry = save_step(module, answer, step, 0, steps_file, venv_map=venv_map)
+            skipped = st.session_state.get("_experiment_last_save_skipped", False)
+            details_key = f"{index_page}__details"
+            details_store = st.session_state.setdefault(details_key, {})
+            if skipped or not detail:
+                details_store.pop(step, None)
+            else:
+                details_store[step] = detail
+            if skipped:
+                st.info("Assistant response did not include runnable code. Step was not saved.")
             _bump_history_revision()
             st.session_state[index_page][0] = step
             # Deterministic mapping to D/Q/M/C slots
@@ -1467,6 +1502,7 @@ def save_step(
     venv_map: Optional[Dict[int, str]] = None,
 ) -> Tuple[int, Dict[str, Any]]:
     """Save a step in the steps file."""
+    st.session_state["_experiment_last_save_skipped"] = False
     module_path = Path(module)
     _ensure_primary_module_key(module_path, steps_file)
     # Persist only D, Q, M, and C
@@ -1503,6 +1539,18 @@ def save_step(
             alt_entries = steps.pop(alt_key)
             if not steps[module_str] or len(alt_entries) > len(steps[module_str]):
                 steps[module_str] = alt_entries
+
+    code_text = entry.get("C", "")
+    if not isinstance(code_text, str):
+        code_text = str(code_text or "")
+    if not code_text.strip():
+        st.session_state["_experiment_last_save_skipped"] = True
+        existing_entry: Dict[str, Any] = {}
+        if 0 <= index_step < len(steps[module_str]):
+            current_entry = steps[module_str][index_step]
+            if isinstance(current_entry, dict):
+                existing_entry = current_entry
+        return len(steps[module_str]), existing_entry
 
     nsteps_saved = len(steps[module_str])
     nsteps = max(int(nsteps), nsteps_saved)
@@ -1726,6 +1774,18 @@ def sidebar_controls() -> None:
             if isinstance(row, list) and len(row) > 3:
                 row[3] = ""
         st.session_state.setdefault("_experiment_reload_required", True)
+
+        if selected_provider == "openai":
+            env.envars["OPENAI_MODEL"] = get_default_openai_model()
+        elif selected_provider == "gpt-oss":
+            oss_model = (
+                st.session_state.get("gpt_oss_model")
+                or env.envars.get("GPT_OSS_MODEL")
+                or os.getenv("GPT_OSS_MODEL", "gpt-oss-120b")
+            )
+            env.envars["OPENAI_MODEL"] = oss_model
+        else:
+            env.envars.pop("OPENAI_MODEL", None)
 
     if selected_provider == "gpt-oss":
         default_endpoint = (
@@ -2120,31 +2180,94 @@ def display_lab_tab(
 ) -> None:
     """Display the ASSISTANT tab with steps and query input."""
     query = st.session_state[index_page_str]
+    persisted_steps = load_all_steps(module_path, steps_file, index_page_str) or []
+    persisted_count = len(persisted_steps)
+    try:
+        requested_total = int(query[-1])
+    except Exception:
+        requested_total = persisted_count
+    if requested_total < 0:
+        requested_total = 0
+    total_steps = max(persisted_count, requested_total)
+    if query[-1] != total_steps:
+        query[-1] = total_steps
+    all_steps = persisted_steps + [{} for _ in range(total_steps - persisted_count)]
     step = query[0]
-    step_count = st.session_state[index_page_str][-1]
+    step_indices = list(range(total_steps))
+
+    order_key = f"{index_page_str}__step_order"
+    existing_order = st.session_state.get(order_key)
+    if not isinstance(existing_order, list):
+        sanitized_order: List[int] = step_indices.copy()
+    else:
+        sanitized_order = [idx for idx in existing_order if idx in step_indices]
+        if len(sanitized_order) < len(step_indices):
+            sanitized_order.extend(idx for idx in step_indices if idx not in sanitized_order)
+    if st.session_state.get(order_key) != sanitized_order:
+        st.session_state[order_key] = sanitized_order
+
+    selected_order = st.multiselect(
+        "Step order & visibility",
+        step_indices,
+        key=order_key,
+        format_func=lambda idx: _step_label_for_multiselect(idx, all_steps[idx] if idx < total_steps else None),
+        help="Reorder or hide steps; changes are kept in session only.",
+    )
+
+    selected_order = [idx for idx in selected_order if idx in step_indices]
+    displayed_indices = selected_order if selected_order else step_indices
+    st.session_state[f"{order_key}__cached"] = selected_order
+
+    st.divider()
+
+    step_map = {idx: pos for pos, idx in enumerate(displayed_indices)}
+
+    if total_steps and (step not in step_indices or step >= total_steps):
+        fallback = displayed_indices[0] if displayed_indices else 0
+        st.session_state[index_page_str][0] = fallback
+        step = fallback
+    elif displayed_indices and step not in displayed_indices:
+        fallback = displayed_indices[0]
+        st.session_state[index_page_str][0] = fallback
+        step = fallback
+    elif not total_steps:
+        st.session_state[index_page_str][0] = 0
+        step = 0
+
     snippet_file = st.session_state.get("snippet_file")
 
-    if query[-1]:
-        cols = st.columns(BUTTONS_PER_LINE)
-        for idx_button in range(query[-1]):
-            col = cols[idx_button % BUTTONS_PER_LINE]
-            str_button = str(idx_button + 1)
+    if displayed_indices:
+        cols = st.columns(min(len(displayed_indices), 4) or 1)
+        for display_pos, step_idx in enumerate(displayed_indices):
+            col = cols[display_pos % len(cols)]
+            label_entry = all_steps[step_idx] if step_idx < total_steps else None
+            button_label = _step_button_label(display_pos, step_idx, label_entry)
+            button_type = "primary" if step_idx == step else "secondary"
             col.button(
-                str_button,
+                button_label,
+                type=button_type,
                 use_container_width=True,
                 on_click=on_step_change,
-                args=(module_path, steps_file, idx_button, index_page_str),
-                key=f"{index_page_str}_step_{str_button}",
+                args=(module_path, steps_file, step_idx, index_page_str),
+                key=f"{index_page_str}_step_{step_idx}",
             )
+    elif total_steps == 0:
+        st.info("No steps recorded yet.")
 
     header_col, action_col = st.columns((20, 1))
     with header_col:
-        st.markdown(f"<h3 style='font-size:16px;'>Step {step + 1}</h3>", unsafe_allow_html=True)
+        display_position = step_map.get(step, step)
+        summary = _step_summary(all_steps[step] if 0 <= step < total_steps else None, width=80)
+        if summary:
+            header_text = f"Step {display_position + 1 if display_position is not None else step + 1}: {summary}"
+        else:
+            header_text = f"Step {display_position + 1 if display_position is not None else step + 1}"
+        st.markdown(f"<h3 style='font-size:16px;'>{header_text}</h3>", unsafe_allow_html=True)
     with action_col:
         delete_clicked = st.button(
             "🗑️",
             key=f"{index_page_str}_remove_step",
-            disabled=step_count <= 0,
+            disabled=total_steps <= 0,
             help="Delete this step",
         )
 
@@ -2243,7 +2366,7 @@ def display_lab_tab(
             env,
             st.session_state.get("lab_llm_provider", env.envars.get("LAB_LLM_PROVIDER", "openai")),
         ),
-        placeholder="Enter your snippet in natural language",
+        placeholder="Enter your code request in natural language",
         label_visibility="collapsed",
     )
 
@@ -2299,15 +2422,9 @@ def display_lab_tab(
         nsteps_now = int(query[-1] or 0)
         # If we were on the last step, append a new blank step so the new button renders
         if current_idx >= max(0, nsteps_now - 1):
-            new_nsteps, _ = save_step(
-                lab_dir,
-                ["", "", "", ""],
-                current_idx + 1,
-                nsteps_now,
-                steps_file,
-                venv_map=selected_map,
-            )
-            query[-1] = new_nsteps
+            new_total = max(nsteps_now + 1, current_idx + 2)
+            query[-1] = new_total
+            st.session_state[index_page_str][-1] = new_total
         # Advance to next step index if possible
         if query[0] < query[-1]:
             query[0] = current_idx + 1
@@ -2530,9 +2647,9 @@ def main() -> None:
 
         df_file = Path(st.session_state["df_file"]) if st.session_state["df_file"] else None
         if df_file:
-            render_logo("Experiment on DATA")
+            render_logo()
         else:
-            render_logo("Experiment on APPS")
+            render_logo()
 
         if not st.session_state.get("server_started", False):
             activate_mlflow(env)
