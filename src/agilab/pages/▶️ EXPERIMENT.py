@@ -2449,7 +2449,7 @@ def display_lab_tab(
                     st.session_state["step_checked"] = True
 
     st.subheader("Execution controls", divider="gray")
-    st.caption("Choose which steps are visible and how they are ordered.")
+    st.caption("Select the steps to show; the order you click them determines the button order.")
     selected_order = st.multiselect(
         "Step order & visibility",
         step_indices,
