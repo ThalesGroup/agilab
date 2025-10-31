@@ -2201,14 +2201,12 @@ def display_lab_tab(
         sanitized_order = [idx for idx in existing_order if idx in step_indices]
     else:
         sanitized_order = step_indices.copy()
-    if len(sanitized_order) < len(step_indices):
-        sanitized_order.extend(idx for idx in step_indices if idx not in sanitized_order)
-    if not sanitized_order and step_indices:
-        sanitized_order = step_indices.copy()
+        if not sanitized_order and step_indices:
+            sanitized_order = step_indices.copy()
     if st.session_state.get(order_key) != sanitized_order:
         st.session_state[order_key] = sanitized_order
 
-    displayed_indices = sanitized_order if sanitized_order else step_indices
+    displayed_indices = sanitized_order
 
     step_map = {idx: pos for pos, idx in enumerate(displayed_indices)}
 
@@ -2244,6 +2242,8 @@ def display_lab_tab(
             )
     elif total_steps == 0:
         st.info("No steps recorded yet. Ask the assistant to generate your first step.")
+    else:
+        st.info("No steps selected. Use the controls below to pick which steps are visible.")
 
     header_col, action_col = st.columns((20, 1))
     with header_col:
@@ -2449,7 +2449,7 @@ def display_lab_tab(
                     st.session_state["step_checked"] = True
 
     st.subheader("Execution controls", divider="gray")
-    st.caption("Select the steps to show; the order you click them determines the button order.")
+    st.caption("Select the steps to show (uncheck to hide); their order sets the button order.")
     selected_order = st.multiselect(
         "Step order & visibility",
         step_indices,
@@ -2458,11 +2458,8 @@ def display_lab_tab(
         help="Reorder or hide steps; changes are kept in session only.",
     )
     cleaned_selection = [idx for idx in selected_order if idx in step_indices]
-    if not cleaned_selection and step_indices:
-        cleaned_selection = step_indices.copy()
     if cleaned_selection != st.session_state.get(order_key):
         st.session_state[order_key] = cleaned_selection
-        st.rerun()
 
     run_all_col, delete_all_col = st.columns(2)
     with run_all_col:
