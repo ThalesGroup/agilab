@@ -391,31 +391,18 @@ def main():
 
     try:
         parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
-        parser.add_argument("--active-app", dest="active_app", type=str,
-                            help="Active app path (e.g. src/agilab/apps/flight_project)", default=None)
+        parser.add_argument(
+            "--active-app",
+            dest="active_app",
+            type=str,
+            help="Active app path (e.g. src/agilab/apps/flight_project)",
+            required=True,
+        )
         args, _ = parser.parse_known_args()
 
-        if args.active_app is None:
-            env_app = os.environ.get("AGILAB_APP")
-            if env_app:
-                active_app = Path(env_app).expanduser()
-            else:
-                active_app = None
-                candidate_file = Path("~/.local/share/agilab/.agilab-path").expanduser()
-                if candidate_file.is_file():
-                    with candidate_file.open("r", encoding="utf-8") as f:
-                        agilab_path = f.read()
-                        before, sep, _ = agilab_path.rpartition(".venv")
-                        potential = Path(before) / "apps" / "flight_project"
-                        if potential.exists():
-                            active_app = potential
-                if active_app is None:
-                    active_app = _default_app()
-        else:
-            active_app = Path(args.active_app)
-
-        if active_app is None:
-            st.error("Error: Missing mandatory parameter: --active-app")
+        active_app = Path(args.active_app).expanduser()
+        if not active_app.exists():
+            st.error(f"Error: provided --active-app path not found: {active_app}")
             sys.exit(1)
 
         if "coltype" not in st.session_state:
