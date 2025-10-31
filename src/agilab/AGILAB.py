@@ -1,7 +1,7 @@
 # BSD 3-Clause License
 # Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
 # All rights reserved.
-# Co-author: Codex 0.42.0
+# Co-author: Codex cli
 """Streamlit entry point for the AGILab interactive lab."""
 import os
 from pathlib import Path
@@ -11,10 +11,37 @@ from typing import Dict, List
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parent / "resources" / "config.toml"))
 
 import streamlit as st
+
+# --- minimal session-state safety (add this block) ---
+def _pre_render_reset():
+    # If last run asked for a reset, clear BEFORE widgets are created this run
+    if st.session_state.pop("env_editor_reset", False):
+        st.session_state["env_editor_new_key"] = ""
+        st.session_state["env_editor_new_value"] = ""
+
+# One-time safe defaults (ok to run every time)
+st.session_state.setdefault("env_editor_new_key", "")
+st.session_state.setdefault("env_editor_new_value", "")
+st.session_state.setdefault("env_editor_reset", False)
+st.session_state.setdefault("env_editor_feedback", None)
 import sys
 import argparse
 
 from agi_env.pagelib import inject_theme
+
+def _render_env_editor(env, help_file: Path):
+    feedback = st.session_state.pop("env_editor_feedback", None)
+    if feedback:
+        st.success(feedback)
+
+    # Clear inputs BEFORE widgets are created in this run
+    if st.session_state.pop("env_editor_reset", False):
+        st.session_state["env_editor_new_key"] = ""
+        st.session_state["env_editor_new_value"] = ""
+
+    # Provide defaults (safe before instantiation)
+    st.session_state.setdefault("env_editor_new_key", "")
+    st.session_state.setdefault("env_editor_new_value", "")
 
 # ----------------- Fast-Loading Banner UI -----------------
 def quick_logo(resources_path: Path):
@@ -194,9 +221,8 @@ def _render_env_editor(env, help_file: Path):
                     env.envars[key] = value
 
             st.session_state["env_editor_feedback"] = "Environment variables updated."
-            st.session_state["env_editor_new_key"] = ""
-            st.session_state["env_editor_new_value"] = ""
-            st.experimental_rerun()
+            st.session_state["env_editor_reset"] = True
+            st.rerun()
         except Exception as exc:
             st.error(f"Failed to save .env file: {exc}")
 
