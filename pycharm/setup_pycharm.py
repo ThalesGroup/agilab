@@ -349,14 +349,49 @@ class JdkTable:
 # ==================== Project Class ====================
 
 class Project:
+    EXCLUDE_FOLDERS = ("dist", "build", ".venv")
+
     def __init__(self, cfg: Config):
         self.cfg = cfg
+
+    def _ensure_exclude_folders(self, content: ET.Element) -> bool:
+        base_url = (content.get("url") or "").rstrip("/")
+        if not base_url:
+            return False
+        existing = {node.get("url") for node in content.findall("excludeFolder")}
+        changed = False
+        for name in self.EXCLUDE_FOLDERS:
+            url = f"{base_url}/{name}"
+            if url not in existing:
+                ET.SubElement(content, "excludeFolder", {"url": url})
+                changed = True
+        return changed
+
+    def ensure_module_excludes(self, iml_path: Path, dir_path: Path) -> None:
+        if not iml_path.exists():
+            return
+
+        tree = read_xml(iml_path)
+        root = tree.getroot()
+
+        comp = root.find("./component[@name='NewModuleRootManager']")
+        if comp is None:
+            comp = ET.SubElement(root, "component", {"name": "NewModuleRootManager"})
+
+        content = comp.find("content")
+        if content is None:
+            content = ET.SubElement(comp, "content", {"url": content_url_for(self.cfg, dir_path)})
+
+        if self._ensure_exclude_folders(content):
+            write_xml(tree, iml_path)
+            logging.info(f"Updated exclude folders in {iml_path}")
 
     def write_module_minimal(self, module_name: str, dir_path: Path) -> Path:
         iml_path = self.cfg.MODULES_DIR / f"{module_name}.iml"
         m = ET.Element("module", {"type": "PYTHON_MODULE", "version": "4"})
         comp = ET.SubElement(m, "component", {"name": "NewModuleRootManager"})
-        ET.SubElement(comp, "content", {"url": content_url_for(self.cfg, dir_path)})
+        content = ET.SubElement(comp, "content", {"url": content_url_for(self.cfg, dir_path)})
+        self._ensure_exclude_folders(content)
         ET.SubElement(comp, "orderEntry", {"type": "inheritedJdk"})
         ET.SubElement(comp, "orderEntry", {"type": "sourceFolder", "forTests": "false"})
         write_xml(ET.ElementTree(m), iml_path)
@@ -412,17 +447,20 @@ class Project:
                     comp = ET.SubElement(root, "component", {"name": "NewModuleRootManager"})
                 content = comp.find("content")
                 if content is None:
-                    ET.SubElement(comp, "content", {"url": "file://$PROJECT_DIR$"})
+                    content = ET.SubElement(comp, "content", {"url": "file://$PROJECT_DIR$"})
                 else:
                     content.set("url", "file://$PROJECT_DIR$")
-                write_xml(tree, path)
+                changed = self._ensure_exclude_folders(content)
+                if changed:
+                    write_xml(tree, path)
             except ET.ParseError:
                 pass
             return path
 
         m = ET.Element("module", {"type": "PYTHON_MODULE", "version": "4"})
         comp = ET.SubElement(m, "component", {"name": "NewModuleRootManager"})
-        ET.SubElement(comp, "content", {"url": "file://$MODULE_DIR$/../"})
+        content = ET.SubElement(comp, "content", {"url": "file://$MODULE_DIR$/../"})
+        self._ensure_exclude_folders(content)
         ET.SubElement(comp, "orderEntry", {"type": "inheritedJdk"})
         ET.SubElement(comp, "orderEntry", {"type": "sourceFolder", "forTests": "false"})
         write_xml(ET.ElementTree(m), path)
@@ -558,6 +596,7 @@ def main():
     root_iml = model.ensure_root_module_iml()
     model.set_module_sdk(root_iml, cfg.PROJECT_SDK)
     model.add_module_entry(root_iml)
+    model.ensure_module_excludes(root_iml, cfg.ROOT)
 
     realized_apps = []
     for app in cfg.eligible_apps:
@@ -581,6 +620,7 @@ def main():
                 target.parent.mkdir(parents=True, exist_ok=True)
                 default_path.replace(target)
                 logging.info(f"Moved IML to match template path: {target}")
+        model.ensure_module_excludes(target, app)
 
         sdk_app = f"uv ({app.name})"
         jdk_table.add_jdk(sdk_app, app_py)
@@ -632,6 +672,7 @@ def main():
 
         model.set_module_sdk(iml, sdk_name)
         model.add_module_entry(iml)
+        model.ensure_module_excludes(iml, apps_page)
         realized_apps_pages.append(apps_page.name)
 
     realized_core = []
@@ -647,6 +688,7 @@ def main():
         model.set_module_sdk(iml, sdk_name)
 
         model.add_module_entry(iml)
+        model.ensure_module_excludes(iml, core)
 
         realized_core.append(core.name)
 
@@ -668,6 +710,7 @@ def main():
             jdk_table.add_jdk(sdk_name, agi_py)
             model.set_module_sdk(agi_iml, sdk_name)
             model.add_module_entry(agi_iml)
+            model.ensure_module_excludes(agi_iml, cfg.AGISPACE)
         else:
             logging.warning("No virtual environment found for agi-space, skipping SDK assignment.")
     else:

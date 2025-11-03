@@ -118,16 +118,22 @@ class NetworkSimWorker(DagWorker):  # pragma: no cover - executed within workers
         data_uri = Path(data_uri_value)
 
         prefix = "~/"
+        file_str = str(file)
         if data_source == "file":
-            if os.name != "nt":
-                file = os.path.normpath(os.path.expanduser(prefix + file)).replace(
-                    "\\", "/"
-                )
-            else:
-                file = normalize_path(os.path.expanduser(prefix + file))
+            candidate = Path(file_str).expanduser()
+            if not candidate.is_absolute():
+                candidate = (data_uri / candidate).expanduser()
 
-            if not Path(file).is_file():
-                raise FileNotFoundError(file)
+            normalized = os.path.normpath(str(candidate))
+            if os.name != "nt":
+                normalized = normalized.replace("\\", "/")
+            else:
+                normalized = normalize_path(normalized)
+
+            candidate = Path(normalized)
+            if not candidate.is_file():
+                raise FileNotFoundError(candidate)
+            file_str = str(candidate)
 
         graph = generate_mixed_topology(net_size, seed=seed)
 
