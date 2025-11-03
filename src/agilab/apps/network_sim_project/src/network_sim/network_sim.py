@@ -19,7 +19,6 @@ from .network_sim_args import (
     load_args,
     merge_args,
 )
-
 from .topology import generate_mixed_topology
 
 logger = logging.getLogger(__name__)
@@ -29,6 +28,8 @@ class NetworkSimApp(BaseWorker):
     """Minimal manager that generates synthetic network topologies."""
 
     worker_vars: dict[str, Any] = {}
+    _FLIGHT_SUFFIXES = (".parquet", ".pq", ".parq", ".csv")
+    _EXCLUDE_BASENAME = {"beams", "satellites", "norad_3le", "topology", "topology_summary"}
 
     def __init__(
         self,
@@ -50,7 +51,7 @@ class NetworkSimApp(BaseWorker):
         self.args = args
 
         data_uri = Path(args.data_uri).expanduser()
-        if env._is_managed_pc:
+        if getattr(env, "_is_managed_pc", False):
             home = Path.home()
             data_uri = Path(str(data_uri).replace(str(home), str(home / "MyApp")))
 
@@ -110,22 +111,96 @@ class NetworkSimApp(BaseWorker):
 
         return summary
 
+    def _discover_flight_files(self) -> List[Path]:
+        """Return the list of flight simulation artefacts available for dispatch."""
+        base = Path(self.args.data_uri).expanduser()
+
+        search_roots = [
+            base / "dataframe" / "flights",
+            base / "dataframe" / "flight_simulation",
+            base / "dataframe",
+            base / "flights",
+            base / "flight_simulation",
+            base / "csv",
+            base / "parquet",
+            base,
+        ]
+
+        ordered: list[Path] = []
+        seen: set[Path] = set()
+
+        for root in search_roots:
+            if not root.exists() or not root.is_dir():
+                continue
+
+            candidates: list[Path] = []
+            for suffix in self._FLIGHT_SUFFIXES:
+                candidates.extend(sorted(root.glob(f"*{suffix}")))
+
+            if root == base:
+                candidates = [
+                    path
+                    for path in candidates
+                    if path.stem.lower() not in self._EXCLUDE_BASENAME
+                ]
+
+            filtered = [
+                path
+                for path in candidates
+                if not path.name.startswith("._") and path.is_file()
+            ]
+
+            for path in filtered:
+                if path not in seen:
+                    ordered.append(path)
+                    seen.add(path)
+
+            if filtered and root != base:
+                # Prefer the first dedicated directory that contains data.
+                break
+
+        return ordered
+
     def build_distribution(
         self,
         workers: dict[str, int],
     ) -> Tuple[List[List], List[List[Tuple[str, int]]], str, str, str]:
-        """Create a simple distribution plan with a single generation task."""
-        job_args = self.as_dict()
-        task = ({"function_name": "generate_topology", "args": job_args}, [])
+        """Partition flight simulation artefacts across workers."""
+        flight_files = self._discover_flight_files()
+        if not flight_files:
+            raise FileNotFoundError(
+                f"No flight simulation files found under '{self.args.data_uri}'."
+            )
 
         worker_slots = max(1, sum(workers.values()) if workers else 1)
-        plan = [[] for _ in range(worker_slots)]
-        metadata = [[] for _ in range(worker_slots)]
+        plan: List[List[Tuple[dict[str, Any], list[str]]]] = [[] for _ in range(worker_slots)]
+        metadata: List[List[Tuple[str, int]]] = [[] for _ in range(worker_slots)]
 
-        plan[0].append(task)
-        metadata[0].append(("generate_topology", 1))
+        for index, flight_path in enumerate(flight_files):
+            worker_idx = index % worker_slots
+            try:
+                rel_path = str(flight_path.relative_to(self.dir_path))
+            except ValueError:
+                rel_path = str(flight_path)
 
-        return plan, metadata, "job", "count", "weight"
+            plan[worker_idx].append(
+                (
+                    {
+                        "functions name": "work_pool",
+                        "args": rel_path,
+                    },
+                    [],
+                )
+            )
+
+            try:
+                weight = int(flight_path.stat().st_size)
+            except OSError:
+                weight = 1
+
+            metadata[worker_idx].append((flight_path.stem or f"flight_{index}", weight))
+
+        return plan, metadata, "flight", "files", "bytes"
 
 
 class NetworkSim(NetworkSimApp):
