@@ -124,8 +124,6 @@ Use this runbook whenever you:
 4. Document fixes or new failure modes in this runbook so future agents can respond
   consistently.
 
----
-
 <details>
 <summary><strong>Launch matrix (auto-sorted from .idea/runConfigurations)</strong></summary>
 
