@@ -1452,18 +1452,20 @@ if __name__ == "__main__":
 
         existing_run_log = st.session_state.get("run_log_cache", "").strip()
         run_log_expander = None
-        run_log_placeholder = None
-        if existing_run_log:
-            run_log_expander = st.expander("Run logs", expanded=False)
-            with run_log_expander:
-                run_log_placeholder = st.empty()
-                run_log_placeholder.code(existing_run_log, language="python")
+        log_container = st.container()
+
+        def _ensure_run_log_expander(*, expanded: bool):
+            nonlocal run_log_expander
+            if run_log_expander is None:
+                with log_container:
+                    run_log_expander = st.expander("Run logs", expanded=expanded)
+            return run_log_expander
 
         async def _execute_with_logging(current_expander, label: str):
             """Run the configured AGI command and surface logs inside an expander."""
             clear_log()
             st.session_state["run_log_cache"] = ""
-            target_expander = current_expander or st.expander(label, expanded=True)
+            target_expander = current_expander or _ensure_run_log_expander(expanded=True)
             with target_expander:
                 log_placeholder = st.empty()
             with st.spinner("Running AGI..."):
@@ -1718,6 +1720,11 @@ if __name__ == "__main__":
         st.session_state["_combo_load_trigger"] = True
         st.session_state["_combo_export_trigger"] = True
         st.rerun()
+
+    if existing_run_log and run_log_expander is None:
+        expander = _ensure_run_log_expander(expanded=False)
+        with expander:
+            st.code(existing_run_log, language="python")
 
     df_preview = st.session_state.get("loaded_df")
     graph_preview = st.session_state.get("loaded_graph")
