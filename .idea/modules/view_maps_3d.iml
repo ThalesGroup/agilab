@@ -1,7 +1,11 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <module type="PYTHON_MODULE" version="4">
     <component name="NewModuleRootManager">
-        <content url="file://$MODULE_DIR$/../../src/agilab/apps-pages/view_maps_3d" />
+        <content url="file://$MODULE_DIR$/../../src/agilab/apps-pages/view_maps_3d">
+            <excludeFolder url="file://$MODULE_DIR$/../../src/agilab/apps-pages/view_maps_3d/dist" />
+            <excludeFolder url="file://$MODULE_DIR$/../../src/agilab/apps-pages/view_maps_3d/build" />
+            <excludeFolder url="file://$MODULE_DIR$/../../src/agilab/apps-pages/view_maps_3d/.venv" />
+        </content>
         <orderEntry type="sourceFolder" forTests="false" />
         <orderEntry type="jdk" jdkName="uv (view_maps_3d)" jdkType="Python SDK" />
     </component>
