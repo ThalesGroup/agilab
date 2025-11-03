@@ -632,6 +632,8 @@ def on_project_change(project, switch_to_select=False):
         "loaded_df",
         "wenv_abs",
         "projects",
+        "log_text",
+        "run_log_cache",
     )
 
     # Define the prefixes as a tuple for efficient checking
