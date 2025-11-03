@@ -3,6 +3,10 @@
     <component name="NewModuleRootManager">
         <content url="file://$MODULE_DIR$/../../src/agilab/apps/mycode_project">
             <sourceFolder url="file://$MODULE_DIR$/../../src/agilab/apps/mycode_project/src" isTestSource="false" />
+            <excludeFolder url="file://$MODULE_DIR$/../../src/agilab/apps/mycode_project/Modules" />
+            <excludeFolder url="file://$MODULE_DIR$/../../src/agilab/apps/mycode_project/build" />
+            <excludeFolder url="file://$MODULE_DIR$/../../src/agilab/apps/mycode_project/dist" />
+            <excludeFolder url="file://$MODULE_DIR$/../../src/agilab/apps/mycode_project/.venv" />
         </content>
         <orderEntry type="sourceFolder" forTests="false" />
         <orderEntry type="jdk" jdkName="uv (mycode_project)" jdkType="Python SDK" />
