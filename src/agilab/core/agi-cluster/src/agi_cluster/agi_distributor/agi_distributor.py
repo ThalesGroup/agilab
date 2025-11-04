@@ -1712,8 +1712,26 @@ class AGI:
         os.makedirs(dest, exist_ok=True)
         src = env.dataset_archive
         if src.exists():
-            os.makedirs(env.home_abs / env.data_rel / "dataset", exist_ok=True)
-            shutil.copy2(src, dest)
+            try:
+                install_dataset_dir = env.home_abs / env.data_rel / "dataset"
+                os.makedirs(install_dataset_dir, exist_ok=True)
+                shutil.copy2(src, dest)
+            except (FileNotFoundError, PermissionError) as exc:
+                logger.warning("Skipping dataset copy to %s: %s", install_dataset_dir, exc)
+
+        post_install_cmd = (
+            f"{uv_worker} run --no-sync --project \"{wenv_abs}\" "
+            f"--python {pyvers_worker} python -m {env.post_install_rel} "
+            f"{wenv_rel.stem} {env.data_rel}"
+        )
+        if env.user and env.user != getpass.getuser():
+            try:
+                await AGI.exec_ssh("127.0.0.1", post_install_cmd)
+            except ConnectionError as exc:
+                logger.warning("SSH execution failed on localhost (%s), falling back to local run.", exc)
+                await AgiEnv.run(post_install_cmd, wenv_abs)
+        else:
+            await AgiEnv.run(post_install_cmd, wenv_abs)
 
         # Cleanup modules
         await AGI._uninstall_modules()
@@ -2727,7 +2745,7 @@ class AGI:
     async def get_ssh_connection(ip: str, timeout_sec: int = 5):
 
         env = AGI.env
-        if AgiEnv.is_local(ip):
+        if AgiEnv.is_local(ip) and not env.user:
             env.user = getpass.getuser()
 
         if not env.user:
