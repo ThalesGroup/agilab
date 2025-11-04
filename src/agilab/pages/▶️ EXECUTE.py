@@ -963,6 +963,7 @@ async def page():
         st.session_state.pop("args_project", None)
         st.session_state["args_serialized"] = ""
         st.session_state["run_log_cache"] = ""
+        st.session_state.pop("log_text", None)
         st.session_state.pop("_benchmark_expand", None)
         st.session_state.pop("benchmark", None)
         args_override = None
@@ -1452,11 +1453,13 @@ if __name__ == "__main__":
 
         existing_run_log = st.session_state.get("run_log_cache", "").strip()
         run_log_expander = None
-        log_container = st.container()
+        log_container = None
 
         def _ensure_run_log_expander(*, expanded: bool):
-            nonlocal run_log_expander
+            nonlocal run_log_expander, log_container
             if run_log_expander is None:
+                if log_container is None:
+                    log_container = st.container()
                 with log_container:
                     run_log_expander = st.expander("Run logs", expanded=expanded)
             return run_log_expander
