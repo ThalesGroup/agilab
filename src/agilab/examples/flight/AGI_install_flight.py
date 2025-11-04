@@ -11,7 +11,7 @@ async def main():
     res = await AGI.install(app_env, 
                             modes_enabled=15,
                             scheduler="192.168.20.111", 
-                            workers={'192.168.20.130': 1})
+                            workers={'192.168.20.130': 1, '192.168.20.111': 1})
     print(res)
     return res
 
