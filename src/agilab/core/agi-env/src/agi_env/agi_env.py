@@ -2370,7 +2370,15 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         dest = self.home_abs / extract_to
         dataset = dest / "dataset"
 
-        # Clear existing folder if not empty to avoid extraction errors on second call
+        force_refresh = os.environ.get("AGILAB_FORCE_DATA_REFRESH", "0") not in {"0", "", "false", "False"}
+        if dataset.exists() and any(dataset.iterdir()) and not force_refresh:
+            if AgiEnv.verbose > 0:
+                AgiEnv.logger.info(
+                    f"Dataset already present at '{dataset}'. "
+                    "Skipping extraction (set AGILAB_FORCE_DATA_REFRESH=1 to rebuild)."
+                )
+            return
+
         if dataset.exists() and any(dataset.iterdir()):
             if AgiEnv.verbose > 0:
                 AgiEnv.logger.info(f"Destination '{dataset}' exists and is not empty. Clearing it before extraction.")
