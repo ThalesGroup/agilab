@@ -55,6 +55,7 @@ from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 import py7zr
 import urllib.request
+import uuid
 import inspect
 import ctypes
 from ctypes import wintypes
@@ -65,6 +66,10 @@ from threading import RLock
 from agi_env.agi_logger import AgiLogger
 from agi_env.defaults import get_default_openai_model
 import inspect as _inspect
+try:
+    import pwd
+except ImportError:  # Windows
+    pwd = None  # type: ignore
 if FormattedTB is not None:
     # Get constructor parameters of FormattedTB
     _sig = inspect.signature(FormattedTB.__init__).parameters
@@ -2367,11 +2372,40 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         # Normalize extract_to to a Path relative to cwd or absolute
         if not extract_to:
             extract_to = "data"
-        dest = self.home_abs / extract_to
+        dest = Path(self.home_abs).expanduser() / extract_to
+        dest.parent.mkdir(parents=True, exist_ok=True)
         dataset = dest / "dataset"
 
         force_refresh = os.environ.get("AGILAB_FORCE_DATA_REFRESH", "0") not in {"0", "", "false", "False"}
-        if dataset.exists() and any(dataset.iterdir()) and not force_refresh:
+
+        desired_user = getattr(self, "user", None)
+        current_owner = Path(self.home_abs).name
+
+        if (
+            desired_user
+            and desired_user != current_owner
+            and not force_refresh
+        ):
+            dest.mkdir(parents=True, exist_ok=True)
+            if AgiEnv.verbose > 0:
+                AgiEnv.logger.info(
+                    f"Skipping dataset extraction for '{dest}' (desired owner '{desired_user}' "
+                    f"differs from local owner '{current_owner}')."
+                )
+            return
+
+        try:
+            dest.mkdir(parents=True, exist_ok=True)
+        except FileExistsError:
+            pass
+        except PermissionError as exc:
+            if AgiEnv.verbose > 0:
+                AgiEnv.logger.info(
+                    f"Unable to ensure target directory '{dest}': {exc}. Skipping extraction."
+                )
+            return
+
+        if dataset.exists() and not force_refresh:
             if AgiEnv.verbose > 0:
                 AgiEnv.logger.info(
                     f"Dataset already present at '{dataset}'. "
@@ -2379,17 +2413,30 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 )
             return
 
-        if dataset.exists() and any(dataset.iterdir()):
+        if dataset.exists() and force_refresh:
+            try:
+                shutil.rmtree(dataset)
+            except PermissionError as exc:
+                if AgiEnv.verbose > 0:
+                    AgiEnv.logger.info(
+                        f"Unable to refresh dataset '{dataset}': {exc}. Skipping extraction."
+                    )
+                return
+
+        try:
+            dataset.mkdir(parents=True, exist_ok=True)
+        except PermissionError as exc:
             if AgiEnv.verbose > 0:
-                AgiEnv.logger.info(f"Destination '{dataset}' exists and is not empty. Clearing it before extraction.")
-            shutil.rmtree(dataset)
-        dest.mkdir(parents=True, exist_ok=True)
+                AgiEnv.logger.info(
+                    f"Unable to create dataset directory '{dataset}': {exc}. Skipping extraction."
+                )
+            return
 
         try:
             with py7zr.SevenZipFile(archive_path, mode="r") as archive:
                 archive.extractall(path=dest)
             if AgiEnv.verbose > 0:
-                AgiEnv.logger.info(f"Successfully extracted '{archive_path}' to '{dest}'.")
+                AgiEnv.logger.info(f"Extracted '{archive_path}' to '{dest}'.")
         except Exception as e:
             AgiEnv.logger.error(f"Failed to extract '{archive_path}': {e}")
             traceback.print_exc()
