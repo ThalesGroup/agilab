@@ -6,14 +6,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="AGILab documentation index" />
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0 1.2rem 3rem; color: #222; }
-    header { position: sticky; top: 0; background: #fff; padding: 1rem 0 0.4rem; border-bottom: 1px solid #eee; margin-bottom: 1.2rem; }
-    h1 { margin: 0.2rem 0 0.4rem; font-size: 1.8rem; display: inline-flex; align-items: center; gap: 0.6rem; }
-    .lead { color: #444; margin: 0.2rem 0 0.8rem; }
-    .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-    .card { border: 1px solid #eee; border-radius: 10px; padding: 0.8rem 1rem; }
-    .small { font-size: 0.92rem; color: #555; }
-    a { color: #0b74de; text-decoration: none; }
+    :root {
+      color-scheme: light dark;
+      --bg: #fafafa;
+      --fg: #1c1c1c;
+      --card-bg: rgba(255,255,255,0.94);
+      --card-border: rgba(18,18,18,0.08);
+      --accent: #0b74de;
+      --muted: #555;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1218;
+        --fg: #f4f4f4;
+        --card-bg: rgba(28,31,36,0.88);
+        --card-border: rgba(244,244,244,0.08);
+        --accent: #4aa3ff;
+        --muted: #a3adc2;
+      }
+    }
+
+    body { background: var(--bg); color: var(--fg); line-height: 1.65; margin: 0; padding: 0 1.2rem 3rem; }
+    header { position: sticky; top: 0; background: linear-gradient(180deg, rgba(248,250,252,0.94), rgba(248,250,252,0)); backdrop-filter: blur(12px); padding: 1rem 0 0.4rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--card-border); }
+    h1 { margin: 0.2rem 0 0.4rem; font-size: 1.95rem; display: inline-flex; align-items: center; gap: 0.6rem; }
+    .lead { color: var(--muted); margin: 0.2rem 0 0.8rem; }
+    .grid { display: grid; gap: 1.15rem; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); padding-bottom: 1rem; }
+    .card { border: 1px solid var(--card-border); border-radius: 18px; padding: 1rem 1.25rem; background: var(--card-bg); box-shadow: 0 14px 34px rgba(12, 26, 62, 0.12); transition: transform 0.25s ease, box-shadow 0.25s ease; }
+    .card:hover { transform: translateY(-4px); box-shadow: 0 18px 36px rgba(12, 26, 62, 0.18); }
+    .small { font-size: 0.95rem; color: var(--muted); }
+    a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
   </style>
   <script>
