@@ -1,8 +1,0 @@
-Cluster
-=======
-
-.. toctree::
-   :maxdepth: 2
-
-   cluster-help
-   key-generation
