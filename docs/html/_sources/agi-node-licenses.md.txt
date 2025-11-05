@@ -31,7 +31,7 @@
 | pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
 | pyppmd | LGPL-2.1-OR-LATER |
 | python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
-| python-dotenv | BSD LICENSE |
+| python-dotenv | BSD-3-CLAUSE |
 | pytz | MIT LICENSE |
 | pyyaml | MIT LICENSE |
 | pyzstd | BSD LICENSE |
