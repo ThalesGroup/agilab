@@ -1,0 +1,90 @@
+Sat Trajectory Project
+======================
+
+Overview
+--------
+- Satellite-focused workload that fuses Two-Line Element (TLE) catalogues,
+  waypoint requests and service definitions to plan communication windows.
+- Highlights multiprocessing and caching strategies for large orbital datasets
+  while keeping Streamlit interaction smooth.
+- Complements the Explore 3D cartography and network views by providing
+  satellite-centric outputs.
+- Pairs with ``flight_trajectory``: use that app when you need aircraft timelines
+  with optional connectivity overlays, and ``sat_trajectory`` when you only need
+  constellation availability and service windows.
+
+Manager (`sat_trajectory.sat_trajectory`)
+-----------------------------------------
+- Loads and caches TLE files, computes orbital parameters and seeds
+  ``WorkDispatcher`` with dataset metadata.
+- Normalises paths for managed machines, resets dataframe output directories and
+  exposes ``from_toml`` / ``to_toml`` helpers for Execute snippets.
+- Uses helper functions to pre-process satellite catalogues (mean motion,
+  semi-major axis) so workers can focus on heavy computation.
+
+Args (`sat_trajectory.app_args`)
+--------------------------------
+- Rich Pydantic model that captures all required artefacts: data root, satellite
+  catalogue folders, service definitions, heatmaps and output formats.
+- Provides merge/dump utilities so configuration updates flow seamlessly between
+  Streamlit forms and ``app_settings.toml``.
+
+Worker (`sat_trajectory_worker.sat_trajectory_worker`)
+------------------------------------------------------
+- Distributes satellites across workers, generates visibility windows and
+  aggregates results into exportable dataframes.
+- Makes use of thread pools and shared-memory caches to accelerate orbit
+  propagation.
+- Includes Cython extensions and post-install scripts so heavy dependencies are
+  prepared ahead of time.
+
+Assets & Tests
+--------------
+- ``app_test.py`` validates install/distribute/run for the satellite scenario.
+- ``test/_test_*`` modules cover TLE parsing, worker orchestration and helper
+  utilities.
+- ``src/app_settings.toml`` enables the cartography views that make use of the
+  generated satellite telemetry.
+
+API Reference
+-------------
+
+.. image:: diagrams/packages_sat_trajectory.svg
+   :width: 400
+   :alt: sat trajectory package diagram
+   :align: center
+
+.. automodule:: sat_trajectory.sat_trajectory
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_sat_trajectory.svg
+   :width: 400
+   :alt: sat trajectory class diagram
+   :align: center
+
+.. automodule:: sat_trajectory.app_args
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_sat_trajectory_args.svg
+   :width: 400
+   :alt: sat trajectory args class diagram
+   :align: center
+
+.. image:: diagrams/packages_sat_trajectory_worker.svg
+   :width: 400
+   :alt: sat trajectory worker package diagram
+   :align: center
+
+.. automodule:: sat_trajectory_worker.sat_trajectory_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_sat_trajectory_worker.svg
+   :width: 400
+   :alt: sat trajectory worker class diagram
+   :align: center

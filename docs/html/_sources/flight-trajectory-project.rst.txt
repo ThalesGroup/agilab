@@ -1,0 +1,107 @@
+Flight Trajectory Project
+=========================
+
+Overview
+--------
+- Extends the base flight example with optional satellite/beam overlays so you can
+  analyse aircraft paths together with connectivity constraints.
+- Demonstrates custom distribution logic that keeps all legs of a given flight on
+  the same worker while balancing distance travelled across the cluster.
+- Ships ready-to-use waypoints, satellite catalogues and beam files to exercise
+  the Explore cartography bundles (2D maps, 3D deck.gl, network overlays).
+
+How it differs from ``sat_trajectory``
+--------------------------------------
+- ``flight_trajectory`` remains flight-centric: every step starts from scheduled
+  aircraft waypoints and augments them with satellite/beam metadata only when you
+  opt in via the arguments file.
+- ``sat_trajectory`` is satellite-first: it partitions constellations and service
+  requests without loading flight plans. Use it when the orbit propagation workload
+  drives the scenario, and ``flight_trajectory`` when the aircraft timeline is the
+  primary axis.
+- Both apps share some artefacts (beams, catalogues) but target different Explore
+  dashboards—flight timelines versus pure constellation availability.
+
+Manager (`flight_trajectory.flight_trajectory`)
+-----------------------------------------------
+- Validates arguments such as number of flights, waypoint file, satellite data
+  and beam catalogues before seeding ``WorkDispatcher``.
+- Normalises paths for managed machines, wipes/creates the dataframe export
+  folder and exposes ``from_toml`` / ``to_toml`` helpers so Execute snippets can
+  persist configuration.
+- Implements ``build_distribution`` which uses haversine distances to partition
+  flights, guaranteeing that large trajectories are spread evenly.
+
+Args (`flight_trajectory.app_args`)
+-----------------------------------
+- Pydantic model capturing the extra artefacts required for this scenario
+  (waypoints GeoJSON, beam CSV, satellite constellation definition, number of
+  flights to replay).
+- Includes ``data_source`` / ``data_uri`` so you can redirect runs to packaged
+  samples, shared network mounts, or Hawk feeds without editing code.
+- Adds a ``dataset_format`` toggle (``csv`` or ``parquet``) that propagates to the
+  worker so downstream dashboards ingest the format you expect.
+- Reuses ``agi_env.app_args`` helpers so serialization back to
+  ``app_settings.toml`` stays consistent with the Streamlit UI.
+
+Worker (`flight_trajectory_worker.flight_trajectory_worker`)
+-----------------------------------------------------------
+- Extends ``PolarsWorker`` to enrich telemetry with beam/satellite metadata and
+  produce the dataframes consumed by Explore’s 3D visualisations.
+- Uses pre/post-install scripts to unpack heavy assets and includes Cython hooks
+  for performance-critical sections.
+- Processes waypoint slices that are now pre-split per flight so distribution can
+  balance workloads across workers without re-reading the master GeoJSON.
+- Publishes per-flight metadata back to the manager so the Workplan viewer can
+  highlight idle workers or overloaded partitions.
+
+Assets & Tests
+--------------
+- ``app_test.py`` validates the install → distribute → run lifecycle.
+- ``test/_test_*`` modules cover the manager orchestration, worker calculations
+  and dataset-specific helpers.
+- ``src/app_settings.toml`` documents the default Explore page selection (maps,
+  network graphs, 3D deck.gl) shipped with the project.
+
+API Reference
+-------------
+
+.. image:: diagrams/packages_flight_trajectory.svg
+   :width: 400
+   :alt: flight trajectory package diagram
+   :align: center
+
+.. automodule:: flight_trajectory.flight_trajectory
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_flight_trajectory.svg
+   :width: 400
+   :alt: flight trajectory class diagram
+   :align: center
+
+.. automodule:: flight_trajectory.app_args
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_flight_trajectory_args.svg
+   :width: 400
+   :alt: flight trajectory args class diagram
+   :align: center
+
+.. image:: diagrams/packages_flight_trajectory_worker.svg
+   :width: 400
+   :alt: flight trajectory worker package diagram
+   :align: center
+
+.. automodule:: flight_trajectory_worker.flight_trajectory_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_flight_trajectory_worker.svg
+   :width: 400
+   :alt: flight trajectory worker class diagram
+   :align: center

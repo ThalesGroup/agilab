@@ -1,0 +1,48 @@
+# Sat-trajectory-project Licenses
+| Package Name | License |
+|--------------|---------|
+| asttokens | APACHE 2.0 |
+| brotli | MIT LICENSE |
+| cramjam | MIT |
+| cython | APACHE SOFTWARE LICENSE |
+| decorator | BSD LICENSE |
+| executing | MIT LICENSE |
+| fastparquet | APACHE SOFTWARE LICENSE |
+| fsspec | BSD-3-CLAUSE |
+| geographiclib | MIT |
+| geopy | MIT LICENSE |
+| inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| ipython | BSD LICENSE |
+| ipython-pygments-lexers | BSD LICENSE |
+| jedi | MIT LICENSE |
+| matplotlib-inline |  |
+| multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| numpy | BSD LICENSE |
+| packaging | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| pandas | BSD LICENSE |
+| parso | MIT LICENSE |
+| pexpect | ISC LICENSE _ISCL_ |
+| polars | MIT LICENSE |
+| polars-runtime-32 | MIT LICENSE |
+| prompt-toolkit | BSD LICENSE |
+| psutil | BSD-3-CLAUSE |
+| ptyprocess | ISC LICENSE _ISCL_ |
+| pure-eval | MIT LICENSE |
+| py7zr | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pyarrow | APACHE SOFTWARE LICENSE |
+| pybcj | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| pycryptodomex | BSD LICENSE;; PUBLIC DOMAIN |
+| pygments | BSD LICENSE |
+| pyppmd | LGPL-2.1-OR-LATER |
+| python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
+| python-dotenv | BSD-3-CLAUSE |
+| pytz | MIT LICENSE |
+| pyzstd | BSD LICENSE |
+| setuptools | MIT |
+| sgp4 | MIT LICENSE |
+| six | MIT LICENSE |
+| stack-data | MIT LICENSE |
+| texttable | MIT LICENSE |
+| traitlets | BSD LICENSE |
+| tzdata | APACHE SOFTWARE LICENSE |
+| wcwidth | MIT LICENSE |
