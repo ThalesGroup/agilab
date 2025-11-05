@@ -1,0 +1,69 @@
+# Service Mode And Paths
+
+This note documents how an end-user (service) installation of AGILab wires the
+different source trees together.  It complements the public documentation and
+captures the expectations that baked-in automation (install scripts, the `AgiEnv`
+bootstrapper, etc.) now assume.
+
+## Terminology
+
+- **Public checkout** – the open-source `agilab` repository containing the
+  default apps and tooling.
+- **Private checkout** – the closed-source `private-apps` repository referenced
+  by the `APPS_REPOSITORY` environment variable.
+- **Service mode** – an end-user installation (`install_type == 0`) where the
+  runtime lives under `~/agi-space` and pulls packages from wheels installed in
+  a virtual environment.
+
+## Key Files And Environment Variables
+
+| Path / Variable | Purpose |
+| ----------------| --------|
+| `~/.local/share/agilab/.env` | Populated by the installer and read by
+  `AgiEnv`.  Must contain the private checkout location via
+  `APPS_REPOSITORY="/abs/path/to/private-apps"`. |
+| `~/.local/share/agilab/.agilab-path` | Records the canonical public checkout
+  used when the installer ran.  When present it allows a fallback to the
+  open-source apps. |
+| `~/agi-space/.venv` | The virtual environment that executes Streamlit in
+  service mode. |
+| `~/agi-space/apps` | Populated with symlinks to the selected app templates. |
+
+## How App Symlinks Are Resolved
+
+1. When `AgiEnv` initialises with `install_type == 0`, it first looks for
+   `APPS_REPOSITORY/src/agilab/apps`.
+2. Every `*_project` folder inside that private directory is symlinked into the
+   active end-user workspace (e.g. `~/agi-space/apps`).  Existing links are
+   recreated only when the target changed.
+3. If the private directory is missing, `AgiEnv` falls back to the location
+   stored in `~/.local/share/agilab/.agilab-path` and copies the public apps
+   instead of linking them.
+
+Because the private checkout is the primary source of truth, make sure the
+installer writes the up-to-date path to `APPS_REPOSITORY` and that the target
+repository exposes the expected sub-tree:
+
+```
+${APPS_REPOSITORY}/
+  src/
+    agilab/
+      apps/
+      apps-pages/
+      ...
+```
+
+## Cleaning Up Broken Links
+
+During startup `AgiEnv.get_projects()` automatically removes any dangling
+symlinks under the end-user `apps` directory.  If you move or rename projects in
+the private checkout, the next launch will drop stale links and recreate them
+using the up-to-date private path.
+
+## Practical Checklist
+
+1. Point `APPS_REPOSITORY` at the root of the private repository.
+2. Run the installer (or rerun `install_apps.sh`) so `~/.local/share/agilab/.env`
+   is refreshed.
+3. Restart the end-user Streamlit app.  The sidebar project selector should now
+   only list apps that resolve inside `APPS_REPOSITORY`.
