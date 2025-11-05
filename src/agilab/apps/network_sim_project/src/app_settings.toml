@@ -12,7 +12,7 @@ cython = true
 pool = true
 rapids = true
 cluster_enabled = true
-user = "nsbl"
+user = "agi"
 auth_method = "password"
 scheduler = "192.168.20.111"
 
