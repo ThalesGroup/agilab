@@ -1,0 +1,40 @@
+agi-env API
+===========
+
+This is a module share between core/agi-core and agilab to set all the path required by both
+
+Usage Example
+-------------
+
+Instanciation
+^^^^^^^^^^^^
+
+.. literalinclude:: snippets/AgiEnv.instanciation.py
+   :language: python
+
+
+.. note::
+   ``AgiEnv`` behaves as a singleton. Repeated instantiation updates the same
+   environment instance; call :func:`AgiEnv.reset` before configuring a new
+   environment, or :func:`AgiEnv.current` to access the active one.
+
+Reference
+----------
+
+agi_env
+~~~~~~~~
+
+.. image:: diagrams/packages_agi_env.svg
+   :width: 400
+   :alt: Packages diagram for agi-env
+   :align: center
+
+.. automodule:: agi_env.agi_env
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. image:: diagrams/classes_agi_env.svg
+   :width: 400
+   :alt: Classes diagram for agi_env
+   :align: center
