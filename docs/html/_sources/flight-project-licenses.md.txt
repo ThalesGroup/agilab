@@ -29,6 +29,7 @@
 | bce-python-sdk | APACHE LICENSE 2.0 |
 | bcrypt | APACHE SOFTWARE LICENSE |
 | beautifulsoup4 | MIT LICENSE |
+| black | MIT LICENSE |
 | bleach | APACHE SOFTWARE LICENSE |
 | blinker | MIT LICENSE |
 | boto3 | APACHE-2.0 |
@@ -270,6 +271,7 @@
 | python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | BSD-3-CLAUSE |
 | python-json-logger | BSD LICENSE |
+| pytokens | MIT LICENSE |
 | pytz | MIT LICENSE |
 | pyyaml | MIT LICENSE |
 | pyzmq | BSD LICENSE |

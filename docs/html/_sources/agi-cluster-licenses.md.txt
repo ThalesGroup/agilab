@@ -70,7 +70,7 @@
 | llvmlite | BSD |
 | locket | BSD LICENSE |
 | markupsafe | BSD-3-CLAUSE |
-| matplotlib-inline | BSD LICENSE |
+| matplotlib-inline |  |
 | mistune | BSD LICENSE |
 | msgpack | APACHE-2.0 |
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
@@ -107,7 +107,7 @@
 | pynacl | APACHE SOFTWARE LICENSE |
 | pyppmd | LGPL-2.1-OR-LATER |
 | python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
-| python-dotenv | BSD LICENSE |
+| python-dotenv | BSD-3-CLAUSE |
 | python-json-logger | BSD LICENSE |
 | pyyaml | MIT LICENSE |
 | pyzmq | BSD LICENSE |
