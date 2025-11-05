@@ -9,6 +9,9 @@ Overview
   while keeping Streamlit interaction smooth.
 - Complements the Explore 3D cartography and network views by providing
   satellite-centric outputs.
+- Pairs with ``flight_trajectory``: use that app when you need aircraft timelines
+  with optional connectivity overlays, and ``sat_trajectory`` when you only need
+  constellation availability and service windows.
 
 Manager (`sat_trajectory.sat_trajectory`)
 -----------------------------------------

@@ -28,7 +28,7 @@
 | jsonschema-specifications | MIT |
 | llvmlite | BSD |
 | markupsafe | BSD-3-CLAUSE |
-| matplotlib-inline | BSD LICENSE |
+| matplotlib-inline |  |
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | narwhals | MIT LICENSE |
 | numba | BSD LICENSE |
@@ -54,7 +54,7 @@
 | pygments | BSD LICENSE |
 | pyppmd | LGPL-2.1-OR-LATER |
 | python-dateutil | APACHE SOFTWARE LICENSE;; BSD LICENSE |
-| python-dotenv | BSD LICENSE |
+| python-dotenv | BSD-3-CLAUSE |
 | pytz | MIT LICENSE |
 | pyzstd | BSD LICENSE |
 | referencing | MIT License |

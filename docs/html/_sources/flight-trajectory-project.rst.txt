@@ -3,12 +3,24 @@ Flight Trajectory Project
 
 Overview
 --------
-- Extends the base flight example with satellite and beam geometry so you can
-  experiment with richer trajectory analytics.
+- Extends the base flight example with optional satellite/beam overlays so you can
+  analyse aircraft paths together with connectivity constraints.
 - Demonstrates custom distribution logic that keeps all legs of a given flight on
   the same worker while balancing distance travelled across the cluster.
 - Ships ready-to-use waypoints, satellite catalogues and beam files to exercise
   the Explore cartography bundles (2D maps, 3D deck.gl, network overlays).
+
+How it differs from ``sat_trajectory``
+--------------------------------------
+- ``flight_trajectory`` remains flight-centric: every step starts from scheduled
+  aircraft waypoints and augments them with satellite/beam metadata only when you
+  opt in via the arguments file.
+- ``sat_trajectory`` is satellite-first: it partitions constellations and service
+  requests without loading flight plans. Use it when the orbit propagation workload
+  drives the scenario, and ``flight_trajectory`` when the aircraft timeline is the
+  primary axis.
+- Both apps share some artefacts (beams, catalogues) but target different Explore
+  dashboards—flight timelines versus pure constellation availability.
 
 Manager (`flight_trajectory.flight_trajectory`)
 -----------------------------------------------
@@ -25,6 +37,10 @@ Args (`flight_trajectory.app_args`)
 - Pydantic model capturing the extra artefacts required for this scenario
   (waypoints GeoJSON, beam CSV, satellite constellation definition, number of
   flights to replay).
+- Includes ``data_source`` / ``data_uri`` so you can redirect runs to packaged
+  samples, shared network mounts, or Hawk feeds without editing code.
+- Adds a ``dataset_format`` toggle (``csv`` or ``parquet``) that propagates to the
+  worker so downstream dashboards ingest the format you expect.
 - Reuses ``agi_env.app_args`` helpers so serialization back to
   ``app_settings.toml`` stays consistent with the Streamlit UI.
 
@@ -34,6 +50,8 @@ Worker (`flight_trajectory_worker.flight_trajectory_worker`)
   produce the dataframes consumed by Explore’s 3D visualisations.
 - Uses pre/post-install scripts to unpack heavy assets and includes Cython hooks
   for performance-critical sections.
+- Processes waypoint slices that are now pre-split per flight so distribution can
+  balance workloads across workers without re-reading the master GeoJSON.
 - Publishes per-flight metadata back to the manager so the Workplan viewer can
   highlight idle workers or overloaded partitions.
 
