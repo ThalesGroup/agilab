@@ -1,0 +1,26 @@
+Quick-Start
+===========
+
+Agilab is a software solution to explore AI for engineering. See
+:doc:`documentation <index>` for more information.
+
+LICENSE
+^^^^^^^
+
+New BSD. See :doc:`License File <license>`.
+
+Install Agilab
+^^^^^^^^^^^^^^
+
+If you want to install on a cluster, you need to provide the installer an account that can perform an SSH connection with key authentication or credentials.
+
+.. code-block:: console
+
+   mkdir agi-workspace && cd agi-workspace
+   uv add agilab
+   uv run agilab
+
+Support
+^^^^^^^
+
+Email: focus@thalesgroup.com
