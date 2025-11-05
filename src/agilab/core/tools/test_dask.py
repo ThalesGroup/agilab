@@ -19,20 +19,20 @@ async def main():
 
     agipath = AgiEnv.locate_agi_installation(verbose=0)
     env = AgiEnv(apps_dir=agipath / "apps", app="flight_project", verbose=1)
-    env.user = "nsbl"
+    env.user = "agi"
 
     # Kill dask process on worker
     cmd_prefix = await AGI._detect_export_cmd(ip_worker1)
     AgiEnv.set_env_var(f"{ip_worker1}_CMD_PREFIX", cmd_prefix)
     AGI._env = env
-    env.user = "nsbl"
+    env.user = "agi"
     await AGI._kill(ip_worker1, current_pid=os.getpid(), force=True)
 
     runpy.run_path(env.cluster_pck / "agi_distributor/cli.py")
 
     # Start scheduler locally
     cmd = (
-        f"uv run --project '/Users/nsbl/wenv/flight/worker' dask scheduler --port 8786 "
+        f"uv run --project '/Users/agi/wenv/flight/worker' dask scheduler --port 8786 "
         f"--host '{scheduler_addr}' --pid-file scheduler_pid"
     )
     logger.info(f"Starting dask scheduler locally: {cmd}")
