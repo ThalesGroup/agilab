@@ -71,7 +71,7 @@ jobs:
             cp docs/html/index.html docs/index.html
           fi
           # Mirror the entire html tree so assets (_static, images, CSS) live at the Pages root
-          rsync -a --delete docs/html/ docs/
+          cp -a docs/html/. docs/
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
