@@ -36,60 +36,40 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
       # Tests and coverage badges are handled by ci.yml + Codecov; docs publish remains build-free
-      - name: Prepare docs artifact
-        shell: bash
-        env:
-          DOCS_HTML_ROOT: docs/html
-          DOCS_ROOT: docs
+      - name: Use committed docs/html (no build)
         run: |
           set -euo pipefail
-
-          DOCS_HTML_ROOT="${DOCS_HTML_ROOT:-docs/html}"
-          DOCS_ROOT="${DOCS_ROOT:-docs}"
-
-          ensure_docs_html() {
-            if [ ! -d "$DOCS_HTML_ROOT" ] || [ -z "$(ls -A "$DOCS_HTML_ROOT" 2>/dev/null)" ]; then
-              echo "[docs] $DOCS_HTML_ROOT missing or empty; attempting fallback copy from src/agilab/resources/help" >&2
-              if [ -d src/agilab/resources/help ]; then
-                mkdir -p "$DOCS_HTML_ROOT"
-                rsync -a --delete src/agilab/resources/help/ "$DOCS_HTML_ROOT"/
-              else
-                echo "[docs] No sources available; creating placeholder index.html" >&2
-                mkdir -p "$DOCS_HTML_ROOT"
-                cat <<'EOF' > "$DOCS_HTML_ROOT/index.html"
-<html><body><h1>No documentation sources found</h1></body></html>
-EOF
-              fi
+          if [ ! -d docs/html ] || [ -z "$(ls -A docs/html 2>/dev/null)" ]; then
+            echo "[docs] docs/html missing or empty; attempting fallback copy from src/agilab/resources/help" >&2
+            if [ -d src/agilab/resources/help ]; then
+              mkdir -p docs/html
+              rsync -a --delete src/agilab/resources/help/ docs/html/
+            else
+              echo "[docs] No sources available; creating placeholder index.html" >&2
+              mkdir -p docs/html
+              echo "<html><body><h1>No documentation sources found</h1></body></html>" > docs/html/index.html
             fi
-          }
-
-          ensure_index_html() {
-            if [ ! -f "$DOCS_HTML_ROOT/index.html" ]; then
-              idx=$(ls "$DOCS_HTML_ROOT"/*index*.html 2>/dev/null | head -n1 || true)
-              if [ -n "$idx" ]; then
-                cp "$idx" "$DOCS_HTML_ROOT/index.html"
-              else
-                cat <<'EOF' > "$DOCS_HTML_ROOT/index.html"
-<html><body><h1>AGILab Documentation</h1><ul>
-EOF
-                for f in "$DOCS_HTML_ROOT"/*.html; do
-                  bn=$(basename "$f")
-                  echo "<li><a href=\"$bn\">$bn</a></li>" >> "$DOCS_HTML_ROOT/index.html"
-                done
-                echo '</ul></body></html>' >> "$DOCS_HTML_ROOT/index.html"
-              fi
+          fi
+          # Ensure an index.html exists to keep Pages happy
+          if [ ! -f docs/html/index.html ]; then
+            # Try to pick a reasonable default if one exists
+            idx=$(ls docs/html/*index*.html 2>/dev/null | head -n1 || true)
+            if [ -n "$idx" ]; then
+              cp "$idx" docs/html/index.html
+            else
+              # Create a simple listing index if nothing obvious exists
+              {
+                echo '<html><body><h1>AGILab Documentation</h1><ul>'
+                for f in docs/html/*.html; do bn=$(basename "$f"); echo "<li><a href=\"$bn\">$bn</a></li>"; done
+                echo '</ul></body></html>'
+              } > docs/html/index.html
             fi
-          }
-
-          mirror_html_tree() {
-            mkdir -p "$DOCS_ROOT"
-            rsync -a --delete "$DOCS_HTML_ROOT"/ "$DOCS_ROOT"/
-          }
-
-          ensure_docs_html
-          ensure_index_html
-          mirror_html_tree
-
+          fi
+          # Ensure root-level index mirrors html index for convenience
+          mkdir -p docs
+          if [ -f docs/html/index.html ]; then
+            cp docs/html/index.html docs/index.html
+          fi
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
