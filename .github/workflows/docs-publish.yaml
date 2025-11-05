@@ -43,7 +43,7 @@ jobs:
             echo "[docs] docs/html missing or empty; attempting fallback copy from src/agilab/resources/help" >&2
             if [ -d src/agilab/resources/help ]; then
               mkdir -p docs/html
-              rsync -a --delete src/agilab/resources/help/ docs/html/
+              cp -a src/agilab/resources/help/. docs/html/
             else
               echo "[docs] No sources available; creating placeholder index.html" >&2
               mkdir -p docs/html
