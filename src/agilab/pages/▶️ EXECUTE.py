@@ -1322,6 +1322,11 @@ if __name__ == "__main__":
     # ------------------
     # RUN Section
     # ------------------
+    run_clicked = False
+    existing_run_log = st.session_state.get("run_log_cache", "").strip()
+    run_log_expander = None
+    log_container = None
+    cmd = None
     if show_run:
         # Reset run log state when switching between projects so the expander starts closed
         prev_app_key = "execute_prev_app"
@@ -1484,7 +1489,6 @@ if __name__ == "__main__":
             return target_expander
 
         run_col, load_col, delete_col = st.columns(3)
-        run_clicked = False
         run_label = "RUN benchmark" if st.session_state.get("benchmark") else "EXECUTE"
         if cmd:
             run_clicked = run_col.button(
