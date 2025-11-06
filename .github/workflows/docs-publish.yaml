@@ -40,15 +40,8 @@ jobs:
         run: |
           set -euo pipefail
           if [ ! -d docs/html ] || [ -z "$(ls -A docs/html 2>/dev/null)" ]; then
-            echo "[docs] docs/html missing or empty; attempting fallback copy from src/agilab/resources/help" >&2
-            if [ -d src/agilab/resources/help ]; then
-              mkdir -p docs/html
-              cp -a src/agilab/resources/help/. docs/html/
-            else
-              echo "[docs] No sources available; creating placeholder index.html" >&2
-              mkdir -p docs/html
-              echo "<html><body><h1>No documentation sources found</h1></body></html>" > docs/html/index.html
-            fi
+            echo "[docs] docs/html missing or empty; aborting publish to avoid stale content" >&2
+            exit 1
           fi
           # Ensure an index.html exists to keep Pages happy
           if [ ! -f docs/html/index.html ]; then
