@@ -4,7 +4,6 @@ import asyncio
 # Standard Imports (lightweight)
 # ===========================
 import os
-import getpass
 import socket
 import runpy
 import ast
@@ -222,80 +221,6 @@ def parse_and_validate_workers(workers_input):
             st.error(f"All worker capacities must be positive integers. Invalid entries: {error_details}")
             return {"127.0.0.1": 1}
     return workers or {"127.0.0.1": 1}
-
-def _derive_repo_cd_path(env) -> tuple[str, Path]:
-    apps_dir = Path(env.apps_dir).expanduser()
-    try:
-        resolved = apps_dir.resolve()
-    except Exception:
-        resolved = apps_dir
-
-    try:
-        repo_root = resolved.parents[2]
-    except IndexError:
-        repo_root = resolved
-
-    base_home = Path(getattr(env, "home_abs", Path.home())).expanduser()
-    try:
-        repo_rel = repo_root.relative_to(base_home)
-        cd_path = f"~/{repo_rel.as_posix()}"
-    except ValueError:
-        cd_path = str(repo_root)
-
-    return cd_path, repo_root
-
-def _build_remote_exec_python(python_snippet: str,
-                              env,
-                              cluster_user: str,
-                              *,
-                              cluster_host: Optional[str] = None,
-                              ssh_key: Optional[str] = None,
-                              verbose: int = 1) -> str:
-    if not cluster_host:
-        cluster_host = socket.gethostname()
-
-    cd_path, _ = _derive_repo_cd_path(env)
-
-    ssh_script = textwrap.dedent(f"""\
-        cd {cd_path}
-        export PATH="~/.local/bin:$PATH"
-        uv run python - <<'PY'
-        {python_snippet}
-        PY
-    """).strip("\n")
-
-    key_assignment = ""
-    if ssh_key:
-        key_assignment = f'    app_env.ssh_key_path = "{Path(ssh_key).expanduser()}"\n'
-
-    remote_lines = [
-        "import asyncio",
-        "from agi_cluster.agi_distributor import AGI",
-        "from agi_env import AgiEnv",
-        "",
-        f'SSH_HOST = "{cluster_host}"',
-        f'SSH_CMD = """{ssh_script}"""',
-        "",
-        "async def main():",
-        f'    app_env = AgiEnv(apps_dir="{env.apps_dir}", app="{env.app}", verbose={verbose})',
-        "    AGI.env = app_env",
-        f'    app_env.user = "{cluster_user}"',
-        "    app_env.password = None",
-    ]
-    if ssh_key:
-        remote_lines.append(f'    app_env.ssh_key_path = "{Path(ssh_key).expanduser()}"')
-    remote_lines.extend([
-        "    result = await AGI.exec_ssh(SSH_HOST, SSH_CMD)",
-        "    print(result)",
-        "    return result",
-        "",
-        "if __name__ == \"__main__\":",
-        "    asyncio.run(main())",
-    ])
-
-    remote_snippet = "\n".join(remote_lines)
-
-    return remote_snippet
 
 def initialize_app_settings(args_override=None):
     env = st.session_state["env"]
@@ -518,105 +443,21 @@ def render_cluster_settings_ui():
                 AgiEnv.set_env_var(key, normalized)
 
         share_root = getattr(env, "AGILAB_SHARE", None)
-        share_candidate: Optional[Path] = None
-        share_resolved: Optional[Path] = None
-        base_home = getattr(env, "home_abs", Path.home())
-
+        share_candidate = None
         if isinstance(share_root, Path):
             share_candidate = share_root
         elif isinstance(share_root, str) and share_root.strip():
             share_candidate = Path(share_root.strip())
-
         if share_candidate is not None:
-            try:
-                share_candidate = share_candidate.expanduser()
-            except Exception:
-                pass
+            base_home = getattr(env, "home_abs", Path.home())
             if not share_candidate.is_absolute():
-                share_candidate = (base_home / share_candidate).expanduser()
+                share_candidate = (base_home / share_candidate)
+            share_candidate = share_candidate.expanduser()
+            is_symlink = share_candidate.is_symlink()
             try:
                 share_resolved = share_candidate.resolve()
             except Exception:
                 share_resolved = share_candidate
-            is_symlink = share_candidate.is_symlink()
-        else:
-            is_symlink = False
-
-        def _compute_share_paths(raw_value: str) -> tuple[Optional[Path], Optional[Path], Optional[Path]]:
-            try:
-                raw_path = Path(raw_value)
-            except Exception:
-                return None, None, None
-            try:
-                expanded = raw_path.expanduser()
-            except Exception:
-                expanded = raw_path
-            if expanded.is_absolute():
-                share_abs = expanded
-                try:
-                    share_rel = share_abs.relative_to(base_home)
-                except ValueError:
-                    share_rel = share_abs
-            else:
-                share_rel = raw_path
-                share_abs = (base_home / raw_path).expanduser()
-            try:
-                resolved = share_abs.resolve()
-            except Exception:
-                resolved = share_abs
-            return share_abs, share_rel, resolved
-
-        share_widget_key = f"cluster_share_dir__{env.app}"
-        stored_share = cluster_params.get("agi_share_dir")
-        if stored_share in (None, "") and share_candidate is not None:
-            stored_share = str(share_candidate)
-        if share_widget_key not in st.session_state:
-            st.session_state[share_widget_key] = stored_share or ""
-
-        share_input = st.text_input(
-            "Shared data directory (AGI_SHARE_DIR)",
-            key=share_widget_key,
-            placeholder="Path accessible to manager and workers (e.g., /mnt/shared/data)",
-            help="Set `AGI_SHARE_DIR` to a shared mount (or symlink to one) so remote workers can read outputs.",
-        )
-        share_value = share_input.strip()
-        cluster_params["agi_share_dir"] = share_value
-
-        if share_value:
-            new_share_abs, new_share_rel, new_share_resolved = _compute_share_paths(share_value)
-            if new_share_abs is not None:
-                env.AGILAB_SHARE = new_share_abs
-                env.AGILAB_SHARE_REL = new_share_rel if new_share_rel is not None else new_share_abs
-                share_for_data = (
-                    new_share_rel
-                    if isinstance(new_share_rel, Path) and not new_share_rel.is_absolute()
-                    else new_share_abs
-                )
-                if isinstance(share_for_data, Path):
-                    env.data_rel = share_for_data / env.target
-                    env.dataframe_path = env.data_rel / "dataframe"
-                share_candidate = new_share_abs
-                share_resolved = new_share_resolved or new_share_abs
-                is_symlink = share_candidate.is_symlink()
-                _persist_env_var("AGI_SHARE_DIR", str(new_share_abs))
-            else:
-                _persist_env_var("AGI_SHARE_DIR", share_value or None)
-        else:
-            _persist_env_var("AGI_SHARE_DIR", None)
-            cluster_params.pop("agi_share_dir", None)
-
-        display_candidate = share_candidate
-        display_resolved = share_resolved
-        if share_value and share_candidate is None:
-            display_candidate, _, display_resolved = _compute_share_paths(share_value)
-
-        if share_value:
-            if display_resolved and display_candidate and display_candidate != display_resolved:
-                st.caption(f"Share resolves to: {display_resolved}")
-            elif display_candidate:
-                st.caption(f"Share directory: {display_candidate}")
-        elif display_candidate:
-            st.caption(f"Current share directory: {display_candidate}")
 
         # per-project widget key & seeding; do not also pass value=
         scheduler_widget_key = f"cluster_scheduler__{env.app}"
@@ -1223,54 +1064,30 @@ async def page():
 
         if show_install:
             enabled = cluster_params.get("cluster_enabled", False)
-            cluster_enabled = bool(enabled)
             raw_scheduler = cluster_params.get("scheduler", "")
             scheduler = f'"{str(raw_scheduler)}"' if enabled and raw_scheduler else "None"
             raw_workers = cluster_params.get("workers", "")
             workers = str(raw_workers) if enabled and raw_workers else "None"
-            local_user = getpass.getuser()
-            configured_user = cluster_params.get("user") or getattr(env, "user", "")
-            cluster_user = (configured_user or local_user).strip()
-            cluster_host = cluster_params.get("manager_host") or cluster_params.get("scheduler") or socket.gethostname()
-            ssh_key_path = cluster_params.get("ssh_key_path")
+            cmd = f"""
+import asyncio
+from agi_cluster.agi_distributor import AGI
+from agi_env import AgiEnv
 
-            python_snippet = textwrap.dedent(f"""\
-                import asyncio
-                from agi_cluster.agi_distributor import AGI
-                from agi_env import AgiEnv
+APPS_DIR = "{env.apps_dir}"
+APP = "{env.app}"
 
-                APPS_DIR = "{env.apps_dir}"
-                APP = "{env.app}"
+async def main():
+    app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
+    res = await AGI.install(app_env, 
+                            modes_enabled={st.session_state.mode},
+                            scheduler={scheduler}, 
+                            workers={workers})
+    print(res)
+    return res
 
-                async def main():
-                    app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
-                    res = await AGI.install(app_env,
-                                            modes_enabled={st.session_state.mode},
-                                            scheduler={scheduler},
-                                            workers={workers})
-                    print(res)
-                    return res
-
-                if __name__ == "__main__":
-                    asyncio.run(main())
-            """).strip("\n")
-
-            display_snippet = python_snippet
-            display_language = "python"
-            execution_snippet = python_snippet
-
-            if cluster_enabled and cluster_user and cluster_user != local_user:
-                display_snippet = _build_remote_exec_python(
-                    python_snippet,
-                    env,
-                    cluster_user,
-                    cluster_host=cluster_host,
-                    ssh_key=ssh_key_path,
-                    verbose=verbose,
-                )
-                execution_snippet = display_snippet
-                display_language = "python"
-            st.code(display_snippet, language=display_language)
+if __name__ == "__main__":
+    asyncio.run(main())"""
+            st.code(cmd, language="python")
 
             log_expander = st.expander("Install logs", expanded=False)
             with log_expander:
@@ -1281,7 +1098,7 @@ async def page():
             if st.button("INSTALL", key="install_btn", type="primary"):
                 clear_log()
                 venv = env.agi_cluster if (env.is_source_env or env.is_worker_env) else env.active_app.parents[1]
-                install_command = execution_snippet.replace("asyncio.run(main())", env.snippet_tail)
+                install_command = cmd.replace("asyncio.run(main())", env.snippet_tail)
                 context_lines = [
                     "=== Install request ===",
                     f"timestamp: {datetime.now().isoformat(timespec='seconds')}",
@@ -1577,51 +1394,27 @@ if __name__ == "__main__":
             enabled = cluster_enabled
             scheduler = f'"{cluster_params.get("scheduler")}"' if enabled and cluster_params.get("scheduler") else "None"
             workers = str(cluster_params.get("workers")) if enabled and cluster_params.get("workers") else "None"
+            cmd = f"""
+import asyncio
+from agi_cluster.agi_distributor import AGI
+from agi_env import AgiEnv
 
-            local_user = getpass.getuser()
-            configured_user = cluster_params.get("user") or getattr(env, "user", "")
-            cluster_user = (configured_user or local_user).strip()
-            cluster_host = cluster_params.get("manager_host") or cluster_params.get("scheduler") or socket.gethostname()
-            ssh_key_path = cluster_params.get("ssh_key_path")
+APPS_DIR = "{env.apps_dir}"
+APP = "{env.app}"
 
-            python_run_snippet = textwrap.dedent(f"""\
-                import asyncio
-                from agi_cluster.agi_distributor import AGI
-                from agi_env import AgiEnv
+async def main():
+    app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
+    res = await AGI.run(app_env, 
+                        mode={run_mode if run_mode is not None else "None"}, 
+                        scheduler={scheduler}, 
+                        workers={workers}, 
+                        {st.session_state.args_serialized})
+    print(res)
+    return res
 
-                APPS_DIR = "{env.apps_dir}"
-                APP = "{env.app}"
-
-                async def main():
-                    app_env = AgiEnv(apps_dir=APPS_DIR, app=APP, verbose={verbose})
-                    res = await AGI.run(app_env,
-                                        mode={run_mode if run_mode is not None else "None"},
-                                        scheduler={scheduler},
-                                        workers={workers},
-                                        {st.session_state.args_serialized})
-                    print(res)
-                    return res
-
-                if __name__ == "__main__":
-                    asyncio.run(main())
-            """).strip("\n")
-
-            run_display_snippet = python_run_snippet
-            run_display_language = "python"
-            run_execution_snippet = python_run_snippet
-
-            if cluster_enabled and cluster_user and cluster_user != local_user:
-                run_display_snippet = _build_remote_exec_python(
-                    python_run_snippet,
-                    env,
-                    cluster_user,
-                    cluster_host=cluster_host,
-                    ssh_key=ssh_key_path,
-                    verbose=verbose,
-                )
-                run_execution_snippet = run_display_snippet
-                run_display_language = "python"
-            st.code(run_display_snippet, language=run_display_language)
+if __name__ == "__main__":
+    asyncio.run(main())"""
+            st.code(cmd, language="python")
 
             expand_benchmark = st.session_state.pop("_benchmark_expand", False)
             with st.expander("Benchmark results", expanded=expand_benchmark):
@@ -1680,7 +1473,7 @@ if __name__ == "__main__":
                 log_placeholder = st.empty()
             with st.spinner("Running AGI..."):
                 _, stderr = await env.run_agi(
-                    run_execution_snippet.replace("asyncio.run(main())", env.snippet_tail),
+                    cmd.replace("asyncio.run(main())", env.snippet_tail),
                     log_callback=lambda message: update_log(log_placeholder, message),
                     venv=project_path,
                 )
@@ -1693,7 +1486,7 @@ if __name__ == "__main__":
         run_col, load_col, delete_col = st.columns(3)
         run_clicked = False
         run_label = "RUN benchmark" if st.session_state.get("benchmark") else "EXECUTE"
-        if python_run_snippet:
+        if cmd:
             run_clicked = run_col.button(
                 run_label,
                 key="run_btn",
