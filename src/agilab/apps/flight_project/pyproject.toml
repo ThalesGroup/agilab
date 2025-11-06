@@ -63,6 +63,9 @@ dependencies = [
     "requests",
     "scp",
     "pulp",
+    "noise",
+    "pytest-cov",
+    "sgp4",
 ]
 
 [project.license]
@@ -70,6 +73,8 @@ text = "Thales SIX GTS France SAS"
 
 [project.optional-dependencies]
 polars-worker = []
+
+
 
 
 
