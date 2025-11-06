@@ -500,6 +500,21 @@ done
 
 export APPS_REPOSITORY
 
+LOCAL_UNAME="$(id -un 2>/dev/null || whoami)"
+SSH_USER="${cluster_credentials%%:*}"
+AGI_CORE_DIST="$AGI_INSTALL_PATH/src/agilab/core/agi-core/dist"
+set +e
+AGI_CORE_WHL=$(ls -1t "$AGI_CORE_DIST"/agi_core*.whl 2>/dev/null | head -n 1)
+set -e
+if [[ -z "$AGI_CORE_WHL" ]]; then
+    AGI_CORE_WHL="$AGI_CORE_DIST/agi_core-<version>.whl"
+fi
+if [[ -n "$SSH_USER" && "$SSH_USER" != "$LOCAL_UNAME" ]]; then
+    echo -e "${RED}Refusing to continue:${NC} current user '$LOCAL_UNAME' differs from SSH user '$SSH_USER'."
+    echo -e "Please login as '$SSH_USER' and rerun the install"
+    exit 1
+fi
+
 check_internet
 set_locale
 install_dependencies
