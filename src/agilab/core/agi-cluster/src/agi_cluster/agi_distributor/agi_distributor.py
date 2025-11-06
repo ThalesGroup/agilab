@@ -1738,6 +1738,12 @@ class AGI:
         AGI._install_done_local = True
 
         cli = wenv_abs.parent / "cli.py"
+        if not cli.exists():
+            try:
+                shutil.copy(env.cluster_pck / "agi_distributor/cli.py", cli)
+            except FileNotFoundError as exc:
+                logger.error("Missing cli.py for local worker: %s", exc)
+                raise
         cmd = f"{uv_worker} run --no-sync --project \"{wenv_abs}\" python \"{cli}\" threaded"
         await AgiEnv.run(cmd, wenv_abs)
 
@@ -2054,47 +2060,61 @@ class AGI:
             toml_local = env.active_app / "pyproject.toml"
             wenv_rel = env.wenv_rel
             wenv_abs = env.wenv_abs
-            if env.is_local(AGI._scheduler_ip):
-                await asyncio.sleep(1)  # non-blocking sleep
-                cmd = (
-                    f"{env.uv} run --no-sync --project {env.wenv_abs} dask scheduler --port {AGI._scheduler_port} "
-                    f"--host {AGI._scheduler_ip} --pid-file {wenv_abs.parent / 'dask_scheduler.pid'} "
-                )
-                logger.info(f"Starting dask scheduler locally: {cmd}")
-                result = AGI._exec_bg(cmd, env.app)
-                if result:  # assuming _exec_bg is sync
-                    logger.info(result)
-            else:
-                # Create remote directory
-                cmd = f"{env.uv} run --no-sync python -c \"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
-                await AGI.exec_ssh(AGI._scheduler_ip, cmd)
-
-                toml_wenv = wenv_rel / "pyproject.toml"
-                await AGI.send_file(AGI._scheduler_ip, toml_local, toml_wenv)
-
-                cmd = (
-                    f"{env.uv} --project {wenv_rel} run --no-sync dask scheduler --port {AGI._scheduler_port} "
-                    f"--host {AGI._scheduler_ip} --pid-file dask_scheduler.pid"
-                )
-                # Run scheduler asynchronously over SSH without awaiting completion (fire and forget)
-                asyncio.create_task(AGI.exec_ssh_async(AGI._scheduler_ip, cmd))
-
+        cmd_prefix = env.envars.get(f"{AGI._scheduler_ip}_CMD_PREFIX", "")
+        if not cmd_prefix:
             try:
-                await asyncio.sleep(1)  # Give scheduler a moment to start
-                client = await Client(AGI._scheduler,
-                                      heartbeat_interval=5000,
-                                      timeout=AGI._TIMEOUT)
-                AGI._dask_client = client
-            except Exception as e:
-                logger.error("Dask Client instantiation trouble, run aborted due to:")
-                logger.info(e)
-                if isinstance(e, RuntimeError):
-                    raise
-                raise RuntimeError("Failed to instantiate Dask Client") from e
+                cmd_prefix = await AGI._detect_export_cmd(AGI._scheduler_ip) or ""
+            except Exception:
+                cmd_prefix = ""
+            if cmd_prefix:
+                AgiEnv.set_env_var(f"{AGI._scheduler_ip}_CMD_PREFIX", cmd_prefix)
 
-            AGI._install_done = True
-            if AGI._worker_init_error:
-                raise FileNotFoundError(f"Please run AGI.install([{AGI._scheduler_ip}])")
+        if env.is_local(AGI._scheduler_ip):
+            await asyncio.sleep(1)  # non-blocking sleep
+            local_prefix = cmd_prefix or getattr(env, "export_local_bin", "") or ""
+            cmd = (
+                f"{local_prefix}{env.uv} run --no-sync --project {env.wenv_abs} "
+                f"dask scheduler --port {AGI._scheduler_port} "
+                f"--host {AGI._scheduler_ip} --pid-file {wenv_abs.parent / 'dask_scheduler.pid'} "
+            )
+            logger.info(f"Starting dask scheduler locally: {cmd}")
+            result = AGI._exec_bg(cmd, env.app)
+            if result:  # assuming _exec_bg is sync
+                logger.info(result)
+        else:
+            # Create remote directory
+            cmd = (
+                f"{cmd_prefix}{env.uv} run --no-sync python -c "
+                f"\"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
+            )
+            await AGI.exec_ssh(AGI._scheduler_ip, cmd)
+
+            toml_wenv = wenv_rel / "pyproject.toml"
+            await AGI.send_file(AGI._scheduler_ip, toml_local, toml_wenv)
+
+            cmd = (
+                f"{cmd_prefix}{env.uv} --project {wenv_rel} run --no-sync dask scheduler --port {AGI._scheduler_port} "
+                f"--host {AGI._scheduler_ip} --pid-file dask_scheduler.pid"
+            )
+            # Run scheduler asynchronously over SSH without awaiting completion (fire and forget)
+            asyncio.create_task(AGI.exec_ssh_async(AGI._scheduler_ip, cmd))
+
+        try:
+            await asyncio.sleep(1)  # Give scheduler a moment to start
+            client = await Client(AGI._scheduler,
+                                  heartbeat_interval=5000,
+                                  timeout=AGI._TIMEOUT)
+            AGI._dask_client = client
+        except Exception as e:
+            logger.error("Dask Client instantiation trouble, run aborted due to:")
+            logger.info(e)
+            if isinstance(e, RuntimeError):
+                raise
+            raise RuntimeError("Failed to instantiate Dask Client") from e
+
+        AGI._install_done = True
+        if AGI._worker_init_error:
+            raise FileNotFoundError(f"Please run AGI.install([{AGI._scheduler_ip}])")
 
         return True
 
@@ -2130,6 +2150,13 @@ class AGI:
         for i, (ip, n) in enumerate(AGI._workers.items()):
             is_local = env.is_local(ip)
             cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
+            if not cmd_prefix:
+                try:
+                    cmd_prefix = await AGI._detect_export_cmd(ip) or ""
+                except Exception:
+                    cmd_prefix = ""
+                if cmd_prefix:
+                    AgiEnv.set_env_var(f"{ip}_CMD_PREFIX", cmd_prefix)
 
             for j in range(n):
                 try:
@@ -2147,7 +2174,10 @@ class AGI:
                         AGI._exec_bg(cmd, str(wenv_abs))
                     else:
                         wenv_rel = env.wenv_rel
-                        cmd = f'{cmd_prefix}{env.uv} --project {wenv_rel} run --no-sync dask worker tcp://{AGI._scheduler} --no-nanny --pid-file {wenv_rel.parent / pid_file}'
+                        cmd = (
+                            f'{cmd_prefix}{env.uv} --project {wenv_rel} run --no-sync '
+                            f'dask worker tcp://{AGI._scheduler} --no-nanny --pid-file {wenv_rel.parent / pid_file}'
+                        )
                         asyncio.create_task(AGI.exec_ssh_async(ip, cmd))
                         logger.info(f"Launched remote worker in background on {ip}: {cmd}")
 
@@ -2765,19 +2795,20 @@ class AGI:
                 ssh_dir = Path("~/.ssh").expanduser()
                 keys = []
 
-                for file in ssh_dir.iterdir():
-                    if not file.is_file():
-                        continue
+                if ssh_dir.exists():
+                    for file in ssh_dir.iterdir():
+                        if not file.is_file():
+                            continue
 
-                    name = file.name
-                    if name.startswith('authorized_keys'):
-                        continue
-                    if name.startswith('known_hosts'):
-                        continue
-                    if name.endswith('.pub'):
-                        continue
+                        name = file.name
+                        if name.startswith('authorized_keys'):
+                            continue
+                        if name.startswith('known_hosts'):
+                            continue
+                        if name.endswith('.pub'):
+                            continue
 
-                    keys.append(str(file))
+                        keys.append(str(file))
 
                 client_keys = keys if keys else None
 
