@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 from pathlib import Path
 from typing import Optional, Iterable, Dict, List, Tuple
 import sys
@@ -141,6 +142,41 @@ def content_url_for(cfg: Config, dir_path: Path) -> str:
     except ValueError:
         return f"file://{dir_path.resolve().as_posix()}"
 
+
+def _find_uv_binary() -> Optional[str]:
+    candidates: Iterable[Optional[str]] = (
+        os.environ.get("UV_BINARY"),
+        os.environ.get("UV_BIN"),
+        shutil.which("uv"),
+    )
+    for candidate in candidates:
+        if candidate:
+            path = Path(candidate).expanduser()
+            if path.exists():
+                return str(path)
+    fallback = Path.home() / ".local" / "bin" / "uv"
+    if fallback.exists():
+        return str(fallback)
+    return None
+
+
+def _bootstrap_project_venv(project_dir: Path) -> Optional[Path]:
+    logging.info("No virtual environment found for %s; attempting uv sync to bootstrap it.", project_dir.name)
+    uv_bin = _find_uv_binary()
+    if not uv_bin:
+        logging.warning("'uv' command not found while bootstrapping %s", project_dir.name)
+        return None
+    try:
+        subprocess.run(
+            [uv_bin, "sync", "--project", ".", "--preview-features", "python-upgrade"],
+            cwd=project_dir,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        logging.warning("uv sync failed for %s: %s", project_dir.name, exc)
+        return None
+    return venv_python_for(project_dir)
+
 # =======================================================================
 
 # ================= JdkTable Class =================
@@ -197,6 +233,7 @@ class JdkTable:
         return ET.ElementTree(root)
 
     def set_associated_project(self, name: str, home: Path) -> None:
+        matched_any = False
         changed_any = False
         for jdk_table in self.jdk_tables:
             tree = self.__load_jdk_table(jdk_table)
@@ -206,7 +243,7 @@ class JdkTable:
 
             target = None
             project_dir = str(Path(home).parent.parent.parent)
-            project_dir.replace(str(Path.home()), "$USER_HOME$")
+            project_dir = project_dir.replace(str(Path.home()), "$USER_HOME$")
 
             for jdk in comp.findall("jdk"):
                 jdk_name = jdk.find("name")
@@ -216,6 +253,7 @@ class JdkTable:
                     break
 
             if target is not None:
+                matched_any = True
                 add_el = target.find("additional")
                 if add_el is not None:
                     if add_el.get("ASSOCIATED_PROJECT_PATH") != project_dir:
@@ -226,7 +264,7 @@ class JdkTable:
                 changed_any = True
                 logging.info(f"Updated ASSOCIATED_PROJECT_PATH in {jdk_table} for name SDK")
 
-        if not changed_any:
+        if not matched_any:
             logging.info("No matching SDKs found to modify associated_project.")
 
     def add_jdk(self, name: str, home: Path) -> None:
@@ -239,7 +277,7 @@ class JdkTable:
 
             target = None
             project_dir = str(home.parents[2])
-            project_dir.replace(str(Path.home()), "$USER_HOME$")
+            project_dir = project_dir.replace(str(Path.home()), "$USER_HOME$")
 
             for jdk in comp.findall("jdk"):
                 jdk_name = jdk.find("name")
@@ -602,6 +640,8 @@ def main():
     for app in cfg.eligible_apps:
         app_py = venv_python_for(app)
         if not app_py:
+            app_py = _bootstrap_project_venv(app)
+        if not app_py:
             logging.warning(f"No virtual environment found for {app.name}, skipping.")
             continue
 
@@ -628,14 +668,13 @@ def main():
 
         project = app.name[:-8]
         worker_path = Path.home() / "wenv" / f"{project}_worker"
-        sdk_worker = f"uv ({project}_worker)"
-        jdk_table.set_associated_project(sdk_worker, app_py)
-
         worker_py = venv_python_for(worker_path)
         if not worker_py:
             logging.warning(f"No virtual environment found for {worker_path.name}, skipping.")
             continue
+        sdk_worker = f"uv ({project}_worker)"
         jdk_table.add_jdk(sdk_worker, worker_py)
+        jdk_table.set_associated_project(sdk_worker, worker_py)
 
         realized_apps.append(app.name)
     
@@ -643,19 +682,7 @@ def main():
     for apps_page in cfg.eligible_apps_pages:
         apps_page_py = venv_python_for(apps_page)
         if not apps_page_py:
-            logging.info(f"No virtual environment found for {apps_page.name}; attempting uv sync to bootstrap it.")
-            try:
-                subprocess.run(
-                    ["uv", "sync", "--project", ".", "--preview-features", "python-upgrade"],
-                    cwd=apps_page,
-                    check=True,
-                )
-            except FileNotFoundError:
-                logging.warning("'uv' command not found while bootstrapping %s", apps_page.name)
-            except subprocess.CalledProcessError as exc:
-                logging.warning("uv sync failed for %s: %s", apps_page.name, exc)
-            else:
-                apps_page_py = venv_python_for(apps_page)
+            apps_page_py = _bootstrap_project_venv(apps_page)
 
         iml = model.write_module_minimal(apps_page.name, apps_page)
 
