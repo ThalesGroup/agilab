@@ -1791,7 +1791,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         with open(snippet_file, "w") as file:
             file.write(code)
 
-        project_root = Path(venv) if venv else None
+        project_root = Palth(venv) if venv else None
         project_venv = None
         if project_root:
             if project_root.name == ".venv" or (project_root / "pyvenv.cfg").exists():
