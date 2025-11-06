@@ -21,6 +21,7 @@ import asyncio
 from pathlib import Path
 import argparse
 import errno
+import getpass
 
 node_src = str(Path(__file__).parents[1] / 'core/node/src')
 sys.path.insert(0, node_src)
@@ -102,6 +103,19 @@ async def main():
         verbose=args.verbose,
         modes_enabled=AGI.DASK_MODE | AGI.CYTHON_MODE
     )
+
+    local_user = getpass.getuser()
+    ssh_user = (app_env.user or "").strip()
+    if ssh_user and ssh_user != local_user:
+        repo_root = Path(__file__).resolve().parents[3]
+        agi_core_dist = repo_root / "src/agilab/core/agi-core/dist"
+        install_hint = f"sudo uv add {agi_core_dist}/*.whl"
+        print(
+            f"[INFO] Current user '{local_user}' differs from cluster SSH user '{ssh_user}'. "
+            "Ask the 'agi' login to run:\n"
+            "  uv init --bare --no-workspace\n"
+            f"  {install_hint}"
+        )
     return 0
 
 
