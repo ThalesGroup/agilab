@@ -42,17 +42,14 @@ class DagApp(BaseWorker):
         args = ensure_defaults(args, env=env)
         self.args = args
 
-        data_uri = Path(args.data_uri).expanduser()
-        if env.is_managed_pc:
-            home = Path.home()
-            data_uri = Path(str(data_uri).replace(str(home), str(home / "MyApp")))
-
-        self.path_rel = str(data_uri)
-        self.dir_path = data_uri
-        data_uri.mkdir(parents=True, exist_ok=True)
+        data_in = self._resolve_data_dir(env, args.data_in)
+        data_in.mkdir(parents=True, exist_ok=True)
+        self.path_rel = str(data_in)
+        self.dir_path = data_in
+        self.args.data_in = data_in
 
         payload = args.model_dump(mode="json")
-        payload["dir_path"] = str(data_uri)
+        payload["dir_path"] = str(data_in)
         WorkDispatcher.args = payload
 
     @classmethod

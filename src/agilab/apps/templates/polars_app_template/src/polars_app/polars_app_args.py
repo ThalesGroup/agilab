@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, TypedDict
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agi_env.app_args import dump_model_to_toml, load_model_from_toml, merge_model_data
 
@@ -13,11 +13,19 @@ from agi_env.app_args import dump_model_to_toml, load_model_from_toml, merge_mod
 class PolarsAppArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    data_uri: Path = Field(default_factory=lambda: Path("~/data/PolarsApp"))
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy_keys(cls, data: Any):
+        if isinstance(data, dict) and "data_uri" in data and "data_in" not in data:
+            data = dict(data)
+            data["data_in"] = data.pop("data_uri")
+        return data
+
+    data_in: Path = Field(default_factory=lambda: Path("~/data/PolarsApp"))
 
 
 class PolarsAppArgsTD(TypedDict, total=False):
-    data_uri: str
+    data_in: str
 
 
 ArgsModel = PolarsAppArgs
@@ -56,4 +64,3 @@ __all__ = [
     "load_args",
     "merge_args",
 ]
-

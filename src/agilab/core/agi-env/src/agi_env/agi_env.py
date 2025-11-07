@@ -820,6 +820,17 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.uv_worker = self.uv
             use_freethread = False
 
+        share_dir_raw = self.envars.get("AGI_SHARE_DIR")
+        share_dir = Path(share_dir_raw) if share_dir_raw else Path("data")
+        share_dir_expanded = share_dir.expanduser()
+        if share_dir_expanded.is_absolute():
+            agi_share_dir = share_dir_expanded
+        else:
+            agi_share_dir = (self.home_abs / share_dir_expanded).expanduser()
+        self.AGI_SHARE_DIR = share_dir
+        self.agi_share_dir = agi_share_dir
+        self.AGILAB_SHARE = agi_share_dir
+
         if self.is_worker_env:
             return
 
@@ -856,8 +867,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.setup_app = self.active_app / "build.py"
         self.setup_app_module = "agi_node.agi_dispatcher.build"
 
-        self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", "data"))
-        data_rel = self.AGILAB_SHARE / self.target
+        data_rel = share_dir / self.target
         self.dataframe_path = data_rel / "dataframe"
         self.data_rel = data_rel
         self._init_projects()
@@ -870,8 +880,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.help_path = str(self.agilab_pck.parents[1] / "docs/html")
         else:
             self.help_path = "https://thalesgroup.github.io/agilab"
-        self.AGILAB_SHARE = Path(envars.get("AGI_SHARE_DIR", home_abs / "data"))
-
         # Ensure packaged datasets are available when running locally (e.g. app_test).
         dataset_archive = getattr(self, "dataset_archive", None)
         if dataset_archive and Path(dataset_archive).exists():
@@ -1651,7 +1659,27 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     logger = getattr(AgiEnv, "logger", None)
                     if logger:
                         logger.error("Command failed with exit code %s: %s", returncode, cmd)
-                    raise RuntimeError(f"Command failed with exit code {returncode}: {cmd}")
+
+                    diagnostic_hint = None
+                    log_blob = "\n".join(result).lower()
+                    network_markers = (
+                        "failed to establish a new connection",
+                        "temporary failure in name resolution",
+                        "nodename nor servname provided",
+                        "no route to host",
+                    )
+                    if "pip install" in cmd and any(marker in log_blob for marker in network_markers):
+                        diagnostic_hint = (
+                            "pip could not reach the package index (network access is required to "
+                            "install build dependencies such as hatchling). Pre-install those "
+                            "dependencies locally or enable outbound connectivity, then rerun."
+                        )
+
+                    error_msg = f"Command failed with exit code {returncode}: {cmd}"
+                    if diagnostic_hint:
+                        error_msg = f"{error_msg}\n{diagnostic_hint}"
+
+                    raise RuntimeError(error_msg)
 
                 return "\n".join(result)
             except asyncio.TimeoutError:
