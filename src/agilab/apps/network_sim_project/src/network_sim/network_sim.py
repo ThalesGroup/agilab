@@ -50,13 +50,10 @@ class NetworkSimApp(BaseWorker):
         args = ensure_defaults(args, env=env)
         self.args = args
 
-        data_uri = Path(args.data_uri).expanduser()
-        if getattr(env, "_is_managed_pc", False):
-            home = Path.home()
-            data_uri = Path(str(data_uri).replace(str(home), str(home / "MyApp")))
-
-        data_uri.mkdir(parents=True, exist_ok=True)
-        self.dir_path = data_uri
+        data_in = self._resolve_data_dir(env, args.data_in)
+        data_in.mkdir(parents=True, exist_ok=True)
+        self.dir_path = data_in
+        self.args.data_in = data_in
         WorkDispatcher.args = self.as_dict()
 
     @classmethod
@@ -81,7 +78,7 @@ class NetworkSimApp(BaseWorker):
 
     def as_dict(self) -> dict[str, Any]:
         payload = self.args.model_dump(mode="json")
-        payload["data_uri"] = str(self.dir_path)
+        payload["data_in"] = str(self.dir_path)
         return payload
 
     def simulate(self) -> dict[str, Any]:
@@ -113,7 +110,7 @@ class NetworkSimApp(BaseWorker):
 
     def _discover_flight_files(self) -> List[Path]:
         """Return the list of flight simulation artefacts available for dispatch."""
-        base = Path(self.args.data_uri).expanduser()
+        base = self.dir_path
 
         search_roots = [
             base / "dataframe" / "flights",
@@ -169,7 +166,7 @@ class NetworkSimApp(BaseWorker):
         flight_files = self._discover_flight_files()
         if not flight_files:
             raise FileNotFoundError(
-                f"No flight simulation files found under '{self.args.data_uri}'."
+                f"No flight simulation files found under '{self.dir_path}'."
             )
 
         worker_slots = max(1, sum(workers.values()) if workers else 1)

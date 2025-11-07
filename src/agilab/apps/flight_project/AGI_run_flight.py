@@ -13,7 +13,9 @@ async def main():
                         mode=0, 
                         scheduler=None, 
                         workers=None, 
-                        data_source="file", data_uri="data/flight/dataset", files="*", nfile=1, nskip=0, nread=0, sampling_rate=1.0, datemin="2020-01-01", datemax="2021-01-01", output_format="parquet")
+                        data_source="file", data_in="data/flight/dataset", data_out="data/flight/dataframe",
+                        files="*", nfile=1, nskip=0, nread=0, sampling_rate=1.0, datemin="2020-01-01",
+                        datemax="2021-01-01", output_format="parquet")
     print(res)
     return res
 

@@ -89,13 +89,18 @@ class FlightWorker(PolarsWorker):
 
         logging.info(f"from: {__file__}")
 
+        data_in_path = Path(self.args.data_in).expanduser()
+        if not data_in_path.is_absolute():
+            data_in_path = (Path.home() / data_in_path).expanduser()
+
         if os.name == "nt" and not getpass.getuser().startswith("T0"):
-            data_uri = Path(self.args.data_uri)
-            parts = data_uri.parts
+            parts = data_in_path.parts
             if "Users" in parts:
                 index = parts.index("Users") + 2
-                data_uri = Path(*parts[index:])
-            net_path = normalize_path("\\\\127.0.0.1\\" + str(data_uri))
+                net_relative = Path(*parts[index:])
+            else:
+                net_relative = data_in_path
+            net_path = normalize_path("\\\\127.0.0.1\\" + str(net_relative))
             try:
                 # Your NFS account in order to mount it as net drive on Windows
                 cmd = f'net use Z: "{net_path}" /user:your-credentials'
@@ -104,9 +109,9 @@ class FlightWorker(PolarsWorker):
             except Exception as e:
                 logging.info(f"Failed to map network drive: {e}")
 
-        # Path to database on symlink Path.home()/data(symlink)
-        self.home_rel = (Path("~/") / self.args.data_uri).expanduser()
-        data_uri = normalize_path(self.home_rel)
+        # Path to database on symlink Path.home()/data(symlink) or absolute share
+        self.home_rel = data_in_path
+        data_in = normalize_path(self.home_rel)
         self.data_out = normalize_path(self.home_rel.parent / "dataframe")
         if os.name != "nt":
             self.data_out = self.data_out.replace("\\", "/")
@@ -118,7 +123,7 @@ class FlightWorker(PolarsWorker):
         except Exception as e:
             logging.info(f"Error removing directory: {e}")
 
-        self.args.data_uri = data_uri
+        self.args.data_in = data_in
 
         if self.verbose > 1:
             logging.info(f"Worker #{self._worker_id} dataframe root path = {self.data_out}")

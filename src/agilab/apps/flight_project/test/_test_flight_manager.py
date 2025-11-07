@@ -13,7 +13,8 @@ async def main():
     flight = Flight(
         env=env,
         data_source="file",
-        data_uri="data/flight/dataset",
+        data_in="data/flight/dataset",
+        data_out="data/flight/dataframe",
         files="csv/*",
         nfile=1,
         nskip=0,

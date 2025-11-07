@@ -47,7 +47,7 @@ def render() -> None:
     st.session_state.app_settings["args"] = defaults_payload
 
     if st.session_state.get("toggle_edit", True):
-        c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1.0, 1])
+        c1, c2, c3, c4, c5, c6 = st.columns([1, 1, 1, 1.0, 1, 1])
 
         with c1:
             data_source = st.selectbox(
@@ -58,20 +58,29 @@ def render() -> None:
             )
 
         with c2:
-            data_uri = st.text_input(
-                "Data directory" if data_source == "file" else "Hawk cluster data_uri",
-                value=str(defaults_model.data_uri),
-                key=f"{PREFIX}data_uri",
+            data_in = st.text_input(
+                "Inputs dir" if data_source == "file" else "Hawk cluster data_in",
+                value=str(defaults_model.data_in),
+                key=f"{PREFIX}data_in",
+                help=f"Manager workers read from {env.agi_share_dir}/<your path> when running locally.",
             )
 
         with c3:
+            data_out = st.text_input(
+                "Outputs dir",
+                value=str(defaults_model.data_out),
+                key=f"{PREFIX}data_out",
+                help=f"Outputs will be written under {env.agi_share_dir}/<your path>.",
+            )
+
+        with c4:
             files = st.text_input(
                 "Files filter" if data_source == "file" else "Select the pipeline",
                 value=defaults_model.files,
                 key=f"{PREFIX}files",
             )
 
-        with c4:
+        with c5:
             nfile = st.number_input(
                 "Number of files to read",
                 value=defaults_model.nfile,
@@ -80,7 +89,7 @@ def render() -> None:
                 min_value=0,
             )
 
-        with c5:
+        with c6:
             nskip = st.number_input(
                 "Number of line to skip",
                 value=defaults_model.nskip,
@@ -124,12 +133,12 @@ def render() -> None:
             )
 
         if data_source == "file":
-            directory = env.home_abs / data_uri
+            directory = env.agi_share_dir / data_in
             if not directory.is_dir():
                 diagnosis = diagnose_data_directory(directory)
                 if not diagnosis:
                     diagnosis = (
-                        f"The provided data_uri '{directory}' is not a valid directory. "
+                        f"The provided data_in '{directory}' is not a valid directory. "
                         "If this location is a shared file mount, the shared file server may be down."
                     )
                 st.error(diagnosis)
@@ -137,7 +146,8 @@ def render() -> None:
 
         candidate_args: dict[str, Any] = {
             "data_source": data_source,
-            "data_uri": data_uri,
+            "data_in": data_in,
+            "data_out": data_out,
             "files": files,
             "nfile": int(nfile),
             "nskip": int(nskip),

@@ -21,7 +21,7 @@ def env(tmp_path, monkeypatch):
 
 def test_mycode_initialises_and_builds_distribution(env, tmp_path):
     data_dir = tmp_path / "data"
-    args = MycodeArgs(data_uri=data_dir)
+    args = MycodeArgs(data_in=data_dir)
     mycode = Mycode(env, args=args)
 
     workers = {"worker1": 1, "worker2": 2}

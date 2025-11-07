@@ -8,7 +8,7 @@
     "nread": 0,
     "nskip": 0,
     "output_format": "parquet",
-    "data_uri": "/Users/jpm/data/flight/dataset",
+    "data_in": "/Users/jpm/data/flight/dataset",
     "sampling_rate": 10.0,
     "verbose": true
   },

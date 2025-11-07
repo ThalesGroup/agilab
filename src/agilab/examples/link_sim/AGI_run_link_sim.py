@@ -25,7 +25,7 @@ async def main():
         mode=13,
         scheduler="192.168.20.111",
         workers={'192.168.20.111': 1, '192.168.20.130': 1},
-        data_uri=str(data_root),
+        data_in=str(data_root),
         data_flight="../../flight_trajectory/dataframe",
         data_sat="sat",
         output_format="parquet",

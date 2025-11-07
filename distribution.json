@@ -1,6 +1,6 @@
 {
   "target_args": {
-    "data_uri": "data/sat_trajectory/dataset",
+    "data_in": "data/sat_trajectory/dataset",
     "duration_s": 86400,
     "step_s": 1,
     "number_of_sat": 25,

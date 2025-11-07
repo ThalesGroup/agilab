@@ -29,7 +29,7 @@ def test_build_distribution_assigns_all_flights(tmp_path: Path) -> None:
     dataset_root = tmp_path / "dataset"
     _create_flight_files(dataset_root, count=20)
 
-    args = NetworkSimArgs(data_source="file", data_uri=dataset_root)
+    args = NetworkSimArgs(data_source="file", data_in=dataset_root)
     app = NetworkSimApp(env=DummyEnv(), args=args)
 
     plan, metadata, partition_key, nb_unit, weight_unit = app.build_distribution(
@@ -57,7 +57,7 @@ def test_build_distribution_assigns_all_flights(tmp_path: Path) -> None:
 
 
 def test_build_distribution_requires_flights(tmp_path: Path) -> None:
-    args = NetworkSimArgs(data_source="file", data_uri=tmp_path)
+    args = NetworkSimArgs(data_source="file", data_in=tmp_path)
     app = NetworkSimApp(env=DummyEnv(), args=args)
 
     with pytest.raises(FileNotFoundError):
