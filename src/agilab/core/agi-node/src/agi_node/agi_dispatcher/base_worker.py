@@ -24,6 +24,7 @@ node module
 # Internal Libraries:
 import abc
 import asyncio
+from contextlib import suppress
 import getpass
 import inspect
 import io
@@ -36,6 +37,7 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 import traceback
 import warnings
 from pathlib import Path, PureWindowsPath
@@ -173,18 +175,153 @@ class BaseWorker(abc.ABC):
             )
 
     @classmethod
+    def _normalized_path(cls, value: Path | str) -> Path:
+        path_obj = Path(value)
+        try:
+            return Path(normalize_path(path_obj)).expanduser()
+        except Exception:
+            return path_obj.expanduser()
+
+    @staticmethod
+    def _relative_to_user_home(path: Path) -> Path | None:
+        parts = path.parts
+        if len(parts) >= 3 and parts[1].lower() in {"users", "home"}:
+            return Path(*parts[3:]) if len(parts) > 3 else Path()
+        return None
+
+    @staticmethod
+    def _remap_user_home(path: Path, *, username: str) -> Path | None:
+        parts = path.parts
+        if len(parts) < 3:
+            return None
+        root_marker = parts[1].lower()
+        if root_marker not in {"users", "home"}:
+            return None
+        root = Path(parts[0]) if parts[0] else Path("/")
+        base = root / parts[1] / username
+        remainder = Path(*parts[3:]) if len(parts) > 3 else Path()
+        candidate = base / remainder if remainder else base
+        return candidate
+
+    @staticmethod
+    def _strip_share_prefix(path: Path, aliases: set[str]) -> Path:
+        parts = path.parts
+        if parts and parts[0] in aliases:
+            return Path(*parts[1:]) if len(parts) > 1 else Path()
+        return path
+
+    @staticmethod
+    def _can_create_path(path: Path) -> bool:
+        target_dir = path
+        if target_dir.suffix:
+            target_dir = target_dir.parent
+        probe = target_dir / f".agi_perm_{uuid.uuid4().hex}"
+        try:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            probe.touch(exist_ok=False)
+        except (PermissionError, FileNotFoundError, OSError):
+            return False
+        else:
+            return True
+        finally:
+            with suppress(Exception):
+                probe.unlink()
+
+    @staticmethod
+    def _collect_share_aliases(
+        env: AgiEnv | None, share_base: Path
+    ) -> set[str]:
+        aliases = {share_base.name, "data", "clustershare", "datashare"}
+        share_hint = getattr(env, "AGILAB_SHARE_HINT", None)
+        if share_hint:
+            hint_path = Path(str(share_hint))
+            parts = [p for p in hint_path.parts if p not in {"", "."}]
+            aliases.update(parts[-2:])
+        share_rel = getattr(env, "AGILAB_SHARE_REL", None)
+        if share_rel:
+            try:
+                aliases.add(Path(share_rel).name)
+            except Exception:
+                pass
+        agi_share_dir = getattr(env, "agi_share_dir", None)
+        if agi_share_dir:
+            try:
+                aliases.add(Path(agi_share_dir).name)
+            except Exception:
+                pass
+        return {alias for alias in aliases if alias}
+
+    @classmethod
     def _resolve_data_dir(cls, env: AgiEnv | None, data_value: Path | str) -> Path:
         cls._ensure_managed_pc_share_dir(env)
         candidate = Path(data_value).expanduser()
+        env_home = Path(getattr(env, "home_abs", Path.home()))
+        env_user = (getattr(env, "user", None) or Path.home().name).split("@")[0]
+
+        share_base_raw = getattr(
+            env, "agi_share_dir", getattr(env, "AGILAB_SHARE", env_home / "data")
+        )
+        share_base = cls._normalized_path(share_base_raw)
+        share_aliases = cls._collect_share_aliases(env, share_base)
+
+        remainder_hint: Path | None = None
+        path_candidates: list[Path] = []
+
         if candidate.is_absolute():
-            resolved = candidate
+            normalized_abs = cls._normalized_path(candidate)
+            path_candidates.append(normalized_abs)
+
+            remapped = cls._remap_user_home(normalized_abs, username=env_user)
+            if remapped is not None:
+                remapped_norm = cls._normalized_path(remapped)
+                path_candidates.append(remapped_norm)
+                remainder_hint = cls._relative_to_user_home(remapped_norm)
+            else:
+                remainder_hint = cls._relative_to_user_home(normalized_abs)
         else:
-            base = getattr(env, "agi_share_dir", getattr(env, "home_abs", Path.home()))
-            resolved = Path(base).expanduser() / candidate
-        try:
-            return resolved.resolve(strict=False)
-        except Exception:
-            return resolved.expanduser()
+            remainder_hint = candidate
+
+        if remainder_hint is None:
+            remainder_hint = Path()
+
+        share_remainder = cls._strip_share_prefix(remainder_hint, share_aliases)
+
+        # Prefer shared roots first so outputs stay visible to remote workers.
+        if share_remainder:
+            path_candidates.append(share_base / share_remainder)
+        else:
+            path_candidates.append(share_base)
+
+        user_share_root = share_base / env_user
+        if share_remainder:
+            path_candidates.append(user_share_root / share_remainder)
+        else:
+            path_candidates.append(user_share_root)
+
+        local_data_root = env_home / "data"
+        if share_remainder:
+            path_candidates.append(local_data_root / share_remainder)
+        else:
+            path_candidates.append(local_data_root)
+
+        if remainder_hint:
+            path_candidates.append(env_home / remainder_hint)
+
+        deduped: list[Path] = []
+        seen: set[Path] = set()
+        for path in path_candidates:
+            normalized = cls._normalized_path(path)
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            deduped.append(normalized)
+
+        fallback = deduped[-1] if deduped else candidate
+        for path in deduped:
+            if cls._can_create_path(path):
+                return path
+            fallback = path
+        return fallback
 
     def prepare_output_dir(
         self,
