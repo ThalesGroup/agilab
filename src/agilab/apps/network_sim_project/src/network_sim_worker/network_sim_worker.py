@@ -38,13 +38,18 @@ class NetworkSimWorker(DagWorker):  # pragma: no cover - executed within workers
 
         logging.info(f"from: {__file__}")
 
+        data_in_path = Path(self.args.data_in).expanduser()
+        if not data_in_path.is_absolute():
+            data_in_path = (Path.home() / data_in_path).expanduser()
+
         if os.name == "nt" and not getpass.getuser().startswith("T0"):
-            data_uri = Path(self.args.data_uri)
-            parts = data_uri.parts
+            parts = data_in_path.parts
             if "Users" in parts:
                 index = parts.index("Users") + 2
-                data_uri = Path(*parts[index:])
-            net_path = normalize_path("\\\\127.0.0.1\\" + str(data_uri))
+                net_relative = Path(*parts[index:])
+            else:
+                net_relative = data_in_path
+            net_path = normalize_path("\\\\127.0.0.1\\" + str(net_relative))
             try:
                 # Your NFS account in order to mount it as net drive on Windows
                 cmd = f'net use Z: "{net_path}" /user:your-credentials'
@@ -54,8 +59,8 @@ class NetworkSimWorker(DagWorker):  # pragma: no cover - executed within workers
                 logging.info(f"Failed to map network drive: {e}")
 
         # Path to database on symlink Path.home()/data(symlink)
-        self.home_rel = (Path("~/") / self.args.data_uri).expanduser()
-        data_uri = normalize_path(self.home_rel)
+        self.home_rel = data_in_path
+        data_in = normalize_path(self.home_rel)
         self.data_out = normalize_path(self.home_rel.parent / "dataframe")
         if os.name != "nt":
             self.data_out = self.data_out.replace("\\", "/")
@@ -67,7 +72,7 @@ class NetworkSimWorker(DagWorker):  # pragma: no cover - executed within workers
         except Exception as e:
             logging.info(f"Error removing directory: {e}")
 
-        self.args.data_uri = data_uri
+        self.args.data_in = data_in
 
         if self.verbose > 1:
             logging.info(f"Worker #{self._worker_id} dataframe root path = {self.data_out}")
@@ -112,17 +117,17 @@ class NetworkSimWorker(DagWorker):  # pragma: no cover - executed within workers
         summary_filename = params.get("summary_filename", "topology_summary.json")
         data_source = params.get("data_source", "file")
 
-        data_uri_value = params.get("data_uri")
-        if not data_uri_value:
-            raise ValueError("Missing data_uri in worker arguments")
-        data_uri = Path(data_uri_value)
+        data_in_value = params.get("data_in")
+        if not data_in_value:
+            raise ValueError("Missing data_in in worker arguments")
+        data_in = Path(data_in_value)
 
         prefix = "~/"
         file_str = str(file)
         if data_source == "file":
             candidate = Path(file_str).expanduser()
             if not candidate.is_absolute():
-                candidate = (data_uri / candidate).expanduser()
+                candidate = (data_in / candidate).expanduser()
 
             normalized = os.path.normpath(str(candidate))
             if os.name != "nt":
@@ -137,7 +142,7 @@ class NetworkSimWorker(DagWorker):  # pragma: no cover - executed within workers
 
         graph = generate_mixed_topology(net_size, seed=seed)
 
-        topology_path = data_uri / topology_filename
+        topology_path = data_in / topology_filename
         topology_path.parent.mkdir(parents=True, exist_ok=True)
         nx.write_gml(graph, topology_path)
 
@@ -149,7 +154,7 @@ class NetworkSimWorker(DagWorker):  # pragma: no cover - executed within workers
             "topology_file": str(topology_path),
         }
 
-        summary_path = data_uri / summary_filename
+        summary_path = data_in / summary_filename
         summary_path.parent.mkdir(parents=True, exist_ok=True)
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 

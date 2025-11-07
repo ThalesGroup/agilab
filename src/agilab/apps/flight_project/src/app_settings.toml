@@ -1,6 +1,7 @@
 [args]
 data_source = "file"
-data_uri = "data/flight/dataset"
+data_in = "flight/dataset"
+data_out = "flight/dataframe"
 files = "*"
 nfile = 1
 nskip = 0
@@ -16,14 +17,12 @@ cython = true
 pool = true
 rapids = true
 cluster_enabled = true
-scheduler = "192.168.20.111"
 user = "agi"
 auth_method = "password"
 agi_share_dir = "~/clustershare"
 
 [cluster.workers]
-"192.168.20.130" = 1
-"192.168.20.111" = 1
+"127.0.0.1" = 1
 
 [pages]
 view_module = [

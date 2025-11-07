@@ -48,6 +48,7 @@ class Flight(BaseWorker):
         **kwargs: FlightArgsTD,
     ) -> None:
         self.env = env
+        self._ensure_managed_pc_share_dir(env)
         # Allow caller-provided verbosity flag even though the Pydantic model forbids extras.
         self.verbose = bool(kwargs.pop("verbose", getattr(env, "verbose", False)))
 
@@ -57,29 +58,12 @@ class Flight(BaseWorker):
             except ValidationError as exc:
                 raise ValueError(f"Invalid Flight arguments: {exc}") from exc
         self.args = args
-
-        if AgiEnv._is_managed_pc:
-            home = Path.home()
-            myapp_home = home / "MyApp"
-            try:
-                self.args.data_uri = Path(
-                    str(self.args.data_uri).replace(str(home), str(myapp_home))
-                )
-            except Exception:
-                logger.debug(
-                    "Failed to remap data_uri for managed PC", exc_info=True
-                )
-
-        if self.args.nfile == 0:
-            self.args.nfile = 999_999_999_999
-
-        base_path = Path(env.home_abs) / self.args.data_uri
-        normalized_base = Path(normalize_path(base_path))
-        self.args.data_uri = normalized_base
+        share_root = Path(getattr(env, "agi_share_dir", getattr(env, "home_abs", Path.home())))
+        self.args.data_in = share_root / self.args.data_in
+        self.args.data_out = share_root / self.args.data_out
+        self.data_out = self.args.data_out
 
         WorkDispatcher.args = self.args.model_dump(mode="json")
-
-        self.data_out = Path(normalize_path(normalized_base / "dataframe"))
 
         try:
             if self.data_out.exists():
@@ -198,19 +182,19 @@ class Flight(BaseWorker):
     def get_data_from_files(self):
         """get output-data slices from files or from ELK/HAWK"""
         if self.args.data_source == "file":
-            data_uri = Path(self.args.data_uri)
+            data_in = Path(self.args.data_in)
             home_dir = Path.home()
 
             self.logs_ivq = {
                 str(f.relative_to(home_dir)): os.path.getsize(f) // 1000
-                for f in data_uri.rglob(self.args.files)
+                for f in data_in.rglob(self.args.files)
                 if f.is_file() and not f.name.startswith("._")
             }
 
             if not self.logs_ivq:
                 raise FileNotFoundError(
                     "Error in make_chunk: no files found with"
-                    f" Path('{data_uri}').rglob('{self.args.files}')"
+                    f" Path('{data_in}').rglob('{self.args.files}')"
                 )
 
             df = pl.DataFrame(list(self.logs_ivq.items()), schema=["files", "size"])

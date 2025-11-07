@@ -10,7 +10,7 @@ from typing import Any, Literal, TypedDict
 
 import tomli
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, PositiveInt
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, PositiveInt
 
 from agi_env.app_args import (
     dump_model_to_toml,
@@ -25,8 +25,16 @@ class NetworkSimArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy_keys(cls, data: Any):
+        if isinstance(data, dict) and "data_uri" in data and "data_in" not in data:
+            data = dict(data)
+            data["data_in"] = data.pop("data_uri")
+        return data
+
     data_source: str
-    data_uri: Path = Field(default_factory=lambda: Path("data/network_sim/dataset"))
+    data_in: Path = Field(default_factory=lambda: Path("data/network_sim/dataset"))
     net_size: PositiveInt = Field(
         default=12,
         ge=4,
@@ -41,19 +49,19 @@ class NetworkSimArgs(BaseModel):
         default="topology_summary.json",
         description="Filename used to store the topology summary JSON",
     )
-    data_uri: Path = Field(
+    data_in: Path = Field(
         default_factory=lambda: Path("~/data/network_sim"),
         description="Directory where generated artefacts are written",
     )
 
-    @field_validator("data_uri", mode="before")
+    @field_validator("data_in", mode="before")
     @classmethod
-    def _coerce_data_uri(cls, value: Any) -> Path:
+    def _coerce_data_in(cls, value: Any) -> Path:
         if isinstance(value, Path):
             return value
         if isinstance(value, str):
             return Path(value)
-        raise TypeError("data_uri must be a string or Path value")
+        raise TypeError("data_in must be a string or Path value")
 
     def to_toml_payload(self) -> dict[str, Any]:
         """Return a TOML-friendly representation (Path/date → str)."""
@@ -63,7 +71,7 @@ class NetworkSimArgs(BaseModel):
 
 class NetworkSimArgsTD(TypedDict, total=False):
     data_source: str
-    data_uri: str
+    data_in: str
     net_size: int
     seed: int
     topology_filename: str
@@ -94,7 +102,7 @@ def apply_source_defaults(
 
     overrides: NetworkSimArgsTD = {}
     if args.data_source == "file":
-        if not str(args.data_uri).strip():
+        if not str(args.data_in).strip():
             default_path = Path("data/network_sim/dataset")
             if env is not None:
                 try:
@@ -104,7 +112,7 @@ def apply_source_defaults(
                     default_path = default_path.expanduser()
             else:
                 default_path = default_path.expanduser()
-            overrides["data_uri"] = str(default_path)
+            overrides["data_in"] = str(default_path)
     else:
         if host_ip:
             host = host_ip
@@ -114,9 +122,9 @@ def apply_source_defaults(
             except OSError:
                 host = "127.0.0.1"
         default_uri = f"https://admin:admin@{host}:9200/"
-        current_uri = str(args.data_uri)
+        current_uri = str(args.data_in)
         if not current_uri.strip() or current_uri == "data/network_sim/dataset":
-            overrides["data_uri"] = default_uri
+            overrides["data_in"] = default_uri
 
     return merge_args(args, overrides) if overrides else args
 

@@ -10,7 +10,7 @@ from typing import Any, Literal, TypedDict
 
 import tomli
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from agi_env.app_args import (
     dump_model_to_toml,
@@ -30,8 +30,17 @@ class FlightArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy_keys(cls, data: Any):
+        if isinstance(data, dict) and "data_uri" in data and "data_in" not in data:
+            data = dict(data)
+            data["data_in"] = data.pop("data_uri")
+        return data
+
     data_source: Literal["file", "hawk"] = "file"
-    data_uri: Path = Field(default_factory=lambda: Path("data/flight/dataset"))
+    data_in: Path = Field(default_factory=lambda: Path("data/flight/dataset"))
+    data_out: Path | None = None
     files: str = "*"
     nfile: int = Field(default=1, ge=0)
     nskip: int = Field(default=0, ge=0)
@@ -41,14 +50,47 @@ class FlightArgs(BaseModel):
     datemax: date = Field(default_factory=lambda: date(2021, 1, 1))
     output_format: Literal["parquet", "csv"] = "parquet"
 
-    @field_validator("data_uri", mode="before")
+    @field_validator("data_in", mode="before")
     @classmethod
-    def _coerce_data_uri(cls, value: Any) -> Path:
+    def _coerce_data_in(cls, value: Any) -> Path:
         if isinstance(value, Path):
             return value
         if isinstance(value, str):
             return Path(value)
-        raise TypeError("data_uri must be a string or Path value")
+        raise TypeError("data_in must be a string or Path value")
+
+    @field_validator("data_in", mode="before")
+    @classmethod
+    def _coerce_data_in(cls, value: Any) -> Path:
+        if isinstance(value, Path):
+            return value
+        if isinstance(value, str):
+            return Path(value)
+        raise TypeError("data_in must be a string or Path value")
+
+    @field_validator("data_out", mode="before")
+    @classmethod
+    def _coerce_data_out(cls, value: Any) -> Path | None:
+        if value in (None, ""):
+            return None
+        if isinstance(value, Path):
+            return value
+        if isinstance(value, str):
+            return Path(value)
+        raise TypeError("data_out must be a string, Path, or None")
+
+    @model_validator(mode="after")
+    def _default_data_out(self) -> "FlightArgs":
+        if self.data_out is None:
+            self.data_out = self.data_in.parent / "dataframe"
+        return self
+
+    @field_validator("nfile")
+    @classmethod
+    def _expand_nfile(cls, value: int) -> int:
+        if value == 0:
+            return 999_999_999_999
+        return value
 
     @field_validator("datemin")
     @classmethod
@@ -87,7 +129,8 @@ class FlightArgs(BaseModel):
 
 class FlightArgsTD(TypedDict, total=False):
     data_source: str
-    data_uri: str
+    data_in: str
+    data_out: str
     files: str
     nfile: int
     nskip: int
@@ -122,8 +165,8 @@ def apply_source_defaults(
 
     overrides: FlightArgsTD = {}
     if args.data_source == "file":
-        if not str(args.data_uri).strip():
-            overrides["data_uri"] = "data/flight/dataset"
+        if not str(args.data_in).strip():
+            overrides["data_in"] = "data/flight/dataset"
         if not args.files:
             overrides["files"] = "*"
     else:
@@ -135,9 +178,9 @@ def apply_source_defaults(
             except OSError:
                 host = "127.0.0.1"
         default_uri = f"https://admin:admin@{host}:9200/"
-        current_uri = str(args.data_uri)
+        current_uri = str(args.data_in)
         if not current_uri.strip() or current_uri == "data/flight/dataset":
-            overrides["data_uri"] = default_uri
+            overrides["data_in"] = default_uri
         if not args.files or args.files == "*":
             overrides["files"] = "hawk.user-admin.1"
 

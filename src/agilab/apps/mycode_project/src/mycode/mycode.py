@@ -37,11 +37,12 @@ class Mycode(BaseWorker):
         args = ensure_defaults(args, env=env)
         self.args = args
 
-        data_uri = Path(args.data_uri).expanduser()
-        data_uri.mkdir(parents=True, exist_ok=True)
+        data_in = self._resolve_data_dir(env, args.data_in)
+        data_in.mkdir(parents=True, exist_ok=True)
+        self.args.data_in = data_in
 
         payload = args.model_dump(mode="json")
-        payload["dir_path"] = str(data_uri)
+        payload["dir_path"] = str(data_in)
         WorkDispatcher.args = payload
 
     @classmethod
@@ -66,7 +67,7 @@ class Mycode(BaseWorker):
 
     def as_dict(self) -> dict[str, Any]:
         payload = self.args.model_dump(mode="json")
-        payload["dir_path"] = str(Path(self.args.data_uri).expanduser())
+        payload["dir_path"] = str(self.args.data_in)
         return payload
 
     @staticmethod

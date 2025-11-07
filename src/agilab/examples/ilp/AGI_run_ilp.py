@@ -23,7 +23,7 @@ async def main():
                         mode=11, 
                         scheduler=None, 
                         workers=None, 
-                        topology="topo3N", num_demands=3, seed=42, demand_scale=1.0, data_uri="data/ilp")
+                        topology="topo3N", num_demands=3, seed=42, demand_scale=1.0, data_in="data/ilp")
     print(res)
     return res
 
