@@ -1,5 +1,5 @@
 [args]
-data_uri = "~/data/FireducksApp"
+data_in = "~/data/FireducksApp"
 
 [cluster]
 verbose = true
