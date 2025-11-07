@@ -85,10 +85,18 @@ def update_log(live_log_placeholder, message, max_lines=1000):
         lines = lines[-max_lines:]
         st.session_state["log_text"] = "\n".join(lines) + "\n"
 
-    # Calculate height in pixels roughly: 20px per line, capped at 500px
-    height_px = min(20 * len(lines), 500)
+    display_lines = lines[-LOG_DISPLAY_MAX_LINES:]
+    header_lines = ["[newest entries first]"]
+    if len(lines) > LOG_DISPLAY_MAX_LINES:
+        header_lines.append(f"[showing last {LOG_DISPLAY_MAX_LINES} of {len(lines)} lines]")
 
-    live_log_placeholder.code(st.session_state["log_text"], language="python", height=height_px)
+    live_view = "\n".join(header_lines + list(reversed(display_lines)))
+
+    # Calculate height in pixels roughly: 20px per line, capped at 500px (but keep a usable minimum)
+    line_count = max(len(display_lines), 1)
+    height_px = min(max(20 * line_count, LIVE_LOG_MIN_HEIGHT), 500)
+
+    live_log_placeholder.code(live_view, language="python", height=height_px)
 
 
 
@@ -124,6 +132,24 @@ def _looks_like_shared_path(path: Path) -> bool:
     return resolved.is_absolute()
 
 
+LOG_DISPLAY_MAX_LINES = 250
+LIVE_LOG_MIN_HEIGHT = 160
+
+
+def _format_log_block(text: str, *, newest_first: bool = True) -> str:
+    """Return a trimmed/ordered view of the provided multiline text."""
+    if not text:
+        return ""
+    lines = text.splitlines()
+    head = ""
+    if len(lines) > LOG_DISPLAY_MAX_LINES:
+        head = f"[showing last {LOG_DISPLAY_MAX_LINES} lines]\n"
+    tail = lines[-LOG_DISPLAY_MAX_LINES:]
+    if newest_first:
+        tail = list(reversed(tail))
+    return head + "\n".join(tail)
+
+
 def display_log(stdout, stderr):
     # Use cached log if stdout empty
     if not stdout.strip() and "log_text" in st.session_state:
@@ -141,12 +167,12 @@ def display_log(stdout, stderr):
 
     if "warning:" in combined.lower():
         st.warning("Warnings occurred during cluster installation:")
-        st.code(combined, language="python", height=400)
+        st.code(_format_log_block(combined), language="python", height=400)
     elif clean_stderr:
         st.error("Errors occurred during cluster installation:")
-        st.code(clean_stderr, language="python", height=400)
+        st.code(_format_log_block(clean_stderr, newest_first=False), language="python", height=400)
     else:
-        st.code(clean_stdout or "No logs available", language="python", height=400)
+        st.code(_format_log_block(clean_stdout, newest_first=True) or "No logs available", language="python", height=400)
 
 
 def parse_benchmark(benchmark_str):
@@ -443,7 +469,8 @@ def render_cluster_settings_ui():
                 AgiEnv.set_env_var(key, normalized)
 
         share_root = getattr(env, "AGILAB_SHARE", None)
-        share_candidate = None
+        share_candidate: Optional[Path] = None
+        share_resolved: Optional[Path] = None
         if isinstance(share_root, Path):
             share_candidate = share_root
         elif isinstance(share_root, str) and share_root.strip():
@@ -458,6 +485,19 @@ def render_cluster_settings_ui():
                 share_resolved = share_candidate.resolve()
             except Exception:
                 share_resolved = share_candidate
+        else:
+            is_symlink = False
+
+        if share_candidate is not None:
+            if share_resolved and share_resolved != share_candidate:
+                share_display = f"{share_candidate} → {share_resolved}"
+            else:
+                share_display = str(share_candidate)
+        else:
+            share_display = (
+                "not set. Set `AGI_SHARE_DIR` to a shared mount (or symlink to one) so remote workers can read outputs."
+            )
+        st.markdown(f"**agi_share_dir:** {share_display}")
 
         # per-project widget key & seeding; do not also pass value=
         scheduler_widget_key = f"cluster_scheduler__{env.app}"
@@ -1423,38 +1463,38 @@ if __name__ == "__main__":
 
             expand_benchmark = st.session_state.pop("_benchmark_expand", False)
             with st.expander("Benchmark results", expanded=expand_benchmark):
-                if run_mode is None:
-                    try:
-                        if env.benchmark.exists():
-                            with open(env.benchmark, "r") as f:
-                                raw = json.load(f) or {}
+                try:
+                    if env.benchmark.exists():
+                        with open(env.benchmark, "r") as f:
+                            raw = json.load(f) or {}
 
-                            # Pull out a date if present, so it doesn't break the DF shape
-                            date_value = str(raw.pop("date", "") or "").strip()
+                        # Pull out a date if present, so it doesn't break the DF shape
+                        date_value = str(raw.pop("date", "") or "").strip()
 
-                            benchmark_df = pd.DataFrame.from_dict(raw, orient='index')
+                        benchmark_df = pd.DataFrame.from_dict(raw, orient='index')
 
-                            df_nonempty = benchmark_df.dropna(how='all')
-                            if not df_nonempty.empty:
-                                df_nonempty = df_nonempty.loc[:, df_nonempty.notna().any(axis=0)]
-                            if not df_nonempty.empty and df_nonempty.shape[1] > 0:
-                                if not date_value:
-                                    try:
-                                        ts = os.path.getmtime(env.benchmark)
-                                        date_value = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
-                                    except Exception:
-                                        date_value = ""
+                        df_nonempty = benchmark_df.dropna(how='all')
+                        if not df_nonempty.empty:
+                            df_nonempty = df_nonempty.loc[:, df_nonempty.notna().any(axis=0)]
+                        if not df_nonempty.empty and df_nonempty.shape[1] > 0:
+                            if not date_value:
+                                try:
+                                    ts = os.path.getmtime(env.benchmark)
+                                    date_value = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+                                except Exception:
+                                    date_value = ""
 
-                                if date_value:
-                                    st.caption(f"Benchmark date: {date_value}")
+                            if date_value:
+                                st.caption(f"Benchmark date: {date_value}")
 
-                                st.dataframe(df_nonempty)
+                            st.dataframe(df_nonempty)
                         else:
-                            st.error("program abort before all mode have been run")
-                            st.session_state['benchmark_reset_pending'] = True
+                            st.info("Benchmark file is present but empty. Run the benchmark to collect data.")
+                    else:
+                        st.info("No benchmark results yet. Enable 'Benchmark all modes' and run EXECUTE to gather data.")
 
-                    except json.JSONDecodeError as e:
-                        st.warning(f"Error decoding JSON: {e}")
+                except json.JSONDecodeError as e:
+                    st.warning(f"Error decoding JSON: {e}")
 
         existing_run_log = st.session_state.get("run_log_cache", "").strip()
         run_log_expander = None
@@ -1540,7 +1580,7 @@ if __name__ == "__main__":
             _attach_root(getattr(env, "data_rel", None))
 
             active_args = st.session_state.app_settings.get("args", {})
-            _attach_root(active_args.get("data_uri"))
+            _attach_root(active_args.get("data_in"))
 
             # Remove duplicates while preserving order
             unique_roots: list[Path] = []

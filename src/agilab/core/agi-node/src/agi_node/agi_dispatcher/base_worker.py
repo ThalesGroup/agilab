@@ -130,6 +130,7 @@ class BaseWorker(abc.ABC):
         *,
         env: AgiEnv | None = None,
     ) -> Any:
+        cls._ensure_managed_pc_share_dir(env)
         fields = getattr(cls, "managed_pc_path_fields", ())
         if not fields:
             return args
@@ -147,6 +148,43 @@ class BaseWorker(abc.ABC):
 
     def _apply_managed_pc_paths(self, args: Any) -> Any:
         return type(self)._apply_managed_pc_path_overrides(args, env=self.env)
+
+    @classmethod
+    def _ensure_managed_pc_share_dir(cls, env: AgiEnv | None) -> None:
+        if env is None:
+            return
+        if not getattr(env, "_is_managed_pc", AgiEnv._is_managed_pc):
+            return
+
+        home = Path.home()
+        managed_root = home / cls.managed_pc_home_suffix
+
+        agi_share_dir = getattr(env, "agi_share_dir", None)
+        if agi_share_dir is None:
+            return
+
+        try:
+            env.agi_share_dir = Path(
+                str(Path(agi_share_dir)).replace(str(home), str(managed_root))
+            )
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug(
+                "Failed to remap agi_share_dir for managed PC", exc_info=True
+            )
+
+    @classmethod
+    def _resolve_data_dir(cls, env: AgiEnv | None, data_value: Path | str) -> Path:
+        cls._ensure_managed_pc_share_dir(env)
+        candidate = Path(data_value).expanduser()
+        if candidate.is_absolute():
+            resolved = candidate
+        else:
+            base = getattr(env, "agi_share_dir", getattr(env, "home_abs", Path.home()))
+            resolved = Path(base).expanduser() / candidate
+        try:
+            return resolved.resolve(strict=False)
+        except Exception:
+            return resolved.expanduser()
 
     def prepare_output_dir(
         self,
@@ -488,15 +526,15 @@ class BaseWorker(abc.ABC):
             return normalize_path(expanded_path)
 
     @staticmethod
-    def normalize_data_uri(data_uri: Union[str, Path]) -> str:
-        """Normalise a data URI so workers can rely on consistent paths."""
+    def normalize_dataset_path(data_path: Union[str, Path]) -> str:
+        """Normalise any dataset directory input so workers rely on consistent paths."""
 
-        data_uri_str = str(data_uri)
+        data_in_str = str(data_path)
 
-        if os.name == "nt" and data_uri_str.startswith("\\\\"):
-            candidate = Path(PureWindowsPath(data_uri_str))
+        if os.name == "nt" and data_in_str.startswith("\\\\"):
+            candidate = Path(PureWindowsPath(data_in_str))
         else:
-            candidate = Path(data_uri_str).expanduser()
+            candidate = Path(data_in_str).expanduser()
             if not candidate.is_absolute():
                 candidate = (Path.home() / candidate).expanduser()
             try:
@@ -758,6 +796,7 @@ class BaseWorker(abc.ABC):
                 BaseWorker.env = env
             else:
                 BaseWorker.env = AgiEnv(app=app, verbose=verbose)
+            BaseWorker._ensure_managed_pc_share_dir(BaseWorker.env)
 
             # import of derived Class of WorkDispatcher, name target_inst which is typically an instance of MyCode
             worker_class = BaseWorker._load_worker(mode)

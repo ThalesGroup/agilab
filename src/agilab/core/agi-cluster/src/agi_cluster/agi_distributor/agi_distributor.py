@@ -560,11 +560,22 @@ class AGI:
         runs = {}
         if env.benchmark.exists():
             os.remove(env.benchmark)
-        for m in mode_range:
-            # Determine which run mode to use.
-            run_mode = m & rapids_mode_mask if rapids_enabled else m
+        local_modes = [m for m in mode_range if not (m & AGI.DASK_MODE)]
+        dask_modes = [m for m in mode_range if m & AGI.DASK_MODE]
 
-            # Run the target with the current mode.
+        async def _record(run_value: str, key: int) -> None:
+            runtime = run_value.split()
+            if len(runtime) < 2:
+                raise ValueError(f"Unexpected run format: {run_value}")
+            runtime_float = float(runtime[1])
+            runs[key] = {
+                "mode": runtime[0],
+                "timing": humanize.precisedelta(timedelta(seconds=runtime_float)),
+                "seconds": runtime_float,
+            }
+
+        for m in local_modes:
+            run_mode = m & rapids_mode_mask
             run = await AGI.run(
                 env,
                 scheduler=scheduler,
@@ -573,20 +584,18 @@ class AGI:
                 **args,
             )
             if isinstance(run, str):
-                # Assume run string splits into two parts:
-                #  runtime[0] -> an identifying string for the mode,
-                #  runtime[1] -> the time in seconds as a float
-                runtime = run.split()
-                if len(runtime) < 2:
-                    raise ValueError(f"Unexpected run format: {run}")
-                runtime_float = float(runtime[1])
+                await _record(run, m)
 
-                # Store in dictionary with key m
-                runs[m] = {
-                    "mode": runtime[0],
-                    "timing": humanize.precisedelta(timedelta(seconds=runtime_float)),
-                    "seconds": runtime_float,
-                }
+        if dask_modes:
+            await AGI._benchmark_dask_modes(
+                env,
+                scheduler,
+                workers,
+                dask_modes,
+                rapids_mode_mask,
+                runs,
+                **args,
+            )
 
         # Sort the runs by "seconds" (fastest to slowest) and assign order values.
         ordered_runs = sorted(runs.items(), key=lambda item: item[1]["seconds"])
@@ -614,6 +623,50 @@ class AGI:
             json.dump(runs_str_keys, f)
 
         return json.dumps(runs_str_keys)
+
+    @staticmethod
+    async def _benchmark_dask_modes(
+        env: AgiEnv,
+        scheduler: Optional[str],
+        workers: Optional[Dict[str, int]],
+        mode_range: List[int],
+        rapids_mode_mask: int,
+        runs: Dict[int, Dict[str, Any]],
+        **args: Any,
+    ) -> None:
+        """Run all Dask-enabled modes without tearing down the cluster between runs."""
+        workers_dict = workers or _workers_default
+
+        AGI.env = env
+        AGI.target_path = env.manager_path
+        AGI._target = env.target
+        AGI._workers = workers_dict
+        AGI._args = args
+        AGI._rapids_enabled = bool(rapids_mode_mask == AGI._RAPIDS_SET)
+
+        first_mode = mode_range[0] & rapids_mode_mask
+        AGI._mode = first_mode
+        await AGI._start(scheduler)
+        try:
+            for m in mode_range:
+                run_mode = m & rapids_mode_mask
+                AGI._mode = run_mode
+                run = await AGI._distribute()
+                AGI._update_capacity()
+                if isinstance(run, str):
+                    runtime = run.split()
+                    if len(runtime) < 2:
+                        raise ValueError(f"Unexpected run format: {run}")
+                    runtime_float = float(runtime[1])
+                    runs[m] = {
+                        "mode": runtime[0],
+                        "timing": humanize.precisedelta(
+                            timedelta(seconds=runtime_float)
+                        ),
+                        "seconds": runtime_float,
+                    }
+        finally:
+            await AGI._stop()
 
     @staticmethod
     def get_default_local_ip() -> str:
@@ -926,6 +979,27 @@ class AGI:
                     logger.error(err)
 
         return last_res
+
+    @staticmethod
+    async def _wait_for_port_release(ip: str, port: int, timeout: float = 5.0, interval: float = 0.2) -> bool:
+        """Poll until no process is listening on (ip, port)."""
+        ip = ip or socket.gethostbyname("localhost")
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                sock.bind((ip, port))
+            except OSError:
+                await asyncio.sleep(interval)
+            else:
+                sock.close()
+                return True
+            finally:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+        return False
 
     @staticmethod
     def _clean_dirs_local() -> None:
@@ -2059,7 +2133,29 @@ class AGI:
 
             toml_local = env.active_app / "pyproject.toml"
             wenv_rel = env.wenv_rel
-            wenv_abs = env.wenv_abs
+        else:
+            toml_local = env.active_app / "pyproject.toml"
+            wenv_rel = env.wenv_rel
+        wenv_abs = env.wenv_abs
+        if env.is_local(AGI._scheduler_ip):
+            released = await AGI._wait_for_port_release(AGI._scheduler_ip, AGI._scheduler_port)
+            if not released:
+                new_port = AGI.find_free_port()
+                logger.warning(
+                    "Scheduler port %s:%s still busy. Switching scheduler port to %s.",
+                    AGI._scheduler_ip,
+                    AGI._scheduler_port,
+                    new_port,
+                )
+                AGI._scheduler_port = new_port
+                AGI._scheduler = f"{AGI._scheduler_ip}:{AGI._scheduler_port}"
+            elif AGI._mode_auto:
+                # Rotate ports between benchmark iterations to avoid TIME_WAIT collisions.
+                new_port = AGI.find_free_port()
+                AGI._scheduler_ip, AGI._scheduler_port = AGI._get_scheduler(
+                    {AGI._scheduler_ip: new_port}
+                )
+
         cmd_prefix = env.envars.get(f"{AGI._scheduler_ip}_CMD_PREFIX", "")
         if not cmd_prefix:
             try:
@@ -2625,7 +2721,27 @@ class AGI:
             workers_info[ipport] = info
 
         AGI.workers_info = workers_info
-        cap_min = min(AGI._capacity.values())
+        if not AGI._capacity:
+            fallback_keys = list(workers_info.keys())
+            if not fallback_keys:
+                fallback_keys = [
+                    worker.split("://")[-1] for worker in (AGI._dask_workers or [])
+                ]
+            if not fallback_keys and AGI._workers:
+                for ip, count in AGI._workers.items():
+                    for idx in range(count):
+                        fallback_keys.append(f"{ip}:{idx}")
+            if not fallback_keys:
+                fallback_keys = ["localhost:0"]
+            logger.warning(
+                "Capacity predictor returned no data; assuming uniform capacity for %s worker(s).",
+                len(fallback_keys),
+            )
+            if not workers_info:
+                AGI.workers_info = {ipport: {"label": 1.0} for ipport in fallback_keys}
+            AGI._capacity = {ipport: 1.0 for ipport in fallback_keys}
+
+        cap_min = min(AGI._capacity.values()) if AGI._capacity else 1.0
         workers_capacity = {}
 
         for ipport, pred_cap in AGI._capacity.items():
